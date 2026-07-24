@@ -40,10 +40,22 @@ public static class Patch_ShadowDirection
         {
             // Sun is physically below the horizon (past atmospheric refraction). Vanilla's "night"
             // branch here (the folded, num2 == -0.9f curve) renders a second shadow meant to
-            // represent moonlight, but it isn't tied to any real moon position — until
-            // GameComponent_MoonPhase exists to drive an actual moon-cast shadow, suppress it
-            // entirely rather than show a fake one.
-            __result.intensity = 0f;
+            // represent moonlight, but it isn't tied to any real moon position. Now that
+            // GameComponent_MoonPhase exists we drive a *real* moon-cast shadow: if the moon is up
+            // and illuminated, MoonPosition.ShadowForMap returns its (position-derived) vector and
+            // faint strength; otherwise (moon down, or new moon) it returns null and we suppress the
+            // shadow entirely rather than show a fake one. Patch_ShadowStrength consults the same
+            // MoonPosition adapter, so the shader alpha it sets always agrees with this vector.
+            (Vector2 vector, float strength)? moonShadow = MoonPosition.ShadowForMap(map);
+            if (moonShadow.HasValue)
+            {
+                __result.vector = moonShadow.Value.vector;
+                __result.intensity = moonShadow.Value.strength;
+            }
+            else
+            {
+                __result.intensity = 0f;
+            }
             return;
         }
 

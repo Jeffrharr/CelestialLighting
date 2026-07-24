@@ -238,7 +238,7 @@ with `Formulas.ShadowIntensityFromElevation(elevation)` — the same function
 `Source/SolarPosition.cs`, a thin adapter shared by both patches) — so the two can never disagree
 about whether the sun is up the way this bug let them.
 
-## 6. Moon position (`GameComponent_MoonPhase`) — planned
+## 6. Moon position (`GameComponent_MoonPhase`) — implemented (moonlight consumer deferred to §7)
 
 Subsystems 1 and 5 already suppress vanilla's fake, position-less night/moon shadow (see section 1),
 leaving a gap this subsystem fills: a *real* moon with a position in the sky, so night can be lit
@@ -279,6 +279,23 @@ other (the same discipline `SolarPosition.cs` already enforces for the sun acros
 Clean-room note: elongation→phase and synodic-period→ecliptic-longitude are standard textbook lunar
 approximations, the lunar counterpart of the sun math already justified under "Clean-room
 provenance" — no external mod referenced.
+
+**Implementation.** The pure core lives in `Source/MoonMath.cs` (System-only, linked into the test
+project the same way `Formulas.cs` is): synodic cycle position from the absolute tick count,
+elongation, illuminated fraction `(1 - cos elongation) / 2`, the eight-way `MoonPhase` enum, and the
+moon's on-the-ecliptic declination/hour-angle. Position deliberately reuses `Formulas`' own solar
+equations — the moon's declination mirrors `DeclinationSign` evaluated at (sun angle + elongation),
+and its "day percent" is the sun's lagged by the elongation, so `SolarElevationDegrees`/
+`SolarAzimuthDegrees` compute the moon exactly as they do the sun (at new moon the two collapse to
+the same values, verified in `MoonMathTests`). `GameComponent_MoonPhase` is the game-wide single
+moon (one shared cycle, no per-tick state — it is derived from `Find.TickManager.TicksAbs`, with only
+the configurable cycle length persisted); `Source/MoonPosition.cs` is the per-map adapter that
+combines that cycle with the map tile's latitude. Of the two consumers, **moon-cast shadows are
+wired in**: `Patch_ShadowDirection`/`Patch_ShadowStrength`'s below-horizon night branches now defer
+to `MoonPosition.ShadowForMap`, so a real moon casts a faint, phase-scaled shadow where they
+previously suppressed vanilla's fake one. **Moonlight is exposed but not yet consumed** —
+`MoonPosition.MoonlightBrightnessForMap` returns a normalized 0–1 scalar marked with a
+`TODO(integration)` for §7 to sum with its starlight/airglow floors.
 
 ## 7. Night-sky radiance: stars, airglow, moonlight (planned)
 

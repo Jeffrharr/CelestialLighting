@@ -115,6 +115,42 @@ public class ApiCompatibilityTests
         }
     }
 
+    // --- GameComponent / Game / GenDate (GameComponent_MoonPhase, MoonPosition) ---
+
+    [Test]
+    public void GameComponent_IsAbstractExposableBase()
+    {
+        var type = GetType("Verse.GameComponent");
+        Assert.That(type, Is.Not.Null, "Verse.GameComponent no longer exists — GameComponent_MoonPhase's base class is gone");
+        Assert.That(type!.IsAbstract, Is.True, "Verse.GameComponent is no longer abstract");
+        Assert.That(type.Interfaces.Any(i => i.InterfaceType.FullName == "Verse.IExposable"), Is.True,
+            "Verse.GameComponent no longer implements IExposable — ExposeData override will silently detach");
+        Assert.That(type.Methods.Any(m => m.Name == "ExposeData" && m.IsVirtual), Is.True,
+            "GameComponent.ExposeData is no longer virtual — our override would silently stop running");
+    }
+
+    [Test]
+    public void Game_GetComponentGeneric_Exists()
+    {
+        var type = GetType("Verse.Game");
+        Assert.That(type, Is.Not.Null, "Verse.Game no longer exists");
+        var method = type!.Methods.SingleOrDefault(m =>
+            m.Name == "GetComponent" && m.HasGenericParameters && m.Parameters.Count == 0);
+        Assert.That(method, Is.Not.Null,
+            "Game.GetComponent<T>() no longer exists — GameComponent_MoonPhase.Current can't resolve the moon component");
+    }
+
+    [Test]
+    public void GenDate_TicksPerDay_Is60000()
+    {
+        var type = GetType("RimWorld.GenDate");
+        Assert.That(type, Is.Not.Null);
+        var field = type!.Fields.SingleOrDefault(f => f.Name == "TicksPerDay");
+        Assert.That(field, Is.Not.Null, "GenDate.TicksPerDay no longer exists");
+        Assert.That(field!.Constant, Is.EqualTo(60000),
+            "GenDate.TicksPerDay changed — GameComponent_MoonPhase converts the synodic period in days to ticks with it");
+    }
+
     // --- GenLocalDate (Patch_ShadowDirection) ---
 
     [Test]
