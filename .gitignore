@@ -6,5 +6,5 @@ TestMod/1.6/Assemblies/
 TestMod/obj/
 TestMod/bin/
 .tokensave/
-.claude/settings.local.json
+.claude/
 1.6/Assemblies/0Harmony.dll
