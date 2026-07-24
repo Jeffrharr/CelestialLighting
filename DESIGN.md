@@ -374,22 +374,46 @@ only active while `NightRadiance` is (the darkening is defined relative to §7's
 it shares the `MatBases.LightOverlay`/`FogOfWar` globals RimWorld itself rewrites every frame, and only
 reads them after vanilla sets them, so it composes rather than races; visual-only, no gameplay math.
 
-## 8. Sky colour-temperature curve (planned)
+## 8. Sky colour-temperature curve (`Patch_SkyColorTemperature`)
 
 Subsystem 2 warms the sky toward a single fixed hue inside one twilight band. This generalizes that
-into a continuous **colour-temperature curve keyed on sun altitude**: the sky and direct sunlight
-shift from a warm low-colour-temperature glow near the horizon (~2000 K) up to a neutral daylight
-white near the zenith (~5772 K, the Sun's actual effective temperature), passing through the
-familiar golden-hour warmth on the way. This is the physically-grounded version of "dramatic
-seasonal twilight" — because day length and peak sun altitude already vary with latitude and season
-(vanilla `GenCelestial` + our own simulator), a high-latitude winter day that never lifts the sun
-far above the horizon *stays* warm all day, for free.
+into a continuous **colour-temperature curve keyed on sun altitude**: the sky shifts from a warm
+low-colour-temperature glow near the horizon (~2000 K) up to a neutral daylight white near the
+zenith (~5772 K, the Sun's actual effective temperature), passing through the familiar golden-hour
+warmth on the way. This is the physically-grounded version of "dramatic seasonal twilight" — because
+day length and peak sun altitude already vary with latitude and season (vanilla `GenCelestial` + our
+own simulator), a high-latitude winter day that never lifts the sun far above the horizon *stays*
+warm all day, for free — the tint is a function of altitude alone.
 
-Blackbody colour temperature → RGB is a standard tabulated conversion (textbook, not
-mod-specific). It composes with subsystem 2 rather than replacing it: §2's dusk/dawn warm nudge can
-become one anchor point on this curve. Critically it stays in the same low-risk lane as §2 — it
-blends `WeatherWorker.CurSkyTarget`'s **colour only, never `.glow`** — so it does not disturb the
-brightness other mods read (see "Conflict risk").
+A Harmony Postfix on `WeatherWorker.CurSkyTarget` nudges (never replaces) `__result.colors.sky` and
+`.overlay` toward a blackbody colour derived from the current sun elevation. All the math is pure and
+offline-tested in `Source/SkyColorTemperature.cs` (no `UnityEngine`/`Verse` deps, linked into the
+test project like `Formulas.cs`):
+
+- `ColorTemperatureKelvin(elevation)` — a monotonic linear ramp from `HorizonKelvin` (2000 K, at/below
+  the horizon) to `ZenithKelvin` (5772 K, at/above `DaylightAltitudeDegrees` = 60°).
+- `BlackbodyToRgb(kelvin)` — the widely published, public-domain Tanner Helland approximation of the
+  Planckian locus (a standard tabulated/curve-fit conversion, textbook not mod-specific — see
+  "Clean-room provenance"). Split into three small per-channel functions so the piecewise structure
+  reads top-to-bottom.
+- `TintStrength(elevation)` — the geometric blend factor in `[0, 1]`: the product of a low-sun ramp
+  (1 at the horizon → 0 by 60°, so high sun gets no tint) and a civil-twilight gate (fading out
+  between the refraction-adjusted horizon and −6°, so night — subsystem 7's domain — isn't tinted
+  warm). The adapter multiplies this by per-channel blend strengths (sky 0.35 / overlay 0.25),
+  mirroring `Patch_TwilightColor`.
+
+The adapter re-derives sun elevation from `SolarPosition.ElevationForMap(map)` (our own simulator),
+not from `__result.glow` — for the same reason as §2 (glow may already be weather-clamped, which
+would make the tint track brightness instead of true sun position). It touches neither `.saturation`
+(that's §2's job) nor `.glow`.
+
+Composition with §2: both Postfixes run on the same call and both warm the sky at low sun. That's
+intentional — §2's dusk/dawn nudge is one concentrated anchor point (a narrow band around
+`sunGlow ≈ 0.35`) and this adds the broader altitude-driven tint around it. Critically it stays in
+the same low-risk lane as §2 — **colour only, never `.glow`** — so it does not disturb the brightness
+other mods read (see "Conflict risk"). Every vanilla member it depends on
+(`WeatherWorker.CurSkyTarget`, `SkyColorSet.sky`/`.overlay`, and the `SolarPosition` inputs) is
+already covered by `ApiCompatibilityTests` for §2 and §1, so no new API assertions were needed.
 
 ## 9. Low-light desaturation / Purkinje shift (`Patch_LowLightDesaturation`)
 

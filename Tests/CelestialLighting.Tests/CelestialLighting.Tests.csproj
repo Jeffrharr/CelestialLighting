@@ -31,6 +31,9 @@
     <Compile Include="../../Source/MoonMath.cs" Link="MoonMath.cs" />
     <Compile Include="../../Source/NightRadianceMath.cs" Link="NightRadianceMath.cs" />
     <Compile Include="../../Source/PurkinjeMath.cs" Link="PurkinjeMath.cs" />
+    <!-- Subsystem 8 pure core. Depends on Formulas.AtmosphericRefractionDegrees, so Formulas.cs
+         above must be linked too (it already is). -->
+    <Compile Include="../../Source/SkyColorTemperature.cs" Link="SkyColorTemperature.cs" />
   </ItemGroup>
 
 </Project>
