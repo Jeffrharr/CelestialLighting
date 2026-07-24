@@ -9,6 +9,17 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Krafs.Rimworld.Ref" Version="1.6.*" />
-    <PackageReference Include="Lib.Harmony" Version="2.3.*" />
+    <!-- Compile-time only: we depend on the standalone brrainz.harmony Workshop mod (declared as a
+         hard <modDependencies> requirement in About.xml) providing 0Harmony.dll at runtime instead
+         of bundling our own copy, which would risk two different Harmony versions loading into the
+         same AppDomain if the user also has another mod that bundles its own. -->
+    <PackageReference Include="Lib.Harmony" Version="2.3.*" ExcludeAssets="runtime" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Probes/ implements RimWorldTestHarness.Mod.Probes.IProbe for the dev-only live test
+         harness. The shipped mod DLL must never reference that harness, so this file is compiled
+         separately into ../TestMod/CelestialLighting.Probes.csproj instead — see
+         RimWorldTestHarness/DESIGN.md's "Where probe tests live". -->
+    <Compile Remove="Probes/**/*.cs" />
   </ItemGroup>
 </Project>
