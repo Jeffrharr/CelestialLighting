@@ -11,6 +11,16 @@ namespace CelestialLighting;
 // everywhere. This nudges (never replaces) the returned colors toward a warm target during a
 // latitude-scaled twilight band, so each WeatherDef's own palette (rain/fog/etc.) still reads as
 // distinct — it's just warmed while dusk/dawn is happening.
+//
+// The warm nudge is driven by Formulas.TwilightWarmthFactor, which combines two pieces:
+//   1. the original glow-keyed band (above the horizon, where CurCelestialSunGlow varies), and
+//   2. a civil-twilight persistence term keyed on true solar elevation (below the horizon).
+// Vanilla glow pins to exactly 0 the moment the sun geometrically sets, so keying purely on glow
+// snapped the warm tint off at sunset; piece 2 recovers the "how far below the horizon" the glow
+// value threw away (from our own solar-position simulator) and lets the warmth linger and fade
+// through civil twilight (sun 0 to -6 degrees) the way real dusk does. Both pieces are colour-only
+// — this patch writes SkyTarget.colors and never SkyManager's glow, so night stays exactly as
+// dark as vanilla makes it (glow-reading mods such as Dub's Skylights see an unmodified value).
 [HarmonyPatch(typeof(WeatherWorker), nameof(WeatherWorker.CurSkyTarget))]
 public static class Patch_TwilightColor
 {
@@ -30,10 +40,17 @@ public static class Patch_TwilightColor
         // actually is, independent of what the sky currently looks like.
         float sunGlow = GenCelestial.CurCelestialSunGlow(map);
 
-        // Band width, peak position, and the factor curve itself all live in
-        // Formulas.TwilightFactor, with edge-case unit tests covering the band's edges, its peak,
-        // and how both scale with latitude strength.
-        float twilightFactor = Formulas.TwilightFactor(sunGlow, strength);
+        // Solar elevation from the same shared simulator the shadow patches use
+        // (SolarPosition.ElevationForMap), so twilight timing and shadow timing can never derive a
+        // different sun position from each other. This is what drives the below-horizon
+        // civil-twilight persistence: glow (above) has already clamped to 0 by this point at night,
+        // but elevation keeps going negative, telling us how deep into twilight we are.
+        float elevation = SolarPosition.ElevationForMap(map);
+
+        // Band width, peak position, the civil-twilight persistence band, and the factor curve
+        // itself all live in Formulas, with edge-case unit tests covering the band edges, its peak,
+        // the persistence pulse's boundaries, and how each scales with latitude strength.
+        float twilightFactor = Formulas.TwilightWarmthFactor(sunGlow, elevation, strength);
 
         if (twilightFactor <= 0f)
             return;

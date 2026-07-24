@@ -88,6 +88,95 @@ public class FormulasTests
         Assert.That(below, Is.EqualTo(above).Within(Tolerance));
     }
 
+    // --- TwilightPeakHeight ---
+
+    [TestCase(0f, 0.15f)] // equator floor
+    [TestCase(1f, 0.55f)] // full-strength peak
+    [TestCase(0.5f, 0.35f)]
+    public void TwilightPeakHeight_MatchesExpected(float strength, float expected)
+    {
+        Assert.That(Formulas.TwilightPeakHeight(strength), Is.EqualTo(expected).Within(Tolerance));
+    }
+
+    [Test]
+    public void TwilightPeakHeight_IsTheGlowBandPeak_AtPeakGlow()
+    {
+        // The refactor that extracted TwilightPeakHeight must not change TwilightFactor's peak:
+        // at TwilightPeakGlow the band factor equals the peak height exactly.
+        Assert.That(
+            Formulas.TwilightFactor(Formulas.TwilightPeakGlow, strength: 0.5f),
+            Is.EqualTo(Formulas.TwilightPeakHeight(0.5f)).Within(Tolerance));
+    }
+
+    // --- CivilTwilightPersistence ---
+
+    [TestCase(0f, 0f)] // geometric horizon: pulse starts at 0 so it meets the fading glow band without a jump
+    [TestCase(Formulas.CivilTwilightPeakDegrees, 1f)] // peak of the lingering warmth
+    [TestCase(Formulas.CivilTwilightEndDegrees, 0f)] // end of civil twilight: faded to nothing
+    [TestCase(-1f, 0.5f)] // halfway up the rising limb (0 -> peak at -2)
+    [TestCase(-4f, 0.5f)] // halfway down the falling limb (peak at -2 -> end at -6)
+    public void CivilTwilightPersistence_MatchesExpected(float elevationDegrees, float expected)
+    {
+        Assert.That(Formulas.CivilTwilightPersistence(elevationDegrees), Is.EqualTo(expected).Within(Tolerance));
+    }
+
+    [TestCase(0.5f)] // just above the horizon: daytime, no lingering-twilight term
+    [TestCase(10f)]
+    [TestCase(90f)]
+    public void CivilTwilightPersistence_IsZero_AboveHorizon(float elevationDegrees)
+    {
+        Assert.That(Formulas.CivilTwilightPersistence(elevationDegrees), Is.EqualTo(0f).Within(Tolerance));
+    }
+
+    [TestCase(-6.5f)] // just past civil twilight
+    [TestCase(-20f)]
+    [TestCase(-90f)] // solar nadir
+    public void CivilTwilightPersistence_IsZero_BelowCivilTwilight(float elevationDegrees)
+    {
+        Assert.That(Formulas.CivilTwilightPersistence(elevationDegrees), Is.EqualTo(0f).Within(Tolerance));
+    }
+
+    // --- TwilightWarmthFactor ---
+
+    [Test]
+    public void TwilightWarmthFactor_MatchesGlowBand_AboveHorizon()
+    {
+        // Above the horizon the persistence term is 0, so the combined factor is exactly the
+        // original glow-keyed band — daytime/dusk behaviour is unchanged by this refinement.
+        float glowBand = Formulas.TwilightFactor(Formulas.TwilightPeakGlow, strength: 1f);
+        float combined = Formulas.TwilightWarmthFactor(Formulas.TwilightPeakGlow, elevationDegrees: 20f, strength: 1f);
+        Assert.That(combined, Is.EqualTo(glowBand).Within(Tolerance));
+    }
+
+    [Test]
+    public void TwilightWarmthFactor_LingersAfterSunset_WhereGlowAloneWouldBeZero()
+    {
+        // The whole point of the refinement: with the sun below the horizon vanilla glow has pinned
+        // to 0 (glow band -> 0), yet the combined factor is still positive during civil twilight.
+        float persistencePeak = Formulas.TwilightWarmthFactor(
+            sunGlow: 0f, elevationDegrees: Formulas.CivilTwilightPeakDegrees, strength: 1f);
+        Assert.That(persistencePeak, Is.EqualTo(Formulas.TwilightPeakHeight(1f)).Within(Tolerance));
+    }
+
+    [Test]
+    public void TwilightWarmthFactor_IsZero_AtDeepNight()
+    {
+        // Sun well below civil twilight and glow at 0: no warm tint at all — night is left dark.
+        float factor = Formulas.TwilightWarmthFactor(sunGlow: 0f, elevationDegrees: -30f, strength: 1f);
+        Assert.That(factor, Is.EqualTo(0f).Within(Tolerance));
+    }
+
+    [Test]
+    public void TwilightWarmthFactor_IsContinuous_AcrossTheHorizon()
+    {
+        // Both pieces are ~0 at the horizon (the glow band's left flank reaches 0 there at full
+        // strength, and the persistence pulse starts at 0), so crossing sunset must not produce a
+        // jump in the warm tint. Sample just above and just below and require them to stay close.
+        float justAbove = Formulas.TwilightWarmthFactor(sunGlow: 0.001f, elevationDegrees: 0.05f, strength: 1f);
+        float justBelow = Formulas.TwilightWarmthFactor(sunGlow: 0f, elevationDegrees: -0.05f, strength: 1f);
+        Assert.That(justBelow, Is.EqualTo(justAbove).Within(0.02f));
+    }
+
     // --- SolarDeclinationDegrees ---
 
     [TestCase(0f, -23.44f)] // start of year: winter-pole-favoring, matches DeclinationSign(0) == -1

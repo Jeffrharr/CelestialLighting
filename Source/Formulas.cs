@@ -37,16 +37,75 @@ public static class Formulas
 
     public static float TwilightBandWidth(float strength) => Lerp(0.12f, 0.35f, strength);
 
+    // Peak warm-nudge height at a given latitude strength. Shared by both the above-horizon
+    // glow-keyed band (TwilightFactor) and the below-horizon civil-twilight persistence
+    // (TwilightWarmthFactor) so the two are on the same intensity footing and meet smoothly at the
+    // horizon. Nonzero floor at strength == 0 (== 0.15f) — see TwilightFactor's note.
+    public static float TwilightPeakHeight(float strength) => Lerp(0.15f, 0.55f, strength);
+
     // Peaks at sunGlow == TwilightPeakGlow, falls off linearly to 0 across bandWidth on either
     // side, then scales the peak height by latitude strength. Note this has a nonzero floor even
-    // at strength == 0 (Lerp(0.15f, 0.55f, 0f) == 0.15f, not 0f) — a small warm nudge survives
+    // at strength == 0 (TwilightPeakHeight(0) == 0.15f, not 0f) — a small warm nudge survives
     // exactly at golden hour even on the equator, by design (real equatorial sunsets are a little
     // warm too, just not as extended as high-latitude ones). Callers that want a hard zero at the
     // equator should gate on strength <= 0 themselves, as Patch_TwilightColor does.
     public static float TwilightFactor(float sunGlow, float strength)
     {
         float bandWidth = TwilightBandWidth(strength);
-        return Clamp01(1f - Abs(sunGlow - TwilightPeakGlow) / bandWidth) * Lerp(0.15f, 0.55f, strength);
+        return Clamp01(1f - Abs(sunGlow - TwilightPeakGlow) / bandWidth) * TwilightPeakHeight(strength);
+    }
+
+    // --- Civil-twilight persistence (linger after geometric sunset) ---
+    //
+    // Vanilla's CurCelestialSunGlow is Clamp01(InverseLerp(0, 0.7, sin(elevation))), so it pins to
+    // exactly 0 the instant the sun's geometric elevation crosses the horizon and stays 0 for the
+    // whole night — it carries no information about how far below the horizon the sun is. Because
+    // TwilightFactor above is keyed purely on that glow value, the warm dusk tint necessarily
+    // collapsed to nothing at the geometric-sunset instant, cutting the sky's colour to full night
+    // abruptly. In reality scattered sunlight keeps the sky usefully lit and warm through *civil
+    // twilight* — the sun from 0 down to ~-6 degrees below the horizon, roughly 20-30 min after
+    // sunset at mid-latitudes — so the warmth should linger and fade, not snap off.
+    //
+    // We can't recover "how far below the horizon" from glow, but our own solar-position simulator
+    // computes true elevation directly (SolarElevationDegrees / SolarPosition.ElevationForMap), so
+    // this term is keyed on elevation instead. Deliberately colour-only: it feeds the same warm
+    // colour nudge in Patch_TwilightColor and never touches SkyManager's glow value — night stays
+    // exactly as dark as vanilla makes it (which keeps glow-reading mods like Dub's Skylights
+    // seeing an unmodified brightness), we only warm the hue of that darkening sky.
+
+    // End of civil twilight: sun 6 degrees below the horizon (standard astronomical definition).
+    // Past this, the sky is dark enough that no warm lingering light remains.
+    public const float CivilTwilightEndDegrees = -6f;
+
+    // Where the lingering warmth peaks, a couple degrees below the horizon — the deep-orange/red
+    // part of dusk sits just under the horizon, not at the exact crossing. Between 0 and this the
+    // warmth ramps up (it is 0 at the horizon so it meets the fading glow-keyed band there without
+    // a jump); between this and CivilTwilightEndDegrees it fades back to 0 into full night.
+    public const float CivilTwilightPeakDegrees = -2f;
+
+    // A 0..1 triangular pulse over the civil-twilight band: 0 at and above the geometric horizon
+    // (elevation >= 0), rising to 1 at CivilTwilightPeakDegrees, falling to 0 at
+    // CivilTwilightEndDegrees, and 0 again below that. Written as the clamped min of a rising and a
+    // falling ramp so there is no branching — above the horizon the rising ramp goes negative and
+    // clamps out; below the civil-twilight floor the falling ramp goes negative and clamps out.
+    public static float CivilTwilightPersistence(float elevationDegrees)
+    {
+        float rising = elevationDegrees / CivilTwilightPeakDegrees; // 0 at horizon, 1 at peak, >1 below peak
+        float falling = (elevationDegrees - CivilTwilightEndDegrees)
+            / (CivilTwilightPeakDegrees - CivilTwilightEndDegrees); // 0 at floor, 1 at peak, >1 above peak
+        return Clamp01(Min(rising, falling));
+    }
+
+    // The full warm-tint factor Patch_TwilightColor applies: the larger of the above-horizon
+    // glow-keyed band and the below-horizon civil-twilight persistence, both scaled to the same
+    // latitude-dependent peak height so they meet smoothly at the horizon (where both are ~0).
+    // max (not sum) avoids double-warming in any overlap and keeps the factor bounded by a single
+    // peak height. All colour-only — the caller only ever writes SkyTarget colours, never glow.
+    public static float TwilightWarmthFactor(float sunGlow, float elevationDegrees, float strength)
+    {
+        float glowBand = TwilightFactor(sunGlow, strength);
+        float persistence = CivilTwilightPersistence(elevationDegrees) * TwilightPeakHeight(strength);
+        return Max(glowBand, persistence);
     }
 
     // --- Solar-position shadow simulator ---
@@ -222,6 +281,8 @@ public static class Formulas
         1f + Clamp(positionFraction, -1f, 1f) * maxVariation;
 
     private static float Abs(float v) => v < 0f ? -v : v;
+    private static float Min(float a, float b) => a < b ? a : b;
+    private static float Max(float a, float b) => a > b ? a : b;
     private static float Clamp01(float v) => Clamp(v, 0f, 1f);
     private static float Clamp(float v, float min, float max) => v < min ? min : (v > max ? max : v);
     private static float Lerp(float a, float b, float t) => a + (b - a) * t;

@@ -110,6 +110,23 @@ Deliberately recomputes `GenCelestial.CurCelestialSunGlow(map)` rather than read
 make twilight timing track weather-dimmed brightness instead of true sun position. The extra call
 is trig-only, no allocation.
 
+**Civil-twilight persistence (linger after geometric sunset).** Vanilla's `CurCelestialSunGlow` is
+`Clamp01(InverseLerp(0, 0.7, sin(elevation)))`, so it pins to exactly `0` the instant the sun's
+geometric elevation crosses the horizon and stays `0` all night — it carries no "how far below the
+horizon" signal. Keyed purely on that value, the warm dusk tint necessarily collapsed to nothing at
+the sunset instant and snapped the sky to full-night colour. Real dusk instead stays lit and warm
+through *civil twilight* (sun `0°` down to `-6°`, ~20-30 min past sunset at mid-latitudes). The
+factor is therefore now `Formulas.TwilightWarmthFactor`, the `max` of two colour-only pieces on the
+same latitude-scaled peak height (`Formulas.TwilightPeakHeight`): the original above-horizon
+glow-keyed band, and a below-horizon `CivilTwilightPersistence` pulse — a triangular ramp keyed on
+true solar elevation (from the shared `SolarPosition.ElevationForMap`, the same sun position the
+shadow patches use), `0` at the horizon, peaking a couple degrees under it, fading to `0` by `-6°`.
+Both pieces are `~0` at the horizon so they meet without a jump. **Still colour-only — never writes
+`.glow`**, so night stays exactly as dark as vanilla makes it and glow-reading mods (Dub's
+Skylights) see an unmodified brightness; we only warm the *hue* of the darkening sky. This composes
+with the planned §7 night-radiance floor (which sets night brightness) rather than fighting it — §2
+tints, §7 will light.
+
 ## 3. Shadow tilt across the map (`Patch_ShadowTilt`) — experimental
 
 The user asked whether shadows could be made subtly longer on one side of the map than the other
