@@ -9,5 +9,6 @@ public static class ProbeRegistration
     static ProbeRegistration()
     {
         ProbeRegistry.Register(new ShadowLeanProbe());
+        ProbeRegistry.Register(new CivilTwilightProbe());
     }
 }
