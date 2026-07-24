@@ -1,0 +1,120 @@
+using UnityEngine;
+using Verse;
+
+namespace CelestialLighting;
+
+// The Verse.Mod subclass that hosts the settings screen. Separate from the [StaticConstructorOnStartup]
+// PatchAll entry point (CelestialLightingMod) on purpose: RimWorld instantiates exactly one Mod
+// subclass per package to draw its Options → Mod Settings page, and that instantiation happens
+// during mod loading — so it is also the natural, earliest place to load the persisted settings and
+// expose them to the patches through a static accessor.
+public class CelestialLightingSettingsMod : Mod
+{
+    // Static so the Harmony patches (which are static classes RimWorld constructs, not things we can
+    // hand a reference to) can read the live settings. Assigned in the constructor below, which
+    // RimWorld calls once at startup before any patch runs during gameplay.
+    public static CelestialLightingSettings Settings { get; private set; }
+
+    // Held so code with only the static Settings in hand (e.g. the hotkey GameComponent) can persist
+    // a change: ModSettings are written back through the owning Mod's WriteSettings(), not the
+    // settings object itself.
+    private static CelestialLightingSettingsMod instance;
+
+    public CelestialLightingSettingsMod(ModContentPack content) : base(content)
+    {
+        instance = this;
+        Settings = GetSettings<CelestialLightingSettings>();
+    }
+
+    // Persists the current settings to disk. Used by the in-game hotkey toggle so a floor flipped
+    // mid-game survives a reload, matching what the settings window's own Close would do.
+    public static void Save() => instance?.WriteSettings();
+
+    public override string SettingsCategory() => "Celestial Lighting";
+
+    public override void DoSettingsWindowContents(Rect inRect)
+    {
+        var listing = new Listing_Standard();
+        listing.Begin(inRect);
+
+        DrawPresetSection(listing);
+        listing.GapLine();
+        DrawAestheticKnobs(listing);
+        listing.GapLine();
+        DrawBrightnessFloorSection(listing);
+
+        listing.End();
+    }
+
+    private void DrawPresetSection(Listing_Standard listing)
+    {
+        Text.Font = GameFont.Medium;
+        listing.Label("Preset");
+        Text.Font = GameFont.Small;
+        listing.Label("Pick a look and every correlated slider below is set for you. Nudge any slider and the preset becomes Custom.");
+
+        // A named preset's radio applies its whole bundle; Custom's radio only records the state (it
+        // must never stomp the knobs the player has tuned).
+        DrawPresetRadio(listing, CelestialPreset.Realistic, "Realistic", "Physically-faithful shadows, genuinely black nights, colourless night vision.");
+        DrawPresetRadio(listing, CelestialPreset.Cinematic, "Cinematic", "Longer softer shadows, a gentle night glow, more colour kept at night.");
+        DrawPresetRadio(listing, CelestialPreset.Custom, "Custom", "Your own mix of the sliders below.");
+    }
+
+    private void DrawPresetRadio(Listing_Standard listing, CelestialPreset option, string label, string tooltip)
+    {
+        bool selected = Settings.preset == option;
+        if (!listing.RadioButton(label, selected, tabIn: 8f, tooltip))
+            return;
+
+        // RadioButton returns true only on the click that selects it. Applying a named bundle vs.
+        // just recording Custom is the one place these two cases diverge.
+        if (Presets.IsOpinionated(option))
+            Settings.ApplyPreset(option);
+        else
+            Settings.preset = option;
+    }
+
+    private void DrawAestheticKnobs(Listing_Standard listing)
+    {
+        Text.Font = GameFont.Medium;
+        listing.Label("Look");
+        Text.Font = GameFont.Small;
+        listing.Label("These feed the shadow, night-darkness, and desaturation subsystems. (Not all are wired up yet.)");
+
+        // Each slider marks the preset Custom only if the player actually moved it, so merely opening
+        // the window never silently flips a chosen preset to Custom.
+        Settings.shadowLengthScale = AestheticSlider(listing, "Shadow length", Settings.shadowLengthScale, 0.5f, 2.0f);
+        Settings.shadowStrength = AestheticSlider(listing, "Shadow strength", Settings.shadowStrength, 0f, 1f);
+        Settings.nightRadianceFloor = AestheticSlider(listing, "Night radiance floor", Settings.nightRadianceFloor, 0f, 0.3f);
+        Settings.desaturation = AestheticSlider(listing, "Night desaturation", Settings.desaturation, 0f, 1f);
+    }
+
+    // An aesthetic-knob slider: on a real change it records that the knobs no longer match a named
+    // preset. Only the four §1/§3/§7/§9 knobs use this — the accessibility floor is orthogonal to
+    // the presets and uses the plain LabeledSlider so touching it never flips the preset to Custom.
+    private float AestheticSlider(Listing_Standard listing, string label, float value, float min, float max)
+    {
+        float updated = LabeledSlider(listing, label, value, min, max);
+        if (updated != value)
+            Settings.MarkAestheticKnobsCustom();
+        return updated;
+    }
+
+    // A plain labeled slider with no side effects on the preset selection.
+    private float LabeledSlider(Listing_Standard listing, string label, float value, float min, float max)
+    {
+        listing.Label($"{label}: {value:0.00}");
+        return listing.Slider(value, min, max);
+    }
+
+    private void DrawBrightnessFloorSection(Listing_Standard listing)
+    {
+        Text.Font = GameFont.Medium;
+        listing.Label("Accessibility: minimum brightness");
+        Text.Font = GameFont.Small;
+        listing.Label("An opt-in floor on how dark nights can look. The complement to pitch-black nights: black for atmosphere, one keypress to legible when you need to see. Toggle it in-game with the \"Toggle minimum brightness\" hotkey.");
+
+        listing.CheckboxLabeled("Enable minimum brightness floor", ref Settings.brightnessFloorEnabled);
+        Settings.brightnessFloor = LabeledSlider(listing, "Minimum brightness", Settings.brightnessFloor, 0f, 1f);
+    }
+}

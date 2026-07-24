@@ -26,10 +26,12 @@
     <li>Ludeon.RimWorld.Anomaly</li>
     <li>brrainz.harmony</li>
     <!-- Soft interop note, not a shared-patch-target requirement: Dub's Skylights reads
-         SkyManager.CurSkyGlow, which our patches never touch (we only touch shadow-vector
-         direction/length and WeatherWorker.CurSkyTarget's colors), so there is no real
-         ordering dependency. Listed anyway since both mods touch "sky lighting" and a user
-         reasonably expects them to declare awareness of each other. -->
+         SkyManager.CurSkyGlow. Our shadow/twilight patches never touch it; the only path that does
+         is the opt-in accessibility minimum-brightness floor, which is OFF by default and, when a
+         player enables it, lifts CurSkyGlow through the canonical ForceSetCurSkyGlow setter — so
+         Dub's Skylights sees the same lifted glow for skylit rooms, which is the intended, correct
+         composition rather than a conflict. Listed here since both mods touch "sky lighting" and a
+         user reasonably expects them to declare awareness of each other. -->
     <li>Dubwise.DubsSkylights</li>
     <!-- Soft compat: Vanilla Races Expanded – Sanguophage owns the VRE_BloodMoonCondition
          GameCondition we recolour the night around (see Patch_BloodMoon / DESIGN.md §12). We take

@@ -539,6 +539,32 @@ public class ApiCompatibilityTests
             + "soft-dependency condition def through it");
     }
 
+    // --- SkyManager glow accessors (Patch_BrightnessFloor: the accessibility minimum-brightness floor) ---
+
+    [Test]
+    public void SkyManager_CurSkyGlow_ExistsAsFloatProperty()
+    {
+        var type = GetType("Verse.SkyManager");
+        Assert.That(type, Is.Not.Null, "Verse.SkyManager no longer exists");
+        var property = type!.Properties.SingleOrDefault(p => p.Name == "CurSkyGlow");
+        Assert.That(property, Is.Not.Null, "SkyManager.CurSkyGlow no longer exists — the floor reads it");
+        Assert.That(property!.PropertyType.FullName, Is.EqualTo("System.Single"),
+            "SkyManager.CurSkyGlow no longer returns a float");
+        Assert.That(property.GetMethod, Is.Not.Null, "SkyManager.CurSkyGlow no longer has a getter");
+    }
+
+    [Test]
+    public void SkyManager_ForceSetCurSkyGlow_ExistsTakingFloat()
+    {
+        var type = GetType("Verse.SkyManager");
+        Assert.That(type, Is.Not.Null, "Verse.SkyManager no longer exists");
+        var method = type!.Methods.SingleOrDefault(m =>
+            m.Name == "ForceSetCurSkyGlow" && m.Parameters.Count == 1 &&
+            m.Parameters[0].ParameterType.FullName == "System.Single");
+        Assert.That(method, Is.Not.Null,
+            "SkyManager.ForceSetCurSkyGlow(float) no longer exists — the floor writes the lifted glow through it");
+    }
+
     // --- helpers ---
 
     private TypeDefinition? GetType(string fullName) =>

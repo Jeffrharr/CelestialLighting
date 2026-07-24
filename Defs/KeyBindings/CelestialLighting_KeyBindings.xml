@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+
+  <!-- In-game hotkey for the accessibility brightness floor (see GameComponent_BrightnessFloorHotkey
+       and DESIGN.md's "Settings, presets, and the brightness floor"). Category "Game" = the vanilla
+       "in-game global" bucket, so it shows alongside other colony-mode controls in Options →
+       Keyboard Configuration and is conflict-checked against them.
+
+       Default is Semicolon, an unbound key in vanilla, to avoid stealing an existing binding; a
+       player can rebind it freely. The floor also has an on/off checkbox in Mod Settings, so an
+       unbound or rebound key never leaves the feature unreachable. -->
+  <KeyBindingDef>
+    <defName>CelestialLighting_ToggleBrightnessFloor</defName>
+    <label>Toggle minimum brightness</label>
+    <category>Game</category>
+    <defaultKeyCodeA>Semicolon</defaultKeyCodeA>
+  </KeyBindingDef>
+
+</Defs>
