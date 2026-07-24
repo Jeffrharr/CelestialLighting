@@ -181,6 +181,193 @@ with `Formulas.ShadowIntensityFromElevation(elevation)` — the same function
 `Source/SolarPosition.cs`, a thin adapter shared by both patches) — so the two can never disagree
 about whether the sun is up the way this bug let them.
 
+## 6. Moon position (`GameComponent_MoonPhase`) — planned
+
+Subsystems 1 and 5 already suppress vanilla's fake, position-less night/moon shadow (see section 1),
+leaving a gap this subsystem fills: a *real* moon with a position in the sky, so night can be lit
+(and shadowed) by something that actually rises, sets, and waxes/wanes.
+
+The moon reuses the exact machinery the sun already uses. `Source/Formulas.cs` already turns
+`(latitude, declination, hourAngle)` into elevation/azimuth; a moon is just a second body fed
+through the same functions, differing only in how we derive its declination and hour angle:
+
+- **Phase** comes from the sun–moon elongation. Track the moon's ecliptic longitude as the sun's
+  plus an offset that advances once per configurable **synodic period** (a game-wide value — one
+  moon shared across all maps/tiles, so `GameComponent`, not `MapComponent`). Illuminated fraction
+  (0 = new, 1 = full) is `(1 − cos(elongation)) / 2`, and the eight-way labelled enum (New, Waxing
+  Crescent, First Quarter, …) falls out of the elongation angle plus its sign (waxing vs waning).
+- **Position** comes from that same ecliptic longitude fed back through the solar-position formulas
+  with the moon's own hour angle, giving a moon altitude/azimuth for the current tile and tick. A
+  first cut can ignore the ~5° lunar orbital inclination and lunar parallax — a Moon-on-the-ecliptic
+  approximation is more than accurate enough for a shadow direction and a brightness scalar.
+
+**Scope: one moon to start.** Canon says the planet has several ("*one of* the moons of this
+planet", per vanilla's eclipse letter), but we model a single representative moon — everything below
+needs only one, and nothing in Odyssey requires more (it ships no moon by default). The *only* thing
+that would need more than the Moon-on-the-ecliptic approximation is astronomical eclipse-triggering
+(§10): geometric eclipses need the orbital inclination and nodes, because without them the moon
+would transit the sun every single new moon. Shadows and moonlight never need that, so it stays out
+of the first cut and lives with the opt-in eclipse feature.
+
+Two consumers, both reusing existing adapters so they can never derive a different moon than each
+other (the same discipline `SolarPosition.cs` already enforces for the sun across
+`Patch_ShadowDirection`/`Patch_ShadowStrength`):
+
+1. **Moon-cast shadows** — when the sun is below the horizon but the moon is up, feed the moon's
+   elevation/azimuth into the same shadow vector/strength path, with strength additionally scaled by
+   illuminated fraction (a new-moon night casts no shadow; a full moon casts a soft one).
+2. **Moonlight** — a night-brightness contribution for subsystem 7 below, scaled by phase and moon
+   altitude.
+
+Clean-room note: elongation→phase and synodic-period→ecliptic-longitude are standard textbook lunar
+approximations, the lunar counterpart of the sun math already justified under "Clean-room
+provenance" — no external mod referenced.
+
+## 7. Night-sky radiance: stars, airglow, moonlight (planned)
+
+Vanilla night is a flat glow floor. We want night brightness to instead be the *sum of a few
+physically-motivated dim light sources*, so that darkness is emergent — legible under a full moon,
+much darker on a new moon — rather than a hard on/off toggle:
+
+- **Starlight** — a near-constant faint floor (the background sky is never truly zero under an open
+  sky).
+- **Airglow** — faint atmospheric self-emission, a second small constant floor.
+- **Moonlight** — the phase-and-altitude-scaled contribution from subsystem 6.
+
+Summing these (rather than picking a max) means a clear full-moon night reads distinctly brighter
+than a new-moon night, and both read brighter than an overcast night once weather dimming is folded
+in. Each source is **independently tunable in settings**, which is also how we deliver the user's
+original ask for *true pitch-black unlit nights*: pitch-black is simply the starlight and airglow
+floors set to zero, not a separate special-case hack. A "background stars / atmospheric night glow"
+toggle (default on) gives the atmospheric look; turning it off, or sliding the floors to zero,
+yields genuinely black unlit nights.
+
+Where it writes: this composes with subsystem 2's twilight blend — both adjust
+`WeatherWorker.CurSkyTarget`'s glow/colour at low sun angles rather than fighting over the sky. The
+night radiance sets the floor the twilight warm-tint then rides on top of at dusk/dawn. As with
+subsystem 2, we recompute sun/moon position from `GenCelestial`/our own simulator rather than
+reading an already-weather-clamped `__result.glow`, so night brightness tracks true celestial
+geometry and weather dimming stays a separate, later multiply.
+
+Pure-function boundary holds: star/airglow constants and the phase/altitude→lux curves live in
+`Source/Formulas.cs` with offline `[TestCase]` coverage; the patch is a thin adapter that reads
+sun/moon elevation off live state and blends the resulting colour/glow into the sky target.
+
+## 8. Sky colour-temperature curve (planned)
+
+Subsystem 2 warms the sky toward a single fixed hue inside one twilight band. This generalizes that
+into a continuous **colour-temperature curve keyed on sun altitude**: the sky and direct sunlight
+shift from a warm low-colour-temperature glow near the horizon (~2000 K) up to a neutral daylight
+white near the zenith (~5772 K, the Sun's actual effective temperature), passing through the
+familiar golden-hour warmth on the way. This is the physically-grounded version of "dramatic
+seasonal twilight" — because day length and peak sun altitude already vary with latitude and season
+(vanilla `GenCelestial` + our own simulator), a high-latitude winter day that never lifts the sun
+far above the horizon *stays* warm all day, for free.
+
+Blackbody colour temperature → RGB is a standard tabulated conversion (textbook, not
+mod-specific). It composes with subsystem 2 rather than replacing it: §2's dusk/dawn warm nudge can
+become one anchor point on this curve. Critically it stays in the same low-risk lane as §2 — it
+blends `WeatherWorker.CurSkyTarget`'s **colour only, never `.glow`** — so it does not disturb the
+brightness other mods read (see "Conflict risk").
+
+## 9. Low-light desaturation / Purkinje shift (planned)
+
+As scene brightness falls, human vision loses colour discrimination and everything drifts toward a
+dim blue-grey (the Purkinje shift — rod vision taking over from cones). This subsystem reproduces
+that: as the sky glow drops toward night, blend the sky colour toward a desaturated cool grey, most
+strongly on the darkest (new-moon, overcast) nights. It's cheap, distinctly atmospheric, and makes
+our darkness read as *night* rather than as a uniformly dimmed day.
+
+It composes directly with subsystem 7 — §7 sets *how much* light the night sky provides, §9 sets
+*how that light reads* as colour drains out of it — and, like §8, it is a colour-only blend on
+`CurSkyTarget`, so it stacks cleanly with §2/§8 and stays clear of the glow value. The
+brightness→saturation falloff curve is a plain function in `Source/Formulas.cs` with offline
+coverage.
+
+## 10. Eclipse darkening (planned, cosmetic overlay on a vanilla event)
+
+RimWorld's `Eclipse` `GameCondition` already exists and already has its gameplay effect (solar power
+drops, the map darkens). This subsystem is **purely a visual enhancement of that existing event and
+changes none of its gameplay** — it makes the darkening geometric and gradual (a partial → near-total
+ramp as coverage increases) and tints the sky the characteristic wan eclipse colour, instead of the
+flat on/off dimming. The appeal is exactly that it is anchored to a real event with real
+consequences, so the visual carries meaning rather than being ambient noise.
+
+Scope discipline (see "Clean-room provenance" / the mod's visual-only remit): we read the active
+`Eclipse` condition's progress and blend sky colour/glow accordingly; we do **not** touch the
+condition's solar-power or any other mechanical effect. Disk-overlap geometry for the coverage ramp
+is standard circle-intersection math.
+
+### Optional: astronomically-triggered eclipses (opt-in, off by default)
+
+Because we model the moon's actual position (§6), we can optionally make eclipses *happen when they
+should* rather than on a random timer: when the modeled moon geometrically transits the sun, fire
+the vanilla `Eclipse` `GameCondition` — i.e. trigger the eclipse event *during an actual eclipse* —
+and suppress the random `Eclipse` incident while this mode is on, so eclipses stop double-firing.
+
+This deliberately steps **one notch outside the visual-only remit**: it changes *when* a gameplay
+event (solar-power loss, mood) occurs, so it is opt-in and **off by default**, and the base mod
+stays purely cosmetic. Two consequences to design around:
+
+- It requires the moon's **orbital inclination and nodes** (see §6 scope note). With the flat
+  Moon-on-the-ecliptic approximation the moon would transit every new moon and eclipses would fire
+  ~monthly; the tilt + nodal geometry is what makes them appropriately rare. This feature therefore
+  owns that extra modeling — shadows/moonlight don't pay for it.
+- We trigger vanilla's *existing* `Eclipse` condition rather than inventing our own, so all downstream
+  mods that react to eclipses keep working unchanged; we only move *when* it starts.
+
+(The related lunar-eclipse "blood moon" is a third-party event — see §12 — and we only *render* it,
+never trigger it.)
+
+## 11. Aurora and solar-flare sky tinting (planned, cosmetic overlay on vanilla events)
+
+Same principle as §10, for the `SolarFlare` and (Biotech) aurora-style conditions: shift the night
+sky toward auroral greens/reds while the condition is active. **Visual only — the flare's electronics
+disruption and every other gameplay effect are left entirely untouched.** Lowest priority of the
+planned set; listed so the design is complete. Auroral emission colours (oxygen green ~557 nm, red
+~630 nm) are physical constants, not mod-specific.
+
+## 12. Blood moon rendering (planned, soft-compat with a third-party event)
+
+A "blood moon" is a *lunar* eclipse — the moon passing into the planet's shadow (umbra) and turning
+crimson — as opposed to the *solar* eclipse of §10. There is no vanilla blood moon; the well-known
+one is **Vanilla Races Expanded – Sanguophage**'s `VRE_BloodMoonCondition` (packageId
+`vanillaracesexpanded.sanguophage`), a night-time `GameCondition` whose in-game text is lore-
+consistent with ours ("*one of the moons of this planet has orbited into the rimworld's umbra…*").
+
+Since we're the mod that actually models moonlight colour, we should make sure a blood moon *looks*
+right under our lighting instead of rendering as an ordinary silver-blue moonlit night. When that
+condition is active, tint our moonlight and moonlit-sky (§6/§7) deep crimson so the whole night
+reads red — bright enough to still be a *moonlit* night (a blood moon is a full moon), not darkness.
+
+Boundaries:
+
+- **Soft dependency, not a requirement.** Detect the condition by def lookup / reflection guarded on
+  the mod being present; never a hard assembly reference. Add `vracesexpanded.sanguophage` to
+  `About.xml`'s `loadAfter` when this ships so our render reads its state after it starts.
+- **Visual only.** We recolour the night; we touch none of VRE's sanguophage/hemogen mechanics.
+- We *react to* the third-party condition; we never trigger it (contrast §10's opt-in solar
+  trigger). If both this and §10's astronomical mode ever coexist, a blood moon should line up with
+  a full moon — but that coupling is out of scope for a first pass; reacting to the live condition is
+  enough to "look how we'd expect."
+
+## Settings, presets, and the brightness floor (planned)
+
+Two cross-cutting settings ideas that span the subsystems above:
+
+- **Opinionated presets.** Ship a small number of named presets (e.g. "Realistic" vs
+  "Cinematic/Pretty") that set the correlated knobs together — shadow length/strength (§1/§3), night
+  radiance floors (§7), desaturation strength (§9) — so most players pick one preset and never open
+  a slider. Individual sliders remain for anyone who wants them.
+- **Minimum-brightness accessibility floor.** A user-set (and hotkey-toggleable) floor on displayed
+  night brightness. This is the deliberate complement to true pitch-black nights (§7): pitch-black
+  for atmosphere by default, one keypress to a legible floor when a player actually needs to see to
+  play. Because it clamps the *displayed* glow upward, it must be applied as the last step, after
+  §7's floors and any weather dimming.
+
+All tunables persist via the mod's `ModSettings`; the preset buttons just write bundles of those
+same values, so a preset is never a separate code path.
+
 ## Conflict risk
 
 Decompiled the user's local Dub's Skylights 1.6 copy (`Dubwise.DubsSkylights`) — its patches
@@ -207,8 +394,10 @@ The shadow simulator's elevation/azimuth math is standard textbook solar-positio
 (the same equations used by any planetarium/sundial calculation), not derived from vanilla or from
 Sjaandi's mod; it reuses only one public-domain trig line already present in vanilla's
 `GenCelestial.SunPositionUnmodified` (a standard sinusoidal day-of-year declination term, not a
-substantial or copyrightable expression) for `DeclinationSign`. No code, assets, or shaders from
-Sjaandi's mod were ever available to reference. The shadow-tilt subsystem deliberately avoids
+substantial or copyrightable expression) for `DeclinationSign`. This mod copies no code, assets, or
+shaders from Sjaandi's mod; its feature set derives from the public Workshop description plus
+standard astronomy, and any behavioral resemblance is convergence on the same real-world physics.
+The shadow-tilt subsystem deliberately avoids
 writing or shipping a custom shader — it only calls Unity's existing `MaterialPropertyBlock` API
 against RimWorld's own, already-compiled `MatBases.SunShadow` material.
 
