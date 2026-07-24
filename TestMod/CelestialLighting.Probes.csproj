@@ -20,6 +20,7 @@
          ShadowLeanProbe.cs on disk. -->
     <Compile Include="../Source/Probes/ShadowLeanProbe.cs" Link="ShadowLeanProbe.cs" />
     <Compile Include="../Source/Probes/CivilTwilightProbe.cs" Link="CivilTwilightProbe.cs" />
+    <Compile Include="../Source/Probes/PenumbraProbe.cs" Link="PenumbraProbe.cs" />
   </ItemGroup>
 
   <ItemGroup>
