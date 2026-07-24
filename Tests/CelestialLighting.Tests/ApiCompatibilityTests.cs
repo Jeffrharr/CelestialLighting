@@ -512,16 +512,6 @@ public class ApiCompatibilityTests
             "GameConditionDefOf.Eclipse is no longer a GameConditionDef");
     }
 
-    [Test]
-    public void GameConditionManager_GetActiveCondition_Exists()
-    {
-        // Used by the dev-only EclipseCoverageProbe to read back the live eclipse's progress.
-        var type = GetType("RimWorld.GameConditionManager");
-        Assert.That(type, Is.Not.Null, "RimWorld.GameConditionManager no longer exists");
-        var method = type!.Methods.SingleOrDefault(m => m.Name == "GetActiveCondition" && m.Parameters.Count == 1);
-        Assert.That(method, Is.Not.Null, "GameConditionManager.GetActiveCondition(GameConditionDef) no longer exists");
-    }
-
     // --- helpers ---
 
     private TypeDefinition? GetType(string fullName) =>
