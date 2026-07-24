@@ -50,7 +50,7 @@ public static class Patch_TwilightColor
         // Band width, peak position, the civil-twilight persistence band, and the factor curve
         // itself all live in Formulas, with edge-case unit tests covering the band edges, its peak,
         // the persistence pulse's boundaries, and how each scales with latitude strength.
-        float twilightFactor = Formulas.TwilightWarmthFactor(sunGlow, elevation, strength);
+        float twilightFactor = WarmthFactor(sunGlow, elevation, strength);
 
         if (twilightFactor <= 0f)
             return;
@@ -59,4 +59,15 @@ public static class Patch_TwilightColor
         __result.colors.overlay = Color.Lerp(__result.colors.overlay, WarmTwilight, twilightFactor * 0.25f);
         __result.colors.saturation = Mathf.Lerp(__result.colors.saturation, __result.colors.saturation * 1.4f, twilightFactor);
     }
+
+    // The warm-tint factor, honouring the CivilTwilightPersistence feature switch. On (the shipped
+    // default) folds in the below-horizon civil-twilight linger via TwilightWarmthFactor; off falls
+    // back to the pre-feature glow-keyed-only TwilightFactor, so the warm tint snaps off at
+    // geometric sunset exactly as it did before this feature — a faithful "before" the test harness
+    // can screenshot for an A/B against the "after". See CelestialLightingFeatures for why off is
+    // the old behaviour rather than zero.
+    private static float WarmthFactor(float sunGlow, float elevation, float strength) =>
+        CelestialLightingFeatures.CivilTwilightPersistence
+            ? Formulas.TwilightWarmthFactor(sunGlow, elevation, strength)
+            : Formulas.TwilightFactor(sunGlow, strength);
 }

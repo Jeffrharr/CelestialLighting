@@ -1,8 +1,14 @@
+using RimWorldTestHarness.Mod.Features;
 using RimWorldTestHarness.Mod.Probes;
 using Verse;
 
 namespace CelestialLighting.Probes;
 
+// The one place the harness and the shipped mod are bridged. This dev-only assembly is the only one
+// that references BOTH RimWorldTestHarness and CelestialLighting, so it is where probes get exposed
+// to the harness's Probe step and feature flags get exposed to its SetFeature step. Neither the
+// shipped CelestialLighting.dll nor RimWorldTestHarness.dll references the other — see
+// RimWorldTestHarness/DESIGN.md's "Where probe tests live".
 [StaticConstructorOnStartup]
 public static class ProbeRegistration
 {
@@ -10,5 +16,12 @@ public static class ProbeRegistration
     {
         ProbeRegistry.Register(new ShadowLeanProbe());
         ProbeRegistry.Register(new CivilTwilightProbe());
+
+        // Expose CelestialLighting's runtime feature flags to the harness's SetFeature step so a
+        // scenario can screenshot an effect off then on. The setter just writes the shipped mod's
+        // static flag; in production nothing calls it and the flag stays at its default (on).
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.CivilTwilightPersistenceKey,
+            enabled => CelestialLightingFeatures.CivilTwilightPersistence = enabled);
     }
 }
