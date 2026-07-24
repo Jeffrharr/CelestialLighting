@@ -164,6 +164,62 @@ public class ApiCompatibilityTests
             "GenDate.TicksPerDay changed — GameComponent_MoonPhase converts the synodic period in days to ticks with it");
     }
 
+    // --- GameCondition / GameConditionManager / DefDatabase (Patch_AuroraTint, AuroraConditions) ---
+
+    [Test]
+    public void Map_GameConditionManager_Exists()
+    {
+        var type = GetType("Verse.Map");
+        Assert.That(type, Is.Not.Null);
+        var field = type!.Fields.SingleOrDefault(f => f.Name == "gameConditionManager");
+        Assert.That(field, Is.Not.Null, "Map.gameConditionManager no longer exists");
+        Assert.That(field!.IsPublic, Is.True, "Map.gameConditionManager is no longer public");
+        Assert.That(field.FieldType.FullName, Is.EqualTo("RimWorld.GameConditionManager"));
+    }
+
+    [Test]
+    public void GameConditionManager_GetActiveCondition_Exists()
+    {
+        var type = GetType("RimWorld.GameConditionManager");
+        Assert.That(type, Is.Not.Null, "RimWorld.GameConditionManager no longer exists");
+        // The non-generic GetActiveCondition(GameConditionDef) — AuroraConditions calls this to find
+        // the active solar-flare condition by def.
+        var method = type!.Methods.SingleOrDefault(m =>
+            m.Name == "GetActiveCondition" && !m.HasGenericParameters
+            && m.Parameters.Count == 1 && m.Parameters[0].ParameterType.Name == "GameConditionDef");
+        Assert.That(method, Is.Not.Null, "GameConditionManager.GetActiveCondition(GameConditionDef) no longer exists");
+        Assert.That(method!.ReturnType.FullName, Is.EqualTo("RimWorld.GameCondition"));
+    }
+
+    [Test]
+    public void GameCondition_HasFadeMembers()
+    {
+        var type = GetType("RimWorld.GameCondition");
+        Assert.That(type, Is.Not.Null, "RimWorld.GameCondition no longer exists");
+        foreach (var name in new[] { "TicksPassed", "TicksLeft" })
+        {
+            var prop = type!.Properties.SingleOrDefault(p => p.Name == name);
+            Assert.That(prop, Is.Not.Null, $"GameCondition.{name} no longer exists — AuroraConditions.RampFor depends on it");
+            Assert.That(prop!.PropertyType.FullName, Is.EqualTo("System.Int32"));
+        }
+        var permanent = type!.Properties.SingleOrDefault(p => p.Name == "Permanent");
+        Assert.That(permanent, Is.Not.Null, "GameCondition.Permanent no longer exists");
+        Assert.That(permanent!.PropertyType.FullName, Is.EqualTo("System.Boolean"));
+    }
+
+    [Test]
+    public void SolarFlare_GameConditionDef_Exists()
+    {
+        // SolarFlare is a core GameConditionDef but is NOT on GameConditionDefOf, so AuroraConditions
+        // resolves it by defName via DefDatabase.GetNamedSilentFail. This asserts the DefDatabase
+        // lookup method still exists (the def itself is data, verified live, not in the assembly).
+        var type = _module.Types.FirstOrDefault(t => t.FullName == "Verse.DefDatabase`1");
+        Assert.That(type, Is.Not.Null, "Verse.DefDatabase<T> no longer exists");
+        var method = type!.Methods.SingleOrDefault(m =>
+            m.Name == "GetNamedSilentFail" && m.Parameters.Count == 1);
+        Assert.That(method, Is.Not.Null, "DefDatabase<T>.GetNamedSilentFail(string) no longer exists");
+    }
+
     // --- GenLocalDate (Patch_ShadowDirection) ---
 
     [Test]

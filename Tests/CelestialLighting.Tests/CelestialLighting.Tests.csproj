@@ -34,6 +34,7 @@
     <!-- Subsystem 8 pure core. Depends on Formulas.AtmosphericRefractionDegrees, so Formulas.cs
          above must be linked too (it already is). -->
     <Compile Include="../../Source/SkyColorTemperature.cs" Link="SkyColorTemperature.cs" />
+    <Compile Include="../../Source/AuroraMath.cs" Link="AuroraMath.cs" />
   </ItemGroup>
 
 </Project>

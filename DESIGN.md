@@ -498,13 +498,51 @@ ramp as it covers and uncovers the sun.
 (The related lunar-eclipse "blood moon" is a third-party event — see §12 — and we only *render* it,
 never trigger it.)
 
-## 11. Aurora and solar-flare sky tinting (planned, cosmetic overlay on vanilla events)
+## 11. Aurora and solar-flare sky tinting (`Patch_AuroraTint`)
 
-Same principle as §10, for the `SolarFlare` and (Biotech) aurora-style conditions: shift the night
-sky toward auroral greens/reds while the condition is active. **Visual only — the flare's electronics
-disruption and every other gameplay effect are left entirely untouched.** Lowest priority of the
-planned set; listed so the design is complete. Auroral emission colours (oxygen green ~557 nm, red
-~630 nm) are physical constants, not mod-specific.
+Same principle as §10: shift the night sky toward auroral greens/reds while a solar flare is active.
+**Visual only — the flare's electronics disruption and every other gameplay effect are left entirely
+untouched, and this blends only `SkyTarget.colors`, never `SkyTarget.glow`, so it stays in the same
+low-risk colour-only lane as §2/§8 (see "Conflict risk"): the brightness value other mods read is
+undisturbed.** Auroral emission colours (atomic-oxygen green ~557.7 nm, red ~630 nm) are physical
+constants, not mod-specific.
+
+**Why only the solar flare, not the vanilla `Aurora` condition.** Decompiling vanilla 1.6 showed
+`GameCondition_Aurora` *already* renders its own shifting auroral sky colours via a
+`GameCondition.SkyTarget(Map)` override that `SkyManager` applies on top of
+`WeatherWorker.CurSkyTarget`. Tinting it again here would double up and fight vanilla's own render.
+The `SolarFlare` condition (`GameCondition_DisableElectricity`) has *no* sky visual at all — yet a
+real solar flare is exactly what drives auroras — so tinting the night sky during a flare adds the
+missing visual without conflicting with anything vanilla does. `AuroraConditions` is the thin adapter
+that resolves the active driver; any future aurora-style condition lacking its own sky render can be
+added to its driver set. (`SolarFlare` is a core `GameConditionDef` but, unlike `Eclipse`/`Aurora`,
+is not exposed on `GameConditionDefOf`, so it's resolved by defName via `DefDatabase.GetNamedSilentFail`.)
+
+**Approach.** A Harmony Postfix on `WeatherWorker.CurSkyTarget` — the same injection point as
+`Patch_TwilightColor` (§2). The two blend different, non-overlapping things (twilight warms the sky
+at dusk-glow ~0.35; this tints it green only at deep night and only during a flare), so they stack
+cleanly regardless of postfix order. The pure core (`Source/AuroraMath.cs`, offline-tested) supplies:
+
+- a **night-visibility ramp** (`NightVisibility`) that fades the tint to zero as the sky brightens,
+  reusing vanilla's own `GameCondition_Aurora.MaxSunGlow` (0.5) as the upper cutoff so our
+  flare-driven tint disappears at the same brightness vanilla's aurora does — auroras are invisible
+  in daylight, so a daytime flare produces no sky colour;
+- a **condition fade** (`ConditionRampFactor`) easing the tint in over the flare's first ~hour and
+  out over its last ~hour (combined with `Min`, so a very short flare simply peaks lower than full
+  rather than ever snapping in);
+- a slow **green↔red shimmer** (`ShimmerRedMix` / `AuroralColorAtPhase`) advanced by game ticks,
+  capped at `MaxRedMix` so the aurora stays green-dominant (as real ones mostly are), warming only
+  partway toward the high-altitude red line at each cycle's peak.
+
+The blend strengths (`MaxSkyTintStrength`, `MaxOverlayTintStrength`) are deliberately moderate: we
+ship no shimmering overlay *texture* the way vanilla's aurora does, only a colour tint, so we need a
+touch more colour than vanilla's ~0.075 to read as an aurora without turning the sky flat neon.
+`AuroraConditions.CurrentSkyTintStrength` is shared by the patch and the `aurora_tint` live probe so
+they can never derive a different value from each other — the same discipline `SolarPosition.cs`
+enforces between the shadow patches.
+
+Deferred: a matching moonlight/HUD hook and per-condition settings sliders (the tint constants are
+already isolated in `AuroraMath` for that). Lowest priority of the planned set.
 
 ## 12. Blood moon rendering (planned, soft-compat with a third-party event)
 
