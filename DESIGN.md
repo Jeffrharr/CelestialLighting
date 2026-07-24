@@ -366,7 +366,7 @@ become one anchor point on this curve. Critically it stays in the same low-risk 
 blends `WeatherWorker.CurSkyTarget`'s **colour only, never `.glow`** — so it does not disturb the
 brightness other mods read (see "Conflict risk").
 
-## 9. Low-light desaturation / Purkinje shift (planned)
+## 9. Low-light desaturation / Purkinje shift (`Patch_LowLightDesaturation`)
 
 As scene brightness falls, human vision loses colour discrimination and everything drifts toward a
 dim blue-grey (the Purkinje shift — rod vision taking over from cones). This subsystem reproduces
@@ -376,9 +376,28 @@ our darkness read as *night* rather than as a uniformly dimmed day.
 
 It composes directly with subsystem 7 — §7 sets *how much* light the night sky provides, §9 sets
 *how that light reads* as colour drains out of it — and, like §8, it is a colour-only blend on
-`CurSkyTarget`, so it stacks cleanly with §2/§8 and stays clear of the glow value. The
-brightness→saturation falloff curve is a plain function in `Source/Formulas.cs` with offline
-coverage.
+`CurSkyTarget`, so it stacks cleanly with §2/§8 and stays clear of the glow value.
+
+A second Harmony Postfix on `WeatherWorker.CurSkyTarget` (alongside §2's) that:
+
+- Reads `__result.glow` — the sky target's *own*, already-weather-clamped brightness — rather than
+  recomputing `GenCelestial.CurCelestialSunGlow` the way §2 does. This is the deliberate opposite
+  choice: §2 wants twilight *timing* anchored to true sun position, but §9 wants actual *displayed*
+  brightness, so an overcast (weather-dimmed) night desaturates more than a clear one for free. This
+  is also the seam to subsystem 7: once §7 raises/lowers `__result.glow` by moon phase and the
+  star/airglow floors, a full-moon night lands lower on the desaturation ramp than a new-moon one
+  automatically, provided §7's postfix runs first (marked `// TODO(integration):` in the patch).
+- Feeds that glow to `PurkinjeMath.PurkinjeFactor` — the pure "how far into rod vision are we" ramp:
+  `0` at/above `OnsetGlow` (0.30, below vanilla's 0.6 dusk and §2's 0.35 peak, so golden hour stays
+  warm), `1` at/below `FullGlow` (0.05, a small nonzero floor so the shift completes while it's
+  still bright enough to see). The falloff and the resulting `SaturationMultiplier` live in
+  `Source/PurkinjeMath.cs` (its own System-only pure file, not `Formulas.cs`, to avoid colliding
+  with the other in-flight subsystems editing `Formulas.cs`) with offline `[TestCase]` coverage of
+  both plateaus, monotonicity, the midpoint, and the multiplier endpoints.
+- Applies the factor as a colour-only nudge: multiplies `SkyColorSet.saturation` down toward a
+  rod-vision floor (60% of colour removed at full shift) and `Color.Lerp`s the `sky`/`overlay` tints
+  toward a desaturated cool blue-grey (the perceptual Purkinje blue). Lerping (never overwriting)
+  preserves each `WeatherDef`'s palette. `__result.glow` is never touched.
 
 ## 10. Eclipse: natural and unnatural (planned)
 

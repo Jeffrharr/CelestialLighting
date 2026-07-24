@@ -106,12 +106,13 @@ public class ApiCompatibilityTests
     [Test]
     public void SkyTarget_HasGlowField()
     {
-        // Patch_NightRadiance (§7) writes the night floor into SkyTarget.glow — verify it still
-        // exists and is still a float.
+        // Two subsystems depend on this public float: Patch_NightRadiance (§7) writes the night
+        // floor into it, and Patch_LowLightDesaturation (§9) reads it to key the Purkinje shift on
+        // actual (weather-dimmed) brightness.
         var type = GetType("Verse.SkyTarget");
         Assert.That(type, Is.Not.Null, "Verse.SkyTarget no longer exists");
-        var field = type!.Fields.SingleOrDefault(f => f.Name == "glow");
-        Assert.That(field, Is.Not.Null, "SkyTarget.glow no longer exists — Patch_NightRadiance writes it");
+        var field = type!.Fields.SingleOrDefault(f => f.Name == "glow" && f.IsPublic);
+        Assert.That(field, Is.Not.Null, "SkyTarget.glow no longer exists or is no longer public");
         Assert.That(field!.FieldType.FullName, Is.EqualTo("System.Single"));
     }
 
