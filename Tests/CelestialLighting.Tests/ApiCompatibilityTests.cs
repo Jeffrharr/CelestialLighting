@@ -512,6 +512,33 @@ public class ApiCompatibilityTests
             "GameConditionDefOf.Eclipse is no longer a GameConditionDef");
     }
 
+    // --- GameConditionManager.ConditionIsActive / DefDatabase.GetNamedSilentFail (BloodMoon soft-dep) ---
+
+    [Test]
+    public void GameConditionManager_ConditionIsActive_Exists()
+    {
+        var type = GetType("RimWorld.GameConditionManager");
+        Assert.That(type, Is.Not.Null, "RimWorld.GameConditionManager no longer exists");
+        var method = type!.Methods.SingleOrDefault(m =>
+            m.Name == "ConditionIsActive" && m.Parameters.Count == 1
+            && m.Parameters[0].ParameterType.Name == "GameConditionDef");
+        Assert.That(method, Is.Not.Null,
+            "GameConditionManager.ConditionIsActive(GameConditionDef) no longer exists");
+        Assert.That(method!.ReturnType.FullName, Is.EqualTo("System.Boolean"));
+    }
+
+    [Test]
+    public void DefDatabase_GetNamedSilentFail_Exists()
+    {
+        var type = GetType("Verse.DefDatabase`1");
+        Assert.That(type, Is.Not.Null, "Verse.DefDatabase<T> no longer exists");
+        var method = type!.Methods.SingleOrDefault(m =>
+            m.Name == "GetNamedSilentFail" && m.Parameters.Count == 1);
+        Assert.That(method, Is.Not.Null,
+            "DefDatabase<T>.GetNamedSilentFail(string) no longer exists — BloodMoon resolves its "
+            + "soft-dependency condition def through it");
+    }
+
     // --- helpers ---
 
     private TypeDefinition? GetType(string fullName) =>

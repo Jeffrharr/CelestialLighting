@@ -23,6 +23,7 @@ public static class ProbeRegistration
         ProbeRegistry.Register(new SkyColorTemperatureProbe());
         ProbeRegistry.Register(new AuroraTintProbe());
         ProbeRegistry.Register(new EclipseCoverageProbe());
+        ProbeRegistry.Register(new BloodMoonProbe());
 
         // Expose CelestialLighting's runtime feature flags to the harness's SetFeature step so a
         // scenario can screenshot an effect off then on. The setter just writes the shipped mod's

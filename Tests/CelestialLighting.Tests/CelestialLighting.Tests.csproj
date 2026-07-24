@@ -36,6 +36,7 @@
     <Compile Include="../../Source/SkyColorTemperature.cs" Link="SkyColorTemperature.cs" />
     <Compile Include="../../Source/AuroraMath.cs" Link="AuroraMath.cs" />
     <Compile Include="../../Source/EclipseMath.cs" Link="EclipseMath.cs" />
+    <Compile Include="../../Source/BloodMoonMath.cs" Link="BloodMoonMath.cs" />
   </ItemGroup>
 
 </Project>

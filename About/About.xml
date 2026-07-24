@@ -31,5 +31,10 @@
          ordering dependency. Listed anyway since both mods touch "sky lighting" and a user
          reasonably expects them to declare awareness of each other. -->
     <li>Dubwise.DubsSkylights</li>
+    <!-- Soft compat: Vanilla Races Expanded – Sanguophage owns the VRE_BloodMoonCondition
+         GameCondition we recolour the night around (see Patch_BloodMoon / DESIGN.md §12). We take
+         no hard reference to it — the effect is inert when it's absent — but load after it so our
+         render reads its condition state once it has started applying it. -->
+    <li>vanillaracesexpanded.sanguophage</li>
   </loadAfter>
 </ModMetaData>

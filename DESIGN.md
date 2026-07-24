@@ -544,7 +544,7 @@ enforces between the shadow patches.
 Deferred: a matching moonlight/HUD hook and per-condition settings sliders (the tint constants are
 already isolated in `AuroraMath` for that). Lowest priority of the planned set.
 
-## 12. Blood moon rendering (planned, soft-compat with a third-party event)
+## 12. Blood moon rendering (`Patch_BloodMoon`) — soft-compat with a third-party event
 
 A "blood moon" is a *lunar* eclipse — the moon passing into the planet's shadow (umbra) and turning
 crimson — as opposed to the *solar* eclipse of §10. There is no vanilla blood moon; the well-known
@@ -552,21 +552,42 @@ one is **Vanilla Races Expanded – Sanguophage**'s `VRE_BloodMoonCondition` (pa
 `vanillaracesexpanded.sanguophage`), a night-time `GameCondition` whose in-game text is lore-
 consistent with ours ("*one of the moons of this planet has orbited into the rimworld's umbra…*").
 
-Since we're the mod that actually models moonlight colour, we should make sure a blood moon *looks*
-right under our lighting instead of rendering as an ordinary silver-blue moonlit night. When that
-condition is active, tint our moonlight and moonlit-sky (§6/§7) deep crimson so the whole night
-reads red — bright enough to still be a *moonlit* night (a blood moon is a full moon), not darkness.
+Since we're the mod that actually models moonlight colour, we make sure a blood moon *looks* right
+under our lighting instead of rendering as an ordinary silver-blue moonlit night. When that condition
+is active, `Patch_BloodMoon` (a Postfix on `WeatherWorker.CurSkyTarget`, the same low-risk seam §2's
+`Patch_TwilightColor` uses) shifts the sky's `SkyColorSet` colours toward deep coppery crimson so the
+whole night reads red — bright enough to still be a *moonlit* night (a blood moon is a full moon),
+not darkness.
+
+The recolour math lives in the pure `Source/BloodMoonMath.cs` (offline `[TestCase]` coverage, no
+`Verse`/`UnityEngine`): `NightFactor(sunGlow)` ramps the effect out through dusk so it never paints
+the daytime sky, and `CrimsonTint(r,g,b,strength)` blends each colour toward a crimson hue that is
+first rescaled to the *input's own* luma — so the shift is "this exact colour, but red" and preserves
+brightness (a black input stays black; a dim night colour keeps its luma exactly). `Source/BloodMoon.cs`
+is the thin adapter: it resolves `VRE_BloodMoonCondition` by def lookup once (cached) and reads
+`GameConditionManager.ConditionIsActive` + `GenCelestial.CurCelestialSunGlow` off the live map, so
+`Patch_BloodMoon` and the `blood_moon` live probe re-derive the identical tint strength.
 
 Boundaries:
 
-- **Soft dependency, not a requirement.** Detect the condition by def lookup / reflection guarded on
-  the mod being present; never a hard assembly reference. Add `vracesexpanded.sanguophage` to
-  `About.xml`'s `loadAfter` when this ships so our render reads its state after it starts.
-- **Visual only.** We recolour the night; we touch none of VRE's sanguophage/hemogen mechanics.
+- **Soft dependency, not a requirement.** The condition is detected by def lookup
+  (`DefDatabase<GameConditionDef>.GetNamedSilentFail`), never a hard assembly reference — the effect
+  is simply inert when VRE – Sanguophage isn't installed. `vanillaracesexpanded.sanguophage` is in
+  `About.xml`'s `loadAfter` so our render reads its state after it starts.
+- **Visual only.** We recolour the night — colours only, never `SkyColorSet.glow`, so the brightness
+  value other mods read (Dub's Skylights' `CurSkyGlow`) is untouched; we touch none of VRE's
+  sanguophage/hemogen mechanics.
 - We *react to* the third-party condition; we never trigger it (contrast §10's opt-in solar
   trigger). If both this and §10's astronomical mode ever coexist, a blood moon should line up with
   a full moon — but that coupling is out of scope for a first pass; reacting to the live condition is
   enough to "look how we'd expect."
+
+**Integration seam (pending #6/#7).** Until the moon-position (§6) and night-radiance (§7)
+subsystems merge, there is no authoritative "moonlight colour" to recolour, so `Patch_BloodMoon`
+tints the vanilla night sky in place. The self-contained detection + pure crimson recolour are the
+seam that plugs into them: once §7 owns the moonlit-sky colour, the tint should apply to *that* (so a
+blood-moon night is a genuinely bright red night) and additionally gate on the modeled moon being
+above the horizon. Marked with a `TODO(integration)` in `BloodMoon.TintStrengthForMap`.
 
 ## Settings, presets, and the brightness floor (planned)
 
