@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ModMetaData>
+  <name>Celestial Lighting</name>
+  <author>Joof</author>
+  <packageId>joof.celestiallighting</packageId>
+  <supportedVersions>
+    <li>1.6</li>
+  </supportedVersions>
+  <description>Latitude- and season-aware sky lighting.
+
+- Shadows now lean with the sun's real seasonal position instead of always pointing the same way: the effect grows stronger the further a colony sits from the equator, and mirrors between the northern and southern hemispheres.
+- Sunrise and sunset last longer and glow warmer at high latitudes, matching the long, colorful twilight seen at real-world high latitudes. Colonies near the equator see little change.
+- Shadows also stretch very slightly longer on the side of the map the sun is leaning away from, subtly following the same seasonal lean.</description>
+  <loadAfter>
+    <li>Ludeon.RimWorld</li>
+    <li>Ludeon.RimWorld.Royalty</li>
+    <li>Ludeon.RimWorld.Ideology</li>
+    <li>Ludeon.RimWorld.Biotech</li>
+    <li>Ludeon.RimWorld.Anomaly</li>
+    <li>brrainz.harmony</li>
+    <!-- Soft interop note, not a shared-patch-target requirement: Dub's Skylights reads
+         SkyManager.CurSkyGlow, which our patches never touch (we only touch shadow-vector
+         direction/length and WeatherWorker.CurSkyTarget's colors), so there is no real
+         ordering dependency. Listed anyway since both mods touch "sky lighting" and a user
+         reasonably expects them to declare awareness of each other. -->
+    <li>Dubwise.DubsSkylights</li>
+  </loadAfter>
+</ModMetaData>

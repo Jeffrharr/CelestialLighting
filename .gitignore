@@ -1,0 +1,6 @@
+1.6/Assemblies/
+Source/obj/
+Tests/**/obj/
+Tests/**/bin/
+.tokensave/
+.claude/settings.local.json
