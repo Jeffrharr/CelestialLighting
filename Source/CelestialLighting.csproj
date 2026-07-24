@@ -12,8 +12,16 @@
     <!-- Compile-time only: we depend on the standalone brrainz.harmony Workshop mod (declared as a
          hard <modDependencies> requirement in About.xml) providing 0Harmony.dll at runtime instead
          of bundling our own copy, which would risk two different Harmony versions loading into the
-         same AppDomain if the user also has another mod that bundles its own. -->
-    <PackageReference Include="Lib.Harmony" Version="2.3.*" ExcludeAssets="runtime" />
+         same AppDomain if another mod also bundles its own. This matches the sibling MapFeatureEvents
+         mod's reference form. 0Harmony is not strong-named (PublicKeyToken=null), so Mono ignores the
+         AssemblyVersion baked into our reference and binds to whatever 0Harmony is loaded — the exact
+         "2.3.*"-vs-installed version does not matter. What DOES matter is that brrainz.harmony loads
+         *before* us: its Manifest declares <loadBefore>Core</loadBefore>, and our About.xml lists it
+         in <modDependencies>/<loadAfter>, so mod managers order it first. If those attributes aren't
+         yet loaded when RimWorld reads our [HarmonyPatch] custom attributes, resolution fails with a
+         TypeLoadException that misleadingly names our reference's version — that is a load-order
+         symptom, not a version mismatch. -->
+    <PackageReference Include="Lib.Harmony" Version="2.3.*" ExcludeAssets="runtime" PrivateAssets="all" />
   </ItemGroup>
   <ItemGroup>
     <!-- Probes/ implements RimWorldTestHarness.Mod.Probes.IProbe for the dev-only live test

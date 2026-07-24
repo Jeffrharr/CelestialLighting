@@ -2,5 +2,9 @@
 Source/obj/
 Tests/**/obj/
 Tests/**/bin/
+TestMod/1.6/Assemblies/
+TestMod/obj/
+TestMod/bin/
 .tokensave/
 .claude/settings.local.json
+1.6/Assemblies/0Harmony.dll
