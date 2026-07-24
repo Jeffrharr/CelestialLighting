@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net481</TargetFramework>
+    <AssemblyName>CelestialLighting.Probes</AssemblyName>
+    <RootNamespace>CelestialLighting.Probes</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <OutputPath>1.6/Assemblies</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Krafs.Rimworld.Ref" Version="1.6.*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Linked, not copied: this compiles the exact file CelestialLighting.csproj excludes (see
+         its <Compile Remove="Probes/**/*.cs" />), so there is only ever one copy of
+         ShadowLeanProbe.cs on disk. -->
+    <Compile Include="../Source/Probes/ShadowLeanProbe.cs" Link="ShadowLeanProbe.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Dev-only mod, never published — references the built output of two sibling repos rather
+         than project references, since neither CelestialLighting.csproj nor
+         RimWorldTestHarness.csproj should themselves depend on this one (that dependency only
+         goes one direction: this test mod depends on both of them). Build CelestialLighting and
+         RimWorldTestHarness first (both build.sh scripts) before building this project. -->
+    <Reference Include="CelestialLighting">
+      <HintPath>../1.6/Assemblies/CelestialLighting.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="RimWorldTestHarness">
+      <HintPath>../../RimWorldTestHarness/1.6/Assemblies/RimWorldTestHarness.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+</Project>

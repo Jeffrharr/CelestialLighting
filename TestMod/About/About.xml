@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ModMetaData>
+  <name>Celestial Lighting — Test Probes</name>
+  <author>Joof</author>
+  <packageId>joof.celestiallighting.probes</packageId>
+  <supportedVersions>
+    <li>1.6</li>
+  </supportedVersions>
+  <description>Dev-only, unpublished. Registers CelestialLighting's IProbe implementations with
+RimWorldTestHarness so Scenarios/*.json can assert against them. Never load this alongside
+CelestialLighting in a real playthrough's mod list — it exists purely for
+RimWorldTestHarness/Runner/run_test.sh runs.</description>
+  <modDependencies>
+    <li>
+      <packageId>joof.celestiallighting</packageId>
+      <displayName>Celestial Lighting</displayName>
+    </li>
+    <li>
+      <packageId>joof.rimworldtestharness</packageId>
+      <displayName>RimWorldTestHarness</displayName>
+    </li>
+  </modDependencies>
+  <loadAfter>
+    <li>Ludeon.RimWorld</li>
+    <li>Ludeon.RimWorld.Royalty</li>
+    <li>Ludeon.RimWorld.Ideology</li>
+    <li>Ludeon.RimWorld.Biotech</li>
+    <li>Ludeon.RimWorld.Anomaly</li>
+    <li>brrainz.harmony</li>
+    <li>joof.celestiallighting</li>
+    <li>joof.rimworldtestharness</li>
+  </loadAfter>
+</ModMetaData>
