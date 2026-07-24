@@ -35,32 +35,6 @@ public class FormulasTests
         Assert.That(Formulas.DeclinationSign(dayOfYear), Is.EqualTo(expected).Within(Tolerance));
     }
 
-    // --- ApplyShadowLean (the equinox-flattening regression this formula exists to fix) ---
-
-    [TestCase(5f, 0f, 5f)] // lean == 0 must be a true no-op, at every y, not just y == 0
-    [TestCase(-5f, 0f, -5f)]
-    [TestCase(0f, 0f, 0f)]
-    [TestCase(-10f, 1f, 10f)] // full positive lean flips a negative y to fully positive
-    [TestCase(10f, -1f, -10f)] // full negative lean flips a positive y to fully negative
-    [TestCase(10f, 1f, 10f)] // already the target sign: full lean is a no-op
-    [TestCase(-10f, 0.5f, 0f)] // halfway through a flip: lerp(-10, 10, 0.5) == 0
-    public void ApplyShadowLean_MatchesExpected(float y, float lean, float expected)
-    {
-        Assert.That(Formulas.ApplyShadowLean(y, lean), Is.EqualTo(expected).Within(Tolerance));
-    }
-
-    [Test]
-    public void ApplyShadowLean_NeverFlattensAtLeanZero_AcrossManyYValues()
-    {
-        // Regression guard for the original bug: Lerp(y, -y, InverseLerp(-1,1,0)) == 0 for any y.
-        // The sign-blend replacement must leave y untouched at lean == 0 for every y, not just 0.
-        for (float y = -20f; y <= 20f; y += 1f)
-        {
-            Assert.That(Formulas.ApplyShadowLean(y, 0f), Is.EqualTo(y).Within(Tolerance),
-                $"lean == 0 flattened y == {y}");
-        }
-    }
-
     // --- TwilightBandWidth ---
 
     [TestCase(0f, 0.12f)]
@@ -112,6 +86,132 @@ public class FormulasTests
         float below = Formulas.TwilightFactor(Formulas.TwilightPeakGlow - 0.05f, strength: 1f);
         float above = Formulas.TwilightFactor(Formulas.TwilightPeakGlow + 0.05f, strength: 1f);
         Assert.That(below, Is.EqualTo(above).Within(Tolerance));
+    }
+
+    // --- SolarDeclinationDegrees ---
+
+    [TestCase(0f, -23.44f)] // start of year: winter-pole-favoring, matches DeclinationSign(0) == -1
+    [TestCase(30f, 23.44f)] // half-year (solstice): DeclinationSign(30) == 1
+    [TestCase(15f, 0f)] // equinox
+    public void SolarDeclinationDegrees_MatchesExpected(float dayOfYear, float expected)
+    {
+        Assert.That(Formulas.SolarDeclinationDegrees(dayOfYear), Is.EqualTo(expected).Within(Tolerance));
+    }
+
+    // --- SolarElevationDegrees ---
+
+    [Test]
+    public void SolarElevationDegrees_IsNinety_AtEquatorEquinoxNoon()
+    {
+        // Sun directly overhead: 0 latitude, 0 declination, solar noon.
+        float elevation = Formulas.SolarElevationDegrees(latitudeDegrees: 0f, declinationDegrees: 0f, dayPercent: 0.5f);
+        Assert.That(elevation, Is.EqualTo(90f).Within(Tolerance));
+    }
+
+    [Test]
+    public void SolarElevationDegrees_IsNegativeNinety_AtEquatorEquinoxMidnight()
+    {
+        float elevation = Formulas.SolarElevationDegrees(latitudeDegrees: 0f, declinationDegrees: 0f, dayPercent: 0f);
+        Assert.That(elevation, Is.EqualTo(-90f).Within(Tolerance));
+    }
+
+    [TestCase(0.25f)] // 6am
+    [TestCase(0.75f)] // 6pm
+    public void SolarElevationDegrees_IsZero_AtEquatorEquinoxSunriseSunset(float dayPercent)
+    {
+        float elevation = Formulas.SolarElevationDegrees(latitudeDegrees: 0f, declinationDegrees: 0f, dayPercent: dayPercent);
+        Assert.That(elevation, Is.EqualTo(0f).Within(Tolerance));
+    }
+
+    [TestCase(0f)]
+    [TestCase(0.25f)]
+    [TestCase(0.5f)]
+    [TestCase(0.75f)]
+    public void SolarElevationDegrees_IsConstant_AtNorthPole_RegardlessOfDayPercent(float dayPercent)
+    {
+        // cos(latitude) == 0 at the pole, so the hour-angle term drops out entirely: elevation
+        // equals declination all "day" long. This is what makes midnight sun/polar night fall out
+        // of the formula for free, with no special-casing.
+        float elevation = Formulas.SolarElevationDegrees(latitudeDegrees: 90f, declinationDegrees: 23.44f, dayPercent: dayPercent);
+        Assert.That(elevation, Is.EqualTo(23.44f).Within(Tolerance));
+    }
+
+    [Test]
+    public void SolarElevationDegrees_IsNegative_AtNorthPole_DuringSouthernSummer()
+    {
+        // Polar night: the sun never rises at the north pole while the south pole has its summer.
+        float elevation = Formulas.SolarElevationDegrees(latitudeDegrees: 90f, declinationDegrees: -23.44f, dayPercent: 0.5f);
+        Assert.That(elevation, Is.EqualTo(-23.44f).Within(Tolerance));
+    }
+
+    [Test]
+    public void SolarElevationDegrees_IsMirrored_AtSouthPole()
+    {
+        float elevation = Formulas.SolarElevationDegrees(latitudeDegrees: -90f, declinationDegrees: 23.44f, dayPercent: 0f);
+        Assert.That(elevation, Is.EqualTo(-23.44f).Within(Tolerance));
+    }
+
+    // --- ShadowLengthFromElevation ---
+
+    [Test]
+    public void ShadowLengthFromElevation_IsOne_AtFortyFiveDegrees()
+    {
+        Assert.That(Formulas.ShadowLengthFromElevation(45f), Is.EqualTo(1f).Within(Tolerance));
+    }
+
+    [Test]
+    public void ShadowLengthFromElevation_IsZero_AtZenith()
+    {
+        Assert.That(Formulas.ShadowLengthFromElevation(90f), Is.EqualTo(0f).Within(Tolerance));
+    }
+
+    [Test]
+    public void ShadowLengthFromElevation_ClampsToMaxNearHorizon()
+    {
+        // cot(1 degree) is ~57, far past MaxShadowLength (15) — must clamp, not blow up.
+        Assert.That(Formulas.ShadowLengthFromElevation(1f), Is.EqualTo(Formulas.MaxShadowLength).Within(Tolerance));
+    }
+
+    [Test]
+    public void ShadowLengthFromElevation_FloorsElevationNearZero()
+    {
+        // Elevations below the internal floor (0.5 degrees) must not diverge further than the
+        // floor's own value does — otherwise cot() approaches infinity as elevation approaches 0.
+        float atZero = Formulas.ShadowLengthFromElevation(0f);
+        float belowFloor = Formulas.ShadowLengthFromElevation(0.01f);
+        Assert.That(belowFloor, Is.EqualTo(atZero).Within(Tolerance));
+    }
+
+    // --- ShadowIntensityFromElevation ---
+
+    [TestCase(-0.83f, 0f)] // AtmosphericRefractionDegrees: the existence gate, ramp floor
+    [TestCase(2.17f, 1f)] // AtmosphericRefractionDegrees + ShadowIntensityRampDegrees: ramp ceiling
+    [TestCase(0.67f, 0.5f)] // ramp midpoint
+    [TestCase(100f, 1f)] // well past the ramp: stays clamped at full strength
+    [TestCase(-5f, 0f)] // well below the refraction-adjusted horizon: clamps to 0, doesn't go negative
+    public void ShadowIntensityFromElevation_MatchesExpected(float elevationDegrees, float expected)
+    {
+        Assert.That(Formulas.ShadowIntensityFromElevation(elevationDegrees), Is.EqualTo(expected).Within(Tolerance));
+    }
+
+    // --- ShadowVectorFromSunPosition ---
+
+    [Test]
+    public void ShadowVectorFromSunPosition_PointsAwayFromSun_WhenSunDueNorth()
+    {
+        // Sun at azimuth 0 (due north) casts a shadow due south: positive X stays ~0, Y goes negative.
+        Formulas.ShadowVector shadow = Formulas.ShadowVectorFromSunPosition(elevationDegrees: 45f, azimuthDegrees: 0f);
+        Assert.That(shadow.X, Is.EqualTo(0f).Within(Tolerance));
+        Assert.That(shadow.Y, Is.EqualTo(-1f).Within(Tolerance)); // cot(45) == 1
+    }
+
+    [Test]
+    public void ShadowVectorFromSunPosition_PointsAwayFromSun_WhenSunDueEast()
+    {
+        // Sun at azimuth 90 (due east) casts a shadow due west: X goes negative, Y stays ~0.
+        Formulas.ShadowVector shadow = Formulas.ShadowVectorFromSunPosition(elevationDegrees: 45f, azimuthDegrees: 90f);
+        Assert.That(shadow.X, Is.EqualTo(-1f).Within(Tolerance));
+        Assert.That(shadow.Y, Is.EqualTo(0f).Within(Tolerance));
     }
 
     // --- ShadowLengthPositionFraction ---

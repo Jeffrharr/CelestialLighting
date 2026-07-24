@@ -35,9 +35,6 @@ public static class Patch_ShadowTilt
     static MethodBase TargetMethod() =>
         AccessTools.Method(AccessTools.TypeByName("Verse.SectionLayer_SunShadows"), "DrawLayer");
 
-    private static readonly AccessTools.FieldRef<SectionLayer, Section> SectionField =
-        AccessTools.FieldRefAccess<SectionLayer, Section>("section");
-
     // How much the shadow vector's length can grow/shrink from the map's center to its edge.
     // 0.15 means the far edge (along the current shadow axis) casts shadows up to ~15% longer
     // than the center, and the opposite edge ~15% shorter — kept small deliberately so it reads
@@ -56,13 +53,18 @@ public static class Patch_ShadowTilt
 
         __instance.RefreshSubMeshBounds();
 
-        Section section = SectionField(__instance);
+        Section section = SectionLayerAccess.GetSection(__instance);
         Map map = section.map;
 
+        // Goes through the patched method (Patch_ShadowDirection's Postfix runs on every call, this
+        // one included), so both vector and intensity already reflect our elevation-based model —
+        // reusing lightInfo.intensity here instead of a second, independent GenCelestial.CurShadowStrength
+        // call keeps this in agreement with Patch_ShadowDirection's existence/intensity decision
+        // (e.g. zero at night) rather than falling back to vanilla's own separate curve.
         GenCelestial.LightInfo lightInfo = GenCelestial.GetLightSourceInfo(map, GenCelestial.LightType.Shadow);
         Vector2 shadowDir = lightInfo.vector;
         float lengthScale = ComputeLengthScale(map, section, shadowDir);
-        float shadowStrength = GenCelestial.CurShadowStrength(map);
+        float shadowStrength = lightInfo.intensity;
 
         List<LayerSubMesh> subMeshes = __instance.subMeshes;
         for (int i = 0; i < subMeshes.Count; i++)

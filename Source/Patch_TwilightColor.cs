@@ -18,8 +18,8 @@ public static class Patch_TwilightColor
 
     static void Postfix(Map map, ref SkyTarget __result)
     {
-        Formulas.LatitudeContext ctx = LatitudeEffect.ForMap(map);
-        if (ctx.Strength <= 0f)
+        float strength = LatitudeEffect.StrengthForMap(map);
+        if (strength <= 0f)
             return;
 
         // Deliberately re-derive sun glow from GenCelestial.CurCelestialSunGlow rather than
@@ -33,7 +33,7 @@ public static class Patch_TwilightColor
         // Band width, peak position, and the factor curve itself all live in
         // Formulas.TwilightFactor, with edge-case unit tests covering the band's edges, its peak,
         // and how both scale with latitude strength.
-        float twilightFactor = Formulas.TwilightFactor(sunGlow, ctx.Strength);
+        float twilightFactor = Formulas.TwilightFactor(sunGlow, strength);
 
         if (twilightFactor <= 0f)
             return;

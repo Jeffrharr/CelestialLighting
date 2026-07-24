@@ -115,7 +115,19 @@ public class ApiCompatibilityTests
         }
     }
 
-    // --- GenDate / WorldGrid / Map (LatitudeEffect) ---
+    // --- GenLocalDate (Patch_ShadowDirection) ---
+
+    [Test]
+    public void GenLocalDate_DayPercent_Exists()
+    {
+        var type = GetType("RimWorld.GenLocalDate");
+        Assert.That(type, Is.Not.Null, "RimWorld.GenLocalDate no longer exists");
+        var method = type!.Methods.SingleOrDefault(m =>
+            m.Name == "DayPercent" && m.Parameters.Count == 1 && m.Parameters[0].ParameterType.Name == "Map");
+        Assert.That(method, Is.Not.Null, "GenLocalDate.DayPercent(Map) no longer exists");
+    }
+
+    // --- GenDate / WorldGrid / Map (LatitudeEffect, Patch_ShadowDirection) ---
 
     [Test]
     public void GenDate_DayOfYear_Exists()
@@ -165,7 +177,7 @@ public class ApiCompatibilityTests
         Assert.That(property, Is.Not.Null, "Map.Size no longer exists");
     }
 
-    // --- SectionLayer_SunShadows / SectionLayer / Section (Patch_ShadowTilt) ---
+    // --- SectionLayer_SunShadows / SectionLayer / Section (Patch_ShadowTilt, Patch_ShadowMeshPerimeter) ---
 
     [Test]
     public void SectionLayer_SunShadows_DrawLayer_Exists()
@@ -177,13 +189,23 @@ public class ApiCompatibilityTests
     }
 
     [Test]
+    public void SectionLayer_SunShadows_Regenerate_Exists()
+    {
+        var type = GetType("Verse.SectionLayer_SunShadows");
+        Assert.That(type, Is.Not.Null, "Verse.SectionLayer_SunShadows no longer exists");
+        var method = type!.Methods.SingleOrDefault(m => m.Name == "Regenerate" && m.Parameters.Count == 0);
+        Assert.That(method, Is.Not.Null,
+            "SectionLayer_SunShadows.Regenerate() no longer exists — Patch_ShadowMeshPerimeter's TargetMethod will fail");
+    }
+
+    [Test]
     public void SectionLayer_HasProtectedSectionField()
     {
         var type = GetType("Verse.SectionLayer");
         Assert.That(type, Is.Not.Null, "Verse.SectionLayer no longer exists");
         var field = type!.Fields.SingleOrDefault(f => f.Name == "section");
         Assert.That(field, Is.Not.Null,
-            "SectionLayer.section field no longer exists — Patch_ShadowTilt's reflection accessor will fail");
+            "SectionLayer.section field no longer exists — SectionLayerAccess's reflection accessor will fail");
         Assert.That(field!.FieldType.FullName, Is.EqualTo("Verse.Section"));
     }
 
@@ -219,6 +241,10 @@ public class ApiCompatibilityTests
             "MapDrawLayer.Visible no longer exists");
         Assert.That(type.Methods.Any(m => m.Name == "RefreshSubMeshBounds"), Is.True,
             "MapDrawLayer.RefreshSubMeshBounds no longer exists");
+        var getSubMesh = type.Methods.SingleOrDefault(m => m.Name == "GetSubMesh" && m.Parameters.Count == 1);
+        Assert.That(getSubMesh, Is.Not.Null,
+            "MapDrawLayer.GetSubMesh(Material) no longer exists — Patch_ShadowMeshPerimeter calls it directly");
+        Assert.That(getSubMesh!.IsPublic, Is.True, "MapDrawLayer.GetSubMesh is no longer public");
     }
 
     [Test]
@@ -226,11 +252,87 @@ public class ApiCompatibilityTests
     {
         var type = GetType("Verse.LayerSubMesh");
         Assert.That(type, Is.Not.Null, "Verse.LayerSubMesh no longer exists");
-        foreach (var fieldName in new[] { "finalized", "disabled", "material", "renderLayer", "mesh" })
+        foreach (var fieldName in new[] { "finalized", "disabled", "material", "renderLayer", "mesh", "verts", "tris", "colors" })
         {
             Assert.That(type!.Fields.Any(f => f.Name == fieldName && f.IsPublic), Is.True,
                 $"LayerSubMesh.{fieldName} no longer exists or is no longer public");
         }
+        foreach (var methodName in new[] { "Clear", "FinalizeMesh" })
+        {
+            Assert.That(type!.Methods.Any(m => m.Name == methodName && m.IsPublic), Is.True,
+                $"LayerSubMesh.{methodName}(MeshParts) no longer exists or is no longer public");
+        }
+    }
+
+    // --- EdificeGrid / CellIndices / AltitudeLayer / ThingDef / MatBases (Patch_ShadowMeshPerimeter) ---
+
+    [Test]
+    public void Map_HasPublicEdificeGridAndCellIndicesFields()
+    {
+        var type = GetType("Verse.Map");
+        Assert.That(type, Is.Not.Null);
+        var edificeGrid = type!.Fields.SingleOrDefault(f => f.Name == "edificeGrid");
+        Assert.That(edificeGrid, Is.Not.Null, "Map.edificeGrid no longer exists");
+        Assert.That(edificeGrid!.IsPublic, Is.True, "Map.edificeGrid is no longer public");
+        var cellIndices = type.Fields.SingleOrDefault(f => f.Name == "cellIndices");
+        Assert.That(cellIndices, Is.Not.Null, "Map.cellIndices no longer exists");
+        Assert.That(cellIndices!.IsPublic, Is.True, "Map.cellIndices is no longer public");
+    }
+
+    [Test]
+    public void EdificeGrid_InnerArray_Exists()
+    {
+        var type = GetType("Verse.EdificeGrid");
+        Assert.That(type, Is.Not.Null, "Verse.EdificeGrid no longer exists");
+        var property = type!.Properties.SingleOrDefault(p => p.Name == "InnerArray");
+        Assert.That(property, Is.Not.Null, "EdificeGrid.InnerArray no longer exists");
+    }
+
+    [Test]
+    public void CellIndices_CellToIndex_ExistsForIntCoordinates()
+    {
+        var type = GetType("Verse.CellIndices");
+        Assert.That(type, Is.Not.Null, "Verse.CellIndices no longer exists");
+        var method = type!.Methods.SingleOrDefault(m =>
+            m.Name == "CellToIndex" && m.Parameters.Count == 2
+            && m.Parameters[0].ParameterType.FullName == "System.Int32");
+        Assert.That(method, Is.Not.Null, "CellIndices.CellToIndex(int, int) no longer exists");
+    }
+
+    [Test]
+    public void AltitudeLayer_HasShadowsMember()
+    {
+        var type = GetType("Verse.AltitudeLayer");
+        Assert.That(type, Is.Not.Null, "Verse.AltitudeLayer no longer exists");
+        Assert.That(type!.Fields.Any(f => f.Name == "Shadows"), Is.True, "AltitudeLayer.Shadows no longer exists");
+    }
+
+    [Test]
+    public void Altitudes_AltitudeFor_Exists()
+    {
+        var type = GetType("Verse.Altitudes");
+        Assert.That(type, Is.Not.Null, "Verse.Altitudes no longer exists");
+        var method = type!.Methods.SingleOrDefault(m => m.Name == "AltitudeFor" && m.Parameters.Count == 1);
+        Assert.That(method, Is.Not.Null, "Altitudes.AltitudeFor(AltitudeLayer) no longer exists");
+    }
+
+    [Test]
+    public void ThingDef_StaticSunShadowHeight_Exists()
+    {
+        var type = GetType("Verse.ThingDef");
+        Assert.That(type, Is.Not.Null);
+        var field = type!.Fields.SingleOrDefault(f => f.Name == "staticSunShadowHeight");
+        Assert.That(field, Is.Not.Null, "ThingDef.staticSunShadowHeight no longer exists");
+        Assert.That(field!.FieldType.FullName, Is.EqualTo("System.Single"));
+    }
+
+    [Test]
+    public void MatBases_SunShadow_Exists()
+    {
+        var type = GetType("Verse.MatBases");
+        Assert.That(type, Is.Not.Null, "Verse.MatBases no longer exists");
+        Assert.That(type!.Fields.Any(f => f.Name == "SunShadow" && f.IsPublic), Is.True,
+            "MatBases.SunShadow no longer exists or is no longer public");
     }
 
     [Test]
