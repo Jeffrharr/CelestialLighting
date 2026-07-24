@@ -29,6 +29,7 @@
     <Compile Include="../../Source/Formulas.cs" Link="Formulas.cs" />
     <Compile Include="../../Source/PenumbraMath.cs" Link="PenumbraMath.cs" />
     <Compile Include="../../Source/MoonMath.cs" Link="MoonMath.cs" />
+    <Compile Include="../../Source/NightRadianceMath.cs" Link="NightRadianceMath.cs" />
   </ItemGroup>
 
 </Project>

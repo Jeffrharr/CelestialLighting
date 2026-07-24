@@ -297,7 +297,7 @@ previously suppressed vanilla's fake one. **Moonlight is exposed but not yet con
 `MoonPosition.MoonlightBrightnessForMap` returns a normalized 0–1 scalar marked with a
 `TODO(integration)` for §7 to sum with its starlight/airglow floors.
 
-## 7. Night-sky radiance: stars, airglow, moonlight (planned)
+## 7. Night-sky radiance: stars, airglow, moonlight (`Patch_NightRadiance`)
 
 Vanilla night is a flat glow floor. We want night brightness to instead be the *sum of a few
 physically-motivated dim light sources*, so that darkness is emergent — legible under a full moon,
@@ -316,16 +316,35 @@ floors set to zero, not a separate special-case hack. A "background stars / atmo
 toggle (default on) gives the atmospheric look; turning it off, or sliding the floors to zero,
 yields genuinely black unlit nights.
 
-Where it writes: this composes with subsystem 2's twilight blend — both adjust
-`WeatherWorker.CurSkyTarget`'s glow/colour at low sun angles rather than fighting over the sky. The
-night radiance sets the floor the twilight warm-tint then rides on top of at dusk/dawn. As with
-subsystem 2, we recompute sun/moon position from `GenCelestial`/our own simulator rather than
-reading an already-weather-clamped `__result.glow`, so night brightness tracks true celestial
-geometry and weather dimming stays a separate, later multiply.
+Where it writes: a Postfix on `WeatherWorker.CurSkyTarget` sets `__result.glow` **only** (never
+`.colors`) and **only below the horizon**, so it composes cleanly under subsystem 2's twilight blend
+— §2 warms `.colors` during the dusk/dawn band *above* the horizon, §7 owns the glow floor *below*
+it, and the two never touch the same field in the same regime. The night radiance sets the floor the
+twilight warm-tint then rides on top of at dusk/dawn. As with subsystem 2, we recompute the sun's
+true elevation from the shared `SolarPosition`/`Formulas` simulator rather than reading an
+already-weather-clamped `__result.glow`, so night brightness tracks true celestial geometry and
+weather dimming stays a separate, later multiply.
 
-Pure-function boundary holds: star/airglow constants and the phase/altitude→lux curves live in
-`Source/Formulas.cs` with offline `[TestCase]` coverage; the patch is a thin adapter that reads
-sun/moon elevation off live state and blends the resulting colour/glow into the sky target.
+The floor fades in across a **textbook twilight band**: 0 above the atmospheric-refraction horizon
+(`-0.83°`, the same constant the shadow simulator uses), ramping to full ownership of the glow at the
+end of astronomical twilight (`-18°`, past which scattered sunlight no longer lightens the sky). The
+blend is a `Lerp` (not a `Max`) precisely so the floor can cross *below* vanilla's night glow for
+true pitch-black, not only above it for a full moon.
+
+Pure-function boundary holds: the star/airglow floor constants and the phase/altitude→glow and
+band-blend curves live in `Source/NightRadianceMath.cs` (a dependency-free `System`-only static
+class, linked into the test project) with offline `[TestCase]` coverage in
+`NightRadianceMathTests.cs`; `Patch_NightRadiance.cs` is the thin adapter that reads sun/moon
+elevation off live state and blends the resulting glow into the sky target.
+
+**Moon seam (deferred dependency on §6/#3).** Moonlight needs the moon's illuminated fraction and
+altitude, which the moon-position subsystem (§6) will provide — it is not yet merged. `MoonSeam.cs`
+is a minimal self-contained hook (`Func<Map, MoonState>`) whose default reports "no moon" (new moon
+below the horizon), so moonlight contributes exactly 0 and the shipped floor is starlight + airglow
+only — a correct, standalone behavior. Wiring `GameComponent_MoonPhase` in later is a one-line
+reassignment of `MoonSeam.Provider` (marked `// TODO(integration:`). The per-source tunables and the
+atmospheric-glow master toggle live in `NightRadianceSettings.cs`, holding the DESIGN defaults until
+the settings/presets screen (below) is built to write them (also `// TODO(integration:`).
 
 ## 8. Sky colour-temperature curve (planned)
 

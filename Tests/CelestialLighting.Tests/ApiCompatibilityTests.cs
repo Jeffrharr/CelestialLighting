@@ -104,6 +104,18 @@ public class ApiCompatibilityTests
     }
 
     [Test]
+    public void SkyTarget_HasGlowField()
+    {
+        // Patch_NightRadiance (§7) writes the night floor into SkyTarget.glow — verify it still
+        // exists and is still a float.
+        var type = GetType("Verse.SkyTarget");
+        Assert.That(type, Is.Not.Null, "Verse.SkyTarget no longer exists");
+        var field = type!.Fields.SingleOrDefault(f => f.Name == "glow");
+        Assert.That(field, Is.Not.Null, "SkyTarget.glow no longer exists — Patch_NightRadiance writes it");
+        Assert.That(field!.FieldType.FullName, Is.EqualTo("System.Single"));
+    }
+
+    [Test]
     public void SkyColorSet_HasExpectedPublicFields()
     {
         var type = GetType("Verse.SkyColorSet");
