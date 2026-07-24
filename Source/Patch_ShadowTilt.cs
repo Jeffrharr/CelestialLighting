@@ -46,6 +46,17 @@ public static class Patch_ShadowTilt
     // before each SetVector so state never leaks between sections.
     private static readonly MaterialPropertyBlock PropBlock = new MaterialPropertyBlock();
 
+    // Forward hook for a true geometric edge blur. If MatBases.SunShadow's compiled shader ever
+    // exposes an edge-softness uniform under this name, the per-section PenumbraMath.PenumbraSoftness
+    // value we push below will drive it for free. Until then SetFloat on an undeclared property is a
+    // silent Unity no-op (same safe-degradation guarantee as _CastVect in Patch_ShadowTilt's
+    // MapSunLightDirection override), so the shipped, guaranteed-visible softening is the opacity
+    // contrast attenuation folded into shadowStrength — not this uniform. We cannot inspect the
+    // compiled shader asset from decompiled C# to confirm the property exists; this is the blocker
+    // recorded in the issue and DESIGN.md, deliberately left as a no-op-safe hook rather than a
+    // hard dependency.
+    private static readonly int PenumbraSoftnessId = Shader.PropertyToID("_PenumbraSoftness");
+
     static bool Prefix(SectionLayer_Dynamic __instance)
     {
         if (!__instance.Visible)
@@ -64,14 +75,24 @@ public static class Patch_ShadowTilt
         GenCelestial.LightInfo lightInfo = GenCelestial.GetLightSourceInfo(map, GenCelestial.LightType.Shadow);
         Vector2 shadowDir = lightInfo.vector;
         float lengthScale = ComputeLengthScale(map, section, shadowDir);
-        float shadowStrength = lightInfo.intensity;
+
+        // Angular-size penumbra: the Sun is a ~0.53-degree disk, not a point, so shadows soften near
+        // the horizon where the penumbra widens sharply. We can't blur the mesh edge without a custom
+        // shader, so we approximate it in the opacity channel the shader already reads — a wider
+        // penumbra leaves more of the footprint only partially shaded, i.e. a lower-contrast shadow —
+        // by scaling the elevation-based intensity down via PenumbraMath.PenumbraContrastFactor.
+        // Elevation comes from SolarPosition.ElevationForMap, the same shared adapter that drives
+        // Patch_ShadowDirection/Patch_ShadowStrength, so all three read one identical Sun position.
+        float elevation = SolarPosition.ElevationForMap(map);
+        float shadowStrength = lightInfo.intensity * PenumbraMath.PenumbraContrastFactor(elevation);
+        float penumbraSoftness = PenumbraMath.PenumbraSoftness(elevation);
 
         List<LayerSubMesh> subMeshes = __instance.subMeshes;
         for (int i = 0; i < subMeshes.Count; i++)
         {
             LayerSubMesh subMesh = subMeshes[i];
             if (IsDrawable(subMesh))
-                DrawSubMesh(subMesh, shadowDir, lengthScale, shadowStrength);
+                DrawSubMesh(subMesh, shadowDir, lengthScale, shadowStrength, penumbraSoftness);
         }
 
         return false; // skip the original DrawLayer/base.DrawLayer entirely — we've done its job above
@@ -79,11 +100,14 @@ public static class Patch_ShadowTilt
 
     private static bool IsDrawable(LayerSubMesh subMesh) => subMesh.finalized && !subMesh.disabled;
 
-    private static void DrawSubMesh(LayerSubMesh subMesh, Vector2 shadowDir, float lengthScale, float shadowStrength)
+    private static void DrawSubMesh(LayerSubMesh subMesh, Vector2 shadowDir, float lengthScale, float shadowStrength, float penumbraSoftness)
     {
         PropBlock.Clear();
         PropBlock.SetVector(ShaderPropertyIDs.MapSunLightDirection,
             new Vector4(shadowDir.x * lengthScale, 0f, shadowDir.y * lengthScale, shadowStrength));
+        // No-op-safe forward hook (see PenumbraSoftnessId): drives a real geometric edge blur only if
+        // the shader ever declares _PenumbraSoftness; harmless otherwise.
+        PropBlock.SetFloat(PenumbraSoftnessId, penumbraSoftness);
 
         Graphics.DrawMesh(subMesh.mesh, Matrix4x4.identity, subMesh.material, subMesh.renderLayer,
             camera: null, submeshIndex: 0, properties: PropBlock);

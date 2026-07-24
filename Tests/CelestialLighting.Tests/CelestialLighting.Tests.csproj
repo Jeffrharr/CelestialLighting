@@ -27,6 +27,7 @@
        UnityEngine/Verse dependency, so it compiles cleanly under net8.0 as-is. -->
   <ItemGroup>
     <Compile Include="../../Source/Formulas.cs" Link="Formulas.cs" />
+    <Compile Include="../../Source/PenumbraMath.cs" Link="PenumbraMath.cs" />
   </ItemGroup>
 
 </Project>

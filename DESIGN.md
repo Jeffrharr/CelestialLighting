@@ -156,6 +156,46 @@ length near opposite map edges at a low sun angle; if there's no visible differe
 subsystem is inert and should be considered deferred pending an actual shader edit, not treated as
 broken.**
 
+### Angular-size penumbra — softening shadow edges near the horizon (`PenumbraMath`)
+
+Sections 1/3 treat the Sun as a point source, so shadows keep a perfectly hard edge and only their
+overall opacity fades (via `Formulas.ShadowIntensityFromElevation`). The real Sun is a disk ~0.53°
+across, so every shadow has a *penumbra* — a soft transition band at its edge where the disk is only
+partially occluded. That band is narrow at high Sun but widens sharply toward the horizon, because
+the same angular spread of the solar disk projects across a rapidly-lengthening shadow; real
+sunrise/sunset shadows visibly blur and lose contrast, which a point-source model never reproduces.
+
+The physics lives in `Source/PenumbraMath.cs` (System-only pure core, linked into the test project
+like `Formulas.cs`). From the two solar-limb elevations (`elevation ± 0.2665°`, the Sun's mean
+angular radius) it computes penumbra width per unit caster height,
+`cot(elevation − α) − cot(elevation + α)` — monotonically increasing toward the horizon, and (unlike
+width-relative-to-shadow-length) well-behaved at the zenith where the shadow length itself goes to
+zero. A saturating map `w/(w+k)` turns that into a bounded softness in [0, 1].
+
+Two consumers, one physical model:
+
+- **Shipped, guaranteed-visible:** `PenumbraContrastFactor` (1 at high Sun, floored at
+  `1 − MaxContrastLoss` = 0.4 near the horizon) multiplies the per-section shadow opacity in
+  `Patch_ShadowTilt`'s draw path. A wider penumbra means a larger partially-shaded fraction of the
+  footprint, i.e. a lower-contrast, washed-out shadow — approximated in the opacity channel the
+  sun-shadow shader already reads, needing no shader property. Outright disappearance at the horizon
+  stays `ShadowIntensityFromElevation`'s job; the two compose by multiplication. Elevation comes from
+  the shared `SolarPosition.ElevationForMap`, so this reads the exact same Sun position as
+  `Patch_ShadowDirection`/`Patch_ShadowStrength`.
+- **Forward hook, no-op-safe:** `PenumbraSoftness` is also pushed into a `_PenumbraSoftness`
+  `MaterialPropertyBlock` float. **Blocker (same as the `Patch_ShadowTilt` `_CastVect` caveat):** we
+  can't confirm from decompiled C# whether `MatBases.SunShadow`'s compiled shader exposes an
+  edge-softness uniform. `MaterialPropertyBlock.SetFloat` on an undeclared name is a silent Unity
+  no-op, so this drives a true geometric edge blur *if and only if* such a uniform is ever confirmed,
+  and otherwise does nothing — the contrast attenuation above is what actually ships. Verify in-game
+  (or by inspecting the shader asset) before assuming the mesh edge itself blurs.
+
+Conflict risk: none beyond `Patch_ShadowTilt`'s existing profile — this only scales the opacity
+component of the same per-section draw and adds one no-op-safe float; it touches no new vanilla
+member (so no `ApiCompatibilityTests` addition is needed). Clean-room: solar angular diameter and
+umbra/penumbra limb geometry are standard textbook astronomy/optics, not derived from any external
+mod. Visual only — no gameplay effect.
+
 ## 4. Missing north-facing shadow wall (`Patch_ShadowMeshPerimeter`)
 
 In-game testing showed shadows consistently missing their "top" edge — a wall whose north side
