@@ -471,6 +471,57 @@ public class ApiCompatibilityTests
         Assert.That(field, Is.Not.Null, "ShaderPropertyIDs.MapSunLightDirection no longer exists");
     }
 
+    // --- GameCondition_NoSunlight / GameCondition / GameConditionDefOf (Patch_EclipseDarkening) ---
+
+    [Test]
+    public void GameConditionNoSunlight_SkyTargetLerpFactor_Exists()
+    {
+        var type = GetType("RimWorld.GameCondition_NoSunlight");
+        Assert.That(type, Is.Not.Null, "RimWorld.GameCondition_NoSunlight no longer exists");
+        var method = type!.Methods.SingleOrDefault(m => m.Name == "SkyTargetLerpFactor" && m.Parameters.Count == 1);
+        Assert.That(method, Is.Not.Null,
+            "GameCondition_NoSunlight.SkyTargetLerpFactor(Map) no longer exists — the eclipse-darkening postfix targets it");
+        Assert.That(method!.ReturnType.FullName, Is.EqualTo("System.Single"),
+            "GameCondition_NoSunlight.SkyTargetLerpFactor no longer returns float");
+    }
+
+    [Test]
+    public void GameCondition_ProgressMembers_Exist()
+    {
+        // Patch_EclipseDarkening (and EclipseCoverageProbe) derive eclipse progress from these.
+        var type = GetType("RimWorld.GameCondition");
+        Assert.That(type, Is.Not.Null, "RimWorld.GameCondition no longer exists");
+        Assert.That(type!.Properties.Any(p => p.Name == "TicksPassed"), Is.True,
+            "GameCondition.TicksPassed no longer exists");
+        Assert.That(type.Properties.Any(p => p.Name == "TicksLeft"), Is.True,
+            "GameCondition.TicksLeft no longer exists");
+        Assert.That(type.Fields.Any(f => f.Name == "def"), Is.True,
+            "GameCondition.def no longer exists");
+    }
+
+    [Test]
+    public void GameConditionDefOf_Eclipse_Exists()
+    {
+        // The postfix gates on this def so it only reshapes the real Eclipse event (not the
+        // Royalty SunBlocker machine, which shares the GameCondition_NoSunlight class).
+        var type = GetType("RimWorld.GameConditionDefOf");
+        Assert.That(type, Is.Not.Null, "RimWorld.GameConditionDefOf no longer exists");
+        var field = type!.Fields.SingleOrDefault(f => f.Name == "Eclipse");
+        Assert.That(field, Is.Not.Null, "GameConditionDefOf.Eclipse no longer exists");
+        Assert.That(field!.FieldType.FullName, Is.EqualTo("Verse.GameConditionDef"),
+            "GameConditionDefOf.Eclipse is no longer a GameConditionDef");
+    }
+
+    [Test]
+    public void GameConditionManager_GetActiveCondition_Exists()
+    {
+        // Used by the dev-only EclipseCoverageProbe to read back the live eclipse's progress.
+        var type = GetType("RimWorld.GameConditionManager");
+        Assert.That(type, Is.Not.Null, "RimWorld.GameConditionManager no longer exists");
+        var method = type!.Methods.SingleOrDefault(m => m.Name == "GetActiveCondition" && m.Parameters.Count == 1);
+        Assert.That(method, Is.Not.Null, "GameConditionManager.GetActiveCondition(GameConditionDef) no longer exists");
+    }
+
     // --- helpers ---
 
     private TypeDefinition? GetType(string fullName) =>
