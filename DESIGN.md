@@ -284,37 +284,52 @@ It composes directly with subsystem 7 — §7 sets *how much* light the night sk
 brightness→saturation falloff curve is a plain function in `Source/Formulas.cs` with offline
 coverage.
 
-## 10. Eclipse darkening (planned, cosmetic overlay on a vanilla event)
+## 10. Eclipse: natural and unnatural (planned)
 
-RimWorld's `Eclipse` `GameCondition` already exists and already has its gameplay effect (solar power
-drops, the map darkens). This subsystem is **purely a visual enhancement of that existing event and
-changes none of its gameplay** — it makes the darkening geometric and gradual (a partial → near-total
-ramp as coverage increases) and tints the sky the characteristic wan eclipse colour, instead of the
-flat on/off dimming. The appeal is exactly that it is anchored to a real event with real
-consequences, so the visual carries meaning rather than being ambient noise.
+RimWorld's `Eclipse` `GameCondition` fires on a random timer, lasts far longer than a real solar
+eclipse (roughly a game-day), and darkens the map with a flat on/off dim. That length is physically
+impossible — a real total eclipse's totality is minutes and the whole partial-to-partial span is a
+couple of hours. Rather than paper over that, we split eclipses into two deliberately distinct
+concepts, keyed on whether the eclipse's *timing and duration are astronomically real*:
 
-Scope discipline (see "Clean-room provenance" / the mod's visual-only remit): we read the active
-`Eclipse` condition's progress and blend sky colour/glow accordingly; we do **not** touch the
-condition's solar-power or any other mechanical effect. Disk-overlap geometry for the coverage ramp
-is standard circle-intersection math.
+Both share one piece of math: a **coverage ramp** from disk-overlap (standard circle-intersection)
+geometry that drives a gradual partial → near-total darkening and the characteristic wan eclipse
+colour, replacing the vanilla flat dim. Only *what moves the discs together* and *how long they stay*
+differ.
 
-### Optional: astronomically-triggered eclipses (opt-in, off by default)
+### 10a. Natural eclipse (opt-in, off by default)
 
-Because we model the moon's actual position (§6), we can optionally make eclipses *happen when they
-should* rather than on a random timer: when the modeled moon geometrically transits the sun, fire
-the vanilla `Eclipse` `GameCondition` — i.e. trigger the eclipse event *during an actual eclipse* —
-and suppress the random `Eclipse` incident while this mode is on, so eclipses stop double-firing.
+Driven by the modeled moon's real position (§6): when the moon geometrically transits the sun, fire
+an eclipse that lasts the **correct, short real-eclipse duration** — the event triggers *during an
+actual eclipse* and ends when the discs part. Astronomically accurate in both when it happens and
+how long it lasts.
 
-This deliberately steps **one notch outside the visual-only remit**: it changes *when* a gameplay
-event (solar-power loss, mood) occurs, so it is opt-in and **off by default**, and the base mod
-stays purely cosmetic. Two consequences to design around:
+This steps **one notch outside the visual-only remit** — it changes *when* (and, by shortening the
+duration, *how long*) a gameplay event occurs (solar-power loss, mood) — so it is opt-in and **off by
+default**. Design consequences:
 
 - It requires the moon's **orbital inclination and nodes** (see §6 scope note). With the flat
   Moon-on-the-ecliptic approximation the moon would transit every new moon and eclipses would fire
-  ~monthly; the tilt + nodal geometry is what makes them appropriately rare. This feature therefore
-  owns that extra modeling — shadows/moonlight don't pay for it.
-- We trigger vanilla's *existing* `Eclipse` condition rather than inventing our own, so all downstream
-  mods that react to eclipses keep working unchanged; we only move *when* it starts.
+  ~monthly; the tilt + nodal geometry is what makes them appropriately rare and correctly timed. This
+  feature owns that extra modeling — shadows/moonlight don't pay for it.
+- It drives vanilla's *existing* `Eclipse` condition (with a corrected short duration) rather than a
+  new one, so all downstream mods that react to eclipses keep working. While this mode is on, the
+  random vanilla eclipse incident is suppressed (otherwise they double-fire) — the random ones can
+  instead be surfaced as *unnatural* eclipses (10b), a setting.
+
+### 10b. Unnatural eclipse (default cosmetic replacement of the vanilla event)
+
+The vanilla eclipse is unrealistically long, so we lean into that instead of hiding it: replace the
+vanilla event's flat darkening with a **visible moon disc that quickly slides in front of the sun,
+parks over it for the (vanilla) duration, then slides away and disappears**. The scripted
+fly-in / hold / fly-out is *deliberately* unnatural motion — an in-fiction wink that a day-long
+stationary transit is not real orbital mechanics — which is exactly why it's the honest way to render
+an event whose duration was never physical.
+
+This keeps the vanilla event's random timing, duration, and gameplay untouched — it is a **visual-only
+replacement** and is the on-by-default cosmetic behaviour. It does **not** need the real moon model:
+the disc is a scripted visual body, not the orbital §6 moon, and its motion feeds the shared coverage
+ramp as it covers and uncovers the sun.
 
 (The related lunar-eclipse "blood moon" is a third-party event — see §12 — and we only *render* it,
 never trigger it.)
