@@ -3,18 +3,28 @@
   "saveFile": "minimal_colony.rws",
   "steps": [
     { "type": "SetTile", "args": { "latitude": "20" } },
-    { "type": "SetSeason", "args": { "dayOfYear": "40" } },
 
+    { "type": "SetSeason", "args": { "dayOfYear": "37" } },
     { "type": "SetTime", "args": { "hour": "2" } },
+    { "type": "LookAt", "args": { "zoom": "14" } },
+    { "type": "Wait", "args": { "frames": "5" } },
     { "type": "Screenshot", "args": { "fileName": "msv_warmup.png" } },
 
-    { "type": "Probe", "args": { "probeName": "moon_illumination" } },
+    { "type": "Probe", "args": { "probeName": "moon_illumination", "expectedValue": "0.99", "tolerance": "0.03" } },
+    { "type": "Probe", "args": { "probeName": "moon_elevation", "expectedValue": "45", "tolerance": "45" } },
+
     { "type": "SetFeature", "args": { "featureName": "moon_shadows", "enabled": "false" } },
+    { "type": "Wait", "args": { "frames": "5" } },
+    { "type": "Probe", "args": { "probeName": "moon_shadow_render", "expectedValue": "1.0", "tolerance": "0.01" } },
     { "type": "Screenshot", "args": { "fileName": "msv_moon_shadows_off.png" } },
+
     { "type": "SetFeature", "args": { "featureName": "moon_shadows", "enabled": "true" } },
+    { "type": "Wait", "args": { "frames": "5" } },
+    { "type": "Probe", "args": { "probeName": "moon_shadow_render", "expectedValue": "0.752", "tolerance": "0.05" } },
     { "type": "Screenshot", "args": { "fileName": "msv_moon_shadows_on.png" } },
 
     { "type": "SetTime", "args": { "hour": "12" } },
+    { "type": "Wait", "args": { "frames": "5" } },
     { "type": "Screenshot", "args": { "fileName": "msv_noon_control.png" } }
   ]
 }

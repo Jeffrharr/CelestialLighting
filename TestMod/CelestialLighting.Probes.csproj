@@ -29,6 +29,8 @@
     <Compile Include="../Source/Probes/EclipseCoverageProbe.cs" Link="EclipseCoverageProbe.cs" />
     <Compile Include="../Source/Probes/BloodMoonProbe.cs" Link="BloodMoonProbe.cs" />
     <Compile Include="../Source/Probes/BrightnessFloorProbe.cs" Link="BrightnessFloorProbe.cs" />
+    <Compile Include="../Source/Probes/MoonShadowRenderProbe.cs" Link="MoonShadowRenderProbe.cs" />
+    <Compile Include="../Source/Probes/MoonElevationProbe.cs" Link="MoonElevationProbe.cs" />
   </ItemGroup>
 
   <ItemGroup>

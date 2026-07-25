@@ -1,0 +1,652 @@
+{
+  "name": "moon_survey",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "20"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "30"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "2"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "moon_illumination",
+        "expectedValue": "-1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "30"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "moon_illumination",
+        "expectedValue": "-1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "31"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "2"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "moon_illumination",
+        "expectedValue": "-1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "31"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "moon_illumination",
+        "expectedValue": "-1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "32"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "2"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "moon_illumination",
+        "expectedValue": "-1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "32"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "moon_illumination",
+        "expectedValue": "-1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "33"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "2"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "moon_illumination",
+        "expectedValue": "-1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "33"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "moon_illumination",
+        "expectedValue": "-1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "34"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "2"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "moon_illumination",
+        "expectedValue": "-1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "34"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "moon_illumination",
+        "expectedValue": "-1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "35"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "2"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "moon_illumination",
+        "expectedValue": "-1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "35"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "moon_illumination",
+        "expectedValue": "-1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "36"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "2"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "moon_illumination",
+        "expectedValue": "-1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "36"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "moon_illumination",
+        "expectedValue": "-1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "37"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "2"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "moon_illumination",
+        "expectedValue": "-1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "37"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "moon_illumination",
+        "expectedValue": "-1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "38"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "2"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "moon_illumination",
+        "expectedValue": "-1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "38"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "moon_illumination",
+        "expectedValue": "-1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "39"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "2"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "moon_illumination",
+        "expectedValue": "-1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "39"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "moon_illumination",
+        "expectedValue": "-1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "2"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "moon_illumination",
+        "expectedValue": "-1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "moon_illumination",
+        "expectedValue": "-1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "41"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "2"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "moon_illumination",
+        "expectedValue": "-1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "41"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "moon_illumination",
+        "expectedValue": "-1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "42"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "2"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "moon_illumination",
+        "expectedValue": "-1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "42"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "moon_illumination",
+        "expectedValue": "-1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "43"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "2"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "moon_illumination",
+        "expectedValue": "-1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "43"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "moon_illumination",
+        "expectedValue": "-1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "44"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "2"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "moon_illumination",
+        "expectedValue": "-1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "44"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "moon_illumination",
+        "expectedValue": "-1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "45"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "2"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "moon_illumination",
+        "expectedValue": "-1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "45"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "moon_illumination",
+        "expectedValue": "-1",
+        "tolerance": "0"
+      }
+    }
+  ]
+}

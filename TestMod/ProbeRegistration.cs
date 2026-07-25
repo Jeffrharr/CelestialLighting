@@ -26,6 +26,13 @@ public static class ProbeRegistration
         ProbeRegistry.Register(new EclipseCoverageProbe());
         ProbeRegistry.Register(new BloodMoonProbe());
         ProbeRegistry.Register(new BrightnessFloorProbe());
+        // §6a's two instruments. moon_shadow_render measures the composed shadow colour the shader
+        // actually uses, which is the only reliable way to test a moon shadow — a screenshot A/B of a
+        // night scene moves pixels by 1-3/255 and cannot be told apart from weather and pawn motion.
+        // moon_elevation exists so a scenario can prove the moon was actually in the sky, since
+        // moon_illumination reports phase alone and a full moon can be below the horizon.
+        ProbeRegistry.Register(new MoonShadowRenderProbe());
+        ProbeRegistry.Register(new MoonElevationProbe());
 
         // Expose CelestialLighting's runtime feature flags to the harness's SetFeature step so a
         // scenario can screenshot an effect off then on. The setter just writes the shipped mod's
