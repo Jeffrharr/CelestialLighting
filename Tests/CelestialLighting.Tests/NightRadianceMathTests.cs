@@ -225,6 +225,43 @@ public class NightRadianceMathTests
         Assert.That(NightRadianceMath.OverlayBrightnessFactor(0f, 0f), Is.EqualTo(0f).Within(Tolerance));
     }
 
+    // --- EffectiveMinBrightness (reconciling §7a's clamp with the accessibility floor) ---
+
+    [Test]
+    public void EffectiveMinBrightness_TakesWhicheverKnobIsHigher()
+    {
+        Assert.That(NightRadianceMath.EffectiveMinBrightness(0f, 0.15f), Is.EqualTo(0.15f).Within(Tolerance));
+        Assert.That(NightRadianceMath.EffectiveMinBrightness(0.4f, 0.15f), Is.EqualTo(0.4f).Within(Tolerance));
+    }
+
+    [Test]
+    public void EffectiveMinBrightness_FloorOff_LeavesTheTasteClampAlone()
+    {
+        // The floor's checkbox resolves to 0 before it gets here, so "off" must be a no-op — the shipped
+        // default (both 0) still renders truly pitch black.
+        Assert.That(NightRadianceMath.EffectiveMinBrightness(0f, 0f), Is.EqualTo(0f).Within(Tolerance));
+        Assert.That(NightRadianceMath.EffectiveMinBrightness(0.2f, 0f), Is.EqualTo(0.2f).Within(Tolerance));
+    }
+
+    [Test]
+    public void EffectiveMinBrightness_MakesTheFloorVisibleOnAMoonlessNight()
+    {
+        // The bug this exists for: on a moonless night the raw factor is 0 (fully black). With the
+        // accessibility floor at 0.15 the overlay must keep 15% brightness, so the map is legible.
+        float moonless = NightRadianceMath.NightSourceGlow(
+            NightRadianceMath.DefaultStarlightGlow, NightRadianceMath.DefaultAirglowGlow, moonlightGlow: 0f);
+        float minBrightness = NightRadianceMath.EffectiveMinBrightness(0f, 0.15f);
+        Assert.That(NightRadianceMath.OverlayBrightnessFactor(moonless, minBrightness),
+            Is.EqualTo(0.15f).Within(Tolerance));
+    }
+
+    [Test]
+    public void EffectiveMinBrightness_Clamps()
+    {
+        Assert.That(NightRadianceMath.EffectiveMinBrightness(-1f, -2f), Is.EqualTo(0f).Within(Tolerance));
+        Assert.That(NightRadianceMath.EffectiveMinBrightness(3f, 0.1f), Is.EqualTo(1f).Within(Tolerance));
+    }
+
     [Test]
     public void OverlayBrightnessFactor_ClampAtOrAboveOne_DisablesDarkening()
     {
