@@ -12,61 +12,85 @@ namespace CelestialLighting;
 // .NaturalEclipseEnabled, which defaults OFF — the unnatural (§10b) cosmetic darkening in
 // Patch_EclipseDarkening stays the pure-visual default and depends on none of this.
 //
-// The trigger inherently needs the modeled moon's ecliptic position — orbital inclination + nodes —
-// which is the moon-position subsystem (DESIGN.md §6), built in a separate branch that is NOT merged
-// yet. Rather than take a hard dependency on unmerged code, this file defines the minimal seam the
-// trigger plugs into and keeps the whole path inert until both (a) NaturalEclipseEnabled is on and
-// (b) §6 has supplied a real moon-geometry provider. Standalone, with the default no-transit
-// provider, this file has no runtime effect.
+// The trigger needs the modeled moon's true ecliptic position — orbital inclination + nodes — which
+// the moon-position subsystem (DESIGN.md §6) now provides: GameComponent_MoonPhase exposes both the
+// synodic cycle (elongation) and the nodal cycle, and MoonMath turns them into a sun-moon angular
+// separation. This file is the thin Verse-facing adapter that reads that live state and hands
+// primitives to the pure EclipseMath/MoonMath cores; the orchestration (when to fire/end/suppress an
+// Eclipse) lives in GameComponent_NaturalEclipse. The MoonSunGeometryProvider indirection is kept so
+// the geometry source stays swappable and testable, but it now defaults to the real live moon.
 public static class EclipseIntegration
 {
     // Provider for the current apparent geometry of the modeled moon relative to the sun on a given
-    // map. Defaults to a no-transit stub (a sensible default: with no moon model present we assert no
-    // eclipse), so ShouldEclipseBeActive is always safe to call even standalone.
-    //
-    // TODO(integration): the moon-position subsystem (DESIGN.md §6) owns the moon's true ecliptic
-    // position (inclination + nodes). When it lands, have it assign MoonSunGeometryProvider from its
-    // own startup so ShouldEclipseBeActive starts returning real answers. The flat "moon always on the
-    // ecliptic" approximation is deliberately NOT used here — it would report a transit at every new
-    // moon and make eclipses fire far too often (the "requires orbital inclination + nodes" caveat in
-    // §6's scope note and §10a).
-    public static Func<Map, MoonSunGeometry?> MoonSunGeometryProvider = DefaultNoTransitProvider;
+    // map. Defaults to the real live moon (LiveMoonSunGeometry); kept assignable so tests can swap it.
+    // Returns null when there is no moon component (off-game/main menu), so ShouldEclipseBeActive is
+    // always safe to call.
+    public static Func<Map, MoonSunGeometry?> MoonSunGeometryProvider = LiveMoonSunGeometry;
 
-    // Sensible default until §6 lands: no moon geometry is known, so report none (no transit). Kept as
-    // a named method rather than a null so the provider is always callable and the "no eclipse" answer
-    // is explicit rather than a null special-case.
-    private static MoonSunGeometry? DefaultNoTransitProvider(Map map) => null;
+    // Magnitude (0 = grazing partial, 1 = dead-central total) of the natural eclipse currently being
+    // driven, published by GameComponent_NaturalEclipse when it fires one so the darkening patch and
+    // the dev probe can scale the ramp to how much of the sun is actually covered. Resets to 1 (the
+    // central default) so the unnatural mode and any not-yet-computed state read a full park.
+    public static double ActiveNaturalMagnitude = 1.0;
 
-    // Apparent geometry of the moon relative to the sun at an instant, as seen from a map's tile.
-    // Angles in degrees. Supplied by §6; consumed only by the pure EclipseMath.IsGeometricTransit
-    // check so the decision itself stays testable and free of live game state.
+    // The live geometry provider: reads the game-wide modeled moon (shared across all maps) and the
+    // planet's orbital day-of-year, and turns them into the sun-moon separation and the eclipse's
+    // impact parameter (closest approach ≈ the moon's ecliptic latitude at the new moon). The transit
+    // is a global celestial fact, so the Map argument is only a hook for the seam — the separation
+    // itself doesn't depend on which map. Returns null with no moon component present.
+    public static MoonSunGeometry? LiveMoonSunGeometry(Map map)
+    {
+        GameComponent_MoonPhase moon = GameComponent_MoonPhase.Current;
+        if (moon == null)
+            return null;
+
+        float cyclePosition = moon.CyclePosition;
+        float nodalPosition = moon.NodalCyclePosition;
+        float dayOfYear = OrbitalDayOfYear();
+
+        float separation = MoonMath.SunMoonSeparationDegrees(dayOfYear, cyclePosition, nodalPosition);
+        // Closest approach ≈ |ecliptic latitude| at the new moon: near new moon the longitude gap is
+        // ~0, so the moon's latitude is essentially the impact parameter that sets how central (how
+        // dark) the eclipse is. Computed from the same primitives so it can never disagree.
+        float impact = Math.Abs(MoonMath.MoonEclipticLatitudeDegrees(dayOfYear, cyclePosition, nodalPosition));
+
+        return new MoonSunGeometry(
+            separation, EclipseMath.SunAngularRadiusDegrees, EclipseMath.MoonAngularRadiusDegrees, impact);
+    }
+
+    // Continuous day-of-year (fractional) driving the sun's ecliptic longitude, from the absolute tick
+    // at full resolution. Kept longitude-independent: the sun-moon separation is a frame-invariant
+    // angle, and any fixed hemisphere offset would just re-anchor the (already arbitrary) node epoch —
+    // so a plain global orbital phase is both correct and the simplest thing that agrees with the pure
+    // EclipseStaging math used to film the event.
+    private static float OrbitalDayOfYear() =>
+        (float)((double)Find.TickManager.TicksAbs / GenDate.TicksPerDay % Formulas.DaysPerYear);
+
+    // Apparent geometry of the moon relative to the sun at an instant. Angles in degrees. Consumed by
+    // the pure EclipseMath.IsGeometricTransit / TransitMagnitude checks so the decisions stay testable
+    // and free of live game state.
     public readonly struct MoonSunGeometry
     {
         public readonly double SeparationDegrees;
         public readonly double SunAngularRadiusDegrees;
         public readonly double MoonAngularRadiusDegrees;
+        // Closest sun-moon approach over the passage (the eclipse's impact parameter). Sets magnitude.
+        public readonly double ClosestApproachDegrees;
 
         public MoonSunGeometry(
-            double separationDegrees, double sunAngularRadiusDegrees, double moonAngularRadiusDegrees)
+            double separationDegrees, double sunAngularRadiusDegrees, double moonAngularRadiusDegrees,
+            double closestApproachDegrees)
         {
             SeparationDegrees = separationDegrees;
             SunAngularRadiusDegrees = sunAngularRadiusDegrees;
             MoonAngularRadiusDegrees = moonAngularRadiusDegrees;
+            ClosestApproachDegrees = closestApproachDegrees;
         }
     }
 
-    // Whether a real (§10a) eclipse should be active on this map right now, per the opt-in trigger.
-    // Returns false whenever the mode is off or the provider reports no geometry, so the standalone
-    // mod never asserts a transit. When both are present the decision defers to the pure geometry
-    // check, keeping it testable.
-    //
-    // TODO(integration): the caller that will actually use this — a GameComponent that, while
-    // NaturalEclipseEnabled is on, fires GameConditionDefOf.Eclipse with a duration from
-    // EclipseMath.NaturalEclipseDurationTicks when this flips true, ends it when the discs part, and
-    // suppresses the random Eclipse IncidentDef so they don't double-fire — belongs in the branch that
-    // merges §6, since only then is there real moon geometry (and a real relative angular speed) to
-    // drive it. It is left unwired here on purpose: with the trigger off by default and only the
-    // no-transit provider, wiring it now would be dead code that could only misbehave once §6 arrives.
+    // Whether a real (§10a) eclipse should be active right now, per the opt-in trigger. Returns false
+    // whenever the mode is off or there is no moon geometry, so the mod never asserts a transit unless
+    // asked. When both are present the decision defers to the pure geometry check, keeping it testable.
     public static bool ShouldEclipseBeActive(Map map)
     {
         if (!EclipseSettings.NaturalEclipseEnabled)
@@ -79,6 +103,41 @@ public static class EclipseIntegration
         MoonSunGeometry g = geometry.Value;
         return EclipseMath.IsGeometricTransit(
             g.SeparationDegrees, g.SunAngularRadiusDegrees, g.MoonAngularRadiusDegrees);
+    }
+
+    // Central-ness of the transit happening right now, in [0, 1], from the live impact parameter — 1
+    // for a bullseye total, near 0 for a grazing partial. GameComponent_NaturalEclipse reads this at
+    // fire time to size both the darkening (via ActiveNaturalMagnitude) and the duration. Returns 0
+    // when there is no geometry (caller should not be firing then anyway).
+    public static double CurrentTransitMagnitude(Map map)
+    {
+        MoonSunGeometry? geometry = MoonSunGeometryProvider?.Invoke(map);
+        if (!geometry.HasValue)
+            return 0.0;
+
+        MoonSunGeometry g = geometry.Value;
+        return EclipseMath.TransitMagnitude(
+            g.ClosestApproachDegrees, g.SunAngularRadiusDegrees, g.MoonAngularRadiusDegrees);
+    }
+
+    // Correct SHORT real-eclipse duration in ticks for a transit of the given magnitude, from the
+    // moon's relative angular speed (elongation sweeps a full 360° per synodic month). Falls back to 0
+    // — caller then leaves the event alone — if there is no moon component or a degenerate period.
+    public static int CurrentEclipseDurationTicks(double magnitude)
+    {
+        GameComponent_MoonPhase moon = GameComponent_MoonPhase.Current;
+        if (moon == null || moon.synodicPeriodDays <= 0f)
+            return 0;
+
+        // Moon-relative-to-sun angular speed: 360° over one synodic month, expressed per hour.
+        double relativeSpeedDegPerHour = 360.0 / (moon.synodicPeriodDays * GenDate.HoursPerDay);
+        double ticks = EclipseMath.NaturalEclipseDurationTicks(
+            relativeSpeedDegPerHour,
+            EclipseMath.SunAngularRadiusDegrees,
+            EclipseMath.MoonAngularRadiusDegrees,
+            magnitude,
+            GenDate.TicksPerHour);
+        return ticks <= 0.0 ? 0 : (int)Math.Round(ticks);
     }
 
     // Fraction of the eclipse elapsed, in [0, 1]. TicksPassed + TicksLeft is the full duration; the

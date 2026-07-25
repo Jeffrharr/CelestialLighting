@@ -23,6 +23,20 @@ public class GameComponent_MoonPhase : GameComponent
     // "Settings, presets, and the brightness floor") exists.
     public float synodicPeriodDays = MoonMath.DefaultSynodicMonthDays;
 
+    // Length of one full retrograde regression of the lunar node, in in-game days. Only the opt-in
+    // natural-eclipse trigger (DESIGN.md §10a) reads this; it sets how often a new moon coincides with
+    // a node and therefore how rare eclipses are. Persisted like synodicPeriodDays; defaults to
+    // MoonMath.DefaultNodalPeriodDays (tuned for "an eclipse every few game years").
+    public float nodalPeriodDays = MoonMath.DefaultNodalPeriodDays;
+
+    // Dev-only epoch shifts (in ticks) added to the absolute tick before deriving the synodic and
+    // nodal cycle positions. Zero in all normal play — the shipped mod never writes them. The test
+    // harness sets them (via EclipseStaging) to phase-slide the moon onto a new-moon-at-node alignment
+    // so a real natural eclipse can be filmed on demand instead of waiting years. Deliberately NOT
+    // persisted (absent from ExposeData) so they can never leak into a real save.
+    public long debugSynodicShiftTicks = 0L;
+    public long debugNodalShiftTicks = 0L;
+
     public GameComponent_MoonPhase(Game game)
     {
     }
@@ -35,10 +49,19 @@ public class GameComponent_MoonPhase : GameComponent
 
     private long SynodicPeriodTicks => (long)(synodicPeriodDays * GenDate.TicksPerDay);
 
+    private long NodalPeriodTicks => (long)(nodalPeriodDays * GenDate.TicksPerDay);
+
     // Fraction through the synodic cycle right now, in [0, 1). Derived purely from the absolute tick
-    // count (via MoonMath), so there is no per-tick state to keep in sync or persist.
+    // count (via MoonMath), so there is no per-tick state to keep in sync or persist. The dev-only
+    // debug shift is +0 in all normal play (see the field), so this is the plain absolute tick then.
     public float CyclePosition =>
-        MoonMath.SynodicCyclePosition(Find.TickManager.TicksAbs, SynodicPeriodTicks);
+        MoonMath.SynodicCyclePosition(Find.TickManager.TicksAbs + debugSynodicShiftTicks, SynodicPeriodTicks);
+
+    // Fraction through the nodal regression cycle right now, in [0, 1) — the second coordinate the
+    // natural-eclipse geometry needs (where the moon's orbit currently crosses the ecliptic). Same
+    // stateless derivation from the absolute tick as CyclePosition.
+    public float NodalCyclePosition =>
+        MoonMath.NodalCyclePosition(Find.TickManager.TicksAbs + debugNodalShiftTicks, NodalPeriodTicks);
 
     // Illuminated fraction of the disc, 0 at new and 1 at full — the scalar both moon-cast shadows
     // and moonlight scale by.
@@ -52,5 +75,8 @@ public class GameComponent_MoonPhase : GameComponent
     {
         base.ExposeData();
         Scribe_Values.Look(ref synodicPeriodDays, "synodicPeriodDays", MoonMath.DefaultSynodicMonthDays);
+        Scribe_Values.Look(ref nodalPeriodDays, "nodalPeriodDays", MoonMath.DefaultNodalPeriodDays);
+        // debugSynodicShiftTicks / debugNodalShiftTicks are intentionally not persisted — they are a
+        // dev-only staging aid and must never survive into a real save.
     }
 }

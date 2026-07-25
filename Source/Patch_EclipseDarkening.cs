@@ -42,8 +42,12 @@ public static class Patch_EclipseDarkening
 
         float progress = EclipseIntegration.ProgressOf(__instance);
         // Both the natural and unnatural ramps are the same disk-overlap coverage math; the mode flag
-        // only picks the disc's motion (real transit vs scripted fly-in/park/fly-out). Reading it
-        // through the shared EclipseMath selector keeps this live patch and the offline probe in sync.
-        __result = (float)EclipseMath.SkyLerpFactorAtProgress(progress, EclipseSettings.NaturalEclipseEnabled);
+        // only picks the disc's motion (real transit vs scripted fly-in/park/fly-out). In natural mode
+        // the transit's magnitude (published by GameComponent_NaturalEclipse when it fired this event)
+        // scales how dark it gets, so a grazing partial darkens only partway instead of full night; the
+        // unnatural mode ignores it and always parks fully. Reading it through the shared EclipseMath
+        // selector keeps this live patch and the offline probe in sync.
+        __result = (float)EclipseMath.SkyLerpFactorAtProgress(
+            progress, EclipseSettings.NaturalEclipseEnabled, EclipseIntegration.ActiveNaturalMagnitude);
     }
 }

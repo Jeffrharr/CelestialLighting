@@ -680,6 +680,63 @@ public class ApiCompatibilityTests
             "SkyManager.ForceSetCurSkyGlow(float) no longer exists — the floor writes the lifted glow through it");
     }
 
+    // --- Natural eclipse trigger (§10a): the vanilla members GameComponent_NaturalEclipse and
+    //     Patch_SuppressRandomEclipse fire/suppress a real Eclipse through. (GameConditionDefOf.Eclipse
+    //     itself is already asserted above by GameConditionDefOf_Eclipse_Exists.) ---
+
+    [Test]
+    public void GameConditionMaker_MakeCondition_Exists()
+    {
+        // GameComponent_NaturalEclipse builds the timed Eclipse condition with MakeCondition(def, ticks).
+        var type = GetType("RimWorld.GameConditionMaker");
+        Assert.That(type, Is.Not.Null, "RimWorld.GameConditionMaker no longer exists");
+        var method = type!.Methods.SingleOrDefault(m =>
+            m.Name == "MakeCondition" && m.IsStatic && m.Parameters.Count == 2
+            && m.Parameters[0].ParameterType.Name == "GameConditionDef"
+            && m.Parameters[1].ParameterType.FullName == "System.Int32");
+        Assert.That(method, Is.Not.Null, "GameConditionMaker.MakeCondition(GameConditionDef, int) no longer exists");
+        Assert.That(method!.ReturnType.FullName, Is.EqualTo("RimWorld.GameCondition"));
+    }
+
+    [Test]
+    public void GameConditionManager_RegisterCondition_Exists()
+    {
+        // The trigger registers the freshly-made Eclipse on each map's condition manager.
+        var type = GetType("RimWorld.GameConditionManager");
+        Assert.That(type, Is.Not.Null, "RimWorld.GameConditionManager no longer exists");
+        var method = type!.Methods.SingleOrDefault(m =>
+            m.Name == "RegisterCondition" && m.Parameters.Count == 1
+            && m.Parameters[0].ParameterType.Name == "GameCondition");
+        Assert.That(method, Is.Not.Null, "GameConditionManager.RegisterCondition(GameCondition) no longer exists");
+    }
+
+    [Test]
+    public void IncidentDefOf_Eclipse_Exists()
+    {
+        // Patch_SuppressRandomEclipse vetoes exactly this incident while natural mode is on.
+        var type = GetType("RimWorld.IncidentDefOf");
+        Assert.That(type, Is.Not.Null, "RimWorld.IncidentDefOf no longer exists");
+        var field = type!.Fields.SingleOrDefault(f => f.Name == "Eclipse" && f.IsStatic);
+        Assert.That(field, Is.Not.Null, "IncidentDefOf.Eclipse no longer exists");
+        Assert.That(field!.FieldType.FullName, Is.EqualTo("RimWorld.IncidentDef"));
+    }
+
+    [Test]
+    public void IncidentWorker_CanFireNowAndDef_Exist()
+    {
+        // Patch_SuppressRandomEclipse prefixes CanFireNow(IncidentParms) and reads the worker's `def`.
+        var type = GetType("RimWorld.IncidentWorker");
+        Assert.That(type, Is.Not.Null, "RimWorld.IncidentWorker no longer exists");
+        var method = type!.Methods.SingleOrDefault(m =>
+            m.Name == "CanFireNow" && m.Parameters.Count == 1
+            && m.Parameters[0].ParameterType.Name == "IncidentParms");
+        Assert.That(method, Is.Not.Null, "IncidentWorker.CanFireNow(IncidentParms) no longer exists");
+        Assert.That(method!.ReturnType.FullName, Is.EqualTo("System.Boolean"));
+        var def = type.Fields.SingleOrDefault(f => f.Name == "def");
+        Assert.That(def, Is.Not.Null, "IncidentWorker.def no longer exists");
+        Assert.That(def!.FieldType.FullName, Is.EqualTo("RimWorld.IncidentDef"));
+    }
+
     // --- helpers ---
 
     private TypeDefinition? GetType(string fullName) =>
