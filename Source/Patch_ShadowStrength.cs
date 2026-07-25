@@ -31,6 +31,24 @@ public static class Patch_ShadowStrength
     {
         float elevation = SolarPosition.ElevationForMap(map);
 
+        // Weather softening (§13). Under a cloud deck the direct beam is replaced by diffuse
+        // skylight and cast shadows lose their edge — under heavy overcast they vanish outright.
+        // Vanilla models none of this: CurShadowStrength is Clamp01(Abs(CurCelestialSunGlow - 0.6)
+        // / 0.15) and CurCelestialSunGlow is a pure function of latitude/longitude/tick with no
+        // weather term at all, so vanilla renders a blizzard's shadows exactly as crisp as a clear
+        // noon's. Worse, this Postfix *overwrites* vanilla's result with a purely elevation-derived
+        // value, which left us more weather-blind than vanilla rather than less.
+        //
+        // Shadows need their own seam here rather than riding along on §13's sky tint: shadow alpha
+        // is derived from CurCelestialSunGlow and never from SkyManager.CurSkyGlow or
+        // SkyTarget.colors, so nothing §13 does to the sky would ever have reached it.
+        //
+        // Read once, applied to BOTH branches below — unlike the penumbra factor, which models the
+        // SUN's angular disk and is meaningless at night. Clouds hide the moon exactly as they hide
+        // the sun.
+        float weatherShadow = WeatherDimmingMath.ShadowContrastFactor(
+            WeatherDimming.CloudOpacityFor(map), WeatherDimmingSettings.MaxDimming);
+
         // Sun up: it is the shadow caster. Use the elevation-based solar intensity, attenuated by
         // the angular-size penumbra near the horizon when that feature is on.
         if (elevation > Formulas.AtmosphericRefractionDegrees)
@@ -50,7 +68,7 @@ public static class Patch_ShadowStrength
             if (CelestialLightingFeatures.PenumbraContrast)
                 strength *= PenumbraMath.PenumbraContrastFactor(elevation);
 
-            __result = strength;
+            __result = strength * weatherShadow;
             return;
         }
 
@@ -58,6 +76,6 @@ public static class Patch_ShadowStrength
         // uses for its night branch, so the alpha set here always matches the vector set there. If
         // the moon is down or new, ShadowForMap returns null and the night stays shadowless.
         (UnityEngine.Vector2 vector, float strength)? moonShadow = MoonPosition.ShadowForMap(map);
-        __result = moonShadow.HasValue ? moonShadow.Value.strength : 0f;
+        __result = moonShadow.HasValue ? moonShadow.Value.strength * weatherShadow : 0f;
     }
 }

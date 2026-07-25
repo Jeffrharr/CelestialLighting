@@ -137,6 +137,20 @@ public static class CelestialLightingFeatures
     // type `BloodMoon` never collide — one is always qualified, the other referenced bare.)
     public static bool BloodMoon = true;
 
+    // Feature key for WeatherDimming (see CivilTwilightPersistenceKey for why it lives here).
+    public const string WeatherDimmingKey = "weather_dimming";
+
+    // §13 weather dimming: clouds, rain and storms darken the rendered sky and soften cast shadows,
+    // scaled by precipitation intensity. Vanilla does neither — WeatherDef.maxGlow defaults to 1.0
+    // and is set exactly once across all vanilla XML, so as far as light is concerned a blizzard is
+    // a clear noon. Colour-channel only (colors.sky/.overlay plus the shadow-alpha multiply); it
+    // never writes SkyTarget.glow, so plant growth, solar output and pawn vision stay bit-for-bit
+    // vanilla under every weather. When off, all three consumers early-return and the sky, shadows
+    // and §9's desaturation read exactly as they did before this feature — the faithful pre-feature
+    // baseline for the harness A/B. How strong the effect is at its peak is the separate
+    // WeatherDimmingSettings.MaxDimming slider, which at 0 is independently a full no-op.
+    public static bool WeatherDimming = true;
+
     // Feature key for IndoorSkyOcclusion (see CivilTwilightPersistenceKey for why it lives here).
     public const string IndoorSkyOcclusionKey = "indoor_sky_occlusion";
 

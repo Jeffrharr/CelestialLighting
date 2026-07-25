@@ -44,18 +44,27 @@ public static class Patch_LowLightDesaturation
         // Read the sky target's OWN glow, not GenCelestial.CurCelestialSunGlow. This is the opposite
         // choice from Patch_TwilightColor (which recomputes celestial glow because it wants twilight
         // timing anchored to true sun position): here we *want* the actual displayed brightness,
-        // including weather dimming, because a darker scene genuinely pushes vision further into rod
-        // territory. __result.glow is already clamped by the active WeatherDef's maxGlow, so an
-        // overcast night reads darker here and desaturates more — exactly the "strongest on the
-        // darkest nights" behaviour the design asks for, with no separate weather term.
+        // because a darker scene genuinely pushes vision further into rod territory. By the time
+        // this runs, §7 has already replaced the below-horizon glow with its starlight + airglow +
+        // moonlight floor, so a full-moon night lands lower on the ramp (less shift) than a
+        // new-moon one.
         //
-        // TODO(integration): once the night-radiance subsystem (§7 / issue #4) merges, it will
-        // raise/lower __result.glow by moon phase + star/airglow floors. As long as its postfix runs
-        // before this one, this desaturation tracks it automatically — a full-moon night lands lower
-        // on the ramp (less shift) than a new-moon one. If Harmony orders them the other way, add
-        // [HarmonyAfter("<its patch id>")] here. Standalone, reading the vanilla weather-clamped glow
-        // is a correct, self-contained default.
-        float glow = __result.glow;
+        // Then attenuate by §13's weather dimming to get the APPARENT brightness — the seam that
+        // finally makes this patch's original promise true. It was written believing __result.glow
+        // was "already clamped by the active WeatherDef's maxGlow", so an overcast night would
+        // desaturate more than a clear one for free. It never did: maxGlow defaults to 1.0 and is
+        // set exactly once across all vanilla XML (Odyssey's Overcast, 0.95), and even that is inert
+        // at night, where celestial glow is ~0 under every weather alike. A blizzard and a clear sky
+        // desaturated identically — precisely the opposite of "strongest on the darkest nights".
+        //
+        // The weather term comes from the shared WeatherDimming adapter rather than from a value
+        // §13's patch left behind on __result, so this carries no Harmony ordering dependency. That
+        // matters: [HarmonyAfter] takes owner IDs and every patch here shares the one
+        // "celestiallighting" owner, so it could never have expressed an intra-assembly order.
+        //
+        // Note §13 deliberately never writes .glow, so this stays purely perceptual: the gameplay
+        // brightness driving plant growth and solar output is still the unweathered value.
+        float glow = WeatherDimmingMath.ApparentGlow(__result.glow, WeatherDimming.DimmingFor(map));
 
         float factor = PurkinjeMath.PurkinjeFactor(glow);
         if (factor <= 0f)
