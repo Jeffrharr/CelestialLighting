@@ -385,6 +385,28 @@ public class ApiCompatibilityTests
     }
 
     [Test]
+    public void SkyManager_SkyManagerUpdate_Exists()
+    {
+        // Patch_PitchBlackOverlay (§7a) postfixes this to darken the light overlay after vanilla
+        // composes it.
+        var type = GetType("Verse.SkyManager");
+        Assert.That(type, Is.Not.Null, "Verse.SkyManager no longer exists");
+        Assert.That(type!.Methods.Any(m => m.Name == "SkyManagerUpdate" && m.IsPublic && m.Parameters.Count == 0),
+            Is.True, "SkyManager.SkyManagerUpdate() no longer exists or changed signature — Patch_PitchBlackOverlay patches it");
+    }
+
+    [TestCase("LightOverlay")]
+    [TestCase("FogOfWar")]
+    public void MatBases_OverlayMaterials_Exist(string fieldName)
+    {
+        // Patch_PitchBlackOverlay darkens both of these material colours toward black at night.
+        var type = GetType("Verse.MatBases");
+        Assert.That(type, Is.Not.Null, "Verse.MatBases no longer exists");
+        Assert.That(type!.Fields.Any(f => f.Name == fieldName && f.IsPublic), Is.True,
+            $"MatBases.{fieldName} no longer exists or is no longer public — Patch_PitchBlackOverlay writes its .color");
+    }
+
+    [Test]
     public void ShaderPropertyIDs_MapSunLightDirection_Exists()
     {
         var type = GetType("Verse.ShaderPropertyIDs");

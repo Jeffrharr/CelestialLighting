@@ -84,4 +84,17 @@ public static class CelestialLightingFeatures
     // leaves each WeatherDef's palette exactly as vanilla renders it — the faithful pre-feature
     // baseline for the harness A/B.
     public static bool LowLightDesaturation = true;
+
+    // Feature key for PitchBlackNights (see CivilTwilightPersistenceKey for why it lives here).
+    public const string PitchBlackNightsKey = "pitch_black_nights";
+
+    // §7a "pitch-black nights": the VISUAL arm of night radiance. §7 only writes SkyTarget.glow, which
+    // drives gameplay light but not on-screen darkness (RimWorld always draws the terrain and dims it
+    // via MatBases.LightOverlay), so a low glow floor still renders dim-grey, not black.
+    // Patch_PitchBlackOverlay darkens that overlay toward black in step with the night floor, so a
+    // moonless / floors-off night can actually look black. Gated separately from NightRadiance because
+    // it is a strong, taste-dependent visual change some players will want off even while keeping the
+    // (invisible) glow floor; when off, the overlay is left exactly as vanilla/§9 composed it. How dark
+    // it is allowed to get is the separate NightRadianceSettings.MinNightBrightness clamp.
+    public static bool PitchBlackNights = true;
 }

@@ -340,14 +340,39 @@ class, linked into the test project) with offline `[TestCase]` coverage in
 `NightRadianceMathTests.cs`; `Patch_NightRadiance.cs` is the thin adapter that reads sun/moon
 elevation off live state and blends the resulting glow into the sky target.
 
-**Moon seam (deferred dependency on §6/#3).** Moonlight needs the moon's illuminated fraction and
-altitude, which the moon-position subsystem (§6) will provide — it is not yet merged. `MoonSeam.cs`
-is a minimal self-contained hook (`Func<Map, MoonState>`) whose default reports "no moon" (new moon
-below the horizon), so moonlight contributes exactly 0 and the shipped floor is starlight + airglow
-only — a correct, standalone behavior. Wiring `GameComponent_MoonPhase` in later is a one-line
-reassignment of `MoonSeam.Provider` (marked `// TODO(integration:`). The per-source tunables and the
-atmospheric-glow master toggle live in `NightRadianceSettings.cs`, holding the DESIGN defaults until
-the settings/presets screen (below) is built to write them (also `// TODO(integration:`).
+**Moon seam (wired to §6).** Moonlight needs the moon's illuminated fraction and altitude. `MoonSeam.cs`
+is a minimal self-contained hook (`Func<Map, MoonState>`) whose default reports "no moon" so §7 builds
+and unit-tests standalone; now that §6 is merged, `CelestialLightingMod` startup reassigns
+`MoonSeam.Provider` to read the live `MoonPosition`, so the floor brightens under a full moon and stays
+dark on a new one. The per-source tunables, the atmospheric-glow master toggle, and the §7a
+minimum-brightness clamp live in `NightRadianceSettings.cs`, holding the DESIGN defaults until the
+settings/presets screen (below) is built to write them (`// TODO(integration:`).
+
+### 7a. Pitch-black nights — visual overlay darkening (`Patch_PitchBlackOverlay`)
+
+§7 writes only `SkyTarget.glow`, which drives *gameplay* light and everything that reads
+`SkyManager.CurSkyGlow` (GlowGrid, Dub's Skylights) — but not the on-screen darkness. RimWorld always
+draws the terrain sprites and dims them with the `MatBases.LightOverlay` material (coloured from
+`SkyTarget.colors.sky` inside `SkyManagerUpdate`), so a glow floor of `0.04` and `0` render nearly
+identically: a "pitch-black" moonless night still looks dim-grey, never black. That gap is why the
+original "true pitch-black unlit nights" ask wasn't actually visible from the glow floor alone.
+
+`Patch_PitchBlackOverlay` is a Postfix on `SkyManager.SkyManagerUpdate` that runs *after* vanilla (and
+§9's desaturation) have composed `MatBases.LightOverlay` / `MatBases.FogOfWar`, and lerps their colours
+toward opaque black by how far below full brightness the night floor sits
+(`NightRadianceMath.OverlayBrightnessFactor(CurSkyGlow, minBrightness)` — linear from `OverlayFullBrightGlow`
+down to 0). Injecting at the composed overlay, not in a `SkyTarget` postfix, is deliberate: it darkens
+*last* and never fights §2/§9 for ownership of `colors.sky`. A bright moonlit night keeps vanilla
+brightness; a moonless / floors-off night blacks out — down to the `MinNightBrightness` clamp, the
+playability floor (ships at 0 = truly pitch black; raise it via settings if that is hard to navigate,
+a call to be revisited once every light source is in). Note this darkens the OUTDOOR sky overlay only:
+roofed / under-mountain cells receive no skyglow at all (`GlowGrid.GroundGlowAt` gates it on
+`!Roofed`), so unlit interiors are already dark by artificial light alone and our floor never leaks in.
+Gated by `CelestialLightingFeatures.PitchBlackNights` (separate
+from the §7 glow floor, since this is a strong taste-dependent visual some players will want off) and
+only active while `NightRadiance` is (the darkening is defined relative to §7's floor). Conflict risk:
+it shares the `MatBases.LightOverlay`/`FogOfWar` globals RimWorld itself rewrites every frame, and only
+reads them after vanilla sets them, so it composes rather than races; visual-only, no gameplay math.
 
 ## 8. Sky colour-temperature curve (planned)
 

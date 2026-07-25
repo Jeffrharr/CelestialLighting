@@ -45,5 +45,16 @@ public static class ProbeRegistration
         FeatureRegistry.Register(
             CelestialLightingFeatures.LowLightDesaturationKey,
             enabled => CelestialLightingFeatures.LowLightDesaturation = enabled);
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.PitchBlackNightsKey,
+            enabled => CelestialLightingFeatures.PitchBlackNights = enabled);
+        // Not a CelestialLightingFeatures flag: bridges the minimum-brightness clamp so a visual
+        // scenario can force a genuinely pitch-black night (MinNightBrightness -> 0) instead of the
+        // shipped playable floor. "enabled" == true means clamp to 0 (true black); false restores the
+        // default playable floor.
+        FeatureRegistry.Register(
+            "pitch_black_true",
+            enabled => NightRadianceSettings.Current.MinNightBrightness =
+                enabled ? 0f : NightRadianceMath.DefaultMinNightBrightness);
     }
 }

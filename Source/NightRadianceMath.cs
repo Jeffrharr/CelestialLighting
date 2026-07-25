@@ -83,6 +83,40 @@ public static class NightRadianceMath
     public static float ApplyNightFloor(float vanillaGlow, float sunElevationDegrees, float nightGlow) =>
         Lerp(vanillaGlow, nightGlow, NightFloorWeight(sunElevationDegrees));
 
+    // --- Visual overlay darkening ("pitch-black nights", DESIGN.md §7a) ---
+    //
+    // The night-floor glow above drives gameplay light and everything that reads SkyManager.CurSkyGlow,
+    // but NOT the on-screen darkness: RimWorld always draws the terrain sprites and dims them with the
+    // MatBases.LightOverlay material (whose colour is SkyTarget.colors.sky), so a glow of 0.04 and a
+    // glow of 0 render nearly identically — a moonless "pitch-black" night still looks dim-grey, not
+    // black. Patch_PitchBlackOverlay closes that gap by darkening the overlay toward black in step with
+    // the night floor. This function is the pure core of that: given the current glow it returns the
+    // 0..1 fraction of the vanilla overlay brightness to KEEP (1 = leave vanilla alone, 0 = force fully
+    // black), clamped so it never drops below a caller-supplied minimum.
+    //
+    // The glow at/above which no extra darkening happens. A full moon at zenith alone reaches
+    // DefaultMaxMoonlightGlow, so a bright moonlit night is left at vanilla brightness while the floor
+    // (starlight+airglow) and darker moon states progressively black out.
+    public const float OverlayFullBrightGlow = 0.15f;
+
+    // Default for NightRadianceSettings.MinNightBrightness — the shipped minimum overlay brightness.
+    // 0 == a moonless / floors-off night renders genuinely pitch black (only lit things and UI show).
+    // We ship the full-strength look and let the settings screen (#23) / harness raise the clamp for
+    // players who find true black hard to navigate; the balance is expected to be revisited once every
+    // light source (moon, starlight/airglow, aurora, eclipse) is in and the night's overall floor is final.
+    public const float DefaultMinNightBrightness = 0f;
+
+    // Fraction of vanilla overlay brightness to keep, in [minBrightness, 1]. Linear in glow up to
+    // OverlayFullBrightGlow, then flat at 1. minBrightness is the user's playability clamp (the
+    // "minimum-brightness floor"): 0 lets a moonless/floors-off night render truly pitch black; raising
+    // it keeps the night visible for play (never darker than that fraction) at the cost of some drama.
+    // A minBrightness >= 1 disables the darkening entirely (always keeps full vanilla brightness).
+    public static float OverlayBrightnessFactor(float glow, float minBrightness)
+    {
+        float raw = Clamp01(glow / OverlayFullBrightGlow);
+        return raw < minBrightness ? Clamp01(minBrightness) : raw;
+    }
+
     private static float ToRadians(float degrees) => degrees * MathF.PI / 180f;
 
     private static float Clamp01(float v) => Clamp(v, 0f, 1f);

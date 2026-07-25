@@ -19,6 +19,16 @@ public struct NightRadianceSettings
     public float AirglowGlow;
     public float MaxMoonlightGlow;
 
+    // Playability clamp for the "pitch-black nights" visual overlay darkening (Patch_PitchBlackOverlay):
+    // the minimum fraction of vanilla overlay brightness the night is ever darkened to. 0 lets a
+    // moonless / floors-off night render truly pitch black (the "make pitch-black APPEAR pitch-black"
+    // ask); raising it keeps the night visible enough to play by (never darker than this fraction) at
+    // the cost of some drama. This IS the "minimum-brightness floor" the settings/presets screen (#23)
+    // will expose as a slider. Ships at 0 (a moonless / floors-off night renders genuinely pitch
+    // black); raise it via settings if true black is hard to navigate. The default is expected to be
+    // revisited once every light source (moon, starlight/airglow, aurora, eclipse) is in.
+    public float MinNightBrightness;
+
     // The live settings the patch reads. Reassigned wholesale by the settings UI (see TODO above).
     public static NightRadianceSettings Current = Defaults;
 
@@ -28,5 +38,6 @@ public struct NightRadianceSettings
         StarlightGlow = NightRadianceMath.DefaultStarlightGlow,
         AirglowGlow = NightRadianceMath.DefaultAirglowGlow,
         MaxMoonlightGlow = NightRadianceMath.DefaultMaxMoonlightGlow,
+        MinNightBrightness = NightRadianceMath.DefaultMinNightBrightness,
     };
 }

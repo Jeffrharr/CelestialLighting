@@ -152,4 +152,50 @@ public class NightRadianceMathTests
         float result = NightRadianceMath.ApplyNightFloor(vanillaGlow: 0.02f, sunElevationDegrees: -20f, nightGlow: 0.19f);
         Assert.That(result, Is.EqualTo(0.19f).Within(Tolerance));
     }
+
+    // --- OverlayBrightnessFactor (pitch-black nights, §7a) ---
+
+    [Test]
+    public void OverlayBrightnessFactor_KeepsFullBrightness_AtOrAboveReference()
+    {
+        // A bright (moonlit) night at/above OverlayFullBrightGlow is left at vanilla brightness (1).
+        Assert.That(NightRadianceMath.OverlayBrightnessFactor(NightRadianceMath.OverlayFullBrightGlow, 0f),
+            Is.EqualTo(1f).Within(Tolerance));
+        Assert.That(NightRadianceMath.OverlayBrightnessFactor(1f, 0f), Is.EqualTo(1f).Within(Tolerance));
+    }
+
+    [Test]
+    public void OverlayBrightnessFactor_GoesFullyBlack_AtZeroGlow_WithZeroClamp()
+    {
+        // True pitch black: floors off + moon down (glow 0) and no playability clamp -> keep 0 (the
+        // overlay is pulled fully to black). This is the "make pitch-black APPEAR pitch-black" case.
+        Assert.That(NightRadianceMath.OverlayBrightnessFactor(0f, 0f), Is.EqualTo(0f).Within(Tolerance));
+    }
+
+    [Test]
+    public void OverlayBrightnessFactor_RespectsMinBrightnessClamp()
+    {
+        // The playability clamp: even at glow 0 the night never darkens below the clamp, so it stays
+        // navigable. This is the knob the user asked for to keep pitch black from being unplayable.
+        Assert.That(NightRadianceMath.OverlayBrightnessFactor(0f, 0.18f), Is.EqualTo(0.18f).Within(Tolerance));
+        // A glow whose raw factor is below the clamp is lifted to the clamp...
+        Assert.That(NightRadianceMath.OverlayBrightnessFactor(0.015f, 0.18f), Is.EqualTo(0.18f).Within(Tolerance));
+        // ...but a glow above the clamp keeps its (brighter) raw factor.
+        Assert.That(NightRadianceMath.OverlayBrightnessFactor(0.075f, 0.18f), Is.EqualTo(0.5f).Within(Tolerance));
+    }
+
+    [Test]
+    public void OverlayBrightnessFactor_IsLinearBetweenZeroAndReference()
+    {
+        // Half of OverlayFullBrightGlow -> keep half the brightness (no clamp).
+        float half = NightRadianceMath.OverlayFullBrightGlow / 2f;
+        Assert.That(NightRadianceMath.OverlayBrightnessFactor(half, 0f), Is.EqualTo(0.5f).Within(Tolerance));
+    }
+
+    [Test]
+    public void OverlayBrightnessFactor_ClampAtOrAboveOne_DisablesDarkening()
+    {
+        // MinNightBrightness >= 1 keeps full brightness at every glow — an "off" equivalent via clamp.
+        Assert.That(NightRadianceMath.OverlayBrightnessFactor(0f, 1f), Is.EqualTo(1f).Within(Tolerance));
+    }
 }

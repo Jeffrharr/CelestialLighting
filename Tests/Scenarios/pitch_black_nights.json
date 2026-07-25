@@ -1,0 +1,24 @@
+{
+  "name": "pitch_black_nights",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "20" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "40" } },
+
+    { "type": "SetTime", "args": { "hour": "23" } },
+    { "type": "SetFeature", "args": { "featureName": "night_atmospheric_glow", "enabled": "false" } },
+    { "type": "Screenshot", "args": { "fileName": "pbn_warmup.png" } },
+
+    { "type": "SetFeature", "args": { "featureName": "pitch_black_nights", "enabled": "false" } },
+    { "type": "Screenshot", "args": { "fileName": "pbn_vanilla.png" } },
+    { "type": "SetFeature", "args": { "featureName": "pitch_black_nights", "enabled": "true" } },
+    { "type": "Screenshot", "args": { "fileName": "pbn_clamped.png" } },
+    { "type": "SetFeature", "args": { "featureName": "pitch_black_true", "enabled": "true" } },
+    { "type": "Screenshot", "args": { "fileName": "pbn_true_black.png" } },
+
+    { "type": "SetFeature", "args": { "featureName": "pitch_black_true", "enabled": "false" } },
+    { "type": "SetFeature", "args": { "featureName": "night_atmospheric_glow", "enabled": "true" } },
+    { "type": "SetTime", "args": { "hour": "2" } },
+    { "type": "Screenshot", "args": { "fileName": "pbn_moonlit.png" } }
+  ]
+}
