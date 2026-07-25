@@ -86,6 +86,8 @@ public class CelestialSettingsMathTests
         // relabel of "realistic". Assert the two headline knobs actually diverge.
         Assert.That(Presets.Cinematic.NightRadianceFloor, Is.GreaterThan(Presets.Realistic.NightRadianceFloor));
         Assert.That(Presets.Cinematic.Desaturation, Is.LessThan(Presets.Realistic.Desaturation));
+        // §13 follows the same taste axis: cinematic storms stay photogenic, realistic ones go murky.
+        Assert.That(Presets.Cinematic.WeatherDimming, Is.LessThan(Presets.Realistic.WeatherDimming));
     }
 
     [TestCase(CelestialPreset.Realistic, ExpectedResult = true)]
@@ -107,6 +109,7 @@ public class CelestialSettingsMathTests
             Assert.That(knobs.ShadowStrength, Is.InRange(0f, 1f));
             Assert.That(knobs.NightRadianceFloor, Is.InRange(0f, 0.3f));
             Assert.That(knobs.Desaturation, Is.InRange(0f, 1f));
+            Assert.That(knobs.WeatherDimming, Is.InRange(0f, 0.5f));
         }
     }
 }

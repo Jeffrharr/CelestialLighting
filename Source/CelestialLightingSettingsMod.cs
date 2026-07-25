@@ -117,6 +117,8 @@ public class CelestialLightingSettingsMod : Mod
         Settings.minNightBrightness = LabeledSlider(listing, "  Minimum night brightness", Settings.minNightBrightness, 0f, 1f);
         listing.CheckboxLabeled("Low-light desaturation", ref Settings.lowLightDesaturation,
             "Drain colour toward a cool blue-grey as the sky darkens (the Purkinje shift).");
+        listing.CheckboxLabeled("Weather dimming", ref Settings.weatherDimming,
+            "Let clouds, rain and storms darken the sky and soften shadows, scaled by how hard it is coming down. Vanilla changes the sky's colour with the weather but never its brightness. Visual only — plant growth and solar panel output are unaffected.");
         listing.CheckboxLabeled("Sky colour-temperature", ref Settings.skyColorTemperature,
             "Warm the sky toward the horizon on a continuous, altitude-keyed curve.");
         listing.CheckboxLabeled("Aurora during solar flares", ref Settings.aurora,
@@ -188,6 +190,7 @@ public class CelestialLightingSettingsMod : Mod
         Settings.shadowStrength = AestheticSlider(listing, "Shadow strength", Settings.shadowStrength, 0f, 1f);
         Settings.nightRadianceFloor = AestheticSlider(listing, "Night radiance floor", Settings.nightRadianceFloor, 0f, 0.3f);
         Settings.desaturation = AestheticSlider(listing, "Night desaturation", Settings.desaturation, 0f, 1f);
+        Settings.weatherDimmingStrength = AestheticSlider(listing, "Weather dimming", Settings.weatherDimmingStrength, 0f, 0.5f);
     }
 
     // An aesthetic-knob slider: on a real change it records that the knobs no longer match a named

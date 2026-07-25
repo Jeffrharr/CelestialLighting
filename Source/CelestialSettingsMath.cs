@@ -60,12 +60,26 @@ public readonly struct PresetKnobs
     // patch reads settings.
     public readonly float Desaturation;
 
-    public PresetKnobs(float shadowLengthScale, float shadowStrength, float nightRadianceFloor, float desaturation)
+    // §13: peak weather dimming, [0, 0.5]. How far a full cloud deck at maximum precipitation
+    // darkens the rendered sky, and (scaled against DefaultMaxDimming) how far it softens cast
+    // shadows. Belongs in the preset bundle because it is strongly correlated with the other
+    // aesthetic knobs: a "Realistic" sky that goes genuinely dark under a blizzard wants the same
+    // taste that picks black nights and hard desaturation. Colour-channel only — see
+    // WeatherDimmingMath — so no preset can affect plant growth or solar output.
+    public readonly float WeatherDimming;
+
+    public PresetKnobs(
+        float shadowLengthScale,
+        float shadowStrength,
+        float nightRadianceFloor,
+        float desaturation,
+        float weatherDimming)
     {
         ShadowLengthScale = shadowLengthScale;
         ShadowStrength = shadowStrength;
         NightRadianceFloor = nightRadianceFloor;
         Desaturation = desaturation;
+        WeatherDimming = weatherDimming;
     }
 }
 
@@ -73,14 +87,18 @@ public static class Presets
 {
     // "Realistic": physically-faithful shadows at full length/strength, genuinely black nights
     // (zero aesthetic floor — atmosphere over legibility, which is what the opt-in accessibility
-    // floor is for), and heavy desaturation to match colourless scotopic night vision.
+    // floor is for), heavy desaturation to match colourless scotopic night vision, and full weather
+    // dimming so a blizzard reads as one.
     public static readonly PresetKnobs Realistic =
-        new PresetKnobs(shadowLengthScale: 1.0f, shadowStrength: 1.0f, nightRadianceFloor: 0.0f, desaturation: 0.85f);
+        new PresetKnobs(shadowLengthScale: 1.0f, shadowStrength: 1.0f, nightRadianceFloor: 0.0f,
+            desaturation: 0.85f, weatherDimming: WeatherDimmingMath.DefaultMaxDimming);
 
     // "Cinematic/Pretty": longer, softer shadows, a small night-radiance floor so scenes never go
-    // fully black on their own, and only mild desaturation so night keeps some colour.
+    // fully black on their own, only mild desaturation so night keeps some colour, and gentler
+    // weather dimming so storms stay photogenic rather than murky.
     public static readonly PresetKnobs Cinematic =
-        new PresetKnobs(shadowLengthScale: 1.4f, shadowStrength: 0.8f, nightRadianceFloor: 0.12f, desaturation: 0.4f);
+        new PresetKnobs(shadowLengthScale: 1.4f, shadowStrength: 0.8f, nightRadianceFloor: 0.12f,
+            desaturation: 0.4f, weatherDimming: 0.20f);
 
     // Returns the bundle for a named preset. Custom is intentionally rejected: there is no "custom
     // bundle" to hand back — Custom means the individual fields are whatever the player last set, so

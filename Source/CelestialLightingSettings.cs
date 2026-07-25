@@ -23,6 +23,7 @@ public class CelestialLightingSettings : ModSettings
     public float shadowStrength = Presets.Realistic.ShadowStrength;
     public float nightRadianceFloor = Presets.Realistic.NightRadianceFloor;
     public float desaturation = Presets.Realistic.Desaturation;
+    public float weatherDimmingStrength = Presets.Realistic.WeatherDimming;
 
     // --- Per-effect on/off toggles (drive the CelestialLightingFeatures flags each patch reads;
     //     default true == the shipped, everything-on behaviour). These make the settings screen the
@@ -38,6 +39,7 @@ public class CelestialLightingSettings : ModSettings
     public bool bloodMoon = true;
     public bool pitchBlackNights = true;
     public bool indoorSkyOcclusion = true;
+    public bool weatherDimming = true;
 
     // --- Night-radiance tunables (drive NightRadianceSettings.Current) ---
     // The atmospheric starlight+airglow floor ("true pitch-black" when off), and the pitch-black
@@ -75,6 +77,7 @@ public class CelestialLightingSettings : ModSettings
         shadowStrength = knobs.ShadowStrength;
         nightRadianceFloor = knobs.NightRadianceFloor;
         desaturation = knobs.Desaturation;
+        weatherDimmingStrength = knobs.WeatherDimming;
         preset = chosen;
     }
 
@@ -105,9 +108,12 @@ public class CelestialLightingSettings : ModSettings
         CelestialLightingFeatures.BloodMoon = bloodMoon;
         CelestialLightingFeatures.PitchBlackNights = pitchBlackNights;
         CelestialLightingFeatures.IndoorSkyOcclusion = indoorSkyOcclusion;
+        CelestialLightingFeatures.WeatherDimming = weatherDimming;
 
         NightRadianceSettings.Current.AtmosphericGlowEnabled = atmosphericGlow;
         NightRadianceSettings.Current.MinNightBrightness = minNightBrightness;
+
+        WeatherDimmingSettings.MaxDimming = weatherDimmingStrength;
 
         EclipseSettings.Mode = eclipseMode;
 
@@ -135,6 +141,7 @@ public class CelestialLightingSettings : ModSettings
         Scribe_Values.Look(ref moonShadows, "moonShadows", true);
         Scribe_Values.Look(ref nightRadiance, "nightRadiance", true);
         Scribe_Values.Look(ref lowLightDesaturation, "lowLightDesaturation", true);
+        Scribe_Values.Look(ref weatherDimming, "weatherDimming", true);
         Scribe_Values.Look(ref skyColorTemperature, "skyColorTemperature", true);
         Scribe_Values.Look(ref aurora, "aurora", true);
         Scribe_Values.Look(ref eclipseDarkening, "eclipseDarkening", true);
@@ -150,6 +157,8 @@ public class CelestialLightingSettings : ModSettings
         Scribe_Values.Look(ref shadowStrength, "shadowStrength", Presets.Realistic.ShadowStrength);
         Scribe_Values.Look(ref nightRadianceFloor, "nightRadianceFloor", Presets.Realistic.NightRadianceFloor);
         Scribe_Values.Look(ref desaturation, "desaturation", Presets.Realistic.Desaturation);
+        Scribe_Values.Look(ref weatherDimmingStrength, "weatherDimmingStrength",
+            Presets.Realistic.WeatherDimming);
         Scribe_Values.Look(ref brightnessFloorEnabled, "brightnessFloorEnabled", false);
         Scribe_Values.Look(ref brightnessFloor, "brightnessFloor", 0.15f);
     }
