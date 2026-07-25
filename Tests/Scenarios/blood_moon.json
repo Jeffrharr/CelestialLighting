@@ -1,0 +1,21 @@
+{
+  "name": "blood_moon",
+  "saveFile": "minimal_colony.rws",
+  "requiredMods": {
+    "OskarPotocki.VanillaFactionsExpanded.Core": "1718191613",
+    "vanillaracesexpanded.sanguophage": "2963116383"
+  },
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "20" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "40" } },
+    { "type": "SetTime", "args": { "hour": "1" } },
+    { "type": "SetFeature", "args": { "featureName": "pitch_black_nights", "enabled": "false" } },
+    { "type": "StartCondition", "args": { "conditionDef": "VRE_BloodMoonCondition", "durationHours": "24", "agedHours": "2" } },
+    { "type": "Probe", "args": { "probeName": "blood_moon", "expectedValue": "0.85", "tolerance": "0.02" } },
+    { "type": "Screenshot", "args": { "fileName": "bm_warmup.png" } },
+    { "type": "SetFeature", "args": { "featureName": "blood_moon", "enabled": "false" } },
+    { "type": "Screenshot", "args": { "fileName": "bm_off.png" } },
+    { "type": "SetFeature", "args": { "featureName": "blood_moon", "enabled": "true" } },
+    { "type": "Screenshot", "args": { "fileName": "bm_on.png" } }
+  ]
+}

@@ -125,4 +125,14 @@ public static class CelestialLightingFeatures
     // baseline for the harness A/B. (This gates only the *visual* reshape; the opt-in natural-eclipse
     // timing lives separately on EclipseSettings.NaturalEclipseEnabled.)
     public static bool EclipseDarkening = true;
+
+    // Feature key for BloodMoon (see CivilTwilightPersistenceKey for why it lives here).
+    public const string BloodMoonKey = "blood_moon";
+
+    // §12 blood-moon crimson night: Patch_BloodMoon recolours the moonlit night deep crimson while
+    // the (soft-dependency) VRE – Sanguophage blood-moon condition is active — colour-only, never
+    // glow. When off, the patch early-returns and leaves the sky as vanilla/§2 rendered it — the
+    // faithful pre-feature baseline. (The flag `CelestialLightingFeatures.BloodMoon` and the pure-core
+    // type `BloodMoon` never collide — one is always qualified, the other referenced bare.)
+    public static bool BloodMoon = true;
 }

@@ -59,6 +59,9 @@ public static class ProbeRegistration
             CelestialLightingFeatures.EclipseDarkeningKey,
             enabled => CelestialLightingFeatures.EclipseDarkening = enabled);
         FeatureRegistry.Register(
+            CelestialLightingFeatures.BloodMoonKey,
+            enabled => CelestialLightingFeatures.BloodMoon = enabled);
+        FeatureRegistry.Register(
             CelestialLightingFeatures.PitchBlackNightsKey,
             enabled => CelestialLightingFeatures.PitchBlackNights = enabled);
         // Not a CelestialLightingFeatures flag: bridges the minimum-brightness clamp so a visual
