@@ -126,6 +126,7 @@ public class CelestialLightingSettingsMod : Mod
         listing.CheckboxLabeled("Eclipse effects", ref Settings.eclipseDarkening,
             "Master toggle for CelestialLighting's eclipse handling. Off = vanilla eclipses (flat dim, storyteller timing) and none of the modes below. On = reshaped darkening plus the eclipse mode selected below.");
         DrawEclipseModeRadio(listing);
+        DrawSunClockRadio(listing);
         listing.CheckboxLabeled("Blood-moon crimson (VRE – Sanguophage)", ref Settings.bloodMoon,
             "Recolour the moonlit night crimson while VRE – Sanguophage's blood-moon condition is active. Inert without that mod.");
     }
@@ -133,6 +134,28 @@ public class CelestialLightingSettingsMod : Mod
     // The three eclipse flavours (DESIGN.md §10). Only meaningful while "Eclipse effects" above is on
     // (the master); each option's tooltip spells out what fires and how it renders. Mirrors the preset
     // radio pattern below — RadioButton returns true only on the click that selects an option.
+    // §14. Phrased around the consequence rather than the mechanism: "day length" is what a player
+    // actually notices, and the realistic option's tooltip leads with the fact that it moves growing
+    // hours, because that is the part that can surprise someone mid-colony.
+    private void DrawSunClockRadio(Listing_Standard listing)
+    {
+        Text.Font = GameFont.Medium;
+        listing.Label("Sun clock");
+        Text.Font = GameFont.Small;
+        listing.Label("Which sun decides when day starts and ends.");
+
+        DrawSunClockOption(listing, SunClockMode.LockedToVanilla, "Vanilla day length  (default)",
+            "Shadows, twilight and night darkness follow a real solar model, but the sun is warped to rise and set exactly when vanilla says. Day length, growing hours and solar power are untouched.");
+        DrawSunClockOption(listing, SunClockMode.Realistic, "Realistic day length  (changes gameplay)",
+            "Vanilla's daylight follows our physical sun instead. Real polar summers and winters, correct equinoxes at the poles, and a working southern hemisphere — but day length moves by about 1.5 hours on average, which shifts growing seasons and solar output.");
+    }
+
+    private void DrawSunClockOption(Listing_Standard listing, SunClockMode option, string label, string tooltip)
+    {
+        if (listing.RadioButton(label, Settings.sunClock == option, tabIn: 8f, tooltip))
+            Settings.sunClock = option;
+    }
+
     private void DrawEclipseModeRadio(Listing_Standard listing)
     {
         DrawEclipseModeOption(listing, EclipseMode.Both, "Natural + unnatural eclipse  (default)",

@@ -61,6 +61,10 @@ public class CelestialLightingSettings : ModSettings
     //     geometric natural eclipses AND the storyteller's unnatural-rendered ones. See EclipseMode. ---
     public EclipseMode eclipseMode = EclipseMode.Both;
 
+    // --- §14 sun clock. Locked (default) keeps vanilla's day length exactly; realistic makes vanilla
+    //     follow our physical sun, which is a gameplay change (growing hours, solar output). ---
+    public SunClockMode sunClock = SunClockMode.LockedToVanilla;
+
     // --- Accessibility brightness floor (live now; see Patch_BrightnessFloor) ---
     // Off by default: pitch-black atmosphere until a player actively opts in (slider or hotkey).
     public bool brightnessFloorEnabled = false;
@@ -116,6 +120,7 @@ public class CelestialLightingSettings : ModSettings
         WeatherDimmingSettings.MaxDimming = weatherDimmingStrength;
 
         EclipseSettings.Mode = eclipseMode;
+        CelestialLightingFeatures.SunClock = sunClock;
 
         // The accessibility floor reaches interiors through §7b rather than through glow: roofed cells
         // never take sky glow (GlowGrid.GroundGlowAt returns early for them), so lifting CurSkyGlow
@@ -153,6 +158,7 @@ public class CelestialLightingSettings : ModSettings
         Scribe_Values.Look(ref atmosphericGlow, "atmosphericGlow", true);
         Scribe_Values.Look(ref minNightBrightness, "minNightBrightness", NightRadianceMath.DefaultMinNightBrightness);
         Scribe_Values.Look(ref eclipseMode, "eclipseMode", EclipseMode.Both);
+        Scribe_Values.Look(ref sunClock, "sunClock", SunClockMode.LockedToVanilla);
         Scribe_Values.Look(ref shadowLengthScale, "shadowLengthScale", Presets.Realistic.ShadowLengthScale);
         Scribe_Values.Look(ref shadowStrength, "shadowStrength", Presets.Realistic.ShadowStrength);
         Scribe_Values.Look(ref nightRadianceFloor, "nightRadianceFloor", Presets.Realistic.NightRadianceFloor);

@@ -164,4 +164,25 @@ public static class CelestialLightingFeatures
     // pre-feature baseline for the harness A/B. Door leak and the accessibility cap are the separate
     // IndoorOcclusionSettings knobs.
     public static bool IndoorSkyOcclusion = true;
+
+    // §14 sun-clock reconciliation. An enum rather than two bools because the modes are mutually
+    // exclusive by construction: locked warps OUR sun onto vanilla's clock, realistic makes VANILLA's
+    // glow follow ours. Running both would mean each defining itself in terms of the other.
+    //
+    // Defaults to LockedToVanilla: it is the only mode with zero gameplay impact, and it fixes a real
+    // artifact the mod shipped with — 3 to 6 hours a day at ordinary latitudes where vanilla's sky was
+    // lit while our sun sat below the horizon, i.e. bright ground casting no shadows.
+    public static SunClockMode SunClock = SunClockMode.LockedToVanilla;
+}
+
+public enum SunClockMode
+{
+    // Warp our physical sun so it rises and sets exactly when vanilla's sky does. Day-length error is
+    // zero by construction at every latitude and season. Inherits vanilla's quirks: a 5-degree polar
+    // cliff between latitude 70 and 75, and a southern hemisphere whose polar day never arrives.
+    LockedToVanilla,
+
+    // Drive vanilla's glow from our sun. Physically correct everywhere, including the poles at the
+    // equinoxes, at the cost of ~1.5 h average day-length change (and the growing hours that follow).
+    Realistic,
 }

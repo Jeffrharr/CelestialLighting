@@ -582,6 +582,32 @@ public class ApiCompatibilityTests
     }
 
     [Test]
+    public void GenCelestial_CelestialSunGlowPercent_Exists()
+    {
+        // §14 realistic mode postfixes this. It is private — deliberately so, but it is also the single
+        // funnel every glow path runs through, and it takes primitives, so it is the correct seam. If
+        // Ludeon renames it or changes its parameters, realistic mode silently stops applying and day
+        // length reverts with no error; this test is what turns that into a loud failure.
+        var type = GetType("RimWorld.GenCelestial");
+        Assert.That(type, Is.Not.Null, "RimWorld.GenCelestial no longer exists");
+        var method = type!.Methods.SingleOrDefault(m => m.Name == "CelestialSunGlowPercent");
+        Assert.That(method, Is.Not.Null, "GenCelestial.CelestialSunGlowPercent no longer exists — Patch_SunGlow patches it");
+        Assert.That(method!.Parameters.Count, Is.EqualTo(3),
+            "CelestialSunGlowPercent changed arity — Patch_SunGlow's (latitude, dayOfYear, dayPercent) postfix needs revisiting");
+    }
+
+    [Test]
+    public void GenCelestial_CelestialSunGlow_TileOverload_Exists()
+    {
+        // SunClock measures vanilla's day length by sampling this rather than re-implementing the
+        // curve, which is what keeps locked mode from drifting when Ludeon retunes their sun.
+        var type = GetType("RimWorld.GenCelestial");
+        Assert.That(type, Is.Not.Null, "RimWorld.GenCelestial no longer exists");
+        Assert.That(type!.Methods.Any(m => m.Name == "CelestialSunGlow" && m.IsPublic && m.Parameters.Count == 2),
+            Is.True, "GenCelestial.CelestialSunGlow(tile, ticksAbs) no longer exists — SunClock samples it");
+    }
+
+    [Test]
     public void SkyColorSet_Shadow_Exists()
     {
         // Patch_MoonShadowColor (§6a) writes this field at night so the moon-shadow alpha has a colour

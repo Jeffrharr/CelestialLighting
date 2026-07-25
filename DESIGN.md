@@ -499,6 +499,71 @@ Gated by `CelestialLightingFeatures.IndoorSkyOcclusion`, default on, separate fr
 because it changes daytime interiors too (an unlit shed at noon goes black), which is a much larger taste
 call than night darkness.
 
+## 14. Sun-clock reconciliation (`SunClockMath` / `SunClock` / `Patch_SunGlow`)
+
+**Problem.** Every visual subsystem keys on `SolarPosition.ElevationForMap` — a real
+latitude/declination/hour-angle model. Vanilla's brightness keys on `GenCelestial`'s sun, which is not
+a physical model: it lifts the sun bodily toward the surface normal (19° scaled by
+`SunPeekAroundDegreesFactorCurve`, plus another 17° fading out from the equator to 60°) and damps the
+seasonal term to a flat 0.2 below 70° latitude. The two disagree, and the disagreement shipped:
+
+| hours/day with vanilla's sky lit but our sun below the horizon | winter | equinox | summer |
+|---|---|---|---|
+| lat 0° | 4.80 | 4.70 | 4.80 |
+| lat 30° | 5.17 | 4.17 | 3.40 |
+| lat 45° | 6.13 | 4.37 | 3.10 |
+| lat 60° | 8.63 | 5.20 | 5.15 |
+| lat 70° | 15.32 | 9.30 | 0.00 |
+
+That is bright ground casting no shadows, for hours a day, at every ordinary latitude.
+
+**Two modes, because the fix trades against itself.**
+
+*Locked to vanilla (default).* Warp our sun's clock so it crosses the horizon exactly when vanilla's
+sky does. Both suns are symmetric about solar noon — vanilla rotates by `(dayPercent - 0.5) * 360` and
+takes a dot product; our `HourAngleDegrees` uses the identical convention — so a whole day collapses to
+one number, the half-day fraction `h`. The warp maps daytime onto daytime and night onto night,
+linearly, anchored at noon and midnight. Sunrise lands on sunrise **by construction**: the day-length
+error is not small, it is zero, at every latitude and season. No glow patch, so no gameplay change.
+
+`SunClock` measures vanilla's `h` by bisecting `GenCelestial.CelestialSunGlow` — the live function,
+~20 samples cached once per in-game day per tile. Re-implementing vanilla's curve was rejected: it is a
+pile of tuned constants that would silently rot the first time Ludeon retunes any of them, producing a
+"match" that no longer matches.
+
+*Realistic (opt-in).* Postfix `GenCelestial.CelestialSunGlowPercent` — private, but the single funnel
+every glow path runs through, and it takes primitives — so vanilla's glow follows our sun instead.
+Correct poles, real arctic summers, working southern hemisphere. Costs ~1.5 h average day-length change
+within ±50° (worst 2.75 h), which moves growing hours and solar output. Hence opt-in.
+
+**Why the glow map needs three anchors.** Vanilla's own mapping is `glow = sin(elevation)/0.7`, putting
+its `IsDaytime` bar (glow > 0.6) at a sun 25° up — only reachable because vanilla lifts its sun. Feed a
+physical sun through it and daytime collapses 5+ h at the equator, and polar summer registers as
+permanent *night* since a polar sun never clears 25°. Fitting a single scale factor to day length
+instead gives K = 6.3°, which matches day length but saturates glow by 6° of elevation, collapsing dusk
+from vanilla's ~240 min to 37 min and squeezing §2/§8/§11/§12 (all glow-keyed) into a sliver. Splitting
+the anchors fixes both at once, because day length depends only on the 0.6 crossing and the dusk ramp
+only on the 1.0 crossing — they are independent knobs:
+
+| | dusk (glow 1.0→0.1), lat 45 summer |
+|---|---|
+| vanilla | 239.9 min |
+| single-K fit (6.3°) | 37.2 min |
+| three-anchor (0 @ −0.83°, 0.6 @ 3.8°, 1.0 @ 45°) | 267.3 min |
+
+**Vanilla quirks locked mode inherits** (measured, and the reason realistic mode exists at all): a 5°
+polar cliff — 70° is still flat at 13.9 h summer, 75° is fully binary; the poles get *zero* daytime at
+the equinoxes, because vanilla's seasonal term is exactly 0 there and glow peaks at
+`cos(75°)/0.7 = 0.37`; and the southern hemisphere never gets a true polar day, because both latitude
+curves are evaluated on **signed** latitude and clamp below 70, so −89° is treated as tropical. Note
+`SunPosition` uses `Mathf.Abs(latitude)` for its third rotation and raw signed latitude for the two
+curve lookups, three lines apart — which is what makes oversight more likely than intent.
+
+**Conflict risk.** Realistic mode is the mod's only patch that changes a gameplay-facing value, and it
+is off by default. The modes are an enum, not two bools, because each defines itself in terms of the
+other; `Patch_SunGlow` additionally carries a reentrancy guard, since `SunClock` measures vanilla by
+calling the very function that patch postfixes.
+
 ## 8. Sky colour-temperature curve (`Patch_SkyColorTemperature`)
 
 Subsystem 2 warms the sky toward a single fixed hue inside one twilight band. This generalizes that

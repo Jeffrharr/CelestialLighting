@@ -33,6 +33,16 @@ public static class SolarPosition
         float dayPercent = GenLocalDate.DayPercent(map);
         int dayOfYear = GenDate.DayOfYear(Find.TickManager.TicksAbs, longLat.x);
         float declination = Formulas.SolarDeclinationDegrees(dayOfYear);
+
+        // §14: in the default locked mode the day percent is warped so our physical sun crosses the
+        // horizon exactly when vanilla's sky does. Doing it HERE rather than in ElevationForMap is
+        // deliberate — Patch_ShadowDirection reads Inputs.DayPercent to derive the azimuth, so warping
+        // at the shared source keeps the sun's direction and its height on the same clock. Anything
+        // that took the raw day percent instead would sweep a shadow that disagreed with its own
+        // length. (The moon is untouched: it has its own rise and set, and MoonPosition derives its
+        // own day percent.)
+        dayPercent = SunClockAdapter.EffectiveDayPercent(map, longLat.y, declination, dayPercent);
+
         return new Inputs(longLat.y, declination, dayPercent);
     }
 
