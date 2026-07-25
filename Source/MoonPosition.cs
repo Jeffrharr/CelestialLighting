@@ -62,6 +62,12 @@ public static class MoonPosition
     // from the same cot(elevation) curve; strength is the faint, phase-and-altitude-scaled moon alpha.
     public static (Vector2 vector, float strength)? ShadowForMap(Map map)
     {
+        // Feature gate (default on): when off, report no moon shadow so both shadow patches fall
+        // back to a shadowless night — the faithful pre-moon baseline. See MoonShadows in
+        // CelestialLightingFeatures for why this single choke point is where the toggle lives.
+        if (!CelestialLightingFeatures.MoonShadows)
+            return null;
+
         Sky sky = SkyForMap(map);
         float strength = MoonMath.MoonShadowStrength(sky.IlluminatedFraction, sky.ElevationDegrees);
         if (strength <= 0f)

@@ -28,5 +28,8 @@ public static class ProbeRegistration
         FeatureRegistry.Register(
             CelestialLightingFeatures.PenumbraContrastKey,
             enabled => CelestialLightingFeatures.PenumbraContrast = enabled);
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.MoonShadowsKey,
+            enabled => CelestialLightingFeatures.MoonShadows = enabled);
     }
 }

@@ -40,4 +40,19 @@ public static class CelestialLightingFeatures
     // elevation, exactly as before this feature — so "off" is a clean pre-feature baseline for the
     // harness A/B.
     public static bool PenumbraContrast = true;
+
+    // Feature key for MoonShadows (see CivilTwilightPersistenceKey for why the const lives here).
+    public const string MoonShadowsKey = "moon_shadows";
+
+    // Real moon-cast night shadows (the moon subsystem's only visible effect so far — MoonPosition
+    // drives a faint, phase-and-altitude-scaled shadow through Patch_ShadowDirection/Strength once
+    // the sun is down). When off, MoonPosition.ShadowForMap returns null, so both shadow patches fall
+    // back to a shadowless night — exactly what the game showed before the moon existed (vanilla
+    // renders no real moon shadow; its fake "moonlight" shadow is already suppressed). That makes
+    // "off" the faithful pre-feature baseline for the harness A/B. Gating at ShadowForMap — the
+    // single point both patches consume — keeps the two from ever disagreeing about whether a moon
+    // shadow exists. The moon *phase/illumination* model itself is deliberately not gated: it is
+    // foundational state (§7 night-radiance will read it) with no independent visible effect to
+    // toggle yet.
+    public static bool MoonShadows = true;
 }

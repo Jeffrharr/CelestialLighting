@@ -1,0 +1,16 @@
+{
+  "name": "moon_illumination",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "20" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "15" } },
+    { "type": "SetTime", "args": { "hour": "22" } },
+    { "type": "Probe", "args": { "probeName": "moon_illumination", "expectedValue": "0.03641", "tolerance": "0.005" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "23" } },
+    { "type": "SetTime", "args": { "hour": "10" } },
+    { "type": "Probe", "args": { "probeName": "moon_illumination", "expectedValue": "0.96359", "tolerance": "0.005" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "30" } },
+    { "type": "SetTime", "args": { "hour": "22" } },
+    { "type": "Probe", "args": { "probeName": "moon_illumination", "expectedValue": "0.03641", "tolerance": "0.005" } }
+  ]
+}
