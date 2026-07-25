@@ -1,0 +1,16 @@
+{
+  "name": "night_radiance",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "20" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "40" } },
+    { "type": "SetTime", "args": { "hour": "5" } },
+    { "type": "Probe", "args": { "probeName": "night_radiance", "expectedValue": "0.14452", "tolerance": "0.005" } },
+    { "type": "SetFeature", "args": { "featureName": "night_atmospheric_glow", "enabled": "false" } },
+    { "type": "Probe", "args": { "probeName": "night_radiance", "expectedValue": "0.10452", "tolerance": "0.005" } },
+    { "type": "SetTime", "args": { "hour": "17" } },
+    { "type": "Probe", "args": { "probeName": "night_radiance", "expectedValue": "0.0", "tolerance": "0.005" } },
+    { "type": "SetFeature", "args": { "featureName": "night_atmospheric_glow", "enabled": "true" } },
+    { "type": "Probe", "args": { "probeName": "night_radiance", "expectedValue": "0.04", "tolerance": "0.005" } }
+  ]
+}

@@ -29,10 +29,11 @@ public readonly struct MoonState
 
 public static class MoonSeam
 {
-    // TODO(integration): once the moon-position subsystem (#3/#6) is merged, replace this default
-    // with a lookup into GameComponent_MoonPhase — it will supply the real per-tick illuminated
-    // fraction and the moon's per-tile altitude (reusing SolarPosition/Formulas for the body's
-    // elevation, exactly as the sun does). The Map -> MoonState signature IS the contract; wiring it
-    // up should be a one-line reassignment here plus the component that performs the reassignment.
+    // The default reports "no moon" so §7 builds and unit-tests standalone with no dependency on the
+    // moon-position subsystem (§6). Now that §6 is merged, CelestialLightingMod's startup reassigns
+    // this to a lookup into MoonPosition (which reads GameComponent_MoonPhase for the live phase and
+    // reuses SolarPosition/Formulas for the moon's per-tile altitude, exactly as the sun does). The
+    // Map -> MoonState signature IS the contract; the reassignment lives in CelestialLightingMod
+    // rather than here so this file stays Verse-free and offline-testable.
     public static Func<Map, MoonState> Provider = _ => MoonState.None;
 }

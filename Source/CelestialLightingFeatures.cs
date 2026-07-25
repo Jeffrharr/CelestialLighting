@@ -55,4 +55,23 @@ public static class CelestialLightingFeatures
     // foundational state (§7 night-radiance will read it) with no independent visible effect to
     // toggle yet.
     public static bool MoonShadows = true;
+
+    // Feature key for NightRadiance (see CivilTwilightPersistenceKey for why the const lives here).
+    public const string NightRadianceKey = "night_radiance";
+
+    // §7 night-sky radiance: below the horizon, Patch_NightRadiance replaces vanilla's flat night
+    // glow floor with the sum of starlight + airglow + (real, phase-and-altitude-scaled) moonlight.
+    // When off, the patch early-returns and leaves vanilla's glow untouched — the faithful
+    // pre-feature baseline the harness A/B screenshots against. The individual source strengths and
+    // the "true pitch-black" atmospheric-floor switch are separate runtime knobs on
+    // NightRadianceSettings (bridged for the harness under NightAtmosphericGlowKey); this master flag
+    // gates the whole effect on/off the way every other effect flag does.
+    public static bool NightRadiance = true;
+
+    // Feature key bridging NightRadianceSettings.AtmosphericGlowEnabled — the "true pitch-black"
+    // switch. Not a pre-feature baseline toggle (off gives a moonlight-only night, darker than
+    // vanilla, not equal to it); it is a user setting (see NightRadianceSettings) exposed to the
+    // harness so a probe scenario can flip it and watch the constant starlight+airglow floor drop
+    // out of the night-radiance sum, leaving only moonlight.
+    public const string NightAtmosphericGlowKey = "night_atmospheric_glow";
 }

@@ -293,9 +293,12 @@ the configurable cycle length persisted); `Source/MoonPosition.cs` is the per-ma
 combines that cycle with the map tile's latitude. Of the two consumers, **moon-cast shadows are
 wired in**: `Patch_ShadowDirection`/`Patch_ShadowStrength`'s below-horizon night branches now defer
 to `MoonPosition.ShadowForMap`, so a real moon casts a faint, phase-scaled shadow where they
-previously suppressed vanilla's fake one. **Moonlight is exposed but not yet consumed** —
-`MoonPosition.MoonlightBrightnessForMap` returns a normalized 0–1 scalar marked with a
-`TODO(integration)` for §7 to sum with its starlight/airglow floors.
+previously suppressed vanilla's fake one. **Moonlight is now consumed by §7**: at startup
+`CelestialLightingMod` reassigns §7's `MoonSeam.Provider` to read `MoonPosition`, handing §7 the
+moon's live illuminated fraction and per-tile altitude so the night floor brightens under a full
+moon and stays dark on a new one. (`MoonPosition.MoonlightBrightnessForMap` remains as a bare 0–1
+convenience accessor; §7 takes the raw fraction+altitude instead and applies its own
+`MaxMoonlightGlow` weighting via `NightRadianceMath.MoonlightGlow`.)
 
 ## 7. Night-sky radiance: stars, airglow, moonlight (`Patch_NightRadiance`)
 

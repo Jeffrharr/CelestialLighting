@@ -21,6 +21,11 @@ public static class Patch_NightRadiance
 {
     static void Postfix(Map map, ref SkyTarget __result)
     {
+        // Feature gate (default on): when off, leave vanilla's night glow floor untouched — the
+        // faithful pre-feature baseline. Sits before the elevation lookup so "off" is a true no-op.
+        if (!CelestialLightingFeatures.NightRadiance)
+            return;
+
         // Same shared solar-position simulator every other subsystem uses (Patch_ShadowDirection,
         // Patch_ShadowStrength), so night timing can never disagree with the shadow/twilight patches
         // about where the sun actually is.

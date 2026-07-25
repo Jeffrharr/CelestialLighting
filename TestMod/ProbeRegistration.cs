@@ -32,5 +32,14 @@ public static class ProbeRegistration
         FeatureRegistry.Register(
             CelestialLightingFeatures.MoonShadowsKey,
             enabled => CelestialLightingFeatures.MoonShadows = enabled);
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.NightRadianceKey,
+            enabled => CelestialLightingFeatures.NightRadiance = enabled);
+        // Not a CelestialLightingFeatures flag: this bridges the "true pitch-black" atmospheric-floor
+        // switch that lives on NightRadianceSettings, so a probe scenario can drop the constant
+        // starlight+airglow floor out of the night_radiance sum and watch only moonlight remain.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.NightAtmosphericGlowKey,
+            enabled => NightRadianceSettings.Current.AtmosphericGlowEnabled = enabled);
     }
 }
