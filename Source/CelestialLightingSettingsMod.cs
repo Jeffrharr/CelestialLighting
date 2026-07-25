@@ -43,10 +43,30 @@ public class CelestialLightingSettingsMod : Mod
 
     public override string SettingsCategory() => "Celestial Lighting";
 
+    // Scroll state for the settings page. The content (a dozen-plus effect toggles, two radio groups
+    // and six sliders) is taller than the settings window at any reasonable resolution, and a
+    // Listing_Standard does not scroll on its own — it just keeps drawing past the bottom edge, so
+    // everything below the fold was unreachable.
+    private Vector2 scrollPosition;
+
+    // Measured content height, filled in from Listing.CurHeight after the first pass. Seeded at 0 and
+    // floored against the visible height below, so the first frame draws without a scrollbar rather
+    // than with a wrong one, and self-corrects from the second frame on.
+    private float contentHeight;
+
+    private const float ScrollBarWidth = 20f;
+
     public override void DoSettingsWindowContents(Rect inRect)
     {
+        // The view rect is the *content* rect: as tall as the content actually needs (never shorter
+        // than the window, or Unity would show a scrollbar with nothing to scroll), and narrower than
+        // the window by the scrollbar so the rightmost slider handles aren't hidden under it.
+        Rect viewRect = new Rect(0f, 0f, inRect.width - ScrollBarWidth, Mathf.Max(contentHeight, inRect.height));
+
+        Widgets.BeginScrollView(inRect, ref scrollPosition, viewRect);
+
         var listing = new Listing_Standard();
-        listing.Begin(inRect);
+        listing.Begin(viewRect);
 
         DrawEffectToggles(listing);
         listing.GapLine();
@@ -56,7 +76,12 @@ public class CelestialLightingSettingsMod : Mod
         listing.GapLine();
         DrawBrightnessFloorSection(listing);
 
+        // Read the height BEFORE End() — CurHeight tracks the listing's running cursor, and End()
+        // is free to reset it.
+        contentHeight = listing.CurHeight;
         listing.End();
+
+        Widgets.EndScrollView();
 
         // Push any change the player just made straight into the runtime flags, so effects toggle
         // live in-game while the window is open — no reload needed. Cheap (a handful of field copies).
@@ -86,6 +111,7 @@ public class CelestialLightingSettingsMod : Mod
         listing.CheckboxLabeled("Black unlit interiors", ref Settings.indoorSkyOcclusion,
             "Stop the sky lighting roofed cells. Vanilla always bleeds ~61% of the sky into every roofed tile, so a sealed cave never goes black; with this on, an unlit interior is lit by its lamps or not at all — day and night.");
         Settings.doorSkyLeak = LabeledSlider(listing, "  Light leaked through doors", Settings.doorSkyLeak, 0f, 0.5f);
+        Settings.minIndoorBrightness = LabeledSlider(listing, "  Minimum indoor brightness", Settings.minIndoorBrightness, 0f, 1f);
         listing.CheckboxLabeled("Atmospheric night glow", ref Settings.atmosphericGlow,
             "The constant starlight + airglow floor. Off = only moonlight lights the night (true pitch-black on a moonless night).");
         Settings.minNightBrightness = LabeledSlider(listing, "  Minimum night brightness", Settings.minNightBrightness, 0f, 1f);
