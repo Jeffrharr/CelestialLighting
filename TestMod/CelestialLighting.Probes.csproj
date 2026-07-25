@@ -31,6 +31,8 @@
     <Compile Include="../Source/Probes/BrightnessFloorProbe.cs" Link="BrightnessFloorProbe.cs" />
     <Compile Include="../Source/Probes/MoonShadowRenderProbe.cs" Link="MoonShadowRenderProbe.cs" />
     <Compile Include="../Source/Probes/MoonElevationProbe.cs" Link="MoonElevationProbe.cs" />
+    <Compile Include="../Source/Probes/WeatherDimmingProbe.cs" Link="WeatherDimmingProbe.cs" />
+    <Compile Include="../Source/Probes/SkyGlowProbe.cs" Link="SkyGlowProbe.cs" />
   </ItemGroup>
 
   <ItemGroup>

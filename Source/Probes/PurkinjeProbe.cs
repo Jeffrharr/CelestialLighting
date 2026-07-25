@@ -9,19 +9,25 @@ namespace CelestialLighting.Probes;
 // RimWorldTestHarness/DESIGN.md's "Where probe tests live" for the full reasoning.
 //
 // Re-derives the exact §9 rod-vision factor Patch_LowLightDesaturation keys the shift off, from the
-// live displayed glow. The patch reads WeatherWorker.CurSkyTarget's own weather-clamped glow;
-// SkyManager.CurSkyGlow is that same value after SkyManagerUpdate (curSkyGlowInt = curSky.glow, and
-// curSky comes from the patched CurSkyTarget), and it is the already-API-tested public accessor. So
-// this pins the 0..1 Purkinje factor end-to-end against a running game: ~0 in daylight, rising
-// toward 1 on a deep or overcast night — and because the night floor from §7 (night radiance) feeds
-// that same glow, the factor a scenario reads at night already reflects moon phase for free.
+// live displayed glow. The patch reads WeatherWorker.CurSkyTarget's own glow; SkyManager.CurSkyGlow
+// is that same value after SkyManagerUpdate (curSkyGlowInt = curSky.glow, and curSky comes from the
+// patched CurSkyTarget), and it is the already-API-tested public accessor. So this pins the 0..1
+// Purkinje factor end-to-end against a running game: ~0 in daylight, rising toward 1 on a deep or
+// overcast night — and because the night floor from §7 (night radiance) feeds that same glow, the
+// factor a scenario reads at night already reflects moon phase for free.
+//
+// It must apply §13's weather attenuation for the same reason the patch does, and in the same order:
+// §13 deliberately never writes SkyTarget.glow (gameplay lighting stays vanilla under all weather),
+// so the weather term reaches §9 only through ApparentGlow. Reading CurSkyGlow alone would silently
+// report the clear-sky factor on a rainy night and quietly diverge from what the game is rendering.
 public sealed class PurkinjeProbe : IProbe
 {
     public string Name => "purkinje";
 
     public float Read(Map map)
     {
-        float glow = map.skyManager.CurSkyGlow;
+        float glow = WeatherDimmingMath.ApparentGlow(
+            map.skyManager.CurSkyGlow, WeatherDimming.DimmingFor(map));
         return PurkinjeMath.PurkinjeFactor(glow);
     }
 }

@@ -1,0 +1,44 @@
+{
+  "name": "weather_dimming",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "20" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "40" } },
+    { "type": "SetTime", "args": { "hour": "12" } },
+
+    { "type": "SetWeather", "args": { "weatherDef": "Clear", "instant": "true" } },
+    { "type": "Probe", "args": { "probeName": "weather_dimming", "expectedValue": "0.0", "tolerance": "0.0005" } },
+
+    { "type": "SetWeather", "args": { "weatherDef": "Fog", "instant": "true" } },
+    { "type": "Probe", "args": { "probeName": "weather_dimming", "expectedValue": "0.18", "tolerance": "0.0005" } },
+
+    { "type": "SetWeather", "args": { "weatherDef": "Rain", "instant": "true" } },
+    { "type": "Probe", "args": { "probeName": "weather_dimming", "expectedValue": "0.255", "tolerance": "0.0005" } },
+
+    { "type": "SetWeather", "args": { "weatherDef": "SnowHard", "instant": "true" } },
+    { "type": "Probe", "args": { "probeName": "weather_dimming", "expectedValue": "0.27", "tolerance": "0.0005" } },
+
+    { "type": "SetWeather", "args": { "weatherDef": "Clear", "instant": "true" } },
+    { "type": "Probe", "args": { "probeName": "weather_dimming", "expectedValue": "0.0", "tolerance": "0.0005" } },
+
+    { "type": "SetWeather", "args": { "weatherDef": "Rain", "instant": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "weather_dimming", "enabled": "false" } },
+    { "type": "Probe", "args": { "probeName": "weather_dimming", "expectedValue": "0.0", "tolerance": "0.0005" } },
+    { "type": "SetFeature", "args": { "featureName": "weather_dimming", "enabled": "true" } },
+    { "type": "Probe", "args": { "probeName": "weather_dimming", "expectedValue": "0.255", "tolerance": "0.0005" } },
+
+    { "type": "SetWeather", "args": { "weatherDef": "Blizzard", "instant": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "weather_dimming", "enabled": "false" } },
+    { "type": "Screenshot", "args": { "fileName": "wd_off_blizzard_noon.png" } },
+    { "type": "SetFeature", "args": { "featureName": "weather_dimming", "enabled": "true" } },
+    { "type": "Screenshot", "args": { "fileName": "wd_on_blizzard_noon.png" } },
+
+    { "type": "SetTime", "args": { "hour": "2" } },
+    { "type": "SetWeather", "args": { "weatherDef": "Clear", "instant": "true" } },
+    { "type": "Screenshot", "args": { "fileName": "wd_night_clear.png" } },
+    { "type": "SetWeather", "args": { "weatherDef": "Rain", "instant": "true" } },
+    { "type": "Screenshot", "args": { "fileName": "wd_night_rain.png" } },
+
+    { "type": "SetWeather", "args": { "weatherDef": "Clear", "instant": "true" } }
+  ]
+}

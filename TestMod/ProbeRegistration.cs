@@ -33,6 +33,10 @@ public static class ProbeRegistration
         // moon_illumination reports phase alone and a full moon can be below the horizon.
         ProbeRegistry.Register(new MoonShadowRenderProbe());
         ProbeRegistry.Register(new MoonElevationProbe());
+        ProbeRegistry.Register(new WeatherDimmingProbe());
+        // Raw gameplay glow, so the weather_dimming scenario can assert §13's central negative: the
+        // sky visibly darkens under a storm while this value does not move at all.
+        ProbeRegistry.Register(new SkyGlowProbe());
 
         // Expose CelestialLighting's runtime feature flags to the harness's SetFeature step so a
         // scenario can screenshot an effect off then on. The setter just writes the shipped mod's
@@ -49,6 +53,9 @@ public static class ProbeRegistration
         FeatureRegistry.Register(
             CelestialLightingFeatures.NightRadianceKey,
             enabled => CelestialLightingFeatures.NightRadiance = enabled);
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.WeatherDimmingKey,
+            enabled => CelestialLightingFeatures.WeatherDimming = enabled);
         // Not a CelestialLightingFeatures flag: this bridges the "true pitch-black" atmospheric-floor
         // switch that lives on NightRadianceSettings, so a probe scenario can drop the constant
         // starlight+airglow floor out of the night_radiance sum and watch only moonlight remain.
