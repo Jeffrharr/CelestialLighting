@@ -1,0 +1,24 @@
+using RimWorldTestHarness.Mod.Probes;
+using Verse;
+
+namespace CelestialLighting.Probes;
+
+// Excluded from the shipped CelestialLighting.dll (see the <Compile Remove> in
+// CelestialLighting.csproj) and instead compiled into TestMod/CelestialLighting.Probes.csproj —
+// the shipped mod must never take a hard reference to RimWorldTestHarness, a dev-only tool.
+//
+// Reads back the §8 colour-temperature the patch keys the sky tint off, in Kelvin, for the live
+// tile/tick: the same sun elevation via the shared SolarPosition simulator Patch_SkyColorTemperature
+// uses, fed through the same SkyColorTemperature.ColorTemperatureKelvin ramp. So a scenario can pin
+// the altitude -> temperature curve end-to-end against a running game (warm ~2000 K near the horizon,
+// neutral ~5772 K with the sun high) rather than only via the offline SkyColorTemperatureTests.
+public sealed class SkyColorTemperatureProbe : IProbe
+{
+    public string Name => "sky_color_temperature";
+
+    public float Read(Map map)
+    {
+        float elevation = SolarPosition.ElevationForMap(map);
+        return SkyColorTemperature.ColorTemperatureKelvin(elevation);
+    }
+}

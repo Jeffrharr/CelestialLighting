@@ -32,6 +32,11 @@ public static class Patch_SkyColorTemperature
 
     static void Postfix(Map map, ref SkyTarget __result)
     {
+        // Feature gate (default on): when off, leave each WeatherDef's palette untouched — the
+        // faithful pre-feature baseline. Sits before the elevation lookup so "off" is a true no-op.
+        if (!CelestialLightingFeatures.SkyColorTemperature)
+            return;
+
         // Re-derive sun elevation from our own simulator (via the shared SolarPosition adapter)
         // rather than reading __result.glow, for the same reason Patch_TwilightColor does: glow may
         // already be clamped by the active WeatherDef's maxGlow, which would make the tint track

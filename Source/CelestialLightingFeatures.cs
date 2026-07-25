@@ -56,6 +56,15 @@ public static class CelestialLightingFeatures
     // toggle yet.
     public static bool MoonShadows = true;
 
+    // Feature key for SkyColorTemperature (see CivilTwilightPersistenceKey for why it lives here).
+    public const string SkyColorTemperatureKey = "sky_color_temperature";
+
+    // §8 sky colour-temperature curve: Patch_SkyColorTemperature nudges colors.sky/overlay toward a
+    // blackbody colour keyed on sun altitude (warm near the horizon, neutral overhead) — colour-only,
+    // never glow. When off, the patch early-returns and leaves each WeatherDef's palette exactly as
+    // vanilla/§2 renders it — the faithful pre-feature baseline for the harness A/B.
+    public static bool SkyColorTemperature = true;
+
     // Feature key for NightRadiance (see CivilTwilightPersistenceKey for why the const lives here).
     public const string NightRadianceKey = "night_radiance";
 

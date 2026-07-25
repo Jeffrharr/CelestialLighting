@@ -1,0 +1,26 @@
+{
+  "name": "sky_color_temperature",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "60" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "40" } },
+
+    { "type": "SetTime", "args": { "hour": "11" } },
+    { "type": "Probe", "args": { "probeName": "sky_color_temperature", "expectedValue": "4543", "tolerance": "30" } },
+    { "type": "SetTime", "args": { "hour": "16" } },
+    { "type": "Probe", "args": { "probeName": "sky_color_temperature", "expectedValue": "3564", "tolerance": "30" } },
+    { "type": "SetTime", "args": { "hour": "18" } },
+    { "type": "Probe", "args": { "probeName": "sky_color_temperature", "expectedValue": "2637", "tolerance": "30" } },
+    { "type": "SetTime", "args": { "hour": "19" } },
+    { "type": "Probe", "args": { "probeName": "sky_color_temperature", "expectedValue": "2177", "tolerance": "30" } },
+
+    { "type": "SetTime", "args": { "hour": "16" } },
+    { "type": "Screenshot", "args": { "fileName": "sct_warmup.png" } },
+    { "type": "SetFeature", "args": { "featureName": "sky_color_temperature", "enabled": "false" } },
+    { "type": "Screenshot", "args": { "fileName": "sct_off.png" } },
+    { "type": "SetFeature", "args": { "featureName": "sky_color_temperature", "enabled": "true" } },
+    { "type": "Screenshot", "args": { "fileName": "sct_on.png" } },
+
+    { "type": "Timelapse", "args": { "fromHour": "10", "toHour": "20", "stepHours": "0.5", "fileNamePrefix": "sct_timelapse", "fps": "6" } }
+  ]
+}
