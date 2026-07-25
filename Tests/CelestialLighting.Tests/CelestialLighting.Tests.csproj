@@ -36,6 +36,7 @@
     <Compile Include="../../Source/SkyColorTemperature.cs" Link="SkyColorTemperature.cs" />
     <Compile Include="../../Source/AuroraMath.cs" Link="AuroraMath.cs" />
     <Compile Include="../../Source/EclipseMath.cs" Link="EclipseMath.cs" />
+    <Compile Include="../../Source/EclipseStaging.cs" Link="EclipseStaging.cs" />
     <Compile Include="../../Source/BloodMoonMath.cs" Link="BloodMoonMath.cs" />
     <Compile Include="../../Source/CelestialSettingsMath.cs" Link="CelestialSettingsMath.cs" />
     <!-- Subsystem 7b pure core (indoor sky occlusion). Verse-free, so it compiles under net8.0 as-is. -->

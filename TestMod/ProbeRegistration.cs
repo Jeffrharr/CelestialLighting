@@ -1,3 +1,4 @@
+using RimWorld;
 using RimWorldTestHarness.Mod.Features;
 using RimWorldTestHarness.Mod.Probes;
 using Verse;
@@ -81,6 +82,42 @@ public static class ProbeRegistration
         FeatureRegistry.Register(
             CelestialLightingFeatures.PitchBlackNightsKey,
             enabled => CelestialLightingFeatures.PitchBlackNights = enabled);
+        // Not a CelestialLightingFeatures flag: the opt-in natural-eclipse timing lives on
+        // EclipseSettings (mirrors the mod's own "Natural eclipse timing" checkbox). Bridged so a
+        // scenario can flip the §10a mode on and film/validate the real geometric trigger.
+        FeatureRegistry.Register(
+            "natural_eclipse",
+            enabled => EclipseSettings.NaturalEclipseEnabled = enabled);
+        // Dev-only staging for the natural-eclipse trigger validation: a real eclipse only happens
+        // once every few game years, so this phase-slides the modeled moon (via the pure EclipseStaging
+        // math) onto a genuine new-moon-at-node alignment one pre-roll ahead of "now", after which the
+        // real trigger detects the transit from real geometry and fires a real Eclipse. Disabling it
+        // clears the shifts so the moon returns to its true phase. Never touched by the shipped mod.
+        FeatureRegistry.Register(
+            "eclipse_stage_alignment",
+            enabled =>
+            {
+                GameComponent_MoonPhase moon = GameComponent_MoonPhase.Current;
+                if (moon == null)
+                    return;
+
+                if (!enabled)
+                {
+                    moon.debugSynodicShiftTicks = 0L;
+                    moon.debugNodalShiftTicks = 0L;
+                    return;
+                }
+
+                EclipseStaging.AlignmentShifts shifts = EclipseStaging.ComputeAlignmentShifts(
+                    Find.TickManager.TicksAbs,
+                    (long)(moon.synodicPeriodDays * GenDate.TicksPerDay),
+                    (long)(moon.nodalPeriodDays * GenDate.TicksPerDay),
+                    GenDate.TicksPerDay,
+                    Formulas.DaysPerYear,
+                    EclipseStaging.DefaultPreRollTicks);
+                moon.debugSynodicShiftTicks = shifts.SynodicShiftTicks;
+                moon.debugNodalShiftTicks = shifts.NodalShiftTicks;
+            });
         // Not a CelestialLightingFeatures flag: bridges the minimum-brightness clamp so a visual
         // scenario can force a genuinely pitch-black night (MinNightBrightness -> 0) instead of the
         // shipped playable floor. "enabled" == true means clamp to 0 (true black); false restores the

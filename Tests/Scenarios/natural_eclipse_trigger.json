@@ -1,0 +1,14 @@
+{
+  "name": "natural_eclipse_trigger",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "20" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "40" } },
+    { "type": "SetTime", "args": { "hour": "11" } },
+    { "type": "SetFeature", "args": { "featureName": "natural_eclipse", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "eclipse_stage_alignment", "enabled": "true" } },
+    { "type": "FastForward", "args": { "ticks": "3000" } },
+    { "type": "Probe", "args": { "probeName": "eclipse_coverage", "expectedValue": "0.7", "tolerance": "0.3" } },
+    { "type": "Screenshot", "args": { "fileName": "natural_eclipse_trigger.png" } }
+  ]
+}

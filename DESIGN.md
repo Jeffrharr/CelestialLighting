@@ -519,7 +519,7 @@ A second Harmony Postfix on `WeatherWorker.CurSkyTarget` (alongside §2's) that:
   toward a desaturated cool blue-grey (the perceptual Purkinje blue). Lerping (never overwriting)
   preserves each `WeatherDef`'s palette. `__result.glow` is never touched.
 
-## 10. Eclipse: natural and unnatural (planned)
+## 10. Eclipse: natural and unnatural
 
 RimWorld's `Eclipse` `GameCondition` fires on a random timer, lasts far longer than a real solar
 eclipse (roughly a game-day), and darkens the map with a flat on/off dim. That length is physically
@@ -551,6 +551,25 @@ default**. Design consequences:
   new one, so all downstream mods that react to eclipses keep working. While this mode is on, the
   random vanilla eclipse incident is suppressed (otherwise they double-fire) — the random ones can
   instead be surfaced as *unnatural* eclipses (10b), a setting.
+
+**Implementation (now wired, against the merged §6 moon).** The inclination/node geometry lives in the
+pure `MoonMath` core (`LunarInclinationDegrees`, a slowly-regressing nodal cycle, `MoonEclipticLatitude`
+and `SunMoonSeparationDegrees`): the moon only crosses the sun when a new moon coincides with a node,
+where its ecliptic latitude passes through zero. The nodal period is tuned (not astronomically scaled)
+so eclipses land **rare but recurring — one every few game years** (rather than reality's per-location
+rarity, which a colony might never witness); an offline simulation test (`MoonMathTests`) pins that
+cadence so a formula change can't silently make eclipses monthly or never. `EclipseIntegration` is the
+thin Verse adapter turning the live moon into a `MoonSunGeometry` (separation, disc radii from
+`EclipseMath`, and the impact parameter); `GameComponent_NaturalEclipse` is the orchestrator that, when
+the transit becomes active, fires a real short `Eclipse` (duration from the moon's relative angular
+speed via `EclipseMath.NaturalEclipseDurationTicks`) on each map and publishes the transit **magnitude**
+so a grazing pass reads as a *partial* (the darkening peaks below full night) and a bullseye as a
+*total*. `Patch_SuppressRandomEclipse` vetoes the random `Eclipse` incident while the mode is on. A
+richer *graphical* partial (a visible moon disc occulting part of the sun) is a tracked follow-up;
+today "partial" is expressed as reduced darkening depth. Because a real eclipse is years away, the
+dev-only `EclipseStaging` (pure, tested) phase-slides the modeled moon onto a genuine new-moon-at-node
+alignment on demand so the live trigger can be filmed/validated — the shipped mod never shifts the
+moon.
 
 ### 10b. Unnatural eclipse (default cosmetic replacement of the vanilla event)
 

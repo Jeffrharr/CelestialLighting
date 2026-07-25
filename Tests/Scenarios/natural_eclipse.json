@@ -1,0 +1,13 @@
+{
+  "name": "natural_eclipse",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "20" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "40" } },
+    { "type": "SetTime", "args": { "hour": "12" } },
+    { "type": "SetFeature", "args": { "featureName": "pitch_black_nights", "enabled": "false" } },
+    { "type": "SetFeature", "args": { "featureName": "natural_eclipse", "enabled": "true" } },
+    { "type": "StartCondition", "args": { "conditionDef": "Eclipse", "durationHours": "1.2", "agedHours": "0" } },
+    { "type": "Timelapse", "args": { "fromHour": "12.0", "toHour": "13.1", "stepHours": "0.05", "fileNamePrefix": "natural_eclipse", "fps": "8" } }
+  ]
+}
