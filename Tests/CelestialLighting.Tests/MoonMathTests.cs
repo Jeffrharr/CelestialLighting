@@ -228,4 +228,105 @@ public class MoonMathTests
         float half = MoonMath.MoonShadowStrength(illuminatedFraction: 0.5f, moonElevationDegrees: 45f);
         Assert.That(half, Is.EqualTo(full * 0.5f).Within(Tolerance));
     }
+
+    // --- Lunar nodes / ecliptic latitude / separation (natural-eclipse geometry, §10a) ---
+
+    [TestCase(0f)]
+    [TestCase(0.5f)]
+    [TestCase(1f)]
+    public void MoonEclipticLatitude_IsZero_AtAscendingNode(float nodalPosition)
+    {
+        // At the node the moon crosses the ecliptic, so its latitude is exactly zero regardless of the
+        // node's current longitude — pick the day/phase that puts the moon *on* the node for this
+        // nodal position: moon longitude == node longitude.
+        float nodeLon = MoonMath.AscendingNodeLongitudeDegrees(nodalPosition);
+        // Solve for a dayOfYear (at new moon, cyclePosition 0) whose sun/moon longitude equals nodeLon.
+        float dayOfYear = ((nodeLon % 360f + 360f) % 360f) / 360f * Formulas.DaysPerYear;
+        float latitude = MoonMath.MoonEclipticLatitudeDegrees(dayOfYear, cyclePosition: 0f, nodalPosition);
+        Assert.That(latitude, Is.EqualTo(0f).Within(0.01f));
+    }
+
+    [Test]
+    public void MoonEclipticLatitude_ReachesInclination_QuarterOrbitFromNode()
+    {
+        // A quarter turn (90°) of ecliptic longitude past the node, the moon is at its maximum swing
+        // off the ecliptic — the full orbital inclination. Node at longitude 0 (nodalPosition 0),
+        // moon at longitude 90 (dayOfYear a quarter of the year, new moon).
+        float latitude = MoonMath.MoonEclipticLatitudeDegrees(
+            dayOfYear: Formulas.DaysPerYear * 0.25f, cyclePosition: 0f, nodalPosition: 0f);
+        Assert.That(latitude, Is.EqualTo(MoonMath.LunarInclinationDegrees).Within(0.001f));
+    }
+
+    [Test]
+    public void SunMoonSeparation_IsTiny_AtNewMoonOnNode()
+    {
+        // New moon (elongation 0) sitting on the node (latitude 0): the discs are essentially on top
+        // of each other — this is the geometry that produces an eclipse.
+        float sep = MoonMath.SunMoonSeparationDegrees(dayOfYear: 0f, cyclePosition: 0f, nodalPosition: 0f);
+        Assert.That(sep, Is.EqualTo(0f).Within(0.01f));
+        Assert.That(EclipseMath.IsGeometricTransit(
+            sep, EclipseMath.SunAngularRadiusDegrees, EclipseMath.MoonAngularRadiusDegrees), Is.True);
+    }
+
+    [Test]
+    public void SunMoonSeparation_IsInclination_AtNewMoonFarFromNode()
+    {
+        // New moon a quarter-orbit from the node: longitude gap ~0 but the moon rides a full
+        // inclination above the ecliptic, so the discs miss by ~5° — no eclipse, the common case that
+        // keeps eclipses from firing every new moon.
+        float sep = MoonMath.SunMoonSeparationDegrees(
+            dayOfYear: Formulas.DaysPerYear * 0.25f, cyclePosition: 0f, nodalPosition: 0f);
+        Assert.That(sep, Is.EqualTo(MoonMath.LunarInclinationDegrees).Within(0.01f));
+        Assert.That(EclipseMath.IsGeometricTransit(
+            sep, EclipseMath.SunAngularRadiusDegrees, EclipseMath.MoonAngularRadiusDegrees), Is.False);
+    }
+
+    [Test]
+    public void SunMoonSeparation_IsWide_AtFullMoon()
+    {
+        // Full moon (elongation 180): the moon is on the far side of the sky, ~180° away — never an
+        // eclipse, whatever the node.
+        float sep = MoonMath.SunMoonSeparationDegrees(dayOfYear: 0f, cyclePosition: 0.5f, nodalPosition: 0f);
+        Assert.That(sep, Is.GreaterThan(170f));
+    }
+
+    [Test]
+    public void EclipseCadence_IsRareButRecurring_OverManyYears()
+    {
+        // The whole point of the node model: eclipses must be rare (not every new moon) but still
+        // recur every few game years. This simulates the exact geometry the live trigger samples —
+        // MoonMath.SunMoonSeparationDegrees vs the summed disc radii — across many years at fine time
+        // resolution, counts distinct eclipse events (contiguous below-threshold spans), and pins the
+        // rate. If DefaultNodalPeriodDays, LunarInclinationDegrees, or the disc radii change, this is
+        // the guardrail that catches "eclipses now fire monthly" or "never fire" regressions.
+        const int years = 300;
+        const float stepDays = 0.02f; // ~30 min; fine enough not to skip a ~1.5-day eclipse window
+        float synodicDays = MoonMath.DefaultSynodicMonthDays;
+        float nodalDays = MoonMath.DefaultNodalPeriodDays;
+
+        int events = 0;
+        bool wasInEclipse = false;
+        for (float day = 0f; day < years * Formulas.DaysPerYear; day += stepDays)
+        {
+            float cyclePosition = Frac(day / synodicDays);
+            float nodalPosition = Frac(day / nodalDays);
+            float dayOfYear = day % Formulas.DaysPerYear;
+
+            float sep = MoonMath.SunMoonSeparationDegrees(dayOfYear, cyclePosition, nodalPosition);
+            bool inEclipse = EclipseMath.IsGeometricTransit(
+                sep, EclipseMath.SunAngularRadiusDegrees, EclipseMath.MoonAngularRadiusDegrees);
+
+            events += (inEclipse && !wasInEclipse) ? 1 : 0;
+            wasInEclipse = inEclipse;
+        }
+
+        float perYear = events / (float)years;
+        // Target: "rare, but not too rare — every few game years." One every ~2–5 years => 0.2–0.5/yr.
+        Assert.That(perYear, Is.GreaterThan(0.18f),
+            $"eclipses too rare: {events} in {years} years ({perYear:F3}/yr) — expected ~1 per few years");
+        Assert.That(perYear, Is.LessThan(0.55f),
+            $"eclipses too frequent: {events} in {years} years ({perYear:F3}/yr) — should not be near-monthly");
+    }
+
+    private static float Frac(float x) => x - MathF.Floor(x);
 }

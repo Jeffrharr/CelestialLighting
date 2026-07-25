@@ -160,6 +160,83 @@ public static class MoonMath
         return elevationRamp * Clamp01(illuminatedFraction) * MoonShadowMaxStrength;
     }
 
+    // --- Lunar orbital inclination and nodes (opt-in natural-eclipse trigger, DESIGN.md §10a) ---
+    //
+    // Everything above models the moon flat on the ecliptic, which is exactly why such a moon would
+    // transit the sun at *every* new moon. The natural-eclipse trigger needs the ~5° orbital tilt put
+    // back: a solar eclipse happens only when a new moon (elongation ~0, moon lined up with the sun in
+    // longitude) coincides with the moon being near one of its two orbital nodes — the points where
+    // the tilted orbit crosses the ecliptic and the moon's ecliptic *latitude* passes through zero.
+    // Away from a node the moon rides above or below the sun and no eclipse occurs. Modeling the node,
+    // and its slow retrograde regression, is what converts "every month" into the realistic "an
+    // eclipse only every few game years" cadence this feature targets (enforced by a simulation test
+    // in MoonMathTests). All System-only and unit-tested; consumed by EclipseIntegration's provider.
+
+    // Tilt of the lunar orbit to the ecliptic. The real Moon's ~5.14°; kept real because it (together
+    // with the disc radii in EclipseMath) sets how narrow the near-node window must be for the discs
+    // to actually overlap, and thus how rare eclipses are.
+    public const float LunarInclinationDegrees = 5.14f;
+
+    // In-game length of one full retrograde regression of the ascending node around the ecliptic, in
+    // days. NOT astronomically scaled (the real value is ~18.6 years): it is tuned empirically so that
+    // new moons line up with a node roughly once every few game years, which the cadence assertion in
+    // MoonMathTests pins. Chosen incommensurate with the 60-day year so eclipses don't lock to fixed
+    // calendar dates. GameComponent_MoonPhase reads this as its default nodal period.
+    public const float DefaultNodalPeriodDays = 403f;
+
+    // Fraction through the nodal regression cycle in [0, 1), from the absolute tick count, exactly like
+    // SynodicCyclePosition — no stored state, one shared node for the whole game. Returns 0 for a
+    // non-positive period rather than dividing by zero.
+    public static float NodalCyclePosition(long ticksAbs, long nodalPeriodTicks)
+    {
+        if (nodalPeriodTicks <= 0L)
+            return 0f;
+
+        long wrapped = ((ticksAbs % nodalPeriodTicks) + nodalPeriodTicks) % nodalPeriodTicks;
+        return (float)((double)wrapped / nodalPeriodTicks);
+    }
+
+    // Ecliptic longitude of the ascending node, in degrees. The lunar nodes move retrograde, so this
+    // decreases a full 360° over one nodal period. The absolute phase is arbitrary (there is no "true"
+    // epoch to anchor to), so nodal position 0 maps to node longitude 0 and it winds negative.
+    public static float AscendingNodeLongitudeDegrees(float nodalPosition) => -nodalPosition * 360f;
+
+    // Sun's ecliptic longitude in degrees, sweeping a full 360° over the year with day-of-year. This
+    // is the same angle Formulas' declination sinusoid rides on, expressed as a longitude.
+    public static float SunEclipticLongitudeDegrees(float dayOfYear) =>
+        dayOfYear / Formulas.DaysPerYear * 360f;
+
+    // Moon's ecliptic longitude = the sun's plus the moon's elongation (the moon runs a full 360°
+    // ahead of the sun over one synodic month).
+    public static float MoonEclipticLongitudeDegrees(float dayOfYear, float cyclePosition) =>
+        SunEclipticLongitudeDegrees(dayOfYear) + ElongationDegrees(cyclePosition);
+
+    // Moon's ecliptic latitude in degrees — how far above (+) or below (−) the ecliptic the tilted
+    // orbit carries it. Zero at the two nodes, ±inclination a quarter-orbit from them. This is the one
+    // term the flat model on the ecliptic drops, and the reason most new moons miss the sun.
+    public static float MoonEclipticLatitudeDegrees(float dayOfYear, float cyclePosition, float nodalPosition)
+    {
+        float argFromNode =
+            MoonEclipticLongitudeDegrees(dayOfYear, cyclePosition) - AscendingNodeLongitudeDegrees(nodalPosition);
+        return LunarInclinationDegrees * MathF.Sin(ToRadians(argFromNode));
+    }
+
+    // Apparent angular separation between the sun and moon discs, in degrees. The sun sits on the
+    // ecliptic (latitude 0) at its longitude; the moon sits at its own longitude, offset by the
+    // elongation, and its ecliptic latitude. The spherical law of cosines gives the great-circle angle
+    // between the two directions. Near a new moon the longitude gap collapses, so the separation tends
+    // to the moon's ecliptic latitude — which is why an eclipse needs a new moon *and* a near-node
+    // crossing at once. EclipseMath.IsGeometricTransit compares this against the summed disc radii.
+    public static float SunMoonSeparationDegrees(float dayOfYear, float cyclePosition, float nodalPosition)
+    {
+        float deltaLonRad = ToRadians(ElongationDegrees(cyclePosition)); // moon longitude − sun longitude
+        float latitudeRad = ToRadians(MoonEclipticLatitudeDegrees(dayOfYear, cyclePosition, nodalPosition));
+        float cosSeparation = MathF.Cos(latitudeRad) * MathF.Cos(deltaLonRad);
+        return ToDegrees(MathF.Acos(Clamp(cosSeparation, -1f, 1f)));
+    }
+
     private static float ToRadians(float degrees) => degrees * MathF.PI / 180f;
+    private static float ToDegrees(float radians) => radians * 180f / MathF.PI;
     private static float Clamp01(float v) => v < 0f ? 0f : (v > 1f ? 1f : v);
+    private static float Clamp(float v, float lo, float hi) => v < lo ? lo : (v > hi ? hi : v);
 }

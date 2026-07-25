@@ -39,6 +39,17 @@ public static class EclipseMath
     // away").
     public const double DefaultSlideFraction = 0.12;
 
+    // Apparent angular radii of the sun and moon discs, in degrees, for the natural (§10a) trigger's
+    // geometric transit test (IsGeometricTransit) — the moon disc is set slightly larger than the sun
+    // in the same spirit as DefaultMoonSunRadiusRatio so a dead-central pass can reach totality. Their
+    // sum is the near-node latitude window a new moon must fall inside for the discs to overlap at all,
+    // so together with MoonMath.LunarInclinationDegrees and DefaultNodalPeriodDays these set eclipse
+    // rarity. Kept close to the real ~0.26° apparent radii; the eclipse cadence is tuned via the nodal
+    // period, not by inflating the discs (which would also change how a partial reads once §-follow-up
+    // renders partials). Values are cosmetic/geometric only, from standard astronomy, no external mod.
+    public const double SunAngularRadiusDegrees = 0.266;
+    public const double MoonAngularRadiusDegrees = 0.274;
+
     /// <summary>
     /// Area of the lens-shaped intersection of two circles with radii <paramref name="r1"/> and
     /// <paramref name="r2"/> whose centers are <paramref name="distance"/> apart. Standard
@@ -190,11 +201,36 @@ public static class EclipseMath
     // --- Sky-lerp-factor selectors (what the darkening patch and the probe actually write/read) ---
 
     /// <summary>
-    /// Sky-lerp factor for the natural (§10a) eclipse: the central-eclipse coverage ramp over event
-    /// progress. 0 at the ends (normal sky), a brief 1 (full darkness) at maximum.
+    /// Sky-lerp factor for the natural (§10a) eclipse at a given transit <paramref name="magnitude"/>
+    /// (1 = dead-central total, 0 = grazing partial): the coverage ramp over event progress. 0 at the
+    /// ends (normal sky), peaking at maximum. A partial eclipse peaks *below* 1 — the sky only darkens
+    /// as far as the sun is actually occulted — which is how a partial reads graphically as partial
+    /// rather than as a full blackout. A central pass peaks at full darkness.
+    /// </summary>
+    public static double NaturalSkyLerpFactorAtProgress(double progress, double magnitude) =>
+        NaturalCoverageAtProgress(progress, magnitude, moonSunRadiusRatio: DefaultMoonSunRadiusRatio);
+
+    /// <summary>
+    /// Central-eclipse convenience overload (magnitude 1): a brief 1 (full darkness) at maximum.
     /// </summary>
     public static double NaturalSkyLerpFactorAtProgress(double progress) =>
-        NaturalCoverageAtProgress(progress, magnitude: 1.0, moonSunRadiusRatio: DefaultMoonSunRadiusRatio);
+        NaturalSkyLerpFactorAtProgress(progress, magnitude: 1.0);
+
+    /// <summary>
+    /// Central-ness of a transit for the coverage ramp: 1 when the discs pass dead-center (closest
+    /// approach 0), 0 when they only graze (closest approach == the summed disc radii). The closest
+    /// approach is the eclipse's impact parameter — for a solar eclipse, essentially the moon's
+    /// ecliptic latitude at the new-moon instant. Clamped to [0, 1]. Feeds NaturalSkyLerpFactor's
+    /// magnitude so a near-miss partial darkens only slightly and a bullseye total goes fully dark.
+    /// </summary>
+    public static double TransitMagnitude(double closestApproachDeg, double sunAngularRadiusDeg, double moonAngularRadiusDeg)
+    {
+        double contact = sunAngularRadiusDeg + moonAngularRadiusDeg;
+        if (contact <= 0.0)
+            return 0.0;
+
+        return Clamp01(1.0 - Math.Abs(closestApproachDeg) / contact);
+    }
 
     /// <summary>
     /// Sky-lerp factor for the unnatural (§10b) eclipse: the scripted fly-in / park / fly-out ramp.
@@ -207,10 +243,14 @@ public static class EclipseMath
     /// The factor the eclipse-darkening patch writes back onto GameCondition_NoSunlight
     /// .SkyTargetLerpFactor (and the dev probe reads back), selecting the natural or unnatural ramp by
     /// which mode is active. This single selector keeps the live patch and the offline probe in
-    /// lockstep so they can never derive different darkness for the same state.
+    /// lockstep so they can never derive different darkness for the same state. In natural mode the
+    /// <paramref name="naturalMagnitude"/> (1 = central total, &lt;1 = partial) scales how dark it
+    /// gets; it is ignored in the unnatural mode, whose scripted disc always parks fully over the sun.
     /// </summary>
-    public static double SkyLerpFactorAtProgress(double progress, bool naturalMode) =>
-        naturalMode ? NaturalSkyLerpFactorAtProgress(progress) : UnnaturalSkyLerpFactorAtProgress(progress);
+    public static double SkyLerpFactorAtProgress(double progress, bool naturalMode, double naturalMagnitude = 1.0) =>
+        naturalMode
+            ? NaturalSkyLerpFactorAtProgress(progress, naturalMagnitude)
+            : UnnaturalSkyLerpFactorAtProgress(progress);
 
     // --- Astronomical-trigger geometry (opt-in §10a path; see EclipseIntegration) ---
 
