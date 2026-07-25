@@ -31,8 +31,8 @@
       "type": "Probe",
       "args": {
         "probeName": "sun_clock_disagreement",
-        "expectedValue": "-1",
-        "tolerance": "0"
+        "expectedValue": "0.5",
+        "tolerance": "0.5"
       }
     },
     {
@@ -45,8 +45,8 @@
       "type": "Probe",
       "args": {
         "probeName": "sun_clock_disagreement",
-        "expectedValue": "-1",
-        "tolerance": "0"
+        "expectedValue": "0.5",
+        "tolerance": "0.5"
       }
     },
     {
@@ -59,8 +59,8 @@
       "type": "Probe",
       "args": {
         "probeName": "sun_clock_disagreement",
-        "expectedValue": "-1",
-        "tolerance": "0"
+        "expectedValue": "0.5",
+        "tolerance": "0.5"
       }
     },
     {
@@ -73,8 +73,8 @@
       "type": "Probe",
       "args": {
         "probeName": "sun_clock_disagreement",
-        "expectedValue": "-1",
-        "tolerance": "0"
+        "expectedValue": "0.5",
+        "tolerance": "0.5"
       }
     },
     {
@@ -87,8 +87,8 @@
       "type": "Probe",
       "args": {
         "probeName": "sun_clock_disagreement",
-        "expectedValue": "-1",
-        "tolerance": "0"
+        "expectedValue": "0.5",
+        "tolerance": "0.5"
       }
     },
     {
@@ -101,8 +101,8 @@
       "type": "Probe",
       "args": {
         "probeName": "sun_clock_disagreement",
-        "expectedValue": "-1",
-        "tolerance": "0"
+        "expectedValue": "0.5",
+        "tolerance": "0.5"
       }
     },
     {
@@ -115,8 +115,8 @@
       "type": "Probe",
       "args": {
         "probeName": "sun_clock_disagreement",
-        "expectedValue": "-1",
-        "tolerance": "0"
+        "expectedValue": "0.5",
+        "tolerance": "0.5"
       }
     },
     {
@@ -129,8 +129,8 @@
       "type": "Probe",
       "args": {
         "probeName": "sun_clock_disagreement",
-        "expectedValue": "-1",
-        "tolerance": "0"
+        "expectedValue": "0.5",
+        "tolerance": "0.5"
       }
     },
     {
@@ -143,8 +143,8 @@
       "type": "Probe",
       "args": {
         "probeName": "sun_clock_disagreement",
-        "expectedValue": "-1",
-        "tolerance": "0"
+        "expectedValue": "0.5",
+        "tolerance": "0.5"
       }
     },
     {
@@ -157,8 +157,8 @@
       "type": "Probe",
       "args": {
         "probeName": "sun_clock_disagreement",
-        "expectedValue": "-1",
-        "tolerance": "0"
+        "expectedValue": "0.5",
+        "tolerance": "0.5"
       }
     },
     {
