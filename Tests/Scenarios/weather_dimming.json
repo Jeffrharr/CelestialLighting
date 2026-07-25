@@ -33,11 +33,16 @@
     { "type": "SetFeature", "args": { "featureName": "weather_dimming", "enabled": "true" } },
     { "type": "Screenshot", "args": { "fileName": "wd_on_blizzard_noon.png" } },
 
+    { "type": "SetSeason", "args": { "dayOfYear": "40" } },
     { "type": "SetTime", "args": { "hour": "2" } },
     { "type": "SetWeather", "args": { "weatherDef": "Clear", "instant": "true" } },
     { "type": "Screenshot", "args": { "fileName": "wd_night_clear.png" } },
+    { "type": "Probe", "args": { "probeName": "sky_glow", "expectedValue": "0.1419", "tolerance": "0.009" } },
+    { "type": "Probe", "args": { "probeName": "purkinje", "expectedValue": "0.6322", "tolerance": "0.034" } },
     { "type": "SetWeather", "args": { "weatherDef": "Rain", "instant": "true" } },
     { "type": "Screenshot", "args": { "fileName": "wd_night_rain.png" } },
+    { "type": "Probe", "args": { "probeName": "sky_glow", "expectedValue": "0.1419", "tolerance": "0.009" } },
+    { "type": "Probe", "args": { "probeName": "purkinje", "expectedValue": "0.7770", "tolerance": "0.025" } },
 
     { "type": "SetWeather", "args": { "weatherDef": "Clear", "instant": "true" } }
   ]
