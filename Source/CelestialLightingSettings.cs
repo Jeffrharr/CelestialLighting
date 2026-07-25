@@ -50,6 +50,11 @@ public class CelestialLightingSettings : ModSettings
     // IndoorOcclusionMath.DefaultDoorSkyLeak for why doors need this at all.
     public float doorSkyLeak = IndoorOcclusionMath.DefaultDoorSkyLeak;
 
+    // How much sky a roofed cell keeps regardless of how sealed it is. 0 (default) = sealed rooms go
+    // fully black; raise it to keep interiors readable without disabling the effect or brightening the
+    // outdoors via the map-wide accessibility floor.
+    public float minIndoorBrightness = IndoorOcclusionMath.DefaultMinIndoorBrightness;
+
     // --- Eclipse (drives EclipseSettings.Mode) — which eclipse flavour(s) are live. Defaults to Both:
     //     geometric natural eclipses AND the storyteller's unnatural-rendered ones. See EclipseMode. ---
     public EclipseMode eclipseMode = EclipseMode.Both;
@@ -112,12 +117,13 @@ public class CelestialLightingSettings : ModSettings
         // place — the occlusion core only ever sees a plain fraction.
         IndoorOcclusionSettings.Current.DoorSkyLeak = doorSkyLeak;
         IndoorOcclusionSettings.Current.BrightnessFloor = brightnessFloorEnabled ? brightnessFloor : 0f;
+        IndoorOcclusionSettings.Current.MinIndoorBrightness = minIndoorBrightness;
 
         // §7b's alphas live in baked section meshes, not in a per-frame material, so a change here is
         // invisible until the meshes are rebuilt. Must run after the assignments above.
         IndoorOcclusionRedraw.SyncTo(
             indoorSkyOcclusion, IndoorOcclusionSettings.Current.DoorSkyLeak,
-            IndoorOcclusionSettings.Current.BrightnessFloor);
+            IndoorOcclusionSettings.Current.IndoorFloor);
     }
 
     public override void ExposeData()
@@ -136,6 +142,7 @@ public class CelestialLightingSettings : ModSettings
         Scribe_Values.Look(ref pitchBlackNights, "pitchBlackNights", true);
         Scribe_Values.Look(ref indoorSkyOcclusion, "indoorSkyOcclusion", true);
         Scribe_Values.Look(ref doorSkyLeak, "doorSkyLeak", IndoorOcclusionMath.DefaultDoorSkyLeak);
+        Scribe_Values.Look(ref minIndoorBrightness, "minIndoorBrightness", IndoorOcclusionMath.DefaultMinIndoorBrightness);
         Scribe_Values.Look(ref atmosphericGlow, "atmosphericGlow", true);
         Scribe_Values.Look(ref minNightBrightness, "minNightBrightness", NightRadianceMath.DefaultMinNightBrightness);
         Scribe_Values.Look(ref eclipseMode, "eclipseMode", EclipseMode.Both);

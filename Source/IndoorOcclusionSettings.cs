@@ -15,11 +15,23 @@ public struct IndoorOcclusionSettings
     // has exactly one place to look and the pure core stays settings-object-agnostic.
     public float BrightnessFloor;
 
+    // This feature's own minimum indoor brightness, independent of the map-wide accessibility floor:
+    // the fraction of sky a roofed cell keeps no matter how sealed it is. 0 (the default) lets sealed
+    // rooms go fully black; see IndoorOcclusionMath.DefaultMinIndoorBrightness for why it is a knob.
+    public float MinIndoorBrightness;
+
+    // The floor actually applied to roofed cells — whichever of the two knobs is higher. A property so
+    // the reconciliation lives in the tested pure core and the adapter cannot accidentally consult only
+    // one of them.
+    public float IndoorFloor =>
+        IndoorOcclusionMath.EffectiveIndoorFloor(MinIndoorBrightness, BrightnessFloor);
+
     public static IndoorOcclusionSettings Current = Defaults;
 
     public static IndoorOcclusionSettings Defaults => new IndoorOcclusionSettings
     {
         DoorSkyLeak = IndoorOcclusionMath.DefaultDoorSkyLeak,
         BrightnessFloor = 0f,
+        MinIndoorBrightness = IndoorOcclusionMath.DefaultMinIndoorBrightness,
     };
 }

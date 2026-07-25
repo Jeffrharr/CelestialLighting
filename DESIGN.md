@@ -418,13 +418,19 @@ or not at all. Per-cell logic is the pure `IndoorOcclusionMath`; the patch is a 
   also takes `Priority.First` so it runs before Dub's Skylights' Postfix restores the roofs it removed,
   and therefore sees skylit cells as unroofed. (Biomes! Caverns' intent is the opposite of ours by design;
   with both installed, our toggle is the one to turn off.)
-- **The accessibility floor reaches interiors through here.** `Patch_BrightnessFloor` lifts `CurSkyGlow`,
-  which cannot brighten a sealed cave at all — roofed cells take no sky glow. So the floor is also applied
-  as a *cap* on occlusion (`1 - floor`), leaving exactly that fraction of sky bleeding in, which makes the
-  in-game "toggle minimum brightness" hotkey work indoors as well as out.
+- **Two floors reach interiors through here, and only through here.** `Patch_BrightnessFloor` lifts
+  `CurSkyGlow`, which cannot brighten a sealed cave by one shade — roofed cells take no sky glow at all.
+  So a floor is applied as a *cap* on occlusion (`1 - floor`), leaving exactly that fraction of sky
+  bleeding in. Two knobs feed it and the higher wins (`IndoorOcclusionMath.EffectiveIndoorFloor`):
+  the map-wide accessibility floor, which is what makes its hotkey work indoors as well as out, and
+  **minimum indoor brightness**, a dedicated slider for players who want readable interiors *without*
+  also brightening the outdoors. The dedicated one ships at 0 (interiors may go fully black — the point
+  of the feature); at 1 it cancels occlusion outright, which is exactly equivalent to switching the
+  feature off, a property of the formula rather than a special case.
 - **Baked, not per-frame.** Unlike §7a's material colour, these alphas only change when a section is
-  dirtied, so `IndoorOcclusionRedraw` forces a `WholeMapChanged(GroundGlow)` when the toggle or sliders
-  change — otherwise the setting appears to do nothing until something else dirties the map.
+  dirtied, so `IndoorOcclusionRedraw` forces a `WholeMapChanged(GroundGlow)` when the toggle or either
+  slider changes (it compares the *resolved* floor, so either knob moving is caught without duplicating
+  the max() rule) — otherwise the setting appears to do nothing until something else dirties the map.
 - Skipped entirely on `disableSkyLighting` biomes (the Odyssey undercave), where vanilla already zeroes
   the sky contribution wholesale; there is nothing to occlude and overriding it would fight that contract.
 

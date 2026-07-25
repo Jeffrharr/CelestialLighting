@@ -72,13 +72,31 @@ public static class IndoorOcclusionMath
     public static float CornerOcclusion(float occlusionSum, int validCells) =>
         validCells <= 0 ? 0f : Clamp01(occlusionSum / validCells);
 
-    // The legibility escape hatch. The accessibility brightness floor (Patch_BrightnessFloor) lifts
-    // CurSkyGlow, which is *gameplay* light — it cannot brighten a sealed interior, because roofed
-    // cells never take sky glow in the first place (Verse.GlowGrid.GroundGlowAt returns early for
-    // them). So the floor has to reach interiors through this second path: capping occlusion at
-    // 1 - floor leaves exactly `floor` worth of sky bleeding in, which makes the in-game "toggle
-    // minimum brightness" hotkey work indoors as well as out. With the floor disabled the cap is 1
-    // and this is the identity.
+    // Default for IndoorOcclusionSettings.MinIndoorBrightness. 0 == interiors may go genuinely black,
+    // which is the point of the feature, so that is what ships. The slider exists because "black" is a
+    // taste and legibility call: a player who wants sealed rooms readable without switching the whole
+    // effect off — or without enabling the map-wide accessibility floor, which also brightens the
+    // outdoors — raises this instead. At 1 it cancels occlusion entirely, exactly equivalent to turning
+    // the feature off; that equivalence is a property of the formula, not a special case.
+    public const float DefaultMinIndoorBrightness = 0f;
+
+    // The two knobs that can hold an interior above black, reconciled: this feature's own indoor floor
+    // and the map-wide accessibility floor. Both mean "never darker than this", so the higher wins —
+    // the same rule NightRadianceMath.EffectiveMinBrightness applies to the night overlay. Deliberately
+    // NOT shared with that function: these are different knobs with different scopes (this one only
+    // ever affects roofed cells), and collapsing them would couple §7a's taste clamp to §7b's.
+    public static float EffectiveIndoorFloor(float minIndoorBrightness, float accessibilityFloor)
+    {
+        float higher = minIndoorBrightness > accessibilityFloor ? minIndoorBrightness : accessibilityFloor;
+        return Clamp01(higher);
+    }
+
+    // Applies that floor as a ceiling on occlusion: capping at 1 - floor leaves exactly `floor` worth of
+    // sky bleeding into a roofed cell. This is the only path by which either floor can reach a sealed
+    // interior. The accessibility floor works by lifting CurSkyGlow, which is *gameplay* light, and
+    // roofed cells never take sky glow at all (Verse.GlowGrid.GroundGlowAt returns early for them), so
+    // lifting it cannot brighten a cave by one shade. With both knobs at 0 the cap is 1 and this is the
+    // identity.
     public static float CapOcclusion(float occlusion, float brightnessFloor) =>
         Clamp01(Min(Clamp01(occlusion), 1f - Clamp01(brightnessFloor)));
 

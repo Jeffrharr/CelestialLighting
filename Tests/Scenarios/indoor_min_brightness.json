@@ -1,0 +1,21 @@
+{
+  "name": "indoor_min_brightness",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "20" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "40" } },
+
+    { "type": "SetTime", "args": { "hour": "12" } },
+    { "type": "Screenshot", "args": { "fileName": "imb_warmup.png" } },
+
+    { "type": "SetFeature", "args": { "featureName": "indoor_min_brightness", "enabled": "false" } },
+    { "type": "Screenshot", "args": { "fileName": "imb_noon_floor_zero.png" } },
+    { "type": "SetFeature", "args": { "featureName": "indoor_min_brightness", "enabled": "true" } },
+    { "type": "Screenshot", "args": { "fileName": "imb_noon_floor_raised.png" } },
+
+    { "type": "SetTime", "args": { "hour": "2" } },
+    { "type": "Screenshot", "args": { "fileName": "imb_moonlit_floor_raised.png" } },
+    { "type": "SetFeature", "args": { "featureName": "indoor_min_brightness", "enabled": "false" } },
+    { "type": "Screenshot", "args": { "fileName": "imb_moonlit_floor_zero.png" } }
+  ]
+}

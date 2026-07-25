@@ -132,6 +132,6 @@ public static class Patch_IndoorSkyOcclusion
         bool isDoor = edifice != null && edifice.def.altitudeLayer == AltitudeLayer.DoorMoveable;
 
         float occlusion = IndoorOcclusionMath.CellOcclusion(roofed, isDoor, settings.DoorSkyLeak);
-        return IndoorOcclusionMath.CapOcclusion(occlusion, settings.BrightnessFloor);
+        return IndoorOcclusionMath.CapOcclusion(occlusion, settings.IndoorFloor);
     }
 }

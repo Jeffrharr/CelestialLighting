@@ -134,6 +134,18 @@ public static class ProbeRegistration
                 CelestialLightingFeatures.IndoorSkyOcclusion = enabled;
                 IndoorOcclusionRedraw.ForceRebuild();
             });
+        // Not a CelestialLightingFeatures flag: bridges §7b's minimum-indoor-brightness slider so a
+        // visual scenario can A/B a sealed room at full black against one held above it. "enabled" ==
+        // true means raise the floor to a clearly-visible 0.25; false restores the shipped 0 (black).
+        // Rebuilds the baked meshes for the same reason the occlusion toggle does.
+        FeatureRegistry.Register(
+            "indoor_min_brightness",
+            enabled =>
+            {
+                IndoorOcclusionSettings.Current.MinIndoorBrightness =
+                    enabled ? 0.25f : IndoorOcclusionMath.DefaultMinIndoorBrightness;
+                IndoorOcclusionRedraw.ForceRebuild();
+            });
         FeatureRegistry.Register(
             "pitch_black_true",
             enabled => NightRadianceSettings.Current.MinNightBrightness =

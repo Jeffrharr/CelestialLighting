@@ -22,6 +22,9 @@ public static class IndoorOcclusionRedraw
     private static float lastDoorSkyLeak = IndoorOcclusionMath.DefaultDoorSkyLeak;
     private static float lastBrightnessFloor;
 
+    // brightnessFloor is the *resolved* indoor floor (IndoorOcclusionSettings.IndoorFloor), not the raw
+    // accessibility slider — either knob moving must trigger a rebuild, and comparing the resolved value
+    // catches both without duplicating the max() rule here.
     public static void SyncTo(bool enabled, float doorSkyLeak, float brightnessFloor)
     {
         bool unchanged = enabled == lastEnabled
