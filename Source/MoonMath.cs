@@ -42,6 +42,37 @@ public static class MoonMath
     // from here (a new moon casts nothing; a low full moon casts a whisper).
     public const float MoonShadowMaxStrength = 0.28f;
 
+    // How much darker than the lit ground the strongest moon shadow renders, as a fraction — the
+    // *visible* contrast at MoonShadowMaxStrength.
+    //
+    // This constant exists because MoonShadowMaxStrength alone could never deliver it. That one is
+    // only the alpha handed to SkyManager, which then does `Color.Lerp(Color.white,
+    // curSky.colors.shadow, strength)` — and vanilla's night colors.shadow is nearly white
+    // ((0.85,0.85,0.85) on Clear, (0.92,…) on every other weather), because vanilla never meant to
+    // draw a real night shadow at all. Even at alpha 1.0 that caps a night shadow at a 15% darkening;
+    // at our 0.28 it worked out to 4.2% on a clear night and 2.2% otherwise — computed correctly, fed
+    // to the shader correctly, and rendered invisibly. Patch_MoonShadowColor replaces that near-white
+    // input so the alpha has something to bite on. 25% keeps a moon shadow a faint hint: clearly
+    // present, nowhere near a daytime shadow's contrast.
+    public const float MoonShadowPeakDarkening = 0.25f;
+
+    // The greyscale value to feed SkyTarget.colors.shadow at night so a shadow at `maxStrength`
+    // renders exactly `peakDarkening` darker than the lit ground.
+    //
+    // Inverts vanilla's own lerp instead of second-guessing it: the rendered value is
+    // 1 - strength * (1 - shadowValue), so solving at strength == maxStrength gives
+    // 1 - peakDarkening / maxStrength. Because the strength term stays vanilla's, weaker moons scale
+    // down proportionally for free — a half-lit moon lands at half the contrast with no second curve
+    // to keep in sync. Returns 1 (leave the ground alone) when maxStrength is 0, the only case where
+    // no colour could produce the requested darkening.
+    public static float MoonShadowColorValue(float peakDarkening, float maxStrength)
+    {
+        if (maxStrength <= 0f)
+            return 1f;
+
+        return Clamp01(1f - Clamp01(peakDarkening) / maxStrength);
+    }
+
     // The eight canonical named phases, in cycle order starting from new. Waxing (illuminated
     // fraction growing) runs New -> First Quarter -> Full; waning runs Full -> Last Quarter -> New.
     public enum MoonPhase

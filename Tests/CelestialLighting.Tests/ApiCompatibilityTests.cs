@@ -462,6 +462,17 @@ public class ApiCompatibilityTests
             $"MatBases.{fieldName} no longer exists or is no longer public — Patch_PitchBlackOverlay writes its .color");
     }
 
+    [Test]
+    public void SkyColorSet_Shadow_Exists()
+    {
+        // Patch_MoonShadowColor (§6a) writes this field at night so the moon-shadow alpha has a colour
+        // dark enough to be visible. Vanilla ships it near-white for night, which is the bug.
+        var type = GetType("Verse.SkyColorSet");
+        Assert.That(type, Is.Not.Null, "Verse.SkyColorSet no longer exists");
+        Assert.That(type!.Fields.Any(f => f.Name == "shadow" && f.IsPublic), Is.True,
+            "SkyColorSet.shadow no longer exists or is no longer public — Patch_MoonShadowColor writes it");
+    }
+
     // --- §7b indoor sky occlusion (Patch_IndoorSkyOcclusion) ---
 
     [Test]

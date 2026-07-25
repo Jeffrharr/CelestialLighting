@@ -348,6 +348,47 @@ dark on a new one. The per-source tunables, the atmospheric-glow master toggle, 
 minimum-brightness clamp live in `NightRadianceSettings.cs`, holding the DESIGN defaults until the
 settings/presets screen (below) is built to write them (`// TODO(integration:`).
 
+### 6a. Making moon shadows visible (`Patch_MoonShadowColor`)
+
+**Problem.** §6 computed moon shadows correctly and they still could not be seen. `Patch_ShadowDirection`
+sets a real, moon-position-derived shadow vector at night and `Patch_ShadowStrength` sets a matching
+alpha, both from the one `MoonPosition.ShadowForMap` adapter. But that alpha is only a lerp *factor*:
+
+```csharp
+color = Color.Lerp(Color.white, curSky.colors.shadow, GenCelestial.CurShadowStrength(map));
+MatBases.SunShadow.color = color;   // and SunShadowFade
+```
+
+and vanilla's night `colors.shadow` is nearly white — `(0.85,0.85,0.85)` on Clear, `(0.92,…)` on every
+other weather — because vanilla never intended to draw a real night shadow. That caps a night shadow at
+a 15% darkening even at alpha 1.0; at `MoonShadowMaxStrength` (0.28) it worked out to **4.2%** on a clear
+night and **2.2%** otherwise, and less for anything short of a full moon. Below the perceptual floor,
+and doubly so on ground §7a has already pulled toward black. Structurally the same trap as §7a: we
+owned a factor while vanilla owned the colour that bounded it.
+
+**Approach.** A Postfix on `WeatherWorker.CurSkyTarget` replaces `colors.shadow` at night with a value
+derived by *inverting vanilla's own lerp* — `MoonMath.MoonShadowColorValue` solves
+`1 - strength·(1 - value) = 1 - peakDarkening` at `strength == MoonShadowMaxStrength`, so a full moon at
+the zenith renders exactly `MoonShadowPeakDarkening` (0.25) darker than the lit ground.
+
+- **Fixing the input, not adding a second writer of `MatBases.SunShadow`.** Vanilla keeps the lerp, so
+  the moon's own strength keeps scaling the result — a half-lit moon reads at half the contrast with no
+  second curve to keep in sync — and the weather-event branch that skips the lerp and uses
+  `colors.shadow` directly stays correct too.
+- **One owner per field.** Nothing else in the mod writes `colors.shadow`: §2 twilight, §8
+  colour-temperature, §9 desaturation and §11/§12 all work on `colors.sky` / `overlay` / `saturation`.
+  So there is no composition order to argue about, unlike §7a which had to inject after everything.
+- **Night only**, above-horizon returns early: vanilla's daytime shadow colours are already correct and
+  well-tuned, and this must not touch every daylight shadow in the game.
+- **Neutral grey, not blue-tinted moonlight.** §9 owns the night's colour cast; a tint here would fight
+  it for the same look.
+- Gated on `MoonShadows` — with §6 off there is no moon shadow to make visible, and darkening
+  `colors.shadow` would only deepen vanilla's own fake night shadow, the opposite of that flag's
+  faithful-baseline promise.
+
+**Conflict risk.** Shares `WeatherWorker.CurSkyTarget` with five of our own postfixes and with any mod
+that recolours the sky; we touch only `.shadow`, which none of them do. Rendering-only.
+
 ### 7a. Pitch-black nights — visual overlay darkening (`Patch_PitchBlackOverlay`)
 
 §7 writes only `SkyTarget.glow`, which drives *gameplay* light and everything that reads

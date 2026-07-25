@@ -329,4 +329,61 @@ public class MoonMathTests
     }
 
     private static float Frac(float x) => x - MathF.Floor(x);
+
+    // --- MoonShadowColorValue (§6a: making moon shadows visible at all) ---
+
+    [Test]
+    public void MoonShadowColorValue_DeliversExactlyThePeakDarkening_ThroughVanillasLerp()
+    {
+        // The whole point: feed this value to SkyTarget.colors.shadow and vanilla's
+        // Color.Lerp(white, shadow, strength) must land on peakDarkening at max strength.
+        float value = MoonMath.MoonShadowColorValue(
+            MoonMath.MoonShadowPeakDarkening, MoonMath.MoonShadowMaxStrength);
+        float rendered = 1f - MoonMath.MoonShadowMaxStrength * (1f - value);
+        Assert.That(1f - rendered, Is.EqualTo(MoonMath.MoonShadowPeakDarkening).Within(1e-5f));
+    }
+
+    [Test]
+    public void MoonShadowColorValue_ScalesDownProportionallyForAWeakerMoon()
+    {
+        // A half-lit moon at the zenith has half the alpha, so it must render at half the contrast —
+        // for free, because the strength term stays vanilla's.
+        float value = MoonMath.MoonShadowColorValue(
+            MoonMath.MoonShadowPeakDarkening, MoonMath.MoonShadowMaxStrength);
+        float halfStrength = MoonMath.MoonShadowStrength(0.5f, 90f);
+        float rendered = 1f - halfStrength * (1f - value);
+        Assert.That(1f - rendered, Is.EqualTo(MoonMath.MoonShadowPeakDarkening / 2f).Within(1e-5f));
+    }
+
+    [Test]
+    public void MoonShadowColorValue_IsFarDarkerThanVanillasNightShadow()
+    {
+        // Regression guard for the actual bug. Vanilla's night colors.shadow is 0.85 (Clear) / 0.92
+        // (everything else), which caps the rendered darkening at ~4% and ~2% at our alpha — invisible.
+        // Whatever the tuning, this value must be well below those.
+        float value = MoonMath.MoonShadowColorValue(
+            MoonMath.MoonShadowPeakDarkening, MoonMath.MoonShadowMaxStrength);
+        Assert.That(value, Is.LessThan(0.85f));
+
+        float vanillaClearNight = 1f - MoonMath.MoonShadowMaxStrength * (1f - 0.85f);
+        float ours = 1f - MoonMath.MoonShadowMaxStrength * (1f - value);
+        Assert.That(1f - ours, Is.GreaterThan((1f - vanillaClearNight) * 4f),
+            "the fix should be several times more visible than vanilla's near-white night shadow");
+    }
+
+    [Test]
+    public void MoonShadowColorValue_ZeroMaxStrength_LeavesTheGroundAlone()
+    {
+        // Degenerate config: no alpha can produce any darkening, so asking for a darker colour is
+        // meaningless — return white rather than dividing by zero.
+        Assert.That(MoonMath.MoonShadowColorValue(0.25f, 0f), Is.EqualTo(1f).Within(1e-5f));
+    }
+
+    [Test]
+    public void MoonShadowColorValue_ClampsAnOverAmbitiousDarkening()
+    {
+        // Asking for more darkening than the alpha can carry saturates at black instead of going
+        // negative (which would render as an out-of-range colour).
+        Assert.That(MoonMath.MoonShadowColorValue(1f, 0.28f), Is.EqualTo(0f).Within(1e-5f));
+    }
 }

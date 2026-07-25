@@ -1,0 +1,20 @@
+{
+  "name": "moon_shadow_visibility",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "20" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "40" } },
+
+    { "type": "SetTime", "args": { "hour": "2" } },
+    { "type": "Screenshot", "args": { "fileName": "msv_warmup.png" } },
+
+    { "type": "Probe", "args": { "probeName": "moon_illumination" } },
+    { "type": "SetFeature", "args": { "featureName": "moon_shadows", "enabled": "false" } },
+    { "type": "Screenshot", "args": { "fileName": "msv_moon_shadows_off.png" } },
+    { "type": "SetFeature", "args": { "featureName": "moon_shadows", "enabled": "true" } },
+    { "type": "Screenshot", "args": { "fileName": "msv_moon_shadows_on.png" } },
+
+    { "type": "SetTime", "args": { "hour": "12" } },
+    { "type": "Screenshot", "args": { "fileName": "msv_noon_control.png" } }
+  ]
+}
