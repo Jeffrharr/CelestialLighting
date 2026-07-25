@@ -29,10 +29,14 @@ public static class Patch_LowLightDesaturation
     // Peak blend fractions toward CoolNight at full rod vision (PurkinjeFactor == 1). The sky plane
     // carries the shift more than the overlay so the tint reads without washing the whole scene
     // flat. Both are scaled down by the factor, so at dusk (factor near 0) the nudge is negligible
-    // and only deep night gets the full drift. Deliberately moderate — subtle-but-present, and a
-    // future settings slider (issue #9 umbrella) can scale it.
-    private const float SkyBlendMax = 0.50f;
-    private const float OverlayBlendMax = 0.35f;
+    // and only deep night gets the full drift, and then by PurkinjeSettings.TintStrength — the
+    // "Night desaturation" slider, which until now was persisted but wired to nothing.
+    //
+    // Raised from 0.50/0.35 when the global saturation multiply was dropped: the tint used to be a
+    // secondary cue on top of a whole-frame desaturation, and now it is the entire effect, so it has
+    // to carry the night on its own.
+    private const float SkyBlendMax = 0.70f;
+    private const float OverlayBlendMax = 0.50f;
 
     static void Postfix(Map map, ref SkyTarget __result)
     {
@@ -70,16 +74,17 @@ public static class Patch_LowLightDesaturation
         if (factor <= 0f)
             return;
 
-        // Drain colour saturation toward the rod-vision floor. SkyColorSet.saturation is a global
-        // multiplier on the rendered scene's saturation, so this alone desaturates everything;
-        // multiplying (rather than assigning) preserves whatever the active WeatherDef and §2's
-        // twilight bump already set.
-        __result.colors.saturation *= PurkinjeMath.SaturationMultiplier(glow);
-
-        // Bias the sky/overlay tint toward the cool blue-grey. Lerp (never overwrite) so each
-        // WeatherDef's palette still shows through — it's just pulled toward night-blue as colour
-        // discrimination fades.
-        __result.colors.sky = Color.Lerp(__result.colors.sky, CoolNight, factor * SkyBlendMax);
-        __result.colors.overlay = Color.Lerp(__result.colors.overlay, CoolNight, factor * OverlayBlendMax);
+        // SkyColorSet.saturation is deliberately NOT touched — see the header. That field lands on
+        // Find.CameraColor (a ColorCorrectionCurves image effect), which processes the finished
+        // frame and so cannot tell a campfire from the dark field around it.
+        //
+        // Bias the sky/overlay tint toward the cool blue-grey instead. Lerp (never overwrite) so each
+        // WeatherDef's palette still shows through — it is just pulled toward night-blue as colour
+        // discrimination fades. This rides the lighting overlay, which is baked per-cell and
+        // interpolated across cell quads, so the drift lands on unlit ground and fades out smoothly
+        // toward anything lit: the local behaviour the global multiplier could never express.
+        float strength = PurkinjeSettings.TintStrength;
+        __result.colors.sky = Color.Lerp(__result.colors.sky, CoolNight, factor * SkyBlendMax * strength);
+        __result.colors.overlay = Color.Lerp(__result.colors.overlay, CoolNight, factor * OverlayBlendMax * strength);
     }
 }

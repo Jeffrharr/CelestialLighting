@@ -81,10 +81,17 @@ public static class PurkinjeMath
     public static float PurkinjeFactor(float sunGlow) =>
         Pow(InverseLerpClamped(OnsetGlow, FullGlow, sunGlow), RampExponent);
 
-    // The scalar to multiply the scene's existing colour saturation by, in
-    // [1 - MaxSaturationDrop, 1]. 1.0 in daylight (no change); down to 1 - MaxSaturationDrop at full
-    // rod vision. This is the "brightness -> saturation falloff" the design calls for, expressed so
-    // the patch can apply it with a single multiply and so its endpoints are directly unit-testable.
+    // The scalar §9 USED to multiply SkyColorSet.saturation by, kept only as the reference curve for
+    // the tint strength — nothing writes the global saturation any more.
+    //
+    // Why it stopped being applied: SkyColorSet.saturation is assigned to Find.CameraColor, which is
+    // a ColorCorrectionCurves image effect operating on the finished frame. It desaturates every
+    // pixel equally, so a campfire burning at night came out as grey as the dark ground around it —
+    // the opposite of how scotopic vision works, where a bright source keeps its colour while dim
+    // surroundings lose theirs. No per-cell fix was possible through that channel: desaturation is
+    // lerp(colour, luminance(colour), t), which needs the pixel's own colour, while everything §9 can
+    // reach is a multiply, and a multiply can only scale or shift hue. §9 now expresses the shift
+    // entirely through the per-cell CoolNight tint on the lighting overlay instead.
     public static float SaturationMultiplier(float sunGlow) =>
         Lerp(1f, 1f - MaxSaturationDrop, PurkinjeFactor(sunGlow));
 

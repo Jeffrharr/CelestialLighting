@@ -114,6 +114,11 @@ public class CelestialLightingSettings : ModSettings
         CelestialLightingFeatures.IndoorSkyOcclusion = indoorSkyOcclusion;
         CelestialLightingFeatures.WeatherDimming = weatherDimming;
 
+        // §9's tint strength. This slider was persisted and then ignored by every earlier version of
+        // this method; it scales the per-cell night tint now that §9 no longer touches the global
+        // saturation post-process and the tint is the whole effect.
+        PurkinjeSettings.TintStrength = desaturation;
+
         NightRadianceSettings.Current.AtmosphericGlowEnabled = atmosphericGlow;
         NightRadianceSettings.Current.MinNightBrightness = minNightBrightness;
 

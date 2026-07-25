@@ -687,11 +687,32 @@ A second Harmony Postfix on `WeatherWorker.CurSkyTarget` (alongside §2's) that:
   constraint, not chosen by eye: at glow 0.35 the normalised position is `(0.50 - 0.35) / 0.45 =
   1/3`, and `(1/3)^2.75 ≈ 0.05`, so the twilight peak keeps ~95% of its saturation.
 
-  **Known limitation.** `SkyColorSet.saturation` becomes `Find.CameraColor.saturation`, which is a
-  *global* camera multiplier keyed on **sky** glow — it cannot distinguish a lamp-lit interior from
-  the dark outdoors. So a room sitting at 0.5 local glow is still desaturated at night by whatever
-  the sky is doing. Anchoring the onset at 0.5 is the closest this channel can get to "fully lit
-  reads as full colour"; a genuinely per-cell fix would need a mechanism other than `SkyColorSet`.
+- Applies the factor as a **colour-only, per-cell tint** — and deliberately does *not* touch
+  `SkyColorSet.saturation`.
+
+  That field is assigned to `Find.CameraColor`, which is a `ColorCorrectionCurves` **image effect**:
+  it processes the finished frame and desaturates every pixel equally. A campfire burning at night
+  came out as grey as the dark ground around it, which is backwards — real scotopic vision keeps
+  colour in bright sources and loses it in dim surroundings. The effect is inherently global, so
+  there was no tuning that could fix it.
+
+  Nor could it be made per-cell through that channel. Desaturating is
+  `lerp(colour, luminance(colour), t)`, which needs the pixel's own colour; everything §9 can reach
+  is a *multiply*, and a multiply can only scale channels or shift hue — it can never pull channels
+  toward each other. A true per-cell version would need a replacement shader for
+  `MatBases.LightOverlay`, which is a large, fragile surface to own for a cosmetic effect and would
+  collide with every other mod touching that material.
+
+  So the shift is carried entirely by the `CoolNight` lerp on `colors.sky` / `colors.overlay`. That
+  rides the lighting overlay, which is baked per-cell and interpolated across cell quads, so the
+  drift lands on unlit ground and fades smoothly toward anything lit — the local behaviour the
+  global multiplier could never express, including the free gradient around a light source. The peak
+  blend fractions were raised (0.50/0.35 → 0.70/0.50) because the tint used to be a secondary cue on
+  top of a whole-frame desaturation and is now the entire effect.
+
+  `PurkinjeMath.SaturationMultiplier` is retained as the reference curve but is no longer applied.
+  The "Night desaturation" slider now scales the tint via `PurkinjeSettings.TintStrength`; it had
+  been persisted but wired to nothing since the settings screen landed.
 
   The falloff and the resulting `SaturationMultiplier` live in `Source/PurkinjeMath.cs` (its own
   System-only pure file, not `Formulas.cs`, to avoid colliding with the other in-flight subsystems
