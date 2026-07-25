@@ -52,8 +52,10 @@ public static class BloodMoon
     // Strength of the crimson recolour to apply on this map right now: 0 when no blood moon is
     // active (and during daylight, via the NightFactor ramp), rising toward MaxTint as the sky
     // darkens. Re-derives sun glow from GenCelestial.CurCelestialSunGlow — the true celestial
-    // value — rather than any weather-clamped sky glow, matching how Patch_TwilightColor anchors
-    // its own timing to real sun position.
+    // value — rather than the composed sky glow, matching how Patch_TwilightColor anchors its own
+    // timing to real sun position. ("Weather-clamped" was the original wording; weather does not in
+    // fact clamp glow — see DESIGN.md §13 — but §7's night floor does rewrite it, which is the real
+    // reason to prefer the celestial value here.)
     //
     // TODO(integration): once #6 (moon position) and #7 (night radiance) land, the authoritative
     // moonlit-sky colour will come from the night-radiance subsystem. At that point Patch_BloodMoon

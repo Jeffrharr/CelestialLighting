@@ -32,12 +32,16 @@ public static class Patch_TwilightColor
         if (strength <= 0f)
             return;
 
-        // Deliberately re-derive sun glow from GenCelestial.CurCelestialSunGlow rather than
-        // reading __result.glow: __result.glow may already be clamped down by the active
-        // WeatherDef's maxGlow (fog, rain, etc.), which would make twilight timing track
-        // weather-dimmed brightness instead of true sun position. Recomputing here is cheap
-        // (trig only, no allocation) and keeps the twilight band anchored to where the sun
-        // actually is, independent of what the sky currently looks like.
+        // Deliberately re-derive sun glow from GenCelestial.CurCelestialSunGlow rather than reading
+        // __result.glow, so twilight timing is anchored to where the sun actually is rather than to
+        // what the sky currently looks like. Recomputing is cheap (trig only, no allocation).
+        //
+        // The original reason given here — that __result.glow "may already be clamped by the active
+        // WeatherDef's maxGlow (fog, rain, etc.)" — was wrong: maxGlow defaults to 1.0 and is set
+        // exactly once across all vanilla XML (Odyssey's Overcast, 0.95), so weather essentially
+        // never clamps it (DESIGN.md §13). The decision still stands, and for a stronger reason than
+        // the one it was made for: §7 rewrites __result.glow below the horizon with its night floor,
+        // so reading it here would make the twilight band track moonlight rather than the sun.
         float sunGlow = GenCelestial.CurCelestialSunGlow(map);
 
         // Solar elevation from the same shared simulator the shadow patches use

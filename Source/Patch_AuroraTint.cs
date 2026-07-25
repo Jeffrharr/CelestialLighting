@@ -33,9 +33,12 @@ public static class Patch_AuroraTint
             return;
 
         // Deliberately re-derive sun glow from GenCelestial.CurCelestialSunGlow rather than reading
-        // __result.glow, for the same reason Patch_TwilightColor does: __result.glow may already be
-        // clamped by the active WeatherDef's maxGlow (fog/rain), which would make the aurora's
-        // night-only visibility track weather-dimmed brightness instead of true sun position.
+        // __result.glow, for the same reason Patch_TwilightColor does: the aurora's night-only
+        // visibility should track true sun position, not displayed brightness. That matters
+        // concretely here because §7 rewrites __result.glow below the horizon with its night floor —
+        // exactly the regime an aurora lives in — so reading it would tie aurora visibility to moon
+        // phase. (The reason first given here, a weather clamp via maxGlow, was wrong: it is set
+        // exactly once in all of vanilla. See DESIGN.md §13.)
         float sunGlow = GenCelestial.CurCelestialSunGlow(map);
         float ramp = AuroraConditions.RampFor(driver);
 

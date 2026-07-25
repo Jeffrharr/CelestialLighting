@@ -106,9 +106,13 @@ overwriting) preserves each `WeatherDef`'s own palette — rain/fog still read a
 warmed during dusk/dawn.
 
 Deliberately recomputes `GenCelestial.CurCelestialSunGlow(map)` rather than reading
-`__result.glow`: the latter may already be clamped by the active `WeatherDef.maxGlow`, which would
-make twilight timing track weather-dimmed brightness instead of true sun position. The extra call
-is trig-only, no allocation.
+`__result.glow`, so twilight *timing* is anchored to true sun position rather than to displayed
+brightness. Note the original rationale for this — that `__result.glow` "may already be clamped by
+the active `WeatherDef.maxGlow`" — was overstated: `maxGlow` defaults to 1.0 and is set exactly once
+in all of vanilla (see §13), so it almost never clamps anything. The decision is still right, and
+since §13 landed it is *more* important, not less: §7 now rewrites `.glow` below the horizon, so
+reading it here would make golden hour track the night floor. The extra call is trig-only, no
+allocation.
 
 **Civil-twilight persistence (linger after geometric sunset).** Vanilla's `CurCelestialSunGlow` is
 `Clamp01(InverseLerp(0, 0.7, sin(elevation)))`, so it pins to exactly `0` the instant the sun's
@@ -312,8 +316,8 @@ much darker on a new moon — rather than a hard on/off toggle:
 - **Moonlight** — the phase-and-altitude-scaled contribution from subsystem 6.
 
 Summing these (rather than picking a max) means a clear full-moon night reads distinctly brighter
-than a new-moon night, and both read brighter than an overcast night once weather dimming is folded
-in. Each source is **independently tunable in settings**, which is also how we deliver the user's
+than a new-moon night; §13's weather dimming then darkens how all of them *appear* under a cloud
+deck, without altering the glow value itself. Each source is **independently tunable in settings**, which is also how we deliver the user's
 original ask for *true pitch-black unlit nights*: pitch-black is simply the starlight and airglow
 floors set to zero, not a separate special-case hack. A "background stars / atmospheric night glow"
 toggle (default on) gives the atmospheric look; turning it off, or sliding the floors to zero,
@@ -324,9 +328,12 @@ Where it writes: a Postfix on `WeatherWorker.CurSkyTarget` sets `__result.glow` 
 — §2 warms `.colors` during the dusk/dawn band *above* the horizon, §7 owns the glow floor *below*
 it, and the two never touch the same field in the same regime. The night radiance sets the floor the
 twilight warm-tint then rides on top of at dusk/dawn. As with subsystem 2, we recompute the sun's
-true elevation from the shared `SolarPosition`/`Formulas` simulator rather than reading an
-already-weather-clamped `__result.glow`, so night brightness tracks true celestial geometry and
-weather dimming stays a separate, later multiply.
+true elevation from the shared `SolarPosition`/`Formulas` simulator rather than reading
+`__result.glow`, so night brightness tracks true celestial geometry rather than whatever earlier
+patches left in the field. The original wording here — that the incoming glow was
+"already-weather-clamped" — was wrong (see §13: `maxGlow` almost never clamps), but the sentence it
+ended on has since come true in a different way: weather dimming *is* a separate multiply, applied by
+§13 on the colour channel rather than folded into this floor.
 
 The floor fades in across a **textbook twilight band**: 0 above the atmospheric-refraction horizon
 (`-0.83°`, the same constant the shadow simulator uses), ramping to full ownership of the glow at the
@@ -521,9 +528,10 @@ test project like `Formulas.cs`):
   mirroring `Patch_TwilightColor`.
 
 The adapter re-derives sun elevation from `SolarPosition.ElevationForMap(map)` (our own simulator),
-not from `__result.glow` — for the same reason as §2 (glow may already be weather-clamped, which
-would make the tint track brightness instead of true sun position). It touches neither `.saturation`
-(that's §2's job) nor `.glow`.
+not from `__result.glow` — for the same reason as §2: the tint should track true sun position rather
+than displayed brightness, which §7 rewrites below the horizon. (The original reason given here,
+that glow "may already be weather-clamped", was overstated — see §13.) It touches neither
+`.saturation` (that's §2's job) nor `.glow`.
 
 Composition with §2: both Postfixes run on the same call and both warm the sky at low sun. That's
 intentional — §2's dusk/dawn nudge is one concentrated anchor point (a narrow band around
@@ -547,13 +555,19 @@ It composes directly with subsystem 7 — §7 sets *how much* light the night sk
 
 A second Harmony Postfix on `WeatherWorker.CurSkyTarget` (alongside §2's) that:
 
-- Reads `__result.glow` — the sky target's *own*, already-weather-clamped brightness — rather than
-  recomputing `GenCelestial.CurCelestialSunGlow` the way §2 does. This is the deliberate opposite
-  choice: §2 wants twilight *timing* anchored to true sun position, but §9 wants actual *displayed*
-  brightness, so an overcast (weather-dimmed) night desaturates more than a clear one for free. This
-  is also the seam to subsystem 7: once §7 raises/lowers `__result.glow` by moon phase and the
+- Reads `__result.glow` — the sky target's *own* brightness — rather than recomputing
+  `GenCelestial.CurCelestialSunGlow` the way §2 does. This is the deliberate opposite choice: §2
+  wants twilight *timing* anchored to true sun position, but §9 wants actual *displayed* brightness.
+  It then attenuates that by §13's dimming (`WeatherDimmingMath.ApparentGlow`) to get the brightness
+  the eye actually receives. **That second step is a correction, not a refinement:** this bullet used
+  to claim an overcast night desaturated more than a clear one "for free" because glow arrived
+  weather-clamped. It did not — `maxGlow` is set exactly once in all of vanilla and is inert at
+  night (§13) — so until §13 landed, a blizzard and a clear sky desaturated identically. Note §13
+  supplies the weather term through a shared adapter read rather than by writing `.glow`, so the
+  gameplay brightness driving plant growth and solar output stays vanilla. This is
+  also the seam to subsystem 7: since §7 raises/lowers `__result.glow` by moon phase and the
   star/airglow floors, a full-moon night lands lower on the desaturation ramp than a new-moon one
-  automatically, provided §7's postfix runs first (marked `// TODO(integration):` in the patch).
+  automatically.
 - Feeds that glow to `PurkinjeMath.PurkinjeFactor` — the pure "how far into rod vision are we" ramp:
   `0` at/above `OnsetGlow` (0.30, below vanilla's 0.6 dusk and §2's 0.35 peak, so golden hour stays
   warm), `1` at/below `FullGlow` (0.05, a small nonzero floor so the shift completes while it's
@@ -744,6 +758,123 @@ tints the vanilla night sky in place. The self-contained detection + pure crimso
 seam that plugs into them: once §7 owns the moonlit-sky colour, the tint should apply to *that* (so a
 blood-moon night is a genuinely bright red night) and additionally gate on the modeled moon being
 above the horizon. Marked with a `TODO(integration)` in `BloodMoon.TintStrengthForMap`.
+
+## 13. Weather dimming (`Patch_WeatherDimming`)
+
+**Problem.** Vanilla weather does not darken the sky. This is easy to disbelieve, so it is worth
+stating precisely: `WeatherWorker.CurSkyTarget` computes
+
+```csharp
+result.glow = Math.Min(GenCelestial.CurCelestialSunGlow(map), def.maxGlow);
+```
+
+and `WeatherDef.maxGlow` defaults to `1.0` and is set **exactly once** across all vanilla XML —
+Odyssey's `Overcast`, at `0.95`. Rain, Fog, FoggyRain, SnowHard, SnowGentle, both thunderstorms,
+Sandstorm, BlindFog, Blizzard and TorrentialRain all leave it at the default. Weather changes the
+sky's *colour* (clear ships `skyColorsDay.sky = (1,1,1)`, the overcast/wet family ships
+`(0.8,0.8,0.8)`) but never its *brightness*. Shadows are worse off still: `GenCelestial.CurShadowStrength`
+is `Clamp01(Abs(CurCelestialSunGlow - 0.6) / 0.15)`, and `CurCelestialSunGlow` is a pure function of
+latitude, longitude and tick with no weather term at all — so vanilla renders a blizzard's shadows
+exactly as crisp as a clear noon's.
+
+This also means §9's original design promise was never met. It was written believing `__result.glow`
+arrived "already clamped by the active `WeatherDef`'s `maxGlow`", so an overcast night would
+desaturate more than a clear one for free. It never did: at night celestial glow is ~0 under every
+weather alike, and even Overcast's `0.95` can only bite in full daylight, which is above §9's onset
+threshold anyway. A blizzard and a clear sky desaturated identically.
+
+**Approach.** A colour-only Postfix on `WeatherWorker.CurSkyTarget` that scales `colors.sky` and
+`colors.overlay`, a multiply on `GenCelestial.CurShadowStrength`, and an apparent-brightness term
+feeding §9 — all driven by one shared classifier.
+
+**Which channel, and why it is the whole design.** `SkyTarget` carries two independent outputs and
+`SkyManagerUpdate` consumes them separately:
+
+| channel | consumer | nature |
+|---|---|---|
+| `.glow` | `curSkyGlowInt` → `GlowGrid.GroundGlowAt` | **gameplay** — `PlantProperties.growMinGlow` (0.51), `CompPowerPlantSolar`, pawn psych-glow |
+| `.colors.sky` / `.overlay` / `.saturation` | `MatBases.LightOverlay.color`, `MatBases.FogOfWar`, `Find.CameraColor.saturation` | **pure render** |
+
+We write the colour channel and never touch `.glow`. That is not a workaround — it is the channel
+vanilla already uses for weather, and we are deepening an existing 20% step into a continuous,
+intensity-scaled ramp. It keeps CLAUDE.md's *"scope is visual/atmospheric only"* intact with no
+asterisk: under every weather at every strength, plant growth, solar output and pawn vision are
+bit-for-bit vanilla. Had we dimmed `.glow` instead, a 25% dim would have cost ~25% of solar output
+and measurably shortened the outdoor growing window — a gameplay change smuggled in under a
+lighting mod.
+
+It also buys ordering freedom. Because we only touch `.colors`, this patch is order-independent
+against every other postfix on `CurSkyTarget` and needs no `HarmonyPriority`. §7 writes `.glow` and
+never reads `.colors`; §2/§8/§11/§12 blend `.colors` but recompute their own brightness from the
+solar simulator. §9 is the one consumer, and it reads `WeatherDimming.DimmingFor(map)` itself rather
+than observing a value we left behind — a shared adapter read instead of an ordering dependency.
+That distinction matters, because `[HarmonyAfter]` takes *owner IDs* and every patch here shares the
+single `"celestiallighting"` owner, so it could never have expressed an intra-assembly order anyway.
+
+**The classifier.** Cloud opacity is the **product** of a luminance deficit and a saturation
+deficit, each measured against the clear-family palette:
+
+```
+lumDeficit   = InverseLerpClamped(1.00, 0.80, Rec709Luminance(skyColorsDay.sky))
+satDeficit   = InverseLerpClamped(1.25, 0.90, skyColorsDay.saturation)
+cloudOpacity = lumDeficit * satDeficit
+```
+
+The product is simultaneously the classifier and the guard, which is what lets §13 ship with no roof
+check, no biome check and no defName list:
+
+| family | `skyColorsDay.sky` | `saturation` | lumDef | satDef | opacity |
+|---|---|---|---|---|---|
+| Clear, Windy, Orbit | (1,1,1) | 1.25 | 0 | 0 | **0** |
+| Underground, Undercave | (0.3,0.4,0.4) | 1.25 | 1 | **0** | **0** |
+| MetalHell | (0.4,0.5,0.5) | 1.25 | 1 | **0** | **0** |
+| UnnaturalDarkness | (0.482,0.603,0.682) | 1.25 | 1 | **0** | **0** |
+| Fog, Rain, Blizzard, Sandstorm, … | (0.8,0.8,0.8) | 0.9 | 1 | 1 | **1** |
+| GrayPall / UnnaturalFog | (0.482,0.603,0.682) | 0.75 / 0.5 | 1 | 1 | **1** |
+
+Every dark-palette *non-weather* keeps the clear family's saturation of 1.25, so its saturation
+deficit is exactly 0 and the product zeroes it structurally. A luminance-only rule would have dimmed
+caves and the metal hell into blackness and needed an explicit guard bolted on; Orbit would have been
+spared only by the luck of shipping Clear's palette. A modded weather is classified by the same data
+it already declares for rendering, with no registration step.
+
+Precipitation then scales the result across a band — `Lerp(0.6 * maxDimming, maxDimming, …)` keyed on
+`max(rainRate, snowRate, sandRate) / 1.6` (Sandstorm being vanilla's heaviest) — so a dry deck dims
+18%, rain 25.5%, hard snow 27%, a blizzard 29.3% and a sandstorm the full 30%. Transitions blend the
+two defs' opacities by `WeatherManager.TransitionLerpFactor`, mirroring how vanilla lerps `RainRate`.
+
+**Shadows get their own seam** (`Patch_ShadowStrength`), because shadow alpha derives from
+`CurCelestialSunGlow` and never from `SkyManager.CurSkyGlow` or `SkyTarget.colors` — nothing we do to
+the sky would ever have reached it. Under a full deck only 15% of the contrast survives. Unlike
+§5's penumbra factor, which models the sun's angular disk and so applies only while the sun is up,
+this scales the moon's shadow too: clouds hide the moon exactly as they hide the sun.
+
+**Reading the weather off `map.weatherManager`, not `WeatherWorker.def`.** The latter is private (a
+fact pinned by `ApiCompatibilityTests.WeatherWorker_DefFieldIsNotPublic`), so it would need
+`FieldRefAccess` — and it would buy nothing, because reading the manager is *exactly* equivalent
+rather than merely close. `SkyManager.CurrentSkyTarget` calls `CurSkyTarget` on both the current and
+last weather's worker and lerps the two by the same factor, so a uniform map-level multiply factors
+straight back out: `Lerp(a·k, b·k, t) == k · Lerp(a, b, t)`.
+
+**Decisions worth flagging as decisions, not oversights:**
+
+- `TorrentialRain` is data-identical to `Rain` (palette B, `rainRate` 1) — their difference lives in
+  `WeatherWorker_TorrentialRain`, not in data — so both dim 25.5%. A defName override would defeat
+  the data-driven premise.
+- Anomaly's `UnnaturalDarkness` is deliberately **not** dimmed. Its darkness is owned by
+  `GameCondition_UnnaturalDarkness`'s `LerpDarken`, and stacking a second multiply on a
+  gameplay-critical horror event would be wrong.
+- A modded weather that copies Clear but sets `saturation: 1.0` picks up a partial deficit (~0.71)
+  and so a mild unrequested dim. Bounded, and the alternative (a hard threshold) is more brittle.
+
+**Conflict risk.** Low, and lower than every other glow-touching subsystem here: we write only
+`SkyColorSet` fields plus a shadow-alpha multiply, so a mod that reads `SkyManager.CurSkyGlow`
+(Dub's Skylights, solar output, plant growth) sees nothing different under any weather. The one
+sharp edge is internal: `colors.sky` is assigned straight to `MatBases.LightOverlay.color`, whose
+**alpha** is how much of the lighting overlay is drawn at all — vanilla writes `(1,1,1,0)` to switch
+it off for `disableSkyLighting` biomes. So the scale is RGB-only; a naive `color * factor` (Unity
+scales all four channels) would fade the darkening overlay *out* and make heavy weather render
+brighter, the exact opposite of the intent.
 
 ## Settings, presets, and the brightness floor (planned)
 

@@ -38,10 +38,13 @@ public static class Patch_SkyColorTemperature
             return;
 
         // Re-derive sun elevation from our own simulator (via the shared SolarPosition adapter)
-        // rather than reading __result.glow, for the same reason Patch_TwilightColor does: glow may
-        // already be clamped by the active WeatherDef's maxGlow, which would make the tint track
-        // weather-dimmed brightness instead of true sun position. Elevation is the physically
-        // correct key for a colour-temperature curve and is unaffected by weather.
+        // rather than reading __result.glow, for the same reason Patch_TwilightColor does: elevation
+        // is the physically correct key for a colour-temperature curve and tracks true sun position
+        // rather than displayed brightness, which §7 rewrites below the horizon.
+        //
+        // (The reason originally cited here — that glow "may already be clamped by the active
+        // WeatherDef's maxGlow" — was wrong; maxGlow is set exactly once in all of vanilla. See
+        // DESIGN.md §13. The choice is unchanged and better justified.)
         float elevation = SolarPosition.ElevationForMap(map);
 
         float tint = SkyColorTemperature.TintStrength(elevation);

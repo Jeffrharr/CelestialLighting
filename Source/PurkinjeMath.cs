@@ -45,10 +45,18 @@ public static class PurkinjeMath
     // ramp between. Note the inputs to InverseLerp are ordered high-glow -> low-glow, so the factor
     // *rises* as it gets darker.
     //
-    // Feeding this the weather-clamped, night-radiance-adjusted glow (see the patch) is what makes
-    // the shift "strongest on the darkest nights": an overcast or new-moon night has a lower glow
-    // here than a clear full-moon one, so it lands further up this ramp for free — no separate
-    // moon/cloud term needed in the pure core.
+    // Feeding this the night-radiance-adjusted, weather-attenuated glow (see the patch) is what
+    // makes the shift "strongest on the darkest nights": a new-moon or overcast night lands further
+    // up this ramp than a clear full-moon one, so the pure core needs no moon or cloud term of its
+    // own.
+    //
+    // The moon half of that was always true — §7 writes moon phase straight into .glow. The cloud
+    // half was NOT, despite an earlier comment here claiming it came for free from a
+    // "weather-clamped" glow: WeatherDef.maxGlow defaults to 1.0 and is set exactly once across all
+    // vanilla XML (Odyssey's Overcast, 0.95), which is inert at night where celestial glow is ~0
+    // under every weather alike. Until §13 landed, a blizzard and a clear sky produced an identical
+    // factor here. It is §13's ApparentGlow, applied by the patch before this call, that finally
+    // makes the cloud half real — see DESIGN.md §13.
     public static float PurkinjeFactor(float sunGlow) =>
         InverseLerpClamped(OnsetGlow, FullGlow, sunGlow);
 
