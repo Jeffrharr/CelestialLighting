@@ -135,4 +135,18 @@ public static class CelestialLightingFeatures
     // faithful pre-feature baseline. (The flag `CelestialLightingFeatures.BloodMoon` and the pure-core
     // type `BloodMoon` never collide — one is always qualified, the other referenced bare.)
     public static bool BloodMoon = true;
+
+    // Feature key for IndoorSkyOcclusion (see CivilTwilightPersistenceKey for why it lives here).
+    public const string IndoorSkyOcclusionKey = "indoor_sky_occlusion";
+
+    // §7b indoor sky occlusion: vanilla clamps a roofed cell's baked sky cover to a constant 100/255,
+    // so a sealed, unlit cave renders at ~61% of the sky colour day and night — no amount of §7a
+    // overlay darkening can reach black indoors, because the interior is a fixed fraction *of the sky*.
+    // Patch_IndoorSkyOcclusion raises that cover to full for roofed cells, so an unlit interior is lit
+    // by its lamps or not at all. Gated separately from PitchBlackNights because it changes daytime
+    // interiors too (an unlit shed at noon goes black), which is a much larger taste call than night
+    // darkness; when off, the baked alphas are left exactly as vanilla wrote them — the faithful
+    // pre-feature baseline for the harness A/B. Door leak and the accessibility cap are the separate
+    // IndoorOcclusionSettings knobs.
+    public static bool IndoorSkyOcclusion = true;
 }

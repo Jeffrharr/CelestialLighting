@@ -70,7 +70,13 @@ public static class ProbeRegistration
             {
                 CelestialLightingSettings settings = CelestialLightingSettingsMod.Settings;
                 if (settings != null)
+                {
                     settings.brightnessFloorEnabled = enabled;
+                    // Push through to the runtime statics: the floor also reaches sealed interiors via
+                    // §7b's occlusion cap (roofed cells never take sky glow, so lifting CurSkyGlow alone
+                    // cannot brighten them), and that path needs the baked meshes rebuilt.
+                    settings.ApplyToRuntime();
+                }
             });
         FeatureRegistry.Register(
             CelestialLightingFeatures.PitchBlackNightsKey,
@@ -79,6 +85,17 @@ public static class ProbeRegistration
         // scenario can force a genuinely pitch-black night (MinNightBrightness -> 0) instead of the
         // shipped playable floor. "enabled" == true means clamp to 0 (true black); false restores the
         // default playable floor.
+        // §7b indoor sky occlusion. The flag write alone is not enough: unlike every other effect here,
+        // §7b's output lives in baked section meshes rather than in a per-frame material, so a scenario
+        // toggling it must also force those meshes to regenerate or both A/B screenshots show the same
+        // pre-toggle bake.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.IndoorSkyOcclusionKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.IndoorSkyOcclusion = enabled;
+                IndoorOcclusionRedraw.ForceRebuild();
+            });
         FeatureRegistry.Register(
             "pitch_black_true",
             enabled => NightRadianceSettings.Current.MinNightBrightness =

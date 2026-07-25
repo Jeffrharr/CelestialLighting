@@ -83,6 +83,9 @@ public class CelestialLightingSettingsMod : Mod
             "Replace vanilla's flat night glow with a starlight + airglow + moonlight floor.");
         listing.CheckboxLabeled("Pitch-black nights", ref Settings.pitchBlackNights,
             "Darken the on-screen night overlay toward black as the night floor drops.");
+        listing.CheckboxLabeled("Black unlit interiors", ref Settings.indoorSkyOcclusion,
+            "Stop the sky lighting roofed cells. Vanilla always bleeds ~61% of the sky into every roofed tile, so a sealed cave never goes black; with this on, an unlit interior is lit by its lamps or not at all — day and night.");
+        Settings.doorSkyLeak = LabeledSlider(listing, "  Light leaked through doors", Settings.doorSkyLeak, 0f, 0.5f);
         listing.CheckboxLabeled("Atmospheric night glow", ref Settings.atmosphericGlow,
             "The constant starlight + airglow floor. Off = only moonlight lights the night (true pitch-black on a moonless night).");
         Settings.minNightBrightness = LabeledSlider(listing, "  Minimum night brightness", Settings.minNightBrightness, 0f, 1f);

@@ -368,13 +368,82 @@ at zenith), so only *moonlight* buys screen brightness back). Injecting at the c
 brightness; a moonless / floors-off night blacks out — down to the `MinNightBrightness` clamp, the
 playability floor (ships at 0 = truly pitch black; raise it via settings if that is hard to navigate,
 a call to be revisited once every light source is in). Note this darkens one global material, so it is
-the *outdoor* arm only, and specifically it does **not** make interiors black: the assumption originally recorded here ("roofed cells receive no skyglow, so unlit interiors
+the *outdoor* arm only, and specifically it does **not** make interiors black — see §7b, which exists
+because the assumption originally recorded here ("roofed cells receive no skyglow, so unlit interiors
 are already dark") is true of `GlowGrid.GroundGlowAt` (gameplay light) but false of the renderer.
 Gated by `CelestialLightingFeatures.PitchBlackNights` (separate
 from the §7 glow floor, since this is a strong taste-dependent visual some players will want off) and
 only active while `NightRadiance` is (the darkening is defined relative to §7's floor). Conflict risk:
 it shares the `MatBases.LightOverlay`/`FogOfWar` globals RimWorld itself rewrites every frame, and only
 reads them after vanilla sets them, so it composes rather than races; visual-only, no gameplay math.
+
+### 7b. Indoor sky occlusion — black unlit interiors (`Patch_IndoorSkyOcclusion`)
+
+**Problem.** §7a can darken the sky arbitrarily and a sealed cave still renders visibly lit. On-screen
+brightness is not one global value: `Verse.SectionLayer_LightingOverlay` bakes a per-vertex *sky cover*
+into the lighting mesh's vertex alpha, and the shader mixes the sky colour in by how uncovered each
+vertex is. Vanilla clamps that cover for roofed cells to a constant and never raises it:
+
+```csharp
+private const byte RoofedAreaMinSkyCover = 100;                   // 100/255 == 0.392
+if (flag /* a neighbouring cell is roofed */ && a < 100) a = 100;
+```
+
+So every roofed tile renders at ~61% of the current sky colour, day and night. No amount of §7a
+darkening reaches black indoors, because an interior is a fixed fraction *of the sky* — it only goes
+black if the sky does. This is also why sky/atmospheric glow visibly "applies indoors" even though
+`GlowGrid.GroundGlowAt` correctly returns early for roofed cells: the *gameplay* light is right and the
+*render* is not. Vanilla's 0.392 is a legibility compromise (it is what lets you build an unlit room and
+still see inside it), not a physical model.
+
+**Approach.** A Postfix on `SectionLayer_LightingOverlay.Regenerate` re-walks the section vanilla just
+baked and raises that alpha: full cover (255) for roofed cells, so an unlit interior is lit by its lamps
+or not at all. Per-cell logic is the pure `IndoorOcclusionMath`; the patch is a thin adapter that reads
+`map.roofGrid` / `map.edificeGrid` and rewrites `mesh.colors32`.
+
+- **Corner vertices are averaged, centres are not.** A lattice corner is shared by up to four cells, so
+  its occlusion is their mean — 1.0 deep inside a building, 0.5 on an exterior wall line. The shader
+  interpolates across the quad, so interior blackness *fades out* over the wall instead of printing a
+  black halo on the ground outside. The denominator is the count of cells actually inside the map, which
+  also makes the two sections that each bake a shared boundary vertex agree (no 17-cell seams).
+- **Leaky doors.** Vanilla lumps doors in with roof for cover (`altitudeLayer == AltitudeLayer.DoorMoveable`
+  is one of the disjuncts that sets its roofed flag) and a closed door's `blockLight` suppresses glow too,
+  so at full occlusion a doorway would go dead black. `DoorSkyLeak` (default 0.15) keeps a sliver of sky
+  at the threshold. The door test mirrors vanilla's own so the two can never disagree about which cell is
+  a doorway.
+- **Only ever raises the baked alpha.** Other mods legitimately write it: Dub's Skylights nulls
+  `map.roofGrid` across `Regenerate` so skylit cells never take vanilla's roofed branch, and Biomes!
+  Caverns transpiles the roofed test so cavern roofs read as open. Taking `max` means we can add occlusion
+  without undoing anyone's decision to let light *in* — worst case we leave their value alone. The patch
+  also takes `Priority.First` so it runs before Dub's Skylights' Postfix restores the roofs it removed,
+  and therefore sees skylit cells as unroofed. (Biomes! Caverns' intent is the opposite of ours by design;
+  with both installed, our toggle is the one to turn off.)
+- **The accessibility floor reaches interiors through here.** `Patch_BrightnessFloor` lifts `CurSkyGlow`,
+  which cannot brighten a sealed cave at all — roofed cells take no sky glow. So the floor is also applied
+  as a *cap* on occlusion (`1 - floor`), leaving exactly that fraction of sky bleeding in, which makes the
+  in-game "toggle minimum brightness" hotkey work indoors as well as out.
+- **Baked, not per-frame.** Unlike §7a's material colour, these alphas only change when a section is
+  dirtied, so `IndoorOcclusionRedraw` forces a `WholeMapChanged(GroundGlow)` when the toggle or sliders
+  change — otherwise the setting appears to do nothing until something else dirties the map.
+- Skipped entirely on `disableSkyLighting` biomes (the Odyssey undercave), where vanilla already zeroes
+  the sky contribution wholesale; there is nothing to occlude and overriding it would fight that contract.
+
+**Why the alpha polarity is safe to rely on** (higher == more occluded == less sky), from decompiled
+vanilla plus one third-party mod: an unroofed cell keeps the glow grid's own alpha (0 in the common case)
+while a roofed one is forced *up* to 100; `disableSkyLighting` biomes kill the sky wholesale with
+`MatBases.LightOverlay.color = (1,1,1,0)`, which is exactly why those maps are black away from lamps; and
+Dub's Skylights makes a roofed cell sky-lit by removing its roof, never by touching this alpha directly.
+`ApiCompatibilityTests` pins `RoofedAreaMinSkyCover == 100` and `Section.Size == 17`, so a Ludeon retune
+of either surfaces as a test failure rather than a silent look regression.
+
+**Conflict risk.** Shares `SectionLayer_LightingOverlay.Regenerate` with Dub's Skylights (bracketing
+Prefix/Postfix) and Biomes! Caverns (Transpiler) — both listed in `About.xml`'s `loadAfter`. We are a
+Postfix that only raises alphas, so we compose with a transpiled body rather than replacing it.
+Rendering-only; no gameplay math, and gameplay light (`GroundGlowAt`) is untouched.
+
+Gated by `CelestialLightingFeatures.IndoorSkyOcclusion`, default on, separate from `PitchBlackNights`
+because it changes daytime interiors too (an unlit shed at noon goes black), which is a much larger taste
+call than night darkness.
 
 ## 8. Sky colour-temperature curve (`Patch_SkyColorTemperature`)
 

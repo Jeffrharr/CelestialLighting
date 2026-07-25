@@ -36,12 +36,18 @@ public class CelestialLightingSettings : ModSettings
     public bool eclipseDarkening = true;
     public bool bloodMoon = true;
     public bool pitchBlackNights = true;
+    public bool indoorSkyOcclusion = true;
 
     // --- Night-radiance tunables (drive NightRadianceSettings.Current) ---
     // The atmospheric starlight+airglow floor ("true pitch-black" when off), and the pitch-black
     // overlay's minimum-brightness clamp (0 == genuinely black nights; raise it for playability).
     public bool atmosphericGlow = true;
     public float minNightBrightness = NightRadianceMath.DefaultMinNightBrightness;
+
+    // --- Indoor sky-occlusion tunables (drive IndoorOcclusionSettings.Current) ---
+    // How much sky a doorway lets past once roofed cells are fully occluded; see
+    // IndoorOcclusionMath.DefaultDoorSkyLeak for why doors need this at all.
+    public float doorSkyLeak = IndoorOcclusionMath.DefaultDoorSkyLeak;
 
     // --- Eclipse (drives EclipseSettings) — opt-in real-timing natural eclipse, off by default. ---
     public bool naturalEclipse = false;
@@ -91,11 +97,25 @@ public class CelestialLightingSettings : ModSettings
         CelestialLightingFeatures.EclipseDarkening = eclipseDarkening;
         CelestialLightingFeatures.BloodMoon = bloodMoon;
         CelestialLightingFeatures.PitchBlackNights = pitchBlackNights;
+        CelestialLightingFeatures.IndoorSkyOcclusion = indoorSkyOcclusion;
 
         NightRadianceSettings.Current.AtmosphericGlowEnabled = atmosphericGlow;
         NightRadianceSettings.Current.MinNightBrightness = minNightBrightness;
 
         EclipseSettings.NaturalEclipseEnabled = naturalEclipse;
+
+        // The accessibility floor reaches interiors through §7b rather than through glow: roofed cells
+        // never take sky glow (GlowGrid.GroundGlowAt returns early for them), so lifting CurSkyGlow
+        // cannot brighten a sealed cave. Resolving the checkbox to 0 here keeps that gating in one
+        // place — the occlusion core only ever sees a plain fraction.
+        IndoorOcclusionSettings.Current.DoorSkyLeak = doorSkyLeak;
+        IndoorOcclusionSettings.Current.BrightnessFloor = brightnessFloorEnabled ? brightnessFloor : 0f;
+
+        // §7b's alphas live in baked section meshes, not in a per-frame material, so a change here is
+        // invisible until the meshes are rebuilt. Must run after the assignments above.
+        IndoorOcclusionRedraw.SyncTo(
+            indoorSkyOcclusion, IndoorOcclusionSettings.Current.DoorSkyLeak,
+            IndoorOcclusionSettings.Current.BrightnessFloor);
     }
 
     public override void ExposeData()
@@ -112,6 +132,8 @@ public class CelestialLightingSettings : ModSettings
         Scribe_Values.Look(ref eclipseDarkening, "eclipseDarkening", true);
         Scribe_Values.Look(ref bloodMoon, "bloodMoon", true);
         Scribe_Values.Look(ref pitchBlackNights, "pitchBlackNights", true);
+        Scribe_Values.Look(ref indoorSkyOcclusion, "indoorSkyOcclusion", true);
+        Scribe_Values.Look(ref doorSkyLeak, "doorSkyLeak", IndoorOcclusionMath.DefaultDoorSkyLeak);
         Scribe_Values.Look(ref atmosphericGlow, "atmosphericGlow", true);
         Scribe_Values.Look(ref minNightBrightness, "minNightBrightness", NightRadianceMath.DefaultMinNightBrightness);
         Scribe_Values.Look(ref naturalEclipse, "naturalEclipse", false);

@@ -38,6 +38,8 @@
     <Compile Include="../../Source/EclipseMath.cs" Link="EclipseMath.cs" />
     <Compile Include="../../Source/BloodMoonMath.cs" Link="BloodMoonMath.cs" />
     <Compile Include="../../Source/CelestialSettingsMath.cs" Link="CelestialSettingsMath.cs" />
+    <!-- Subsystem 7b pure core (indoor sky occlusion). Verse-free, so it compiles under net8.0 as-is. -->
+    <Compile Include="../../Source/IndoorOcclusionMath.cs" Link="IndoorOcclusionMath.cs" />
   </ItemGroup>
 
 </Project>

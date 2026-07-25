@@ -25,14 +25,24 @@
     <li>Ludeon.RimWorld.Biotech</li>
     <li>Ludeon.RimWorld.Anomaly</li>
     <li>brrainz.harmony</li>
-    <!-- Soft interop note, not a shared-patch-target requirement: Dub's Skylights reads
-         SkyManager.CurSkyGlow. Our shadow/twilight patches never touch it; the only path that does
-         is the opt-in accessibility minimum-brightness floor, which is OFF by default and, when a
-         player enables it, lifts CurSkyGlow through the canonical ForceSetCurSkyGlow setter — so
-         Dub's Skylights sees the same lifted glow for skylit rooms, which is the intended, correct
-         composition rather than a conflict. Listed here since both mods touch "sky lighting" and a
-         user reasonably expects them to declare awareness of each other. -->
+    <!-- Two separate interops with Dub's Skylights, one of them a genuine shared patch target:
+         (a) it reads SkyManager.CurSkyGlow, which only our opt-in accessibility minimum-brightness
+         floor writes (via the canonical ForceSetCurSkyGlow setter), so it sees the same lifted glow
+         for skylit rooms — the intended composition, not a conflict; and (b) §7b's
+         Patch_IndoorSkyOcclusion shares SectionLayer_LightingOverlay.Regenerate with it. Skylights
+         brackets that method — its Prefix nulls map.roofGrid for skylit cells so vanilla's roofed
+         branch never fires, its Postfix restores them — and we are a Postfix taking Priority.First so
+         we run BEFORE that restore and therefore read skylit cells as unroofed, leaving them sky-lit.
+         Loading after it is what makes that ordering hold. -->
     <li>Dubwise.DubsSkylights</li>
+    <!-- Shared patch target with opposite intent, declared so the ordering is at least deterministic:
+         Biomes! Caverns transpiles SectionLayer_LightingOverlay.Regenerate to make cavern roofs read
+         as unroofed (its caverns are meant to feel sky-lit), while §7b raises sky occlusion for roofed
+         cells. Our Postfix only ever RAISES the baked alpha, so it can add occlusion to a body that mod
+         has already transpiled without corrupting it — but the two features do want opposite things
+         about caverns specifically. With both installed, "Black unlit interiors" is the toggle to turn
+         off if you want Biomes! Caverns' look. -->
+    <li>BiomesTeam.BiomesCaverns</li>
     <!-- Soft compat: Vanilla Races Expanded – Sanguophage owns the VRE_BloodMoonCondition
          GameCondition we recolour the night around (see Patch_BloodMoon / DESIGN.md §12). We take
          no hard reference to it — the effect is inert when it's absent — but load after it so our

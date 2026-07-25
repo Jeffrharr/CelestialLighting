@@ -462,6 +462,121 @@ public class ApiCompatibilityTests
             $"MatBases.{fieldName} no longer exists or is no longer public — Patch_PitchBlackOverlay writes its .color");
     }
 
+    // --- §7b indoor sky occlusion (Patch_IndoorSkyOcclusion) ---
+
+    [Test]
+    public void SectionLayer_LightingOverlay_Regenerate_Exists()
+    {
+        // Patch_IndoorSkyOcclusion postfixes this to raise the baked per-vertex sky cover for roofed cells.
+        var type = GetType("Verse.SectionLayer_LightingOverlay");
+        Assert.That(type, Is.Not.Null, "Verse.SectionLayer_LightingOverlay no longer exists");
+        Assert.That(type!.Methods.Any(m => m.Name == "Regenerate" && m.IsPublic && m.Parameters.Count == 0),
+            Is.True, "SectionLayer_LightingOverlay.Regenerate() no longer exists or changed signature — Patch_IndoorSkyOcclusion patches it");
+    }
+
+    [Test]
+    public void SectionLayer_LightingOverlay_RoofedAreaMinSkyCover_StillEqualsOurMirroredBaseline()
+    {
+        // The whole reason §7b exists: vanilla clamps a roofed cell's sky cover to this constant and never
+        // raises it, so a sealed cave renders at ~61% of the sky. IndoorOcclusionMath mirrors the value as
+        // its documented baseline, so if Ludeon ever retunes the compromise we want a loud failure here
+        // rather than a silently-stale comment (and possibly a feature that is no longer needed).
+        var type = GetType("Verse.SectionLayer_LightingOverlay");
+        Assert.That(type, Is.Not.Null, "Verse.SectionLayer_LightingOverlay no longer exists");
+        var field = type!.Fields.SingleOrDefault(f => f.Name == "RoofedAreaMinSkyCover");
+        Assert.That(field, Is.Not.Null, "SectionLayer_LightingOverlay.RoofedAreaMinSkyCover no longer exists");
+        Assert.That(field!.Constant, Is.EqualTo((byte)100),
+            "Vanilla's roofed-cell minimum sky cover changed — IndoorOcclusionMath.VanillaRoofedMinSkyCover and its rationale need revisiting");
+    }
+
+    [Test]
+    public void MapDrawLayer_GetSubMesh_Exists()
+    {
+        // How Patch_IndoorSkyOcclusion reaches the lighting mesh whose vertex alphas it rewrites.
+        var type = GetType("Verse.MapDrawLayer");
+        Assert.That(type, Is.Not.Null, "Verse.MapDrawLayer no longer exists");
+        Assert.That(type!.Methods.Any(m => m.Name == "GetSubMesh" && m.IsPublic && m.Parameters.Count == 1),
+            Is.True, "MapDrawLayer.GetSubMesh(Material) no longer exists or is no longer public");
+    }
+
+    [Test]
+    public void Section_SizeAndBotLeft_Exist()
+    {
+        // Patch_IndoorSkyOcclusion recomputes the section's CellRect (a Section.Size square at botLeft,
+        // clipped to the map) the same way Regenerate does, instead of reflecting its private cache.
+        var type = GetType("Verse.Section");
+        Assert.That(type, Is.Not.Null, "Verse.Section no longer exists");
+        var size = type!.Fields.SingleOrDefault(f => f.Name == "Size");
+        Assert.That(size, Is.Not.Null, "Section.Size no longer exists");
+        Assert.That(size!.Constant, Is.EqualTo(17), "Section.Size changed — the recomputed section rect must follow");
+        Assert.That(type.Fields.Any(f => f.Name == "botLeft" && f.IsPublic), Is.True,
+            "Section.botLeft no longer exists or is no longer public");
+        Assert.That(type.Fields.Any(f => f.Name == "map" && f.IsPublic), Is.True,
+            "Section.map no longer exists or is no longer public");
+    }
+
+    [Test]
+    public void RoofGrid_Roofed_Exists()
+    {
+        var type = GetType("Verse.RoofGrid");
+        Assert.That(type, Is.Not.Null, "Verse.RoofGrid no longer exists");
+        Assert.That(type!.Methods.Any(m => m.Name == "Roofed" && m.IsPublic && m.Parameters.Count == 1
+                && m.Parameters[0].ParameterType.Name == "IntVec3"),
+            Is.True, "RoofGrid.Roofed(IntVec3) no longer exists — Patch_IndoorSkyOcclusion reads it per cell");
+    }
+
+    [Test]
+    public void EdificeGrid_CellIndexer_Exists()
+    {
+        // Used for the door test, which mirrors vanilla's own (AltitudeLayer.DoorMoveable).
+        var type = GetType("Verse.EdificeGrid");
+        Assert.That(type, Is.Not.Null, "Verse.EdificeGrid no longer exists");
+        Assert.That(type!.Methods.Any(m => m.Name == "get_Item" && m.IsPublic && m.Parameters.Count == 1
+                && m.Parameters[0].ParameterType.Name == "IntVec3"),
+            Is.True, "EdificeGrid's IntVec3 indexer no longer exists");
+    }
+
+    [Test]
+    public void AltitudeLayer_DoorMoveable_Exists()
+    {
+        // Vanilla's SectionLayer_LightingOverlay identifies doors by this altitude layer, and so do we, so
+        // the two can never disagree about which cell is a doorway.
+        var type = GetType("Verse.AltitudeLayer");
+        Assert.That(type, Is.Not.Null, "Verse.AltitudeLayer no longer exists");
+        Assert.That(type!.Fields.Any(f => f.Name == "DoorMoveable"), Is.True,
+            "AltitudeLayer.DoorMoveable no longer exists — the door-leak test in Patch_IndoorSkyOcclusion depends on it");
+    }
+
+    [Test]
+    public void MapDrawer_WholeMapChanged_Exists()
+    {
+        // IndoorOcclusionRedraw calls this so a settings change rebuilds the baked meshes immediately.
+        var type = GetType("Verse.MapDrawer");
+        Assert.That(type, Is.Not.Null, "Verse.MapDrawer no longer exists");
+        Assert.That(type!.Methods.Any(m => m.Name == "WholeMapChanged" && m.IsPublic && m.Parameters.Count == 1),
+            Is.True, "MapDrawer.WholeMapChanged(ulong) no longer exists or changed signature");
+    }
+
+    [Test]
+    public void MapMeshFlagDefOf_GroundGlow_Exists()
+    {
+        var type = GetType("RimWorld.MapMeshFlagDefOf");
+        Assert.That(type, Is.Not.Null, "RimWorld.MapMeshFlagDefOf no longer exists");
+        Assert.That(type!.Fields.Any(f => f.Name == "GroundGlow" && f.IsPublic), Is.True,
+            "MapMeshFlagDefOf.GroundGlow no longer exists — IndoorOcclusionRedraw dirties this flag");
+    }
+
+    [Test]
+    public void BiomeDef_DisableSkyLighting_Exists()
+    {
+        // Both §7a and §7b bail out on these biomes (the Odyssey undercave), where vanilla deliberately
+        // switches the sky overlay off entirely.
+        var type = GetType("RimWorld.BiomeDef");
+        Assert.That(type, Is.Not.Null, "RimWorld.BiomeDef no longer exists");
+        Assert.That(type!.Fields.Any(f => f.Name == "disableSkyLighting" && f.IsPublic), Is.True,
+            "BiomeDef.disableSkyLighting no longer exists — the undercave guards depend on it");
+    }
+
     [Test]
     public void ShaderPropertyIDs_MapSunLightDirection_Exists()
     {
