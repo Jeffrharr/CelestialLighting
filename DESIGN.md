@@ -360,14 +360,16 @@ original "true pitch-black unlit nights" ask wasn't actually visible from the gl
 `Patch_PitchBlackOverlay` is a Postfix on `SkyManager.SkyManagerUpdate` that runs *after* vanilla (and
 §9's desaturation) have composed `MatBases.LightOverlay` / `MatBases.FogOfWar`, and lerps their colours
 toward opaque black by how far below full brightness the night floor sits
-(`NightRadianceMath.OverlayBrightnessFactor(CurSkyGlow, minBrightness)` — linear from `OverlayFullBrightGlow`
-down to 0). Injecting at the composed overlay, not in a `SkyTarget` postfix, is deliberate: it darkens
+(`NightRadianceMath.OverlayBrightnessFactor(CurSkyGlow, minBrightness)` — linear between two anchors
+derived from §7's own source constants: fully black at/below `OverlayDarkGlow` (= starlight + airglow,
+the baseline of darkness) and untouched at/above `OverlayFullBrightGlow` (= that floor plus a full moon
+at zenith), so only *moonlight* buys screen brightness back). Injecting at the composed overlay, not in a `SkyTarget` postfix, is deliberate: it darkens
 *last* and never fights §2/§9 for ownership of `colors.sky`. A bright moonlit night keeps vanilla
 brightness; a moonless / floors-off night blacks out — down to the `MinNightBrightness` clamp, the
 playability floor (ships at 0 = truly pitch black; raise it via settings if that is hard to navigate,
-a call to be revisited once every light source is in). Note this darkens the OUTDOOR sky overlay only:
-roofed / under-mountain cells receive no skyglow at all (`GlowGrid.GroundGlowAt` gates it on
-`!Roofed`), so unlit interiors are already dark by artificial light alone and our floor never leaks in.
+a call to be revisited once every light source is in). Note this darkens one global material, so it is
+the *outdoor* arm only, and specifically it does **not** make interiors black: the assumption originally recorded here ("roofed cells receive no skyglow, so unlit interiors
+are already dark") is true of `GlowGrid.GroundGlowAt` (gameplay light) but false of the renderer.
 Gated by `CelestialLightingFeatures.PitchBlackNights` (separate
 from the §7 glow floor, since this is a strong taste-dependent visual some players will want off) and
 only active while `NightRadiance` is (the darkening is defined relative to §7's floor). Conflict risk:

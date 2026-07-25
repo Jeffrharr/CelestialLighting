@@ -180,16 +180,49 @@ public class NightRadianceMathTests
         Assert.That(NightRadianceMath.OverlayBrightnessFactor(0f, 0.18f), Is.EqualTo(0.18f).Within(Tolerance));
         // A glow whose raw factor is below the clamp is lifted to the clamp...
         Assert.That(NightRadianceMath.OverlayBrightnessFactor(0.015f, 0.18f), Is.EqualTo(0.18f).Within(Tolerance));
-        // ...but a glow above the clamp keeps its (brighter) raw factor.
-        Assert.That(NightRadianceMath.OverlayBrightnessFactor(0.075f, 0.18f), Is.EqualTo(0.5f).Within(Tolerance));
+        // ...but a glow above the clamp keeps its (brighter) raw factor. Midway between the two anchors
+        // is keep 0.5, comfortably above an 0.18 clamp.
+        float midway = (NightRadianceMath.OverlayDarkGlow + NightRadianceMath.OverlayFullBrightGlow) / 2f;
+        Assert.That(NightRadianceMath.OverlayBrightnessFactor(midway, 0.18f), Is.EqualTo(0.5f).Within(Tolerance));
     }
 
     [Test]
-    public void OverlayBrightnessFactor_IsLinearBetweenZeroAndReference()
+    public void OverlayBrightnessFactor_IsLinearBetweenTheTwoAnchors()
     {
-        // Half of OverlayFullBrightGlow -> keep half the brightness (no clamp).
-        float half = NightRadianceMath.OverlayFullBrightGlow / 2f;
-        Assert.That(NightRadianceMath.OverlayBrightnessFactor(half, 0f), Is.EqualTo(0.5f).Within(Tolerance));
+        // Midway between OverlayDarkGlow and OverlayFullBrightGlow -> keep half the brightness (no clamp).
+        float midway = (NightRadianceMath.OverlayDarkGlow + NightRadianceMath.OverlayFullBrightGlow) / 2f;
+        Assert.That(NightRadianceMath.OverlayBrightnessFactor(midway, 0f), Is.EqualTo(0.5f).Within(Tolerance));
+    }
+
+    [Test]
+    public void OverlayBrightnessFactor_GoesFullyBlack_OnAMoonlessNightWithTheFloorsOn()
+    {
+        // The in-game regression this curve was retuned for: with the atmospheric floors at their shipped
+        // values and no moon, the night glow IS starlight + airglow — and that must render black, not the
+        // 27%-of-vanilla grey the old glow/OverlayFullBrightGlow ramp produced.
+        float moonless = NightRadianceMath.NightSourceGlow(
+            NightRadianceMath.DefaultStarlightGlow, NightRadianceMath.DefaultAirglowGlow, moonlightGlow: 0f);
+        Assert.That(NightRadianceMath.OverlayBrightnessFactor(moonless, 0f), Is.EqualTo(0f).Within(Tolerance));
+    }
+
+    [Test]
+    public void OverlayBrightnessFactor_KeepsVanillaBrightness_UnderAFullMoonAtZenith()
+    {
+        // The other end of the same invariant: a full moon at zenith on top of the floors is the brightest
+        // night the model can produce, and it must not be darkened at all.
+        float fullMoon = NightRadianceMath.NightSourceGlow(
+            NightRadianceMath.DefaultStarlightGlow,
+            NightRadianceMath.DefaultAirglowGlow,
+            NightRadianceMath.MoonlightGlow(1f, 90f, NightRadianceMath.DefaultMaxMoonlightGlow));
+        Assert.That(NightRadianceMath.OverlayBrightnessFactor(fullMoon, 0f), Is.EqualTo(1f).Within(Tolerance));
+    }
+
+    [Test]
+    public void OverlayBrightnessFactor_StillBlacksOut_WithTheAtmosphericFloorsOff()
+    {
+        // Floors off leaves moonlight only, so a moonless night lands at glow 0 — under the dark anchor,
+        // still fully black. (The pre-existing "true pitch-black" path must survive the retune.)
+        Assert.That(NightRadianceMath.OverlayBrightnessFactor(0f, 0f), Is.EqualTo(0f).Within(Tolerance));
     }
 
     [Test]

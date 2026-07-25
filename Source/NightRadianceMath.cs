@@ -94,10 +94,26 @@ public static class NightRadianceMath
     // 0..1 fraction of the vanilla overlay brightness to KEEP (1 = leave vanilla alone, 0 = force fully
     // black), clamped so it never drops below a caller-supplied minimum.
     //
-    // The glow at/above which no extra darkening happens. A full moon at zenith alone reaches
-    // DefaultMaxMoonlightGlow, so a bright moonlit night is left at vanilla brightness while the floor
-    // (starlight+airglow) and darker moon states progressively black out.
-    public const float OverlayFullBrightGlow = 0.15f;
+    // The glow at/below which the overlay goes fully black, == the shipped starlight + airglow sum.
+    //
+    // This anchor is the fix for a real in-game regression. The curve used to run from glow 0, which
+    // meant the *constant* atmospheric floors — the very sources that make a night feel like night —
+    // counted as brightness worth preserving, so a moonless night bottomed out at 0.04/0.15 ≈ 27% keep
+    // instead of black. Anchoring the dark end at the floors themselves says what we actually mean:
+    // starlight and airglow are the baseline of darkness, and only *moonlight* buys the screen back.
+    // Turn the atmospheric floors off and glow lands at or under this anchor, so it still blacks out.
+    public const float OverlayDarkGlow = DefaultStarlightGlow + DefaultAirglowGlow;
+
+    // The glow at/above which no extra darkening happens, == the floors plus a full moon at zenith.
+    //
+    // Also a regression fix: this used to equal DefaultMaxMoonlightGlow alone (0.15), so the floors
+    // stacked *on top* of moonlight pushed even a half-lit moon to the full-bright end and cancelled
+    // the darkening outright — the "pitch-black nights doesn't do anything in the full mod" symptom,
+    // which the harness scenario missed because it ran with the floors forced off and the moon seam
+    // still stubbed at MoonState.None. Deriving both anchors from the source constants keeps the
+    // invariant the curve is meant to express: full moon at zenith == vanilla brightness, no moon ==
+    // black, everything in between a ramp.
+    public const float OverlayFullBrightGlow = OverlayDarkGlow + DefaultMaxMoonlightGlow;
 
     // Default for NightRadianceSettings.MinNightBrightness — the shipped minimum overlay brightness.
     // 0 == a moonless / floors-off night renders genuinely pitch black (only lit things and UI show).
@@ -106,14 +122,15 @@ public static class NightRadianceMath
     // light source (moon, starlight/airglow, aurora, eclipse) is in and the night's overall floor is final.
     public const float DefaultMinNightBrightness = 0f;
 
-    // Fraction of vanilla overlay brightness to keep, in [minBrightness, 1]. Linear in glow up to
-    // OverlayFullBrightGlow, then flat at 1. minBrightness is the user's playability clamp (the
-    // "minimum-brightness floor"): 0 lets a moonless/floors-off night render truly pitch black; raising
-    // it keeps the night visible for play (never darker than that fraction) at the cost of some drama.
-    // A minBrightness >= 1 disables the darkening entirely (always keeps full vanilla brightness).
+    // Fraction of vanilla overlay brightness to keep, in [minBrightness, 1]. Linear between the two
+    // anchors above — fully black at/below OverlayDarkGlow, untouched at/above OverlayFullBrightGlow.
+    // minBrightness is the user's playability clamp (the "minimum-brightness floor"): 0 lets a
+    // moonless/floors-off night render truly pitch black; raising it keeps the night visible for play
+    // (never darker than that fraction) at the cost of some drama. A minBrightness >= 1 disables the
+    // darkening entirely (always keeps full vanilla brightness).
     public static float OverlayBrightnessFactor(float glow, float minBrightness)
     {
-        float raw = Clamp01(glow / OverlayFullBrightGlow);
+        float raw = InverseLerpClamped(OverlayDarkGlow, OverlayFullBrightGlow, glow);
         return raw < minBrightness ? Clamp01(minBrightness) : raw;
     }
 

@@ -38,6 +38,23 @@ public static class Patch_PitchBlackOverlay
         if (!CelestialLightingFeatures.NightRadiance || !CelestialLightingFeatures.PitchBlackNights)
             return;
 
+        // MatBases.LightOverlay is a single global material, but SkyManagerUpdate runs for EVERY loaded
+        // map each frame — vanilla only writes that material when `map == Find.CurrentMap` and leaves it
+        // alone otherwise. Without the same guard, a second colony / quest map / caravan map darkens the
+        // material again on top of the visible map's own pass, stacking extra blackness in proportion to
+        // how many maps happen to be loaded. Comparing skyManager identity keeps this on public API
+        // (SkyManager.map is private).
+        Map current = Find.CurrentMap;
+        if (current == null || current.skyManager != __instance)
+            return;
+
+        // Biomes that declare disableSkyLighting (the Odyssey undercave) are the one case where vanilla
+        // deliberately switches the overlay OFF — it writes (1,1,1,0), alpha zero. Lerping that toward
+        // opaque black raises the alpha again and re-enables an overlay vanilla just disabled, veiling a
+        // map that is already black away from artificial light. Leave those maps alone.
+        if (current.Biome != null && current.Biome.disableSkyLighting)
+            return;
+
         float keep = NightRadianceMath.OverlayBrightnessFactor(
             __instance.CurSkyGlow, NightRadianceSettings.Current.MinNightBrightness);
 
