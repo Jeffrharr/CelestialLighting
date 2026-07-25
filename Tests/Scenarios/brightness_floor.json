@@ -1,0 +1,13 @@
+{
+  "name": "brightness_floor",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "20" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "40" } },
+    { "type": "SetTime", "args": { "hour": "23" } },
+    { "type": "SetFeature", "args": { "featureName": "brightness_floor", "enabled": "false" } },
+    { "type": "Probe", "args": { "probeName": "brightness_floor", "expectedValue": "0.04", "tolerance": "0.005" } },
+    { "type": "SetFeature", "args": { "featureName": "brightness_floor", "enabled": "true" } },
+    { "type": "Probe", "args": { "probeName": "brightness_floor", "expectedValue": "0.15", "tolerance": "0.005" } }
+  ]
+}

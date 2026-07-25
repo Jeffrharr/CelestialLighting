@@ -24,11 +24,22 @@ public class CelestialLightingSettingsMod : Mod
     {
         instance = this;
         Settings = GetSettings<CelestialLightingSettings>();
+        // Push the persisted choices into the static flags the patches read, at startup — before any
+        // patch runs during gameplay — so a saved "aurora off" (etc.) is in effect from the first frame.
+        Settings.ApplyToRuntime();
     }
 
     // Persists the current settings to disk. Used by the in-game hotkey toggle so a floor flipped
     // mid-game survives a reload, matching what the settings window's own Close would do.
     public static void Save() => instance?.WriteSettings();
+
+    // RimWorld calls this when the settings window closes. Re-apply so the final state reaches the
+    // runtime flags even if something changed without the per-frame apply in DoSettingsWindowContents.
+    public override void WriteSettings()
+    {
+        base.WriteSettings();
+        Settings.ApplyToRuntime();
+    }
 
     public override string SettingsCategory() => "Celestial Lighting";
 
@@ -37,6 +48,8 @@ public class CelestialLightingSettingsMod : Mod
         var listing = new Listing_Standard();
         listing.Begin(inRect);
 
+        DrawEffectToggles(listing);
+        listing.GapLine();
         DrawPresetSection(listing);
         listing.GapLine();
         DrawAestheticKnobs(listing);
@@ -44,6 +57,47 @@ public class CelestialLightingSettingsMod : Mod
         DrawBrightnessFloorSection(listing);
 
         listing.End();
+
+        // Push any change the player just made straight into the runtime flags, so effects toggle
+        // live in-game while the window is open — no reload needed. Cheap (a handful of field copies).
+        Settings.ApplyToRuntime();
+    }
+
+    // The per-effect on/off switches — the user-facing front end of the CelestialLightingFeatures
+    // flags. Each is a plain checkbox bound directly to a persisted bool; ApplyToRuntime (run every
+    // frame this window is open, and at startup) copies them into the static flags the patches read.
+    private void DrawEffectToggles(Listing_Standard listing)
+    {
+        Text.Font = GameFont.Medium;
+        listing.Label("Effects");
+        Text.Font = GameFont.Small;
+        listing.Label("Turn any individual celestial effect on or off. All on by default.");
+
+        listing.CheckboxLabeled("Civil-twilight persistence", ref Settings.civilTwilightPersistence,
+            "Linger the warm dusk tint through civil twilight after geometric sunset.");
+        listing.CheckboxLabeled("Angular-size penumbra", ref Settings.penumbraContrast,
+            "Soften shadow contrast toward the horizon as the sun's disc widens the penumbra.");
+        listing.CheckboxLabeled("Moon-cast shadows", ref Settings.moonShadows,
+            "A faint, phase- and altitude-scaled shadow cast by the moon at night.");
+        listing.CheckboxLabeled("Night-sky radiance", ref Settings.nightRadiance,
+            "Replace vanilla's flat night glow with a starlight + airglow + moonlight floor.");
+        listing.CheckboxLabeled("Pitch-black nights", ref Settings.pitchBlackNights,
+            "Darken the on-screen night overlay toward black as the night floor drops.");
+        listing.CheckboxLabeled("Atmospheric night glow", ref Settings.atmosphericGlow,
+            "The constant starlight + airglow floor. Off = only moonlight lights the night (true pitch-black on a moonless night).");
+        Settings.minNightBrightness = LabeledSlider(listing, "  Minimum night brightness", Settings.minNightBrightness, 0f, 1f);
+        listing.CheckboxLabeled("Low-light desaturation", ref Settings.lowLightDesaturation,
+            "Drain colour toward a cool blue-grey as the sky darkens (the Purkinje shift).");
+        listing.CheckboxLabeled("Sky colour-temperature", ref Settings.skyColorTemperature,
+            "Warm the sky toward the horizon on a continuous, altitude-keyed curve.");
+        listing.CheckboxLabeled("Aurora during solar flares", ref Settings.aurora,
+            "Shift the night sky toward auroral greens/reds while a solar flare is active.");
+        listing.CheckboxLabeled("Eclipse darkening", ref Settings.eclipseDarkening,
+            "Reshape the vanilla eclipse's flat dim into a gradual fly-in / park / fly-out.");
+        listing.CheckboxLabeled("Natural eclipse timing (opt-in)", ref Settings.naturalEclipse,
+            "Also fire eclipses at their real, short astronomically-correct duration from the modeled moon. Changes WHEN a gameplay event occurs, so it is off by default.");
+        listing.CheckboxLabeled("Blood-moon crimson (VRE – Sanguophage)", ref Settings.bloodMoon,
+            "Recolour the moonlit night crimson while VRE – Sanguophage's blood-moon condition is active. Inert without that mod.");
     }
 
     private void DrawPresetSection(Listing_Standard listing)

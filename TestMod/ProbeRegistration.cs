@@ -24,6 +24,7 @@ public static class ProbeRegistration
         ProbeRegistry.Register(new AuroraTintProbe());
         ProbeRegistry.Register(new EclipseCoverageProbe());
         ProbeRegistry.Register(new BloodMoonProbe());
+        ProbeRegistry.Register(new BrightnessFloorProbe());
 
         // Expose CelestialLighting's runtime feature flags to the harness's SetFeature step so a
         // scenario can screenshot an effect off then on. The setter just writes the shipped mod's
@@ -61,6 +62,16 @@ public static class ProbeRegistration
         FeatureRegistry.Register(
             CelestialLightingFeatures.BloodMoonKey,
             enabled => CelestialLightingFeatures.BloodMoon = enabled);
+        // Not a CelestialLightingFeatures flag: the accessibility minimum-brightness floor lives on
+        // CelestialLightingSettings. Bridged so a scenario can flip it and pin the floor end-to-end.
+        FeatureRegistry.Register(
+            "brightness_floor",
+            enabled =>
+            {
+                CelestialLightingSettings settings = CelestialLightingSettingsMod.Settings;
+                if (settings != null)
+                    settings.brightnessFloorEnabled = enabled;
+            });
         FeatureRegistry.Register(
             CelestialLightingFeatures.PitchBlackNightsKey,
             enabled => CelestialLightingFeatures.PitchBlackNights = enabled);
