@@ -1,0 +1,15 @@
+{
+  "name": "eclipse",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "20" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "40" } },
+    { "type": "SetTime", "args": { "hour": "12" } },
+    { "type": "Screenshot", "args": { "fileName": "eclipse_warmup.png" } },
+    { "type": "Screenshot", "args": { "fileName": "eclipse_daynormal.png" } },
+    { "type": "SetFeature", "args": { "featureName": "pitch_black_nights", "enabled": "false" } },
+    { "type": "StartCondition", "args": { "conditionDef": "Eclipse", "durationHours": "24", "agedHours": "12" } },
+    { "type": "Probe", "args": { "probeName": "eclipse_coverage", "expectedValue": "1.0", "tolerance": "0.02" } },
+    { "type": "Screenshot", "args": { "fileName": "eclipse_park.png" } }
+  ]
+}

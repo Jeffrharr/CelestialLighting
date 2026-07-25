@@ -115,4 +115,14 @@ public static class CelestialLightingFeatures
     // (invisible) glow floor; when off, the overlay is left exactly as vanilla/§9 composed it. How dark
     // it is allowed to get is the separate NightRadianceSettings.MinNightBrightness clamp.
     public static bool PitchBlackNights = true;
+
+    // Feature key for EclipseDarkening (see CivilTwilightPersistenceKey for why it lives here).
+    public const string EclipseDarkeningKey = "eclipse_darkening";
+
+    // §10 eclipse darkening: Patch_EclipseDarkening replaces vanilla's abrupt flat eclipse dim with a
+    // gradual disc fly-in/park/fly-out coverage ramp (colour + glow) on the Eclipse event. When off,
+    // the patch early-returns and vanilla's own SkyTargetLerpFactor stands — the faithful pre-feature
+    // baseline for the harness A/B. (This gates only the *visual* reshape; the opt-in natural-eclipse
+    // timing lives separately on EclipseSettings.NaturalEclipseEnabled.)
+    public static bool EclipseDarkening = true;
 }

@@ -55,6 +55,9 @@ public static class ProbeRegistration
             CelestialLightingFeatures.AuroraKey,
             enabled => CelestialLightingFeatures.Aurora = enabled);
         FeatureRegistry.Register(
+            CelestialLightingFeatures.EclipseDarkeningKey,
+            enabled => CelestialLightingFeatures.EclipseDarkening = enabled);
+        FeatureRegistry.Register(
             CelestialLightingFeatures.PitchBlackNightsKey,
             enabled => CelestialLightingFeatures.PitchBlackNights = enabled);
         // Not a CelestialLightingFeatures flag: bridges the minimum-brightness clamp so a visual

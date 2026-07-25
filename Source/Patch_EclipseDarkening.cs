@@ -28,6 +28,11 @@ public static class Patch_EclipseDarkening
 {
     static void Postfix(GameCondition_NoSunlight __instance, ref float __result)
     {
+        // Feature gate (default on): when off, leave vanilla's own SkyTargetLerpFactor result — the
+        // faithful pre-feature baseline. Sits first so "off" is a true no-op.
+        if (!CelestialLightingFeatures.EclipseDarkening)
+            return;
+
         // Only reshape the actual Eclipse event. GameCondition_NoSunlight is also the condition class
         // behind the Royalty "SunBlocker" machine (a permanent, artificially-caused blackout with no
         // transit geometry), so gating on the Eclipse def keeps that working as vanilla and scopes our
