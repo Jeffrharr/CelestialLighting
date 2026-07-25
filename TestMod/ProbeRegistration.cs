@@ -37,6 +37,9 @@ public static class ProbeRegistration
         // Raw gameplay glow, so the weather_dimming scenario can assert §13's central negative: the
         // sky visibly darkens under a storm while this value does not move at all.
         ProbeRegistry.Register(new SkyGlowProbe());
+        // §14: one number that says whether vanilla's sky and our sun agree about day/night.
+        ProbeRegistry.Register(new SunClockDisagreementProbe());
+        ProbeRegistry.Register(new SunElevationProbe());
 
         // Expose CelestialLighting's runtime feature flags to the harness's SetFeature step so a
         // scenario can screenshot an effect off then on. The setter just writes the shipped mod's
@@ -160,6 +163,11 @@ public static class ProbeRegistration
                     enabled ? 0.25f : IndoorOcclusionMath.DefaultMinIndoorBrightness;
                 IndoorOcclusionRedraw.ForceRebuild();
             });
+        // Not a CelestialLightingFeatures flag: flips §14's warp so a scenario can capture the
+        // pre-§14 behaviour as the BEFORE half of an A/B. "enabled" false == no warp == the artifact.
+        FeatureRegistry.Register(
+            "sun_clock_warp",
+            enabled => SunClockAdapter.WarpEnabled = enabled);
         FeatureRegistry.Register(
             "pitch_black_true",
             enabled => NightRadianceSettings.Current.MinNightBrightness =

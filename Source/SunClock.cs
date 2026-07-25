@@ -103,9 +103,16 @@ public static class SunClockAdapter
     // Realistic mode is the identity: the physical sun runs on its own clock and Patch_SunGlow makes
     // VANILLA follow IT instead. Locked mode is the reverse and is the default, because it is the only
     // one of the two with zero gameplay impact.
+    // Dev-only escape hatch, always true in a real game. The live harness flips it to capture the
+    // BEFORE half of the A/B: with the warp off, locked mode degenerates to exactly the pre-§14
+    // behaviour (physical sun, vanilla glow, no reconciliation), which is the artifact this subsystem
+    // exists to remove. Nothing in the shipped mod ever writes it — see ProbeRegistration's
+    // sun_clock_warp bridge.
+    public static bool WarpEnabled = true;
+
     public static float EffectiveDayPercent(Map map, float latitude, float declination, float dayPercent)
     {
-        if (CelestialLightingFeatures.SunClock != SunClockMode.LockedToVanilla)
+        if (!WarpEnabled || CelestialLightingFeatures.SunClock != SunClockMode.LockedToVanilla)
             return dayPercent;
 
         float vanillaHalfDay = SunClock.VanillaHalfDayForMap(map);

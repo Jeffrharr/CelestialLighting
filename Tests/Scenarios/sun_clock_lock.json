@@ -1,0 +1,336 @@
+{
+  "name": "sun_clock_lock",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "55"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "0"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "sun_clock_warp",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "-1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "6"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "-1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "7"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "-1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "8"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "-1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "-1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "15"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "-1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "16"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "-1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "17"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "-1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "18"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "-1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "19"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "-1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "16"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "sc_before_warp_off.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "sun_clock_warp",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "6"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "7"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "8"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "15"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "16"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "17"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "18"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "19"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "16"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "sc_after_warp_on.png"
+      }
+    }
+  ]
+}
