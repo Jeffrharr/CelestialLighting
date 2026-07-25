@@ -747,6 +747,108 @@ public class ApiCompatibilityTests
             "MapMeshFlagDefOf.GroundGlow no longer exists — IndoorOcclusionRedraw dirties this flag");
     }
 
+    // --- Room / GridsUtility / relevantChangeTypes (§15 eaves — EaveShadowGrid,
+    //     Patch_IndoorSkyOcclusion, Patch_ShadowRoofInvalidation) ---
+
+    [Test]
+    public void Room_UsesOutdoorTemperature_Exists()
+    {
+        // The single predicate §15 is built on: it separates a porch from a sealed room for both the
+        // shadow mesh and §7b's occlusion. If it ever goes away, every roofed cell silently becomes
+        // "enclosed" again and porches go black at noon — a look regression nothing else here catches.
+        var type = GetType("Verse.Room");
+        Assert.That(type, Is.Not.Null, "Verse.Room no longer exists");
+        var property = type!.Properties.SingleOrDefault(p => p.Name == "UsesOutdoorTemperature");
+        Assert.That(property, Is.Not.Null,
+            "Room.UsesOutdoorTemperature no longer exists — EavesMath's callers depend on it");
+        Assert.That(property!.PropertyType.FullName, Is.EqualTo("System.Boolean"),
+            "Room.UsesOutdoorTemperature no longer returns bool");
+    }
+
+    [Test]
+    public void RegionGrid_GetValidRegionAtNoRebuild_Exists()
+    {
+        // RoomLookup deliberately avoids GridsUtility.GetRoom, whose GetValidRegionAt forces a
+        // region/room rebuild from inside the render path and log-warns per call while the updater is
+        // disabled. This is the no-rebuild variant it uses instead; losing it would silently push us
+        // back onto the rebuilding path only if someone rewrote RoomLookup, so pin it here.
+        var type = GetType("Verse.RegionGrid");
+        Assert.That(type, Is.Not.Null, "Verse.RegionGrid no longer exists");
+        Assert.That(type!.Methods.Any(m => m.Name == "GetValidRegionAt_NoRebuild" && m.IsPublic
+                && m.Parameters.Count == 1 && m.Parameters[0].ParameterType.Name == "IntVec3"),
+            Is.True, "RegionGrid.GetValidRegionAt_NoRebuild(IntVec3) no longer exists — RoomLookup depends on it");
+    }
+
+    [Test]
+    public void RegionToRoomWalk_Exists()
+    {
+        // RoomLookup mirrors RegionAndRoomQuery.RoomAt's Region -> District -> Room walk by hand,
+        // because the public helper only exists on the rebuilding path.
+        Assert.That(GetType("Verse.Map")!.Fields.Any(f => f.Name == "regionGrid" && f.IsPublic), Is.True,
+            "Map.regionGrid no longer exists or is no longer public");
+        Assert.That(GetType("Verse.Region")!.Properties.Any(p => p.Name == "District"), Is.True,
+            "Region.District no longer exists");
+        Assert.That(GetType("Verse.District")!.Properties.Any(p => p.Name == "Room"), Is.True,
+            "District.Room no longer exists");
+    }
+
+    [Test]
+    public void MapDrawLayer_RelevantChangeTypes_IsPublicUlong()
+    {
+        // Patch_ShadowRoofInvalidation ORs MapMeshFlagDefOf.Roofs into this so a roof change rebuilds
+        // the sun-shadow mesh. A type change would break the OR at compile time; a visibility change
+        // would break it at runtime, which is what this pins.
+        var type = GetType("Verse.MapDrawLayer");
+        Assert.That(type, Is.Not.Null, "Verse.MapDrawLayer no longer exists");
+        var field = type!.Fields.SingleOrDefault(f => f.Name == "relevantChangeTypes");
+        Assert.That(field, Is.Not.Null, "MapDrawLayer.relevantChangeTypes no longer exists");
+        Assert.That(field!.IsPublic, Is.True, "MapDrawLayer.relevantChangeTypes is no longer public");
+        Assert.That(field.FieldType.FullName, Is.EqualTo("System.UInt64"),
+            "MapDrawLayer.relevantChangeTypes is no longer a ulong");
+    }
+
+    [Test]
+    public void SectionLayer_SunShadows_ConstructorStillSetsRelevantChangeTypes()
+    {
+        // Patch_ShadowRoofInvalidation targets this constructor. It is also where vanilla assigns
+        // relevantChangeTypes, so if that assignment ever moves, our Postfix would be OR-ing into a
+        // field something else overwrites afterwards.
+        var type = GetType("Verse.SectionLayer_SunShadows");
+        Assert.That(type, Is.Not.Null, "Verse.SectionLayer_SunShadows no longer exists");
+        var ctor = type!.Methods.SingleOrDefault(m => m.IsConstructor && m.Parameters.Count == 1
+            && m.Parameters[0].ParameterType.Name == "Section");
+        Assert.That(ctor, Is.Not.Null,
+            "SectionLayer_SunShadows(Section) no longer exists — Patch_ShadowRoofInvalidation's TargetMethod will fail");
+        Assert.That(ctor!.Body.Instructions.Any(i => i.Operand is FieldReference f && f.Name == "relevantChangeTypes"),
+            Is.True,
+            "SectionLayer_SunShadows(Section) no longer assigns relevantChangeTypes — find where the subscription moved");
+    }
+
+    [Test]
+    public void MapMeshFlagDefOf_Roofs_And_Buildings_Exist()
+    {
+        var type = GetType("RimWorld.MapMeshFlagDefOf");
+        Assert.That(type, Is.Not.Null, "RimWorld.MapMeshFlagDefOf no longer exists");
+        Assert.That(type!.Fields.Any(f => f.Name == "Roofs" && f.IsPublic), Is.True,
+            "MapMeshFlagDefOf.Roofs no longer exists — Patch_ShadowRoofInvalidation subscribes to it");
+        Assert.That(type.Fields.Any(f => f.Name == "Buildings" && f.IsPublic), Is.True,
+            "MapMeshFlagDefOf.Buildings no longer exists — EaveShadowRedraw dirties this flag");
+    }
+
+    [Test]
+    public void RoofGrid_SetRoof_StillDirtiesTheMapMesh()
+    {
+        // Why Patch_ShadowRoofInvalidation is needed at all: SetRoof dirties Roofs and nothing else, so
+        // a layer subscribed only to Buildings never hears about a new roof. If Ludeon ever widens
+        // this, our patch becomes redundant rather than wrong — but we still want to know.
+        var type = GetType("Verse.RoofGrid");
+        Assert.That(type, Is.Not.Null, "Verse.RoofGrid no longer exists");
+        var setRoof = type!.Methods.SingleOrDefault(m => m.Name == "SetRoof");
+        Assert.That(setRoof, Is.Not.Null, "RoofGrid.SetRoof no longer exists");
+        Assert.That(setRoof!.Body.Instructions.Any(i => i.Operand is MethodReference m && m.Name == "MapMeshDirty"),
+            Is.True, "RoofGrid.SetRoof no longer calls MapMeshDirty — roof changes may no longer dirty any section");
+    }
+
     [Test]
     public void BiomeDef_DisableSkyLighting_Exists()
     {

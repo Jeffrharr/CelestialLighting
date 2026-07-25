@@ -112,6 +112,8 @@ public class CelestialLightingSettingsMod : Mod
             "Soften shadow contrast toward the horizon as the sun's disc widens the penumbra.");
         listing.CheckboxLabeled("Moon-cast shadows", ref Settings.moonShadows,
             "A faint, phase- and altitude-scaled shadow cast by the moon at night.");
+        listing.CheckboxLabeled("Eave shadows", ref Settings.eaveShadows,
+            "Let roofs cast shadows where they are not enclosing anything — porches, overhangs and the eaves that oversail a wall. Vanilla only ever casts shadows from buildings, so a porch roof throws nothing. Replaces the Perspective: Eaves mod, which is incompatible with this one.");
         listing.CheckboxLabeled("Night-sky radiance", ref Settings.nightRadiance,
             "Replace vanilla's flat night glow with a starlight + airglow + moonlight floor.");
         listing.CheckboxLabeled("Pitch-black nights", ref Settings.pitchBlackNights,

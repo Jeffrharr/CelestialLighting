@@ -18,6 +18,22 @@
       <steamWorkshopUrl>steam://url/CommunityFilePage/2009463077</steamWorkshopUrl>
     </li>
   </modDependencies>
+  <!-- Perspective: Eaves (Owlchemist, continued by Mlie) does one thing we now do ourselves — make
+       roofed-but-unenclosed cells cast shadows — and it does it by transpiling
+       SectionLayer_SunShadows.Regenerate. Patch_ShadowMeshPerimeter replaces that whole method with
+       a Prefix (it has to: §4 fills in a shadow face vanilla never builds, and Harmony cannot append
+       to an already-finalized mesh), so its transpiled body never executes. Load order cannot fix
+       that — one of the two mods is always dead. Rather than leave it silently half-working (its
+       indoor-mask and rain-fog patches keep running while its shadows quietly do nothing), we
+       declare it outright and reimplement the feature natively as §15: same UsesOutdoorTemperature
+       rule, resolved per section instead of per map, and toggleable under "Eave shadows". -->
+  <incompatibleWith>
+    <!-- "Perspective: Eaves (Continued)", the 1.6-current fork this was verified against. -->
+    <li>Mlie.PerspectiveEaves</li>
+    <!-- Owlchemist's original, superseded but still installed in plenty of mod lists. Same
+         transpiler, same collision. -->
+    <li>Owlchemist.PerspectiveEaves</li>
+  </incompatibleWith>
   <loadAfter>
     <li>Ludeon.RimWorld</li>
     <li>Ludeon.RimWorld.Royalty</li>

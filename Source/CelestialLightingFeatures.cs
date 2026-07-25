@@ -165,6 +165,20 @@ public static class CelestialLightingFeatures
     // IndoorOcclusionSettings knobs.
     public static bool IndoorSkyOcclusion = true;
 
+    // Feature key for EaveShadows (see CivilTwilightPersistenceKey for why the const lives here).
+    public const string EaveShadowsKey = "eave_shadows";
+
+    // §15 eave shadows: a roofed cell that is not enclosed — a porch, an overhang, the eave that
+    // oversails a wall — casts a wall-height roofline shadow, which vanilla never does because its
+    // only shadow casters are edifices. When off, EaveShadowGrid resolves caster heights straight off
+    // the edifice grid and nothing else, so the mesh is bit-for-bit what §4 built before this feature
+    // — the faithful pre-feature baseline for the harness A/B.
+    //
+    // Note the asymmetry with §7b: this flag gates only the shadow-caster injection. §7b's matching
+    // "a porch is not indoors" fix (issue #33) is unconditional, because there it is not a new effect
+    // but a correction to a question §7b was already asking wrongly.
+    public static bool EaveShadows = true;
+
     // §14 sun-clock reconciliation. An enum rather than two bools because the modes are mutually
     // exclusive by construction: locked warps OUR sun onto vanilla's clock, realistic makes VANILLA's
     // glow follow ours. Running both would mean each defining itself in terms of the other.

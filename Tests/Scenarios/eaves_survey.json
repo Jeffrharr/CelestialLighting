@@ -1,0 +1,10 @@
+{
+  "name": "eaves_survey",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "45" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "40" } },
+    { "type": "SetTime", "args": { "hour": "12" } },
+    { "type": "Probe", "args": { "probeName": "eave_cells", "expectedValue": "0", "tolerance": "1000000" } }
+  ]
+}

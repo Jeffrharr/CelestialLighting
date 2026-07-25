@@ -42,6 +42,7 @@ public class CelestialLightingSettings : ModSettings
     public bool pitchBlackNights = true;
     public bool indoorSkyOcclusion = true;
     public bool weatherDimming = true;
+    public bool eaveShadows = true;
 
     // --- Night-radiance tunables (drive NightRadianceSettings.Current) ---
     // The atmospheric starlight+airglow floor ("true pitch-black" when off), and the pitch-black
@@ -121,6 +122,7 @@ public class CelestialLightingSettings : ModSettings
         CelestialLightingFeatures.PitchBlackNights = pitchBlackNights;
         CelestialLightingFeatures.IndoorSkyOcclusion = indoorSkyOcclusion;
         CelestialLightingFeatures.WeatherDimming = weatherDimming;
+        CelestialLightingFeatures.EaveShadows = eaveShadows;
 
         // §9's tint strength. This slider was persisted and then ignored by every earlier version of
         // this method; it scales the per-cell night tint now that §9 no longer touches the global
@@ -148,6 +150,11 @@ public class CelestialLightingSettings : ModSettings
         IndoorOcclusionRedraw.SyncTo(
             indoorSkyOcclusion, IndoorOcclusionSettings.Current.DoorSkyLeak,
             IndoorOcclusionSettings.Current.IndoorFloor);
+
+        // §15's caster heights are baked into the sun-shadow section meshes for the same reason, so
+        // the eave toggle needs its own rebuild. Separate from the call above because the two write
+        // different mesh layers and dirty different flags.
+        EaveShadowRedraw.SyncTo(eaveShadows);
     }
 
     public override void ExposeData()
@@ -166,6 +173,7 @@ public class CelestialLightingSettings : ModSettings
         Scribe_Values.Look(ref bloodMoon, "bloodMoon", true);
         Scribe_Values.Look(ref pitchBlackNights, "pitchBlackNights", true);
         Scribe_Values.Look(ref indoorSkyOcclusion, "indoorSkyOcclusion", true);
+        Scribe_Values.Look(ref eaveShadows, "eaveShadows", true);
         Scribe_Values.Look(ref doorSkyLeak, "doorSkyLeak", IndoorOcclusionMath.DefaultDoorSkyLeak);
         Scribe_Values.Look(ref minIndoorBrightness, "minIndoorBrightness", Presets.Cinematic.MinIndoorBrightness);
         Scribe_Values.Look(ref atmosphericGlow, "atmosphericGlow", true);

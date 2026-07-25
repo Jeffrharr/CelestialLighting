@@ -149,13 +149,23 @@ public static class Patch_IndoorSkyOcclusion
     // Live-state lookup for one cell, handed straight to the pure core. Reads the roof *def* rather
     // than the Roofed() bool because thick roof (a mountain) is one of the inputs — under it even a
     // wall counts as buried, which is vanilla's own exception too.
+    //
+    // The roof an EAVE carries (§15: roofed, but part of a room that breathes outdoor air — a porch,
+    // a lean-to, the overhang that oversails a wall) is not passed on as "roofed" at all. Blacking a
+    // porch out at noon while it stood open to the sky on three sides was this feature's most
+    // conspicuous artifact (issue #33), and Room.UsesOutdoorTemperature is the game's own test for
+    // the distinction — sharing it with §15's shadow half means the two halves cannot disagree about
+    // which cells are inside. Deliberately NOT gated on CelestialLightingFeatures.EaveShadows: that
+    // flag turns a new *effect* on and off, whereas this is a correction to a question §7b was
+    // already asking wrongly.
     private static bool BlocksSky(Map map, IntVec3 cell)
     {
         RoofDef roof = map.roofGrid.RoofAt(cell);
         Building edifice = map.edificeGrid[cell];
         bool holdsRoof = edifice != null && edifice.def.holdsRoof;
 
-        return IndoorOcclusionMath.BlocksSky(roof != null, roof != null && roof.isThickRoof, holdsRoof, IsDoor(edifice));
+        return IndoorOcclusionMath.BlocksSky(
+            EaveCells.Encloses(map, cell, roof), roof != null && roof.isThickRoof, holdsRoof, IsDoor(edifice));
     }
 
     // Mirrors vanilla's own door test — SectionLayer_LightingOverlay identifies doors by

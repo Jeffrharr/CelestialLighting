@@ -222,6 +222,11 @@ from vanilla; this is a gap fill, not a redesign. `SectionLayerAccess.cs` holds 
 lookup for `SectionLayer.section` (a protected field with no public accessor), shared with
 `Patch_ShadowTilt` rather than duplicated.
 
+Since then the per-cell `Building` lookups have been routed through `EaveShadowGrid`, which resolves
+an effective caster *height* per cell rather than an edifice, so §15's eaves can cast a roofline
+shadow. With that feature off the two are provably identical; see §15 for why, and for why replacing
+this whole method makes Perspective: Eaves incompatible.
+
 ## 5. Shadow opacity not actually reading our intensity (`Patch_ShadowStrength`)
 
 Also caught during in-game testing: even after `Patch_ShadowDirection` zeroed
@@ -485,6 +490,12 @@ reads `map.roofGrid` / `map.edificeGrid` and rewrites `mesh.colors32`.
     boundary read as a row of black radial blooms rather than a straight edge. Cells outside the map
     contribute nothing to the OR, which needs no special case and keeps the two sections that each bake
     a shared boundary vertex in exact agreement (no 17-cell seams).
+- **"Roofed" means enclosed, not merely covered.** The one place we deliberately classify *narrower*
+  than vanilla. Asking `roofGrid.Roofed(cell)` outright blacked out porches and overhangs at noon
+  (issue #33) — they are roofed but stand open to the sky on their exposed sides. The `roofed` input
+  is therefore `EaveCells.Encloses`, which also requires the cell's room to hold its own temperature
+  (§15). Ungated, and shared with §15's shadow half so the two can never disagree about which cells
+  are inside.
 - **Leaky doors.** Vanilla lumps doors in with roof for cover (`altitudeLayer == AltitudeLayer.DoorMoveable`
   is one of the disjuncts that sets its corner flag) and a closed door's `blockLight` suppresses glow too,
   so at full occlusion a doorway would go dead black. A door is instead treated as a boundary cell like a
@@ -1088,6 +1099,87 @@ it off for `disableSkyLighting` biomes. So the scale is RGB-only; a naive `color
 scales all four channels) would fade the darkening overlay *out* and make heavy weather render
 brighter, the exact opposite of the intent.
 
+## 15. Eaves: roofed cells that are not indoors (`EavesMath` / `EaveShadowGrid` / `Patch_ShadowRoofInvalidation`)
+
+**Problem.** Two of our subsystems ask "is this cell indoors?" and both answered with
+`map.roofGrid.Roofed(cell)`, which is too coarse in opposite directions.
+
+§4's shadow mesh never consults the roof grid at all — vanilla's only shadow casters are *edifices*,
+so a porch roof, a lean-to, an overhang, or the eave that oversails a wall casts nothing, and
+sunlight lands on the porch floor as though the roof above it were not there. Under vanilla's narrow
+shadow-angle range this was easy to miss; with §1/§3 raking shadows through every compass direction
+across the day and the season, it is a hole you cannot stop seeing.
+
+§7b's occlusion has the mirror-image bug: it treats *every* roofed cell as sealed, so the same porch
+goes pitch black at noon while standing wide open to the sky on three sides (issue #33). That was
+the most conspicuous artifact the feature shipped with.
+
+**Approach.** Both want the same finer distinction, so it is stated once, purely, in `EavesMath`. A
+roofed cell is either **enclosed** — part of a room that holds its own temperature, i.e. genuinely
+inside a building — or an **eave**: roofed, but breathing outdoor air. `Room.UsesOutdoorTemperature`
+is the game's own answer to that question (it decides whether a room heats, whether rain reaches it,
+whether pawns count as sheltered), so keying off it means our notion of "indoors" cannot drift from
+the one the simulation already uses. `IsEave` and `IsEnclosed` are exact complements within roofed
+cells, pinned by a test — a gap there would mean a cell that neither casts nor occludes.
+
+- **Shadow half** (gated by the "Eave shadows" toggle). `EaveShadowGrid` resolves an effective
+  caster *height* per cell — the edifice's `staticSunShadowHeight`, or `max(that, 1.0)` on an eave,
+  1.0 being what vanilla's Wall and Door both declare. `Patch_ShadowMeshPerimeter`'s reimplemented
+  `Regenerate` reads those floats instead of `Building`s. The substitution is provably equivalent to
+  vanilla's own tests when the toggle is off, because every neighbour test only runs once the centre
+  cell's height is already `> 0`, so a null neighbour's 0 satisfies `< centreHeight` for exactly the
+  reason `building == null` did.
+- **Occlusion half** (ungated). `Patch_IndoorSkyOcclusion.CellOcclusion` now asks `IsEnclosed`
+  instead of the raw roof grid. Deliberately not behind the eave toggle: that flag turns a new
+  *effect* on and off, whereas this is a correction to a question §7b was already asking wrongly.
+- **Invalidation.** `SectionLayer_SunShadows`'s constructor sets `relevantChangeTypes =
+  MapMeshFlagDefOf.Buildings` and nothing more — it never had a reason to care about roofs. Now that
+  roof state feeds a caster height it does, and `RoofGrid.SetRoof` dirties only `Roofs`.
+  `Patch_ShadowRoofInvalidation` is a Postfix on that constructor OR-ing `Roofs` into the
+  subscription. Widening a subscription can only cause extra regenerates, never suppress one.
+
+**Why re-implement rather than defer to Perspective: Eaves.** That mod (Owlchemist, continued by
+Mlie; MIT) had the load-bearing insight — `UsesOutdoorTemperature`, not `Roofed`, is the real test —
+and this subsystem restates it. Three reasons we do not simply call into it:
+
+1. **We already break it, unavoidably.** It expresses the rule by transpiling
+   `SectionLayer_SunShadows.Regenerate` to swap `EdificeGrid.InnerArray` for its own adjusted copy.
+   `Patch_ShadowMeshPerimeter` is a Prefix that replaces that entire method (it has to — §4 adds a
+   shadow face vanilla never builds, and Harmony cannot append to an already-`FinalizeMesh`'d
+   submesh), so its transpiled body never runs. No load order fixes that: one of the two is always
+   dead. Worse, the half of it we *don't* touch keeps working, leaving a silently inconsistent state
+   in which porches are exempt from the indoor mask but still cast no shadow.
+2. **Its shape is O(map) per section.** `RoofShadows.GetAdjustedList` copies the whole edifice array
+   and walks the whole roof grid on every section regenerate — on a 275x275 map a full-map roof
+   change is ~121 sections × ~75k cells of room queries and ~36 MB of transient arrays. A section
+   only ever draws its own cells plus a one-cell skirt, which is all `EaveShadowGrid` resolves.
+3. **Its invalidation fix is broader than the problem.** It transpiles `MapDrawer.MapMeshDirty` call
+   sites inside both `RoofGrid.SetRoof` and `Building.SpawnSetup` — two hot, widely-patched vanilla
+   methods rewritten to fix a subscription. We change the subscription instead, and `SpawnSetup`
+   needs nothing at all because it already dirties `Buildings`.
+
+One deliberate behavioural divergence: it substitutes a fixed 1.0 dummy caster into any roofed cell
+whose edifice is not exactly 1.0, which silently *shortens* a modded caster taller than a wall (a
+watchtower, a battlement) wherever a roof happens to cover it. We take the max, so roofing something
+can only ever add shadow.
+
+**Known limitation** (shared with Perspective: Eaves, not introduced here). A cell's eave status
+depends on its *room*, and enclosing a room flips cells nowhere near the wall that closed it —
+sealing a doorway stops an entire porch being a porch, but only the doorway's section is dirtied.
+Chasing that means hooking region/room recalculation, a far more invasive and far hotter path than
+this is worth; any later roof or building edit in the affected section resolves it.
+
+**Conflict risk.** This is the one place in the mod where we declare an outright incompatibility
+rather than a load order: `About.xml` lists `Mlie.PerspectiveEaves` and `Owlchemist.PerspectiveEaves`
+under `<incompatibleWith>`, because for the reason in (1) the two genuinely cannot both work. Beyond
+that the surface is small — the constructor Postfix touches a public field on a type nothing else has
+reason to patch, and the occlusion change is confined to a predicate inside our own postfix.
+
+**Provenance.** Perspective: Eaves is MIT and was read as such (decompiled from the user's installed
+1.6 copy; also public at github.com/emipa606/PerspectiveEaves). What was taken is the *idea* that
+`Room.UsesOutdoorTemperature` is the right predicate. No code was copied, and the two
+implementations share neither structure nor mechanism.
+
 ## Settings, presets, and the brightness floor (planned)
 
 Two cross-cutting settings ideas that span the subsystems above:
@@ -1142,7 +1234,19 @@ shared computation to skip or interact with in the first place.
 `Regenerate()` overrides, both now Prefixed here (`Patch_ShadowTilt`, `Patch_ShadowMeshPerimeter`)
 — low risk of another mod patching either exact method, but if one does, Harmony will only run
 whichever prefix returns `true` from `__runOriginal` handling last (both returning `false` means
-only one prefix's replacement actually runs); no known mod in this setup currently does.
+only one prefix's replacement actually runs).
+
+One mod in this setup does: **Perspective: Eaves** transpiles `Regenerate`, and because our Prefix
+replaces the whole method its transpiled body never executes. That is not a load-order problem and
+cannot be resolved by one — it is why §15 reimplements the feature natively and why `About.xml`
+declares the mod `<incompatibleWith>` rather than merely `<loadAfter>`. `Patch_ShadowTilt` shares no
+target with it (`DrawLayer` is untouched by Eaves), and the mod's other three patches
+(`SectionLayer_IndoorMask.Regenerate`, `HideRainFogOverlay`, and the `MapMeshDirty` transpilers)
+collide with nothing of ours — which is precisely the trap: with both installed the *rest* of Eaves
+keeps working, so the breakage reads as "eave shadows randomly stopped" rather than as a conflict.
+Also note `Patch_ShadowRoofInvalidation`, added by §15, Postfixes `SectionLayer_SunShadows`'s
+constructor to widen `relevantChangeTypes`; it only ever ORs a flag in, so it composes with any
+other mod doing the same.
 `GenCelestial.CurShadowStrength(Map)` is a small public static leaf method with a single call site
 inside `SkyManager.SkyManagerUpdate` — same low-risk profile as `GetLightSourceInfo`.
 

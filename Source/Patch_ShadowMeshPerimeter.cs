@@ -20,6 +20,18 @@ namespace CelestialLighting;
 // west/east blocks mirror each other for their opposite sides) so the added quad's outward normal
 // points north instead of south. Everything else here is copied from vanilla's Regenerate() —
 // this is not a redesign, just the one missing case filled in.
+//
+// The one further change since: the per-cell `Building` lookups now go through EaveShadowGrid,
+// which resolves an effective caster HEIGHT per cell rather than an edifice, so §15's eaves (roofed
+// cells that are not enclosed — porches, overhangs) can cast a roofline shadow. That substitution
+// is exactly equivalent to vanilla's own tests whenever §15 is off: vanilla's `building == null`
+// branches are indistinguishable from "height 0" here, because every neighbour test only runs once
+// the centre cell's own height is already > 0, so a null neighbour's 0 satisfies `< centreHeight`
+// for precisely the reason `building == null` did.
+//
+// Because this Prefix replaces the whole method body, any OTHER mod's transpiler on Regenerate is
+// skipped — including Perspective: Eaves, which is why §15 exists at all and why About.xml declares
+// that mod incompatible rather than merely load-ordered. See DESIGN.md §15.
 [HarmonyPatch]
 public static class Patch_ShadowMeshPerimeter
 {
@@ -36,10 +48,12 @@ public static class Patch_ShadowMeshPerimeter
         Section section = SectionLayerAccess.GetSection(__instance);
         Map map = section.map;
 
-        Building[] innerArray = map.edificeGrid.InnerArray;
         float y = AltitudeLayer.Shadows.AltitudeFor();
         CellRect cellRect = section.CellRect;
         cellRect.ClipInsideMap(map);
+
+        EaveShadowGrid casters =
+            EaveShadowGrid.Build(map, cellRect, CelestialLightingFeatures.EaveShadows);
 
         LayerSubMesh subMesh = __instance.GetSubMesh(MatBases.SunShadow);
         subMesh.Clear(MeshParts.All);
@@ -47,17 +61,14 @@ public static class Patch_ShadowMeshPerimeter
         subMesh.tris.Capacity = cellRect.Area * 4;
         subMesh.colors.Capacity = cellRect.Area * 2;
 
-        CellIndices cellIndices = map.cellIndices;
-
         for (int i = cellRect.minX; i <= cellRect.maxX; i++)
         {
             for (int j = cellRect.minZ; j <= cellRect.maxZ; j++)
             {
-                Building building = innerArray[cellIndices.CellToIndex(i, j)];
-                if (building == null || !(building.def.staticSunShadowHeight > 0f))
+                float staticSunShadowHeight = casters.At(i, j);
+                if (!(staticSunShadowHeight > 0f))
                     continue;
 
-                float staticSunShadowHeight = building.def.staticSunShadowHeight;
                 Color32 item = new Color32(0, 0, 0, (byte)(255f * staticSunShadowHeight));
 
                 // Flat footprint quad (unmoved by the shader — LowVertexColor's zero alpha).
@@ -79,78 +90,62 @@ public static class Patch_ShadowMeshPerimeter
                 subMesh.tris.Add(count2 - 2);
                 subMesh.tris.Add(count2 - 1);
 
-                if (i > 0)
+                if (i > 0 && casters.At(i - 1, j) < staticSunShadowHeight)
                 {
-                    building = innerArray[cellIndices.CellToIndex(i - 1, j)];
-                    if (building == null || building.def.staticSunShadowHeight < staticSunShadowHeight)
-                    {
-                        int count3 = subMesh.verts.Count;
-                        subMesh.verts.Add(new Vector3(i, y, j));
-                        subMesh.verts.Add(new Vector3(i, y, j + 1));
-                        subMesh.colors.Add(item);
-                        subMesh.colors.Add(item);
-                        subMesh.tris.Add(count + 1);
-                        subMesh.tris.Add(count);
-                        subMesh.tris.Add(count3);
-                        subMesh.tris.Add(count3);
-                        subMesh.tris.Add(count3 + 1);
-                        subMesh.tris.Add(count + 1);
-                    }
+                    int count3 = subMesh.verts.Count;
+                    subMesh.verts.Add(new Vector3(i, y, j));
+                    subMesh.verts.Add(new Vector3(i, y, j + 1));
+                    subMesh.colors.Add(item);
+                    subMesh.colors.Add(item);
+                    subMesh.tris.Add(count + 1);
+                    subMesh.tris.Add(count);
+                    subMesh.tris.Add(count3);
+                    subMesh.tris.Add(count3);
+                    subMesh.tris.Add(count3 + 1);
+                    subMesh.tris.Add(count + 1);
                 }
-                if (i < map.Size.x - 1)
+                if (i < map.Size.x - 1 && casters.At(i + 1, j) < staticSunShadowHeight)
                 {
-                    building = innerArray[cellIndices.CellToIndex(i + 1, j)];
-                    if (building == null || building.def.staticSunShadowHeight < staticSunShadowHeight)
-                    {
-                        int count4 = subMesh.verts.Count;
-                        subMesh.verts.Add(new Vector3(i + 1, y, j + 1));
-                        subMesh.verts.Add(new Vector3(i + 1, y, j));
-                        subMesh.colors.Add(item);
-                        subMesh.colors.Add(item);
-                        subMesh.tris.Add(count + 2);
-                        subMesh.tris.Add(count4);
-                        subMesh.tris.Add(count4 + 1);
-                        subMesh.tris.Add(count4 + 1);
-                        subMesh.tris.Add(count + 3);
-                        subMesh.tris.Add(count + 2);
-                    }
+                    int count4 = subMesh.verts.Count;
+                    subMesh.verts.Add(new Vector3(i + 1, y, j + 1));
+                    subMesh.verts.Add(new Vector3(i + 1, y, j));
+                    subMesh.colors.Add(item);
+                    subMesh.colors.Add(item);
+                    subMesh.tris.Add(count + 2);
+                    subMesh.tris.Add(count4);
+                    subMesh.tris.Add(count4 + 1);
+                    subMesh.tris.Add(count4 + 1);
+                    subMesh.tris.Add(count + 3);
+                    subMesh.tris.Add(count + 2);
                 }
-                if (j > 0)
+                if (j > 0 && casters.At(i, j - 1) < staticSunShadowHeight)
                 {
-                    building = innerArray[cellIndices.CellToIndex(i, j - 1)];
-                    if (building == null || building.def.staticSunShadowHeight < staticSunShadowHeight)
-                    {
-                        int count5 = subMesh.verts.Count;
-                        subMesh.verts.Add(new Vector3(i, y, j));
-                        subMesh.verts.Add(new Vector3(i + 1, y, j));
-                        subMesh.colors.Add(item);
-                        subMesh.colors.Add(item);
-                        subMesh.tris.Add(count);
-                        subMesh.tris.Add(count + 3);
-                        subMesh.tris.Add(count5);
-                        subMesh.tris.Add(count + 3);
-                        subMesh.tris.Add(count5 + 1);
-                        subMesh.tris.Add(count5);
-                    }
+                    int count5 = subMesh.verts.Count;
+                    subMesh.verts.Add(new Vector3(i, y, j));
+                    subMesh.verts.Add(new Vector3(i + 1, y, j));
+                    subMesh.colors.Add(item);
+                    subMesh.colors.Add(item);
+                    subMesh.tris.Add(count);
+                    subMesh.tris.Add(count + 3);
+                    subMesh.tris.Add(count5);
+                    subMesh.tris.Add(count + 3);
+                    subMesh.tris.Add(count5 + 1);
+                    subMesh.tris.Add(count5);
                 }
                 // The added fourth face — vanilla has no equivalent block for this direction.
-                if (j < map.Size.z - 1)
+                if (j < map.Size.z - 1 && casters.At(i, j + 1) < staticSunShadowHeight)
                 {
-                    building = innerArray[cellIndices.CellToIndex(i, j + 1)];
-                    if (building == null || building.def.staticSunShadowHeight < staticSunShadowHeight)
-                    {
-                        int count6 = subMesh.verts.Count;
-                        subMesh.verts.Add(new Vector3(i + 1, y, j + 1));
-                        subMesh.verts.Add(new Vector3(i, y, j + 1));
-                        subMesh.colors.Add(item);
-                        subMesh.colors.Add(item);
-                        subMesh.tris.Add(count + 2);
-                        subMesh.tris.Add(count + 1);
-                        subMesh.tris.Add(count6);
-                        subMesh.tris.Add(count + 1);
-                        subMesh.tris.Add(count6 + 1);
-                        subMesh.tris.Add(count6);
-                    }
+                    int count6 = subMesh.verts.Count;
+                    subMesh.verts.Add(new Vector3(i + 1, y, j + 1));
+                    subMesh.verts.Add(new Vector3(i, y, j + 1));
+                    subMesh.colors.Add(item);
+                    subMesh.colors.Add(item);
+                    subMesh.tris.Add(count + 2);
+                    subMesh.tris.Add(count + 1);
+                    subMesh.tris.Add(count6);
+                    subMesh.tris.Add(count + 1);
+                    subMesh.tris.Add(count6 + 1);
+                    subMesh.tris.Add(count6);
                 }
             }
         }

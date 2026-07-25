@@ -44,6 +44,9 @@ public static class ProbeRegistration
         // §14: one number that says whether vanilla's sky and our sun agree about day/night.
         ProbeRegistry.Register(new SunClockDisagreementProbe());
         ProbeRegistry.Register(new SunElevationProbe());
+        // §15: how many cells on this map are eaves at all. Separates "the A/B images match because
+        // the toggle did nothing" from "they match because this colony has no porch to shade".
+        ProbeRegistry.Register(new EaveCellProbe());
 
         // Expose CelestialLighting's runtime feature flags to the harness's SetFeature step so a
         // scenario can screenshot an effect off then on. The setter just writes the shipped mod's
@@ -154,6 +157,16 @@ public static class ProbeRegistration
             {
                 CelestialLightingFeatures.IndoorSkyOcclusion = enabled;
                 IndoorOcclusionRedraw.ForceRebuild();
+            });
+        // §15's caster heights are baked into the sun-shadow meshes, so like §7b the toggle is
+        // invisible until they are regenerated — without the rebuild both A/B screenshots would show
+        // whatever was baked before the flip.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.EaveShadowsKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.EaveShadows = enabled;
+                EaveShadowRedraw.ForceRebuild();
             });
         // Not a CelestialLightingFeatures flag: bridges §7b's minimum-indoor-brightness slider so a
         // visual scenario can A/B a sealed room at full black against one held above it. "enabled" ==
