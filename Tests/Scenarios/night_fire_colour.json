@@ -1,0 +1,31 @@
+{
+  "name": "night_fire_colour",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "20" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "40" } },
+    { "type": "SetTime", "args": { "hour": "2" } },
+    { "type": "SetWeather", "args": { "weatherDef": "Clear", "instant": "true" } },
+
+    { "type": "SetTerrain", "args": { "def": "Soil", "width": "17", "height": "17" } },
+    { "type": "PlaceThings", "args": { "def": "Campfire", "layout": "cells", "cells": "0,0; 5,0; -5,0" } },
+    { "type": "PlaceThings", "args": { "def": "Fire", "layout": "cells", "cells": "0,0; 5,0; -5,0" } },
+    { "type": "LookAt", "args": { "zoom": "12" } },
+
+    { "type": "SetFeature", "args": { "featureName": "low_light_desaturation", "enabled": "false" } },
+    { "type": "Screenshot", "args": { "fileName": "fire_desat_off.png" } },
+    { "type": "SetFeature", "args": { "featureName": "low_light_desaturation", "enabled": "true" } },
+    { "type": "Screenshot", "args": { "fileName": "fire_desat_on.png" } },
+
+    {
+      "type": "Assert",
+      "args": {
+        "kind": "vision",
+        "images": "fire_desat_off.png, fire_desat_on.png",
+        "prompt": "Both images show the same night scene containing burning campfires. Compare the FIRES specifically, not the ground. In the second image, do the flames still read as clearly warm orange/yellow, roughly as saturated as in the first image? Answer no only if the flames are noticeably drained toward grey in the second image.",
+        "expect": "The flames remain clearly warm and orange in both images; any loss of colour is confined to the unlit ground around them, not the fire itself.",
+        "confidenceGate": "0.7"
+      }
+    }
+  ]
+}
