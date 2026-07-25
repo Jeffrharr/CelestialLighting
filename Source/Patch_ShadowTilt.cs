@@ -83,9 +83,14 @@ public static class Patch_ShadowTilt
         // by scaling the elevation-based intensity down via PenumbraMath.PenumbraContrastFactor.
         // Elevation comes from SolarPosition.ElevationForMap, the same shared adapter that drives
         // Patch_ShadowDirection/Patch_ShadowStrength, so all three read one identical Sun position.
+        // Honour the PenumbraContrast feature switch: on (shipped default) attenuates opacity toward
+        // the horizon and drives the softness hook; off keeps the raw elevation intensity with a hard
+        // edge (softness 0) — the pre-feature baseline the harness A/B compares against.
         float elevation = SolarPosition.ElevationForMap(map);
-        float shadowStrength = lightInfo.intensity * PenumbraMath.PenumbraContrastFactor(elevation);
-        float penumbraSoftness = PenumbraMath.PenumbraSoftness(elevation);
+        bool penumbra = CelestialLightingFeatures.PenumbraContrast;
+        float contrastFactor = penumbra ? PenumbraMath.PenumbraContrastFactor(elevation) : 1f;
+        float shadowStrength = lightInfo.intensity * contrastFactor;
+        float penumbraSoftness = penumbra ? PenumbraMath.PenumbraSoftness(elevation) : 0f;
 
         List<LayerSubMesh> subMeshes = __instance.subMeshes;
         for (int i = 0; i < subMeshes.Count; i++)

@@ -29,4 +29,14 @@ public static class CelestialLightingFeatures
     // warm tint snaps off at geometric sunset exactly as it did before this feature existed — that
     // "off" state is the A/B baseline the harness screenshots against before flipping it on.
     public static bool CivilTwilightPersistence = true;
+
+    // Feature key for PenumbraContrast (see CivilTwilightPersistenceKey for why the const lives here).
+    public const string PenumbraContrastKey = "penumbra";
+
+    // Angular-size penumbra contrast attenuation (Patch_ShadowTilt washes shadow opacity out toward
+    // the horizon as the solar-disk penumbra widens). When off, shadow opacity keeps the raw
+    // elevation-based intensity with no contrast falloff — crisp full-opacity shadows at every
+    // elevation, exactly as before this feature — and the no-op-safe _PenumbraSoftness shader hook is
+    // fed 0, so "off" is a clean pre-feature baseline for the harness A/B.
+    public static bool PenumbraContrast = true;
 }

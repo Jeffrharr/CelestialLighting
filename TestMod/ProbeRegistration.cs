@@ -24,5 +24,8 @@ public static class ProbeRegistration
         FeatureRegistry.Register(
             CelestialLightingFeatures.CivilTwilightPersistenceKey,
             enabled => CelestialLightingFeatures.CivilTwilightPersistence = enabled);
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.PenumbraContrastKey,
+            enabled => CelestialLightingFeatures.PenumbraContrast = enabled);
     }
 }
