@@ -31,6 +31,10 @@
     <Compile Include="../../Source/MoonMath.cs" Link="MoonMath.cs" />
     <Compile Include="../../Source/NightRadianceMath.cs" Link="NightRadianceMath.cs" />
     <Compile Include="../../Source/PurkinjeMath.cs" Link="PurkinjeMath.cs" />
+    <!-- Subsystem 13 pure core (weather dimming). Verse-free, so it compiles under net8.0 as-is.
+         WeatherDimmingMathTests also exercises PurkinjeMath above, since §13's whole purpose is to
+         feed §9 an apparent brightness that finally varies with weather. -->
+    <Compile Include="../../Source/WeatherDimmingMath.cs" Link="WeatherDimmingMath.cs" />
     <!-- Subsystem 8 pure core. Depends on Formulas.AtmosphericRefractionDegrees, so Formulas.cs
          above must be linked too (it already is). -->
     <Compile Include="../../Source/SkyColorTemperature.cs" Link="SkyColorTemperature.cs" />

@@ -119,13 +119,132 @@ public class ApiCompatibilityTests
     [Test]
     public void SkyColorSet_HasExpectedPublicFields()
     {
+        // Types are asserted, not just presence: §13's whole classifier reads `sky` as an RGB
+        // colour and `saturation` as a scalar. If either changed shape the formula would still
+        // compile against a renamed member but classify every weather wrongly.
+        var expected = new Dictionary<string, string>
+        {
+            ["sky"] = "UnityEngine.Color",
+            ["shadow"] = "UnityEngine.Color",
+            ["overlay"] = "UnityEngine.Color",
+            ["saturation"] = "System.Single",
+        };
+
         var type = GetType("Verse.SkyColorSet");
         Assert.That(type, Is.Not.Null, "Verse.SkyColorSet no longer exists");
-        foreach (var fieldName in new[] { "sky", "shadow", "overlay", "saturation" })
+        foreach (var (fieldName, fieldType) in expected)
         {
-            Assert.That(type!.Fields.Any(f => f.Name == fieldName && f.IsPublic), Is.True,
+            var field = type!.Fields.SingleOrDefault(f => f.Name == fieldName && f.IsPublic);
+            Assert.That(field, Is.Not.Null,
                 $"SkyColorSet.{fieldName} no longer exists or is no longer public");
+            Assert.That(field!.FieldType.FullName, Is.EqualTo(fieldType),
+                $"SkyColorSet.{fieldName} changed type");
         }
+    }
+
+    // --- WeatherManager / WeatherDef (Patch_WeatherDimming, §13) ---
+    //
+    // §13 classifies weather from its own def data and blends across transitions. It reads all of
+    // this off map.weatherManager rather than WeatherWorker's own `def` field — see
+    // WeatherWorker_DefFieldIsNotPublic below for why that is the deliberate choice.
+
+    [Test]
+    public void Map_WeatherManager_Exists()
+    {
+        var type = GetType("Verse.Map");
+        Assert.That(type, Is.Not.Null);
+        var field = type!.Fields.SingleOrDefault(f => f.Name == "weatherManager" && f.IsPublic);
+        Assert.That(field, Is.Not.Null, "Map.weatherManager no longer exists or is no longer public");
+        Assert.That(field!.FieldType.FullName, Is.EqualTo("RimWorld.WeatherManager"));
+    }
+
+    [Test]
+    public void WeatherManager_HasCurrentAndLastWeatherFields()
+    {
+        var type = GetType("RimWorld.WeatherManager");
+        Assert.That(type, Is.Not.Null, "RimWorld.WeatherManager no longer exists");
+        foreach (var fieldName in new[] { "curWeather", "lastWeather" })
+        {
+            var field = type!.Fields.SingleOrDefault(f => f.Name == fieldName && f.IsPublic);
+            Assert.That(field, Is.Not.Null,
+                $"WeatherManager.{fieldName} no longer exists or is no longer public");
+            Assert.That(field!.FieldType.FullName, Is.EqualTo("Verse.WeatherDef"));
+        }
+    }
+
+    [Test]
+    public void WeatherManager_HasTransitionAndRateProperties()
+    {
+        // TransitionLerpFactor is what §13 blends the outgoing and incoming weather's cloud opacity
+        // by; the three rates drive the precipitation-intensity band. All four are already
+        // transition-lerped by vanilla, which is why §13 does not lerp the rates itself.
+        var type = GetType("RimWorld.WeatherManager");
+        Assert.That(type, Is.Not.Null, "RimWorld.WeatherManager no longer exists");
+        foreach (var name in new[] { "TransitionLerpFactor", "RainRate", "SnowRate", "SandRate" })
+        {
+            var property = type!.Properties.SingleOrDefault(p => p.Name == name);
+            Assert.That(property, Is.Not.Null, $"WeatherManager.{name} no longer exists");
+            Assert.That(property!.PropertyType.FullName, Is.EqualTo("System.Single"),
+                $"WeatherManager.{name} is no longer a float");
+        }
+    }
+
+    [Test]
+    public void WeatherDef_HasSkyColorsDayForClassification()
+    {
+        var type = GetType("Verse.WeatherDef");
+        Assert.That(type, Is.Not.Null, "Verse.WeatherDef no longer exists");
+        var field = type!.Fields.SingleOrDefault(f => f.Name == "skyColorsDay" && f.IsPublic);
+        Assert.That(field, Is.Not.Null,
+            "WeatherDef.skyColorsDay no longer exists or is no longer public");
+        Assert.That(field!.FieldType.FullName, Is.EqualTo("Verse.SkyColorSet"));
+    }
+
+    [Test]
+    public void WeatherDef_HasPrecipitationRateFields()
+    {
+        var type = GetType("Verse.WeatherDef");
+        Assert.That(type, Is.Not.Null, "Verse.WeatherDef no longer exists");
+        foreach (var fieldName in new[] { "rainRate", "snowRate" })
+        {
+            var field = type!.Fields.SingleOrDefault(f => f.Name == fieldName && f.IsPublic);
+            Assert.That(field, Is.Not.Null,
+                $"WeatherDef.{fieldName} no longer exists or is no longer public");
+            Assert.That(field!.FieldType.FullName, Is.EqualTo("System.Single"));
+        }
+    }
+
+    [Test]
+    public void WeatherDef_MaxGlowStillExistsAndStillDefaultsToNoClamp()
+    {
+        // The premise §13 was built on. `maxGlow` is vanilla's ONLY per-weather lighting-magnitude
+        // knob, it defaults to 1.0, and across all vanilla XML it is set exactly once (Odyssey's
+        // Overcast, 0.95) — which is why weather does not meaningfully dim glow and why §13 works
+        // the colour channel instead. If a future RimWorld starts dimming glow per-weather, this
+        // field is where it would show up and §13's design note needs revisiting.
+        var type = GetType("Verse.WeatherDef");
+        Assert.That(type, Is.Not.Null, "Verse.WeatherDef no longer exists");
+        var field = type!.Fields.SingleOrDefault(f => f.Name == "maxGlow" && f.IsPublic);
+        Assert.That(field, Is.Not.Null, "WeatherDef.maxGlow no longer exists or is no longer public");
+        Assert.That(field!.FieldType.FullName, Is.EqualTo("System.Single"));
+    }
+
+    [Test]
+    public void WeatherWorker_DefFieldIsNotPublic()
+    {
+        // Pinning the road not taken. §13 could have read the active WeatherDef straight off the
+        // worker being postfixed, but `def` is private, so that would need FieldRefAccess. Reading
+        // map.weatherManager instead is exact rather than merely equivalent: SkyManager calls
+        // CurSkyTarget on BOTH the current and last worker and lerps the results by the same
+        // factor, so a uniform map-level multiply factors straight back out —
+        // Lerp(a*k, b*k, t) == k*Lerp(a, b, t). If this ever becomes public, the per-def read
+        // becomes available, but it would buy nothing.
+        var type = GetType("Verse.WeatherWorker");
+        Assert.That(type, Is.Not.Null, "Verse.WeatherWorker no longer exists");
+        var field = type!.Fields.SingleOrDefault(f => f.Name == "def");
+        Assert.That(field, Is.Not.Null, "WeatherWorker.def no longer exists");
+        Assert.That(field!.IsPublic, Is.False,
+            "WeatherWorker.def became public — see Patch_WeatherDimming for why we still don't need it");
     }
 
     // --- GameComponent / Game / GenDate (GameComponent_MoonPhase, MoonPosition) ---
