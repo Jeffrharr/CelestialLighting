@@ -29,6 +29,16 @@ namespace CelestialLighting;
 // parameter type) from this assembly — TargetMethod() looks it up by name instead, and the
 // Prefix below takes its public base class SectionLayer_Dynamic, which Harmony accepts since the
 // runtime instance is still the internal subclass.
+//
+// NOTE (verified live 2026-07): the angular-size penumbra OPACITY effect used to be folded into the
+// per-section _CastVect.w below, and a live A/B (CelestialLighting/Tests/Scenarios/penumbra_lowsun)
+// showed it produced *zero* visible change — confirming the "might silently do nothing" warning
+// above, at least for opacity. Opacity was moved to Patch_ShadowStrength (the global material-colour
+// channel). The per-section LENGTH VARIATION that remains here rides the SAME _CastVect MPB override,
+// so it is very likely ALSO inert — it has NOT been separately verified in-game. TODO: confirm the
+// length variation actually renders (author a live scenario that reads a per-edge shadow length, or
+// diffs a shadow near the map edge vs centre) and, if it's a no-op, remove it rather than shipping
+// dead experimental code. Tracked separately from the penumbra fix.
 [HarmonyPatch]
 public static class Patch_ShadowTilt
 {
@@ -76,21 +86,20 @@ public static class Patch_ShadowTilt
         Vector2 shadowDir = lightInfo.vector;
         float lengthScale = ComputeLengthScale(map, section, shadowDir);
 
-        // Angular-size penumbra: the Sun is a ~0.53-degree disk, not a point, so shadows soften near
-        // the horizon where the penumbra widens sharply. We can't blur the mesh edge without a custom
-        // shader, so we approximate it in the opacity channel the shader already reads — a wider
-        // penumbra leaves more of the footprint only partially shaded, i.e. a lower-contrast shadow —
-        // by scaling the elevation-based intensity down via PenumbraMath.PenumbraContrastFactor.
-        // Elevation comes from SolarPosition.ElevationForMap, the same shared adapter that drives
-        // Patch_ShadowDirection/Patch_ShadowStrength, so all three read one identical Sun position.
-        // Honour the PenumbraContrast feature switch: on (shipped default) attenuates opacity toward
-        // the horizon and drives the softness hook; off keeps the raw elevation intensity with a hard
-        // edge (softness 0) — the pre-feature baseline the harness A/B compares against.
+        // Shadow OPACITY — including the angular-size penumbra attenuation near the horizon — is
+        // handled globally in Patch_ShadowStrength (GenCelestial.CurShadowStrength), which is the
+        // value SkyManager lerps MatBases.SunShadow.color by and is what actually darkens the ground.
+        // A live A/B proved that scaling this per-section _CastVect.w changes nothing visible (the
+        // shader reads the global material colour, not a per-draw _CastVect.w), so it just carries
+        // lightInfo.intensity through unchanged — matching what vanilla would write there.
         float elevation = SolarPosition.ElevationForMap(map);
-        bool penumbra = CelestialLightingFeatures.PenumbraContrast;
-        float contrastFactor = penumbra ? PenumbraMath.PenumbraContrastFactor(elevation) : 1f;
-        float shadowStrength = lightInfo.intensity * contrastFactor;
-        float penumbraSoftness = penumbra ? PenumbraMath.PenumbraSoftness(elevation) : 0f;
+        float shadowStrength = lightInfo.intensity;
+
+        // Forward hook only (see PenumbraSoftnessId): the [0,1] softness a future edge-blur shader
+        // would consume. Gated by the feature flag for consistency; inert until such a shader exists.
+        float penumbraSoftness = CelestialLightingFeatures.PenumbraContrast
+            ? PenumbraMath.PenumbraSoftness(elevation)
+            : 0f;
 
         List<LayerSubMesh> subMeshes = __instance.subMeshes;
         for (int i = 0; i < subMeshes.Count; i++)

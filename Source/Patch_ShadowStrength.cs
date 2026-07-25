@@ -24,6 +24,19 @@ public static class Patch_ShadowStrength
     static void Postfix(Map map, ref float __result)
     {
         float elevation = SolarPosition.ElevationForMap(map);
-        __result = Formulas.ShadowIntensityFromElevation(elevation);
+        float strength = Formulas.ShadowIntensityFromElevation(elevation);
+
+        // Angular-size penumbra (feature-gated): attenuate the shadow strength toward the horizon,
+        // where the solar-disk penumbra widens and shadows lose contrast. CurShadowStrength is the
+        // CORRECT lever for this — it is exactly what SkyManager lerps MatBases.SunShadow.color by
+        // (the material colour that actually darkens the ground) and writes into the _CastVect
+        // global. An earlier attempt folded this into Patch_ShadowTilt's per-section _CastVect.w
+        // MaterialPropertyBlock override, which a live A/B proved inert: visible opacity is the
+        // global material colour, not a per-draw _CastVect.w. Penumbra is a map-wide function of sun
+        // elevation, so this global point is also the natural home for it — no per-section term.
+        if (CelestialLightingFeatures.PenumbraContrast)
+            strength *= PenumbraMath.PenumbraContrastFactor(elevation);
+
+        __result = strength;
     }
 }
