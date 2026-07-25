@@ -706,11 +706,17 @@ Two cross-cutting settings ideas that span the subsystems above:
   "Cinematic/Pretty") that set the correlated knobs together — shadow length/strength (§1/§3), night
   radiance floors (§7), desaturation strength (§9) — so most players pick one preset and never open
   a slider. Individual sliders remain for anyone who wants them.
-- **Minimum-brightness accessibility floor.** A user-set (and hotkey-toggleable) floor on displayed
-  night brightness. This is the deliberate complement to true pitch-black nights (§7): pitch-black
-  for atmosphere by default, one keypress to a legible floor when a player actually needs to see to
-  play. Because it clamps the *displayed* glow upward, it must be applied as the last step, after
-  §7's floors and any weather dimming.
+- **Minimum-brightness accessibility floor.** A user-set floor on displayed night brightness,
+  toggleable in Mod Settings and — if the player binds it — by an optional hotkey. This is the
+  deliberate complement to true pitch-black nights (§7): pitch-black for atmosphere by default, a
+  legible floor when a player actually needs to see to play. Because it clamps the *displayed* glow
+  upward, it must be applied as the last step, after §7's floors and any weather dimming.
+
+  The keybinding ships with **no default key**. It was `Semicolon` on the assumption that vanilla left
+  it free; vanilla binds it to `Dev_ToggleGodMode`, so every install logged a startup "Key binding
+  conflict" and one of the two lost. Since almost every free key risks colliding with some other mod
+  instead, the def ships unbound and is assignable in Options -> Keyboard Configuration. The checkbox
+  and slider in Mod Settings mean this costs discoverability, not reachability.
 
 All tunables persist via the mod's `ModSettings`; the preset buttons just write bundles of those
 same values, so a preset is never a separate code path.

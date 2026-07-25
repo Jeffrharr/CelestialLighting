@@ -187,7 +187,7 @@ public class CelestialLightingSettingsMod : Mod
         Text.Font = GameFont.Medium;
         listing.Label("Accessibility: minimum brightness");
         Text.Font = GameFont.Small;
-        listing.Label("An opt-in floor on how dark nights can look. The complement to pitch-black nights: black for atmosphere, one keypress to legible when you need to see. Toggle it in-game with the \"Toggle minimum brightness\" hotkey.");
+        listing.Label("An opt-in floor on how dark nights can look. The complement to pitch-black nights: black for atmosphere, one keypress to legible when you need to see. Bind the \"Toggle minimum brightness\" key in Options - Keyboard Configuration to flip it in-game; it ships unbound.");
 
         listing.CheckboxLabeled("Enable minimum brightness floor", ref Settings.brightnessFloorEnabled);
         Settings.brightnessFloor = LabeledSlider(listing, "Minimum brightness", Settings.brightnessFloor, 0f, 1f);

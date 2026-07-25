@@ -6,14 +6,18 @@
        "in-game global" bucket, so it shows alongside other colony-mode controls in Options →
        Keyboard Configuration and is conflict-checked against them.
 
-       Default is Semicolon, an unbound key in vanilla, to avoid stealing an existing binding; a
-       player can rebind it freely. The floor also has an on/off checkbox in Mod Settings, so an
-       unbound or rebound key never leaves the feature unreachable. -->
+       Ships with NO default key, deliberately. The previous default was Semicolon on the assumption
+       that it was unbound in vanilla — it is not: vanilla binds it to Dev_ToggleGodMode, so every
+       install logged a "Key binding conflict" at startup and one of the two bindings lost. Rather than
+       hunt for another free key (there are very few, and any choice risks colliding with some other
+       mod instead), this ships unbound and lets the player assign it in Options -> Keyboard
+       Configuration if they want it. The floor also has an on/off checkbox and a slider in Mod
+       Settings, so shipping unbound never leaves the feature unreachable — it only removes the
+       shortcut. -->
   <KeyBindingDef>
     <defName>CelestialLighting_ToggleBrightnessFloor</defName>
     <label>Toggle minimum brightness</label>
     <category>Game</category>
-    <defaultKeyCodeA>Semicolon</defaultKeyCodeA>
   </KeyBindingDef>
 
 </Defs>

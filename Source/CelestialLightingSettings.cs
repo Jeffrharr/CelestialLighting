@@ -9,7 +9,8 @@ namespace CelestialLighting;
 //
 // Field defaults describe the out-of-box experience: the mod ships on the Realistic preset (its
 // realism focus), with the accessibility brightness floor OFF so nights are atmospheric by default
-// and one keypress away from legible (see GameComponent_BrightnessFloorHotkey).
+// and one checkbox (or an optional, unbound-by-default hotkey — see
+// GameComponent_BrightnessFloorHotkey) away from legible.
 public class CelestialLightingSettings : ModSettings
 {
     // Which named bundle (if any) the aesthetic knobs currently reflect. Goes to Custom the instant
