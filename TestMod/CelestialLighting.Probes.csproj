@@ -25,6 +25,7 @@
     <Compile Include="../Source/Probes/NightRadianceProbe.cs" Link="NightRadianceProbe.cs" />
     <Compile Include="../Source/Probes/PurkinjeProbe.cs" Link="PurkinjeProbe.cs" />
     <Compile Include="../Source/Probes/SkyColorTemperatureProbe.cs" Link="SkyColorTemperatureProbe.cs" />
+    <Compile Include="../Source/Probes/AuroraTintProbe.cs" Link="AuroraTintProbe.cs" />
   </ItemGroup>
 
   <ItemGroup>

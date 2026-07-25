@@ -23,6 +23,11 @@ public static class Patch_AuroraTint
 {
     static void Postfix(Map map, ref SkyTarget __result)
     {
+        // Feature gate (default on): when off, leave the sky exactly as vanilla/§2/§8 composed it —
+        // the faithful pre-feature baseline. Sits before the condition lookup so "off" is a true no-op.
+        if (!CelestialLightingFeatures.Aurora)
+            return;
+
         GameCondition driver = AuroraConditions.ActiveTintDriver(map);
         if (driver == null)
             return;

@@ -65,6 +65,15 @@ public static class CelestialLightingFeatures
     // vanilla/§2 renders it — the faithful pre-feature baseline for the harness A/B.
     public static bool SkyColorTemperature = true;
 
+    // Feature key for Aurora (see CivilTwilightPersistenceKey for why it lives here).
+    public const string AuroraKey = "aurora";
+
+    // §11 auroral night-sky tint during a solar flare: Patch_AuroraTint shifts the night sky toward
+    // auroral greens/reds while a SolarFlare condition is active (colour-only, never glow). When off,
+    // the patch early-returns and leaves the sky exactly as vanilla/§2/§8 rendered it — the faithful
+    // pre-feature baseline for the harness A/B.
+    public static bool Aurora = true;
+
     // Feature key for NightRadiance (see CivilTwilightPersistenceKey for why the const lives here).
     public const string NightRadianceKey = "night_radiance";
 
