@@ -82,12 +82,13 @@ public static class ProbeRegistration
         FeatureRegistry.Register(
             CelestialLightingFeatures.PitchBlackNightsKey,
             enabled => CelestialLightingFeatures.PitchBlackNights = enabled);
-        // Not a CelestialLightingFeatures flag: the opt-in natural-eclipse timing lives on
-        // EclipseSettings (mirrors the mod's own "Natural eclipse timing" checkbox). Bridged so a
-        // scenario can flip the §10a mode on and film/validate the real geometric trigger.
+        // Not a CelestialLightingFeatures flag: the eclipse mode lives on EclipseSettings (mirrors the
+        // mod's own eclipse-mode radio). Bridged as a bool for the harness's SetFeature step: enabled
+        // => NaturalOnly (pure geometric eclipses, so a scenario films/validates the §10a trigger in
+        // isolation), disabled => Both (the shipped default).
         FeatureRegistry.Register(
             "natural_eclipse",
-            enabled => EclipseSettings.NaturalEclipseEnabled = enabled);
+            enabled => EclipseSettings.Mode = enabled ? EclipseMode.NaturalOnly : EclipseMode.Both);
         // Dev-only staging for the natural-eclipse trigger validation: a real eclipse only happens
         // once every few game years, so this phase-slides the modeled moon (via the pure EclipseStaging
         // math) onto a genuine new-moon-at-node alignment one pre-roll ahead of "now", after which the

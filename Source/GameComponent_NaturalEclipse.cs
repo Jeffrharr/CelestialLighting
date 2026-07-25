@@ -4,8 +4,9 @@ using Verse;
 
 namespace CelestialLighting;
 
-// Orchestrates the NATURAL eclipse (DESIGN.md §10a): while EclipseSettings.NaturalEclipseEnabled is
-// on, it watches the modeled moon and, when the moon geometrically transits the sun (the rare
+// Orchestrates the NATURAL eclipse (DESIGN.md §10a): while the eclipse mode includes natural eclipses
+// (NaturalOnly or the default Both) and the "Eclipse effects" master is on, it watches the modeled
+// moon and, when the moon geometrically transits the sun (the rare
 // new-moon-at-a-node alignment the inclination/node model in MoonMath produces), fires a real, SHORT
 // vanilla Eclipse GameCondition on every player map and publishes the transit's magnitude so the
 // darkening reads as a full or a partial eclipse. The random Eclipse *incident* is separately
@@ -40,7 +41,13 @@ public class GameComponent_NaturalEclipse : GameComponent
 
     public override void GameComponentTick()
     {
-        if (!EclipseSettings.NaturalEclipseEnabled)
+        // The "Eclipse darkening" toggle (CelestialLightingFeatures.EclipseDarkening) is the master for
+        // all of CelestialLighting's eclipse handling — with it off the mod does nothing to eclipses
+        // (vanilla flat dim, vanilla random timing), so the geometric trigger stands down too.
+        if (!CelestialLightingFeatures.EclipseDarkening)
+            return;
+
+        if (!EclipseModeRules.NaturalTriggerActive(EclipseSettings.Mode))
             return;
 
         if (Find.TickManager.TicksGame % CheckIntervalTicks != 0)
@@ -85,6 +92,9 @@ public class GameComponent_NaturalEclipse : GameComponent
         EclipseIntegration.ActiveNaturalMagnitude = magnitude;
         GameCondition condition = GameConditionMaker.MakeCondition(GameConditionDefOf.Eclipse, duration);
         map.gameConditionManager.RegisterCondition(condition);
+        // Tag it as ours so that in Both mode the darkening patch renders this one with the natural
+        // ramp while the storyteller's random eclipses still render unnatural.
+        EclipseIntegration.MarkNaturalCondition(condition);
         return true;
     }
 

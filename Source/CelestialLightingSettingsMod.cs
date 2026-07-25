@@ -95,12 +95,30 @@ public class CelestialLightingSettingsMod : Mod
             "Warm the sky toward the horizon on a continuous, altitude-keyed curve.");
         listing.CheckboxLabeled("Aurora during solar flares", ref Settings.aurora,
             "Shift the night sky toward auroral greens/reds while a solar flare is active.");
-        listing.CheckboxLabeled("Eclipse darkening", ref Settings.eclipseDarkening,
-            "Reshape the vanilla eclipse's flat dim into a gradual fly-in / park / fly-out.");
-        listing.CheckboxLabeled("Natural eclipse timing (opt-in)", ref Settings.naturalEclipse,
-            "Also fire eclipses at their real, short astronomically-correct duration from the modeled moon. Changes WHEN a gameplay event occurs, so it is off by default.");
+        listing.CheckboxLabeled("Eclipse effects", ref Settings.eclipseDarkening,
+            "Master toggle for CelestialLighting's eclipse handling. Off = vanilla eclipses (flat dim, storyteller timing) and none of the modes below. On = reshaped darkening plus the eclipse mode selected below.");
+        DrawEclipseModeRadio(listing);
         listing.CheckboxLabeled("Blood-moon crimson (VRE – Sanguophage)", ref Settings.bloodMoon,
             "Recolour the moonlit night crimson while VRE – Sanguophage's blood-moon condition is active. Inert without that mod.");
+    }
+
+    // The three eclipse flavours (DESIGN.md §10). Only meaningful while "Eclipse effects" above is on
+    // (the master); each option's tooltip spells out what fires and how it renders. Mirrors the preset
+    // radio pattern below — RadioButton returns true only on the click that selects an option.
+    private void DrawEclipseModeRadio(Listing_Standard listing)
+    {
+        DrawEclipseModeOption(listing, EclipseMode.Both, "Natural + unnatural eclipse  (default)",
+            "Both at once: real geometric eclipses fire at astronomically-correct times (rendered with the natural transit ramp), AND the storyteller's random eclipses still occur (rendered with the fly-in / park / fly-out darkening).");
+        DrawEclipseModeOption(listing, EclipseMode.NaturalOnly, "Natural eclipse only",
+            "Only real geometric eclipses, fired from the modeled moon at their short astronomically-correct duration (~one every few game years). The storyteller's random eclipse is suppressed so the two never double-fire.");
+        DrawEclipseModeOption(listing, EclipseMode.UnnaturalOnly, "Unnatural eclipse event only",
+            "Purely cosmetic — no extra events. Only the storyteller's own random eclipse occurs, reshaped from vanilla's flat dim into a gradual fly-in / park / fly-out.");
+    }
+
+    private void DrawEclipseModeOption(Listing_Standard listing, EclipseMode option, string label, string tooltip)
+    {
+        if (listing.RadioButton(label, Settings.eclipseMode == option, tabIn: 8f, tooltip))
+            Settings.eclipseMode = option;
     }
 
     private void DrawPresetSection(Listing_Standard listing)

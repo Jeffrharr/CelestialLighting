@@ -7,17 +7,24 @@ namespace CelestialLighting;
 // geometry (GameComponent_NaturalEclipse), so the storyteller's random Eclipse *incident* must stand
 // down — otherwise a scripted eclipse on some arbitrary day would double up with our geometric ones.
 // This prefixes IncidentWorker.CanFireNow and vetoes exactly the Eclipse incident while the mode is
-// enabled. Every other incident, and the whole default (mode-off) path, is untouched: when
-// NaturalEclipseEnabled is false this returns immediately and the original runs unchanged, so it is a
-// true no-op for the shipped-default cosmetic mod.
+// NaturalOnly. Every other incident, and every other mode, is untouched: outside NaturalOnly (and
+// when the master "Eclipse effects" toggle is off) this returns immediately and the original runs
+// unchanged. In the default Both mode the storyteller's eclipses are deliberately kept alongside the
+// geometric ones, so nothing is suppressed there.
 [HarmonyPatch(typeof(IncidentWorker), nameof(IncidentWorker.CanFireNow))]
 public static class Patch_SuppressRandomEclipse
 {
-    // Return true => let the original CanFireNow run (all non-Eclipse incidents, and everything when
-    // the mode is off). Return false with __result=false => veto just the random Eclipse.
+    // Return true => let the original CanFireNow run (all non-Eclipse incidents, and every mode that
+    // keeps the random eclipse). Return false with __result=false => veto just the random Eclipse.
+    // Only NaturalOnly suppresses it — in Both we deliberately keep the storyteller's eclipses
+    // alongside the geometric ones, and in UnnaturalOnly they are the whole feature.
     static bool Prefix(IncidentWorker __instance, ref bool __result)
     {
-        if (!EclipseSettings.NaturalEclipseEnabled || __instance.def != IncidentDefOf.Eclipse)
+        // Master off => the mod leaves eclipses entirely alone, so don't suppress the random one either.
+        if (!CelestialLightingFeatures.EclipseDarkening)
+            return true;
+
+        if (!EclipseModeRules.SuppressRandomEclipse(EclipseSettings.Mode) || __instance.def != IncidentDefOf.Eclipse)
             return true;
 
         __result = false;

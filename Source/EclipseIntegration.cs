@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using RimWorld;
 using Verse;
 
@@ -8,9 +9,9 @@ namespace CelestialLighting;
 // Eclipse GameCondition only when the modeled moon actually transits the sun, with the correct SHORT
 // real-eclipse duration, and suppresses the random Eclipse incident so the two don't double-fire.
 // Because it changes *when* and *how long* a gameplay event (solar-power loss, colonist mood) occurs,
-// it steps one notch outside this mod's visual-only remit and is gated behind EclipseSettings
-// .NaturalEclipseEnabled, which defaults OFF — the unnatural (§10b) cosmetic darkening in
-// Patch_EclipseDarkening stays the pure-visual default and depends on none of this.
+// it is one of the flavours selected by EclipseSettings.Mode (the three-way eclipse-mode radio): it
+// runs in NaturalOnly and in the default Both, and stands down in UnnaturalOnly, where only the
+// storyteller's random eclipse gets the §10b cosmetic reshape in Patch_EclipseDarkening.
 //
 // The trigger needs the modeled moon's true ecliptic position — orbital inclination + nodes — which
 // the moon-position subsystem (DESIGN.md §6) now provides: GameComponent_MoonPhase exposes both the
@@ -32,6 +33,26 @@ public static class EclipseIntegration
     // the dev probe can scale the ramp to how much of the sun is actually covered. Resets to 1 (the
     // central default) so the unnatural mode and any not-yet-computed state read a full park.
     public static double ActiveNaturalMagnitude = 1.0;
+
+    // The Eclipse conditions WE fired from geometry, so the darkening patch/probe can tell a natural
+    // eclipse from the storyteller's when Both mode has both kinds. Reference identity, pruned of
+    // expired entries on each fire so it can't grow without bound over a long game. (Not persisted:
+    // if a save is taken mid-eclipse in Both mode, that one condition renders unnatural for its
+    // remainder after load — cosmetic-only, and eclipses are short and rare.)
+    private static readonly HashSet<GameCondition> naturalConditions = new HashSet<GameCondition>();
+
+    // Record a condition as one of ours (called by GameComponent_NaturalEclipse right after it fires).
+    public static void MarkNaturalCondition(GameCondition condition)
+    {
+        naturalConditions.RemoveWhere(c => c == null || c.Expired);
+        naturalConditions.Add(condition);
+    }
+
+    // Which darkening ramp this active eclipse should use, per the current mode (and, in Both mode,
+    // whether we fired it). The single choke point both the live patch and the offline probe call so
+    // they render identically.
+    public static bool RendersNatural(GameCondition condition) =>
+        EclipseModeRules.RendersNatural(EclipseSettings.Mode, naturalConditions.Contains(condition));
 
     // The live geometry provider: reads the game-wide modeled moon (shared across all maps) and the
     // planet's orbital day-of-year, and turns them into the sun-moon separation and the eclipse's
@@ -93,7 +114,7 @@ public static class EclipseIntegration
     // asked. When both are present the decision defers to the pure geometry check, keeping it testable.
     public static bool ShouldEclipseBeActive(Map map)
     {
-        if (!EclipseSettings.NaturalEclipseEnabled)
+        if (!EclipseModeRules.NaturalTriggerActive(EclipseSettings.Mode))
             return false;
 
         MoonSunGeometry? geometry = MoonSunGeometryProvider?.Invoke(map);

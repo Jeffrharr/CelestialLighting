@@ -532,25 +532,44 @@ geometry that drives a gradual partial → near-total darkening and the characte
 colour, replacing the vanilla flat dim. Only *what moves the discs together* and *how long they stay*
 differ.
 
-### 10a. Natural eclipse (opt-in, off by default)
+### Eclipse mode (natural / unnatural / both)
+
+Natural (§10a) and unnatural (§10b) are independent — natural fires real geometric *events*,
+unnatural only reshapes the darkening of the storyteller's own eclipse — so all three combinations
+are exposed as a radio (`EclipseMode`, pure rules in `EclipseModeRules`, tested):
+
+- **Natural + unnatural — the shipped default.** Geometric eclipses fire at real astronomical times
+  (natural ramp) *and* the storyteller's random eclipses still occur (unnatural ramp); each active
+  eclipse is darkened by whichever kind it is (`EclipseIntegration.RendersNatural` tags the ones we
+  fired). This does mean natural eclipses — which touch gameplay — are on by default, a deliberate
+  choice; the two other modes let a player opt out either direction.
+- **Natural only.** Only geometric eclipses; the random storyteller eclipse is suppressed
+  (`Patch_SuppressRandomEclipse`) so they don't double-fire.
+- **Unnatural eclipse only.** The original visual-only behaviour: no extra events, just the §10b
+  reshape of the storyteller's eclipse.
+
+The "Eclipse effects" checkbox is the master above the radio — off means the mod leaves eclipses
+entirely alone (vanilla flat dim, vanilla timing, no trigger, no suppression).
+
+### 10a. Natural eclipse
 
 Driven by the modeled moon's real position (§6): when the moon geometrically transits the sun, fire
 an eclipse that lasts the **correct, short real-eclipse duration** — the event triggers *during an
 actual eclipse* and ends when the discs part. Astronomically accurate in both when it happens and
 how long it lasts.
 
-This steps **one notch outside the visual-only remit** — it changes *when* (and, by shortening the
-duration, *how long*) a gameplay event occurs (solar-power loss, mood) — so it is opt-in and **off by
-default**. Design consequences:
+Because it changes *when* (and, by shortening the duration, *how long*) a gameplay event occurs
+(solar-power loss, mood), it is the flavour gated by the eclipse-mode radio above (active in
+Natural-only and the default Both). Design consequences:
 
 - It requires the moon's **orbital inclination and nodes** (see §6 scope note). With the flat
   Moon-on-the-ecliptic approximation the moon would transit every new moon and eclipses would fire
   ~monthly; the tilt + nodal geometry is what makes them appropriately rare and correctly timed. This
   feature owns that extra modeling — shadows/moonlight don't pay for it.
 - It drives vanilla's *existing* `Eclipse` condition (with a corrected short duration) rather than a
-  new one, so all downstream mods that react to eclipses keep working. While this mode is on, the
-  random vanilla eclipse incident is suppressed (otherwise they double-fire) — the random ones can
-  instead be surfaced as *unnatural* eclipses (10b), a setting.
+  new one, so all downstream mods that react to eclipses keep working. In **Natural-only** the random
+  vanilla eclipse incident is suppressed so the two don't double-fire; in the default **Both** the
+  random ones are deliberately kept and rendered as *unnatural* (§10b) alongside the geometric ones.
 
 **Implementation (now wired, against the merged §6 moon).** The inclination/node geometry lives in the
 pure `MoonMath` core (`LunarInclinationDegrees`, a slowly-regressing nodal cycle, `MoonEclipticLatitude`

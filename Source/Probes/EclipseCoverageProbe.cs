@@ -25,9 +25,9 @@ public sealed class EclipseCoverageProbe : IProbe
             return 0f;
 
         float progress = EclipseIntegration.ProgressOf(eclipse);
-        // Mirror the darkening patch exactly, magnitude included, so the probe reads back the same
-        // central-or-partial value the sky is actually being lerped to.
+        // Mirror the darkening patch exactly — same per-condition natural/unnatural selection and
+        // magnitude — so the probe reads back the same value the sky is actually being lerped to.
         return (float)EclipseMath.SkyLerpFactorAtProgress(
-            progress, EclipseSettings.NaturalEclipseEnabled, EclipseIntegration.ActiveNaturalMagnitude);
+            progress, EclipseIntegration.RendersNatural(eclipse), EclipseIntegration.ActiveNaturalMagnitude);
     }
 }

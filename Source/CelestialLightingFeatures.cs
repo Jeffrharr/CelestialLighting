@@ -119,11 +119,12 @@ public static class CelestialLightingFeatures
     // Feature key for EclipseDarkening (see CivilTwilightPersistenceKey for why it lives here).
     public const string EclipseDarkeningKey = "eclipse_darkening";
 
-    // §10 eclipse darkening: Patch_EclipseDarkening replaces vanilla's abrupt flat eclipse dim with a
-    // gradual disc fly-in/park/fly-out coverage ramp (colour + glow) on the Eclipse event. When off,
-    // the patch early-returns and vanilla's own SkyTargetLerpFactor stands — the faithful pre-feature
-    // baseline for the harness A/B. (This gates only the *visual* reshape; the opt-in natural-eclipse
-    // timing lives separately on EclipseSettings.NaturalEclipseEnabled.)
+    // §10 eclipse MASTER (surfaced as the "Eclipse effects" checkbox). When off, everything eclipse
+    // stands down — Patch_EclipseDarkening early-returns so vanilla's own flat SkyTargetLerpFactor
+    // stands (the faithful pre-feature baseline for the harness A/B), the geometric trigger doesn't
+    // fire, and the random eclipse isn't suppressed. When on, Patch_EclipseDarkening reshapes the dim
+    // into the coverage ramp, and which flavour(s) of eclipse are live is chosen by EclipseSettings
+    // .Mode (the natural/unnatural/both radio).
     public static bool EclipseDarkening = true;
 
     // Feature key for BloodMoon (see CivilTwilightPersistenceKey for why it lives here).

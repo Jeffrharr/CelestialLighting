@@ -49,8 +49,9 @@ public class CelestialLightingSettings : ModSettings
     // IndoorOcclusionMath.DefaultDoorSkyLeak for why doors need this at all.
     public float doorSkyLeak = IndoorOcclusionMath.DefaultDoorSkyLeak;
 
-    // --- Eclipse (drives EclipseSettings) — opt-in real-timing natural eclipse, off by default. ---
-    public bool naturalEclipse = false;
+    // --- Eclipse (drives EclipseSettings.Mode) — which eclipse flavour(s) are live. Defaults to Both:
+    //     geometric natural eclipses AND the storyteller's unnatural-rendered ones. See EclipseMode. ---
+    public EclipseMode eclipseMode = EclipseMode.Both;
 
     // --- Accessibility brightness floor (live now; see Patch_BrightnessFloor) ---
     // Off by default: pitch-black atmosphere until a player actively opts in (slider or hotkey).
@@ -102,7 +103,7 @@ public class CelestialLightingSettings : ModSettings
         NightRadianceSettings.Current.AtmosphericGlowEnabled = atmosphericGlow;
         NightRadianceSettings.Current.MinNightBrightness = minNightBrightness;
 
-        EclipseSettings.NaturalEclipseEnabled = naturalEclipse;
+        EclipseSettings.Mode = eclipseMode;
 
         // The accessibility floor reaches interiors through §7b rather than through glow: roofed cells
         // never take sky glow (GlowGrid.GroundGlowAt returns early for them), so lifting CurSkyGlow
@@ -136,7 +137,7 @@ public class CelestialLightingSettings : ModSettings
         Scribe_Values.Look(ref doorSkyLeak, "doorSkyLeak", IndoorOcclusionMath.DefaultDoorSkyLeak);
         Scribe_Values.Look(ref atmosphericGlow, "atmosphericGlow", true);
         Scribe_Values.Look(ref minNightBrightness, "minNightBrightness", NightRadianceMath.DefaultMinNightBrightness);
-        Scribe_Values.Look(ref naturalEclipse, "naturalEclipse", false);
+        Scribe_Values.Look(ref eclipseMode, "eclipseMode", EclipseMode.Both);
         Scribe_Values.Look(ref shadowLengthScale, "shadowLengthScale", Presets.Realistic.ShadowLengthScale);
         Scribe_Values.Look(ref shadowStrength, "shadowStrength", Presets.Realistic.ShadowStrength);
         Scribe_Values.Look(ref nightRadianceFloor, "nightRadianceFloor", Presets.Realistic.NightRadianceFloor);
