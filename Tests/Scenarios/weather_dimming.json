@@ -38,11 +38,11 @@
     { "type": "SetWeather", "args": { "weatherDef": "Clear", "instant": "true" } },
     { "type": "Screenshot", "args": { "fileName": "wd_night_clear.png" } },
     { "type": "Probe", "args": { "probeName": "sky_glow", "expectedValue": "0.1419", "tolerance": "0.009" } },
-    { "type": "Probe", "args": { "probeName": "purkinje", "expectedValue": "0.6322", "tolerance": "0.034" } },
+    { "type": "Probe", "args": { "probeName": "purkinje", "expectedValue": "0.534", "tolerance": "0.034" } },
     { "type": "SetWeather", "args": { "weatherDef": "Rain", "instant": "true" } },
     { "type": "Screenshot", "args": { "fileName": "wd_night_rain.png" } },
     { "type": "Probe", "args": { "probeName": "sky_glow", "expectedValue": "0.1419", "tolerance": "0.009" } },
-    { "type": "Probe", "args": { "probeName": "purkinje", "expectedValue": "0.7770", "tolerance": "0.025" } },
+    { "type": "Probe", "args": { "probeName": "purkinje", "expectedValue": "0.6955", "tolerance": "0.031" } },
 
     { "type": "SetWeather", "args": { "weatherDef": "Clear", "instant": "true" } }
   ]

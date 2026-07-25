@@ -408,10 +408,24 @@ original "true pitch-black unlit nights" ask wasn't actually visible from the gl
 `Patch_PitchBlackOverlay` is a Postfix on `SkyManager.SkyManagerUpdate` that runs *after* vanilla (and
 §9's desaturation) have composed `MatBases.LightOverlay` / `MatBases.FogOfWar`, and lerps their colours
 toward opaque black by how far below full brightness the night floor sits
-(`NightRadianceMath.OverlayBrightnessFactor(CurSkyGlow, minBrightness)` — linear between two anchors
-derived from §7's own source constants: fully black at/below `OverlayDarkGlow` (= starlight + airglow,
-the baseline of darkness) and untouched at/above `OverlayFullBrightGlow` (= that floor plus a full moon
-at zenith), so only *moonlight* buys screen brightness back). Injecting at the composed overlay, not in a `SkyTarget` postfix, is deliberate: it darkens
+(`NightRadianceMath.OverlayBrightnessFactor(CurSkyGlow, minBrightness)` — linear between two anchors:
+fully black at/below `OverlayDarkGlow` (**0** — only a genuinely zero sky blacks the screen out) and
+untouched at/above `OverlayFullBrightGlow` (= starlight + airglow + a full moon at zenith, spelled out
+from §7's source constants).
+
+That dark anchor sat at the starlight+airglow sum (0.04) for a while, on the reasoning that the
+constant floors are "the baseline of darkness" and only moonlight should buy the screen back. That
+conflated two different things and produced a visible bug: with the floors **on** and no moon, glow is
+exactly 0.04 — the anchor itself — so the overlay went fully black, indistinguishable from having the
+floors off. The **Atmospheric night glow** toggle therefore did nothing at all outdoors on a moonless
+night, which is exactly where a player would look for it. Anchoring at 0 restores the intent: the
+floors are meant to be *seen* outdoors (a moonless night keeps `0.04/0.19 ≈ 21%` of overlay
+brightness — a faint starlit dark rather than a void), and true pitch-black is reached the way the
+design always documented, by turning the floors off so glow lands at 0. The toggle is now what
+distinguishes those two states on screen, which is its entire job. Indoors is unaffected either way:
+§7b occludes the sky for roofed cells, so the floors never showed there.
+
+Injecting at the composed overlay, not in a `SkyTarget` postfix, is deliberate: it darkens
 *last* and never fights §2/§9 for ownership of `colors.sky`. A bright moonlit night keeps vanilla
 brightness; a moonless / floors-off night blacks out — down to the `MinNightBrightness` clamp, the
 playability floor (ships at 0 = truly pitch black; raise it via settings if that is hard to navigate,
@@ -655,12 +669,34 @@ A second Harmony Postfix on `WeatherWorker.CurSkyTarget` (alongside §2's) that:
   star/airglow floors, a full-moon night lands lower on the desaturation ramp than a new-moon one
   automatically.
 - Feeds that glow to `PurkinjeMath.PurkinjeFactor` — the pure "how far into rod vision are we" ramp:
-  `0` at/above `OnsetGlow` (0.30, below vanilla's 0.6 dusk and §2's 0.35 peak, so golden hour stays
-  warm), `1` at/below `FullGlow` (0.05, a small nonzero floor so the shift completes while it's
-  still bright enough to see). The falloff and the resulting `SaturationMultiplier` live in
-  `Source/PurkinjeMath.cs` (its own System-only pure file, not `Formulas.cs`, to avoid colliding
-  with the other in-flight subsystems editing `Formulas.cs`) with offline `[TestCase]` coverage of
-  both plateaus, monotonicity, the midpoint, and the multiplier endpoints.
+  `0` at/above `OnsetGlow`, `1` at/below `FullGlow` (0.05, a small nonzero floor so the shift
+  completes while it's still bright enough to see).
+
+  `OnsetGlow` is **0.50**, anchored on RimWorld's own definition of "fully lit" rather than on
+  taste. `Verse.GlowGrid.GroundGlowAt` caps ordinary artificial light at exactly 0.5
+  (`b = Mathf.Min(0.5f, b)`) and `PlantProperties.growMinGlow` is 0.51 — which is precisely why sun
+  lamps need `GroundGlowAt`'s `accumulatedGlowAt.a == 1 → return 1f` escape hatch to grow anything.
+  So 0.5 is the brightest an ordinary lamp-lit cell ever reads, and a lamp-lit room must render at
+  full colour; anything dimmer is, by the game's own measure, less than fully lit.
+
+  The ramp between the anchors is **not linear**. Moving the onset up to 0.5 stretches it across the
+  whole dusk band, and a linear ramp would drain ~20% of the scene's colour at glow 0.35 — exactly
+  §2's twilight peak, where §2 and §8 are warming the sky and golden hour is supposed to read warm
+  rather than grey. `RampExponent` (2.75) eases the curve in so it hugs zero through the top of its
+  range and only bites once the scene is genuinely dim. The exponent is derived from that
+  constraint, not chosen by eye: at glow 0.35 the normalised position is `(0.50 - 0.35) / 0.45 =
+  1/3`, and `(1/3)^2.75 ≈ 0.05`, so the twilight peak keeps ~95% of its saturation.
+
+  **Known limitation.** `SkyColorSet.saturation` becomes `Find.CameraColor.saturation`, which is a
+  *global* camera multiplier keyed on **sky** glow — it cannot distinguish a lamp-lit interior from
+  the dark outdoors. So a room sitting at 0.5 local glow is still desaturated at night by whatever
+  the sky is doing. Anchoring the onset at 0.5 is the closest this channel can get to "fully lit
+  reads as full colour"; a genuinely per-cell fix would need a mechanism other than `SkyColorSet`.
+
+  The falloff and the resulting `SaturationMultiplier` live in `Source/PurkinjeMath.cs` (its own
+  System-only pure file, not `Formulas.cs`, to avoid colliding with the other in-flight subsystems
+  editing `Formulas.cs`) with offline `[TestCase]` coverage of both plateaus, monotonicity, the
+  eased midpoint, the artificial-light cap, the golden-hour constraint, and the multiplier endpoints.
 - Applies the factor as a colour-only nudge: multiplies `SkyColorSet.saturation` down toward a
   rod-vision floor (60% of colour removed at full shift) and `Color.Lerp`s the `sky`/`overlay` tints
   toward a desaturated cool blue-grey (the perceptual Purkinje blue). Lerping (never overwriting)

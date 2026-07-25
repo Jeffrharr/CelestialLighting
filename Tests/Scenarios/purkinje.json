@@ -9,6 +9,6 @@
     { "type": "SetTime", "args": { "hour": "23" } },
     { "type": "Probe", "args": { "probeName": "purkinje", "expectedValue": "1.0", "tolerance": "0.005" } },
     { "type": "SetTime", "args": { "hour": "2" } },
-    { "type": "Probe", "args": { "probeName": "purkinje", "expectedValue": "0.66448", "tolerance": "0.03" } }
+    { "type": "Probe", "args": { "probeName": "purkinje", "expectedValue": "0.56706", "tolerance": "0.03" } }
   ]
 }

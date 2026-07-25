@@ -25,13 +25,34 @@ public static class PurkinjeMath
     // scene keeps its full daytime colour (factor 0). Below FullGlow, we treat vision as fully
     // rod-dominated (factor 1). In between is the mesopic hand-over ramp.
     //
-    // OnsetGlow sits below vanilla's dusk threshold (0.6) and below §2's twilight peak (0.35): the
-    // colour shift must not start eating into golden hour, when cones are still firing and the sky
-    // is *supposed* to read warm. FullGlow is a small nonzero value, not 0, so the effect is fully
-    // developed slightly before the sky goes pitch black — otherwise the shift would only complete
-    // at a brightness too low to actually see it.
-    public const float OnsetGlow = 0.30f;
+    // OnsetGlow is anchored on RimWorld's own definition of "fully lit" rather than on a taste
+    // value. Verse.GlowGrid.GroundGlowAt caps ordinary artificial light at exactly 0.5
+    // (`b = Mathf.Min(0.5f, b)`), and PlantProperties.growMinGlow is 0.51 — which is precisely why
+    // sun lamps need GroundGlowAt's `accumulatedGlowAt.a == 1 -> return 1f` escape hatch to grow
+    // anything at all. 0.5 is therefore the brightest an ordinary lamp-lit cell ever reads, and a
+    // lamp-lit room has to render at FULL colour. Anything below it is, by the game's own measure,
+    // less than fully lit, and that is where colour should begin to drain.
+    //
+    // FullGlow is a small nonzero value, not 0, so the effect is fully developed slightly before the
+    // sky goes pitch black — otherwise the shift would only complete at a brightness too low to
+    // actually see it.
+    public const float OnsetGlow = 0.50f;
     public const float FullGlow = 0.05f;
+
+    // The ramp between those anchors is deliberately NOT linear.
+    //
+    // Raising the onset from 0.30 to 0.50 stretches the ramp across the whole dusk band, and a
+    // linear ramp would then drain ~20% of the scene's colour at glow 0.35 — exactly §2's twilight
+    // peak, where §2 and §8 are actively warming the sky and golden hour is supposed to read warm
+    // rather than grey. Easing in resolves that: the curve hugs zero through the top of its range
+    // and only bites once the scene is genuinely dim.
+    //
+    // The exponent is derived from that constraint, not picked by eye. At glow 0.35 the normalised
+    // position is (0.50 - 0.35) / (0.50 - 0.05) = 1/3, and (1/3)^2.75 ~= 0.05, so the twilight peak
+    // keeps ~95% of its saturation — imperceptible — while full rod vision at FullGlow is still
+    // exactly 1. Monotonicity and both endpoints are preserved for any exponent > 0; only the shape
+    // in between changes.
+    public const float RampExponent = 2.75f;
 
     // At full rod vision, how much of the scene's colour saturation is removed. Not 1.0 (a total
     // greyscale) on purpose: real scotopic vision isn't perfectly colourless, and leaving a sliver
@@ -58,7 +79,7 @@ public static class PurkinjeMath
     // factor here. It is §13's ApparentGlow, applied by the patch before this call, that finally
     // makes the cloud half real — see DESIGN.md §13.
     public static float PurkinjeFactor(float sunGlow) =>
-        InverseLerpClamped(OnsetGlow, FullGlow, sunGlow);
+        Pow(InverseLerpClamped(OnsetGlow, FullGlow, sunGlow), RampExponent);
 
     // The scalar to multiply the scene's existing colour saturation by, in
     // [1 - MaxSaturationDrop, 1]. 1.0 in daylight (no change); down to 1 - MaxSaturationDrop at full
@@ -70,4 +91,9 @@ public static class PurkinjeMath
     private static float Clamp01(float v) => v < 0f ? 0f : (v > 1f ? 1f : v);
     private static float Lerp(float a, float b, float t) => a + (b - a) * t;
     private static float InverseLerpClamped(float a, float b, float v) => Clamp01((v - a) / (b - a));
+
+    // MathF.Pow via float cast rather than Math.Pow's double round-trip, matching how the rest of
+    // the pure cores stay in single precision (see NightRadianceMath's MathF.Sin). The 0 and 1
+    // endpoints are exact for any positive exponent, so the plateaus stay exact.
+    private static float Pow(float value, float exponent) => MathF.Pow(value, exponent);
 }

@@ -13,11 +13,41 @@ public class PurkinjeTests
 
     [TestCase(1.0f)]   // full daylight
     [TestCase(0.6f)]   // vanilla dusk threshold — cones still dominate
-    [TestCase(0.35f)]  // §2 twilight peak — must stay untouched so golden hour reads warm, not grey
-    [TestCase(PurkinjeMath.OnsetGlow)] // exactly at onset
+    [TestCase(PurkinjeMath.OnsetGlow)] // exactly at onset == RimWorld's "fully lit" (0.5)
     public void PurkinjeFactor_IsZeroAtOrAboveOnset(float glow)
     {
         Assert.That(PurkinjeMath.PurkinjeFactor(glow), Is.EqualTo(0f).Within(Tolerance));
+    }
+
+    // A lamp-lit cell is the whole reason OnsetGlow is 0.5: Verse.GlowGrid.GroundGlowAt caps ordinary
+    // artificial light at exactly that (`b = Mathf.Min(0.5f, b)`) and PlantProperties.growMinGlow is
+    // 0.51, so a lamp-lit room is as bright as normal artificial light ever gets and must render at
+    // full colour.
+    [Test]
+    public void PurkinjeFactor_IsZeroAtRimWorldsArtificialLightCap()
+    {
+        Assert.That(PurkinjeMath.PurkinjeFactor(0.5f), Is.EqualTo(0f).Within(Tolerance));
+        Assert.That(PurkinjeMath.SaturationMultiplier(0.5f), Is.EqualTo(1f).Within(Tolerance));
+    }
+
+    // Golden hour is the constraint the ramp exponent was derived from. §2's twilight peak sits at
+    // glow ~0.35, where §2 and §8 are warming the sky; a LINEAR ramp from an onset of 0.5 would drain
+    // ~20% of the scene's colour there and grey out exactly the moment meant to read warm. The
+    // ease-in keeps it under 5%, which is imperceptible.
+    [Test]
+    public void PurkinjeFactor_LeavesGoldenHourEssentiallyUntouched()
+    {
+        Assert.That(PurkinjeMath.PurkinjeFactor(0.35f), Is.LessThan(0.05f),
+            "the twilight peak must keep ~95% of its saturation or golden hour reads grey");
+        Assert.That(PurkinjeMath.SaturationMultiplier(0.35f), Is.GreaterThan(0.95f));
+    }
+
+    // The ease-in must not be so aggressive that the shift never arrives — it should be clearly
+    // present once the scene is genuinely dim, well before the FullGlow plateau.
+    [Test]
+    public void PurkinjeFactor_IsWellDevelopedByDeepDusk()
+    {
+        Assert.That(PurkinjeMath.PurkinjeFactor(0.15f), Is.GreaterThan(0.4f));
     }
 
     // --- PurkinjeFactor: deep-night plateau (full shift at/below full) ---
@@ -32,10 +62,16 @@ public class PurkinjeTests
     }
 
     [Test]
-    public void PurkinjeFactor_IsHalfAtMidpointGlow()
+    public void PurkinjeFactor_IsBelowHalfAtMidpointGlow()
     {
+        // The ramp eases in rather than running linearly (see PurkinjeMath.RampExponent), so the
+        // midpoint sits deliberately BELOW 0.5 — the curve holds colour through the brighter half
+        // and spends its range in the genuinely dim part. Pinned as a band rather than a point so
+        // the exponent can be retuned without rewriting the test, while still asserting the shape.
         float midGlow = (PurkinjeMath.OnsetGlow + PurkinjeMath.FullGlow) / 2f;
-        Assert.That(PurkinjeMath.PurkinjeFactor(midGlow), Is.EqualTo(0.5f).Within(Tolerance));
+        float factor = PurkinjeMath.PurkinjeFactor(midGlow);
+        Assert.That(factor, Is.InRange(0.1f, 0.4f));
+        Assert.That(factor, Is.LessThan(0.5f), "an eased ramp must sit below the linear midpoint");
     }
 
     [Test]

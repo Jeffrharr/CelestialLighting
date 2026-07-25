@@ -94,15 +94,26 @@ public static class NightRadianceMath
     // 0..1 fraction of the vanilla overlay brightness to KEEP (1 = leave vanilla alone, 0 = force fully
     // black), clamped so it never drops below a caller-supplied minimum.
     //
-    // The glow at/below which the overlay goes fully black, == the shipped starlight + airglow sum.
+    // The glow at/below which the overlay goes fully black. Zero — i.e. only a genuinely zero sky
+    // blacks the screen out.
     //
-    // This anchor is the fix for a real in-game regression. The curve used to run from glow 0, which
-    // meant the *constant* atmospheric floors — the very sources that make a night feel like night —
-    // counted as brightness worth preserving, so a moonless night bottomed out at 0.04/0.15 ≈ 27% keep
-    // instead of black. Anchoring the dark end at the floors themselves says what we actually mean:
-    // starlight and airglow are the baseline of darkness, and only *moonlight* buys the screen back.
-    // Turn the atmospheric floors off and glow lands at or under this anchor, so it still blacks out.
-    public const float OverlayDarkGlow = DefaultStarlightGlow + DefaultAirglowGlow;
+    // This anchor sat at the starlight+airglow sum (0.04) for a while, on the reasoning that those
+    // constant floors are "the baseline of darkness" and only moonlight should buy the screen back.
+    // That reasoning conflated two different things, and the result was a visible bug: with the
+    // floors ON and no moon, glow is exactly 0.04, which IS this anchor, so the overlay was lerped
+    // fully to black — identical to having the floors off. The "Atmospheric night glow" toggle
+    // therefore did nothing at all on a moonless night for outdoor tiles, where it is precisely the
+    // setting a player would go looking for.
+    //
+    // Anchoring at 0 restores the intent. The atmospheric floors are meant to be SEEN outdoors: with
+    // them on, a moonless night keeps 0.04/0.19 ~= 21% of the overlay's brightness — a faint, legible
+    // starlit dark rather than a void. True pitch-black is still reachable, and by the route the
+    // design always documented: turn the floors off, glow lands at 0, and this ramp blacks out.
+    // The toggle is now what distinguishes the two, which is its entire job.
+    //
+    // Indoors is unaffected either way — §7b occludes the sky for roofed cells, so the floors never
+    // showed there and still do not.
+    public const float OverlayDarkGlow = 0f;
 
     // The glow at/above which no extra darkening happens, == the floors plus a full moon at zenith.
     //
@@ -110,10 +121,16 @@ public static class NightRadianceMath
     // stacked *on top* of moonlight pushed even a half-lit moon to the full-bright end and cancelled
     // the darkening outright — the "pitch-black nights doesn't do anything in the full mod" symptom,
     // which the harness scenario missed because it ran with the floors forced off and the moon seam
-    // still stubbed at MoonState.None. Deriving both anchors from the source constants keeps the
-    // invariant the curve is meant to express: full moon at zenith == vanilla brightness, no moon ==
-    // black, everything in between a ramp.
-    public const float OverlayFullBrightGlow = OverlayDarkGlow + DefaultMaxMoonlightGlow;
+    // still stubbed at MoonState.None.
+    //
+    // Spelled out from the three source constants rather than as OverlayDarkGlow + moonlight, because
+    // the dark anchor is now 0 (see above) and deriving from it would shorten the ramp to 0.15 —
+    // reaching full brightness at a floors-off full moon and clamping anything brighter. Written this
+    // way the ramp still spans the full range of what the night sky can actually produce, keeping the
+    // invariant the curve exists to express: floors + full moon at zenith == vanilla brightness,
+    // nothing at all == black, everything in between a ramp.
+    public const float OverlayFullBrightGlow =
+        DefaultStarlightGlow + DefaultAirglowGlow + DefaultMaxMoonlightGlow;
 
     // Default for NightRadianceSettings.MinNightBrightness — the shipped minimum overlay brightness.
     // 0 == a moonless / floors-off night renders genuinely pitch black (only lit things and UI show).

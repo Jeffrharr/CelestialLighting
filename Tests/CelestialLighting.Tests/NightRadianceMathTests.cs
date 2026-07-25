@@ -195,14 +195,34 @@ public class NightRadianceMathTests
     }
 
     [Test]
-    public void OverlayBrightnessFactor_GoesFullyBlack_OnAMoonlessNightWithTheFloorsOn()
+    public void OverlayBrightnessFactor_KeepsTheFloorsVisible_OnAMoonlessNightWithTheFloorsOn()
     {
-        // The in-game regression this curve was retuned for: with the atmospheric floors at their shipped
-        // values and no moon, the night glow IS starlight + airglow — and that must render black, not the
-        // 27%-of-vanilla grey the old glow/OverlayFullBrightGlow ramp produced.
+        // This assertion is the deliberate inverse of what it used to be. It previously required a
+        // moonless floors-ON night to render fully black, which meant the "Atmospheric night glow"
+        // toggle produced no visible change at all outdoors — the floors were cancelled by the very
+        // curve meant to display them. The floors exist to be seen; pitch-black is what turning them
+        // OFF is for, asserted directly below.
         float moonless = NightRadianceMath.NightSourceGlow(
             NightRadianceMath.DefaultStarlightGlow, NightRadianceMath.DefaultAirglowGlow, moonlightGlow: 0f);
-        Assert.That(NightRadianceMath.OverlayBrightnessFactor(moonless, 0f), Is.EqualTo(0f).Within(Tolerance));
+        float keep = NightRadianceMath.OverlayBrightnessFactor(moonless, 0f);
+
+        Assert.That(keep, Is.GreaterThan(0f), "the atmospheric floors must be visible outdoors");
+        // 0.04 / 0.19 — a faint starlit dark rather than a void.
+        Assert.That(keep, Is.EqualTo(0.04f / 0.19f).Within(Tolerance));
+        Assert.That(keep, Is.LessThan(0.3f), "but still unmistakably night, not a dimmed day");
+    }
+
+    [Test]
+    public void OverlayBrightnessFactor_GoesFullyBlack_WithTheFloorsOff()
+    {
+        // The other half of the toggle's contract, and the route to true pitch-black the design has
+        // always documented: drop starlight and airglow to zero and, with no moon, the night glow is
+        // exactly 0 so the overlay blacks out. Together with the test above this is what makes the
+        // atmospheric-glow switch actually distinguish two states on screen.
+        float moonlessFloorsOff = NightRadianceMath.NightSourceGlow(
+            starlightGlow: 0f, airglowGlow: 0f, moonlightGlow: 0f);
+        Assert.That(NightRadianceMath.OverlayBrightnessFactor(moonlessFloorsOff, 0f),
+            Is.EqualTo(0f).Within(Tolerance));
     }
 
     [Test]
@@ -244,15 +264,32 @@ public class NightRadianceMathTests
     }
 
     [Test]
-    public void EffectiveMinBrightness_MakesTheFloorVisibleOnAMoonlessNight()
+    public void EffectiveMinBrightness_MakesTheFloorVisibleOnATrulyBlackNight()
     {
-        // The bug this exists for: on a moonless night the raw factor is 0 (fully black). With the
-        // accessibility floor at 0.15 the overlay must keep 15% brightness, so the map is legible.
-        float moonless = NightRadianceMath.NightSourceGlow(
-            NightRadianceMath.DefaultStarlightGlow, NightRadianceMath.DefaultAirglowGlow, moonlightGlow: 0f);
+        // The bug this exists for: a night whose raw factor is 0 renders fully black, and the
+        // accessibility floor has to lift it back to legibility.
+        //
+        // The example is now a floors-OFF moonless night rather than a floors-ON one. With the
+        // atmospheric floors ON the raw factor is 0.04/0.19 ~= 0.21, which already exceeds a 0.15
+        // floor, so the clamp would not bind and the test would prove nothing. Floors off with no
+        // moon is the genuinely-black case the clamp exists to rescue.
+        float trulyBlack = NightRadianceMath.NightSourceGlow(
+            starlightGlow: 0f, airglowGlow: 0f, moonlightGlow: 0f);
         float minBrightness = NightRadianceMath.EffectiveMinBrightness(0f, 0.15f);
-        Assert.That(NightRadianceMath.OverlayBrightnessFactor(moonless, minBrightness),
+        Assert.That(NightRadianceMath.OverlayBrightnessFactor(trulyBlack, minBrightness),
             Is.EqualTo(0.15f).Within(Tolerance));
+    }
+
+    [Test]
+    public void EffectiveMinBrightness_DoesNotLowerAnAlreadyBrighterNight()
+    {
+        // The floor is a minimum, never a target: a floors-ON moonless night is already above a 0.15
+        // clamp, and asking for that clamp must leave it alone rather than pulling it down to 0.15.
+        float floorsOn = NightRadianceMath.NightSourceGlow(
+            NightRadianceMath.DefaultStarlightGlow, NightRadianceMath.DefaultAirglowGlow, moonlightGlow: 0f);
+        float clamped = NightRadianceMath.OverlayBrightnessFactor(
+            floorsOn, NightRadianceMath.EffectiveMinBrightness(0f, 0.15f));
+        Assert.That(clamped, Is.EqualTo(0.04f / 0.19f).Within(Tolerance));
     }
 
     [Test]
