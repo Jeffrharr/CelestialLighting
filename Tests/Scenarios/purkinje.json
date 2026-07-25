@@ -1,0 +1,14 @@
+{
+  "name": "purkinje",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "20" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "40" } },
+    { "type": "SetTime", "args": { "hour": "12" } },
+    { "type": "Probe", "args": { "probeName": "purkinje", "expectedValue": "0.0", "tolerance": "0.005" } },
+    { "type": "SetTime", "args": { "hour": "23" } },
+    { "type": "Probe", "args": { "probeName": "purkinje", "expectedValue": "1.0", "tolerance": "0.005" } },
+    { "type": "SetTime", "args": { "hour": "2" } },
+    { "type": "Probe", "args": { "probeName": "purkinje", "expectedValue": "0.66448", "tolerance": "0.03" } }
+  ]
+}

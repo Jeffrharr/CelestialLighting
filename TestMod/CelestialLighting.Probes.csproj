@@ -23,6 +23,7 @@
     <Compile Include="../Source/Probes/PenumbraProbe.cs" Link="PenumbraProbe.cs" />
     <Compile Include="../Source/Probes/MoonIlluminationProbe.cs" Link="MoonIlluminationProbe.cs" />
     <Compile Include="../Source/Probes/NightRadianceProbe.cs" Link="NightRadianceProbe.cs" />
+    <Compile Include="../Source/Probes/PurkinjeProbe.cs" Link="PurkinjeProbe.cs" />
   </ItemGroup>
 
   <ItemGroup>

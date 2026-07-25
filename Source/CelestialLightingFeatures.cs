@@ -74,4 +74,14 @@ public static class CelestialLightingFeatures
     // harness so a probe scenario can flip it and watch the constant starlight+airglow floor drop
     // out of the night-radiance sum, leaving only moonlight.
     public const string NightAtmosphericGlowKey = "night_atmospheric_glow";
+
+    // Feature key for LowLightDesaturation (see CivilTwilightPersistenceKey for why it lives here).
+    public const string LowLightDesaturationKey = "low_light_desaturation";
+
+    // §9 low-light desaturation / Purkinje shift: as the displayed glow falls toward night,
+    // Patch_LowLightDesaturation drains colour saturation and drifts the sky/overlay tint toward a
+    // cool blue-grey (colour-only — it never touches glow). When off, the patch early-returns and
+    // leaves each WeatherDef's palette exactly as vanilla renders it — the faithful pre-feature
+    // baseline for the harness A/B.
+    public static bool LowLightDesaturation = true;
 }

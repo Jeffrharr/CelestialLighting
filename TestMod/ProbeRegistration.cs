@@ -19,6 +19,7 @@ public static class ProbeRegistration
         ProbeRegistry.Register(new PenumbraProbe());
         ProbeRegistry.Register(new MoonIlluminationProbe());
         ProbeRegistry.Register(new NightRadianceProbe());
+        ProbeRegistry.Register(new PurkinjeProbe());
 
         // Expose CelestialLighting's runtime feature flags to the harness's SetFeature step so a
         // scenario can screenshot an effect off then on. The setter just writes the shipped mod's
@@ -41,5 +42,8 @@ public static class ProbeRegistration
         FeatureRegistry.Register(
             CelestialLightingFeatures.NightAtmosphericGlowKey,
             enabled => NightRadianceSettings.Current.AtmosphericGlowEnabled = enabled);
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.LowLightDesaturationKey,
+            enabled => CelestialLightingFeatures.LowLightDesaturation = enabled);
     }
 }

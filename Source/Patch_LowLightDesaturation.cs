@@ -36,6 +36,11 @@ public static class Patch_LowLightDesaturation
 
     static void Postfix(Map map, ref SkyTarget __result)
     {
+        // Feature gate (default on): when off, leave each WeatherDef's palette untouched — the
+        // faithful pre-feature baseline. Sits before the glow read so "off" is a true no-op.
+        if (!CelestialLightingFeatures.LowLightDesaturation)
+            return;
+
         // Read the sky target's OWN glow, not GenCelestial.CurCelestialSunGlow. This is the opposite
         // choice from Patch_TwilightColor (which recomputes celestial glow because it wants twilight
         // timing anchored to true sun position): here we *want* the actual displayed brightness,
