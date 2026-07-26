@@ -47,12 +47,13 @@
     { "type": "Wait", "args": { "frames": "5" } },
     { "type": "Probe", "args": { "probeName": "moon_shadow_render", "expectedValue": "0.8778", "tolerance": "0.02" } },
 
-    { "_comment": "Night must be untouched: §6a's Patch_MoonShadowColor owns colors.shadow below the horizon and §13a stands down there. Hour 2 on a clear night with the moon up reads §6a's own value.",
+    { "_comment": "Night must be untouched: §6a's Patch_MoonShadowColor owns colors.shadow below the horizon and §13a stands down there, so this reads §6a's own value and not Clear's 0.718. NOTE the expected number is phase-derived, not copied from the full-moon scenario: at day 40 hour 2 the tick-derived cycle is 0.6722, a 73.5%-lit WANING GIBBOUS. Its shadow strength is therefore ramp(elev) * 0.735 * MoonShadowMaxStrength = 0.2057, which against §6a's 0.1071 shadow colour renders 1 - 0.2057*(1-0.1071) = 0.8163. Assuming a full moon here is exactly the mistake this comment exists to prevent.",
       "type": "SetWeather", "args": { "weatherDef": "Clear", "instant": "true" } },
     { "type": "SetTime", "args": { "hour": "2" } },
     { "type": "Wait", "args": { "frames": "5" } },
-    { "type": "Probe", "args": { "probeName": "moon_elevation", "expectedValue": "45", "tolerance": "45" } },
-    { "type": "Probe", "args": { "probeName": "moon_shadow_render", "expectedValue": "0.752", "tolerance": "0.06" } },
+    { "type": "Probe", "args": { "probeName": "moon_illumination", "expectedValue": "0.735", "tolerance": "0.02" } },
+    { "type": "Probe", "args": { "probeName": "moon_elevation", "expectedValue": "73.2", "tolerance": "2.0" } },
+    { "type": "Probe", "args": { "probeName": "moon_shadow_render", "expectedValue": "0.8163", "tolerance": "0.02" } },
 
     { "type": "SetTime", "args": { "hour": "12" } },
     { "type": "SetWeather", "args": { "weatherDef": "Clear", "instant": "true" } }
