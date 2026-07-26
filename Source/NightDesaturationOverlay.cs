@@ -11,6 +11,11 @@ namespace CelestialLighting;
 // Baking the second into the mesh would mean rebuilding every section's mesh every few minutes of
 // game time; putting it in the shared material's alpha costs one assignment per frame, and the
 // shader multiplies material colour by vertex colour for free.
+// Same mandatory attribute, same reason, as EaveShadeOverlay — see the full account there. RimWorld
+// logs the identical warning for this type; it has simply been lucky about which thread happened to
+// touch the field first, since Patch_NightDesaturationStrength writes the material every frame from
+// the main thread. Relying on that ordering is a latent map-generation crash, so pin it.
+[StaticConstructorOnStartup]
 public static class NightDesaturationOverlay
 {
     // Our own Material instance, not a pooled or vanilla one. MaterialPool hands out shared

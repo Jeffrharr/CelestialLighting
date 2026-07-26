@@ -1,0 +1,51 @@
+{
+  "name": "eaves_shading",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "45" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "40" } },
+    { "type": "SetWeather", "args": { "weatherDef": "Clear", "instant": "true" } },
+
+    { "type": "SetTerrain", "args": { "def": "Concrete", "width": "30", "height": "30", "offset": "0,45", "clear": "true" } },
+    { "type": "SetRoof", "args": { "def": "RoofConstructed", "width": "9", "height": "9", "offset": "0,45" } },
+
+    { "type": "SetTerrain", "args": { "def": "Concrete", "width": "20", "height": "20", "offset": "0,10", "clear": "true" } },
+    { "type": "PlaceThings", "args": {
+        "def": "Wall", "stuff": "BlocksGranite", "offset": "0,10", "layout": "cells", "clear": "true",
+        "cells": "-2,-2; -1,-2; 0,-2; 1,-2; 2,-2; -2,-1; 2,-1; -2,0; 2,0; -2,1; 2,1; -2,2; -1,2; 0,2; 1,2; 2,2" } },
+    { "type": "SetRoof", "args": { "def": "RoofConstructed", "width": "7", "height": "7", "offset": "0,10" } },
+
+    { "type": "Probe", "args": { "probeName": "eave_cells", "expectedValue": "105", "tolerance": "0.5" } },
+
+    { "type": "SetTime", "args": { "hour": "9" } },
+    { "type": "LookAt", "args": { "offset": "0,45", "zoom": "16" } },
+    { "type": "SetFeature", "args": { "featureName": "eave_shadows", "enabled": "false" } },
+    { "type": "Screenshot", "args": { "fileName": "eaves_slab_09h_off.png" } },
+    { "type": "SetFeature", "args": { "featureName": "eave_shadows", "enabled": "true" } },
+    { "type": "Screenshot", "args": { "fileName": "eaves_slab_09h_on.png" } },
+
+    { "type": "SetTime", "args": { "hour": "15" } },
+    { "type": "SetFeature", "args": { "featureName": "eave_shadows", "enabled": "false" } },
+    { "type": "Screenshot", "args": { "fileName": "eaves_slab_15h_off.png" } },
+    { "type": "SetFeature", "args": { "featureName": "eave_shadows", "enabled": "true" } },
+    { "type": "Screenshot", "args": { "fileName": "eaves_slab_15h_on.png" } },
+
+    { "type": "LookAt", "args": { "offset": "0,10", "zoom": "14" } },
+    { "type": "SetFeature", "args": { "featureName": "eave_shadows", "enabled": "false" } },
+    { "type": "Screenshot", "args": { "fileName": "eaves_porch_15h_off.png" } },
+    { "type": "SetFeature", "args": { "featureName": "eave_shadows", "enabled": "true" } },
+    { "type": "Screenshot", "args": { "fileName": "eaves_porch_15h_on.png" } },
+
+    { "type": "SetTime", "args": { "hour": "18" } },
+    { "type": "SetFeature", "args": { "featureName": "eave_shadows", "enabled": "false" } },
+    { "type": "Screenshot", "args": { "fileName": "eaves_porch_18h_off.png" } },
+    { "type": "SetFeature", "args": { "featureName": "eave_shadows", "enabled": "true" } },
+    { "type": "Screenshot", "args": { "fileName": "eaves_porch_18h_on.png" } },
+
+    { "type": "Assert", "args": {
+        "kind": "vision",
+        "images": "eaves_slab_15h_off.png, eaves_slab_15h_on.png",
+        "prompt": "Both images show a square roof slab lying on flat concrete under an afternoon sun. In the OFF image the ground under the slab is a flat grey square with no cast shadow. In the ON image the slab casts a shadow band onto the ground beside it, and the ground UNDER the slab must be (a) still clearly readable rather than black or near-black, and (b) DARKER than that cast band, so brightness increases as you move outward from the slab. Fail if the slab interior is lighter than the cast band, or if the slab interior has gone near-black.",
+        "expect": "pass" } }
+  ]
+}

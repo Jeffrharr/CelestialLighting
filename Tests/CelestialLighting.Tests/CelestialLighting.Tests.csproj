@@ -55,6 +55,9 @@
     <!-- Subsystem 15 pure core (eaves). Verse-free, so it compiles under net8.0 as-is. Shared by
          §4's shadow mesh and §7b's occlusion, which is the whole reason it is its own file. -->
     <Compile Include="../../Source/EavesMath.cs" Link="EavesMath.cs" />
+    <!-- Subsystem 15b pure core (how dark the ground under an eave is). Reads one constant off
+         IndoorOcclusionMath, already linked above. -->
+    <Compile Include="../../Source/EaveShadeMath.cs" Link="EaveShadeMath.cs" />
   </ItemGroup>
 
 </Project>

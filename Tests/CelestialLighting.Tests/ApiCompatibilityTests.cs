@@ -1020,6 +1020,49 @@ public class ApiCompatibilityTests
         Assert.That(def!.FieldType.FullName, Is.EqualTo("RimWorld.IncidentDef"));
     }
 
+    // --- §15b eave shade (SectionLayer_EaveShade, EaveShadeOverlay, Patch_EaveShade) ---
+
+    [Test]
+    public void SectionLayerGeometryMaker_Solid_MakeBaseGeometry_Exists()
+    {
+        // SectionLayer_EaveShade builds its quads with this — nine vertices per cell, in the order
+        // the layer's colour loop assumes. A signature change here is a silently mis-shaded mesh.
+        var type = GetType("Verse.SectionLayerGeometryMaker_Solid");
+        Assert.That(type, Is.Not.Null, "Verse.SectionLayerGeometryMaker_Solid no longer exists");
+        var method = type!.Methods.SingleOrDefault(m =>
+            m.Name == "MakeBaseGeometry" && m.Parameters.Count == 3
+            && m.Parameters[0].ParameterType.Name == "Section"
+            && m.Parameters[1].ParameterType.Name == "LayerSubMesh"
+            && m.Parameters[2].ParameterType.Name == "AltitudeLayer");
+        Assert.That(method, Is.Not.Null,
+            "MakeBaseGeometry(Section, LayerSubMesh, AltitudeLayer) no longer exists");
+    }
+
+    [Test]
+    public void ShaderDatabase_Transparent_Exists()
+    {
+        // EaveShadeOverlay's material is built on it, and the arithmetic in EaveShadeMath assumes
+        // exactly this blend: alpha-blending black is scene * (1 - a), a multiply.
+        var type = GetType("Verse.ShaderDatabase");
+        Assert.That(type, Is.Not.Null, "Verse.ShaderDatabase no longer exists");
+        var field = type!.Fields.SingleOrDefault(f => f.Name == "Transparent" && f.IsStatic);
+        Assert.That(field, Is.Not.Null, "ShaderDatabase.Transparent no longer exists");
+        Assert.That(field!.FieldType.FullName, Is.EqualTo("UnityEngine.Shader"));
+    }
+
+    [Test]
+    public void BiomeDef_DisableShadows_Exists()
+    {
+        // Patch_EaveShade holds the shade at zero for a biome with no shadows at all, the same flag
+        // SectionLayer_SunShadows.Visible checks. Losing it would shade porches on a map whose cast
+        // shadows do not exist — the exact mismatch the subsystem removes, inverted.
+        var type = GetType("RimWorld.BiomeDef");
+        Assert.That(type, Is.Not.Null, "RimWorld.BiomeDef no longer exists");
+        var field = type!.Fields.SingleOrDefault(f => f.Name == "disableShadows");
+        Assert.That(field, Is.Not.Null, "BiomeDef.disableShadows no longer exists");
+        Assert.That(field!.FieldType.FullName, Is.EqualTo("System.Boolean"));
+    }
+
     // --- helpers ---
 
     private TypeDefinition? GetType(string fullName) =>

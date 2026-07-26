@@ -1129,14 +1129,85 @@ cells, pinned by a test — a gap there would mean a cell that neither casts nor
   vanilla's own tests when the toggle is off, because every neighbour test only runs once the centre
   cell's height is already `> 0`, so a null neighbour's 0 satisfies `< centreHeight` for exactly the
   reason `building == null` did.
-- **Occlusion half** (ungated). `Patch_IndoorSkyOcclusion.CellOcclusion` now asks `IsEnclosed`
+- **Occlusion half** (ungated). `Patch_IndoorSkyOcclusion.BlocksSky` now asks `EaveCells.Encloses`
   instead of the raw roof grid. Deliberately not behind the eave toggle: that flag turns a new
   *effect* on and off, whereas this is a correction to a question §7b was already asking wrongly.
+- **Thick roof is never an eave**, and that veto is load-bearing rather than tidy.
+  `UsesOutdoorTemperature` is `TouchesMapEdge || OpenRoofCount >= 25%`, and a cave system that reaches
+  the map edge — the common case — satisfies the first disjunct for its entire interior. Without the
+  veto every cell of such a cave would classify as an eave: §7b would stop occluding it (a cavern lit
+  at 61% of the sky, precisely the bug §7b exists to fix) and every cell of it would start casting a
+  roofline shadow. There is no sky under a mountain in any case, which is the same exception vanilla
+  itself makes in `SectionLayer_LightingOverlay`.
 - **Invalidation.** `SectionLayer_SunShadows`'s constructor sets `relevantChangeTypes =
   MapMeshFlagDefOf.Buildings` and nothing more — it never had a reason to care about roofs. Now that
   roof state feeds a caster height it does, and `RoofGrid.SetRoof` dirties only `Roofs`.
   `Patch_ShadowRoofInvalidation` is a Postfix on that constructor OR-ing `Roofs` into the
   subscription. Widening a subscription can only cause extra regenerates, never suppress one.
+
+### 15b. A roof shades the ground under it (`EaveShadeMath` / `SectionLayer_EaveShade`)
+
+**Problem.** Shipping the shadow half revealed a hole in vanilla's shadow mesh. A caster never shades
+its **own** cell: `SectionLayer_SunShadows` emits a flat footprint quad whose four vertices carry
+alpha 0, and that alpha is both the displacement the shader applies *and* what the fragment is drawn
+at — so the footprint renders fully transparent. Nobody ever noticed, because before §15 every caster
+was an edifice and a wall's sprite covers whatever colour the ground under it is. Give the roof
+itself a caster and the hole becomes the visible thing: a porch throws a shadow across the ground
+beside it while the porch floor is lit as though the roof above it were not there.
+
+It cannot be closed inside that mesh. Raising the footprint's alpha to make it opaque is the same
+number that makes the shader push the quad a whole shadow-length away, off the cell it was meant to
+shade — the two meanings share one channel.
+
+**Measured**, live A/B at 15:00, latitude 45, clear sky, over a 9x9 roof slab on concrete, against
+open sunlit ground at 1.000:
+
+| region | value | |
+|---|---|---|
+| open sunlit ground | 1.000 | |
+| under the roof | 0.605 | vanilla's roofed sky cover (`1 - 100/255`), no shadow of any kind on it |
+| the cast shadow on open ground | 0.742 | luminance of vanilla's Clear-day shadow tint (0.718, 0.745, 0.757) |
+| the rim, where that shadow laps the roof's own cover fade | 0.581 | the two multiplied |
+
+Both vanilla numbers reproduce to three decimals, which is what pins the model to the arithmetic the
+renderer is really doing. The porch reads as a pale square with a dark edge hung off its shadow side:
+lighter than its own shadow exactly where the two touch.
+
+**Approach.** An eave cell takes the same shadow multiply the ground beside it takes — no more, no
+less. Not a number invented for porches: it is the footprint shading vanilla's own mesh would already
+have drawn if that quad were not structurally transparent, carried by the only channel that can carry
+it. The roof's separate cost in *sky* stays exactly vanilla's cover; nothing about §7b changes.
+
+- `SectionLayer_EaveShade` is a map draw layer of our own, registered for free the same way §9's
+  desaturation layer is (`Verse.Section`'s constructor instantiates every non-abstract `SectionLayer`
+  subclass, so declaring the class is the registration). It bakes one bit per cell — eave or not —
+  into vertex alpha, at `AltitudeLayer.Shadows`, the altitude vanilla's own sun shadows use, because
+  this *is* one. Deliberately **not** averaged across neighbouring cells the way §9's wash is: a
+  roofline is a physical edge and the shadow it throws has a hard one, so softening this side of it
+  would leave a bright lip along the boundary — a smaller copy of the artifact being removed.
+- `EaveShadeOverlay` owns the material (`ShaderDatabase.Transparent`, ours rather than pooled).
+  Alpha-blending **black** at alpha `a` is `scene * (1 - a)`, a multiply, which is what lets the
+  shade, the sun shadow and the sky cover compose by plain multiplication and in any draw order.
+  `MatBases.SunShadow` is not reusable here: its shader displaces vertices by the shadow vector
+  scaled by vertex alpha, which is the very coupling that makes a caster unable to shade its own cell.
+- `Patch_EaveShade` (Postfix on `SkyManager.SkyManagerUpdate`) writes that alpha once per frame as
+  `1 - luminance(MatBases.SunShadow.color)`. Reading the finished material rather than re-deriving
+  depth from sun elevation is the point: every shadow feature we own — §1/§3's elevation ramp, the
+  angular-size penumbra, §13's weather softening, the moon's night handoff — reaches the screen
+  through `GenCelestial.CurShadowStrength`, which `SkyManager` lerps that colour by. The eave can
+  therefore never drift from the shadow it matches, including for features not written yet.
+
+**It cannot go pitch black, by construction.** The multiply is bounded below by vanilla's own shadow
+palette: the darkest tint any vanilla weather declares is Clear's 0.740, most are 0.92 or lighter,
+and shadow strength only ever lerps that tint back *toward white* as the sun drops. So the deepest an
+eave can reach is `0.608 x 0.740 = 0.449` of open sunlit ground, in full midday sun; at dusk, under
+overcast and all night the multiply is at or near 1 and this contributes nothing at all, leaving the
+porch at exactly the roof cover players already see. Nothing here can reach the fully-occluded
+interior (0.0) §7b applies to a sealed room — an eave is never classified as interior in the first
+place. `EaveShadeMathTests` asserts that floor rather than trusting it.
+
+Gated by the same "Eave shadows" toggle as the caster half: off means no layer drawn and the material
+held at zero, so the A/B is a true no-op either way round.
 
 **Why re-implement rather than defer to Perspective: Eaves.** That mod (Owlchemist, continued by
 Mlie; MIT) had the load-bearing insight — `UsesOutdoorTemperature`, not `Roofed`, is the real test —
