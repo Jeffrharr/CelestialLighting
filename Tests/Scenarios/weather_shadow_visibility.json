@@ -1,0 +1,60 @@
+{
+  "name": "weather_shadow_visibility",
+  "saveFile": "minimal_colony.rws",
+  "_comment": [
+    "§13a: a cloudy-day shadow has to be visible, not merely computed.",
+    "",
+    "moon_shadow_render reads MatBases.SunShadow.color.r — the FINAL composed shadow colour the",
+    "shader draws with, Color.Lerp(white, colors.shadow, alpha). Its name is from §6a but the value",
+    "is the general one, and it is the only measurement that distinguishes 'the alpha is right' from",
+    "'you can see a shadow' — which is exactly the distinction this fix is about.",
+    "",
+    "Noon at latitude 20 so the sun is high and ShadowIntensityFromElevation has saturated; the alpha",
+    "is then governed by weather alone. Expected values computed offline from WeatherDimmingMath.",
+    "The A/B toggle is weather_dimming, because §13a is gated on it: with §13 off, vanilla's flat",
+    "0.92 is the only weather softening there is and the patch deliberately stands down."
+  ],
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "20" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "40" } },
+    { "type": "SetTime", "args": { "hour": "12" } },
+    { "type": "LookAt", "args": { "zoom": "14" } },
+
+    { "_comment": "Clear noon is the reference and must be untouched: the patch substitutes Clear's OWN colour, so on Clear it is a no-op by construction. 0.718 is vanilla's skyColorsDay.shadow.",
+      "type": "SetWeather", "args": { "weatherDef": "Clear", "instant": "true" } },
+    { "type": "Wait", "args": { "frames": "5" } },
+    { "type": "Probe", "args": { "probeName": "moon_shadow_render", "expectedValue": "0.718", "tolerance": "0.02" } },
+    { "type": "Screenshot", "args": { "fileName": "wsv_clear_noon.png" } },
+
+    { "_comment": "Rain at noon with §13 OFF — the patch stands down, so this captures the shipped artifact: vanilla's flat 0.92, an 8% darkening that no correct alpha can reach past.",
+      "type": "SetWeather", "args": { "weatherDef": "Rain", "instant": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "weather_dimming", "enabled": "false" } },
+    { "type": "Wait", "args": { "frames": "5" } },
+    { "type": "Probe", "args": { "probeName": "moon_shadow_render", "expectedValue": "0.92", "tolerance": "0.02" } },
+    { "type": "Screenshot", "args": { "fileName": "wsv_rain_noon_before.png" } },
+
+    { "_comment": "Rain at noon with §13 ON — the fix. Cloud opacity is 1.0 (every non-Clear vanilla weather shares one skyColorsDay), so alpha is ShadowContrastFactor(1.0, MaxDimming) and the colour is now Clear's 0.718. On the shipped Cinematic preset (maxDimming 0.20) that is alpha 0.4333 -> rendered 0.8778, a 12.2% darkening against the 3.5% it used to be.",
+      "type": "SetFeature", "args": { "featureName": "weather_dimming", "enabled": "true" } },
+    { "type": "Wait", "args": { "frames": "5" } },
+    { "type": "Probe", "args": { "probeName": "moon_shadow_render", "expectedValue": "0.8778", "tolerance": "0.02" } },
+    { "type": "Screenshot", "args": { "fileName": "wsv_rain_noon_after.png" } },
+
+    { "_comment": "Fog and a hard blizzard read identically to Rain — same skyColorsDay, so same opacity. Probed to PIN that, not to celebrate it: §13a does not make weathers differ from each other, and a future change that thinks it did should fail here.",
+      "type": "SetWeather", "args": { "weatherDef": "Fog", "instant": "true" } },
+    { "type": "Wait", "args": { "frames": "5" } },
+    { "type": "Probe", "args": { "probeName": "moon_shadow_render", "expectedValue": "0.8778", "tolerance": "0.02" } },
+    { "type": "SetWeather", "args": { "weatherDef": "SnowHard", "instant": "true" } },
+    { "type": "Wait", "args": { "frames": "5" } },
+    { "type": "Probe", "args": { "probeName": "moon_shadow_render", "expectedValue": "0.8778", "tolerance": "0.02" } },
+
+    { "_comment": "Night must be untouched: §6a's Patch_MoonShadowColor owns colors.shadow below the horizon and §13a stands down there. Hour 2 on a clear night with the moon up reads §6a's own value.",
+      "type": "SetWeather", "args": { "weatherDef": "Clear", "instant": "true" } },
+    { "type": "SetTime", "args": { "hour": "2" } },
+    { "type": "Wait", "args": { "frames": "5" } },
+    { "type": "Probe", "args": { "probeName": "moon_elevation", "expectedValue": "45", "tolerance": "45" } },
+    { "type": "Probe", "args": { "probeName": "moon_shadow_render", "expectedValue": "0.752", "tolerance": "0.06" } },
+
+    { "type": "SetTime", "args": { "hour": "12" } },
+    { "type": "SetWeather", "args": { "weatherDef": "Clear", "instant": "true" } }
+  ]
+}

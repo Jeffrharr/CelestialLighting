@@ -24,14 +24,18 @@ namespace CelestialLighting;
 // Fixing the *input* rather than adding a second writer of MatBases.SunShadow is deliberate. Vanilla
 // still owns the lerp, so the moon's strength keeps scaling the result (a half-lit moon reads at half
 // the contrast for free), and the weather-event branch that skips the lerp entirely — using
-// colors.shadow as the colour directly — stays correct too. It also keeps one owner per field:
-// nothing else in this mod writes colors.shadow (§2 twilight, §8 colour-temperature, §9 desaturation
-// and §11/§12 all work on colors.sky/overlay/saturation), so there is no composition order to argue
-// about.
+// colors.shadow as the colour directly — stays correct too.
 //
-// Night only. Above the refraction horizon the sun is the caster and vanilla's daytime shadow colours
-// are already correct and well-tuned; touching them there would change every daylight shadow in the
-// game, which is not what this is for.
+// Night only. Above the refraction horizon the sun is the caster, and §13a's
+// Patch_WeatherShadowColor owns colors.shadow there. The two split on the same shared horizon
+// constant both shadow patches use, so they are exactly complementary — never both writing on one
+// frame. Nothing else in this mod touches the field (§2 twilight, §8 colour-temperature, §9
+// desaturation and §11/§12 all work on colors.sky/overlay/saturation), so there is still no
+// composition order to argue about.
+//
+// Vanilla's daylight shadow colour is well-tuned only on Clear; §13a exists because every other
+// weather flattens it to a near-white 0.92 that caps a cloudy-day shadow at 8% darkening — the same
+// bug as this one, found at the other end of the day.
 [HarmonyPatch(typeof(WeatherWorker), nameof(WeatherWorker.CurSkyTarget))]
 public static class Patch_MoonShadowColor
 {

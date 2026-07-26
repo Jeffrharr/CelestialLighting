@@ -176,6 +176,35 @@ public static class WeatherDimmingMath
         return Clamp01(1f - Clamp01(cloudOpacity) * strength * MaxShadowSoftening);
     }
 
+    // --- §13a: what the shadow alpha actually renders as ---
+
+    // Vanilla's daytime shadow colour on Clear — the one weather Ludeon actually tuned the value for
+    // (Core/Defs/WeatherDefs/Weathers.xml, skyColorsDay.shadow). Every other weather flattens all
+    // four sky-colour sets to 0.92. Kept here as the reference §13a is defined against, so the tests
+    // can express the fix in the units a player perceives. The patch itself reads the live
+    // WeatherDefOf.Clear rather than this constant, so a Ludeon retune moves the shipped behaviour
+    // and this number only governs what the tests claim.
+    public const float ClearDayShadowValue = 0.718f;
+
+    // What vanilla flattens colors.shadow to under EVERY non-Clear weather, at every sky-glow anchor.
+    public const float WeatherShadowValue = 0.92f;
+
+    // Below this, a cast shadow stops being perceptible on mid-tone ground — about 5 values out of
+    // 255. Not a tuning knob: it is the threshold the §13a regression is stated in terms of, since
+    // the bug was never a wrong number, only a number too small to see.
+    public const float PerceptibleDarkening = 0.02f;
+
+    // The darkening a cast shadow actually renders, in [0, 1] — 0 is invisible, 1 is pure black.
+    //
+    // Inverts SkyManager's own lerp rather than second-guessing it: the shader draws
+    // Color.Lerp(Color.white, colors.shadow, alpha), so the rendered value is
+    // 1 - alpha * (1 - shadowColorValue), and the darkening is the complement of that. This exists
+    // because "the shadow alpha is correct" and "the player can see a shadow" turned out to be
+    // different claims twice over — §6a at night, §13a in daylight — and only this composition
+    // tells them apart.
+    public static float RenderedShadowDarkening(float alpha, float shadowColorValue) =>
+        Clamp01(alpha) * (1f - Clamp01(shadowColorValue));
+
     private static float Clamp01(float v) => v < 0f ? 0f : (v > 1f ? 1f : v);
     private static float Lerp(float a, float b, float t) => a + (b - a) * t;
     private static float InverseLerpClamped(float a, float b, float v) => Clamp01((v - a) / (b - a));
