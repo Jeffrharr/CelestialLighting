@@ -81,8 +81,6 @@ public class CelestialLightingSettingsMod : Mod
         DrawEffectToggles(listing);
         listing.GapLine();
         DrawAestheticKnobs(listing);
-        listing.GapLine();
-        DrawBrightnessFloorSection(listing);
 
         // Read the height BEFORE End() — CurHeight tracks the listing's running cursor, and End()
         // is free to reset it.
@@ -215,7 +213,7 @@ public class CelestialLightingSettingsMod : Mod
         Text.Font = GameFont.Medium;
         listing.Label("Look");
         Text.Font = GameFont.Small;
-        listing.Label("These feed the shadow, night-darkness, and desaturation subsystems. (Not all are wired up yet.)");
+        listing.Label("These feed the shadow, night-darkness, and desaturation subsystems.");
 
         // Each slider marks the preset Custom only if the player actually moved it, so merely opening
         // the window never silently flips a chosen preset to Custom.
@@ -245,14 +243,4 @@ public class CelestialLightingSettingsMod : Mod
         return listing.Slider(value, min, max);
     }
 
-    private void DrawBrightnessFloorSection(Listing_Standard listing)
-    {
-        Text.Font = GameFont.Medium;
-        listing.Label("Accessibility: minimum brightness");
-        Text.Font = GameFont.Small;
-        listing.Label("An opt-in floor on how dark nights can look. The complement to pitch-black nights: black for atmosphere, one keypress to legible when you need to see. Bind the \"Toggle minimum brightness\" key in Options - Keyboard Configuration to flip it in-game; it ships unbound.");
-
-        listing.CheckboxLabeled("Enable minimum brightness floor", ref Settings.brightnessFloorEnabled);
-        Settings.brightnessFloor = LabeledSlider(listing, "Minimum brightness", Settings.brightnessFloor, 0f, 1f);
-    }
 }

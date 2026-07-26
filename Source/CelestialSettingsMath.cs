@@ -9,12 +9,9 @@ namespace CelestialLighting;
 // class, the settings window, and the SkyManager patch — are thin adapters that read primitives off
 // this file and write primitives back.
 //
-// Two independent concerns live here, both called out in DESIGN.md's "Settings, presets, and the
-// brightness floor":
-//   1. Opinionated presets  — named bundles of the correlated aesthetic knobs (§1/§3 shadows,
-//      §7 night-radiance floor, §9 desaturation) so a player can pick one and never open a slider.
-//   2. The accessibility brightness floor — a pure upward clamp on displayed night glow, applied as
-//      the very last step (see Patch_BrightnessFloor).
+// What lives here: the opinionated presets — named bundles of the correlated aesthetic knobs (§1/§3
+// shadows, §7/§7b brightness floors, §9 desaturation, §13 weather dimming) so a player can pick one
+// and never open a slider.
 
 // The three settings states. Custom is not an "opinionated preset" — it is simply the state the
 // settings fall into the moment a player nudges any individual slider away from a named bundle, so
@@ -145,32 +142,4 @@ public static class Presets
     // the enum check — keeps the Custom special-case in exactly one place.
     public static bool IsOpinionated(CelestialPreset preset) =>
         preset == CelestialPreset.Realistic || preset == CelestialPreset.Cinematic;
-}
-
-public static class BrightnessFloorMath
-{
-    // The accessibility floor's whole job, isolated to one pure line so it can be pinned by unit
-    // tests and read back verbatim by BrightnessFloorProbe against a live game.
-    //
-    // DESIGN.md: "Because it clamps the *displayed* glow upward, it must be applied as the last
-    // step, after §7's floors and any weather dimming." Patch_BrightnessFloor enforces the "last"
-    // ordering (Harmony Priority.Last on SkyManagerUpdate); this function enforces the "upward
-    // clamp": when enabled, the returned glow is never below the floor and never below the incoming
-    // glow (so a bright day is untouched — Max, not assignment). Disabled ⇒ identity, so toggling
-    // the floor off is a guaranteed no-op on vanilla brightness.
-    //
-    // Both glow and floor are clamped to [0,1] first: sky glow is a 0–1 value everywhere in
-    // RimWorld, and clamping the user-set floor defends against a settings blob (hand-edited or from
-    // a future version with a wider slider) pushing the displayed glow outside its valid range.
-    public static float Apply(float glow, float floor, bool enabled)
-    {
-        if (!enabled)
-            return glow;
-
-        float clampedGlow = Clamp01(glow);
-        float clampedFloor = Clamp01(floor);
-        return clampedGlow > clampedFloor ? clampedGlow : clampedFloor;
-    }
-
-    private static float Clamp01(float v) => v < 0f ? 0f : (v > 1f ? 1f : v);
 }

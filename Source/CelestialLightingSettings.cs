@@ -8,11 +8,8 @@ namespace CelestialLighting;
 // path, only "a bundle of the same values".
 //
 // Field defaults describe the out-of-box experience: the mod ships on the Cinematic preset, so a
-// first night looks good and stays readable (its two brightness floors sit at 0.50), with the
-// separate accessibility brightness floor still OFF — Cinematic's legibility is a look, and the
-// accessibility floor stays an explicit opt-in via checkbox or the optional, unbound-by-default
-// hotkey (see GameComponent_BrightnessFloorHotkey). Realistic is one click away for genuinely
-// black nights.
+// first night looks good and stays readable (its two brightness floors sit at 0.50). Realistic is
+// one click away for genuinely black nights.
 public class CelestialLightingSettings : ModSettings
 {
     // Which named bundle (if any) the aesthetic knobs currently reflect. Goes to Custom the instant
@@ -71,13 +68,6 @@ public class CelestialLightingSettings : ModSettings
     //     follow our physical sun, which is a gameplay change (growing hours, solar output). ---
     public SunClockMode sunClock = SunClockMode.LockedToVanilla;
 
-    // --- Accessibility brightness floor (live now; see Patch_BrightnessFloor) ---
-    // Off by default: pitch-black atmosphere until a player actively opts in (slider or hotkey).
-    public bool brightnessFloorEnabled = false;
-    // The minimum displayed sky glow, 0–1, when the floor is enabled. 0.15 is a legible-but-still-
-    // clearly-night default: enough to make out tiles without erasing the sense of nighttime.
-    public float brightnessFloor = 0.15f;
-
     // Copies a named preset's bundle into the aesthetic knob fields. Kept trivial and delegating to
     // the pure resolver so the correlation between knobs lives in exactly one tested place.
     public void ApplyPreset(CelestialPreset chosen)
@@ -127,6 +117,12 @@ public class CelestialLightingSettings : ModSettings
         // saturation post-process and the tint is the whole effect.
         PurkinjeSettings.TintStrength = desaturation;
 
+        // §1/§3's two Look sliders. Read by Patch_ShadowDirection (vector length + LightInfo
+        // intensity) and Patch_ShadowStrength (the shader alpha) through one shared static, so the
+        // length and the opacity can never end up on different presets.
+        ShadowSettings.LengthScale = shadowLengthScale;
+        ShadowSettings.Strength = shadowStrength;
+
         NightRadianceSettings.Current.AtmosphericGlowEnabled = atmosphericGlow;
         NightRadianceSettings.Current.MinNightBrightness = minNightBrightness;
 
@@ -135,19 +131,16 @@ public class CelestialLightingSettings : ModSettings
         EclipseSettings.Mode = eclipseMode;
         CelestialLightingFeatures.SunClock = sunClock;
 
-        // The accessibility floor reaches interiors through §7b rather than through glow: roofed cells
-        // never take sky glow (GlowGrid.GroundGlowAt returns early for them), so lifting CurSkyGlow
-        // cannot brighten a sealed cave. Resolving the checkbox to 0 here keeps that gating in one
-        // place — the occlusion core only ever sees a plain fraction.
+        // Roofed cells never take sky glow (GlowGrid.GroundGlowAt returns early for them), so the
+        // only way to hold an interior above black is this floor, applied as a cap on occlusion.
         IndoorOcclusionSettings.Current.DoorSkyLeak = doorSkyLeak;
-        IndoorOcclusionSettings.Current.BrightnessFloor = brightnessFloorEnabled ? brightnessFloor : 0f;
         IndoorOcclusionSettings.Current.MinIndoorBrightness = minIndoorBrightness;
 
         // §7b's alphas live in baked section meshes, not in a per-frame material, so a change here is
         // invisible until the meshes are rebuilt. Must run after the assignments above.
         IndoorOcclusionRedraw.SyncTo(
             indoorSkyOcclusion, IndoorOcclusionSettings.Current.DoorSkyLeak,
-            IndoorOcclusionSettings.Current.IndoorFloor);
+            IndoorOcclusionSettings.Current.MinIndoorBrightness);
 
         // §15's caster heights are baked into the sun-shadow section meshes for the same reason, so
         // the eave toggle needs its own rebuild. Separate from the call above because the two write
@@ -183,7 +176,5 @@ public class CelestialLightingSettings : ModSettings
         Scribe_Values.Look(ref desaturation, "desaturation", Presets.Cinematic.Desaturation);
         Scribe_Values.Look(ref weatherDimmingStrength, "weatherDimmingStrength",
             Presets.Cinematic.WeatherDimming);
-        Scribe_Values.Look(ref brightnessFloorEnabled, "brightnessFloorEnabled", false);
-        Scribe_Values.Look(ref brightnessFloor, "brightnessFloor", 0.15f);
     }
 }

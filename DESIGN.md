@@ -510,15 +510,12 @@ reads `map.roofGrid` / `map.edificeGrid` and rewrites `mesh.colors32`.
   also takes `Priority.First` so it runs before Dub's Skylights' Postfix restores the roofs it removed,
   and therefore sees skylit cells as unroofed. (Biomes! Caverns' intent is the opposite of ours by design;
   with both installed, our toggle is the one to turn off.)
-- **Two floors reach interiors through here, and only through here.** `Patch_BrightnessFloor` lifts
-  `CurSkyGlow`, which cannot brighten a sealed cave by one shade — roofed cells take no sky glow at all.
-  So a floor is applied as a *cap* on occlusion (`1 - floor`), leaving exactly that fraction of sky
-  bleeding in. Two knobs feed it and the higher wins (`IndoorOcclusionMath.EffectiveIndoorFloor`):
-  the map-wide accessibility floor, which is what makes its hotkey work indoors as well as out, and
-  **minimum indoor brightness**, a dedicated slider for players who want readable interiors *without*
-  also brightening the outdoors. The dedicated one ships at 0 (interiors may go fully black — the point
-  of the feature); at 1 it cancels occlusion outright, which is exactly equivalent to switching the
-  feature off, a property of the formula rather than a special case. The cap is applied to corners
+- **One floor reaches interiors, and only through here.** Nothing that lifts `CurSkyGlow` can brighten
+  a sealed cave by one shade — roofed cells take no sky glow at all. So **minimum indoor brightness** is
+  applied as a *cap* on occlusion (`1 - floor`), leaving exactly that fraction of sky bleeding in. It is
+  part of the preset bundle, so Realistic leaves interiors free to go fully black (the point of the
+  feature) and Cinematic holds them at 0.50; at 1 it cancels occlusion outright, which is exactly
+  equivalent to switching the feature off, a property of the formula rather than a special case. The cap is applied to corners
   *before* they are averaged into a boundary cell's centre, so a floored interior still ramps down across
   its walls rather than the wall flattening out at the floor value.
 - **Baked, not per-frame.** Unlike §7a's material colour, these alphas only change when a section is
@@ -1251,7 +1248,7 @@ reason to patch, and the occlusion change is confined to a predicate inside our 
 `Room.UsesOutdoorTemperature` is the right predicate. No code was copied, and the two
 implementations share neither structure nor mechanism.
 
-## Settings, presets, and the brightness floor (planned)
+## Settings and presets
 
 Two cross-cutting settings ideas that span the subsystems above:
 
@@ -1274,23 +1271,16 @@ Two cross-cutting settings ideas that span the subsystems above:
   The floors live in the preset bundle (not as standalone tunables) precisely because lifting one
   without the other still leaves interiors unreadable; pinning them equal is what
   `CelestialSettingsMathTests` asserts.
-- **Minimum-brightness accessibility floor.** A user-set floor on displayed night brightness,
-  toggleable in Mod Settings and — if the player binds it — by an optional hotkey. This is the
-  deliberate complement to true pitch-black nights (§7): darkness for atmosphere, a legible floor
-  when a player actually needs to see to play. Because it clamps the *displayed* glow upward, it
-  must be applied as the last step, after §7's floors and any weather dimming.
-
-  It stays **off by default even though Cinematic ships with brightness floors of its own**, and the
-  two are not redundant. Cinematic's floors are a *look* — part of a bundle, overwritten the moment
-  a player picks another preset. This one is an *accessibility override*: orthogonal to the presets
-  (which is why nudging it never flips the preset to Custom), hotkey-toggleable mid-game, and it
-  survives switching to Realistic. A player who needs light needs it regardless of the look they chose.
-
-  The keybinding ships with **no default key**. It was `Semicolon` on the assumption that vanilla left
-  it free; vanilla binds it to `Dev_ToggleGodMode`, so every install logged a startup "Key binding
-  conflict" and one of the two lost. Since almost every free key risks colliding with some other mod
-  instead, the def ships unbound and is assignable in Options -> Keyboard Configuration. The checkbox
-  and slider in Mod Settings mean this costs discoverability, not reachability.
+- **One floor per scope, and no more.** An earlier design had a *third* brightness knob: a map-wide
+  "accessibility floor", opt-in by checkbox and by an optional hotkey, clamping displayed glow upward
+  as the very last step. It was removed once Cinematic's own two floors shipped at 0.50 — three
+  settings competing to answer "how dark may night get" is worse for a player than one clear answer
+  per scope, and the two preset floors already cover both scopes (outdoor overlay §7a, roofed cells
+  §7b) and reach interiors, which glow-lifting never could. What it cost to remove is worth recording:
+  a Harmony postfix at `Priority.Last` on `SkyManagerUpdate`, an unbound `KeyBindingDef` with its
+  `GameComponent`, a pure `BrightnessFloorMath.Apply` clamp, a live probe, and the two-knob
+  reconciliation (`EffectiveMinBrightness` / `EffectiveIndoorFloor`) that existed *only* because two
+  floors could disagree.
 
 All tunables persist via the mod's `ModSettings`; the preset buttons just write bundles of those
 same values, so a preset is never a separate code path.

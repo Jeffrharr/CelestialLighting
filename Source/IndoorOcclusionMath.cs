@@ -139,29 +139,18 @@ public static class IndoorOcclusionMath
     // the feature off; that equivalence is a property of the formula, not a special case.
     public const float DefaultMinIndoorBrightness = 0f;
 
-    // The two knobs that can hold an interior above black, reconciled: this feature's own indoor floor
-    // and the map-wide accessibility floor. Both mean "never darker than this", so the higher wins —
-    // the same rule NightRadianceMath.EffectiveMinBrightness applies to the night overlay. Deliberately
-    // NOT shared with that function: these are different knobs with different scopes (this one only
-    // ever affects roofed cells), and collapsing them would couple §7a's taste clamp to §7b's.
-    public static float EffectiveIndoorFloor(float minIndoorBrightness, float accessibilityFloor)
-    {
-        float higher = minIndoorBrightness > accessibilityFloor ? minIndoorBrightness : accessibilityFloor;
-        return Clamp01(higher);
-    }
-
     // Applies that floor as a ceiling on occlusion: capping at 1 - floor leaves exactly `floor` worth of
     // sky bleeding into a roofed cell. This is the only path by which either floor can reach a sealed
     // interior. The accessibility floor works by lifting CurSkyGlow, which is *gameplay* light, and
     // roofed cells never take sky glow at all (Verse.GlowGrid.GroundGlowAt returns early for them), so
-    // lifting it cannot brighten a cave by one shade. With both knobs at 0 the cap is 1 and this is the
+    // lifting it cannot brighten a cave by one shade. With the floor at 0 the cap is 1 and this is the
     // identity.
     //
     // The adapter caps corners *before* averaging them into a boundary cell's centre, so a floored
     // interior still ramps down across its walls (floor 0.5 gives inner corners 0.5 and a wall centre of
     // 0.25) rather than the wall flattening out at the floor value.
-    public static float CapOcclusion(float occlusion, float brightnessFloor) =>
-        Clamp01(Min(Clamp01(occlusion), 1f - Clamp01(brightnessFloor)));
+    public static float CapOcclusion(float occlusion, float minIndoorBrightness) =>
+        Clamp01(Min(Clamp01(occlusion), 1f - Clamp01(minIndoorBrightness)));
 
     // Resolve a final vertex alpha, never *lowering* what vanilla baked. Only-ever-raising matters
     // for composition: other mods legitimately write this alpha for their own reasons (Dub's

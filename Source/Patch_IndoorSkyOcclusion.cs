@@ -119,7 +119,7 @@ public static class Patch_IndoorSkyOcclusion
 
                 int vertex = firstCenterInd + (z - rect.minZ) * rect.Width + (x - rect.minX);
                 colors[vertex].a = IndoorOcclusionMath.CoverAlpha(
-                    IndoorOcclusionMath.CapOcclusion(occlusion, settings.IndoorFloor), colors[vertex].a);
+                    IndoorOcclusionMath.CapOcclusion(occlusion, settings.MinIndoorBrightness), colors[vertex].a);
             }
         }
     }
@@ -143,7 +143,7 @@ public static class Patch_IndoorSkyOcclusion
         }
 
         float occlusion = IndoorOcclusionMath.CornerOcclusion(anyBlocksSky, touchesDoor, settings.DoorSkyLeak);
-        return IndoorOcclusionMath.CapOcclusion(occlusion, settings.IndoorFloor);
+        return IndoorOcclusionMath.CapOcclusion(occlusion, settings.MinIndoorBrightness);
     }
 
     // Live-state lookup for one cell, handed straight to the pure core. Reads the roof *def* rather

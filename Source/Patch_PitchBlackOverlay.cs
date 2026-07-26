@@ -55,15 +55,9 @@ public static class Patch_PitchBlackOverlay
         if (current.Biome != null && current.Biome.disableSkyLighting)
             return;
 
-        // The accessibility floor has to be read here rather than relied on through CurSkyGlow:
-        // Patch_BrightnessFloor lifts that glow at Priority.Last, i.e. after this postfix has already
-        // run, so the value we see is un-floored. See NightRadianceMath.EffectiveMinBrightness.
-        CelestialLightingSettings settings = CelestialLightingSettingsMod.Settings;
-        float accessibilityFloor = settings != null && settings.brightnessFloorEnabled
-            ? settings.brightnessFloor
-            : 0f;
-        float minBrightness = NightRadianceMath.EffectiveMinBrightness(
-            NightRadianceSettings.Current.MinNightBrightness, accessibilityFloor);
+        // §7a's own clamp is the only floor on the night screen. OverlayBrightnessFactor clamps it
+        // into [0,1] itself, so there is nothing to reconcile before handing it over.
+        float minBrightness = NightRadianceSettings.Current.MinNightBrightness;
 
         float keep = NightRadianceMath.OverlayBrightnessFactor(__instance.CurSkyGlow, minBrightness);
 

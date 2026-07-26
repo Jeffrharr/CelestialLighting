@@ -2,35 +2,131 @@
   "name": "indoor_sky_occlusion",
   "saveFile": "minimal_colony.rws",
   "steps": [
-    { "type": "SetTile", "args": { "latitude": "20" } },
-    { "type": "SetSeason", "args": { "dayOfYear": "40" } },
-
-    { "type": "SetTime", "args": { "hour": "23" } },
-    { "type": "Screenshot", "args": { "fileName": "iso_warmup.png" } },
-
-    { "type": "Screenshot", "args": { "fileName": "iso_night_pitch_black.png" } },
-
-    { "type": "SetFeature", "args": { "featureName": "brightness_floor", "enabled": "true" } },
-    { "type": "SetFeature", "args": { "featureName": "indoor_sky_occlusion", "enabled": "false" } },
-    { "type": "Screenshot", "args": { "fileName": "iso_night_vanilla_cover.png" } },
-    { "type": "SetFeature", "args": { "featureName": "indoor_sky_occlusion", "enabled": "true" } },
-    { "type": "Screenshot", "args": { "fileName": "iso_night_occluded.png" } },
-    { "type": "SetFeature", "args": { "featureName": "brightness_floor", "enabled": "false" } },
-
-    { "type": "SetTime", "args": { "hour": "2" } },
-    { "type": "SetFeature", "args": { "featureName": "indoor_sky_occlusion", "enabled": "false" } },
-    { "type": "Screenshot", "args": { "fileName": "iso_moonlit_vanilla_cover.png" } },
-    { "type": "SetFeature", "args": { "featureName": "indoor_sky_occlusion", "enabled": "true" } },
-    { "type": "Screenshot", "args": { "fileName": "iso_moonlit_occluded.png" } },
-
-    { "type": "SetTime", "args": { "hour": "12" } },
-    { "type": "SetFeature", "args": { "featureName": "indoor_sky_occlusion", "enabled": "false" } },
-    { "type": "Screenshot", "args": { "fileName": "iso_noon_vanilla_cover.png" } },
-    { "type": "SetFeature", "args": { "featureName": "indoor_sky_occlusion", "enabled": "true" } },
-    { "type": "Screenshot", "args": { "fileName": "iso_noon_occluded.png" } },
-
-    { "type": "SetFeature", "args": { "featureName": "brightness_floor", "enabled": "true" } },
-    { "type": "Screenshot", "args": { "fileName": "iso_noon_occluded_with_floor.png" } },
-    { "type": "SetFeature", "args": { "featureName": "brightness_floor", "enabled": "false" } }
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "20"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "23"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "iso_warmup.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "iso_night_pitch_black.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "indoor_sky_occlusion",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "iso_night_vanilla_cover.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "indoor_sky_occlusion",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "iso_night_occluded.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "2"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "indoor_sky_occlusion",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "iso_moonlit_vanilla_cover.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "indoor_sky_occlusion",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "iso_moonlit_occluded.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "indoor_sky_occlusion",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "iso_noon_vanilla_cover.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "indoor_sky_occlusion",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "iso_noon_occluded.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "iso_noon_occluded_with_floor.png"
+      }
+    }
   ]
 }

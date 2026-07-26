@@ -937,7 +937,7 @@ public class ApiCompatibilityTests
             + "soft-dependency condition def through it");
     }
 
-    // --- SkyManager glow accessors (Patch_BrightnessFloor: the accessibility minimum-brightness floor) ---
+    // --- SkyManager glow accessors (§7 night radiance writes through these) ---
 
     [Test]
     public void SkyManager_CurSkyGlow_ExistsAsFloatProperty()

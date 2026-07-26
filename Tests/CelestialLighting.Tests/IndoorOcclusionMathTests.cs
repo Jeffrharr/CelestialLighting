@@ -215,21 +215,21 @@ public class IndoorOcclusionMathTests
         Assert.That(IndoorOcclusionMath.CoverAlpha(outdoorCentre, vanillaAlpha: 0), Is.EqualTo(0));
     }
 
-    // --- CapOcclusion (the accessibility escape hatch) ---
+    // --- CapOcclusion (the one path that can hold an interior above black) ---
 
     [Test]
     public void CapOcclusion_FloorOff_IsIdentity()
     {
-        Assert.That(IndoorOcclusionMath.CapOcclusion(1f, brightnessFloor: 0f), Is.EqualTo(1f).Within(Tolerance));
-        Assert.That(IndoorOcclusionMath.CapOcclusion(0.85f, brightnessFloor: 0f), Is.EqualTo(0.85f).Within(Tolerance));
+        Assert.That(IndoorOcclusionMath.CapOcclusion(1f, minIndoorBrightness: 0f), Is.EqualTo(1f).Within(Tolerance));
+        Assert.That(IndoorOcclusionMath.CapOcclusion(0.85f, minIndoorBrightness: 0f), Is.EqualTo(0.85f).Within(Tolerance));
     }
 
     [Test]
     public void CapOcclusion_LeavesExactlyTheFloorWorthOfSky()
     {
-        // With the accessibility floor at 0.15, a sealed cave keeps 15% of the sky — the thing that makes
+        // With the indoor floor at 0.15, a sealed cave keeps 15% of the sky — the thing that makes
         // the in-game "toggle minimum brightness" hotkey work indoors, where lifting CurSkyGlow cannot.
-        Assert.That(IndoorOcclusionMath.CapOcclusion(1f, brightnessFloor: 0.15f),
+        Assert.That(IndoorOcclusionMath.CapOcclusion(1f, minIndoorBrightness: 0.15f),
             Is.EqualTo(0.85f).Within(Tolerance));
     }
 
@@ -237,14 +237,14 @@ public class IndoorOcclusionMathTests
     public void CapOcclusion_NeverRaisesOcclusion()
     {
         // A doorway already leaking more than the floor asks for is left alone — the cap is a ceiling only.
-        Assert.That(IndoorOcclusionMath.CapOcclusion(0.5f, brightnessFloor: 0.15f),
+        Assert.That(IndoorOcclusionMath.CapOcclusion(0.5f, minIndoorBrightness: 0.15f),
             Is.EqualTo(0.5f).Within(Tolerance));
     }
 
     [Test]
     public void CapOcclusion_FullFloor_DisablesOcclusionEntirely()
     {
-        Assert.That(IndoorOcclusionMath.CapOcclusion(1f, brightnessFloor: 1f), Is.EqualTo(0f).Within(Tolerance));
+        Assert.That(IndoorOcclusionMath.CapOcclusion(1f, minIndoorBrightness: 1f), Is.EqualTo(0f).Within(Tolerance));
     }
 
     [Test]
@@ -252,66 +252,11 @@ public class IndoorOcclusionMathTests
     {
         // The adapter caps corners *before* averaging them into a boundary cell's centre, which keeps the
         // wall a gradient under a floor rather than flattening it out at the floor value.
-        float cappedInner = IndoorOcclusionMath.CapOcclusion(1f, brightnessFloor: 0.5f);
+        float cappedInner = IndoorOcclusionMath.CapOcclusion(1f, minIndoorBrightness: 0.5f);
         float wall = IndoorOcclusionMath.CentreOcclusion(blocksSky: false, cornerOcclusionSum: 2f * cappedInner);
 
         Assert.That(cappedInner, Is.EqualTo(0.5f).Within(Tolerance));
         Assert.That(wall, Is.EqualTo(0.25f).Within(Tolerance));
-    }
-
-    // --- EffectiveIndoorFloor (the dedicated indoor slider vs the map-wide accessibility floor) ---
-
-    [Test]
-    public void EffectiveIndoorFloor_TakesWhicheverKnobIsHigher()
-    {
-        Assert.That(IndoorOcclusionMath.EffectiveIndoorFloor(0.3f, 0.15f), Is.EqualTo(0.3f).Within(Tolerance));
-        Assert.That(IndoorOcclusionMath.EffectiveIndoorFloor(0.05f, 0.15f), Is.EqualTo(0.15f).Within(Tolerance));
-    }
-
-    [Test]
-    public void EffectiveIndoorFloor_BothOff_IsZero()
-    {
-        // The shipped default: nothing holds an interior above black.
-        Assert.That(IndoorOcclusionMath.EffectiveIndoorFloor(0f, 0f), Is.EqualTo(0f).Within(Tolerance));
-    }
-
-    [Test]
-    public void EffectiveIndoorFloor_Clamps()
-    {
-        Assert.That(IndoorOcclusionMath.EffectiveIndoorFloor(-1f, -2f), Is.EqualTo(0f).Within(Tolerance));
-        Assert.That(IndoorOcclusionMath.EffectiveIndoorFloor(4f, 0f), Is.EqualTo(1f).Within(Tolerance));
-    }
-
-    [Test]
-    public void MinIndoorBrightness_KeepsExactlyThatFractionOfSky()
-    {
-        // A sealed cell with the slider at 0.25 keeps a quarter of the sky rather than going black.
-        float floor = IndoorOcclusionMath.EffectiveIndoorFloor(0.25f, accessibilityFloor: 0f);
-        float sealedCell = IndoorOcclusionMath.CentreOcclusion(blocksSky: true, cornerOcclusionSum: 4f);
-        Assert.That(IndoorOcclusionMath.CapOcclusion(sealedCell, floor), Is.EqualTo(0.75f).Within(Tolerance));
-    }
-
-    [Test]
-    public void MinIndoorBrightness_AtOne_IsEquivalentToTheFeatureBeingOff()
-    {
-        // Documented property: the top of the slider cancels occlusion entirely, so a roofed cell falls
-        // back to whatever vanilla baked (CoverAlpha never lowers it).
-        float floor = IndoorOcclusionMath.EffectiveIndoorFloor(1f, accessibilityFloor: 0f);
-        float sealedCell = IndoorOcclusionMath.CentreOcclusion(blocksSky: true, cornerOcclusionSum: 4f);
-        float capped = IndoorOcclusionMath.CapOcclusion(sealedCell, floor);
-        Assert.That(capped, Is.EqualTo(0f).Within(Tolerance));
-        Assert.That(IndoorOcclusionMath.CoverAlpha(capped, IndoorOcclusionMath.VanillaRoofedMinSkyCover),
-            Is.EqualTo(IndoorOcclusionMath.VanillaRoofedMinSkyCover));
-    }
-
-    [Test]
-    public void MinIndoorBrightness_DoesNotOverrideAHigherAccessibilityFloor()
-    {
-        // A player who has the map-wide floor at 0.4 and this slider at 0.1 gets 0.4 indoors — the
-        // legibility guarantee must not be weakened by the narrower knob.
-        float floor = IndoorOcclusionMath.EffectiveIndoorFloor(0.1f, accessibilityFloor: 0.4f);
-        float sealedCell = IndoorOcclusionMath.CentreOcclusion(blocksSky: true, cornerOcclusionSum: 4f);
-        Assert.That(IndoorOcclusionMath.CapOcclusion(sealedCell, floor), Is.EqualTo(0.6f).Within(Tolerance));
     }
 
     // --- CoverAlpha ---

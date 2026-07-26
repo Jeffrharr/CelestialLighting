@@ -1,3 +1,5 @@
+using System;
+
 namespace CelestialLighting.Tests;
 
 /// <summary>
@@ -375,5 +377,60 @@ public class FormulasTests
         // result must stay within [1 - maxVariation, 1 + maxVariation].
         Assert.That(Formulas.ShadowLengthScale(5f, 0.15f), Is.EqualTo(1.15f).Within(Tolerance));
         Assert.That(Formulas.ShadowLengthScale(-5f, 0.15f), Is.EqualTo(0.85f).Within(Tolerance));
+    }
+
+    // --- ScaleShadowVector / ScaleShadowStrength: the two user-facing Look sliders ---
+
+    [Test]
+    public void ScaleShadowVector_ScalesLengthWithoutTurningTheShadow()
+    {
+        // The knob is a length knob: direction is the physical model's answer and must survive it,
+        // or a preset would silently point shadows somewhere the sun is not.
+        Formulas.ShadowVector scaled = Formulas.ScaleShadowVector(3f, 4f, 1.4f);
+        Assert.That(MathF.Sqrt(scaled.X * scaled.X + scaled.Y * scaled.Y), Is.EqualTo(7f).Within(Tolerance));
+        Assert.That(scaled.X / scaled.Y, Is.EqualTo(3f / 4f).Within(Tolerance));
+    }
+
+    [Test]
+    public void ScaleShadowVector_IsIdentityAtOne()
+    {
+        // Realistic's 1.0 must be a true no-op, not "almost the physical model".
+        Formulas.ShadowVector scaled = Formulas.ScaleShadowVector(-2.5f, 6f, 1f);
+        Assert.That(scaled.X, Is.EqualTo(-2.5f).Within(Tolerance));
+        Assert.That(scaled.Y, Is.EqualTo(6f).Within(Tolerance));
+    }
+
+    [Test]
+    public void ScaleShadowVector_ReClampsToVanillasMaxLength()
+    {
+        // Vanilla's mesh/shader is tuned for a -15..15 vector range, so scaling an already-clamped
+        // near-horizon shadow up must not push geometry past what that renderer expects.
+        Formulas.ShadowVector scaled = Formulas.ScaleShadowVector(Formulas.MaxShadowLength, 0f, 2f);
+        Assert.That(scaled.X, Is.EqualTo(Formulas.MaxShadowLength).Within(Tolerance));
+    }
+
+    [Test]
+    public void ScaleShadowVector_DegenerateInputsCollapseToNoShadow()
+    {
+        // A zero-length vector has no direction to preserve, and a zero/negative scale means "no
+        // shadow" — both must produce a vector rather than a NaN the shader would render as garbage.
+        Formulas.ShadowVector zeroVector = Formulas.ScaleShadowVector(0f, 0f, 1.4f);
+        Assert.That(zeroVector.X, Is.EqualTo(0f).Within(Tolerance));
+        Assert.That(zeroVector.Y, Is.EqualTo(0f).Within(Tolerance));
+
+        Formulas.ShadowVector zeroScale = Formulas.ScaleShadowVector(3f, 4f, 0f);
+        Assert.That(zeroScale.X, Is.EqualTo(0f).Within(Tolerance));
+        Assert.That(zeroScale.Y, Is.EqualTo(0f).Within(Tolerance));
+    }
+
+    [TestCase(1f, 1f, 1f)]        // identity
+    [TestCase(0.8f, 0.5f, 0.4f)]  // plain multiply
+    [TestCase(1f, 0f, 0f)]        // slider at the floor means no shadow at all
+    [TestCase(2f, 1f, 1f)]        // an out-of-range intensity still cannot exceed full opacity
+    [TestCase(1f, 2f, 1f)]        // nor can an out-of-range slider
+    [TestCase(-1f, 1f, 0f)]
+    public void ScaleShadowStrength_MultipliesAndClampsBothEnds(float intensity, float scale, float expected)
+    {
+        Assert.That(Formulas.ScaleShadowStrength(intensity, scale), Is.EqualTo(expected).Within(Tolerance));
     }
 }

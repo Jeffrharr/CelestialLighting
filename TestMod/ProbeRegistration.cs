@@ -29,7 +29,6 @@ public static class ProbeRegistration
         ProbeRegistry.Register(new AuroraTintProbe());
         ProbeRegistry.Register(new EclipseCoverageProbe());
         ProbeRegistry.Register(new BloodMoonProbe());
-        ProbeRegistry.Register(new BrightnessFloorProbe());
         // §6a's two instruments. moon_shadow_render measures the composed shadow colour the shader
         // actually uses, which is the only reliable way to test a moon shadow — a screenshot A/B of a
         // night scene moves pixels by 1-3/255 and cannot be told apart from weather and pawn motion.
@@ -87,22 +86,6 @@ public static class ProbeRegistration
         FeatureRegistry.Register(
             CelestialLightingFeatures.BloodMoonKey,
             enabled => CelestialLightingFeatures.BloodMoon = enabled);
-        // Not a CelestialLightingFeatures flag: the accessibility minimum-brightness floor lives on
-        // CelestialLightingSettings. Bridged so a scenario can flip it and pin the floor end-to-end.
-        FeatureRegistry.Register(
-            "brightness_floor",
-            enabled =>
-            {
-                CelestialLightingSettings settings = CelestialLightingSettingsMod.Settings;
-                if (settings != null)
-                {
-                    settings.brightnessFloorEnabled = enabled;
-                    // Push through to the runtime statics: the floor also reaches sealed interiors via
-                    // §7b's occlusion cap (roofed cells never take sky glow, so lifting CurSkyGlow alone
-                    // cannot brighten them), and that path needs the baked meshes rebuilt.
-                    settings.ApplyToRuntime();
-                }
-            });
         FeatureRegistry.Register(
             CelestialLightingFeatures.PitchBlackNightsKey,
             enabled => CelestialLightingFeatures.PitchBlackNights = enabled);

@@ -49,8 +49,7 @@ public static class Patch_ShadowDirection
             (Vector2 vector, float strength)? moonShadow = MoonPosition.ShadowForMap(map);
             if (moonShadow.HasValue)
             {
-                __result.vector = moonShadow.Value.vector;
-                __result.intensity = moonShadow.Value.strength;
+                Apply(ref __result, moonShadow.Value.vector.x, moonShadow.Value.vector.y, moonShadow.Value.strength);
             }
             else
             {
@@ -62,7 +61,18 @@ public static class Patch_ShadowDirection
         float azimuth = Formulas.SolarAzimuthDegrees(inputs.Latitude, inputs.Declination, elevation, inputs.DayPercent);
         Formulas.ShadowVector shadow = Formulas.ShadowVectorFromSunPosition(elevation, azimuth);
 
-        __result.vector = new Vector2(shadow.X, shadow.Y);
-        __result.intensity = Formulas.ShadowIntensityFromElevation(elevation);
+        Apply(ref __result, shadow.X, shadow.Y, Formulas.ShadowIntensityFromElevation(elevation));
+    }
+
+    // Writes a computed shadow through the user's two Look sliders. Both branches above go through
+    // here so the sun's shadow and the moon's are scaled identically — "Shadow length" means the same
+    // thing at midnight as at noon — and so the knobs are applied in exactly one place per patch.
+    // Patch_ShadowStrength applies the same strength knob to CurShadowStrength, which is the alpha the
+    // shader actually renders with; Patch_ShadowTilt inherits it for free by reading this intensity.
+    private static void Apply(ref GenCelestial.LightInfo info, float x, float y, float intensity)
+    {
+        Formulas.ShadowVector scaled = Formulas.ScaleShadowVector(x, y, ShadowSettings.LengthScale);
+        info.vector = new Vector2(scaled.X, scaled.Y);
+        info.intensity = Formulas.ScaleShadowStrength(intensity, ShadowSettings.Strength);
     }
 }

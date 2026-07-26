@@ -20,22 +20,22 @@ public static class IndoorOcclusionRedraw
     // "these three fields are what the baked meshes were built from" true from the first frame.)
     private static bool lastEnabled = true;
     private static float lastDoorSkyLeak = IndoorOcclusionMath.DefaultDoorSkyLeak;
-    private static float lastBrightnessFloor;
+    private static float lastMinIndoorBrightness;
 
-    // brightnessFloor is the *resolved* indoor floor (IndoorOcclusionSettings.IndoorFloor), not the raw
+    // minIndoorBrightness is the floor the bake actually applies (IndoorOcclusionSettings.
     // accessibility slider — either knob moving must trigger a rebuild, and comparing the resolved value
     // catches both without duplicating the max() rule here.
-    public static void SyncTo(bool enabled, float doorSkyLeak, float brightnessFloor)
+    public static void SyncTo(bool enabled, float doorSkyLeak, float minIndoorBrightness)
     {
         bool unchanged = enabled == lastEnabled
             && doorSkyLeak == lastDoorSkyLeak
-            && brightnessFloor == lastBrightnessFloor;
+            && minIndoorBrightness == lastMinIndoorBrightness;
         if (unchanged)
             return;
 
         lastEnabled = enabled;
         lastDoorSkyLeak = doorSkyLeak;
-        lastBrightnessFloor = brightnessFloor;
+        lastMinIndoorBrightness = minIndoorBrightness;
         RebuildLightingMeshes();
     }
 

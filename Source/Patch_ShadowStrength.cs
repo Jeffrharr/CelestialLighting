@@ -68,7 +68,7 @@ public static class Patch_ShadowStrength
             if (CelestialLightingFeatures.PenumbraContrast)
                 strength *= PenumbraMath.PenumbraContrastFactor(elevation);
 
-            __result = strength * weatherShadow;
+            __result = Formulas.ScaleShadowStrength(strength * weatherShadow, ShadowSettings.Strength);
             return;
         }
 
@@ -76,6 +76,13 @@ public static class Patch_ShadowStrength
         // uses for its night branch, so the alpha set here always matches the vector set there. If
         // the moon is down or new, ShadowForMap returns null and the night stays shadowless.
         (UnityEngine.Vector2 vector, float strength)? moonShadow = MoonPosition.ShadowForMap(map);
-        __result = moonShadow.HasValue ? moonShadow.Value.strength * weatherShadow : 0f;
+        float moonStrength = moonShadow.HasValue ? moonShadow.Value.strength * weatherShadow : 0f;
+
+        // The user's "Shadow strength" slider, applied last and to both branches — the same knob
+        // Patch_ShadowDirection applies to LightInfo.intensity. This is the value that actually
+        // reaches the shader (SkyManager writes it into MapSunLightDirection's alpha and lerps
+        // MatBases.SunShadow.color by it), so a slider that missed this point would move the mesh's
+        // extrusion without moving what the player sees.
+        __result = Formulas.ScaleShadowStrength(moonStrength, ShadowSettings.Strength);
     }
 }

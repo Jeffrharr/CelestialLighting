@@ -69,28 +69,6 @@
       }
     },
     {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "brightness_floor",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "brightness_floor",
-        "expectedValue": "1.0",
-        "tolerance": "0.02"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "brightness_floor",
-        "enabled": "false"
-      }
-    },
-    {
       "type": "SetWeather",
       "args": {
         "weatherDef": "Blizzard",

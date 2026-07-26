@@ -3,8 +3,8 @@ using System;
 namespace CelestialLighting.Tests;
 
 /// <summary>
-/// Offline edge-case coverage for CelestialSettingsMath.cs — the preset bundles and the
-/// accessibility brightness-floor clamp. No RimWorld/Unity assembly required (the file is pure
+/// Offline edge-case coverage for CelestialSettingsMath.cs — the preset bundles and what they
+/// promise once the patches read them. No RimWorld/Unity assembly required (the file is pure
 /// System). Complements ApiCompatibilityTests.cs, which only checks vanilla members still exist;
 /// these check that our own preset/floor logic behaves.
 /// </summary>
@@ -12,46 +12,6 @@ namespace CelestialLighting.Tests;
 public class CelestialSettingsMathTests
 {
     private const float Tolerance = 0.0001f;
-
-    // --- BrightnessFloorMath.Apply ---
-
-    [TestCase(0.05f, 0.15f, ExpectedResult = 0.15f)] // below floor: lifted to floor
-    [TestCase(0.50f, 0.15f, ExpectedResult = 0.50f)] // above floor: untouched
-    [TestCase(0.15f, 0.15f, ExpectedResult = 0.15f)] // exactly at floor: unchanged
-    [TestCase(0.00f, 0.20f, ExpectedResult = 0.20f)] // pitch black lifted
-    [TestCase(1.00f, 0.30f, ExpectedResult = 1.00f)] // full daylight untouched
-    public float Apply_Enabled_ClampsUpwardOnly(float glow, float floor)
-    {
-        return BrightnessFloorMath.Apply(glow, floor, enabled: true);
-    }
-
-    [TestCase(0.05f, 0.15f, ExpectedResult = 0.05f)] // disabled is the identity even below floor
-    [TestCase(0.80f, 0.15f, ExpectedResult = 0.80f)]
-    public float Apply_Disabled_IsIdentity(float glow, float floor)
-    {
-        return BrightnessFloorMath.Apply(glow, floor, enabled: false);
-    }
-
-    [Test]
-    public void Apply_ClampsFloorAboveOneDownToOne()
-    {
-        // A hand-edited or future-widened floor above 1 must not push displayed glow past the valid
-        // 0–1 range.
-        Assert.That(BrightnessFloorMath.Apply(0.2f, floor: 5f, enabled: true), Is.EqualTo(1f).Within(Tolerance));
-    }
-
-    [Test]
-    public void Apply_ClampsNegativeFloorUpToZero_LeavingGlowUnchanged()
-    {
-        // A negative floor is nonsensical; it clamps to 0, so it can never lower a positive glow.
-        Assert.That(BrightnessFloorMath.Apply(0.3f, floor: -1f, enabled: true), Is.EqualTo(0.3f).Within(Tolerance));
-    }
-
-    [Test]
-    public void Apply_ClampsGlowAboveOneDownToOne()
-    {
-        Assert.That(BrightnessFloorMath.Apply(1.5f, floor: 0.2f, enabled: true), Is.EqualTo(1f).Within(Tolerance));
-    }
 
     // --- Presets.Resolve ---
 
@@ -116,6 +76,33 @@ public class CelestialSettingsMathTests
     public bool IsOpinionated_TrueOnlyForNamedPresets(CelestialPreset preset)
     {
         return Presets.IsOpinionated(preset);
+    }
+
+    // --- What the two shadow knobs actually do, now that the patches read them ---
+
+    [Test]
+    public void Realistic_LeavesTheShadowModelExactlyAsComputed()
+    {
+        // "Physically faithful" has to mean the identity, or Realistic is just another look. Asserted
+        // through the functions the patches call rather than on the raw knob values, since it is the
+        // composed behaviour — not the number 1.0 — that the preset is promising.
+        Formulas.ShadowVector scaled = Formulas.ScaleShadowVector(0f, 8f, Presets.Realistic.ShadowLengthScale);
+        Assert.That(scaled.Y, Is.EqualTo(8f).Within(Tolerance));
+        Assert.That(Formulas.ScaleShadowStrength(0.7f, Presets.Realistic.ShadowStrength),
+            Is.EqualTo(0.7f).Within(Tolerance));
+    }
+
+    [Test]
+    public void Cinematic_MakesShadowsLongerAndSofterThanRealistic()
+    {
+        // The preset's own description — "longer, softer shadows" — stated as behaviour. Both halves
+        // matter: length alone would read as a sharper, more dramatic scene rather than a gentler one.
+        Formulas.ShadowVector realistic = Formulas.ScaleShadowVector(0f, 8f, Presets.Realistic.ShadowLengthScale);
+        Formulas.ShadowVector cinematic = Formulas.ScaleShadowVector(0f, 8f, Presets.Cinematic.ShadowLengthScale);
+        Assert.That(cinematic.Y, Is.GreaterThan(realistic.Y));
+
+        Assert.That(Formulas.ScaleShadowStrength(0.7f, Presets.Cinematic.ShadowStrength),
+            Is.LessThan(Formulas.ScaleShadowStrength(0.7f, Presets.Realistic.ShadowStrength)));
     }
 
     [Test]

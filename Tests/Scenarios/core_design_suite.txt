@@ -35,7 +35,6 @@ sun_clock_hour_sweep.json
 sun_clock_lock.json
 shadow_lean_equinox.json
 civil_twilight_dusk.json
-brightness_floor.json
 indoor_sky_occlusion.json
 indoor_min_brightness.json
 

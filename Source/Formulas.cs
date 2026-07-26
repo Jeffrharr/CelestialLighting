@@ -242,6 +242,35 @@ public static class Formulas
         return new ShadowVector(-sunEast * length, -sunNorth * length);
     }
 
+    // --- The two user-facing shadow knobs (the "Look" sliders), as pure functions ---
+    //
+    // Both are applied at the two patch sites that own a shadow (direction and strength) rather than
+    // inside the geometry above, so the physical model stays the physical model and the knobs stay a
+    // deliberate, visible multiply on top of it.
+
+    // Scales a shadow vector's LENGTH by the user's slider, re-clamping to MaxShadowLength.
+    //
+    // The clamp is what keeps a >1 scale safe: vanilla's shadow mesh/shader is tuned for a -15..15
+    // vector range (ShadowMaxLengthDay/Night), so scaling an already-clamped near-horizon shadow by
+    // 1.4 would push the geometry outside the range vanilla's own renderer expects. Scaling first and
+    // re-clamping means the knob lengthens mid-sky shadows — where the visible drama actually is —
+    // and leaves the near-horizon ones pinned at vanilla's own maximum.
+    public static ShadowVector ScaleShadowVector(float x, float y, float lengthScale)
+    {
+        float magnitude = MathF.Sqrt(x * x + y * y);
+        if (magnitude <= 0.0001f || lengthScale <= 0f)
+            return new ShadowVector(0f, 0f);
+
+        float scaled = Clamp(magnitude * lengthScale, 0f, MaxShadowLength);
+        float factor = scaled / magnitude;
+        return new ShadowVector(x * factor, y * factor);
+    }
+
+    // Scales a shadow's opacity by the user's slider. Clamped at both ends: the slider is a 0..1
+    // control, and a shadow alpha outside [0,1] is meaningless to the shader either way.
+    public static float ScaleShadowStrength(float intensity, float strengthScale) =>
+        Clamp01(intensity) * Clamp01(strengthScale);
+
     private static float ToRadians(float degrees) => degrees * MathF.PI / 180f;
     private static float ToDegrees(float radians) => radians * 180f / MathF.PI;
 

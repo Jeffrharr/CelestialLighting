@@ -139,24 +139,6 @@ public static class NightRadianceMath
     // light source (moon, starlight/airglow, aurora, eclipse) is in and the night's overall floor is final.
     public const float DefaultMinNightBrightness = 0f;
 
-    // The two "minimum brightness" knobs, reconciled. MinNightBrightness is §7a's own taste clamp; the
-    // accessibility brightness floor (CelestialLightingSettings.brightnessFloor, 0 when its checkbox is
-    // off) is the player's legibility escape hatch. Both mean "never render darker than this", so §7a
-    // honours whichever is higher.
-    //
-    // Without this the floor could not brighten the night *screen* at all: Patch_BrightnessFloor takes
-    // Priority.Last, so it lifts CurSkyGlow only AFTER Patch_PitchBlackOverlay has already read the
-    // un-floored value and pulled the overlay to black. Gameplay light rose and the picture stayed
-    // black, which is the one situation the floor exists for. Reading the floor as a clamp here fixes
-    // that without reordering the two patches (DESIGN.md pins the glow floor as the last glow step) and
-    // gives the single knob three consistent paths: gameplay glow, the night overlay, and — via
-    // IndoorOcclusionMath.CapOcclusion — sealed interiors.
-    public static float EffectiveMinBrightness(float minNightBrightness, float accessibilityFloor)
-    {
-        float higher = minNightBrightness > accessibilityFloor ? minNightBrightness : accessibilityFloor;
-        return Clamp01(higher);
-    }
-
     // Fraction of vanilla overlay brightness to keep, in [minBrightness, 1]. Linear between the two
     // anchors above — fully black at/below OverlayDarkGlow, untouched at/above OverlayFullBrightGlow.
     // minBrightness is the user's playability clamp (the "minimum-brightness floor"): 0 lets a
