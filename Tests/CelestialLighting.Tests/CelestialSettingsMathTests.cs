@@ -85,8 +85,8 @@ public class CelestialSettingsMathTests
     {
         // Indoor occlusion and night darkness compound, so lifting only one still leaves a sealed
         // room under a moonless night unreadable. Pin them equal, not merely both nonzero.
-        Assert.That(Presets.Cinematic.MinNightBrightness, Is.EqualTo(0.30f).Within(Tolerance));
-        Assert.That(Presets.Cinematic.MinIndoorBrightness, Is.EqualTo(0.30f).Within(Tolerance));
+        Assert.That(Presets.Cinematic.MinNightBrightness, Is.EqualTo(0.50f).Within(Tolerance));
+        Assert.That(Presets.Cinematic.MinIndoorBrightness, Is.EqualTo(0.50f).Within(Tolerance));
     }
 
     [Test]

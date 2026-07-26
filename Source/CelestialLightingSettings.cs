@@ -8,7 +8,7 @@ namespace CelestialLighting;
 // path, only "a bundle of the same values".
 //
 // Field defaults describe the out-of-box experience: the mod ships on the Cinematic preset, so a
-// first night looks good and stays readable (its two brightness floors sit at 0.30), with the
+// first night looks good and stays readable (its two brightness floors sit at 0.50), with the
 // separate accessibility brightness floor still OFF — Cinematic's legibility is a look, and the
 // accessibility floor stays an explicit opt-in via checkbox or the optional, unbound-by-default
 // hotkey (see GameComponent_BrightnessFloorHotkey). Realistic is one click away for genuinely

@@ -103,10 +103,15 @@ public readonly struct PresetKnobs
 
 public static class Presets
 {
-    // The brightness floor both "never fully black" knobs take under Cinematic. 0.30 is well above
-    // the ~0.15 the accessibility floor calls "legible but still clearly night" — Cinematic is a
-    // look, not an accessibility aid, and it is picking legibility on purpose.
-    private const float CinematicMinBrightness = 0.30f;
+    // The brightness floor both "never fully black" knobs take under Cinematic. Well above the ~0.15
+    // the accessibility floor calls "legible but still clearly night" — Cinematic is a look, not an
+    // accessibility aid, and it is picking legibility on purpose.
+    //
+    // 0.50 rather than the 0.30 this shipped with first: the two floors compound (a sealed room under
+    // a moonless night multiplies both), and at 0.30 the compounded result still read as too dark to
+    // play by on the preset whose entire job is to be readable out of the box. Realistic keeps 0 and
+    // is one click away, so raising the *default* costs nothing for players who want true black.
+    private const float CinematicMinBrightness = 0.50f;
 
     // "Realistic": physically-faithful shadows at full length/strength, genuinely black nights
     // (zero aesthetic floor — atmosphere over legibility, which is what the opt-in accessibility

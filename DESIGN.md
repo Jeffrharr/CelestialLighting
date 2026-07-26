@@ -1098,7 +1098,7 @@ Two cross-cutting settings ideas that span the subsystems above:
   minimum-brightness floors (outdoor §7, indoor §7b) — so most players pick one preset and never
   open a slider. Individual sliders remain for anyone who wants them.
 
-  **Cinematic is the shipped default**, and it sets both minimum-brightness floors to `0.30`.
+  **Cinematic is the shipped default**, and it sets both minimum-brightness floors to `0.50`.
   Rationale: the two floors compound — a sealed room under a moonless night is the darkest thing
   this mod can produce — so a first-run experience on Realistic's zeroes is a player staring at a
   black screen wondering if the mod is broken. Realistic keeps both at `0` and is one click away.
