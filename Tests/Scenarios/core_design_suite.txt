@@ -1,0 +1,54 @@
+# CelestialLighting core-design live suite — every scenario here runs inside ONE RimWorld load.
+#
+#   ../RimWorldTestHarness/Runner/run_test.sh \
+#       --suite Tests/Scenarios/core_design_suite.txt \
+#       --mod . --mod TestMod
+#
+# (Both --mod flags are required: the first activates the mod under test, the second the probe
+# bridge. Passing only the bridge loads probes whose typerefs into CelestialLighting cannot resolve,
+# and every Probe step throws "Could not resolve type ... CelestialLighting.SolarPosition".)
+#
+# WHAT IS AND ISN'T SAFE TO BATCH. The harness reloads the save between scenarios whose residue a
+# soft reset cannot undo, but as of this writing its planner only forces a reload for MAP residue —
+# a scenario leaving a GameCondition behind is followed by a soft reset, which cannot unregister it.
+# Measured, not assumed: with the eclipse scenarios in this list, eclipse_ramp_flyin read the eclipse
+# eclipse.json had started (coverage 1.0 instead of its own 0.2257). So every condition-driven
+# scenario is deliberately NOT here and must be run as its own process:
+#
+#   for s in daylight_inertness eclipse eclipse_ramp_flyin eclipse_ramp_flyout aurora blood_moon \
+#            natural_eclipse natural_eclipse_trigger; do
+#     ../RimWorldTestHarness/Runner/run_test.sh Tests/Scenarios/$s.json --mod . --mod TestMod
+#   done
+#
+# Weather scenarios ARE safe to batch, because each sets the weather it wants before probing, so the
+# previous scenario's leftover front cannot colour its readings.
+#
+# Also not here: the moon-dependent scenarios (moon_illumination, moon_survey, moon_shadow_visibility,
+# night_radiance, pitch_black_nights). Moon phase is a function of the absolute tick, so their
+# expected values only hold at the fixture's own tick — inside a suite the preceding scenarios have
+# already jumped the clock, which is exactly how an earlier suite run reported night_radiance as
+# failing while it passed standalone. Run those on their own too.
+
+# --- read-only: clock, latitude and feature flags only, so one load covers all of them ---
+solar_geometry_survey.json
+sun_clock_hour_sweep.json
+sun_clock_lock.json
+shadow_lean_equinox.json
+civil_twilight_dusk.json
+brightness_floor.json
+indoor_sky_occlusion.json
+indoor_min_brightness.json
+
+# --- weather: each sets its own, so they need no reload between them ---
+weather_dimming_census.json
+weather_dimming.json
+
+# Both of the above pin absolute dimming fractions, which scale with §13's strength knob (the
+# preset's weatherDimming value). They are pinned against the shipped default and move together if a
+# preset default changes — a run where every row is low by the same ratio is that, not a classifier
+# regression.
+#
+# penumbra_lowsun.json is deliberately absent: it builds a wall grid and repaints terrain
+# (ScenarioResidue.Map), and it is still in-flight work whose expected softness (0.5367) does not
+# match what the current build reads at its chosen hour (0.0920). Run it standalone while that is
+# being settled.

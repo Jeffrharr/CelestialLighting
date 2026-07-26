@@ -1,0 +1,131 @@
+{
+  "name": "daylight_inertness",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "20"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "type": "StartCondition",
+      "args": {
+        "conditionDef": "SolarFlare",
+        "durationHours": "24",
+        "agedHours": "2"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_tint",
+        "expectedValue": "0",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "purkinje",
+        "expectedValue": "0",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "civil_twilight",
+        "expectedValue": "0",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "blood_moon",
+        "expectedValue": "0",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_glow",
+        "expectedValue": "1.0",
+        "tolerance": "0.02"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "brightness_floor",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "brightness_floor",
+        "expectedValue": "1.0",
+        "tolerance": "0.02"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "brightness_floor",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Blizzard",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "weather_dimming",
+        "expectedValue": "0.2925",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_glow",
+        "expectedValue": "1.0",
+        "tolerance": "0.02"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "purkinje",
+        "expectedValue": "0",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "daylight_inertness_blizzard_noon.png"
+      }
+    }
+  ]
+}

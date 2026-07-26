@@ -1,0 +1,3606 @@
+{
+  "name": "sun_clock_hour_sweep",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "0"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "4"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "6"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "7"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "8"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "15"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "16"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "17"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "18"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "19"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "20"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "0"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "15"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "4"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "6"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "7"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "8"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "15"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "16"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "17"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "18"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "19"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "20"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "0"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "30"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "4"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "6"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "7"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "8"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "15"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "16"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "17"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "18"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "19"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "20"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "0"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "45"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "4"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "6"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "7"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "8"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "15"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "16"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "17"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "18"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "19"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "20"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "30"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "4"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "6"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "7"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "8"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "15"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "16"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "17"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "18"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "19"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "20"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "30"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "15"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "4"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "6"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "7"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "8"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "15"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "16"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "17"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "18"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "19"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "20"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "30"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "30"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "4"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "6"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "7"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "8"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "15"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "16"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "17"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "18"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "19"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "20"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "30"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "45"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "4"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "6"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "7"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "8"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "15"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "16"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "17"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "18"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "19"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "20"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "4"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "6"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "7"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "8"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "15"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "16"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "17"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "18"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "19"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "20"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "15"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "4"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "6"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "7"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "8"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "15"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "16"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "17"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "18"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "19"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "20"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "30"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "4"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "6"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "7"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "8"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "15"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "16"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "17"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "18"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "19"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "20"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "45"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "4"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "6"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "7"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "8"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "15"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "16"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "17"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "18"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "19"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "20"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "60"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "4"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "6"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "7"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "8"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "15"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "16"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "17"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "18"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "19"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "20"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "60"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "15"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "4"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "6"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "7"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "8"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "15"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "16"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "17"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "18"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "19"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "20"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "60"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "30"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "4"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "6"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "7"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "8"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "15"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "16"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "17"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "18"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "19"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "20"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "60"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "45"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "4"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "6"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "7"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "8"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "15"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "16"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "17"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "18"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "19"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "20"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "-45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "4"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "6"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "7"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "8"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "15"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "16"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "17"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "18"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "19"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "20"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "-45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "15"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "4"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "6"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "7"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "8"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "15"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "16"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "17"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "18"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "19"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "20"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "-45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "30"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "4"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "6"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "7"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "8"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "15"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "16"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "17"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "18"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "19"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "20"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "-45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "45"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "4"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "6"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "7"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "8"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "15"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "16"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "17"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "18"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "19"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "20"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    }
+  ]
+}

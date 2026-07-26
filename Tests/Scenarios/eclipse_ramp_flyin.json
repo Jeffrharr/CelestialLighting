@@ -1,0 +1,53 @@
+{
+  "name": "eclipse_ramp_flyin",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "20"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "pitch_black_nights",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "StartCondition",
+      "args": {
+        "conditionDef": "Eclipse",
+        "durationHours": "24",
+        "agedHours": "0.96"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "eclipse_coverage",
+        "expectedValue": "0.2257",
+        "tolerance": "0.02"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "eclipse_ramp_flyin.png"
+      }
+    }
+  ]
+}

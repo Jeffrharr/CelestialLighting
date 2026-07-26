@@ -1,0 +1,1926 @@
+{
+  "name": "solar_geometry_survey",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "0"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "66.5600",
+        "tolerance": "0.1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_color_temperature",
+        "expectedValue": "5772.00",
+        "tolerance": "5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "penumbra_softness",
+        "expectedValue": "0.0109",
+        "tolerance": "0.004"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "civil_twilight",
+        "expectedValue": "0",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "-66.5600",
+        "tolerance": "0.1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_color_temperature",
+        "expectedValue": "2000",
+        "tolerance": "1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "civil_twilight",
+        "expectedValue": "0.0000",
+        "tolerance": "0.003"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "0"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "15"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "90.0000",
+        "tolerance": "0.1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_color_temperature",
+        "expectedValue": "5772.00",
+        "tolerance": "5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "penumbra_softness",
+        "expectedValue": "0.0092",
+        "tolerance": "0.004"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "civil_twilight",
+        "expectedValue": "0",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "-90.0000",
+        "tolerance": "0.1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_color_temperature",
+        "expectedValue": "2000",
+        "tolerance": "1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "civil_twilight",
+        "expectedValue": "0.0000",
+        "tolerance": "0.003"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "0"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "30"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "66.5600",
+        "tolerance": "0.1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_color_temperature",
+        "expectedValue": "5772.00",
+        "tolerance": "5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "penumbra_softness",
+        "expectedValue": "0.0109",
+        "tolerance": "0.004"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "civil_twilight",
+        "expectedValue": "0",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "-66.5600",
+        "tolerance": "0.1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_color_temperature",
+        "expectedValue": "2000",
+        "tolerance": "1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "civil_twilight",
+        "expectedValue": "0.0000",
+        "tolerance": "0.003"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "0"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "45"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "90.0000",
+        "tolerance": "0.1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_color_temperature",
+        "expectedValue": "5772.00",
+        "tolerance": "5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "penumbra_softness",
+        "expectedValue": "0.0092",
+        "tolerance": "0.004"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "civil_twilight",
+        "expectedValue": "0",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "-90.0000",
+        "tolerance": "0.1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_color_temperature",
+        "expectedValue": "2000",
+        "tolerance": "1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "civil_twilight",
+        "expectedValue": "0.0000",
+        "tolerance": "0.003"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "30"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "36.5600",
+        "tolerance": "0.1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_color_temperature",
+        "expectedValue": "4298.40",
+        "tolerance": "5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "penumbra_softness",
+        "expectedValue": "0.0255",
+        "tolerance": "0.004"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "civil_twilight",
+        "expectedValue": "0",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "-83.4400",
+        "tolerance": "0.1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_color_temperature",
+        "expectedValue": "2000",
+        "tolerance": "1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "civil_twilight",
+        "expectedValue": "0.0000",
+        "tolerance": "0.003"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "30"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "15"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "60.0000",
+        "tolerance": "0.1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_color_temperature",
+        "expectedValue": "5772.00",
+        "tolerance": "5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "penumbra_softness",
+        "expectedValue": "0.0123",
+        "tolerance": "0.004"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "civil_twilight",
+        "expectedValue": "0",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "-60.0000",
+        "tolerance": "0.1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_color_temperature",
+        "expectedValue": "2000",
+        "tolerance": "1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "civil_twilight",
+        "expectedValue": "0.0000",
+        "tolerance": "0.003"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "30"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "30"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "83.4400",
+        "tolerance": "0.1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_color_temperature",
+        "expectedValue": "5772.00",
+        "tolerance": "5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "penumbra_softness",
+        "expectedValue": "0.0093",
+        "tolerance": "0.004"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "civil_twilight",
+        "expectedValue": "0",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "-36.5600",
+        "tolerance": "0.1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_color_temperature",
+        "expectedValue": "2000",
+        "tolerance": "1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "civil_twilight",
+        "expectedValue": "0.0000",
+        "tolerance": "0.003"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "30"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "45"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "60.0000",
+        "tolerance": "0.1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_color_temperature",
+        "expectedValue": "5772.00",
+        "tolerance": "5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "penumbra_softness",
+        "expectedValue": "0.0123",
+        "tolerance": "0.004"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "civil_twilight",
+        "expectedValue": "0",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "-60.0000",
+        "tolerance": "0.1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_color_temperature",
+        "expectedValue": "2000",
+        "tolerance": "1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "civil_twilight",
+        "expectedValue": "0.0000",
+        "tolerance": "0.003"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "21.5600",
+        "tolerance": "0.1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_color_temperature",
+        "expectedValue": "3355.41",
+        "tolerance": "5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "penumbra_softness",
+        "expectedValue": "0.0645",
+        "tolerance": "0.004"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "civil_twilight",
+        "expectedValue": "0",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "-68.4400",
+        "tolerance": "0.1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_color_temperature",
+        "expectedValue": "2000",
+        "tolerance": "1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "civil_twilight",
+        "expectedValue": "0.0000",
+        "tolerance": "0.003"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "15"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "45.0000",
+        "tolerance": "0.1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_color_temperature",
+        "expectedValue": "4829.00",
+        "tolerance": "5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "penumbra_softness",
+        "expectedValue": "0.0183",
+        "tolerance": "0.004"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "civil_twilight",
+        "expectedValue": "0",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "-45.0000",
+        "tolerance": "0.1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_color_temperature",
+        "expectedValue": "2000",
+        "tolerance": "1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "civil_twilight",
+        "expectedValue": "0.0000",
+        "tolerance": "0.003"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "30"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "68.4400",
+        "tolerance": "0.1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_color_temperature",
+        "expectedValue": "5772.00",
+        "tolerance": "5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "penumbra_softness",
+        "expectedValue": "0.0106",
+        "tolerance": "0.004"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "civil_twilight",
+        "expectedValue": "0",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "-21.5600",
+        "tolerance": "0.1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_color_temperature",
+        "expectedValue": "2000",
+        "tolerance": "1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "civil_twilight",
+        "expectedValue": "0.0000",
+        "tolerance": "0.003"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "45"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "45.0000",
+        "tolerance": "0.1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_color_temperature",
+        "expectedValue": "4829.00",
+        "tolerance": "5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "penumbra_softness",
+        "expectedValue": "0.0183",
+        "tolerance": "0.004"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "civil_twilight",
+        "expectedValue": "0",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "-45.0000",
+        "tolerance": "0.1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_color_temperature",
+        "expectedValue": "2000",
+        "tolerance": "1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "civil_twilight",
+        "expectedValue": "0.0000",
+        "tolerance": "0.003"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "60"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "6.5600",
+        "tolerance": "0.1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_color_temperature",
+        "expectedValue": "2412.41",
+        "tolerance": "5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "penumbra_softness",
+        "expectedValue": "0.4165",
+        "tolerance": "0.004"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "civil_twilight",
+        "expectedValue": "0",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "-53.4400",
+        "tolerance": "0.1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_color_temperature",
+        "expectedValue": "2000",
+        "tolerance": "1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "civil_twilight",
+        "expectedValue": "0.0000",
+        "tolerance": "0.003"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "60"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "15"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "30.0000",
+        "tolerance": "0.1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_color_temperature",
+        "expectedValue": "3886.00",
+        "tolerance": "5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "penumbra_softness",
+        "expectedValue": "0.0359",
+        "tolerance": "0.004"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "civil_twilight",
+        "expectedValue": "0",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "-30.0000",
+        "tolerance": "0.1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_color_temperature",
+        "expectedValue": "2000",
+        "tolerance": "1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "civil_twilight",
+        "expectedValue": "0.0000",
+        "tolerance": "0.003"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "60"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "30"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "53.4400",
+        "tolerance": "0.1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_color_temperature",
+        "expectedValue": "5359.59",
+        "tolerance": "5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "penumbra_softness",
+        "expectedValue": "0.0142",
+        "tolerance": "0.004"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "civil_twilight",
+        "expectedValue": "0",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "-0.8300",
+        "tolerance": "0.1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_color_temperature",
+        "expectedValue": "2000",
+        "tolerance": "1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "civil_twilight",
+        "expectedValue": "0.4150",
+        "tolerance": "0.003"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "60"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "45"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "30.0000",
+        "tolerance": "0.1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_color_temperature",
+        "expectedValue": "3886.00",
+        "tolerance": "5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "penumbra_softness",
+        "expectedValue": "0.0359",
+        "tolerance": "0.004"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "civil_twilight",
+        "expectedValue": "0",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "-30.0000",
+        "tolerance": "0.1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_color_temperature",
+        "expectedValue": "2000",
+        "tolerance": "1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "civil_twilight",
+        "expectedValue": "0.0000",
+        "tolerance": "0.003"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "-45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "68.4400",
+        "tolerance": "0.1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_color_temperature",
+        "expectedValue": "5772.00",
+        "tolerance": "5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "penumbra_softness",
+        "expectedValue": "0.0106",
+        "tolerance": "0.004"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "civil_twilight",
+        "expectedValue": "0",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "-21.5600",
+        "tolerance": "0.1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_color_temperature",
+        "expectedValue": "2000",
+        "tolerance": "1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "civil_twilight",
+        "expectedValue": "0.0000",
+        "tolerance": "0.003"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "-45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "15"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "45.0000",
+        "tolerance": "0.1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_color_temperature",
+        "expectedValue": "4829.00",
+        "tolerance": "5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "penumbra_softness",
+        "expectedValue": "0.0183",
+        "tolerance": "0.004"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "civil_twilight",
+        "expectedValue": "0",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "-45.0000",
+        "tolerance": "0.1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_color_temperature",
+        "expectedValue": "2000",
+        "tolerance": "1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "civil_twilight",
+        "expectedValue": "0.0000",
+        "tolerance": "0.003"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "-45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "30"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "21.5600",
+        "tolerance": "0.1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_color_temperature",
+        "expectedValue": "3355.41",
+        "tolerance": "5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "penumbra_softness",
+        "expectedValue": "0.0645",
+        "tolerance": "0.004"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "civil_twilight",
+        "expectedValue": "0",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "-68.4400",
+        "tolerance": "0.1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_color_temperature",
+        "expectedValue": "2000",
+        "tolerance": "1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "civil_twilight",
+        "expectedValue": "0.0000",
+        "tolerance": "0.003"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "-45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "45"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "45.0000",
+        "tolerance": "0.1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_color_temperature",
+        "expectedValue": "4829.00",
+        "tolerance": "5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "penumbra_softness",
+        "expectedValue": "0.0183",
+        "tolerance": "0.004"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "civil_twilight",
+        "expectedValue": "0",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "-45.0000",
+        "tolerance": "0.1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_color_temperature",
+        "expectedValue": "2000",
+        "tolerance": "1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "civil_twilight",
+        "expectedValue": "0.0000",
+        "tolerance": "0.003"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_clock_disagreement",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    }
+  ]
+}
