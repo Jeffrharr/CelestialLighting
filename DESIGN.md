@@ -1256,10 +1256,16 @@ implementations share neither structure nor mechanism.
 Two cross-cutting settings ideas that span the subsystems above:
 
 - **Opinionated presets.** Ship a small number of named presets (e.g. "Realistic" vs
-  "Cinematic/Pretty") that set the correlated knobs together — shadow length/strength (§1/§3), night
-  radiance floors (§7), desaturation strength (§9), weather dimming (§13), and the two
-  minimum-brightness floors (outdoor §7, indoor §7b) — so most players pick one preset and never
-  open a slider. Individual sliders remain for anyone who wants them.
+  "Cinematic/Pretty") that set the correlated knobs together — shadow length/strength (§1/§3),
+  desaturation strength (§9), weather dimming (§13), and the two minimum-brightness floors (outdoor
+  §7, indoor §7b) — so most players pick one preset and never open a slider. Individual sliders
+  remain for anyone who wants them.
+
+  A bundle only carries knobs something actually reads. An earlier "night radiance floor" knob was
+  persisted, given a slider, and never consumed by anything: §7's night brightness comes from the
+  starlight/airglow/moonlight sum in `NightRadianceSettings`, and how black the *screen* goes is
+  `minNightBrightness`. It was removed rather than wired up, because two settings competing to mean
+  "how dark is night" is the confusing part, not the missing plumbing.
 
   **Cinematic is the shipped default**, and it sets both minimum-brightness floors to `0.50`.
   Rationale: the two floors compound — a sealed room under a moonless night is the darkest thing

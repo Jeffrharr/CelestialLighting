@@ -221,7 +221,6 @@ public class CelestialLightingSettingsMod : Mod
         // the window never silently flips a chosen preset to Custom.
         Settings.shadowLengthScale = AestheticSlider(listing, "Shadow length", Settings.shadowLengthScale, 0.5f, 2.0f);
         Settings.shadowStrength = AestheticSlider(listing, "Shadow strength", Settings.shadowStrength, 0f, 1f);
-        Settings.nightRadianceFloor = AestheticSlider(listing, "Night radiance floor", Settings.nightRadianceFloor, 0f, 0.3f);
         Settings.desaturation = AestheticSlider(listing, "Night desaturation", Settings.desaturation, 0f, 1f);
         Settings.weatherDimmingStrength = AestheticSlider(listing, "Weather dimming", Settings.weatherDimmingStrength, 0f, 0.5f);
     }

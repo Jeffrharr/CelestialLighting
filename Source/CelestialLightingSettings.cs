@@ -23,7 +23,6 @@ public class CelestialLightingSettings : ModSettings
     // --- Aesthetic knobs (mirror PresetKnobs; placeholders until §1/§3/§7/§9 land) ---
     public float shadowLengthScale = Presets.Cinematic.ShadowLengthScale;
     public float shadowStrength = Presets.Cinematic.ShadowStrength;
-    public float nightRadianceFloor = Presets.Cinematic.NightRadianceFloor;
     public float desaturation = Presets.Cinematic.Desaturation;
     public float weatherDimmingStrength = Presets.Cinematic.WeatherDimming;
 
@@ -86,7 +85,6 @@ public class CelestialLightingSettings : ModSettings
         PresetKnobs knobs = Presets.Resolve(chosen);
         shadowLengthScale = knobs.ShadowLengthScale;
         shadowStrength = knobs.ShadowStrength;
-        nightRadianceFloor = knobs.NightRadianceFloor;
         desaturation = knobs.Desaturation;
         weatherDimmingStrength = knobs.WeatherDimming;
         minNightBrightness = knobs.MinNightBrightness;
@@ -182,7 +180,6 @@ public class CelestialLightingSettings : ModSettings
         Scribe_Values.Look(ref sunClock, "sunClock", SunClockMode.LockedToVanilla);
         Scribe_Values.Look(ref shadowLengthScale, "shadowLengthScale", Presets.Cinematic.ShadowLengthScale);
         Scribe_Values.Look(ref shadowStrength, "shadowStrength", Presets.Cinematic.ShadowStrength);
-        Scribe_Values.Look(ref nightRadianceFloor, "nightRadianceFloor", Presets.Cinematic.NightRadianceFloor);
         Scribe_Values.Look(ref desaturation, "desaturation", Presets.Cinematic.Desaturation);
         Scribe_Values.Look(ref weatherDimmingStrength, "weatherDimmingStrength",
             Presets.Cinematic.WeatherDimming);

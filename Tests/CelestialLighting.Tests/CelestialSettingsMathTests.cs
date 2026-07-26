@@ -60,7 +60,7 @@ public class CelestialSettingsMathTests
     {
         var knobs = Presets.Resolve(CelestialPreset.Realistic);
         Assert.That(knobs.ShadowLengthScale, Is.EqualTo(Presets.Realistic.ShadowLengthScale).Within(Tolerance));
-        Assert.That(knobs.NightRadianceFloor, Is.EqualTo(0f).Within(Tolerance)); // genuinely black nights
+        Assert.That(knobs.MinNightBrightness, Is.EqualTo(0f).Within(Tolerance)); // genuinely black nights
     }
 
     [Test]
@@ -68,7 +68,7 @@ public class CelestialSettingsMathTests
     {
         var knobs = Presets.Resolve(CelestialPreset.Cinematic);
         Assert.That(knobs.ShadowLengthScale, Is.EqualTo(Presets.Cinematic.ShadowLengthScale).Within(Tolerance));
-        Assert.That(knobs.NightRadianceFloor, Is.GreaterThan(0f)); // never fully black
+        Assert.That(knobs.MinNightBrightness, Is.GreaterThan(0f)); // never fully black
     }
 
     [Test]
@@ -102,7 +102,6 @@ public class CelestialSettingsMathTests
     {
         // The whole point of presets: the "cinematic" look is a genuinely different bundle, not a
         // relabel of "realistic". Assert the two headline knobs actually diverge.
-        Assert.That(Presets.Cinematic.NightRadianceFloor, Is.GreaterThan(Presets.Realistic.NightRadianceFloor));
         Assert.That(Presets.Cinematic.Desaturation, Is.LessThan(Presets.Realistic.Desaturation));
         // §13 follows the same taste axis: cinematic storms stay photogenic, realistic ones go murky.
         Assert.That(Presets.Cinematic.WeatherDimming, Is.LessThan(Presets.Realistic.WeatherDimming));
@@ -128,7 +127,6 @@ public class CelestialSettingsMathTests
         {
             Assert.That(knobs.ShadowLengthScale, Is.InRange(0.5f, 2.0f));
             Assert.That(knobs.ShadowStrength, Is.InRange(0f, 1f));
-            Assert.That(knobs.NightRadianceFloor, Is.InRange(0f, 0.3f));
             Assert.That(knobs.Desaturation, Is.InRange(0f, 1f));
             Assert.That(knobs.WeatherDimming, Is.InRange(0f, 0.5f));
             Assert.That(knobs.MinNightBrightness, Is.InRange(0f, 1f));
