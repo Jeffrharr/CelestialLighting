@@ -672,13 +672,38 @@ public class ApiCompatibilityTests
     }
 
     [Test]
-    public void RoofGrid_Roofed_Exists()
+    public void RoofGrid_RoofAt_Exists()
     {
+        // The roof *def*, not the Roofed() bool: thick roof is one of the inputs to
+        // IndoorOcclusionMath.BlocksSky (a mountain buries even a wall), so the adapter needs the def.
         var type = GetType("Verse.RoofGrid");
         Assert.That(type, Is.Not.Null, "Verse.RoofGrid no longer exists");
-        Assert.That(type!.Methods.Any(m => m.Name == "Roofed" && m.IsPublic && m.Parameters.Count == 1
+        Assert.That(type!.Methods.Any(m => m.Name == "RoofAt" && m.IsPublic && m.Parameters.Count == 1
                 && m.Parameters[0].ParameterType.Name == "IntVec3"),
-            Is.True, "RoofGrid.Roofed(IntVec3) no longer exists — Patch_IndoorSkyOcclusion reads it per cell");
+            Is.True, "RoofGrid.RoofAt(IntVec3) no longer exists — Patch_IndoorSkyOcclusion reads it per cell");
+    }
+
+    [Test]
+    public void RoofDef_IsThickRoof_Exists()
+    {
+        // Vanilla's own cover test short-circuits its roof-holder exclusion on this flag, and so does
+        // ours: under a mountain even a wall cell counts as interior.
+        var type = GetType("Verse.RoofDef");
+        Assert.That(type, Is.Not.Null, "Verse.RoofDef no longer exists");
+        Assert.That(type!.Fields.Any(f => f.Name == "isThickRoof" && f.IsPublic), Is.True,
+            "RoofDef.isThickRoof no longer exists — IndoorOcclusionMath.BlocksSky's mountain exception depends on it");
+    }
+
+    [Test]
+    public void ThingDef_HoldsRoof_Exists()
+    {
+        // The wall test. Vanilla excludes roof-holding edifices from sky cover in *both* of its vertex
+        // passes, which is why an exterior wall is a boundary rather than an interior for us too; without
+        // this field the feature blacks out every wall and the ground past it.
+        var type = GetType("Verse.ThingDef");
+        Assert.That(type, Is.Not.Null, "Verse.ThingDef no longer exists");
+        Assert.That(type!.Fields.Any(f => f.Name == "holdsRoof" && f.IsPublic), Is.True,
+            "ThingDef.holdsRoof no longer exists — IndoorOcclusionMath.BlocksSky's wall exclusion depends on it");
     }
 
     [Test]

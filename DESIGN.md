@@ -445,20 +445,39 @@ black if the sky does. This is also why sky/atmospheric glow visibly "applies in
 still see inside it), not a physical model.
 
 **Approach.** A Postfix on `SectionLayer_LightingOverlay.Regenerate` re-walks the section vanilla just
-baked and raises that alpha: full cover (255) for roofed cells, so an unlit interior is lit by its lamps
-or not at all. Per-cell logic is the pure `IndoorOcclusionMath`; the patch is a thin adapter that reads
-`map.roofGrid` / `map.edificeGrid` and rewrites `mesh.colors32`.
+baked and raises that alpha: full cover (255) for *interior* cells, so an unlit interior is lit by its
+lamps or not at all. Per-cell logic is the pure `IndoorOcclusionMath`; the patch is a thin adapter that
+reads `map.roofGrid` / `map.edificeGrid` and rewrites `mesh.colors32`.
 
-- **Corner vertices are averaged, centres are not.** A lattice corner is shared by up to four cells, so
-  its occlusion is their mean — 1.0 deep inside a building, 0.5 on an exterior wall line. The shader
-  interpolates across the quad, so interior blackness *fades out* over the wall instead of printing a
-  black halo on the ground outside. The denominator is the count of cells actually inside the map, which
-  also makes the two sections that each bake a shared boundary vertex agree (no 17-cell seams).
+- **We reuse vanilla's classification and change only its magnitude.** Vanilla already decides, per
+  vertex, which cells count as covered, and we ask the same questions in the same order — its corner
+  pass ORs `roofDef != null && (roofDef.isThickRoof || thing == null || !thing.def.holdsRoof || thing.def
+  .altitudeLayer == DoorMoveable)` over the four cells at the lattice point; its centre pass forces 100
+  only when `Roofed(c) && (thing == null || !thing.def.holdsRoof)` and otherwise averages that cell's own
+  four corners. Writing 255 where vanilla writes 100 therefore keeps the *shape* of the shading identical
+  to what players already see from vanilla roof cover, and makes only its depth ours. Two consequences,
+  both of which the first cut got wrong and both of which were visible on screen:
+  - **A wall is a boundary, not an interior.** A wall cell is roofed (it carries the roof it holds up),
+    so classifying on `Roofed()` alone painted every exterior wall dead black and pushed the darkness one
+    cell past it onto open ground. `holdsRoof` excludes it, exactly as vanilla does — *unless* the roof is
+    thick, since a mountain buries whatever is under it (vanilla's `isThickRoof` disjunct).
+  - **Corners OR, boundary centres average.** A corner is covered if *any* of its four cells is interior,
+    so every vertex inside a room lands on 1.0 and the interior renders flat. A cell that is not itself
+    interior takes the mean of its own four corners, so an exterior wall is `1.0` on its inner face,
+    `0.5` at its centre and exactly `0.0` on its outer face: the whole fade is spent on the wall tile and
+    nothing beyond the building is touched. Averaging the corners *instead* — while still forcing every
+    roofed centre to a hard 1.0 — is what produced the reported artefact: the mesh fans four triangles
+    out of each centre vertex, so a centre that disagrees with its corners shades as a diamond, and the
+    boundary read as a row of black radial blooms rather than a straight edge. Cells outside the map
+    contribute nothing to the OR, which needs no special case and keeps the two sections that each bake
+    a shared boundary vertex in exact agreement (no 17-cell seams).
 - **Leaky doors.** Vanilla lumps doors in with roof for cover (`altitudeLayer == AltitudeLayer.DoorMoveable`
-  is one of the disjuncts that sets its roofed flag) and a closed door's `blockLight` suppresses glow too,
-  so at full occlusion a doorway would go dead black. `DoorSkyLeak` (default 0.15) keeps a sliver of sky
-  at the threshold. The door test mirrors vanilla's own so the two can never disagree about which cell is
-  a doorway.
+  is one of the disjuncts that sets its corner flag) and a closed door's `blockLight` suppresses glow too,
+  so at full occlusion a doorway would go dead black. A door is instead treated as a boundary cell like a
+  wall — never interior, so it can never propagate darkness outward through the wall line — and
+  `DoorSkyLeak` (default 0.15) applies as a *cap* on the corners it touches, leaving the threshold a shade
+  brighter than the wall either side of it (centre `(1 - leak) / 2` against the wall's `0.5`). The door
+  test mirrors vanilla's own so the two can never disagree about which cell is a doorway.
 - **Only ever raises the baked alpha.** Other mods legitimately write it: Dub's Skylights nulls
   `map.roofGrid` across `Regenerate` so skylit cells never take vanilla's roofed branch, and Biomes!
   Caverns transpiles the roofed test so cavern roofs read as open. Taking `max` means we can add occlusion
@@ -474,7 +493,9 @@ or not at all. Per-cell logic is the pure `IndoorOcclusionMath`; the patch is a 
   **minimum indoor brightness**, a dedicated slider for players who want readable interiors *without*
   also brightening the outdoors. The dedicated one ships at 0 (interiors may go fully black — the point
   of the feature); at 1 it cancels occlusion outright, which is exactly equivalent to switching the
-  feature off, a property of the formula rather than a special case.
+  feature off, a property of the formula rather than a special case. The cap is applied to corners
+  *before* they are averaged into a boundary cell's centre, so a floored interior still ramps down across
+  its walls rather than the wall flattening out at the floor value.
 - **Baked, not per-frame.** Unlike §7a's material colour, these alphas only change when a section is
   dirtied, so `IndoorOcclusionRedraw` forces a `WholeMapChanged(GroundGlow)` when the toggle or either
   slider changes (it compares the *resolved* floor, so either knob moving is caught without duplicating

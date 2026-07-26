@@ -28,6 +28,26 @@ namespace CelestialLighting;
 // which is exactly why those maps are black away from lamps; and Dub's Skylights makes a roofed cell
 // sky-lit by temporarily nulling `map.roofGrid` across `Regenerate` so vanilla's roofed branch never
 // fires at all. Occlusion is therefore expressed here as a 0..1 fraction — 1 == full cover, no sky.
+//
+// **The classification below is vanilla's own, question for question — only the magnitude is ours.**
+// Vanilla decides per *vertex* which cells count as covered:
+//
+//   corner vertex:  flag |= roofDef != null && (roofDef.isThickRoof || thing == null
+//                                               || !thing.def.holdsRoof
+//                                               || thing.def.altitudeLayer == DoorMoveable)
+//   centre vertex:  if (roofGrid.Roofed(c) && (thing == null || !thing.def.holdsRoof)) a = 100;
+//                   else a = mean of the cell's four corners
+//
+// Two things fall out of that which our first cut got wrong. A cell holding up a thin roof — i.e. a
+// *wall* — is explicitly NOT covered in either pass, so an exterior wall is a boundary, not an
+// interior; and a cell that is not itself covered takes the *mean of its four corners* rather than a
+// value of its own, which is what makes the transition a straight ramp across the wall. Ignoring both
+// (treating every roofed cell, walls included, as fully covered, and giving each one a hard 1.0 centre
+// over averaged corners) printed blackness onto exterior walls and out past them, and left a
+// diamond-shaped bloom radiating from every boundary cell — the mesh fans four triangles out of that
+// centre vertex, so a centre that disagrees with its corners shades as a star, not a flat tile.
+// Matching vanilla's structure and changing only the magnitude (255 instead of 100) means the *shape*
+// of our shading is the shape players already see from vanilla roof cover; only its depth is ours.
 public static class IndoorOcclusionMath
 {
     // Vanilla's own roofed-cell floor, mirrored here as the documented baseline we raise from (its
@@ -40,37 +60,76 @@ public static class IndoorOcclusionMath
     // its artificial glow alone — black when there is no lamp.
     public const byte FullSkyCover = 255;
 
+    // Every cell has exactly four lattice corners, and an uncovered cell's centre is their mean — the
+    // same divisor vanilla uses when it averages those same four vertices.
+    public const int CornersPerCell = 4;
+
     // How much sky a door lets past, as a fraction (0 == a door occludes like solid roof).
     //
-    // Vanilla has no door leak: `SectionLayer_LightingOverlay` lumps doors in *with* roof for cover
-    // purposes (`thing.def.altitudeLayer == AltitudeLayer.DoorMoveable` is one of the disjuncts that
-    // sets its roofed flag), and a closed door's `blockLight` keeps it from contributing glow either.
-    // So at full occlusion a doorway would go dead black, which reads wrong — a door is the one part
-    // of a wall you expect a sliver of outside light around. This is deliberately small: enough to
+    // Vanilla has no door leak: `SectionLayer_LightingOverlay` lumps doors in *with* roof when it bakes
+    // corner vertices (`thing.def.altitudeLayer == AltitudeLayer.DoorMoveable` is one of the disjuncts
+    // that sets its roofed flag), and a closed door's `blockLight` keeps it from contributing glow
+    // either. So at full occlusion a doorway would go dead black, which reads wrong — a door is the one
+    // part of a wall you expect a sliver of outside light around. This is deliberately small: enough to
     // suggest a threshold, not enough to light the room through it.
     public const float DefaultDoorSkyLeak = 0.15f;
 
-    // How occluded a single cell is. Unroofed cells are left entirely to vanilla (0 — the sky is
-    // genuinely overhead there); a roofed cell is fully occluded unless it is a door, which keeps
-    // `doorSkyLeak` of the sky. Kept as one function so the door rule can never diverge between the
-    // per-cell pass and the per-corner averaging below.
-    public static float CellOcclusion(bool roofed, bool isDoor, float doorSkyLeak)
+    // Does this cell block the sky outright — is it *interior*? The single question the whole subsystem
+    // turns on, and deliberately narrower than "is this cell roofed":
+    //
+    //   - A door is never interior. It is the boundary itself; its leak is applied at the vertices
+    //     (see CornerOcclusion) so a threshold stays a threshold instead of a black plug. Stated first
+    //     so the door rule is single-sourced and cannot be reached past by the roof cases below.
+    //   - An unroofed cell is never interior — the sky genuinely is overhead. This is what keeps the
+    //     feature from touching the outdoors at all.
+    //   - A cell holding up the roof over it — a wall — is not interior either, exactly as vanilla
+    //     decides for both of its vertex passes. Getting this wrong is what painted exterior walls
+    //     black and pushed the darkness a cell past them onto open ground.
+    //   - Unless the roof is *thick*: a mountain buries whatever is under it, wall or not, and vanilla
+    //     makes the same exception (`roofDef.isThickRoof` short-circuits its holdsRoof test).
+    public static bool BlocksSky(bool roofed, bool thickRoof, bool holdsRoof, bool isDoor)
     {
-        if (!roofed)
-            return 0f;
+        if (isDoor)
+            return false;
 
-        return isDoor ? 1f - Clamp01(doorSkyLeak) : 1f;
+        if (!roofed)
+            return false;
+
+        return thickRoof || !holdsRoof;
     }
 
-    // A lattice corner is shared by up to four cells, so its occlusion is their mean. This is what
-    // gives the wall line a gradient instead of a hard edge: a corner deep inside a building sees
-    // four roofed cells (1.0), a corner sitting on an exterior wall sees two (0.5), and the shader
-    // interpolates between them across the quad — so the blackness fades out over the wall rather
-    // than printing a black halo onto the ground outside. `validCells` is the count actually inside
-    // the map (corners on the map edge have fewer), which also keeps the value identical for the two
-    // adjacent sections that each bake their own copy of a shared boundary vertex — no seams.
-    public static float CornerOcclusion(float occlusionSum, int validCells) =>
-        validCells <= 0 ? 0f : Clamp01(occlusionSum / validCells);
+    // A lattice corner is shared by up to four cells and is covered if *any* of them is interior — an
+    // OR, not a mean. That is vanilla's rule (its `flag` is set by a loop over the same four cells) and
+    // it is what makes an interior read flat: every vertex inside a room, corners and centres alike,
+    // lands on exactly 1.0, so there is nothing for the shader to interpolate and no per-tile structure
+    // to see. Averaging instead gave an interior cell beside a wall corners lower than its own centre,
+    // which is precisely the diamond bloom this replaced.
+    //
+    // The fade back to open sky is then carried entirely by the boundary cells (see CentreOcclusion):
+    // a wall's inner corners are 1.0 and its outer corners 0.0, so the ramp lives on the wall tile
+    // where it belongs and nothing beyond the building is darkened at all.
+    //
+    // Touching a door caps the corner instead of raising it — a corner shared by a doorway and the room
+    // behind it keeps `doorSkyLeak` worth of sky, so the threshold reads a shade brighter than the rest
+    // of that room's edge. Cells outside the map simply do not contribute (they cannot be interior),
+    // which needs no special case here and keeps the two sections that each bake a shared boundary
+    // vertex in exact agreement — no 17-cell seams.
+    public static float CornerOcclusion(bool anyNeighbourBlocksSky, bool touchesDoor, float doorSkyLeak)
+    {
+        float occlusion = anyNeighbourBlocksSky ? 1f : 0f;
+        return touchesDoor ? Min(occlusion, 1f - Clamp01(doorSkyLeak)) : occlusion;
+    }
+
+    // The centre vertex of a cell. An interior cell is flat-out fully occluded; anything else — wall,
+    // door, open ground — takes the mean of its own four corners, which is exactly what vanilla does
+    // for a cell it did not force to 100. That mean is the whole reason a boundary reads as a ramp
+    // rather than a starburst: it is the value bilinear interpolation across the quad would have
+    // produced anyway, so the four triangles fanning out of the centre shade as one flat surface.
+    //
+    // Concretely, for an exterior wall: inner corners 1.0, outer corners 0.0, centre 0.5 — a straight
+    // gradient across the wall tile, reaching exactly 0 on its outer face.
+    public static float CentreOcclusion(bool blocksSky, float cornerOcclusionSum) =>
+        blocksSky ? 1f : Clamp01(cornerOcclusionSum / CornersPerCell);
 
     // Default for IndoorOcclusionSettings.MinIndoorBrightness. 0 == interiors may go genuinely black,
     // which is the point of the feature, so that is what ships. The slider exists because "black" is a
@@ -97,6 +156,10 @@ public static class IndoorOcclusionMath
     // roofed cells never take sky glow at all (Verse.GlowGrid.GroundGlowAt returns early for them), so
     // lifting it cannot brighten a cave by one shade. With both knobs at 0 the cap is 1 and this is the
     // identity.
+    //
+    // The adapter caps corners *before* averaging them into a boundary cell's centre, so a floored
+    // interior still ramps down across its walls (floor 0.5 gives inner corners 0.5 and a wall centre of
+    // 0.25) rather than the wall flattening out at the floor value.
     public static float CapOcclusion(float occlusion, float brightnessFloor) =>
         Clamp01(Min(Clamp01(occlusion), 1f - Clamp01(brightnessFloor)));
 

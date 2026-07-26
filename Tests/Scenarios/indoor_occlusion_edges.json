@@ -1,0 +1,35 @@
+{
+  "name": "indoor_occlusion_edges",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "20" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "40" } },
+
+    { "type": "SetTime", "args": { "hour": "12" } },
+    { "type": "LookAt", "args": { "zoom": "15" } },
+    { "type": "Wait", "args": { "frames": "4" } },
+    { "type": "Screenshot", "args": { "fileName": "edges_warmup.png" } },
+
+    { "type": "SetFeature", "args": { "featureName": "indoor_sky_occlusion", "enabled": "false" } },
+    { "type": "Wait", "args": { "frames": "2" } },
+    { "type": "Screenshot", "args": { "fileName": "edges_noon_off.png" } },
+
+    { "type": "SetFeature", "args": { "featureName": "indoor_sky_occlusion", "enabled": "true" } },
+    { "type": "Wait", "args": { "frames": "2" } },
+    { "type": "Screenshot", "args": { "fileName": "edges_noon_on.png" } },
+
+    { "type": "Assert", "args": {
+        "kind": "vision",
+        "images": "edges_noon_off.png,edges_noon_on.png",
+        "prompt": "Two noon frames of the same colony at the same close zoom. The SECOND has indoor sky occlusion on, so roofed interiors go black while the outdoors stays fully lit. Judge only the SHAPE of that darkness in the second frame, not how dark it is. Three things must hold. (1) The dark region is FLAT: its interior is a uniform black with no per-tile structure — no grid of diamonds, no scalloped or sawtooth boundary, no soft radial blob repeating once per tile along the edge. (2) It stops AT the building: the fade ends on the wall tiles themselves, and the open ground, terrain and objects immediately outside the walls are as bright as in the first frame — no black halo, smudge or glow spilling past the wall line onto the ground. (3) Nothing outside a roof is darkened at all, and the first frame shows no such darkness anywhere. Fail if you can see repeating per-tile blobs along the boundary, or darkness bleeding onto the ground outside the walls.",
+        "expect": "the second frame's interior darkness is flat and uniform, its fade is confined to the wall tiles, and no darkening reaches the ground outside the building",
+        "confidenceGate": "0.7"
+    } },
+
+    { "type": "SetTime", "args": { "hour": "23" } },
+    { "type": "SetFeature", "args": { "featureName": "brightness_floor", "enabled": "true" } },
+    { "type": "Wait", "args": { "frames": "2" } },
+    { "type": "Screenshot", "args": { "fileName": "edges_night_on.png" } },
+    { "type": "SetFeature", "args": { "featureName": "brightness_floor", "enabled": "false" } }
+  ]
+}

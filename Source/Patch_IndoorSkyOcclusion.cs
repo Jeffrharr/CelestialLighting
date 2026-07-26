@@ -7,7 +7,7 @@ namespace CelestialLighting;
 // §7b indoor sky occlusion — the thin adapter over IndoorOcclusionMath (which carries the full "why"
 // for this subsystem, including how vanilla's RoofedAreaMinSkyCover == 100 leaves a sealed cave lit at
 // ~61% of the sky). This file only bridges live Map/mesh state: it re-walks the section vanilla just
-// baked and raises the lighting mesh's per-vertex sky-cover alpha for roofed cells.
+// baked and raises the lighting mesh's per-vertex sky-cover alpha for interior cells.
 //
 // Why a Postfix on Regenerate rather than a transpiler:
 //   The vertex alphas are the *output* of vanilla's GenerateLightingOverlay, so rewriting them
@@ -28,6 +28,12 @@ namespace CelestialLighting;
 // way Regenerate does (a Section.Size square at botLeft, clipped to the map) rather than reflecting
 // its private cache, and bail out unless the vertex count matches that layout exactly, so an upstream
 // mesh change makes this a no-op instead of scribbling on the wrong vertices.
+//
+// Two passes in a fixed order, mirroring vanilla's: corners first, then centres — because an
+// *uncovered* cell's centre is the mean of its own four corners, so the corner values have to exist
+// before any centre can be resolved. They are kept in a local float array rather than read back out of
+// `colors`, since what lands in `colors` is already max()'d against whatever vanilla (or another mod)
+// baked, and averaging those would fold someone else's decision into our geometry.
 [HarmonyPatch(typeof(SectionLayer_LightingOverlay), nameof(SectionLayer_LightingOverlay.Regenerate))]
 public static class Patch_IndoorSkyOcclusion
 {
@@ -62,76 +68,99 @@ public static class Patch_IndoorSkyOcclusion
             return;
 
         IndoorOcclusionSettings settings = IndoorOcclusionSettings.Current;
-        RewriteCentres(map, rect, colors, firstCenterInd, settings);
-        RewriteCorners(map, rect, colors, settings);
+        float[] corners = BuildCornerOcclusion(map, rect, settings);
+        WriteCorners(colors, corners);
+        WriteCentres(map, rect, colors, firstCenterInd, corners, settings);
         mesh.colors32 = colors;
     }
 
-    // One centre vertex per cell, and the cell's own roof state decides it outright. The centre
-    // dominates how the cell reads on screen (the quad is four triangles fanning from it), so this is
-    // what actually turns a sealed cave black.
-    private static void RewriteCentres(
-        Map map, CellRect rect, Color32[] colors, int firstCenterInd, IndoorOcclusionSettings settings)
-    {
-        for (int z = rect.minZ; z <= rect.maxZ; z++)
-        {
-            for (int x = rect.minX; x <= rect.maxX; x++)
-            {
-                int vertex = firstCenterInd + (z - rect.minZ) * rect.Width + (x - rect.minX);
-                float occlusion = CellOcclusion(map, new IntVec3(x, 0, z), settings);
-                colors[vertex].a = IndoorOcclusionMath.CoverAlpha(occlusion, colors[vertex].a);
-            }
-        }
-    }
-
-    // Corner vertices span one more row/column than there are cells, and each is shared by the (up
-    // to) four cells touching it — averaging them is what fades the interior blackness out across the
-    // wall line instead of printing a hard black edge on the ground outside.
-    private static void RewriteCorners(Map map, CellRect rect, Color32[] colors, IndoorOcclusionSettings settings)
+    // The lattice: one more row and column than there are cells, in the same row-major order as the
+    // mesh's leading corner vertices, so index i here is vertex i there.
+    private static float[] BuildCornerOcclusion(Map map, CellRect rect, IndoorOcclusionSettings settings)
     {
         int stride = rect.Width + 1;
+        float[] corners = new float[stride * (rect.Height + 1)];
         for (int z = rect.minZ; z <= rect.maxZ + 1; z++)
         {
             for (int x = rect.minX; x <= rect.maxX + 1; x++)
             {
-                int vertex = (z - rect.minZ) * stride + (x - rect.minX);
-                float occlusion = CornerOcclusion(map, x, z, settings);
-                colors[vertex].a = IndoorOcclusionMath.CoverAlpha(occlusion, colors[vertex].a);
+                corners[(z - rect.minZ) * stride + (x - rect.minX)] = CornerOcclusion(map, x, z, settings);
+            }
+        }
+
+        return corners;
+    }
+
+    private static void WriteCorners(Color32[] colors, float[] corners)
+    {
+        for (int i = 0; i < corners.Length; i++)
+            colors[i].a = IndoorOcclusionMath.CoverAlpha(corners[i], colors[i].a);
+    }
+
+    // One centre vertex per cell. An interior cell is fully occluded outright; a boundary cell (wall,
+    // door) or open ground takes the mean of the four corners computed above, which is what turns the
+    // wall line into a straight ramp instead of a per-tile starburst. The four corner indices are the
+    // same neighbourhood vanilla's own centre pass averages: (x,z), (x+1,z), (x,z+1), (x+1,z+1).
+    private static void WriteCentres(
+        Map map, CellRect rect, Color32[] colors, int firstCenterInd, float[] corners,
+        IndoorOcclusionSettings settings)
+    {
+        int stride = rect.Width + 1;
+        for (int z = rect.minZ; z <= rect.maxZ; z++)
+        {
+            for (int x = rect.minX; x <= rect.maxX; x++)
+            {
+                int corner = (z - rect.minZ) * stride + (x - rect.minX);
+                float cornerSum = corners[corner] + corners[corner + 1]
+                    + corners[corner + stride] + corners[corner + stride + 1];
+
+                bool blocksSky = BlocksSky(map, new IntVec3(x, 0, z));
+                float occlusion = IndoorOcclusionMath.CentreOcclusion(blocksSky, cornerSum);
+
+                int vertex = firstCenterInd + (z - rect.minZ) * rect.Width + (x - rect.minX);
+                colors[vertex].a = IndoorOcclusionMath.CoverAlpha(
+                    IndoorOcclusionMath.CapOcclusion(occlusion, settings.IndoorFloor), colors[vertex].a);
             }
         }
     }
 
-    // The four cells that meet at lattice point (x, z) — the same neighbour set vanilla averages glow
-    // over when it bakes this vertex. Cells outside the map are skipped and drop out of the mean, so a
-    // corner on the map edge is judged only by the cells that actually exist.
+    // The four cells that meet at lattice point (x, z) — the same neighbour set vanilla scans when it
+    // bakes this vertex. Cells outside the map contribute nothing: they are neither interior nor a
+    // door, so an edge corner is judged only by the cells that actually exist, and the two sections
+    // sharing a boundary vertex compute an identical value (no seam).
     private static float CornerOcclusion(Map map, int x, int z, IndoorOcclusionSettings settings)
     {
-        float sum = 0f;
-        int valid = 0;
+        bool anyBlocksSky = false;
+        bool touchesDoor = false;
         for (int i = 0; i < 4; i++)
         {
             IntVec3 cell = new IntVec3(x - (i & 1), 0, z - (i >> 1));
             if (cell.InBounds(map))
             {
-                sum += CellOcclusion(map, cell, settings);
-                valid++;
+                anyBlocksSky |= BlocksSky(map, cell);
+                touchesDoor |= IsDoor(map.edificeGrid[cell]);
             }
         }
 
-        return IndoorOcclusionMath.CornerOcclusion(sum, valid);
-    }
-
-    // Live-state lookup for one cell, handed straight to the pure core. The door test mirrors
-    // vanilla's own (SectionLayer_LightingOverlay identifies doors by AltitudeLayer.DoorMoveable, not
-    // by type) so our notion of "this is a doorway" can never drift from the cell vanilla already
-    // treats specially.
-    private static float CellOcclusion(Map map, IntVec3 cell, IndoorOcclusionSettings settings)
-    {
-        bool roofed = map.roofGrid.Roofed(cell);
-        Building edifice = map.edificeGrid[cell];
-        bool isDoor = edifice != null && edifice.def.altitudeLayer == AltitudeLayer.DoorMoveable;
-
-        float occlusion = IndoorOcclusionMath.CellOcclusion(roofed, isDoor, settings.DoorSkyLeak);
+        float occlusion = IndoorOcclusionMath.CornerOcclusion(anyBlocksSky, touchesDoor, settings.DoorSkyLeak);
         return IndoorOcclusionMath.CapOcclusion(occlusion, settings.IndoorFloor);
     }
+
+    // Live-state lookup for one cell, handed straight to the pure core. Reads the roof *def* rather
+    // than the Roofed() bool because thick roof (a mountain) is one of the inputs — under it even a
+    // wall counts as buried, which is vanilla's own exception too.
+    private static bool BlocksSky(Map map, IntVec3 cell)
+    {
+        RoofDef roof = map.roofGrid.RoofAt(cell);
+        Building edifice = map.edificeGrid[cell];
+        bool holdsRoof = edifice != null && edifice.def.holdsRoof;
+
+        return IndoorOcclusionMath.BlocksSky(roof != null, roof != null && roof.isThickRoof, holdsRoof, IsDoor(edifice));
+    }
+
+    // Mirrors vanilla's own door test — SectionLayer_LightingOverlay identifies doors by
+    // AltitudeLayer.DoorMoveable, not by type — so our notion of "this is a doorway" can never drift
+    // from the cell vanilla already treats specially.
+    private static bool IsDoor(Building edifice) =>
+        edifice != null && edifice.def.altitudeLayer == AltitudeLayer.DoorMoveable;
 }
