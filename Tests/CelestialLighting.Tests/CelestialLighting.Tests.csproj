@@ -31,6 +31,9 @@
     <Compile Include="../../Source/MoonMath.cs" Link="MoonMath.cs" />
     <Compile Include="../../Source/NightRadianceMath.cs" Link="NightRadianceMath.cs" />
     <Compile Include="../../Source/PurkinjeMath.cs" Link="PurkinjeMath.cs" />
+    <!-- §9's per-cell half. Depends on PurkinjeMath above for its lit-exempt anchor, so the two are
+         linked together and tested together. -->
+    <Compile Include="../../Source/NightDesaturationMath.cs" Link="NightDesaturationMath.cs" />
     <!-- Subsystem 13 pure core (weather dimming). Verse-free, so it compiles under net8.0 as-is.
          WeatherDimmingMathTests also exercises PurkinjeMath above, since §13's whole purpose is to
          feed §9 an apparent brightness that finally varies with weather. -->

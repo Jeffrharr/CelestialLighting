@@ -26,6 +26,16 @@
         "expect": "The flames remain clearly warm and orange in both images; any loss of colour is confined to the unlit ground around them, not the fire itself.",
         "confidenceGate": "0.7"
       }
+    },
+    {
+      "type": "Assert",
+      "args": {
+        "kind": "vision",
+        "images": "fire_desat_off.png, fire_desat_on.png",
+        "prompt": "Both images show the same night scene. IGNORE the campfires and the firelit ground around them; look only at the UNLIT ground toward the edges of the frame. Does that unlit ground read distinctly cooler and greyer in the second image than in the first? Answer no if the two look the same, or if the second reads warmer.",
+        "expect": "The unlit ground away from the fires is visibly drained of colour with the effect on. This is the half a tint-only version could not express, and a scenario that only checks the fires passes even when nothing happens at all.",
+        "confidenceGate": "0.7"
+      }
     }
   ]
 }

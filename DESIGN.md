@@ -687,41 +687,81 @@ A second Harmony Postfix on `WeatherWorker.CurSkyTarget` (alongside §2's) that:
   constraint, not chosen by eye: at glow 0.35 the normalised position is `(0.50 - 0.35) / 0.45 =
   1/3`, and `(1/3)^2.75 ≈ 0.05`, so the twilight peak keeps ~95% of its saturation.
 
-- Applies the factor as a **colour-only, per-cell tint** — and deliberately does *not* touch
-  `SkyColorSet.saturation`.
+- Applies the factor as a **cool tint** on `colors.sky` / `colors.overlay` (peak blends 0.50/0.35,
+  scaled by `PurkinjeSettings.TintStrength` — the "Night desaturation" slider). Lerping rather than
+  overwriting preserves each `WeatherDef`'s palette. `__result.glow` is never touched.
 
-  That field is assigned to `Find.CameraColor`, which is a `ColorCorrectionCurves` **image effect**:
-  it processes the finished frame and desaturates every pixel equally. A campfire burning at night
-  came out as grey as the dark ground around it, which is backwards — real scotopic vision keeps
-  colour in bright sources and loses it in dim surroundings. The effect is inherently global, so
-  there was no tuning that could fix it.
+  This is a *secondary* cue and cannot be more than one. The desaturation itself is a separate draw
+  layer, below.
 
-  Nor could it be made per-cell through that channel. Desaturating is
-  `lerp(colour, luminance(colour), t)`, which needs the pixel's own colour; everything §9 can reach
-  is a *multiply*, and a multiply can only scale channels or shift hue — it can never pull channels
-  toward each other. A true per-cell version would need a replacement shader for
-  `MatBases.LightOverlay`, which is a large, fragile surface to own for a cosmetic effect and would
-  collide with every other mod touching that material.
+### Why the desaturation needs its own draw layer
 
-  So the shift is carried entirely by the `CoolNight` lerp on `colors.sky` / `colors.overlay`. That
-  rides the lighting overlay, which is baked per-cell and interpolated across cell quads, so the
-  drift lands on unlit ground and fades smoothly toward anything lit — the local behaviour the
-  global multiplier could never express, including the free gradient around a light source. The peak
-  blend fractions were raised (0.50/0.35 → 0.70/0.50) because the tint used to be a secondary cue on
-  top of a whole-frame desaturation and is now the entire effect.
+Desaturating is `lerp(colour, grey, t)` — it needs the pixel's own colour. Two channels were tried
+and both are measurably incapable of it; the history matters because each looked correct in code
+review and failed only against a running game.
 
-  `PurkinjeMath.SaturationMultiplier` is retained as the reference curve but is no longer applied.
-  The "Night desaturation" slider now scales the tint via `PurkinjeSettings.TintStrength`; it had
-  been persisted but wired to nothing since the settings screen landed.
+**1. `SkyColorSet.saturation` — global by construction.** That field is assigned to
+`Find.CameraColor`, a `ColorCorrectionCurves` **image effect** over the finished frame. It cannot
+tell a campfire from the dark ground around it, so flames came out as grey as the dirt — backwards,
+since scotopic vision keeps colour in bright sources and loses it in dim surroundings. Measured on a
+live A/B: it dropped the flame core from 0.836 saturation to 0.401. No tuning fixes a channel that
+has no access to *where* a pixel is.
 
-  The falloff and the resulting `SaturationMultiplier` live in `Source/PurkinjeMath.cs` (its own
-  System-only pure file, not `Formulas.cs`, to avoid colliding with the other in-flight subsystems
-  editing `Formulas.cs`) with offline `[TestCase]` coverage of both plateaus, monotonicity, the
-  eased midpoint, the artificial-light cap, the golden-hour constraint, and the multiplier endpoints.
-- Applies the factor as a colour-only nudge: multiplies `SkyColorSet.saturation` down toward a
-  rod-vision floor (60% of colour removed at full shift) and `Color.Lerp`s the `sky`/`overlay` tints
-  toward a desaturated cool blue-grey (the perceptual Purkinje blue). Lerping (never overwriting)
-  preserves each `WeatherDef`'s palette. `__result.glow` is never touched.
+**2. `SkyColorSet.sky` — a multiply, not a blend.** The replacement dropped the global multiply and
+lerped the sky tint toward a fixed cool blue-grey `CoolNight = (0.55, 0.60, 0.72)`. It did exempt the
+fires (flame core 0.836 → 0.836), but it desaturated nothing, for two independent reasons:
+
+- vanilla's Clear night sky is already `(0.482, 0.603, 0.682)`, so the "target" was within a few
+  percent of the current value — and *warmer* than it. Unlit ground moved 0.152 → 0.153 saturation;
+- more fundamentally, `colors.sky` becomes `MatBases.LightOverlay.color`, which the overlay
+  **multiplies** the scene by. Confirmed by building the honest version — drain that colour toward
+  its own luminance grey — and running it: unlit dirt went *up*, 0.398 → **0.488**, because
+  neutralising the blue light let the ground's own brown show through. A multiply scales channels; it
+  can never pull them toward each other.
+
+**3. What actually works: alpha compositing.** Blending toward a grey with alpha `t` *is*
+`lerp(colour, grey, t)`, and alpha can vary per vertex. So the desaturation is a map draw layer of
+our own — `SectionLayer_NightDesaturation` — and needs no replacement shader for
+`MatBases.LightOverlay`, which is what made the per-cell version look impossible. It is a new mesh
+drawn alongside vanilla's, not a hijack of one, so it collides with nothing (Dub's Skylights, the
+Perspective family — see #36).
+
+  - **Registration is free.** `Verse.Section`'s constructor instantiates every non-abstract
+    `SectionLayer` subclass it finds, so declaring the class is the registration — no Harmony patch.
+  - **Per-cell alpha** comes from `GlowGrid.GroundGlowAt(cell, ignoreSky: true)`, mapped by
+    `NightDesaturationMath.CellWash`: full wash on an unlit cell, falling linearly to **exactly zero
+    at 0.5 glow** — RimWorld's own artificial-light cap (`GroundGlowAt` clamps ordinary lights to 0.5;
+    `growMinGlow` is 0.51). A campfire's own cell sits at or above it, so it renders at standard
+    colour by construction rather than by tuning. `ignoreSky` matters: the sky's contribution is
+    already the whole of `PurkinjeFactor`, and counting it per cell would make a brightening sky
+    exempt the outdoor cells the effect is for.
+  - **Map-wide strength** is the material's alpha, rewritten each frame by
+    `Patch_NightDesaturationStrength` from the same factor the tint uses. Split this way for the
+    reason vanilla splits its own overlay: the per-cell part only changes when the glow grid does
+    (mesh, rebuilt on `MapMeshFlagDefOf.GroundGlow`), the sky part changes continuously through dusk
+    (one material write). Baking the second into the mesh would rebuild every section every few
+    minutes of game time.
+  - **Altitude `Weather`**, i.e. *below* `LightingOverlay`. The wash lands on the scene first and
+    vanilla's night multiply darkens the result afterwards, instead of sitting on top of the darkness
+    as grey haze. It is above every thing/pawn altitude, so an item on unlit ground desaturates with
+    the ground it lies on.
+  - **`WashGrey` is dark (0.11)** because alpha compositing lifts whatever it blends toward; a
+    mid-grey would raise black night ground into a haze and undo §7a's pitch-black nights.
+  - Corner and edge vertices are averaged over the cells they touch (4 / 2 / 1), the same smoothing
+    vanilla's lighting overlay does, so the wash gradients around a light instead of drawing squares.
+
+  Live A/B at hour 2, feature off → on: flame core 0.836 → 0.836, lamp-cap-lit ground 0.629 → 0.630,
+  unlit ground 0.114 → 0.054. That is the split the subsystem always claimed and never had.
+
+  `PurkinjeMath.SaturationMultiplier` is retained as the documented reference curve but is not
+  applied — the wash's peak (`MaxWash`) is what replaced it.
+
+  The falloff lives in `Source/PurkinjeMath.cs` and the per-cell wash in
+  `Source/NightDesaturationMath.cs` (both System-only pure files, kept out of `Formulas.cs` to avoid
+  colliding with the other in-flight subsystems editing it), with offline `[TestCase]` coverage of
+  both plateaus, monotonicity, the eased midpoint, the artificial-light cap, the golden-hour
+  constraint, the multiplier endpoints, and — for the wash — the lit exemption, the linear ramp, and
+  the clamping of both inputs.
 
 ## 10. Eclipse: natural and unnatural
 

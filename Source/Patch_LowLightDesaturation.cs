@@ -32,11 +32,16 @@ public static class Patch_LowLightDesaturation
     // and only deep night gets the full drift, and then by PurkinjeSettings.TintStrength — the
     // "Night desaturation" slider, which until now was persisted but wired to nothing.
     //
-    // Raised from 0.50/0.35 when the global saturation multiply was dropped: the tint used to be a
-    // secondary cue on top of a whole-frame desaturation, and now it is the entire effect, so it has
-    // to carry the night on its own.
-    private const float SkyBlendMax = 0.70f;
-    private const float OverlayBlendMax = 0.50f;
+    // Back at 0.50/0.35, the values that shipped alongside the original whole-frame desaturation.
+    // They were raised to 0.70/0.50 when that multiply was dropped, on the theory that the tint now
+    // had to carry the night alone — but it never could: this colour lands on MatBases.LightOverlay,
+    // which MULTIPLIES, and a multiply cannot pull channels toward each other (see
+    // NightDesaturationMath's header for the live measurement). All the raise bought was a stronger
+    // push toward a constant that sits slightly WARMER than vanilla's night sky, which measurably
+    // raised saturation on partly-lit ground. Now that SectionLayer_NightDesaturation does the
+    // desaturating, this is a secondary cue again and belongs where it was.
+    private const float SkyBlendMax = 0.50f;
+    private const float OverlayBlendMax = 0.35f;
 
     static void Postfix(Map map, ref SkyTarget __result)
     {

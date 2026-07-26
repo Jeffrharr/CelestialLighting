@@ -21,6 +21,10 @@ public static class ProbeRegistration
         ProbeRegistry.Register(new MoonIlluminationProbe());
         ProbeRegistry.Register(new NightRadianceProbe());
         ProbeRegistry.Register(new PurkinjeProbe());
+        // §9's applied strength, added after two versions shipped whose rod-vision factor was right
+        // and whose effect on screen was nil. PurkinjeProbe says how dark the sky is; this says how
+        // much desaturation that actually turned into.
+        ProbeRegistry.Register(new NightDesaturationProbe());
         ProbeRegistry.Register(new SkyColorTemperatureProbe());
         ProbeRegistry.Register(new AuroraTintProbe());
         ProbeRegistry.Register(new EclipseCoverageProbe());
