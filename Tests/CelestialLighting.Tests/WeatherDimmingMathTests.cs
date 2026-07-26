@@ -33,23 +33,23 @@ public class WeatherDimmingMathTests
         Assert.That(red, Is.GreaterThan(blue));
     }
 
-    // --- CloudOpacity: the zero set ---
+    // --- PaletteOpacity: the zero set ---
     //
     // Every one of these is a weather we must NOT dim. Clear/Windy because they are clear; Orbit,
     // Underground, Undercave and MetalHell because they are not weather at all; UnnaturalDarkness
     // because its darkness is owned by GameCondition_UnnaturalDarkness's LerpDarken and stacking a
     // second multiply on a gameplay-critical Anomaly event would be wrong (DESIGN.md §13, R5).
 
-    [TestCase(1f, 1f, 1f, 1.25f, TestName = "CloudOpacity_Zero_Clear")]
-    [TestCase(1f, 1f, 1f, 1.25f, TestName = "CloudOpacity_Zero_Windy")]
-    [TestCase(1f, 1f, 1f, 1.25f, TestName = "CloudOpacity_Zero_Orbit")]
-    [TestCase(0.3f, 0.4f, 0.4f, 1.25f, TestName = "CloudOpacity_Zero_Underground")]
-    [TestCase(0.3f, 0.4f, 0.4f, 1.25f, TestName = "CloudOpacity_Zero_Undercave")]
-    [TestCase(0.4f, 0.5f, 0.5f, 1.25f, TestName = "CloudOpacity_Zero_MetalHell")]
-    [TestCase(0.482f, 0.603f, 0.682f, 1.25f, TestName = "CloudOpacity_Zero_UnnaturalDarkness")]
-    public void CloudOpacity_IsZeroForClearAndNonWeather(float r, float g, float b, float saturation)
+    [TestCase(1f, 1f, 1f, 1.25f, TestName = "PaletteOpacity_Zero_Clear")]
+    [TestCase(1f, 1f, 1f, 1.25f, TestName = "PaletteOpacity_Zero_Windy")]
+    [TestCase(1f, 1f, 1f, 1.25f, TestName = "PaletteOpacity_Zero_Orbit")]
+    [TestCase(0.3f, 0.4f, 0.4f, 1.25f, TestName = "PaletteOpacity_Zero_Underground")]
+    [TestCase(0.3f, 0.4f, 0.4f, 1.25f, TestName = "PaletteOpacity_Zero_Undercave")]
+    [TestCase(0.4f, 0.5f, 0.5f, 1.25f, TestName = "PaletteOpacity_Zero_MetalHell")]
+    [TestCase(0.482f, 0.603f, 0.682f, 1.25f, TestName = "PaletteOpacity_Zero_UnnaturalDarkness")]
+    public void PaletteOpacity_IsZeroForClearAndNonWeather(float r, float g, float b, float saturation)
     {
-        Assert.That(WeatherDimmingMath.CloudOpacity(r, g, b, saturation),
+        Assert.That(WeatherDimmingMath.PaletteOpacity(r, g, b, saturation),
             Is.EqualTo(0f).Within(Tolerance));
     }
 
@@ -59,7 +59,7 @@ public class WeatherDimmingMathTests
     [TestCase(0.3f, 0.4f, 0.4f, 1.25f, TestName = "ProductGuard_Underground")]
     [TestCase(0.4f, 0.5f, 0.5f, 1.25f, TestName = "ProductGuard_MetalHell")]
     [TestCase(0.482f, 0.603f, 0.682f, 1.25f, TestName = "ProductGuard_UnnaturalDarkness")]
-    public void CloudOpacity_ProductIsWhatSparesDarkNonWeatherPalettes(
+    public void PaletteOpacity_ProductIsWhatSparesDarkNonWeatherPalettes(
         float r, float g, float b, float saturation)
     {
         // Dark enough that luminance alone would call it fully overcast...
@@ -67,39 +67,191 @@ public class WeatherDimmingMathTests
             Is.EqualTo(1f).Within(Tolerance));
         // ...but it keeps the clear family's saturation, so the product is 0.
         Assert.That(WeatherDimmingMath.SaturationDeficit(saturation), Is.EqualTo(0f).Within(Tolerance));
-        Assert.That(WeatherDimmingMath.CloudOpacity(r, g, b, saturation),
+        Assert.That(WeatherDimmingMath.PaletteOpacity(r, g, b, saturation),
             Is.EqualTo(0f).Within(Tolerance));
     }
 
-    // And it must hold even with precipitation forced on — proving the AND, not just that one
-    // factor happens to be zero in isolation. A modded cave weather that somehow reported rain
-    // must still not dim.
+    // A zero-opacity weather stays a no-op no matter how the rates are set, so the clear-sky fast
+    // path really is a fast path and DimmingFraction cannot manufacture dimming from precipitation
+    // on its own.
+    //
+    // NOTE what this deliberately no longer claims. It used to read "a modded cave weather that
+    // somehow reported rain must still not dim", asserting an AND between palette and precipitation.
+    // Issue #31 reversed that: precipitation is now independent evidence of a deck (see
+    // CloudOpacity_PrecipitationOverridesAnUnconvincingPalette), because a real modded rainstorm
+    // shipping a half-clear palette was the more common failure by far. Cave weathers are handled by
+    // the map-level guard instead — BiomeHasChangingWeather — which is where the question belongs.
     [TestCase(0.3f, 0.4f, 0.4f, 1.25f)]
     [TestCase(0.4f, 0.5f, 0.5f, 1.25f)]
     [TestCase(1f, 1f, 1f, 1.25f)]
     public void DimmingFraction_IsZeroForZeroOpacityEvenWithHeavyPrecipitation(
         float r, float g, float b, float saturation)
     {
-        float opacity = WeatherDimmingMath.CloudOpacity(r, g, b, saturation);
+        float opacity = WeatherDimmingMath.PaletteOpacity(r, g, b, saturation);
         float dimming = WeatherDimmingMath.DimmingFraction(
             opacity, rainRate: 1f, snowRate: 1.5f, sandRate: 1.6f,
             maxDimming: WeatherDimmingMath.DefaultMaxDimming);
         Assert.That(dimming, Is.EqualTo(0f).Within(Tolerance));
     }
 
-    // --- CloudOpacity: the full set ---
+    // --- PaletteOpacity: the full set ---
     //
     // The twelve palette-B weathers all share sky (0.8,0.8,0.8) / saturation 0.9, plus Anomaly's
     // two gloom weathers which are darker and flatter still and must saturate at 1, not overshoot.
 
-    [TestCase(0.8f, 0.8f, 0.8f, 0.9f, TestName = "CloudOpacity_Full_OvercastWetPalette")]
-    [TestCase(0.482f, 0.603f, 0.682f, 0.75f, TestName = "CloudOpacity_Full_GrayPall")]
-    [TestCase(0.482f, 0.603f, 0.682f, 0.5f, TestName = "CloudOpacity_Full_UnnaturalFog")]
-    [TestCase(0f, 0f, 0f, 0f, TestName = "CloudOpacity_Full_BeyondVanillaClampsNotOvershoots")]
-    public void CloudOpacity_IsOneForCloudDecks(float r, float g, float b, float saturation)
+    [TestCase(0.8f, 0.8f, 0.8f, 0.9f, TestName = "PaletteOpacity_Full_OvercastWetPalette")]
+    [TestCase(0.482f, 0.603f, 0.682f, 0.75f, TestName = "PaletteOpacity_Full_GrayPall")]
+    [TestCase(0.482f, 0.603f, 0.682f, 0.5f, TestName = "PaletteOpacity_Full_UnnaturalFog")]
+    [TestCase(0f, 0f, 0f, 0f, TestName = "PaletteOpacity_Full_BeyondVanillaClampsNotOvershoots")]
+    public void PaletteOpacity_IsOneForCloudDecks(float r, float g, float b, float saturation)
     {
-        Assert.That(WeatherDimmingMath.CloudOpacity(r, g, b, saturation),
+        Assert.That(WeatherDimmingMath.PaletteOpacity(r, g, b, saturation),
             Is.EqualTo(1f).Within(Tolerance));
+    }
+
+    // --- PrecipitationEvidence ---
+
+    [TestCase(0f, 0f, 0f, TestName = "Precipitation_None_DryWeather")]
+    public void PrecipitationEvidence_IsZeroWhenNothingFalls(float rain, float snow, float sand)
+    {
+        Assert.That(WeatherDimmingMath.PrecipitationEvidence(rain, snow, sand),
+            Is.EqualTo(0f).Within(Tolerance));
+    }
+
+    // Categorical, not proportional: a drizzle and a monsoon both settle the question of WHETHER
+    // there is a deck. The 0.05 row is Anomalies Expected's blood fog, the lightest rate in the whole
+    // installed census, and it must count exactly as much as vanilla Blizzard's 1.5.
+    [TestCase(1f, 0f, 0f, TestName = "Precipitation_Rain")]
+    [TestCase(0.05f, 0f, 0f, TestName = "Precipitation_LightestRateInTheCensus")]
+    [TestCase(0f, 1.5f, 0f, TestName = "Precipitation_Blizzard")]
+    [TestCase(0f, 0f, 1.6f, TestName = "Precipitation_Sandstorm")]
+    [TestCase(0f, 0f, 5f, TestName = "Precipitation_BeyondVanillaDoesNotOvershoot")]
+    public void PrecipitationEvidence_IsOneForAnyNonzeroRate(float rain, float snow, float sand)
+    {
+        Assert.That(WeatherDimmingMath.PrecipitationEvidence(rain, snow, sand),
+            Is.EqualTo(1f).Within(Tolerance));
+    }
+
+    // --- CloudOpacity: the two lines of evidence composed ---
+
+    [Test]
+    public void CloudOpacity_PrecipitationOverridesAnUnconvincingPalette()
+    {
+        // Alpha Biomes' AB_ForsakenRainyNight_Alternate: a rainstorm (rainRate 1.0) whose day palette
+        // is only partway to overcast — sky (0.65,0.70,0.75), saturation 1.1. The palette rule alone
+        // rates it 0.43, so before issue #31 a visibly wet sky dimmed as though half-clear.
+        float palette = WeatherDimmingMath.PaletteOpacity(0.65f, 0.70f, 0.75f, 1.1f);
+        Assert.That(palette, Is.EqualTo(0.4286f).Within(1e-3f), "census value for this def changed");
+
+        float opacity = WeatherDimmingMath.CloudOpacity(
+            0.65f, 0.70f, 0.75f, 1.1f, rainRate: 1f, snowRate: 0f, sandRate: 0f);
+        Assert.That(opacity, Is.EqualTo(1f).Within(Tolerance));
+    }
+
+    [Test]
+    public void CloudOpacity_PaletteAloneStillCarriesADryDeck()
+    {
+        // The other direction: fog, overcast and dry thunderstorms have no precipitation at all, so
+        // the palette must remain sufficient on its own.
+        float opacity = WeatherDimmingMath.CloudOpacity(
+            0.8f, 0.8f, 0.8f, 0.9f, rainRate: 0f, snowRate: 0f, sandRate: 0f);
+        Assert.That(opacity, Is.EqualTo(1f).Within(Tolerance));
+    }
+
+    [Test]
+    public void CloudOpacity_IsStillZeroForAClearDrySky()
+    {
+        float opacity = WeatherDimmingMath.CloudOpacity(
+            1f, 1f, 1f, 1.25f, rainRate: 0f, snowRate: 0f, sandRate: 0f);
+        Assert.That(opacity, Is.EqualTo(0f).Within(Tolerance));
+    }
+
+    // Every precipitating VANILLA weather already scores a full 1.00 on the palette rule, which is
+    // why adding precipitation as independent evidence is provably a no-op on vanilla content and
+    // only ever reaches modded defs. Rows are the literal vanilla palette-B values plus each
+    // weather's rates.
+    [TestCase(1f, 0f, 0f, TestName = "VanillaNoOp_Rain")]
+    [TestCase(1f, 1.2f, 0f, TestName = "VanillaNoOp_SnowHard")]
+    [TestCase(1f, 1.5f, 0f, TestName = "VanillaNoOp_Blizzard")]
+    [TestCase(0f, 0f, 1.6f, TestName = "VanillaNoOp_Sandstorm")]
+    [TestCase(0f, 0f, 0f, TestName = "VanillaNoOp_FogOvercastDryThunderstorm")]
+    public void CloudOpacity_MatchesPaletteOpacityForEveryVanillaWeather(
+        float rainRate, float snowRate, float sandRate)
+    {
+        float palette = WeatherDimmingMath.PaletteOpacity(0.8f, 0.8f, 0.8f, 0.9f);
+        float opacity = WeatherDimmingMath.CloudOpacity(
+            0.8f, 0.8f, 0.8f, 0.9f, rainRate, snowRate, sandRate);
+        Assert.That(opacity, Is.EqualTo(palette).Within(Tolerance));
+    }
+
+    // --- BiomeHasChangingWeather: the structural guard ---
+    //
+    // Measured across all 65 biomes in vanilla + 24 installed workshop mods (Tools/WeatherAudit).
+    // Read the member's own comment for what this rule does and does not claim: it is NOT a clean
+    // partition of skyless from open-air — vanilla's Undercave offers two weathers once inheritance is
+    // applied, the same as the open-air Duskwood — it is a rule that covers every biome which could
+    // actually dim wrongly.
+
+    [TestCase(0, TestName = "NoClimate_OceanAndLakeListNoWeatherAtAll")]
+    [TestCase(1, TestName = "NoClimate_EveryBiomeThatCouldHaveDimmedWronglySitsHere")]
+    public void BiomeHasChangingWeather_IsFalseForSkylessBiomes(int weatherChoices)
+    {
+        Assert.That(WeatherDimmingMath.BiomeHasChangingWeather(weatherChoices), Is.False);
+    }
+
+    [TestCase(2, TestName = "Climate_DuskwoodAndAlsoUndercave_seeTheMemberComment")]
+    [TestCase(3, TestName = "Climate_AB_RockyCrags_and_DMSE_ImpactCraterBiome")]
+    [TestCase(8, TestName = "Climate_Desert")]
+    [TestCase(12, TestName = "Climate_BorealForest")]
+    [TestCase(15, TestName = "Climate_RG_TemperateGrassland")]
+    public void BiomeHasChangingWeather_IsTrueForOpenAirBiomes(int weatherChoices)
+    {
+        Assert.That(WeatherDimmingMath.BiomeHasChangingWeather(weatherChoices), Is.True);
+    }
+
+    // The property that actually makes the guard safe at its boundary, pinned as a formula rather than
+    // left in prose: the two skyless biomes that slip past the count rule (Undercave, UV_SpaceUndercave)
+    // can only roll `Underground` and `Undercave`, and BOTH classify to exactly 0. If a RimWorld update
+    // repalettes either of those weathers, this fails and the guard needs a second condition.
+    [TestCase(0.3f, 0.4f, 0.4f, 1.25f, TestName = "BoundarySafe_UndergroundPalette")]
+    [TestCase(0.3f, 0.4f, 0.4f, 1.25f, TestName = "BoundarySafe_UndercavePalette")]
+    public void CloudOpacity_IsZeroForEveryWeatherASkylessBoundaryBiomeCanRoll(
+        float r, float g, float b, float saturation)
+    {
+        float opacity = WeatherDimmingMath.CloudOpacity(
+            r, g, b, saturation, rainRate: 0f, snowRate: 0f, sandRate: 0f);
+        Assert.That(opacity, Is.EqualTo(0f).Within(Tolerance),
+            "a skyless biome above the weather-count threshold would now dim wrongly");
+    }
+
+    // --- The modded census, as a regression fixture ---
+    //
+    // The defs that motivated issue #31, with the opacity each must now classify to. These are the
+    // literal skyColorsDay values from the mods' own XML; the two that used to misfire are the ones
+    // this row set exists to hold down. Cave environments (BMT_Calm, MF_UndergroundWeather) are NOT
+    // here, because they are not fixed at this layer at all — their palettes still read as overcast
+    // and it is HasSky that spares them, which is the point of splitting the two questions.
+
+    [TestCase(0.65f, 0.70f, 0.75f, 1.1f, 1f, 1f,
+        TestName = "Census_AB_ForsakenRainyNight_Alternate_wasWronglyHalfClearAt0_43")]
+    [TestCase(0.482f, 0.603f, 0.682f, 0.9f, 1f, 1f,
+        TestName = "Census_VEE_PsychicRain")]
+    // Note the palette here. This def's XML says sky (255,0,0), and Verse.ParseHelper.ParseColor
+    // treats any triple with a component above 1 as 0-255 bytes — so the value §13 actually sees is
+    // (1,0,0), pure red, whose Rec.709 luma of 0.213 reads as a full luminance deficit. Worth pinning:
+    // issue #31's original audit script read the raw XML floats and concluded this storm dimmed 0%.
+    [TestCase(1f, 0f, 0f, 0.9f, 1f, 1f,
+        TestName = "Census_VPEH_Bloodstorm_byteColourParsesToPureRedNotSuperWhite")]
+    [TestCase(0.95f, 0.90f, 0.80f, 1.0f, 0f, 0.34497f,
+        TestName = "Census_VEE_Inferno_heatHazeStaysMildNotFull")]
+    [TestCase(1f, 1f, 1f, 1.25f, 0f, 0f,
+        TestName = "Census_AB_PetalStorms_clearSkyWithAnOverlayStaysClear")]
+    public void CloudOpacity_HoldsTheModdedCensus(
+        float r, float g, float b, float saturation, float rainRate, float expected)
+    {
+        float opacity = WeatherDimmingMath.CloudOpacity(
+            r, g, b, saturation, rainRate, snowRate: 0f, sandRate: 0f);
+        Assert.That(opacity, Is.EqualTo(expected).Within(1e-3f));
     }
 
     // --- The intensity ladder ---

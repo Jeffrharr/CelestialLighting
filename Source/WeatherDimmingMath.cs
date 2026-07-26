@@ -33,9 +33,20 @@ namespace CelestialLighting;
 // We deepen it and make it scale with storm intensity. This keeps CLAUDE.md's "scope is
 // visual/atmospheric only" intact with no amendment: plant growth, solar output and pawn vision
 // stay bit-for-bit vanilla under every weather.
+//
+// HOW A WEATHER IS CLASSIFIED — three layers, none of them a defName list (issue #31):
+//
+//   1. BiomeHasChangingWeather   is there weather over this map at all?     (map-level veto)
+//   2. PaletteOpacity            how overcast does the palette look?        (evidence)
+//   3. PrecipitationEvidence     is anything falling out of the sky?        (evidence)
+//
+// with WeatherCloudDeck as a per-def escape hatch for content that none of the three can settle.
+// §13 originally shipped only layer 2, on the strength of a regularity in vanilla's palettes that
+// modded content turned out not to share; the reasoning for each layer, and the census that
+// motivated it, is on the individual members below.
 public static class WeatherDimmingMath
 {
-    // --- Classification anchors, read off the vanilla WeatherDef census (see CloudOpacity) ---
+    // --- Classification anchors, read off the vanilla WeatherDef census (see PaletteOpacity) ---
 
     // Rec. 709 luma of a clear sky palette (1,1,1) and of the shared overcast/wet palette
     // (0.8,0.8,0.8). These bracket the luminance ramp: at or above clear, no cloud; at or below
@@ -70,6 +81,18 @@ public static class WeatherDimmingMath
     // 0.85 leaves a faint 15% so the scene keeps some grounding rather than looking unlit.
     public const float MaxShadowSoftening = 0.85f;
 
+    // Above this, a weather's rainRate/snowRate/sandRate counts as "something is falling out of the
+    // sky", which is categorical evidence of a deck — see PrecipitationEvidence. Just above zero
+    // rather than at it, so a def that leaves a rate at literal 0f is unambiguously dry. It
+    // deliberately does not try to tell 0.05 (Anomalies Expected's blood fog) from 1.0: how hard it
+    // is coming down is ObscurationIntensity's job, not this one's.
+    public const float PrecipitationEpsilon = 1e-4f;
+
+    // The smallest number of possible weathers a biome must offer before we treat its map as having a
+    // climate at all — see BiomeHasChangingWeather. Not a tuning knob: 2 is the arithmetic minimum
+    // for "the weather can change".
+    public const int MinWeatherChoicesForClimate = 2;
+
     // --- Cloud classification ---
 
     // Rec. 709 luma. Not a naive channel average: a modded palette that is chromatic rather than
@@ -89,10 +112,9 @@ public static class WeatherDimmingMath
 
     // How much of a cloud deck this weather's own day palette implies, in [0,1].
     //
-    // THE PRODUCT IS BOTH CLASSIFIER AND GUARD, and that is the whole design. A weather must be
-    // BOTH greyer AND flatter than clear to count as cloud. Taking the product rather than a max
-    // or a sum is what lets this subsystem skip every explicit guard — no roof check, no biome
-    // check, no defName list — because of a happy regularity in the vanilla data:
+    // THE PRODUCT IS BOTH CLASSIFIER AND GUARD. A weather must be BOTH greyer AND flatter than clear
+    // to count as cloud. Taking the product rather than a max or a sum is what makes the vanilla
+    // census come out right with no defName list anywhere:
     //
     //   family                      sky            saturation   lumDef  satDef  opacity
     //   Clear, Windy, Orbit         (1,1,1)        1.25         0       0       0
@@ -108,9 +130,101 @@ public static class WeatherDimmingMath
     // rule only because its palette is byte-identical to Clear's — that is luck, and the product
     // does not depend on it.
     //
-    // A modded weather is classified by the same data it already ships, with no registration step.
-    public static float CloudOpacity(float r, float g, float b, float saturation) =>
+    // WHAT THIS IS *NOT* ENOUGH FOR, and the reason it is no longer the whole classifier. §13
+    // originally shipped this as the complete story, on the strength of the regularity above. An
+    // audit of every WeatherDef in 81 installed defs across vanilla + 24 workshop mods (issue #31,
+    // reproducible via Tools/WeatherAudit) showed the `saturation: 1.25` convention is a *vanilla*
+    // convention that modded content does not follow: Biomes! Caverns' BMT_Calm and MultiFloors'
+    // MF_UndergroundWeather are cave environments shipping overcast-shaped palettes, and this
+    // function rates them 1.00 and 0.71. The fix is not to complicate the palette rule — every
+    // palette-only discriminator tried against that census (day-versus-night contrast in
+    // particular) traded those two false positives for a larger set of real modded fogs and palls
+    // that ship flat or inverted palettes. The fix is that "is there a sky over this map at all" is
+    // a question about the MAP, answered by BiomeHasChangingWeather below, and "is there a deck
+    // overhead" gains a second, independent line of evidence in PrecipitationEvidence.
+    //
+    // Kept public and separately named because it is one *factor* now, not the answer, and the tests
+    // pin it independently of what is layered over it.
+    public static float PaletteOpacity(float r, float g, float b, float saturation) =>
         LuminanceDeficit(Luminance(r, g, b)) * SaturationDeficit(saturation);
+
+    // 1 when this weather makes anything fall out of the sky, 0 when it does not.
+    //
+    // Deliberately categorical rather than proportional. Precipitation is not a hint about cloud
+    // cover, it is a consequence of it — rain, snow and blown sand all require something overhead
+    // to fall from, so any nonzero rate settles the question of WHETHER there is a deck outright.
+    // How hard it is coming down is a separate axis that ObscurationIntensity already handles, and
+    // conflating the two would double-count intensity.
+    //
+    // This is what closes the false-NEGATIVE half of the modded-weather problem. Alpha Biomes'
+    // AB_ForsakenRainyNight_Alternate is a rainstorm (rainRate 1.0) whose day palette is only
+    // partway to overcast, so the palette rule alone rated it 0.43 — a visibly wet sky dimmed as if
+    // half-clear. Vanilla is unaffected: every precipitating vanilla weather already scores a full
+    // 1.00 on the palette rule, so flooring at 1 changes nothing there.
+    public static float PrecipitationEvidence(float rainRate, float snowRate, float sandRate) =>
+        Max3(rainRate, snowRate, sandRate) > PrecipitationEpsilon ? 1f : 0f;
+
+    // How much of a cloud deck this weather implies, in [0,1] — the classifier proper.
+    //
+    // MAX, not product: the two lines of evidence are independent and either one alone is
+    // sufficient. A dry overcast has a grey flat palette and no precipitation; a modded storm may
+    // have precipitation and an idiosyncratic palette. Requiring both would reintroduce the false
+    // negative that PrecipitationEvidence exists to fix.
+    //
+    // Still no defName list, and still no registration step: a modded weather is classified purely
+    // from data it already declares for its own rendering and simulation. Where that genuinely
+    // cannot settle it, WeatherCloudDeck lets the def say so outright.
+    public static float CloudOpacity(
+        float r, float g, float b, float saturation,
+        float rainRate, float snowRate, float sandRate)
+    {
+        float palette = PaletteOpacity(r, g, b, saturation);
+        float precipitation = PrecipitationEvidence(rainRate, snowRate, sandRate);
+        return palette > precipitation ? palette : precipitation;
+    }
+
+    // --- The structural guard: does this map have weather at all? ---
+
+    // Whether a biome offering `weatherChoices` possible weathers has a climate we should dim.
+    //
+    // THE CHEAPEST GUARD THAT COVERS THE REAL CASES, and the one §13 originally argued it did not
+    // need. A biome that lists exactly one weather with nonzero commonality can never change weather:
+    // whatever palette that single def ships is the map's fixed environment, not a deck that rolled in
+    // and will roll out. Caves, pocket maps, ancient complexes and orbit are that shape, and asking
+    // the question this way needs no roof grid, no cell iteration and no list of ours to maintain.
+    //
+    // WHAT IT DOES AND DOES NOT CLAIM — stated carefully, because an earlier version of this comment
+    // overclaimed and a live run caught it. This does NOT cleanly partition skyless from open-air.
+    // Vanilla's `Undercave` biome offers TWO weathers, not one: it declares `Undercave` and inherits
+    // `Underground` from `Biome_Underground`, and RimWorld's XML inheritance recurses into the shared
+    // `baseWeatherCommonalities` node and appends rather than replacing. So Undercave sits at 2,
+    // exactly like the open-air Duskwood, and this rule treats both as having a climate.
+    //
+    // What makes that safe is not the count, it is which biomes can do harm. A skyless biome only
+    // dims wrongly if it can roll a weather whose palette classifies above 0, and across all 65
+    // biomes in vanilla + 24 installed workshop mods, EVERY skyless biome above the threshold offers
+    // only weathers that already classify to exactly 0 (Undercave rolls `Undercave` or `Underground`,
+    // both of which keep the clear family's saturation). Every biome that could actually have dimmed
+    // wrongly — `BMT_CrystalCaverns`, `BMT_EarthenDepths`, `MF_BasementBiome`, `AE_BloodLakeBiome`,
+    // `AE_ChristmasTreeBiome` — offers exactly one weather and is caught. Tools/WeatherAudit prints
+    // that as a `worst` column per biome plus a short boundary list, which is the check to re-run
+    // after a mod-list change rather than trusting this paragraph.
+    //
+    // A third condition was measured and rejected: `generatesNaturally == false` would additionally
+    // catch Undercave and every vanilla pocket map, but it also catches Deep Mining's
+    // `DMSE_ImpactCraterBiome`, an open-air crater with Clear/Rain/DryThunderstorm that genuinely
+    // wants dimming. It buys only biomes that were already harmless and costs a real one.
+    //
+    // Counting must be over NONZERO commonalities. Biomes! Caverns lists vanilla's
+    // Rain/FoggyRain/DryThunderstorm on its cavern biomes at commonality 0 specifically to suppress
+    // them; counting entries rather than possibilities would read those caverns as having a climate
+    // and reinstate the exact false positive this closes.
+    //
+    // The cost of being wrong is small and one-directional: a hypothetical open-air biome that
+    // genuinely offers a single weather forever gets no dimming, which leaves the author's own
+    // palette rendering exactly as they authored it.
+    public static bool BiomeHasChangingWeather(int weatherChoices) =>
+        weatherChoices >= MinWeatherChoicesForClimate;
 
     // Blends the outgoing and incoming weather's opacity across a weather transition, so a front
     // rolling in eases rather than snapping. Mirrors exactly how vanilla lerps RainRate/SnowRate:

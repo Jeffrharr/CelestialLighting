@@ -205,13 +205,103 @@ public class ApiCompatibilityTests
     {
         var type = GetType("Verse.WeatherDef");
         Assert.That(type, Is.Not.Null, "Verse.WeatherDef no longer exists");
-        foreach (var fieldName in new[] { "rainRate", "snowRate" })
+        // sandRate is Odyssey's; it exists on the base def regardless, and §13 reads all three both
+        // for the intensity band and — since issue #31 — as the precipitation evidence that overrides
+        // an unconvincing modded palette (WeatherDimmingMath.PrecipitationEvidence).
+        foreach (var fieldName in new[] { "rainRate", "snowRate", "sandRate" })
         {
             var field = type!.Fields.SingleOrDefault(f => f.Name == fieldName && f.IsPublic);
             Assert.That(field, Is.Not.Null,
                 $"WeatherDef.{fieldName} no longer exists or is no longer public");
             Assert.That(field!.FieldType.FullName, Is.EqualTo("System.Single"));
         }
+    }
+
+    // --- BiomeDef weather census (§13's structural guard, issue #31) ---
+    //
+    // WeatherDimming.HasSky decides whether a map has a sky at all by asking its biome how many
+    // weathers it can actually roll. That closes the cave / pocket-map / orbit class without a defName
+    // list, but it does mean §13 now depends on three more vanilla members. If any of them moves, the
+    // guard silently answers "no sky" everywhere and weather dimming quietly stops working.
+
+    [Test]
+    public void Map_Biome_Exists()
+    {
+        var type = GetType("Verse.Map");
+        Assert.That(type, Is.Not.Null);
+        var property = type!.Properties.SingleOrDefault(p => p.Name == "Biome");
+        Assert.That(property, Is.Not.Null, "Map.Biome no longer exists");
+        Assert.That(property!.PropertyType.FullName, Is.EqualTo("RimWorld.BiomeDef"));
+    }
+
+    [Test]
+    public void BiomeDef_HasBaseWeatherCommonalities()
+    {
+        var type = GetType("RimWorld.BiomeDef");
+        Assert.That(type, Is.Not.Null, "RimWorld.BiomeDef no longer exists");
+        var field = type!.Fields.SingleOrDefault(
+            f => f.Name == "baseWeatherCommonalities" && f.IsPublic);
+        Assert.That(field, Is.Not.Null,
+            "BiomeDef.baseWeatherCommonalities no longer exists or is no longer public");
+        Assert.That(field!.FieldType.FullName,
+            Is.EqualTo("System.Collections.Generic.List`1<RimWorld.WeatherCommonalityRecord>"),
+            "BiomeDef.baseWeatherCommonalities changed shape");
+    }
+
+    [Test]
+    public void WeatherCommonalityRecord_HasCommonality()
+    {
+        // §13 counts records whose commonality is above zero, not records outright — Biomes! Caverns
+        // lists vanilla's rain weathers at commonality 0 specifically to suppress them on its cavern
+        // biomes, and an entry count would read those caverns as having a climate.
+        var type = GetType("RimWorld.WeatherCommonalityRecord");
+        Assert.That(type, Is.Not.Null, "RimWorld.WeatherCommonalityRecord no longer exists");
+        var field = type!.Fields.SingleOrDefault(f => f.Name == "commonality" && f.IsPublic);
+        Assert.That(field, Is.Not.Null,
+            "WeatherCommonalityRecord.commonality no longer exists or is no longer public");
+        Assert.That(field!.FieldType.FullName, Is.EqualTo("System.Single"));
+    }
+
+    [Test]
+    public void BiomeDef_HasDisableSkyLightingAndSkyManagerStillBranchesOnIt()
+    {
+        // The second half of the guard, and the reason to trust it: this is not a field we invented a
+        // meaning for. SkyManagerUpdate itself branches on it to stop writing curSky.colors.sky into
+        // MatBases.LightOverlay at all, so it is vanilla's own declaration that a map has nothing
+        // overhead. If SkyManagerUpdate stops reading it, our reading of it needs rethinking too.
+        var biome = GetType("RimWorld.BiomeDef");
+        Assert.That(biome, Is.Not.Null, "RimWorld.BiomeDef no longer exists");
+        var field = biome!.Fields.SingleOrDefault(f => f.Name == "disableSkyLighting" && f.IsPublic);
+        Assert.That(field, Is.Not.Null,
+            "BiomeDef.disableSkyLighting no longer exists or is no longer public");
+        Assert.That(field!.FieldType.FullName, Is.EqualTo("System.Boolean"));
+
+        var skyManager = GetType("Verse.SkyManager");
+        Assert.That(skyManager, Is.Not.Null, "Verse.SkyManager no longer exists");
+        var update = skyManager!.Methods.SingleOrDefault(m => m.Name == "SkyManagerUpdate");
+        Assert.That(update, Is.Not.Null, "SkyManager.SkyManagerUpdate no longer exists");
+        Assert.That(
+            update!.Body.Instructions.Any(i =>
+                i.Operand is Mono.Cecil.FieldReference r && r.Name == "disableSkyLighting"),
+            Is.True,
+            "SkyManagerUpdate no longer reads BiomeDef.disableSkyLighting — §13's skyless-map guard "
+            + "was justified by vanilla using this field for exactly that meaning");
+    }
+
+    [Test]
+    public void Def_HasGetModExtension()
+    {
+        // §13's per-def escape hatch (CelestialLighting.WeatherCloudDeck) is read through this.
+        var type = GetType("Verse.Def");
+        Assert.That(type, Is.Not.Null, "Verse.Def no longer exists");
+        var method = type!.Methods.SingleOrDefault(
+            m => m.Name == "GetModExtension" && m.HasGenericParameters && m.Parameters.Count == 0);
+        Assert.That(method, Is.Not.Null,
+            "Def.GetModExtension<T>() no longer exists — WeatherCloudDeck cannot be read");
+
+        var extension = GetType("Verse.DefModExtension");
+        Assert.That(extension, Is.Not.Null,
+            "Verse.DefModExtension no longer exists — WeatherCloudDeck's base class is gone");
     }
 
     [Test]

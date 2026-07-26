@@ -1040,8 +1040,8 @@ satDeficit   = InverseLerpClamped(1.25, 0.90, skyColorsDay.saturation)
 cloudOpacity = lumDeficit * satDeficit
 ```
 
-The product is simultaneously the classifier and the guard, which is what lets §13 ship with no roof
-check, no biome check and no defName list:
+The product is simultaneously the classifier and the guard, which is what makes the vanilla census
+come out right with no roof check and no defName list:
 
 | family | `skyColorsDay.sky` | `saturation` | lumDef | satDef | opacity |
 |---|---|---|---|---|---|
@@ -1055,8 +1055,117 @@ check, no biome check and no defName list:
 Every dark-palette *non-weather* keeps the clear family's saturation of 1.25, so its saturation
 deficit is exactly 0 and the product zeroes it structurally. A luminance-only rule would have dimmed
 caves and the metal hell into blackness and needed an explicit guard bolted on; Orbit would have been
-spared only by the luck of shipping Clear's palette. A modded weather is classified by the same data
-it already declares for rendering, with no registration step.
+spared only by the luck of shipping Clear's palette.
+
+### Modded weathers, and why the palette alone was not enough (issue #31)
+
+§13 originally shipped with the palette rule as the *whole* classifier, arguing from the table above
+that it needed no roof check, no biome check and no defName list. That argument was sound about
+vanilla and wrong about the world. `Tools/WeatherAudit` — a checked-in dev tool that links the shipped
+`WeatherDimmingMath` and walks every def on disk — put numbers on it: across **81 `WeatherDef`s and 65
+`BiomeDef`s in vanilla plus 24 installed workshop mods**, the palette rule alone misclassified content
+in both directions.
+
+- **False positives.** The `saturation: 1.25` convention that spares vanilla's caves is a *vanilla*
+  convention. Biomes! Caverns' `BMT_Calm` and MultiFloors' `MF_UndergroundWeather` are cave
+  environments shipping overcast-shaped palettes, rated **1.00** and **0.71**. Anomalies Expected's
+  `AE_BloodLakeWeatherClear` is a third.
+- **False negatives.** Alpha Biomes' `AB_ForsakenRainyNight_Alternate` is a rainstorm (`rainRate` 1.0)
+  whose day palette is only partway to overcast, rated **0.43** — a visibly wet sky dimmed as though
+  half-clear.
+
+The fix is emphatically *not* a cleverer palette rule. Every palette-only discriminator tried against
+that census failed the same way; the most promising, day-versus-night contrast (an enclosed map has no
+diurnal variation, an open sky does), traded those three false positives for **five** real modded
+weathers — `AB_RedFog`, `CrimsonDeathPallSTNL`, `REDS_EerieClouds`, `VPE_RadioactiveFog`,
+`VGE_ToxicDustCloud` — which ship flat or even inverted day/night palettes. That is a worse deal, and
+finding it out is the reason the audit exists.
+
+What actually resolves it is noticing that two different questions had been collapsed into one.
+"Is this palette a cloud deck?" is a question about a `WeatherDef`. **"Is there a sky over this map at
+all?" is a question about the map**, and the map answers it directly:
+
+```csharp
+// WeatherDimming.HasSky — either condition means no sky, so no dimming
+biome.disableSkyLighting                                  // vanilla's own "nothing overhead" flag
+|| biome.baseWeatherCommonalities.Count(c => c.commonality > 0) < 2
+```
+
+The second clause is the interesting one: **a biome that offers fewer than two possible weathers can
+never change weather**, so its single palette is the map's fixed environment rather than a deck that
+rolled in.
+
+It is worth being precise about what that rule does and does not do, because the first draft of this
+section overclaimed it as a clean partition and a **live harness run caught the error**. It is not.
+Vanilla's `Undercave` biome offers *two* weathers, not one: it declares `Undercave` and inherits
+`Underground` from `Biome_Underground`, and RimWorld's XML inheritance
+(`XmlInheritance.RecursiveNodeCopyOverwriteElements`) recurses into the shared
+`baseWeatherCommonalities` node and **appends** rather than replacing. So Undercave sits at 2, exactly
+like the open-air Duskwood, and the rule treats both as having a climate. The audit tool had been
+resolving inheritance shallowly and reported Undercave as 1, which made the partition look clean; the
+scenario probe on a live Undercave map read a nonzero dimming and disproved it.
+
+What makes the rule safe is therefore not the count but *which biomes can actually do harm*. A skyless
+biome only dims wrongly if it can roll a weather whose palette classifies above 0, and across all 65
+biomes in the census:
+
+- every biome that **could** have dimmed wrongly offers exactly one weather and is caught —
+  `BMT_CrystalCaverns` (1.00), `BMT_EarthenDepths` (1.00), `AE_BloodLakeBiome` (1.00),
+  `AE_ChristmasTreeBiome` (1.00), `MF_BasementBiome` (0.71);
+- every skyless biome **above** the threshold offers only weathers that already classify to exactly 0
+  — Undercave and `UV_SpaceUndercave` can roll `Undercave` or `Underground`, both of which keep the
+  clear family's saturation of 1.25.
+
+`Tools/WeatherAudit` prints that as a `worst` column per biome plus a short boundary list, so the
+claim is re-checkable after a mod-list change rather than resting on this paragraph. Being wrong is
+also one-directional and cheap: a hypothetical open-air biome with a single eternal weather simply
+gets no dimming, leaving its author's palette exactly as authored.
+
+A third condition was measured and **rejected**: `generatesNaturally == false` would additionally
+catch Undercave and every vanilla pocket map, but it also catches Deep Mining's
+`DMSE_ImpactCraterBiome`, an open-air crater with `Clear`/`Rain`/`DryThunderstorm` that genuinely wants
+dimming. It buys only biomes that were already harmless and costs a real one.
+
+Counting *nonzero* commonalities rather than entries is load-bearing, not fussiness — Biomes! Caverns
+lists vanilla's `Rain`/`FoggyRain`/`DryThunderstorm` on its cavern biomes at commonality 0 precisely
+to suppress them, and an entry count would read those caverns as having a climate.
+
+The false negatives are then closed by a second, independent line of evidence at the def level:
+**precipitation implies a deck.** Rain, snow and blown sand all require something overhead to fall
+from, so any nonzero rate settles *whether* there is a deck outright — the classifier takes the `max`
+of the palette verdict and this one. It is categorical rather than proportional because *how hard* it
+is coming down is already a separate axis (the intensity band below), and it is provably a no-op on
+vanilla: every precipitating vanilla weather already scores a full 1.00 on the palette rule.
+
+So the classifier is three layers, and still not a defName list anywhere:
+
+| layer | question | where |
+|---|---|---|
+| `HasSky` | is there weather over this map at all? | `WeatherDimming` (map-level veto) |
+| `PaletteOpacity` | how overcast does the palette look? | `WeatherDimmingMath` |
+| `PrecipitationEvidence` | is anything falling out of the sky? | `WeatherDimmingMath` |
+
+**The residue, and the escape hatch.** Seven defs still land strictly between 0 and 1 on a map that
+has a climate: `VEE_Inferno`/`VEE_Swelter` (0.34, heat events), `AB_ForsakenNight_Alternate` (0.43),
+`VGE_ToxicDustCloud` (0.52), `VPE_RadioactiveFog` (0.53), `AB_ForsakenThunderstorm_Alternate` (0.71),
+`VREA_PsychicStorm` (0.92). The continuous ramp is **kept** for these rather than snapped to 0/1 past
+a threshold, and now with data behind that choice: those seven really are a continuum of partial
+decks, the two hard misclassifications that used to sit among them were both enclosed maps and are now
+closed structurally, and no rule can tell a mod author's "hazy heat shimmer, do not darken" from their
+"thin high cloud, do darken". The worst case is a bounded ~6–17% dim on content whose own palette is
+already ambiguous.
+
+For that last class there is `CelestialLighting.WeatherCloudDeck`, a `DefModExtension` carrying a
+single `<opacity>` in [0,1] that overrides the classifier for one def. A defName list of ours would
+answer today's seven and then rot — an entry needed for every future mod, invisible to the authors it
+is about, silently contradicting whatever they later changed their palette to. The extension inverts
+all three: the answer lives next to the def it is about, we carry no list, and anything without it
+keeps classifying automatically. It is an escape hatch for where data runs out, not a replacement for
+the data-driven premise.
+
+Worth keeping in proportion throughout: §13 never writes `SkyTarget.glow`, so even a badly
+misclassified modded weather can only change what the sky *looks* like — never plant growth, solar
+output or pawn vision.
 
 Precipitation then scales the result across a band — `Lerp(0.6 * maxDimming, maxDimming, …)` keyed on
 `max(rainRate, snowRate, sandRate) / 1.6` (Sandstorm being vanilla's heaviest) — so a dry deck dims
@@ -1085,7 +1194,12 @@ straight back out: `Lerp(a·k, b·k, t) == k · Lerp(a, b, t)`.
   `GameCondition_UnnaturalDarkness`'s `LerpDarken`, and stacking a second multiply on a
   gameplay-critical horror event would be wrong.
 - A modded weather that copies Clear but sets `saturation: 1.0` picks up a partial deficit (~0.71)
-  and so a mild unrequested dim. Bounded, and the alternative (a hard threshold) is more brittle.
+  and so a mild unrequested dim. Bounded, and the alternative (a hard threshold) is more brittle —
+  see the modded-weather section above for the census that settled this.
+- The audit tool is not a def loader and does not pretend to be: it ignores `PatchOperation`s,
+  `Inherit="false"` and cross-mod load order, so a def that only becomes misclassified after another
+  mod patches it will not show up. Its job is to surface candidates worth looking at in game, not to
+  be authoritative.
 
 **Conflict risk.** Low, and lower than every other glow-touching subsystem here: we write only
 `SkyColorSet` fields plus a shadow-alpha multiply, so a mod that reads `SkyManager.CurSkyGlow`
