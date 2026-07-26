@@ -594,6 +594,35 @@ curves are evaluated on **signed** latitude and clamp below 70, so −89° is tr
 `SunPosition` uses `Mathf.Abs(latitude)` for its third rotation and raw signed latitude for the two
 curve lookups, three lines apart — which is what makes oversight more likely than intent.
 
+**The moon rides the same clock (§6).** §14 originally warped only the sun, on the reasoning that the
+moon "has its own rise and set". It does not: `MoonMath.MoonDayPercent` exists to produce
+`moonHourAngle == sunHourAngle − elongation`, so the moon is defined *relative to* whichever clock the
+sun is on. Leaving it on the raw day percent made it lag a sun that no longer existed, by exactly the
+day-length gap the warp closes — 1.5–3.1 h within ±60°, 7.7 h at lat 70 in winter. Measured, with the
+pre-§14 single-clock baseline in brackets:
+
+| full moon, measured against vanilla's sky | raw-clock moon | fixed | [pre-§14 baseline] |
+|---|---|---|---|
+| moonrise off sunset | 2.2–3.3 h (4.97 worst) | 0.15–0.32 h (0.90 at lat 60 winter) | 0.11–0.37 h |
+| hours up in a lit sky | 3.5–6.5 (13.2 at lat 70) | 0.31–0.64 (1.81 at lat 60) | 0.22–1.36 |
+| new moon's elevation off the sun's | 12–35° | 0° | 0° |
+| shadow strength at the dusk handoff | 0.280 (full) | 0.155 | 0.155 |
+
+That last row is the visible one. Both shadow patches switch from the sun's shadow to the moon's at the
+sun's horizon crossing, where `ShadowIntensityFromElevation` has ramped the sun shadow to 0 — and the
+moon shadow then starts wherever the moon's elevation puts it on a ramp only 3° wide. A raw-clock moon
+was already 10–36° up there, so the shadow snapped straight to full `MoonShadowMaxStrength` pointing
+somewhere unrelated, on every clear night around full moon.
+
+Fix: `MoonPosition.SkyForMap` takes its day percent from `SolarPosition.Inputs` instead of calling
+`GenLocalDate.DayPercent` again. Note it restores the baseline rather than reaching zero — the
+refraction horizon enters both sunrise equations with the same sign while a full moon's declination is
+the sun's *reflected*, so the windows are not exact complements and a full moon sits ~0.8° up at sunset
+regardless of clock. The residual grows with the half-day gap (0.90 h at lat 60 in winter), because the
+warp stretches the moon's arc by the *sun's* ratio, which is not quite the moon's. Pinned by
+`MoonSunClockTests` offline and the `moon_sun_clock` live scenario, which A/Bs the two clocks through
+the dev-only `moon_clock_warp` bridge.
+
 **Conflict risk.** Realistic mode is the mod's only patch that changes a gameplay-facing value, and it
 is off by default. The modes are an enum, not two bools, because each defines itself in terms of the
 other; `Patch_SunGlow` additionally carries a reentrancy guard, since `SunClock` measures vanilla by

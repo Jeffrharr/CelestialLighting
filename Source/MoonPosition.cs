@@ -33,6 +33,15 @@ public static class MoonPosition
     // Every downstream helper treats this as "no moon up", so callers need no separate null path.
     private static readonly Sky NoMoon = new Sky(-90f, 0f, 0f);
 
+    // Dev-only escape hatch, always true in a real game — exactly the SunClockAdapter.WarpEnabled
+    // pattern and there for the same reason. Setting it false leaves the moon on the raw day percent
+    // while the sun stays warped, which reproduces the shipped-§14 artifact this file's SkyForMap
+    // comment describes, so the live harness can capture it as the BEFORE half of an A/B. Flipping
+    // SunClockAdapter.WarpEnabled instead would not do: that reverts the SUN too, giving the pre-§14
+    // single-clock world rather than the bug. Nothing in the shipped mod ever writes this — see
+    // ProbeRegistration's moon_clock_warp bridge.
+    public static bool WarpMoonClock = true;
+
     public static Sky SkyForMap(Map map)
     {
         GameComponent_MoonPhase moon = GameComponent_MoonPhase.Current;
@@ -41,19 +50,51 @@ public static class MoonPosition
 
         float cyclePosition = moon.CyclePosition;
 
-        // Same live-state pulls SolarPosition.InputsForMap makes, so the moon shares the sun's tile
-        // latitude, day-of-year, and day-percent exactly.
+        // The moon's day percent is NOT independent of the sun's — MoonMath.MoonDayPercent exists to
+        // produce moonHourAngle == sunHourAngle - elongation, so whatever clock the sun is on, the
+        // moon must lag THAT clock. So take the day percent from SolarPosition.InputsForMap rather
+        // than reading GenLocalDate.DayPercent again: in §14's default locked mode the sun's percent
+        // is warped onto vanilla's day, and the moon has to be warped with it.
+        //
+        // Reading the raw percent here instead is what §14 originally shipped, and it silently broke
+        // every sun-moon relationship the model is built on. The moon lagged the wrong sun by
+        // (vanillaHalfDay - physicalHalfDay) * 24 — 1.5 to 3.1 h within +/-60 degrees, 7.7 h at
+        // latitude 70 in winter. Measured against the shipped build, with the pre-§14 single-clock
+        // numbers in brackets as the baseline this restores:
+        //   - a full moon rose 2.2-3.3 h before sunset, 4.97 h worst case  [0.11-0.37 h],
+        //   - it hung in a lit sky 3.5-6.5 h a day, 13.2 h at latitude 70  [0.22-1.36 h],
+        //   - a new moon sat 12-35 degrees of elevation off the sun        [0 — it IS the sun's
+        //     position at elongation 0], and
+        //   - the dusk shadow handoff popped. Both shadow patches switch from sun to moon at the
+        //     sun's horizon crossing, where ShadowIntensityFromElevation has ramped the sun shadow to
+        //     0; the moon shadow then starts at whatever the moon's elevation implies, over a ramp
+        //     only 3 degrees wide. On the raw clock the moon was already 10-36 degrees up there, so
+        //     the shadow snapped straight to full MoonShadowMaxStrength (0.28) pointing somewhere
+        //     unrelated, every clear night around full moon.
+        //
+        // That last one is worth stating precisely, because the fix does not make it zero. Refraction
+        // enters both sunrise equations with the same sign while the full moon's declination is the
+        // sun's REFLECTED, so the two windows are not exact complements: at sunset a full moon sits
+        // ~0.8 degrees up, for a handoff step of 0.155. That step is inherent to the moon model and
+        // predates §14 — what this restores is the baseline, not perfection.
+        //
+        // Latitude comes from the same Inputs for the same reason SolarPosition centralizes it: two
+        // adapters deriving their own tile latitude is how the sun and moon drift apart.
+        SolarPosition.Inputs sun = SolarPosition.InputsForMap(map);
+        float dayPercent = WarpMoonClock ? sun.DayPercent : GenLocalDate.DayPercent(map);
+
+        // Day-of-year still comes straight off the tick: it selects the moon's place on the ecliptic
+        // (its declination), which is an orbital fact and has nothing to do with the time-of-day warp.
         Vector2 longLat = Find.WorldGrid.LongLatOf(map.Tile);
         int dayOfYear = GenDate.DayOfYear(Find.TickManager.TicksAbs, longLat.x);
-        float dayPercent = GenLocalDate.DayPercent(map);
 
         float declination = MoonMath.MoonDeclinationDegrees(dayOfYear, cyclePosition);
         float moonDayPercent = MoonMath.MoonDayPercent(dayPercent, cyclePosition);
 
         // Reuse Formulas' own solar-position equations for the moon, feeding the moon's declination
         // and lagged day-percent — the moon is just another body on the ecliptic.
-        float elevation = Formulas.SolarElevationDegrees(longLat.y, declination, moonDayPercent);
-        float azimuth = Formulas.SolarAzimuthDegrees(longLat.y, declination, elevation, moonDayPercent);
+        float elevation = Formulas.SolarElevationDegrees(sun.Latitude, declination, moonDayPercent);
+        float azimuth = Formulas.SolarAzimuthDegrees(sun.Latitude, declination, elevation, moonDayPercent);
         return new Sky(elevation, azimuth, MoonMath.IlluminatedFraction(cyclePosition));
     }
 

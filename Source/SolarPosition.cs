@@ -39,8 +39,13 @@ public static class SolarPosition
         // deliberate — Patch_ShadowDirection reads Inputs.DayPercent to derive the azimuth, so warping
         // at the shared source keeps the sun's direction and its height on the same clock. Anything
         // that took the raw day percent instead would sweep a shadow that disagreed with its own
-        // length. (The moon is untouched: it has its own rise and set, and MoonPosition derives its
-        // own day percent.)
+        // length.
+        //
+        // It is also why MoonPosition reads its day percent back out of THIS struct rather than
+        // calling GenLocalDate.DayPercent itself. The moon's hour angle is defined as the sun's minus
+        // the elongation, so "the moon keeps its own clock" is not a coherent option — leaving it on
+        // the raw percent while the sun is warped puts a full moon in a bright sky and pops the dusk
+        // shadow handoff. See the comment in MoonPosition.SkyForMap for the measured damage.
         dayPercent = SunClockAdapter.EffectiveDayPercent(map, longLat.y, declination, dayPercent);
 
         return new Inputs(longLat.y, declination, dayPercent);

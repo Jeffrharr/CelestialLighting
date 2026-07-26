@@ -172,6 +172,13 @@ public static class ProbeRegistration
         FeatureRegistry.Register(
             "sun_clock_warp",
             enabled => SunClockAdapter.WarpEnabled = enabled);
+        // Not a CelestialLightingFeatures flag either: leaves the MOON on the raw day percent while
+        // the sun stays warped, which is precisely the artifact §14 shipped with. sun_clock_warp
+        // above cannot capture it — that one reverts both bodies to the pre-§14 single clock, where
+        // the moon was already correct. This is the toggle that A/Bs the moon-clock fix itself.
+        FeatureRegistry.Register(
+            "moon_clock_warp",
+            enabled => MoonPosition.WarpMoonClock = enabled);
         FeatureRegistry.Register(
             "pitch_black_true",
             enabled => NightRadianceSettings.Current.MinNightBrightness =
