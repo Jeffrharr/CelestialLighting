@@ -7,23 +7,25 @@ namespace CelestialLighting;
 // just copies a resolved bundle into them, so — per DESIGN.md — a preset is never a separate code
 // path, only "a bundle of the same values".
 //
-// Field defaults describe the out-of-box experience: the mod ships on the Realistic preset (its
-// realism focus), with the accessibility brightness floor OFF so nights are atmospheric by default
-// and one checkbox (or an optional, unbound-by-default hotkey — see
-// GameComponent_BrightnessFloorHotkey) away from legible.
+// Field defaults describe the out-of-box experience: the mod ships on the Cinematic preset, so a
+// first night looks good and stays readable (its two brightness floors sit at 0.30), with the
+// separate accessibility brightness floor still OFF — Cinematic's legibility is a look, and the
+// accessibility floor stays an explicit opt-in via checkbox or the optional, unbound-by-default
+// hotkey (see GameComponent_BrightnessFloorHotkey). Realistic is one click away for genuinely
+// black nights.
 public class CelestialLightingSettings : ModSettings
 {
     // Which named bundle (if any) the aesthetic knobs currently reflect. Goes to Custom the instant
     // a player moves an individual slider, so the UI can show the aesthetic knobs as "no longer a
     // preset" without a separate dirty flag.
-    public CelestialPreset preset = CelestialPreset.Realistic;
+    public CelestialPreset preset = CelestialPreset.Cinematic;
 
     // --- Aesthetic knobs (mirror PresetKnobs; placeholders until §1/§3/§7/§9 land) ---
-    public float shadowLengthScale = Presets.Realistic.ShadowLengthScale;
-    public float shadowStrength = Presets.Realistic.ShadowStrength;
-    public float nightRadianceFloor = Presets.Realistic.NightRadianceFloor;
-    public float desaturation = Presets.Realistic.Desaturation;
-    public float weatherDimmingStrength = Presets.Realistic.WeatherDimming;
+    public float shadowLengthScale = Presets.Cinematic.ShadowLengthScale;
+    public float shadowStrength = Presets.Cinematic.ShadowStrength;
+    public float nightRadianceFloor = Presets.Cinematic.NightRadianceFloor;
+    public float desaturation = Presets.Cinematic.Desaturation;
+    public float weatherDimmingStrength = Presets.Cinematic.WeatherDimming;
 
     // --- Per-effect on/off toggles (drive the CelestialLightingFeatures flags each patch reads;
     //     default true == the shipped, everything-on behaviour). These make the settings screen the
@@ -44,18 +46,22 @@ public class CelestialLightingSettings : ModSettings
     // --- Night-radiance tunables (drive NightRadianceSettings.Current) ---
     // The atmospheric starlight+airglow floor ("true pitch-black" when off), and the pitch-black
     // overlay's minimum-brightness clamp (0 == genuinely black nights; raise it for playability).
+    // minNightBrightness is part of the preset bundle, so its default tracks the shipped preset
+    // rather than NightRadianceMath.DefaultMinNightBrightness — the math-layer constant is still the
+    // subsystem's own neutral value, it is just no longer what we ship.
     public bool atmosphericGlow = true;
-    public float minNightBrightness = NightRadianceMath.DefaultMinNightBrightness;
+    public float minNightBrightness = Presets.Cinematic.MinNightBrightness;
 
     // --- Indoor sky-occlusion tunables (drive IndoorOcclusionSettings.Current) ---
     // How much sky a doorway lets past once roofed cells are fully occluded; see
     // IndoorOcclusionMath.DefaultDoorSkyLeak for why doors need this at all.
     public float doorSkyLeak = IndoorOcclusionMath.DefaultDoorSkyLeak;
 
-    // How much sky a roofed cell keeps regardless of how sealed it is. 0 (default) = sealed rooms go
-    // fully black; raise it to keep interiors readable without disabling the effect or brightening the
-    // outdoors via the map-wide accessibility floor.
-    public float minIndoorBrightness = IndoorOcclusionMath.DefaultMinIndoorBrightness;
+    // How much sky a roofed cell keeps regardless of how sealed it is. 0 = sealed rooms go fully
+    // black; raise it to keep interiors readable without disabling the effect or brightening the
+    // outdoors via the map-wide accessibility floor. Also part of the preset bundle (see
+    // minNightBrightness above), so it defaults to the shipped preset's value, not the math layer's.
+    public float minIndoorBrightness = Presets.Cinematic.MinIndoorBrightness;
 
     // --- Eclipse (drives EclipseSettings.Mode) — which eclipse flavour(s) are live. Defaults to Both:
     //     geometric natural eclipses AND the storyteller's unnatural-rendered ones. See EclipseMode. ---
@@ -82,6 +88,8 @@ public class CelestialLightingSettings : ModSettings
         nightRadianceFloor = knobs.NightRadianceFloor;
         desaturation = knobs.Desaturation;
         weatherDimmingStrength = knobs.WeatherDimming;
+        minNightBrightness = knobs.MinNightBrightness;
+        minIndoorBrightness = knobs.MinIndoorBrightness;
         preset = chosen;
     }
 
@@ -145,7 +153,7 @@ public class CelestialLightingSettings : ModSettings
     public override void ExposeData()
     {
         base.ExposeData();
-        Scribe_Values.Look(ref preset, "preset", CelestialPreset.Realistic);
+        Scribe_Values.Look(ref preset, "preset", CelestialPreset.Cinematic);
         Scribe_Values.Look(ref civilTwilightPersistence, "civilTwilightPersistence", true);
         Scribe_Values.Look(ref penumbraContrast, "penumbraContrast", true);
         Scribe_Values.Look(ref moonShadows, "moonShadows", true);
@@ -159,17 +167,17 @@ public class CelestialLightingSettings : ModSettings
         Scribe_Values.Look(ref pitchBlackNights, "pitchBlackNights", true);
         Scribe_Values.Look(ref indoorSkyOcclusion, "indoorSkyOcclusion", true);
         Scribe_Values.Look(ref doorSkyLeak, "doorSkyLeak", IndoorOcclusionMath.DefaultDoorSkyLeak);
-        Scribe_Values.Look(ref minIndoorBrightness, "minIndoorBrightness", IndoorOcclusionMath.DefaultMinIndoorBrightness);
+        Scribe_Values.Look(ref minIndoorBrightness, "minIndoorBrightness", Presets.Cinematic.MinIndoorBrightness);
         Scribe_Values.Look(ref atmosphericGlow, "atmosphericGlow", true);
-        Scribe_Values.Look(ref minNightBrightness, "minNightBrightness", NightRadianceMath.DefaultMinNightBrightness);
+        Scribe_Values.Look(ref minNightBrightness, "minNightBrightness", Presets.Cinematic.MinNightBrightness);
         Scribe_Values.Look(ref eclipseMode, "eclipseMode", EclipseMode.Both);
         Scribe_Values.Look(ref sunClock, "sunClock", SunClockMode.LockedToVanilla);
-        Scribe_Values.Look(ref shadowLengthScale, "shadowLengthScale", Presets.Realistic.ShadowLengthScale);
-        Scribe_Values.Look(ref shadowStrength, "shadowStrength", Presets.Realistic.ShadowStrength);
-        Scribe_Values.Look(ref nightRadianceFloor, "nightRadianceFloor", Presets.Realistic.NightRadianceFloor);
-        Scribe_Values.Look(ref desaturation, "desaturation", Presets.Realistic.Desaturation);
+        Scribe_Values.Look(ref shadowLengthScale, "shadowLengthScale", Presets.Cinematic.ShadowLengthScale);
+        Scribe_Values.Look(ref shadowStrength, "shadowStrength", Presets.Cinematic.ShadowStrength);
+        Scribe_Values.Look(ref nightRadianceFloor, "nightRadianceFloor", Presets.Cinematic.NightRadianceFloor);
+        Scribe_Values.Look(ref desaturation, "desaturation", Presets.Cinematic.Desaturation);
         Scribe_Values.Look(ref weatherDimmingStrength, "weatherDimmingStrength",
-            Presets.Realistic.WeatherDimming);
+            Presets.Cinematic.WeatherDimming);
         Scribe_Values.Look(ref brightnessFloorEnabled, "brightnessFloorEnabled", false);
         Scribe_Values.Look(ref brightnessFloor, "brightnessFloor", 0.15f);
     }

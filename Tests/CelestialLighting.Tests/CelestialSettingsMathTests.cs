@@ -72,6 +72,24 @@ public class CelestialSettingsMathTests
     }
 
     [Test]
+    public void Realistic_LeavesBothBrightnessFloorsAtZero()
+    {
+        // Realistic's defining promise: an unlit night is actually dark, outdoors and indoors alike.
+        // A nonzero floor here would quietly break the one preset players pick *for* the darkness.
+        Assert.That(Presets.Realistic.MinNightBrightness, Is.EqualTo(0f).Within(Tolerance));
+        Assert.That(Presets.Realistic.MinIndoorBrightness, Is.EqualTo(0f).Within(Tolerance));
+    }
+
+    [Test]
+    public void Cinematic_LiftsBothBrightnessFloorsTogether()
+    {
+        // Indoor occlusion and night darkness compound, so lifting only one still leaves a sealed
+        // room under a moonless night unreadable. Pin them equal, not merely both nonzero.
+        Assert.That(Presets.Cinematic.MinNightBrightness, Is.EqualTo(0.30f).Within(Tolerance));
+        Assert.That(Presets.Cinematic.MinIndoorBrightness, Is.EqualTo(0.30f).Within(Tolerance));
+    }
+
+    [Test]
     public void Resolve_Custom_Throws()
     {
         // Custom has no bundle to hand back — applying a preset for it would stomp the player's own
@@ -88,6 +106,9 @@ public class CelestialSettingsMathTests
         Assert.That(Presets.Cinematic.Desaturation, Is.LessThan(Presets.Realistic.Desaturation));
         // §13 follows the same taste axis: cinematic storms stay photogenic, realistic ones go murky.
         Assert.That(Presets.Cinematic.WeatherDimming, Is.LessThan(Presets.Realistic.WeatherDimming));
+        // Same axis again: cinematic nights stay readable, realistic ones go genuinely black.
+        Assert.That(Presets.Cinematic.MinNightBrightness, Is.GreaterThan(Presets.Realistic.MinNightBrightness));
+        Assert.That(Presets.Cinematic.MinIndoorBrightness, Is.GreaterThan(Presets.Realistic.MinIndoorBrightness));
     }
 
     [TestCase(CelestialPreset.Realistic, ExpectedResult = true)]
@@ -110,6 +131,8 @@ public class CelestialSettingsMathTests
             Assert.That(knobs.NightRadianceFloor, Is.InRange(0f, 0.3f));
             Assert.That(knobs.Desaturation, Is.InRange(0f, 1f));
             Assert.That(knobs.WeatherDimming, Is.InRange(0f, 0.5f));
+            Assert.That(knobs.MinNightBrightness, Is.InRange(0f, 1f));
+            Assert.That(knobs.MinIndoorBrightness, Is.InRange(0f, 1f));
         }
     }
 }

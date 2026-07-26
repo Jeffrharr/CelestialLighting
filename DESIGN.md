@@ -1094,13 +1094,28 @@ Two cross-cutting settings ideas that span the subsystems above:
 
 - **Opinionated presets.** Ship a small number of named presets (e.g. "Realistic" vs
   "Cinematic/Pretty") that set the correlated knobs together — shadow length/strength (§1/§3), night
-  radiance floors (§7), desaturation strength (§9) — so most players pick one preset and never open
-  a slider. Individual sliders remain for anyone who wants them.
+  radiance floors (§7), desaturation strength (§9), weather dimming (§13), and the two
+  minimum-brightness floors (outdoor §7, indoor §7b) — so most players pick one preset and never
+  open a slider. Individual sliders remain for anyone who wants them.
+
+  **Cinematic is the shipped default**, and it sets both minimum-brightness floors to `0.30`.
+  Rationale: the two floors compound — a sealed room under a moonless night is the darkest thing
+  this mod can produce — so a first-run experience on Realistic's zeroes is a player staring at a
+  black screen wondering if the mod is broken. Realistic keeps both at `0` and is one click away.
+  The floors live in the preset bundle (not as standalone tunables) precisely because lifting one
+  without the other still leaves interiors unreadable; pinning them equal is what
+  `CelestialSettingsMathTests` asserts.
 - **Minimum-brightness accessibility floor.** A user-set floor on displayed night brightness,
   toggleable in Mod Settings and — if the player binds it — by an optional hotkey. This is the
-  deliberate complement to true pitch-black nights (§7): pitch-black for atmosphere by default, a
-  legible floor when a player actually needs to see to play. Because it clamps the *displayed* glow
-  upward, it must be applied as the last step, after §7's floors and any weather dimming.
+  deliberate complement to true pitch-black nights (§7): darkness for atmosphere, a legible floor
+  when a player actually needs to see to play. Because it clamps the *displayed* glow upward, it
+  must be applied as the last step, after §7's floors and any weather dimming.
+
+  It stays **off by default even though Cinematic ships with brightness floors of its own**, and the
+  two are not redundant. Cinematic's floors are a *look* — part of a bundle, overwritten the moment
+  a player picks another preset. This one is an *accessibility override*: orthogonal to the presets
+  (which is why nudging it never flips the preset to Custom), hotkey-toggleable mid-game, and it
+  survives switching to Realistic. A player who needs light needs it regardless of the look they chose.
 
   The keybinding ships with **no default key**. It was `Semicolon` on the assumption that vanilla left
   it free; vanilla binds it to `Dev_ToggleGodMode`, so every install logged a startup "Key binding

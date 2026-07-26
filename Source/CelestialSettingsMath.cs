@@ -68,37 +68,65 @@ public readonly struct PresetKnobs
     // WeatherDimmingMath — so no preset can affect plant growth or solar output.
     public readonly float WeatherDimming;
 
+    // §7: the pitch-black overlay's hard lower bound on outdoor night brightness, [0,1]. Distinct
+    // from NightRadianceFloor above: that one shapes how much light the *radiance model* produces,
+    // this one is the floor the overlay refuses to go below no matter what the model says.
+    // In the bundle because "how black is an unlit night" is the single most visible difference
+    // between the two looks — Realistic keeps it at 0 (genuinely black), Cinematic lifts it so a
+    // moonless night is still readable without the player hunting for a slider.
+    public readonly float MinNightBrightness;
+
+    // §7b: the matching floor for roofed cells, [0,1]. Paired with MinNightBrightness because indoor
+    // occlusion and night darkness compound — a sealed room under a black night is the darkest thing
+    // the mod can produce, so a preset that lifts one and not the other would still leave interiors
+    // unreadable. Same taste axis, so same bundle.
+    public readonly float MinIndoorBrightness;
+
     public PresetKnobs(
         float shadowLengthScale,
         float shadowStrength,
         float nightRadianceFloor,
         float desaturation,
-        float weatherDimming)
+        float weatherDimming,
+        float minNightBrightness,
+        float minIndoorBrightness)
     {
         ShadowLengthScale = shadowLengthScale;
         ShadowStrength = shadowStrength;
         NightRadianceFloor = nightRadianceFloor;
         Desaturation = desaturation;
         WeatherDimming = weatherDimming;
+        MinNightBrightness = minNightBrightness;
+        MinIndoorBrightness = minIndoorBrightness;
     }
 }
 
 public static class Presets
 {
+    // The brightness floor both "never fully black" knobs take under Cinematic. 0.30 is well above
+    // the ~0.15 the accessibility floor calls "legible but still clearly night" — Cinematic is a
+    // look, not an accessibility aid, and it is picking legibility on purpose.
+    private const float CinematicMinBrightness = 0.30f;
+
     // "Realistic": physically-faithful shadows at full length/strength, genuinely black nights
     // (zero aesthetic floor — atmosphere over legibility, which is what the opt-in accessibility
     // floor is for), heavy desaturation to match colourless scotopic night vision, and full weather
-    // dimming so a blizzard reads as one.
+    // dimming so a blizzard reads as one. Both brightness floors sit at 0 for the same reason: this
+    // preset's whole point is that an unlit night, indoors or out, is actually dark.
     public static readonly PresetKnobs Realistic =
         new PresetKnobs(shadowLengthScale: 1.0f, shadowStrength: 1.0f, nightRadianceFloor: 0.0f,
-            desaturation: 0.85f, weatherDimming: WeatherDimmingMath.DefaultMaxDimming);
+            desaturation: 0.85f, weatherDimming: WeatherDimmingMath.DefaultMaxDimming,
+            minNightBrightness: 0.0f, minIndoorBrightness: 0.0f);
 
     // "Cinematic/Pretty": longer, softer shadows, a small night-radiance floor so scenes never go
     // fully black on their own, only mild desaturation so night keeps some colour, and gentler
-    // weather dimming so storms stay photogenic rather than murky.
+    // weather dimming so storms stay photogenic rather than murky. The shipped default (see
+    // CelestialLightingSettings) — hence the brightness floors: a new player's first night should
+    // look good and stay readable, and anyone who wants true black can pick Realistic in one click.
     public static readonly PresetKnobs Cinematic =
         new PresetKnobs(shadowLengthScale: 1.4f, shadowStrength: 0.8f, nightRadianceFloor: 0.12f,
-            desaturation: 0.4f, weatherDimming: 0.20f);
+            desaturation: 0.4f, weatherDimming: 0.20f,
+            minNightBrightness: CinematicMinBrightness, minIndoorBrightness: CinematicMinBrightness);
 
     // Returns the bundle for a named preset. Custom is intentionally rejected: there is no "custom
     // bundle" to hand back — Custom means the individual fields are whatever the player last set, so

@@ -66,11 +66,19 @@ public class CelestialLightingSettingsMod : Mod
         Widgets.BeginScrollView(inRect, ref scrollPosition, viewRect);
 
         var listing = new Listing_Standard();
+        // Without this, Listing_Standard silently breaks into a *second column* the moment the
+        // content passes listingRect.height (Listing.NewColumnIfNeeded), which defeats the scroll
+        // view twice over: the overflow is drawn off to the right instead of below, and CurHeight —
+        // the current column's cursor — never exceeds the visible height, so contentHeight stays
+        // pinned at inRect.height and there is never anything to scroll.
+        listing.maxOneColumn = true;
         listing.Begin(viewRect);
 
-        DrawEffectToggles(listing);
-        listing.GapLine();
+        // Presets first: picking a look sets the sliders further down, so the thing that overwrites
+        // other controls should be seen before them, not after.
         DrawPresetSection(listing);
+        listing.GapLine();
+        DrawEffectToggles(listing);
         listing.GapLine();
         DrawAestheticKnobs(listing);
         listing.GapLine();
@@ -111,10 +119,10 @@ public class CelestialLightingSettingsMod : Mod
         listing.CheckboxLabeled("Black unlit interiors", ref Settings.indoorSkyOcclusion,
             "Stop the sky lighting roofed cells. Vanilla always bleeds ~61% of the sky into every roofed tile, so a sealed cave never goes black; with this on, an unlit interior is lit by its lamps or not at all — day and night.");
         Settings.doorSkyLeak = LabeledSlider(listing, "  Light leaked through doors", Settings.doorSkyLeak, 0f, 0.5f);
-        Settings.minIndoorBrightness = LabeledSlider(listing, "  Minimum indoor brightness", Settings.minIndoorBrightness, 0f, 1f);
+        Settings.minIndoorBrightness = AestheticSlider(listing, "  Minimum indoor brightness", Settings.minIndoorBrightness, 0f, 1f);
         listing.CheckboxLabeled("Atmospheric night glow", ref Settings.atmosphericGlow,
             "The constant starlight + airglow floor. Off = only moonlight lights the night (true pitch-black on a moonless night).");
-        Settings.minNightBrightness = LabeledSlider(listing, "  Minimum night brightness", Settings.minNightBrightness, 0f, 1f);
+        Settings.minNightBrightness = AestheticSlider(listing, "  Minimum night brightness", Settings.minNightBrightness, 0f, 1f);
         listing.CheckboxLabeled("Low-light desaturation", ref Settings.lowLightDesaturation,
             "Drain colour toward a cool blue-grey as the sky darkens (the Purkinje shift).");
         listing.CheckboxLabeled("Weather dimming", ref Settings.weatherDimming,
@@ -217,8 +225,10 @@ public class CelestialLightingSettingsMod : Mod
     }
 
     // An aesthetic-knob slider: on a real change it records that the knobs no longer match a named
-    // preset. Only the four §1/§3/§7/§9 knobs use this — the accessibility floor is orthogonal to
-    // the presets and uses the plain LabeledSlider so touching it never flips the preset to Custom.
+    // preset. Every slider backed by a PresetKnobs field uses this — including the two minimum-
+    // brightness floors drawn up in the effects section, since a preset now sets those too. The
+    // accessibility floor and the door leak are orthogonal to the presets and keep the plain
+    // LabeledSlider, so touching them never flips the preset to Custom.
     private float AestheticSlider(Listing_Standard listing, string label, float value, float min, float max)
     {
         float updated = LabeledSlider(listing, label, value, min, max);
