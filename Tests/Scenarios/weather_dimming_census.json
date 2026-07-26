@@ -1,6 +1,7 @@
 {
   "name": "weather_dimming_census",
   "saveFile": "minimal_colony.rws",
+  "description": "\u00a713's full vanilla WeatherDef census: every weather Ludeon ships, pinned to the exact fraction it dims by, including the non-weathers that must stay at 0. The expected dimming values track the SHIPPED preset strength (CelestialSettingsMath.Presets.Cinematic.WeatherDimming, currently 0.20), because that is what WeatherDimmingSettings.MaxDimming defaults to in a fresh install. They are exact on purpose \u2014 pinning the whole ladder is this scenario's job \u2014 which means a preset change invalidates every one of them. To recompute: dimming = opacity * lerp(0.6*M, M, max(rain,snow,sand)/1.6), and purkinje = PurkinjeFactor(skyGlow * (1 - dimming)). If you only care which side of zero a reading falls on, use weather_dimming_skyless.json's wide bands instead of copying this file's exactness.",
   "steps": [
     {
       "type": "SetTile",
@@ -146,7 +147,7 @@
       "type": "Probe",
       "args": {
         "probeName": "weather_dimming",
-        "expectedValue": "0.1800",
+        "expectedValue": "0.1200",
         "tolerance": "0.0005"
       }
     },
@@ -169,7 +170,7 @@
       "type": "Probe",
       "args": {
         "probeName": "weather_dimming",
-        "expectedValue": "0.1800",
+        "expectedValue": "0.1200",
         "tolerance": "0.0005"
       }
     },
@@ -192,7 +193,7 @@
       "type": "Probe",
       "args": {
         "probeName": "weather_dimming",
-        "expectedValue": "0.1800",
+        "expectedValue": "0.1200",
         "tolerance": "0.0005"
       }
     },
@@ -215,7 +216,7 @@
       "type": "Probe",
       "args": {
         "probeName": "weather_dimming",
-        "expectedValue": "0.1800",
+        "expectedValue": "0.1200",
         "tolerance": "0.0005"
       }
     },
@@ -238,7 +239,7 @@
       "type": "Probe",
       "args": {
         "probeName": "weather_dimming",
-        "expectedValue": "0.1800",
+        "expectedValue": "0.1200",
         "tolerance": "0.0005"
       }
     },
@@ -261,7 +262,7 @@
       "type": "Probe",
       "args": {
         "probeName": "weather_dimming",
-        "expectedValue": "0.1800",
+        "expectedValue": "0.1200",
         "tolerance": "0.0005"
       }
     },
@@ -284,7 +285,7 @@
       "type": "Probe",
       "args": {
         "probeName": "weather_dimming",
-        "expectedValue": "0.2550",
+        "expectedValue": "0.1700",
         "tolerance": "0.0005"
       }
     },
@@ -307,7 +308,7 @@
       "type": "Probe",
       "args": {
         "probeName": "weather_dimming",
-        "expectedValue": "0.2550",
+        "expectedValue": "0.1700",
         "tolerance": "0.0005"
       }
     },
@@ -330,7 +331,7 @@
       "type": "Probe",
       "args": {
         "probeName": "weather_dimming",
-        "expectedValue": "0.2550",
+        "expectedValue": "0.1700",
         "tolerance": "0.0005"
       }
     },
@@ -353,7 +354,7 @@
       "type": "Probe",
       "args": {
         "probeName": "weather_dimming",
-        "expectedValue": "0.2550",
+        "expectedValue": "0.1700",
         "tolerance": "0.0005"
       }
     },
@@ -376,7 +377,7 @@
       "type": "Probe",
       "args": {
         "probeName": "weather_dimming",
-        "expectedValue": "0.2550",
+        "expectedValue": "0.1700",
         "tolerance": "0.0005"
       }
     },
@@ -399,7 +400,7 @@
       "type": "Probe",
       "args": {
         "probeName": "weather_dimming",
-        "expectedValue": "0.2550",
+        "expectedValue": "0.1700",
         "tolerance": "0.0005"
       }
     },
@@ -422,7 +423,7 @@
       "type": "Probe",
       "args": {
         "probeName": "weather_dimming",
-        "expectedValue": "0.2700",
+        "expectedValue": "0.1800",
         "tolerance": "0.0005"
       }
     },
@@ -445,7 +446,7 @@
       "type": "Probe",
       "args": {
         "probeName": "weather_dimming",
-        "expectedValue": "0.2925",
+        "expectedValue": "0.1950",
         "tolerance": "0.0005"
       }
     },
@@ -468,7 +469,7 @@
       "type": "Probe",
       "args": {
         "probeName": "weather_dimming",
-        "expectedValue": "0.3000",
+        "expectedValue": "0.2000",
         "tolerance": "0.0005"
       }
     },
