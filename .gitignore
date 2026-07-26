@@ -8,3 +8,5 @@ TestMod/bin/
 .tokensave/
 .claude/
 1.6/Assemblies/0Harmony.dll
+Tools/**/obj/
+Tools/**/bin/
