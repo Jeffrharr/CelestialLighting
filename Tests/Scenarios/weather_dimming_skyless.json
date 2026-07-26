@@ -1,0 +1,182 @@
+{
+  "name": "weather_dimming_skyless",
+  "saveFile": "minimal_colony.rws",
+  "description": "§13 / issue #31 — the map-level guard. Weather dimming must be OFF on a map whose biome has no climate, and ON again the moment the biome does, with the deck-shaped weather held constant across the switch so the biome is provably the only variable.",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "20"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+
+    {
+      "_comment": "Fog is held for the whole biome sweep on purpose. Its palette classifies as a full deck under every biome, so the ONLY thing that can move the reading is the guard. Note this is deliberately an impossible pairing on a cave map — no cave biome can roll Fog — which is what makes it a clean probe of the guard rather than of the classifier.",
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Fog",
+        "instant": "true"
+      }
+    },
+    {
+      "_comment": "Baseline on a real climate (TemperateForest, 10 possible weathers). Asserted as a WIDE band rather than an exact figure because the exact figure is the user's strength slider (shipped Cinematic = 0.20, so 0.12 for a dry deck; the Realistic preset would give 0.18). What this scenario is about is which side of zero each reading falls on, and pinning the slider here would make it fail on a preset change for no reason.",
+      "type": "Probe",
+      "args": {
+        "probeName": "weather_dimming",
+        "expectedValue": "0.15",
+        "tolerance": "0.12"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "skyless_a_forest_fog_dimmed.png"
+      }
+    },
+
+    {
+      "_comment": "Underground: vanilla's own cave biome, and the shape every modded cave environment shares — one possible weather, so the weather can never change and there is no deck to dim. A nonzero reading here means the guard is not being consulted.",
+      "type": "SetBiome",
+      "args": {
+        "biomeDef": "Underground"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "weather_dimming",
+        "expectedValue": "0.0000",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "skyless_b_underground_fog_undimmed.png"
+      }
+    },
+
+    {
+      "_comment": "And back. Proves the guard is a live per-frame read rather than something latched at map load — the same Fog on the same map dims again as soon as the biome has a climate.",
+      "type": "SetBiome",
+      "args": {
+        "biomeDef": "TemperateForest"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "weather_dimming",
+        "expectedValue": "0.15",
+        "tolerance": "0.12"
+      }
+    },
+
+    {
+      "_comment": "The other skyless shape: Orbit is not enclosed at all, it is space. Same single-weather structure, same answer, and it covers the vacuum case that §13 previously only got right by the luck of Orbit's palette matching Clear's.",
+      "type": "SetBiome",
+      "args": {
+        "biomeDef": "Orbit"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "weather_dimming",
+        "expectedValue": "0.0000",
+        "tolerance": "0.0005"
+      }
+    },
+
+    {
+      "_comment": "Undercave is the documented boundary case: XML inheritance gives it TWO weathers (its own plus Biome_Underground's), so the count rule does NOT spare it. It is harmless anyway because both weathers it can roll classify to 0 — but under Fog, which it can never actually roll, it must and does still dim. Pinned so that if a future RimWorld drops that inherited entry, or someone strengthens the guard, this row is the record of which behaviour changed.",
+      "type": "SetBiome",
+      "args": {
+        "biomeDef": "Undercave"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "weather_dimming",
+        "expectedValue": "0.15",
+        "tolerance": "0.12"
+      }
+    },
+    {
+      "_comment": "The reading that actually matters for Undercave: under a weather it CAN roll, dimming is zero — which is why the count rule not sparing it costs nothing.",
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Undercave",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "weather_dimming",
+        "expectedValue": "0.0000",
+        "tolerance": "0.0005"
+      }
+    },
+
+    {
+      "type": "SetBiome",
+      "args": {
+        "biomeDef": "TemperateForest"
+      }
+    },
+    {
+      "_comment": "Closing regression on a map that has a climate: Rain exercises the precipitation half of the classifier, and must read strictly higher than the dry Fog deck above.",
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Rain",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "weather_dimming",
+        "expectedValue": "0.21",
+        "tolerance": "0.06"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "weather_dimming",
+        "expectedValue": "0.0000",
+        "tolerance": "0.0005"
+      }
+    },
+
+    {
+      "type": "Assert",
+      "args": {
+        "kind": "vision",
+        "images": "skyless_a_forest_fog_dimmed.png, skyless_b_underground_fog_undimmed.png",
+        "prompt": "Both images are the same colony at noon under the same Fog weather; only the map's biome differs. The FIRST (temperate forest) has weather dimming applied and should read slightly darker and flatter overall. The SECOND (underground biome) must have weather dimming switched off entirely. PASS if the second image is no darker than the first. FAIL if the second is visibly darker than the first, which would mean weather dimming is still being applied on a map with no sky. Ignore differences in terrain, plants, and any tint that comes from the biome itself: changing the biome changes those, and they are not what this checks."
+      }
+    }
+  ]
+}
