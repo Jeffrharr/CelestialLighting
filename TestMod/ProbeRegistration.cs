@@ -177,6 +177,22 @@ public static class ProbeRegistration
         FeatureRegistry.Register(
             "moon_clock_warp",
             enabled => MoonPosition.WarpMoonClock = enabled);
+        // The §14 SETTING itself, not a dev-only escape hatch like the two above — this is the real
+        // "Vanilla day length / Realistic day length" radio from the mod's settings screen, driven
+        // through the same static the settings screen writes. "enabled" true == Realistic.
+        //
+        // Exposed because the two toggles above can only A/B artifacts WITHIN locked mode, so until
+        // now nothing could exercise realistic mode at all — Patch_SunGlow, and the moon riding the
+        // identity clock underneath it, were live-untested. A scenario that flips this drives the real
+        // SunClockAdapter and MoonPosition, which is the one thing SunClockModeMoonTests structurally
+        // cannot do (both take a live Map, so the unit tests mirror the composition instead).
+        //
+        // Scenarios MUST set this back to false when done: it is a plain static with no per-scenario
+        // reset, so leaving it on silently re-times every subsequent scenario's sun.
+        FeatureRegistry.Register(
+            "realistic_day_length",
+            enabled => CelestialLightingFeatures.SunClock =
+                enabled ? SunClockMode.Realistic : SunClockMode.LockedToVanilla);
         FeatureRegistry.Register(
             "pitch_black_true",
             enabled => NightRadianceSettings.Current.MinNightBrightness =
