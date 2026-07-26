@@ -60,9 +60,11 @@ public class CelestialLightingSettings : ModSettings
     // minNightBrightness above), so it defaults to the shipped preset's value, not the math layer's.
     public float minIndoorBrightness = Presets.Cinematic.MinIndoorBrightness;
 
-    // --- Eclipse (drives EclipseSettings.Mode) — which eclipse flavour(s) are live. Defaults to Both:
-    //     geometric natural eclipses AND the storyteller's unnatural-rendered ones. See EclipseMode. ---
-    public EclipseMode eclipseMode = EclipseMode.Both;
+    // --- Eclipse (drives EclipseSettings.Mode) — which eclipse flavour(s) are live. Defaults to
+    //     UnnaturalOnly: reshape the darkening of the storyteller's own eclipse, fire nothing of our
+    //     own, because natural eclipses are real events and no default here may alter gameplay. The
+    //     other two flavours are opt-in. See EclipseSettings for the full rationale. ---
+    public EclipseMode eclipseMode = EclipseMode.UnnaturalOnly;
 
     // --- §14 sun clock. Locked (default) keeps vanilla's day length exactly; realistic makes vanilla
     //     follow our physical sun, which is a gameplay change (growing hours, solar output). ---
@@ -169,7 +171,11 @@ public class CelestialLightingSettings : ModSettings
         Scribe_Values.Look(ref minIndoorBrightness, "minIndoorBrightness", Presets.Cinematic.MinIndoorBrightness);
         Scribe_Values.Look(ref atmosphericGlow, "atmosphericGlow", true);
         Scribe_Values.Look(ref minNightBrightness, "minNightBrightness", Presets.Cinematic.MinNightBrightness);
-        Scribe_Values.Look(ref eclipseMode, "eclipseMode", EclipseMode.Both);
+        // The default moved from Both to UnnaturalOnly. Scribe_Values omits a value equal to its
+        // default, so a config written before the change has no eclipseMode node and reads back as
+        // UnnaturalOnly — the intended migration, and free of the usual "silently reset a deliberate
+        // choice" cost because the mod was still Workshop-private when this changed.
+        Scribe_Values.Look(ref eclipseMode, "eclipseMode", EclipseMode.UnnaturalOnly);
         Scribe_Values.Look(ref sunClock, "sunClock", SunClockMode.LockedToVanilla);
         Scribe_Values.Look(ref shadowLengthScale, "shadowLengthScale", Presets.Cinematic.ShadowLengthScale);
         Scribe_Values.Look(ref shadowStrength, "shadowStrength", Presets.Cinematic.ShadowStrength);

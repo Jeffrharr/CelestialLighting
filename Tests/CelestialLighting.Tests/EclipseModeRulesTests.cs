@@ -42,12 +42,23 @@ public class EclipseModeRulesTests
     }
 
     [Test]
-    public void Both_IsTheShippedDefault_AndMeansEverythingOn()
+    public void UnnaturalOnly_IsTheShippedDefault_AndFiresNoEventsOfOurOwn()
     {
-        // Guards the intended default: geometric eclipses fire AND the storyteller's random ones stay.
+        // Guards the mod's headline contract: no default setting alters gameplay. Eclipse mode is the
+        // only knob that could break it, since natural eclipses are real GameConditions (solar power,
+        // mood), so the shipped default must be the flavour that fires nothing and suppresses nothing —
+        // purely a reshape of the darkening the storyteller's own eclipse was going to apply anyway.
+        Assert.That(EclipseSettings.Mode, Is.EqualTo(EclipseMode.UnnaturalOnly));
+        Assert.That(EclipseModeRules.NaturalTriggerActive(EclipseSettings.Mode), Is.False);
+        Assert.That(EclipseModeRules.SuppressRandomEclipse(EclipseSettings.Mode), Is.False);
+    }
+
+    [Test]
+    public void Both_IsTheOptIn_AndMeansEverythingOn()
+    {
+        // The opt-in maximal mode still means what it always did: geometric eclipses fire AND the
+        // storyteller's random ones stay.
         Assert.That(EclipseModeRules.NaturalTriggerActive(EclipseMode.Both), Is.True);
         Assert.That(EclipseModeRules.SuppressRandomEclipse(EclipseMode.Both), Is.False);
-        // The runtime flag holder ships defaulted to Both.
-        Assert.That(EclipseSettings.Mode, Is.EqualTo(EclipseMode.Both));
     }
 }

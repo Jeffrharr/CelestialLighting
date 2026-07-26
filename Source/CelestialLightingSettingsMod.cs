@@ -166,12 +166,12 @@ public class CelestialLightingSettingsMod : Mod
 
     private void DrawEclipseModeRadio(Listing_Standard listing)
     {
-        DrawEclipseModeOption(listing, EclipseMode.Both, "Natural + unnatural eclipse  (default)",
-            "Both at once: real geometric eclipses fire at astronomically-correct times (rendered with the natural transit ramp), AND the storyteller's random eclipses still occur (rendered with the fly-in / park / fly-out darkening).");
-        DrawEclipseModeOption(listing, EclipseMode.NaturalOnly, "Natural eclipse only",
-            "Only real geometric eclipses, fired from the modeled moon at their short astronomically-correct duration (~one every few game years). The storyteller's random eclipse is suppressed so the two never double-fire.");
-        DrawEclipseModeOption(listing, EclipseMode.UnnaturalOnly, "Unnatural eclipse event only",
+        DrawEclipseModeOption(listing, EclipseMode.UnnaturalOnly, "Unnatural eclipse event only  (default)",
             "Purely cosmetic — no extra events. Only the storyteller's own random eclipse occurs, reshaped from vanilla's flat dim into a gradual fly-in / park / fly-out.");
+        DrawEclipseModeOption(listing, EclipseMode.Both, "Natural + unnatural eclipse  (changes gameplay)",
+            "Both at once: real geometric eclipses fire at astronomically-correct times (rendered with the natural transit ramp), AND the storyteller's random eclipses still occur (rendered with the fly-in / park / fly-out darkening). The geometric ones are extra real eclipses — rare, but they cost solar power and mood like any other.");
+        DrawEclipseModeOption(listing, EclipseMode.NaturalOnly, "Natural eclipse only  (changes gameplay)",
+            "Only real geometric eclipses, fired from the modeled moon at their short astronomically-correct duration (~one every few game years). The storyteller's random eclipse is suppressed so the two never double-fire, so eclipses become rarer and shorter than vanilla's.");
     }
 
     private void DrawEclipseModeOption(Listing_Standard listing, EclipseMode option, string label, string tooltip)

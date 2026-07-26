@@ -92,10 +92,12 @@ public static class ProbeRegistration
         // Not a CelestialLightingFeatures flag: the eclipse mode lives on EclipseSettings (mirrors the
         // mod's own eclipse-mode radio). Bridged as a bool for the harness's SetFeature step: enabled
         // => NaturalOnly (pure geometric eclipses, so a scenario films/validates the §10a trigger in
-        // isolation), disabled => Both (the shipped default).
+        // isolation), disabled => UnnaturalOnly (the shipped default, which fires no events at all).
+        // The disabled arm tracks the shipped default deliberately: a scenario that never sets this
+        // feature must see exactly what a player sees on a fresh install.
         FeatureRegistry.Register(
             "natural_eclipse",
-            enabled => EclipseSettings.Mode = enabled ? EclipseMode.NaturalOnly : EclipseMode.Both);
+            enabled => EclipseSettings.Mode = enabled ? EclipseMode.NaturalOnly : EclipseMode.UnnaturalOnly);
         // Dev-only staging for the natural-eclipse trigger validation: a real eclipse only happens
         // once every few game years, so this phase-slides the modeled moon (via the pure EclipseStaging
         // math) onto a genuine new-moon-at-node alignment one pre-roll ahead of "now", after which the

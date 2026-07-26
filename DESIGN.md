@@ -819,15 +819,22 @@ Natural (§10a) and unnatural (§10b) are independent — natural fires real geo
 unnatural only reshapes the darkening of the storyteller's own eclipse — so all three combinations
 are exposed as a radio (`EclipseMode`, pure rules in `EclipseModeRules`, tested):
 
-- **Natural + unnatural — the shipped default.** Geometric eclipses fire at real astronomical times
-  (natural ramp) *and* the storyteller's random eclipses still occur (unnatural ramp); each active
-  eclipse is darkened by whichever kind it is (`EclipseIntegration.RendersNatural` tags the ones we
-  fired). This does mean natural eclipses — which touch gameplay — are on by default, a deliberate
-  choice; the two other modes let a player opt out either direction.
-- **Natural only.** Only geometric eclipses; the random storyteller eclipse is suppressed
-  (`Patch_SuppressRandomEclipse`) so they don't double-fire.
-- **Unnatural eclipse only.** The original visual-only behaviour: no extra events, just the §10b
-  reshape of the storyteller's eclipse.
+- **Unnatural eclipse only — the shipped default.** The original visual-only behaviour: no extra
+  events, just the §10b reshape of the storyteller's eclipse. This is the default *because* it is the
+  only one of the three that fires nothing and suppresses nothing, and the mod's contract is that no
+  default setting alters gameplay. An earlier version shipped Both, on the reasoning that a natural
+  eclipse every few game years is rare enough not to count; that was the wrong test. Rare is not
+  never, and a real `Eclipse` `GameCondition` costs solar power and mood no matter how honest its
+  timing is — so the one knob capable of breaking the contract now defaults to the side that can't.
+- **Natural + unnatural (opt-in).** Geometric eclipses fire at real astronomical times (natural ramp)
+  *and* the storyteller's random eclipses still occur (unnatural ramp); each active eclipse is
+  darkened by whichever kind it is (`EclipseIntegration.RendersNatural` tags the ones we fired).
+- **Natural only (opt-in).** Only geometric eclipses; the random storyteller eclipse is suppressed
+  (`Patch_SuppressRandomEclipse`) so they don't double-fire. Note this cuts *both* ways against
+  vanilla's rate: eclipses become rarer and shorter, not just differently timed.
+
+Both opt-in modes are labelled `(changes gameplay)` in the settings radio, matching §14's sun-clock
+wording, so the two gameplay-touching choices in the whole mod read identically.
 
 The "Eclipse effects" checkbox is the master above the radio — off means the mod leaves eclipses
 entirely alone (vanilla flat dim, vanilla timing, no trigger, no suppression).
@@ -840,8 +847,9 @@ actual eclipse* and ends when the discs part. Astronomically accurate in both wh
 how long it lasts.
 
 Because it changes *when* (and, by shortening the duration, *how long*) a gameplay event occurs
-(solar-power loss, mood), it is the flavour gated by the eclipse-mode radio above (active in
-Natural-only and the default Both). Design consequences:
+(solar-power loss, mood), it is the flavour gated by the eclipse-mode radio above — and, for exactly
+that reason, the flavour that is **off by default**: it is active only in the two opt-in modes
+(Natural-only and Both). Design consequences:
 
 - It requires the moon's **orbital inclination and nodes** (see §6 scope note). With the flat
   Moon-on-the-ecliptic approximation the moon would transit every new moon and eclipses would fire
