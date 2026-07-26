@@ -47,6 +47,24 @@
     { "type": "Wait", "args": { "frames": "5" } },
     { "type": "Probe", "args": { "probeName": "moon_shadow_render", "expectedValue": "0.8778", "tolerance": "0.02" } },
 
+    { "_comment": "LOW SUN — the block that produces a legible picture, added after the noon frames turned out to show nothing. Shadow LENGTH is cot(elevation), so noon's 81.7-degree sun casts 0.15 cells: the contrast fix was working and there was no shadow there to look at. Hour 5.0 puts the sun at 13.4 degrees and the shadow at 4.20 cells — 28x longer — while contrast barely moves (11.1% against noon's 12.2%), because ShadowIntensityFromElevation has saturated and PenumbraContrastFactor is still 0.91. Everything below is a screenshot pair first and a probe second.",
+      "type": "SetTime", "args": { "hour": "5.0" } },
+    { "type": "SetWeather", "args": { "weatherDef": "Clear", "instant": "true" } },
+    { "type": "Wait", "args": { "frames": "5" } },
+    { "type": "Probe", "args": { "probeName": "moon_shadow_render", "expectedValue": "0.7431", "tolerance": "0.02" } },
+    { "type": "Screenshot", "args": { "fileName": "wsv_lowsun_clear.png" } },
+
+    { "type": "SetWeather", "args": { "weatherDef": "Rain", "instant": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "weather_dimming", "enabled": "false" } },
+    { "type": "Wait", "args": { "frames": "5" } },
+    { "type": "Probe", "args": { "probeName": "moon_shadow_render", "expectedValue": "0.9271", "tolerance": "0.02" } },
+    { "type": "Screenshot", "args": { "fileName": "wsv_lowsun_rain_before.png" } },
+
+    { "type": "SetFeature", "args": { "featureName": "weather_dimming", "enabled": "true" } },
+    { "type": "Wait", "args": { "frames": "5" } },
+    { "type": "Probe", "args": { "probeName": "moon_shadow_render", "expectedValue": "0.8887", "tolerance": "0.02" } },
+    { "type": "Screenshot", "args": { "fileName": "wsv_lowsun_rain_after.png" } },
+
     { "_comment": "Night must be untouched: §6a's Patch_MoonShadowColor owns colors.shadow below the horizon and §13a stands down there, so this reads §6a's own value and not Clear's 0.718. NOTE the expected number is phase-derived, not copied from the full-moon scenario: at day 40 hour 2 the tick-derived cycle is 0.6722, a 73.5%-lit WANING GIBBOUS. Its shadow strength is therefore ramp(elev) * 0.735 * MoonShadowMaxStrength = 0.2057, which against §6a's 0.1071 shadow colour renders 1 - 0.2057*(1-0.1071) = 0.8163. Assuming a full moon here is exactly the mistake this comment exists to prevent.",
       "type": "SetWeather", "args": { "weatherDef": "Clear", "instant": "true" } },
     { "type": "SetTime", "args": { "hour": "2" } },
