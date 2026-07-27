@@ -231,21 +231,27 @@ public class SunClockModeMoonTests
     }
 
     [TestCaseSource(nameof(TileCases))]
-    public void Realistic_ShadowHandoffStaysAtTheBaselineStep(
+    public void Realistic_ShadowHandoffHasNoStep(
         float latitude, int dayOfYear, float vanillaHalfDay)
     {
-        // MoonMath.MoonShadowStrength ramps over only ~3 degrees of moon altitude, so a moon that is
-        // meaningfully up at the handoff snaps the shadow straight to full strength in one frame. On a
-        // single clock the full moon is 0.83 degrees up there (strength 0.155) — the step the moon
-        // model has always had, and what realistic mode must land on rather than above.
+        // §14's realistic-mode twin of MoonSunClockTests.ShadowHandoff_HasNoStepAtAll — see that test
+        // for the full history. In short: the pre-§6b strength ramped over only ~3 degrees of moon
+        // altitude, so a moon meaningfully up at the handoff snapped the shadow to full strength in one
+        // frame, and this test bounded that step at the single-clock baseline of 0.155. §6b removed the
+        // step outright by making strength a moonlight-to-skylight ratio, and the sky at the handoff is
+        // ~200 lux against the moon's 0.27.
+        //
+        // The elevation assertion is what still guards realistic mode's clock; the strength one is now
+        // a §6b regression guard.
         float sunset = 0.5f + RealisticHalfDay(latitude, dayOfYear);
         float elevation = RealisticMoonElevation(latitude, dayOfYear, 0.5f, sunset);
-        float strength = MoonMath.MoonShadowStrength(MoonMath.IlluminatedFraction(0.5f), elevation);
+        float strength = MoonMath.MoonShadowStrength(
+            MoonMath.IlluminatedFraction(0.5f), elevation, Formulas.AtmosphericRefractionDegrees);
 
         Assert.That(elevation, Is.LessThan(2f), $"moon was {elevation:0.0} degrees up at the handoff");
         Assert.That(
             strength,
-            Is.LessThan(0.16f),
-            $"moon shadow snapped in at strength {strength:0.000}, above the single-clock baseline");
+            Is.EqualTo(0f),
+            $"moon shadow stepped in at strength {strength:0.000} instead of fading in after twilight");
     }
 }

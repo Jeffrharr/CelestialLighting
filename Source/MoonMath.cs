@@ -36,10 +36,20 @@ public static class MoonMath
     // and sun agree on where "the horizon" is.
     public const float MoonHorizonElevationDegrees = Formulas.AtmosphericRefractionDegrees;
 
-    // Peak strength of a moon-cast shadow's alpha, relative to a full daytime sun shadow. A full
-    // moon overhead is dramatically dimmer than the sun, so even the strongest moon shadow is a
-    // faint hint, not a hard-edged daytime shadow. Illuminated fraction and moon altitude scale down
-    // from here (a new moon casts nothing; a low full moon casts a whisper).
+    // Peak strength of a moon-cast shadow's alpha, relative to a full daytime sun shadow: what a full
+    // moon high in a fully dark sky casts. Everything dimmer than that scales down from here via the
+    // contrast ratio in MoonShadowStrength.
+    //
+    // Kept as an artistic ceiling rather than derived from the lux model, deliberately. Physically a
+    // full moon in true darkness is the overwhelmingly dominant light source and its shadow contrast
+    // approaches 1.0, the same as the sun's at noon — the reason a real moon shadow still reads as
+    // faint is that the eye is dark-adapted and the whole scene is dim, which a monitor showing a
+    // brightened night scene cannot reproduce. So the ratio decides the SHAPE of the curve (when the
+    // shadow appears, how phase and twilight move it) and this constant sets its amplitude.
+    //
+    // Before §6b this number was doing a second, hidden job: standing in for the daylight washout the
+    // model could not express. It no longer is — washout is now the ratio's business — so this is a
+    // pure look knob and moving it changes only how strong the deepest-night shadow is.
     public const float MoonShadowMaxStrength = 0.28f;
 
     // How much darker than the lit ground the strongest moon shadow renders, as a fraction — the
@@ -177,19 +187,75 @@ public static class MoonMath
         return Clamp01(illuminatedFraction) * altitudeFactor;
     }
 
-    // Alpha of the moon-cast shadow: the sun's own elevation->intensity ramp evaluated at the moon's
-    // elevation (so the shadow fades in as the moon rises, exactly like a sun shadow at dawn), scaled
-    // down by illuminated fraction and by MoonShadowMaxStrength. A new moon (illuminated 0) casts
-    // nothing; a full moon high overhead casts the strongest, still-faint, shadow. Returns 0 when the
-    // moon is below the horizon.
-    public static float MoonShadowStrength(float illuminatedFraction, float moonElevationDegrees)
+    // Alpha of the moon-cast shadow, from the ratio of moonlight to ambient skylight (DESIGN.md §6b).
+    //
+    // WHAT CHANGED AND WHY (this replaced a phase-times-altitude ramp that never looked at the sun).
+    // The old model gated moon shadows on the SUN being below the refraction horizon and then scaled
+    // by illuminated fraction and moon altitude. Both halves were wrong in the same way: they treated
+    // "is there a moon shadow" as a fact about the moon alone, when it is entirely a question of how
+    // the moon's light compares to everything else landing on the ground.
+    //
+    // The visible consequence was a moon shadow that switched on at sun elevation -0.83 degrees, in a
+    // ~400 lux sky — about 1600x brighter than the full moon casting it. It was rendered at full
+    // strength in a sky where a real moon shadow is four orders of magnitude below the eye's contrast
+    // threshold, and it popped in over a 3-degree window instead of fading.
+    //
+    // Now IlluminanceMath does the comparison in absolute lux and this is just the contrast it finds,
+    // scaled to our peak alpha. The sun's elevation is an input rather than a gate, which removes the
+    // pop entirely: at sunset the contrast is ~0.0007 (invisible, as it should be), it crosses the
+    // perceptible threshold around sun -6.5 degrees for a full moon, and reaches full strength around
+    // -11. A quarter moon, being ~11x dimmer, does not appear until about -9 and is not at full
+    // strength until roughly -15 — deep in nautical twilight, which is exactly right.
+    //
+    // NOTE, because it is a deliberate behaviour change and not an oversight: phase no longer scales
+    // the shadow linearly once the moon dominates the sky. In full darkness a half-lit moon now reads
+    // at ~0.98 of a full moon's contrast rather than 0.50. That is the physically correct answer —
+    // shadow contrast is a RATIO, and once any caster is well above the starlight floor it casts a
+    // near-full-contrast shadow; what a half moon actually costs you is overall scene brightness,
+    // which is §7's night radiance to own, not this. Phase still matters enormously at the twilight
+    // end (when the shadow appears at all) and at the faint end (a 10%-lit crescent is dimmer than
+    // starlight itself and casts essentially nothing).
+    //
+    // Returns 0 below the horizon, and 0 whenever the result would render below the perceptible
+    // floor — see MoonShadowIsPerceptible for why that is a real gate rather than an optimization.
+    public static float MoonShadowStrength(
+        float illuminatedFraction, float moonElevationDegrees, float sunElevationDegrees)
     {
         if (moonElevationDegrees <= MoonHorizonElevationDegrees)
             return 0f;
 
-        float elevationRamp = Formulas.ShadowIntensityFromElevation(moonElevationDegrees);
-        return elevationRamp * Clamp01(illuminatedFraction) * MoonShadowMaxStrength;
+        float moonLux = IlluminanceMath.MoonLux(illuminatedFraction, moonElevationDegrees);
+        float ambientLux = IlluminanceMath.AmbientSkyLux(sunElevationDegrees);
+        float strength = IlluminanceMath.ShadowContrast(moonLux, ambientLux) * MoonShadowMaxStrength;
+
+        return MoonShadowIsPerceptible(strength) ? strength : 0f;
     }
+
+    // How much darker than the lit ground a moon shadow of this alpha actually renders, in [0,1].
+    //
+    // Inverts SkyManager's lerp the same way MoonShadowColorValue does, and against the colour that
+    // function returns: the shader draws Color.Lerp(Color.white, colors.shadow, alpha), so the
+    // darkening is alpha * (1 - shadowColorValue). Stated in rendered units rather than alpha because
+    // "is this shadow visible" is a claim about what reaches the screen, and §6a is the standing proof
+    // that the two are different questions.
+    public static float MoonShadowDarkening(float strength) =>
+        Clamp01(strength) * (1f - MoonShadowColorValue(MoonShadowPeakDarkening, MoonShadowMaxStrength));
+
+    // Whether a moon shadow at this alpha is worth rendering at all.
+    //
+    // With a contrast ratio there is no longer any elevation at which the moon shadow is exactly zero
+    // — in full daylight it is 0.0002, not 0. Left ungated, MoonPosition.ShadowForMap would report a
+    // shadow at every moment of every day, which would in turn have Patch_MoonShadowColor darkening
+    // the night's shadow colour for a shadow nobody can see. So the model's honest "always present,
+    // usually invisible" answer gets truncated exactly where invisibility begins.
+    //
+    // Reuses §13a's PerceptibleDarkening (about 5 values out of 255, below which a cast shadow stops
+    // reading on mid-tone ground) rather than inventing a second threshold: it is a fact about human
+    // vision, not about weather, and having two numbers for it is how they drift apart. Measured
+    // before the player's "Shadow strength" slider, which is applied later by the patches — so the
+    // gate is very slightly permissive on a lowered slider, which is the right direction to err.
+    public static bool MoonShadowIsPerceptible(float strength) =>
+        MoonShadowDarkening(strength) >= WeatherDimmingMath.PerceptibleDarkening;
 
     // --- Lunar orbital inclination and nodes (opt-in natural-eclipse trigger, DESIGN.md §10a) ---
     //

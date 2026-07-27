@@ -194,39 +194,178 @@ public class MoonMathTests
             Is.EqualTo(0.5f).Within(Tolerance));
     }
 
-    // --- MoonShadowStrength ---
+    // --- MoonShadowStrength (§6b: contrast against the sky, not a bare phase ramp) ---
+
+    // Sun elevation for "as dark as the sky ever gets" — past the end of astronomical twilight, where
+    // IlluminanceMath clamps to the moonless starlight floor. Named because most cases below want to
+    // isolate the moon's own behaviour from the twilight term.
+    private const float FullDarknessSunElevation = -30f;
 
     [Test]
     public void MoonShadowStrength_IsZero_ForNewMoon()
     {
-        // A new moon (illuminated 0) casts no shadow even directly overhead.
-        Assert.That(MoonMath.MoonShadowStrength(illuminatedFraction: 0f, moonElevationDegrees: 90f),
+        // A new moon (illuminated 0) casts no shadow even directly overhead in a fully dark sky.
+        Assert.That(
+            MoonMath.MoonShadowStrength(
+                illuminatedFraction: 0f, moonElevationDegrees: 90f,
+                sunElevationDegrees: FullDarknessSunElevation),
             Is.EqualTo(0f));
     }
 
     [Test]
     public void MoonShadowStrength_IsZero_WhenMoonBelowHorizon()
     {
-        Assert.That(MoonMath.MoonShadowStrength(illuminatedFraction: 1f, moonElevationDegrees: -5f),
+        Assert.That(
+            MoonMath.MoonShadowStrength(
+                illuminatedFraction: 1f, moonElevationDegrees: -5f,
+                sunElevationDegrees: FullDarknessSunElevation),
             Is.EqualTo(0f));
     }
 
     [Test]
     public void MoonShadowStrength_IsFaint_ForFullMoonWellUp()
     {
-        // Full moon high enough that the elevation ramp is saturated (1): strength is exactly the
-        // faint per-illumination cap, never a full daytime shadow.
-        float strength = MoonMath.MoonShadowStrength(illuminatedFraction: 1f, moonElevationDegrees: 45f);
-        Assert.That(strength, Is.EqualTo(MoonMath.MoonShadowMaxStrength).Within(Tolerance));
+        // Full moon well up in a fully dark sky: it is overwhelmingly the dominant light source, so
+        // the contrast ratio is ~1 and the alpha lands on the artistic ceiling. Looser than Tolerance
+        // because the ratio approaches the cap asymptotically — the starlight floor never quite goes
+        // away — rather than reaching it exactly.
+        float strength = MoonMath.MoonShadowStrength(
+            illuminatedFraction: 1f, moonElevationDegrees: 45f,
+            sunElevationDegrees: FullDarknessSunElevation);
+
+        Assert.That(strength, Is.EqualTo(MoonMath.MoonShadowMaxStrength).Within(0.005f));
         Assert.That(strength, Is.LessThan(0.5f)); // documents "faint, not daytime"
     }
 
     [Test]
-    public void MoonShadowStrength_ScalesWithIlluminatedFraction()
+    public void MoonShadowStrength_IsZero_InBroadDaylight()
     {
-        float full = MoonMath.MoonShadowStrength(illuminatedFraction: 1f, moonElevationDegrees: 45f);
-        float half = MoonMath.MoonShadowStrength(illuminatedFraction: 0.5f, moonElevationDegrees: 45f);
-        Assert.That(half, Is.EqualTo(full * 0.5f).Within(Tolerance));
+        // The headline §6b claim. A full moon directly overhead at midday casts nothing visible: the
+        // sun is ~400,000x brighter, so the ratio is ~0.000003 — four orders of magnitude under the
+        // eye's contrast threshold. Before §6b this case could not even be asked, because the sun
+        // being up was a hard gate rather than an input.
+        Assert.That(
+            MoonMath.MoonShadowStrength(
+                illuminatedFraction: 1f, moonElevationDegrees: 90f, sunElevationDegrees: 60f),
+            Is.EqualTo(0f));
+    }
+
+    [Test]
+    public void MoonShadowStrength_IsZero_AtSunset_NoPopAtTheHandover()
+    {
+        // The specific regression §6b fixes. The old model switched the moon shadow on the instant the
+        // sun passed the refraction horizon, at full strength for a well-placed moon — a visible pop in
+        // both alpha and direction. The sky there is still ~200 lux, ~750x the full moon, so the honest
+        // answer is nothing at all.
+        Assert.That(
+            MoonMath.MoonShadowStrength(
+                illuminatedFraction: 1f, moonElevationDegrees: 30f,
+                sunElevationDegrees: Formulas.AtmosphericRefractionDegrees),
+            Is.EqualTo(0f));
+    }
+
+    [Test]
+    public void MoonShadowStrength_FadesInThroughTwilight_NotAtSunset()
+    {
+        // A full moon well up, walked down through the twilight band. It must be invisible at civil
+        // twilight's end, clearly present by nautical's, and never weaken on the way.
+        float civil = MoonMath.MoonShadowStrength(1f, 60f, -6f);
+        float mid = MoonMath.MoonShadowStrength(1f, 60f, -9f);
+        float nautical = MoonMath.MoonShadowStrength(1f, 60f, -12f);
+
+        Assert.That(civil, Is.EqualTo(0f), "a full moon cannot compete with a 3.4 lux civil-twilight sky");
+        Assert.That(mid, Is.GreaterThan(0f), "by mid-twilight the moon should be casting");
+        Assert.That(nautical, Is.GreaterThan(mid), "and it must keep strengthening as the sky darkens");
+        Assert.That(nautical, Is.GreaterThan(MoonMath.MoonShadowMaxStrength * 0.9f),
+            "by the end of nautical twilight a full moon is essentially at full contrast");
+    }
+
+    [TestCase(-6f)]
+    [TestCase(-9f)]
+    [TestCase(-12f)]
+    [TestCase(-20f)]
+    public void MoonShadowStrength_NeverExceedsTheCap(float sunElevationDegrees)
+    {
+        Assert.That(MoonMath.MoonShadowStrength(1f, 90f, sunElevationDegrees),
+            Is.LessThanOrEqualTo(MoonMath.MoonShadowMaxStrength));
+    }
+
+    [Test]
+    public void MoonShadowStrength_DimmerMoonNeedsADarkerSky()
+    {
+        // Phase's real consequence under §6b: not a proportional dimming, but a later arrival. A
+        // quarter moon is ~11x fainter than a full one, so the sky has to fall ~11x further before its
+        // shadow registers. At mid-twilight the full moon is casting and the quarter one is not.
+        Assert.That(MoonMath.MoonShadowStrength(1f, 60f, -8f), Is.GreaterThan(0f));
+        Assert.That(MoonMath.MoonShadowStrength(0.5f, 60f, -8f), Is.EqualTo(0f));
+
+        // Given enough darkness, though, the quarter moon does get there.
+        Assert.That(MoonMath.MoonShadowStrength(0.5f, 60f, -14f), Is.GreaterThan(0f));
+    }
+
+    [Test]
+    public void MoonShadowStrength_InFullDarkness_HalfMoonApproachesFullMoonContrast()
+    {
+        // Pins the deliberate behaviour change §6b makes, so nobody "fixes" it back later. Contrast is
+        // a ratio: once a caster is far above the starlight floor, halving its output barely moves the
+        // shadow's contrast. What a half moon costs is scene brightness (§7's night radiance), not
+        // shadow contrast. The pre-§6b model made this exactly 0.5 — linear in illuminated fraction —
+        // which was the wrong physics.
+        float full = MoonMath.MoonShadowStrength(1f, 90f, FullDarknessSunElevation);
+        float half = MoonMath.MoonShadowStrength(0.5f, 90f, FullDarknessSunElevation);
+
+        Assert.That(half / full, Is.GreaterThan(0.9f),
+            "a half moon in true darkness still casts a near-full-contrast shadow");
+        Assert.That(half, Is.LessThan(full), "but it is still strictly weaker");
+    }
+
+    [Test]
+    public void MoonShadowStrength_ThinCrescentCastsNothing_EvenInFullDarkness()
+    {
+        // The other end of the phase curve, and the reason the ratio model does not simply flatten
+        // every phase to one shadow. A 5%-lit crescent puts out ~1.5e-5 lux — genuinely dimmer than
+        // the starlight floor it competes with — so it casts nothing at all.
+        Assert.That(MoonMath.MoonShadowStrength(0.05f, 90f, FullDarknessSunElevation),
+            Is.EqualTo(0f));
+    }
+
+    [Test]
+    public void MoonShadowStrength_RisesMonotonically_AsTheSkyDarkens()
+    {
+        // No non-monotonic kink anywhere across the span, which is what would show up in game as a
+        // flicker or a reversal partway through the twilight fade.
+        float previous = -1f;
+        for (float sunElevation = 10f; sunElevation >= -25f; sunElevation -= 0.25f)
+        {
+            float strength = MoonMath.MoonShadowStrength(1f, 60f, sunElevation);
+            Assert.That(strength, Is.GreaterThanOrEqualTo(previous),
+                $"strength went backwards at sun elevation {sunElevation:0.00}");
+            previous = strength;
+        }
+    }
+
+    // --- MoonShadowDarkening / MoonShadowIsPerceptible (§6b's visibility gate) ---
+
+    [Test]
+    public void MoonShadowDarkening_MatchesVanillasLerp_AtPeakStrength()
+    {
+        // At the cap the rendered darkening must be exactly §6a's target, since MoonShadowColorValue
+        // is defined by inverting the same lerp.
+        Assert.That(MoonMath.MoonShadowDarkening(MoonMath.MoonShadowMaxStrength),
+            Is.EqualTo(MoonMath.MoonShadowPeakDarkening).Within(1e-5f));
+    }
+
+    [Test]
+    public void MoonShadowIsPerceptible_SplitsOnTheSharedVisibilityThreshold()
+    {
+        // The gate is §13a's PerceptibleDarkening, deliberately reused rather than duplicated. Step
+        // either side of the alpha that renders exactly at it.
+        float alphaAtThreshold = WeatherDimmingMath.PerceptibleDarkening
+            / (1f - MoonMath.MoonShadowColorValue(
+                MoonMath.MoonShadowPeakDarkening, MoonMath.MoonShadowMaxStrength));
+
+        Assert.That(MoonMath.MoonShadowIsPerceptible(alphaAtThreshold * 1.01f), Is.True);
+        Assert.That(MoonMath.MoonShadowIsPerceptible(alphaAtThreshold * 0.99f), Is.False);
     }
 
     // --- Lunar nodes / ecliptic latitude / separation (natural-eclipse geometry, §10a) ---
@@ -344,13 +483,19 @@ public class MoonMathTests
     }
 
     [Test]
-    public void MoonShadowColorValue_ScalesDownProportionallyForAWeakerMoon()
+    public void MoonShadowColorValue_ScalesDownProportionallyForAWeakerAlpha()
     {
-        // A half-lit moon at the zenith has half the alpha, so it must render at half the contrast —
-        // for free, because the strength term stays vanilla's.
+        // Half the alpha must render at half the contrast — for free, because the strength term stays
+        // vanilla's and this colour is a fixed target it lerps toward.
+        //
+        // Stated against an explicit half-of-cap alpha rather than against a half-lit moon, which is
+        // what it used to do. Under §6b a half-lit moon in darkness no longer produces half the alpha
+        // (it produces ~0.98 of it — see MoonShadowStrength_InFullDarkness_HalfMoonApproachesFull-
+        // MoonContrast for why that is the correct physics), so deriving the alpha from a phase would
+        // now be testing the phase curve here instead of the colour inversion this test is about.
         float value = MoonMath.MoonShadowColorValue(
             MoonMath.MoonShadowPeakDarkening, MoonMath.MoonShadowMaxStrength);
-        float halfStrength = MoonMath.MoonShadowStrength(0.5f, 90f);
+        float halfStrength = MoonMath.MoonShadowMaxStrength * 0.5f;
         float rendered = 1f - halfStrength * (1f - value);
         Assert.That(1f - rendered, Is.EqualTo(MoonMath.MoonShadowPeakDarkening / 2f).Within(1e-5f));
     }

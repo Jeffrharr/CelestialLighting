@@ -149,28 +149,40 @@ public class MoonSunClockTests
     }
 
     [TestCaseSource(nameof(TileCases))]
-    public void ShadowHandoff_StartsNoStrongerThanTheSingleClockBaseline(
+    public void ShadowHandoff_HasNoStepAtAll(
         float latitude, int dayOfYear, float vanillaHalfDay)
     {
         // Patch_ShadowDirection and Patch_ShadowStrength switch from the sun's shadow to the moon's at
         // the sun's horizon crossing, where Formulas.ShadowIntensityFromElevation has ramped the sun
-        // shadow to 0. The moon shadow therefore starts at whatever strength the moon's elevation
-        // implies — and that ramp spans only 3 degrees, so a moon even slightly up is already a
-        // visible fraction of full strength.
+        // shadow to 0.
         //
-        // A single-clock model puts the moon 0.83 degrees up at that instant (strength 0.155), which
-        // is the step the mod has always had. The raw-clock bug put it 10-36 degrees up, i.e. the full
-        // 0.28 — a hard pop in both alpha and direction on every clear night around full moon. This
-        // pins the step back to the baseline rather than to zero, which the model cannot deliver.
+        // This test used to bound the resulting step rather than forbid it. Under the pre-§6b model the
+        // moon shadow started at whatever the moon's elevation implied, over a ramp only 3 degrees
+        // wide, so a moon even slightly up was already a visible fraction of full strength: a single
+        // clock put the moon 0.83 degrees up at that instant for a step of 0.155, and the raw-clock bug
+        // put it 10-36 degrees up for the full 0.28 — a hard pop in alpha and direction on every clear
+        // night around full moon. The assertion was "no worse than the 0.155 baseline, which the model
+        // cannot deliver zero for".
+        //
+        // §6b delivers zero. Moon shadow strength is now the moonlight-to-skylight ratio, and the sky
+        // at the handoff is still ~200 lux against the full moon's 0.27 — so the moon contributes
+        // nothing there no matter where it sits, and the shadow fades in later, on its own, as the
+        // twilight drains. The step is gone rather than bounded.
+        //
+        // The elevation assertion below is the one that still guards §14: it is what actually detects
+        // the moon being warped onto the wrong clock. The strength assertion can no longer detect that
+        // (it is zero either way now), so it is kept as a §6b regression guard instead — if a future
+        // change reintroduces a strength that depends on moon elevation alone, this fires.
         float sunset = 0.5f + vanillaHalfDay;
         float elevation = MoonElevation(latitude, dayOfYear, 0.5f, sunset, vanillaHalfDay);
-        float strength = MoonMath.MoonShadowStrength(MoonMath.IlluminatedFraction(0.5f), elevation);
+        float strength = MoonMath.MoonShadowStrength(
+            MoonMath.IlluminatedFraction(0.5f), elevation, Formulas.AtmosphericRefractionDegrees);
 
         Assert.That(elevation, Is.LessThan(2f), $"moon was {elevation:0.0} degrees up at the handoff");
         Assert.That(
             strength,
-            Is.LessThan(0.16f),
-            $"moon shadow snapped in at strength {strength:0.000}, above the single-clock baseline");
+            Is.EqualTo(0f),
+            $"moon shadow stepped in at strength {strength:0.000} instead of fading in after twilight");
     }
 
     [TestCaseSource(nameof(TileCases))]
