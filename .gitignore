@@ -10,3 +10,5 @@ TestMod/bin/
 1.6/Assemblies/0Harmony.dll
 Tools/**/obj/
 Tools/**/bin/
+Tools/**/__pycache__/
+*.pyc
