@@ -24,10 +24,13 @@
 # previous scenario's leftover front cannot colour its readings.
 #
 # Also not here: the moon-dependent scenarios (moon_illumination, moon_survey, moon_shadow_visibility,
-# night_radiance, pitch_black_nights). Moon phase is a function of the absolute tick, so their
-# expected values only hold at the fixture's own tick — inside a suite the preceding scenarios have
-# already jumped the clock, which is exactly how an earlier suite run reported night_radiance as
-# failing while it passed standalone. Run those on their own too.
+# moon_shadow_twilight_fade, night_radiance, pitch_black_nights). Moon phase is a function of the
+# absolute tick, so their expected values only hold at the fixture's own tick — inside a suite the
+# preceding scenarios have already jumped the clock, which is exactly how an earlier suite run
+# reported night_radiance as failing while it passed standalone. Run those on their own too.
+#
+# moon_shadow_twilight_fade is doubly tick-sensitive: §6b makes shadow strength depend on the SUN's
+# elevation as well as the moon's, so a drifted clock moves both terms of the ratio at once.
 
 # --- read-only: clock, latitude and feature flags only, so one load covers all of them ---
 solar_geometry_survey.json
