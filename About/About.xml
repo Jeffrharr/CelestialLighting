@@ -8,89 +8,71 @@
   </supportedVersions>
   <description>Sunlight, moonlight and weather, rebuilt around a real solar model: the sun's actual position for your colony's latitude, season and time of day.
 
-This is a lighting mod. It changes how the world looks and leaves how it plays alone: no default setting alters gameplay. No work-speed or movement penalty in the dark, no stat changes, no economy, material or construction changes, and no extra events. Two settings can change gameplay if you want them to; both are off by default and both are labelled "(changes gameplay)" in the mod options.
+Celestial Lighting simulates the sun, moon and planet to get beautiful visuals without affecting gameplay.
 
-SUN AND SHADOWS
+## Sun and Shadows
 
-- Shadows lean with the sun's true seasonal position instead of always pointing the same way. The effect grows the further a colony sits from the equator, and mirrors between the northern and southern hemispheres.
-- Shadows stretch as the sun drops and soften as they stretch. A low sun presents a wider disc, so it casts a wider penumbra.
-- Roofs that do not enclose anything cast shadows too: porches, overhangs, eaves that oversail a wall. Vanilla only ever casts shadows from buildings, so a porch roof throws nothing at all.
-- Sunrise and sunset last longer and glow warmer at high latitudes, matching the long, colourful twilight seen in the real far north and far south. Colonies near the equator see little change.
+  - Seasonal sun positoning that changes angle of the shadows
+  - Sunrise and sunset simulate twilight and can be seen in the north / south lattitudes.
+  - More dynamic shadow casting.
 
-NIGHT
+## Night and Moon
 
-- Night brightness is the sum of starlight, airglow and moonlight rather than one flat floor, so a clear full-moon night reads distinctly brighter than a new-moon one.
-- A modelled moon runs a full lunar cycle and casts its own faint shadows, scaled by phase and altitude.
-- Pitch-black nights push the screen toward true black as that floor drops. Vanilla never renders black, only dim grey, however dark the night is supposed to be.
-- Black unlit interiors stops the sky from lighting roofed cells. Vanilla bleeds about 61% of the sky colour into every roofed tile, so a sealed cave never goes dark; with this on, an unlit interior is lit by its lamps or not at all. Sliders control how much light leaks through doors and a minimum indoor brightness.
-- Colour drains toward blue-grey as the light goes (the Purkinje shift), on a ramp anchored to the game's own definition of a fully lit cell.
+  - Night brightness from starlight, airglow and moonlight.  
+  - The moon simulates a full lunar cycle and casts its own shadows.  
+  - Darker nights controllable with a slider.
+  - Darker interiors controllable with a slider.
+  - Colour drains toward blue-grey in low light - the Purkinje shift -
 
-SKY AND WEATHER
+## Sky and Weather
+  - Rain, snow, fog and cloud dim the sky, per weather. Many modded weathers are supported.
+  - Sky colour temperature shifts warm and cool with the sun's altitude.
+  - Auroras during solar flares.
+  - Eclipses events are modeled more realistically.
+  - Blood-moon nights turn crimson if Vanilla Races Expanded - Sanguophage is installed.
 
-- Rain, snow, fog and cloud dim the sky, per weather, on top of the vanilla look.
-- Sky colour temperature shifts warm and cool with the sun's altitude.
-- Auroras during solar flares.
-- Eclipses darken gradually instead of snapping to vanilla's flat dim. The eclipses themselves are still the storyteller's, at the storyteller's rate. Optionally, real geometric eclipses can also fire when the modelled moon genuinely transits the sun.
-- Blood-moon nights turn crimson if Vanilla Races Expanded - Sanguophage is installed. Inert without it.
+## Settings and Presets
 
-SETTINGS
+Every effect has its own on/off switch. Available pre-sets:
 
-Every effect above has its own on/off switch. Three presets set the correlated sliders together:
+  - Cinematic (default) - Less physics-bound. Brighter nights and interiors.
+  - Realistic - Emulates the real-world more closely. Interiors are pitch-black and nights are dark by default.
 
-- Cinematic (default) - longer, softer shadows, a gentle night glow, more colour kept at night, and a brightness floor that keeps unlit interiors and moonless nights readable.
-- Realistic - physically faithful shadows, genuinely black nights, colourless night vision. Drops both brightness floors to zero, so a sealed room on a new-moon night really is black.
-- Custom - your own mix of the sliders.
-
-FAQ
+## FAQ
 
 Q. Does this change gameplay?
 
-No default setting does. Two settings can, both off by default, and both say so on the tin:
+  No default setting does and never will.
 
-- Natural eclipses. Real geometric eclipses fire when the modelled moon actually crosses the sun, at astronomically correct times and for a correct, short duration. However honest the timing, that is still a real eclipse, so it moves solar power and mood. Rare is not never, so it is opt-in: the eclipse mode ships on "Unnatural eclipse event only", which fires nothing and only reshapes the darkening of the eclipses the storyteller was going to send you anyway.
-- Realistic day length. Vanilla daylight follows the physical sun instead of its own curve, which gives real polar summers and a working southern hemisphere at the cost of moving day length by about 1.5 hours on average, and with it growing hours and solar output. The default "Vanilla day length" mode warps the visual sun to rise and set exactly when vanilla says, so day length, growing hours and solar power are untouched.
+  Optional settings may have some impact:	
+    - Natural eclipses. Simulated eclipses that occur when the moon passes the sun.
+    - Realistic day length. Makes days their real-world lengths as opposed to vanilla. This allows for polar summers and winters.
 
-Everything else is rendering.
+Q. Are the darker nights are purely cosmetic?
 
-Q. So the darker nights are purely cosmetic?
-
-Night brightness is the game's real light value, so a moonless night is genuinely darker than vanilla's. In practice that changes nothing you farm or power: it stays far below the light plants need to grow, and solar panels make nothing at night either way. What can notice it is anything that reads the light level at night, such as mood from an unlit room. Lamp-lit rooms are unchanged.
-
-Black unlit interiors is a render change on top of that. The game already treated roofed cells as unlit for gameplay purposes; it simply never drew them that way, bleeding sky colour into every roofed tile so you could always see inside.
-
-Q. If interiors go black, how am I meant to see anything?
-
-That is exactly why Cinematic is the default preset rather than Realistic. Genuinely black interiors are a balance change in practice even when they are not one on paper: you cannot play what you cannot see, and a colony you have to squint at plays differently from one you can read at a glance. So the shipped preset holds a brightness floor under both unlit interiors and moonless nights, and keeps them legible while still looking like night.
-
-Realistic drops those floors to zero for the true pitch-black version. It is one click away, and it is a click you make on purpose.
-
-Q. Will my colonists work or walk slower in the dark?
-
-No. Darkness is never coupled to a stat here. That is a deliberate omission, not an oversight.
+  Yes, the game lighting values remain the same.
 
 Q. Can I add or remove it mid-save?
 
-Yes, both. The mod adds no defs, items or buildings to your save. Removing it may log one load-time warning about its game components, which is harmless.
+  Yes, both. The mod adds no defs, items or buildings to your save.
 
 Q. Does it work with Dub's Skylights?
 
-Yes. Skylit rooms read the lighting this mod computes, through the same value Skylights already reads. Load Celestial Lighting after it.
+  Yes. Skylit rooms read the lighting this mod computes, through the same value Skylights already reads.
 
 Q. Known conflicts?
 
-Perspective: Eaves (both Owlchemist's original and Mlie's continuation) is incompatible and declared as such. Both mods make non-enclosing roofs cast shadows by replacing the same vanilla method, and only one can win. Nothing is lost by removing it: that feature is reimplemented here natively as the "Eave shadows" toggle.
+  Perspective: Eaves - Celestial Lighting re-implements the functionality in a compatible way.
+  Biomes! Caverns - Modifies some of the same code. Working on a patch.
+  Tilt the Earth! - Celestial Lighting hits the same systems. The inspiration for this mod.
 
-Biomes! Caverns coexists, but wants the opposite of "Black unlit interiors" for its caverns. Turn that toggle off if you prefer its sky-lit cavern look.
+Q. Can I use pieces of this mod in my work?
+	
+  Absolutely. https://github.com/Jeffrharr/CelestialLighting
 
-Multiplayer is untested.
+Q. Did you use AI to create any part of this mod?
 
-Q. What does it cost in performance?
-
-The solar model is cached rather than recomputed per frame, and the extra drawing rides on meshes RimWorld already rebuilds when a section changes.
-
-Q. Is this Tilt Planet: Realism Overhaul?
-
-No. That mod is delisted, was never open source, and none of its code exists anywhere to copy. This is a clean-room rebuild of the lighting ideas its Workshop page described, written against vanilla's own celestial systems and standard astronomy, and it deliberately leaves out the economy, material and structure changes that came bundled with the original.
+  I used LLMs to write the code and the thumbnail. I'm a software engineer, but not an artist.
 
 Requires Harmony.</description>
   <modDependencies>
