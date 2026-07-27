@@ -29,6 +29,10 @@
     <Compile Include="../../Source/Formulas.cs" Link="Formulas.cs" />
     <Compile Include="../../Source/PenumbraMath.cs" Link="PenumbraMath.cs" />
     <Compile Include="../../Source/MoonMath.cs" Link="MoonMath.cs" />
+    <!-- Subsystem 6b pure core (absolute illuminance in lux, and the shadow contrast that follows
+         from it). MoonMath depends on it for moon-shadow strength, and it depends on Formulas for
+         the shared refraction horizon — both already linked above. -->
+    <Compile Include="../../Source/IlluminanceMath.cs" Link="IlluminanceMath.cs" />
     <Compile Include="../../Source/NightRadianceMath.cs" Link="NightRadianceMath.cs" />
     <Compile Include="../../Source/PurkinjeMath.cs" Link="PurkinjeMath.cs" />
     <!-- §9's per-cell half. Depends on PurkinjeMath above for its lit-exempt anchor, so the two are
