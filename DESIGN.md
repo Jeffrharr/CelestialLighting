@@ -2110,3 +2110,48 @@ type/method/field these patches depend on still exists, including asserting
 divisor would silently desync seasons if that constant's value ever changed. Run `./test.sh` before
 loading the game after any RimWorld update — it runs both `ApiCompatibilityTests` and
 `FormulasTests` together.
+
+## Packaging and publishing (`publish.sh`)
+
+**Problem.** RimWorld's in-game Workshop uploader does not take a file list.
+`Verse.Steam.Workshop.SetWorkshopItemDataFrom` ends with
+`SteamUGC.SetItemContent(handle, hook.Directory.FullName)` — the mod directory root, recursively,
+no filter and no opt-out. This repo *is* that directory (the `Mods` entry is a symlink to it), so
+an in-game upload publishes `Source/`, `Tests/`, `Tools/`, `TestMod/`, the ~150KB `DESIGN.md`, the
+2.1MB `PreviewBig.png` (kept locally, never committed), `.git/`, and a `.pdb` whose portable-PDB
+metadata carries absolute `/home/deck/Developer/...` build paths. Roughly 600KB of mod inside tens
+of MB of scaffolding.
+
+**Approach.** `publish.sh` stages a whitelist into `dist/CelestialLighting/` and points both
+uploads at that tree rather than at the repo. The whitelist is the entire mod — `About/About.xml`,
+`About/Preview.png`, `About/PublishedFileId.txt`, `1.6/Assemblies/CelestialLighting.dll` and
+`LICENSE` — because this mod adds no defs, textures or sounds, only patches. `LICENSE` is there for
+MIT's one obligation: the notice has to accompany copies, and a subscriber's mod folder is their
+copy — About.xml naming MIT is discoverability, not the notice. Steam gets it via a generated
+`workshop.vdf` fed to `steamcmd +workshop_build_item`; GitHub gets the same tree zipped and
+attached to a release by `gh release create`.
+
+Two properties of that split are worth stating, because both are easy to get wrong later:
+
+- **The Workshop page survives a push untouched.** `SubmitItemUpdate` applies exactly the fields
+  that were `Set` on the update handle, and the VDF sets only `contentfolder` and `previewfile`.
+  Title, description and the `1.6` version tags that RimWorld's own uploader wrote are therefore
+  preserved. The corollary is that this path can never *add* a version tag: when 1.7 support lands,
+  the new tag needs one in-game upload or a manual edit on the Workshop page, or subscribers
+  filtering by version will not see the mod.
+- **Steam pushes stay local, GitHub releases could be automated.** The first `steamcmd +login` is
+  interactive because of Steam Guard; afterwards credentials cache and the script runs unattended.
+  Automating the Steam half from CI would mean committing a `config.vdf` session to a repo secret,
+  which trades a real credential for very little — so `--steam` is a local operation by design.
+
+Three guards, all covering failures that are silent at upload time:
+
+- A version directory in the repo that `About.xml` does not declare (or vice versa) aborts the run.
+  Shipping assemblies under an undeclared version means RimWorld never loads them; declaring a
+  version with no assemblies means the mod loads and does nothing.
+- A directory RimWorld treats as loadable content (`Defs`, `Textures`, `Sounds`, `Patches`,
+  `Languages`, `Sprites`, `AssetBundles`) that no whitelist entry draws from aborts the run. This
+  is the whitelist's one real hazard — add content, forget the manifest, publish a mod missing it —
+  and it stays invisible until users report it.
+- `--dry-run` writes `dist/workshop.vdf` and prints both upload commands without running them.
+  Both uploads are hard to walk back; this is the intended way to inspect what would ship.
