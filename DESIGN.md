@@ -1704,6 +1704,67 @@ The shadow-tilt subsystem deliberately avoids
 writing or shipping a custom shader — it only calls Unity's existing `MaterialPropertyBlock` API
 against RimWorld's own, already-compiled `MatBases.SunShadow` material.
 
+## Per-frame geometry memo (`GeometryMemo` / `FrameStamp`)
+
+**Problem.** Every subsystem above funnels through two adapters — `SolarPosition.InputsForMap` and
+`MoonPosition.SkyForMap` — and that funnel is deliberate: it is what stops two patches deriving
+slightly different suns (§1/§5) or moons (§6a). The cost is that both get called many times per
+frame with identical arguments, because three vanilla facts multiply the fan-out:
+
+- `Game.UpdatePlay` calls `MapUpdate()` on **every** loaded map, not only the current one.
+  `SkyManager.SkyManagerUpdate` gates its material/shader writes on `map == Find.CurrentMap`, but
+  `curSky = CurrentSkyTarget()` sits outside that gate.
+- `CurrentSkyTarget()` evaluates `WeatherWorker.CurSkyTarget` **twice** (current weather and last
+  weather) and lerps.
+- `GenCelestial.CurShadowStrength` runs twice per `SkyManagerUpdate` — once directly, once inside
+  `SetSunShadowVector`.
+
+Counted per map per frame, before the memo:
+
+| path | `InputsForMap` | `SkyForMap` |
+|---|---|---|
+| `CurSkyTarget` postfixes (§2, §8, §7, §13, §6a) × 2 weather workers | 14 | 2 |
+| `CurShadowStrength` → `Patch_ShadowStrength` × 2 (current map only) | 6 | 2 |
+| `SetSunShadowVector` → `Patch_ShadowDirection` (current map only) | 3 | 1 |
+| `DateReadout` HUD (current map only) | 1 | 1 |
+| `Patch_ShadowTilt`, **per visible section** (current map only) | 4 | 1 |
+
+The per-call work is not just trigonometry: `Find.WorldGrid.LongLatOf` → `PlanetLayer.GetTileCenter`
+is a managed→native `[BurstCompile]` transition, and `MoonPosition` paid for a second one on top of
+the one inside `InputsForMap`.
+
+**Approach.** A one-entry-per-map memo on exactly those two entry points, keyed on a
+`GeometryStamp` of `(frame, tick, variant, scalar)`. Both collapse to **1 evaluation per map per
+frame**. Nothing else is memoized — everything downstream already routes through these two, and
+`ElevationForMap` is a single trig call over the memoized `Inputs`.
+
+Why all four key fields, given both functions are "pure in `(map, tick)`":
+
+- **frame** (`Time.frameCount`) bounds staleness to one frame, so any input not named below
+  self-heals next frame. A tick-only key would cache forever while the game is paused.
+- **tick** (`TicksAbs`), because frame and tick are not locked together: at 3×/4× speed several
+  ticks run inside one frame, and while paused none do.
+- **variant**, packing the two dev-only warp flags (`SunClockAdapter.WarpEnabled`,
+  `MoonPosition.WarpMoonClock`) and the §14 `SunClockMode` setting. These are the inputs that are
+  neither map nor tick, and the live harness writes the warp flags mid-run.
+- **scalar**, the moon's synodic cycle position (sun passes 0), because the harness's eclipse
+  staging shifts the whole cycle by writing `GameComponent_MoonPhase.debugSynodicShiftTicks` —
+  changing the moon without changing the tick.
+
+The last two exist to answer a specific question rather than assume it away. `ScenarioDriver` runs
+exactly one step per frame from a `Root_Play.Update` postfix, so a probe always reads on a **later**
+frame than the `SetFeature` step that moved a flag, and a frame-keyed memo alone would already be
+correct today. Keying on the flag values themselves costs one `int` compare and stops that
+correctness from being a property of the harness's step scheduler. The one live-mutable input we
+cannot key on is the harness's own `Patch_ForcedLatitude` (it overrides `WorldGrid.LongLatOf`
+results, and the shipped mod cannot see `HarnessRuntime`) — that one is covered by the frame field,
+via the same one-step-per-frame guarantee.
+
+`GeometryMemo.cs` is `System`-only and linked into the test project; `FrameStamp.cs` is the thin
+Verse/Unity half that reads the frame, tick and flags — the same split as `SunClockMath` /
+`SunClockAdapter`. `GeometryMemoTests.cs` covers hits, per-map isolation, invalidation on each key
+field, and that a compute which throws caches nothing.
+
 ## Pure-function core (`Source/Formulas.cs`)
 
 Every formula above — latitude strength, the solar-position simulator (declination/elevation/

@@ -1,3 +1,4 @@
+using System;
 using RimWorld;
 using UnityEngine;
 using Verse;
@@ -11,6 +12,10 @@ namespace CelestialLighting;
 // independently-derived values disagreeing — which is exactly what let vanilla's moonlight curve
 // keep driving visible "moon shadows" at night even after Patch_ShadowDirection alone zeroed out
 // GetLightSourceInfo's own intensity field (see Patch_ShadowStrength for why that wasn't enough).
+//
+// InputsForMap is memoized per (map, frame) — see GeometryMemo.cs. Keep that the only entry point
+// that touches Find/GenDate/GenLocalDate: a caller that re-derives the sun outside it pays the full
+// per-frame cost the memo removes AND reopens the disagreement the paragraph above describes.
 public static class SolarPosition
 {
     public readonly struct Inputs
@@ -27,8 +32,24 @@ public static class SolarPosition
         }
     }
 
-    public static Inputs InputsForMap(Map map)
+    // Per-frame memo (issue #12; rationale in GeometryMemo.cs). This function is the single entry
+    // point every sun-reading patch funnels through, which is exactly why it was being evaluated 14
+    // times per map per frame on the CurSkyTarget path alone, with identical arguments — the fan-out
+    // is the design working, and the memo is what makes the fan-out cheap (DESIGN.md's
+    // "Per-frame geometry memo" has the full count). The value it caches is a plain readonly struct of
+    // three floats, so a hit hands back the same numbers a recompute would produce, bit for bit.
+    private static readonly GeometryMemo<Inputs> InputsMemo = new GeometryMemo<Inputs>();
+
+    // Held as a static delegate so the Get call below allocates nothing per frame.
+    private static readonly Func<Map, Inputs> ComputeInputs = ComputeInputsForMap;
+
+    public static Inputs InputsForMap(Map map) =>
+        InputsMemo.Get(map.uniqueID, FrameStamp.Current(), map, ComputeInputs);
+
+    private static Inputs ComputeInputsForMap(Map map)
     {
+        // Find.WorldGrid.LongLatOf is the expensive step, not the trigonometry below it: it goes
+        // through PlanetLayer.GetTileCenter, a managed->native [BurstCompile] call.
         Vector2 longLat = Find.WorldGrid.LongLatOf(map.Tile);
         float dayPercent = GenLocalDate.DayPercent(map);
         int dayOfYear = GenDate.DayOfYear(Find.TickManager.TicksAbs, longLat.x);

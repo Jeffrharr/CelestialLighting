@@ -491,6 +491,19 @@ public class ApiCompatibilityTests
         Assert.That(property, Is.Not.Null, "Map.Size no longer exists");
     }
 
+    [Test]
+    public void Map_UniqueID_Exists()
+    {
+        // Issue #12's per-frame geometry memo keys on this (GeometryMemo, via SolarPosition and
+        // MoonPosition). An int field, not a property — asserted as a field so a future change to a
+        // computed property is noticed rather than silently compiling.
+        var type = GetType("Verse.Map");
+        Assert.That(type, Is.Not.Null);
+        var field = type!.Fields.SingleOrDefault(f => f.Name == "uniqueID");
+        Assert.That(field, Is.Not.Null, "Map.uniqueID no longer exists — GeometryMemo keys on it");
+        Assert.That(field!.FieldType.FullName, Is.EqualTo("System.Int32"));
+    }
+
     // --- SectionLayer_SunShadows / SectionLayer / Section (Patch_ShadowTilt, Patch_ShadowMeshPerimeter) ---
 
     [Test]
