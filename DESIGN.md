@@ -384,9 +384,11 @@ derived by *inverting vanilla's own lerp* — `MoonMath.MoonShadowColorValue` so
 the zenith renders exactly `MoonShadowPeakDarkening` (0.25) darker than the lit ground.
 
 - **Fixing the input, not adding a second writer of `MatBases.SunShadow`.** Vanilla keeps the lerp, so
-  the moon's own strength keeps scaling the result — a half-lit moon reads at half the contrast with no
-  second curve to keep in sync — and the weather-event branch that skips the lerp and uses
-  `colors.shadow` directly stays correct too.
+  the moon's own strength keeps scaling the result — a weaker alpha reads at proportionally less
+  contrast with no second curve to keep in sync — and the weather-event branch that skips the lerp and
+  uses `colors.shadow` directly stays correct too. (What *sets* that alpha changed in §6b below: it is
+  now a brightness ratio rather than a phase-and-altitude ramp, so "a half-lit moon" no longer means
+  "half the alpha".)
 - **One owner per field.** Nothing else in the mod writes `colors.shadow`: §2 twilight, §8
   colour-temperature, §9 desaturation and §11/§12 all work on `colors.sky` / `overlay` / `saturation`.
   So there is no composition order to argue about, unlike §7a which had to inject after everything.
@@ -400,6 +402,96 @@ the zenith renders exactly `MoonShadowPeakDarkening` (0.25) darker than the lit 
 
 **Conflict risk.** Shares `WeatherWorker.CurSkyTarget` with five of our own postfixes and with any mod
 that recolours the sky; we touch only `.shadow`, which none of them do. Rendering-only.
+
+### 6b. Moon shadows fade in on a brightness ratio (`IlluminanceMath`)
+
+**Problem.** §6 and §6a between them computed a moon shadow and made it visible, but neither ever asked
+whether the sky was dark enough for one. "Is there a moon shadow" was a hard branch on the sun being
+below `Formulas.AtmosphericRefractionDegrees`, and the strength that followed was
+`ramp(moonElevation) · illuminatedFraction · MoonShadowMaxStrength` — a fact about the moon alone.
+
+Two things fell out of that, both visible in game:
+
+1. **The shadow switched on at sunset, at strength.** The gate opens at sun elevation −0.83°, where the
+   sky is still ~200 lux — roughly **750× brighter than a full moon**. The moon shadow appeared, at
+   whatever its altitude implied, over a ramp only 3° of moon elevation wide. `moon_sun_clock.json`
+   pinned that pop at hour 21.1 as a render of `0.801`, and §14's clock work had to spend a whole
+   subsystem's worth of argument bounding the resulting step rather than removing it.
+2. **Phase scaled the shadow linearly.** A half-lit moon cast exactly half the contrast, which is not
+   how either photometry or perception works.
+
+The underlying mistake is a units one, and it is worth stating plainly because it is the kind that
+hides for a long time. Every other brightness quantity in this mod is a normalized 0–1 scalar — sky
+glow, moonlight brightness, cloud opacity — which is fine while each subsystem only compares a value
+to itself, and useless the moment two *different* light sources have to be compared to each other.
+0–1 throws away the four orders of magnitude between sunlight and moonlight, so in those units the
+question "can this shadow be seen" has no answer and a gate is the only thing left to write.
+
+**Approach.** A new pure core, `IlluminanceMath`, works in absolute lux, and moon-shadow strength
+becomes the contrast the two sources actually produce:
+
+```
+ambientLux  = AmbientSkyLux(sunElevation)        // log-interpolated twilight curve
+moonLux     = FullMoonZenithLux · phase^3.5 · sin(moonElevation)
+strength    = moonLux / (moonLux + ambientLux) · MoonShadowMaxStrength
+```
+
+Shadowed ground receives the ambient; lit ground receives ambient + moon. Their ratio is the whole
+physical content of the subsystem, and it has the limits you want for free — approaching 1 when the
+moon dominates, 0 when it is drowned — with no threshold deciding where that happens.
+
+- **The sun's elevation is an input, not a gate.** Daylight washout is now something the model
+  *derives* (a midday full-moon shadow computes to ~0.000003 contrast) rather than something a branch
+  asserts. The sunset pop is gone because there is no longer a moment where anything switches: the
+  sun's own shadow ramp has reached 0 by the handover, and the moon's is still 0 for several degrees
+  after it. Measured on the shipped tile, a full moon's shadow first becomes perceptible around sun
+  **−6.5°** and saturates around **−11°**; a quarter moon, ~11× fainter, arrives near **−9°** and
+  saturates near **−15°**.
+- **Anchors are published photometry, log-interpolated.** 120,000 lux at zenith, 400 at the horizon,
+  3.4 at the end of civil twilight, 0.008 at nautical, 0.001 (starlight + airglow) at astronomical and
+  below, where it clamps. Twilight falls roughly a decade per 3–4°, so linear interpolation would put
+  the −3° sky at ~200 lux instead of ~37 and push the fade several degrees late.
+- **Phase is a power law, not a fraction.** A first-quarter moon is ~1/12 as bright as a full one, not
+  1/2 — the opposition surge plus shadowing on lunar relief. The exponent is derived from the
+  published magnitudes (−12.74 full vs −10.0 first quarter → 2.74 mag → 12.4×; `0.5^k = 1/12.4` gives
+  k ≈ 3.63, rounded to **3.5**), not tuned to taste.
+- **A deliberate behaviour change, pinned by a test.** Phase no longer dims the shadow proportionally
+  in full darkness: a half-lit moon now reads ~0.98 of a full moon's contrast rather than 0.50. That
+  is the correct physics — contrast is a ratio, and any caster well above the starlight floor casts a
+  near-full-contrast shadow. What a half moon actually costs is scene *brightness*, which is §7's to
+  own. Phase still matters at both ends: it sets when the shadow arrives during twilight, and a
+  ≤5%-lit crescent is genuinely dimmer than starlight and casts nothing.
+- **`MoonShadowMaxStrength` (0.28) survives as a look knob.** Physically a full moon in true darkness
+  is as dominant as the noon sun and its contrast approaches 1.0; a real moon shadow reads as faint
+  because the eye is dark-adapted and the whole scene is dim, which a monitor showing a brightened
+  night cannot reproduce. So the ratio sets the curve's *shape* and this constant its *amplitude*.
+  Before §6b it was quietly doing a second job — standing in for the washout the model could not
+  express — and it no longer is.
+- **A perceptibility gate, because a ratio is never exactly zero.** In daylight the strength is
+  0.0002, not 0, so `MoonPosition.ShadowForMap` would otherwise report a shadow at every moment of
+  every day and have §6a darkening `colors.shadow` for something invisible. Strengths that would
+  render below `WeatherDimmingMath.PerceptibleDarkening` (§13a's threshold, reused rather than
+  duplicated — it is a fact about vision, not about weather) truncate to 0.
+- **Cloud stays §13's.** `AmbientSkyLux` is a clear-sky curve on purpose. A cloud deck both darkens
+  the ground and destroys the direct beam, and folding both in here would let them partly cancel.
+  `WeatherDimmingMath.ShadowContrastFactor` already owns the beam half and `Patch_ShadowStrength`
+  applies it to whatever this returns.
+
+**What this cost elsewhere.** Three committed scenarios moved, all recomputed rather than
+re-toleranced: `moon_sun_clock.json`'s two handover pins (`0.801` and `0.881` → `1.0`),
+`sun_clock_realistic_moon.json`'s hour-20 probe (`0.80` → `1.0`), and
+`weather_shadow_visibility.json`'s gibbous night (`0.8531` → `0.8023`, the linear-phase term going
+away). The §14 handoff-step tests in `MoonSunClockTests` and `SunClockModeMoonTests` now assert the
+step is exactly **zero** instead of bounding it at the 0.155 single-clock baseline — §14's clock claim
+still rides on their `moon_elevation` assertions, and the strength ones became §6b guards.
+`sun_clock_realistic_moon.json`'s probe is a real loss of signal, noted in the file: at that tick
+realistic mode is genuinely night and *still* casts no shadow, because a 4°-high moon cannot compete
+with a 1 lux sky. `moon_shadow_twilight_fade.json` is the new scenario that pins the fade itself.
+
+**Conflict risk.** None new. `IlluminanceMath` is pure and referenced only by `MoonMath`; no new
+Harmony patch, no new vanilla member touched, and the three patches that consume moon shadows keep
+their existing branch structure — what changed is the value the shared `MoonPosition.ShadowForMap`
+adapter hands them.
 
 ### 7a. Pitch-black nights — visual overlay darkening (`Patch_PitchBlackOverlay`)
 
