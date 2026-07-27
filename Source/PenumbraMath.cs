@@ -18,13 +18,14 @@ namespace CelestialLighting;
 // lose contrast; a point-source model keeps them crisp all the way down, which reads wrong.
 //
 // We cannot blur the shadow-mesh edge itself without a custom shader (ruled out — see DESIGN.md's
-// clean-room provenance note), and it is unconfirmed whether MatBases.SunShadow's compiled shader
-// exposes any edge-softness uniform we could drive (the open question flagged for Patch_ShadowTilt).
-// So this file computes two things from one physical model:
+// clean-room provenance note), and MatBases.SunShadow's compiled shader exposes no edge-softness
+// uniform to drive instead: scanning the shipped resources.assets for issue #11 found that
+// "Custom/Sun shadow" declares only _CastVect and _Color, and that "_PenumbraSoftness" appears
+// nowhere in the game's assets at all. So this file computes two things from one physical model:
 //
-//   1. A dimensionless penumbra *softness* in [0, 1] (PenumbraSoftness) — the value we would feed a
-//      shader edge-softness uniform if one is ever confirmed to exist. Exposed now so a probe can
-//      pin it and a future shader hook can consume it, degrading to a silent no-op until then.
+//   1. A dimensionless penumbra *softness* in [0, 1] (PenumbraSoftness) — the dimensionless form of
+//      the physics, which PenumbraContrastFactor below is a fixed function of and which PenumbraProbe
+//      pins live. It is not pushed at any shader; there is no uniform to push it at.
 //   2. A shadow-opacity *contrast factor* in [1 - MaxContrastLoss, 1] (PenumbraContrastFactor) — a
 //      guaranteed-visible 2D approximation of the same effect that needs no shader property. As the
 //      penumbra widens, more of the shadow footprint is only partially shaded, so the shadow's
@@ -84,7 +85,8 @@ public static class PenumbraMath
     // 0 when the Sun is overhead (no penumbra), 0.5 at width == SoftnessHalfWidth, approaching 1 as
     // the penumbra grows without bound near the horizon. No hard cliff — a saturating curve rather
     // than a linear ramp against a reference width, so there is no discontinuity to tune around.
-    // This is the value a shader edge-softness uniform would consume directly.
+    // Consumed by PenumbraContrastFactor below and pinned live by PenumbraProbe; no shader reads it
+    // (RimWorld's sun-shadow shader has no edge-softness uniform — see the file header).
     public static float PenumbraSoftness(float elevationDegrees)
     {
         float width = PenumbraWidthPerHeight(elevationDegrees);
