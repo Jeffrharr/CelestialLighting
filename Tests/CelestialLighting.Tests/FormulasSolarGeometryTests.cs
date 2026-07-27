@@ -507,4 +507,236 @@ public class FormulasSolarGeometryTests
             }
         }
     }
+
+    // --- Baking §3's tilt into vertex alpha (issue #11) ---
+    //
+    // Every shipped staticSunShadowHeight in RimWorld 1.6, surveyed from the def XML rather than
+    // assumed — this is the set the quantization argument in Formulas has to hold for. (0 is by far
+    // the most common value, but a zero-height caster is skipped before it ever reaches the alpha.)
+    private static readonly float[] ShippedCasterHeights = { 0.15f, 0.17f, 0.2f, 0.3f, 0.35f, 0.5f, 1f };
+
+    [Test]
+    public void NormalizedShadowLengthScale_PutsTheFarEdgeAtExactlyOne()
+    {
+        // The whole point of the normalization: alpha is a byte, so the largest multiplier the mesh
+        // can carry is 1.0, and a height-1.0 caster (walls, rock) already spends all of it. If the
+        // far edge came out above 1 the bake would have to clip there, and the longest shadows on
+        // the map — the ones the effect is for — would show no gradient at all.
+        foreach (float maxVariation in new[] { 0f, 0.15f, 0.5f })
+            Assert.That(Formulas.NormalizedShadowLengthScale(1f, maxVariation),
+                Is.EqualTo(1f).Within(Tolerance), $"maxVariation {maxVariation}");
+    }
+
+    [Test]
+    public void NormalizedShadowLengthScale_PreservesTheFarOverNearRatio()
+    {
+        // Re-anchoring must not weaken the effect: what a player sees is the ratio across the map,
+        // and that has to survive the divide unchanged.
+        foreach (float maxVariation in new[] { 0.05f, 0.15f, 0.4f })
+        {
+            float rawRatio = Formulas.ShadowLengthScale(1f, maxVariation)
+                / Formulas.ShadowLengthScale(-1f, maxVariation);
+            float bakedRatio = Formulas.NormalizedShadowLengthScale(1f, maxVariation)
+                / Formulas.NormalizedShadowLengthScale(-1f, maxVariation);
+
+            Assert.That(bakedRatio, Is.EqualTo(rawRatio).Within(Tolerance), $"maxVariation {maxVariation}");
+        }
+    }
+
+    [Test]
+    public void NormalizedShadowLengthScale_NeverExceedsOne_ForAnyInput()
+    {
+        // Including unclamped fractions and a negative variation, because exceeding 1 here is what
+        // would push ShadowCasterAlphaByte into the clamp and silently flatten the gradient.
+        foreach (float maxVariation in new[] { -1f, 0f, 0.15f, 0.5f })
+        {
+            foreach (float fraction in new[] { -50f, -1f, 0f, 0.5f, 1f, 50f })
+            {
+                float scale = Formulas.NormalizedShadowLengthScale(fraction, maxVariation);
+                Assert.That(scale, Is.InRange(0f, 1f + 1e-5f), $"maxVariation {maxVariation}, fraction {fraction}");
+            }
+        }
+    }
+
+    [Test]
+    public void ShadowCasterAlphaByte_ClampsInsteadOfWrapping()
+    {
+        // The failure this guards is not cosmetic. A C# float->byte cast is unchecked, so the
+        // un-normalized 255 * 1.0 * 1.15 = 293 wraps to 37 — a wall's shadow would become a stub
+        // rather than merely clip. Anything at or over full scale must saturate at 255.
+        Assert.That(Formulas.ShadowCasterAlphaByte(1f, 1f), Is.EqualTo(255));
+        Assert.That(Formulas.ShadowCasterAlphaByte(1f, 1.15f), Is.EqualTo(255));
+        Assert.That(Formulas.ShadowCasterAlphaByte(4f, 3f), Is.EqualTo(255));
+        Assert.That(Formulas.ShadowCasterAlphaByte(0f, 1f), Is.EqualTo(0));
+        Assert.That(Formulas.ShadowCasterAlphaByte(-1f, 1f), Is.EqualTo(0));
+        Assert.That(Formulas.ShadowCasterAlphaByte(1f, -1f), Is.EqualTo(0));
+        Assert.That(Formulas.ShadowCasterAlphaByte(float.NaN, 1f), Is.EqualTo(0));
+    }
+
+    [Test]
+    public void ShadowCasterAlphaByte_MapsTheFullMapEdgeToEdgeRampWithoutClipping()
+    {
+        // Every shipped caster height, walked across the whole position range: the far edge must
+        // land on the height's own un-tilted alpha (that is what "anchored at the far edge" means)
+        // and the near edge must come out strictly shorter for anything tall enough to resolve.
+        foreach (float height in ShippedCasterHeights)
+        {
+            byte far = Formulas.ShadowCasterAlphaByte(
+                height, Formulas.NormalizedShadowLengthScale(1f, Formulas.ShadowLengthVariation));
+            byte near = Formulas.ShadowCasterAlphaByte(
+                height, Formulas.NormalizedShadowLengthScale(-1f, Formulas.ShadowLengthVariation));
+
+            Assert.That(far, Is.EqualTo(Formulas.ShadowCasterAlphaByte(height, 1f)), $"far edge, height {height}");
+            Assert.That(near, Is.LessThan(far), $"near edge not shorter, height {height}");
+        }
+    }
+
+    [Test]
+    public void ShadowCasterAlphaByte_IsMonotonicAcrossTheMap_ForEveryShippedCasterHeight()
+    {
+        // Quantization may flatten steps (two adjacent sections sharing a level is fine — the effect
+        // is already one value per 17-cell section) but it must never INVERT one, which would read
+        // as a shadow getting shorter as it moves away from the sun.
+        foreach (float height in ShippedCasterHeights)
+        {
+            byte previous = 0;
+            for (int step = 0; step <= 200; step++)
+            {
+                float fraction = -1f + step / 100f;
+                byte alpha = Formulas.ShadowCasterAlphaByte(
+                    height, Formulas.NormalizedShadowLengthScale(fraction, Formulas.ShadowLengthVariation));
+
+                Assert.That(alpha, Is.GreaterThanOrEqualTo(previous), $"height {height}, fraction {fraction}");
+                previous = alpha;
+            }
+        }
+    }
+
+    [Test]
+    public void ShadowCasterAlphaByte_QuantizationErrorIsBoundedByHalfALevel()
+    {
+        // The claim the rebake threshold is derived from: rounding (not vanilla's truncation) keeps
+        // the stored alpha within half a level of the exact value, for every shipped height. Half a
+        // level is 1/510 of the global extrusion vector — 0.03 cells at Formulas.MaxShadowLength.
+        foreach (float height in ShippedCasterHeights)
+        {
+            for (int step = 0; step <= 200; step++)
+            {
+                float scale = Formulas.NormalizedShadowLengthScale(-1f + step / 100f, Formulas.ShadowLengthVariation);
+                float exact = 255f * height * scale;
+
+                Assert.That(Formulas.ShadowCasterAlphaByte(height, scale), Is.EqualTo(exact).Within(0.5f),
+                    $"height {height}, scale {scale}");
+            }
+        }
+    }
+
+    [Test]
+    public void ShadowCasterAlphaByte_ShortestShippedCasterStillResolvesTheGradient()
+    {
+        // The specific worry issue #11 raised: does a 15% ramp stacked on a SHORT caster quantize
+        // away? At the shortest shipped height (0.15) the ramp still spans several levels, which is
+        // the resolution the effect actually needs — the gradient is quantized to ~15 sections along
+        // the axis of a 250-cell map, and it is the section grid, not the byte, that is coarser.
+        byte far = Formulas.ShadowCasterAlphaByte(
+            0.15f, Formulas.NormalizedShadowLengthScale(1f, Formulas.ShadowLengthVariation));
+        byte near = Formulas.ShadowCasterAlphaByte(
+            0.15f, Formulas.NormalizedShadowLengthScale(-1f, Formulas.ShadowLengthVariation));
+
+        Assert.That(far - near, Is.GreaterThanOrEqualTo(5), "0.15-height ramp collapsed into too few levels");
+    }
+
+    [Test]
+    public void ShadowAxisDeltaDegrees_MeasuresAngleAndIgnoresLength()
+    {
+        // Only the axis is baked; the vector's magnitude stays live in the shader global, so a sun
+        // that is only getting lower must not trigger a rebake.
+        Assert.That(Formulas.ShadowAxisDeltaDegrees(1f, 0f, 12f, 0f), Is.EqualTo(0f).Within(1e-3f));
+        Assert.That(Formulas.ShadowAxisDeltaDegrees(1f, 0f, 0f, 1f), Is.EqualTo(90f).Within(1e-3f));
+        Assert.That(Formulas.ShadowAxisDeltaDegrees(1f, 0f, -1f, 0f), Is.EqualTo(180f).Within(1e-3f));
+        Assert.That(Formulas.ShadowAxisDeltaDegrees(3f, 4f, 3f, 4f), Is.EqualTo(0f).Within(1e-3f));
+
+        // A degenerate vector means nothing is being drawn, so "not stale" is the cheap right
+        // answer — the alternative would rebake every check through a moonless night.
+        Assert.That(Formulas.ShadowAxisDeltaDegrees(0f, 0f, 1f, 0f), Is.EqualTo(0f));
+        Assert.That(Formulas.ShadowAxisDeltaDegrees(1f, 0f, 0f, 0f), Is.EqualTo(0f));
+    }
+
+    [Test]
+    public void ShadowAxisRebakeDegrees_KeepsBakedAlphaWithinOneLevel_OnSquareMaps()
+    {
+        // The derivation behind Formulas.ShadowAxisRebakeDegrees, executed rather than asserted in a
+        // comment: walk every section center of the shipped square map sizes, rotate the axis by the
+        // threshold, and check that no section's baked alpha for the tallest caster moves by more
+        // than one level. If someone widens the threshold to save rebakes, this is what fails.
+        foreach (int size in new[] { 200, 250, 275, 300 })
+        {
+            for (int sectionX = 0; sectionX * 17 < size; sectionX++)
+            {
+                for (int sectionZ = 0; sectionZ * 17 < size; sectionZ++)
+                {
+                    float offsetX = MathF.Min(sectionX * 17f + 8.5f, size) - size / 2f;
+                    float offsetZ = MathF.Min(sectionZ * 17f + 8.5f, size) - size / 2f;
+
+                    for (float azimuth = 0f; azimuth < 360f; azimuth += 1f)
+                    {
+                        Assert.That(AlphaDriftOverThreshold(offsetX, offsetZ, azimuth, size),
+                            Is.LessThanOrEqualTo(1),
+                            $"size {size}, offset ({offsetX}, {offsetZ}), azimuth {azimuth}");
+                    }
+                }
+            }
+        }
+    }
+
+    [Test]
+    public void ShadowAxisCheckDue_WakesUpOnABackwardsClockJump()
+    {
+        // The regression this exists for. A signed `current - last >= interval` reads a backwards
+        // jump as "no time has passed" and stays wedged until the clock ticks back past the old
+        // value — never, if the game is paused. A live scenario that jumped 17:00 -> 07:00 measured
+        // the shadow gradient still baked against the afternoon axis, i.e. inverted, because of it.
+        Assert.That(Formulas.ShadowAxisCheckDue(100_000, 125_000, 15), Is.True, "backwards jump");
+        Assert.That(Formulas.ShadowAxisCheckDue(125_000, 100_000, 15), Is.True, "forwards jump");
+        Assert.That(Formulas.ShadowAxisCheckDue(-30, -30, 15), Is.False, "no time passed");
+    }
+
+    [Test]
+    public void ShadowAxisCheckDue_ThrottlesWithinTheInterval_InEitherDirection()
+    {
+        // Paused games must stay free: the sun's position is a function of the tick, so a clock
+        // that has not moved cannot have made anything stale.
+        for (int delta = -14; delta <= 14; delta++)
+            Assert.That(Formulas.ShadowAxisCheckDue(1000 + delta, 1000, 15), Is.False, $"delta {delta}");
+
+        Assert.That(Formulas.ShadowAxisCheckDue(1015, 1000, 15), Is.True);
+        Assert.That(Formulas.ShadowAxisCheckDue(985, 1000, 15), Is.True);
+    }
+
+    [Test]
+    public void ShadowAxisCheckDue_ChecksOnTheFirstUpdateOfAFreshMap()
+    {
+        // MapComponent_SunShadowAxis seeds lastCheckedTick at -2 * interval precisely so tick 0 is
+        // already due — a fresh map must not wait a quarter second before it has an axis.
+        Assert.That(Formulas.ShadowAxisCheckDue(0, -30, 15), Is.True);
+    }
+
+    // Alpha levels a height-1.0 caster's baked value moves when the axis rotates by exactly the
+    // rebake threshold — i.e. the worst drift the mod ever leaves on screen.
+    private static int AlphaDriftOverThreshold(float offsetX, float offsetZ, float azimuthDegrees, int mapSize)
+    {
+        byte before = AlphaAt(offsetX, offsetZ, azimuthDegrees, mapSize);
+        byte after = AlphaAt(offsetX, offsetZ, azimuthDegrees + Formulas.ShadowAxisRebakeDegrees, mapSize);
+        return Math.Abs(before - after);
+    }
+
+    private static byte AlphaAt(float offsetX, float offsetZ, float azimuthDegrees, int mapSize)
+    {
+        float radians = azimuthDegrees * MathF.PI / 180f;
+        float fraction = Formulas.ShadowLengthPositionFraction(
+            offsetX, offsetZ, MathF.Sin(radians), MathF.Cos(radians), mapSize, mapSize);
+
+        return Formulas.ShadowCasterAlphaByte(
+            1f, Formulas.NormalizedShadowLengthScale(fraction, Formulas.ShadowLengthVariation));
+    }
 }

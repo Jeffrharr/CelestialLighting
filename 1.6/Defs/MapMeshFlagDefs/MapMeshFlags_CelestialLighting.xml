@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Defs>
+
+  <!-- A private map-mesh dirty flag, owned by this mod and subscribed to by exactly one layer
+       (SectionLayer_SunShadows, via Patch_SunShadowAxisInvalidation).
+
+       Why a whole new flag instead of reusing MapMeshFlagDefOf.Buildings: the sun-shadow mesh has
+       to be rebuilt whenever the shadow AXIS moves far enough for its baked per-section length
+       variation to go stale (DESIGN.md section 3), which happens ~720 times a game day. Raising
+       `Buildings` that often would drag seven other section layers along with it — see the
+       flag-to-layers table in DESIGN.md section 16 — for a change that can only ever affect this
+       one. A dedicated flag reuses vanilla's own invalidation machinery (including its "only
+       regenerate sections the camera can see" deferral) while touching nothing else.
+
+       MapMeshFlagDef derives its bitmask from its def index (FlagDefUtility.SetMaskFromIndex), so
+       this simply takes the next free bit after vanilla's 15. No label is needed: the flag is never
+       shown to the player. -->
+  <MapMeshFlagDef>
+    <defName>CL_SunShadowAxis</defName>
+  </MapMeshFlagDef>
+
+</Defs>

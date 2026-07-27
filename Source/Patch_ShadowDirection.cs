@@ -23,8 +23,10 @@ namespace CelestialLighting;
 // NOTE: __result.intensity here does NOT control whether a shadow is actually visible in-game —
 // the shadow shader's alpha comes from a separate call to GenCelestial.CurShadowStrength(map),
 // patched independently by Patch_ShadowStrength using the same SolarPosition.ElevationForMap so
-// the two never disagree. This field is still set for Patch_ShadowTilt, which reads it back from
-// this same patched call rather than calling CurShadowStrength a second time itself.
+// the two never disagree. This field is still set because MapComponent_SunShadowAxis reads it back
+// from this same patched call — it uses the intensity to tell "a shadow is on screen and its axis
+// can go stale" from "nothing is drawn, so do not rebake" — rather than calling CurShadowStrength a
+// second time itself.
 [HarmonyPatch(typeof(GenCelestial), nameof(GenCelestial.GetLightSourceInfo))]
 public static class Patch_ShadowDirection
 {
@@ -73,7 +75,9 @@ public static class Patch_ShadowDirection
     // here so the sun's shadow and the moon's are scaled identically — "Shadow length" means the same
     // thing at midnight as at noon — and so the knobs are applied in exactly one place per patch.
     // Patch_ShadowStrength applies the same strength knob to CurShadowStrength, which is the alpha the
-    // shader actually renders with; Patch_ShadowTilt inherits it for free by reading this intensity.
+    // shader actually renders with. The vector written here is also the axis section 3's per-section
+    // shadow tilt is baked against (MapComponent_SunShadowAxis), so the "Shadow length" slider moves
+    // the tilt's reference axis in lockstep with the shadow it scales, for free.
     private static void Apply(ref GenCelestial.LightInfo info, float x, float y, float intensity)
     {
         Formulas.ShadowVector scaled = Formulas.ScaleShadowVector(x, y, ShadowSettings.LengthScale);

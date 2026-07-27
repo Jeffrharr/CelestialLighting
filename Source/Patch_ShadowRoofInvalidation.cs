@@ -48,7 +48,7 @@ namespace CelestialLighting;
 public static class Patch_ShadowRoofInvalidation
 {
     // SectionLayer_SunShadows is internal, so it can only be named by string — the same reason
-    // Patch_ShadowMeshPerimeter and Patch_ShadowTilt both use AccessTools.TypeByName.
+    // Patch_ShadowMeshPerimeter and Patch_SunShadowAxisInvalidation both use AccessTools.TypeByName.
     static MethodBase TargetMethod() =>
         AccessTools.Constructor(
             AccessTools.TypeByName("Verse.SectionLayer_SunShadows"), new[] { typeof(Section) });

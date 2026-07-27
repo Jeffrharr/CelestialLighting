@@ -44,6 +44,7 @@
     <Compile Include="../Source/Probes/EaveCellProbe.cs" Link="EaveCellProbe.cs" />
     <Compile Include="../Source/Probes/SectionRegenerateTimingProbe.cs" Link="SectionRegenerateTimingProbe.cs" />
     <Compile Include="../Source/Probes/GeometryEvalCountProbe.cs" Link="GeometryEvalCountProbe.cs" />
+    <Compile Include="../Source/Probes/ShadowExtrusionProbe.cs" Link="ShadowExtrusionProbe.cs" />
   </ItemGroup>
 
   <ItemGroup>

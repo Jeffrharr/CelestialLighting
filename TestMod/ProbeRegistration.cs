@@ -68,13 +68,23 @@ public static class ProbeRegistration
         ProbeRegistry.Register(new SectionRegenerateTimingProbe(
             "regen_us_eave_shade", "CelestialLighting.SectionLayer_EaveShade"));
 
+        // #11: does §3's shadow tilt actually render? Three probes because a ratio alone cannot say
+        // whether both ends were measured at all — the two lengths in cells are what make a 1.0
+        // ratio readable as "inert" rather than "both sentinels". See ShadowExtrusionProbe's header
+        // for why this reads baked vertex alpha instead of screenshot pixels.
+        ProbeRegistry.Register(new ShadowExtrusionProbe(
+            "shadow_extrude_far_cells", ShadowExtrusionProbe.Metric.FarEdgeCells));
+        ProbeRegistry.Register(new ShadowExtrusionProbe(
+            "shadow_extrude_near_cells", ShadowExtrusionProbe.Metric.NearEdgeCells));
+        ProbeRegistry.Register(new ShadowExtrusionProbe(
+            "shadow_extrude_ratio", ShadowExtrusionProbe.Metric.FarOverNear));
+
         // #12/PR #18: how many times per frame solar and lunar geometry is asked for, and how many
         // times it is actually derived. Eleven probes rather than one because the whole claim is the
         // gap between those two series — a single "evaluations" number could not distinguish a memo
         // that works from a caller that stopped asking. Mean and max are both reported for each: the
-        // mean is the steady frame, the max is the frame that also regenerated visible sections
-        // (Patch_ShadowTilt is per visible section) and is where any tick-boundary double-evaluation
-        // would surface. See GeometryEvalCountProbe's header for why this counts instead of timing.
+        // mean is the steady frame, the max is the frame that also regenerated visible sections and
+        // is where any tick-boundary double-evaluation would surface. See GeometryEvalCountProbe's header for why this counts instead of timing.
         GeometryEvalCounters.Install();
         ProbeRegistry.Register(new GeometryEvalCountProbe(
             "geom_solar_calls_mean", GeometryEvalCountProbe.Metric.SolarCallsMean));
