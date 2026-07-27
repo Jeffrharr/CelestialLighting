@@ -3,6 +3,10 @@
   <name>Celestial Lighting</name>
   <author>Joof</author>
   <packageId>joof.celestiallighting</packageId>
+  <!-- Shown as a clickable link in the in-game mod list. ModMetaData has no license field, so the
+       repo link is the only structured place the licence terms can be reached from in-game; the
+       description's reuse answer names MIT directly. -->
+  <url>https://github.com/Jeffrharr/CelestialLighting</url>
   <supportedVersions>
     <li>1.6</li>
   </supportedVersions>
@@ -68,7 +72,8 @@ Q. Known conflicts?
 
 Q. Can I use pieces of this mod in my work?
 	
-  Absolutely. https://github.com/Jeffrharr/CelestialLighting
+  Absolutely — it's MIT licensed, so take whatever's useful, no permission needed.
+  https://github.com/Jeffrharr/CelestialLighting
 
 Q. Did you use AI to create any part of this mod?
 
