@@ -16,6 +16,7 @@ public static class ProbeRegistration
     static ProbeRegistration()
     {
         ProbeRegistry.Register(new ShadowLeanProbe());
+        ProbeRegistry.Register(new ShadowVectorXProbe());
         ProbeRegistry.Register(new CivilTwilightProbe());
         ProbeRegistry.Register(new PenumbraProbe());
         ProbeRegistry.Register(new MoonIlluminationProbe());

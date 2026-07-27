@@ -74,6 +74,13 @@ backwards across every map. Nothing downstream flipped it back
 (`ShadowVectorFromSunPosition` negates east and north together, `Patch_ShadowDirection` passes `X`
 straight into `info.vector.x`), so the formula sign was the on-screen sign.
 
+Vanilla settles the axis question independently, which is worth writing down because it was the
+open half of this for months. `GenCelestial.GetLightSourceInfo`'s own daytime branch is
+`num4 = Mathf.LerpUnclamped(-15f, 15f, dayPercent)`, assigned straight to `result.vector.x` — so
+vanilla throws morning shadows toward **negative** X and afternoon shadows toward positive X. That
+is RimWorld stating its own convention in code: `+X` is east and its sun rises there. Our fixed
+azimuth now agrees with vanilla's sign at every hour; the pre-fix version disagreed with it all day.
+
 Worth recording *how* it survived: the solar-geometry suite was thorough but every azimuth
 assertion was symmetric about noon (`SolarAzimuth_MirrorsAcrossNoon`) or evaluated at noon itself,
 where the sign cancels. A mirrored sky satisfies all of them. It took someone noticing the
@@ -81,6 +88,22 @@ shadows in a screenshot. The fix added `SolarAzimuth_SunRisesInTheEast` and
 `ShadowVector_PointsWestAtSunriseAndEastAtSunset`, which are asymmetric by construction and can
 only pass one way round — the general lesson being that a symmetry test never pins an orientation,
 and orientation needs its own anchor.
+
+Live-verified by `Tests/Scenarios/sun_handedness.json` (lat 55, equinox), run A/B against builds
+differing only in that sign:
+
+| clock | fixed | pre-fix | elevation |
+|---|---|---|---|
+| 08:00 | `shadow_vector_x = -2.2799` | `+2.2799` | 24.7819 (both) |
+| 12:00 | `0` | `0` | 35.0000 (both) |
+| 16:00 | `+2.2799` | `-2.2799` | 24.7819 (both) |
+
+Elevation and noon are untouched, which is the point: the bug was purely azimuthal, so a suite that
+only ever checked height or noon could not see it. Note the magnitudes are not what naive
+`hour/24` solar geometry predicts (±4.2276) — §14's `SunClockAdapter.EffectiveDayPercent` warps the
+day percent so our physical sun crosses the horizon when vanilla's sky does, compressing the hour
+angle symmetrically about noon (08:00 lands at |H| = 43.05°, not 60°). Anyone recomputing these
+pins by hand must apply that warp or they will "find" a discrepancy that isn't there.
 
 `Patch_ShadowTilt` (below) reads `lightInfo.intensity` from the same patched call rather than a
 second, independent `GenCelestial.CurShadowStrength(map)` call, so its per-section length scaling
