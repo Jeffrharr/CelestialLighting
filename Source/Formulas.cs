@@ -189,10 +189,13 @@ public static class Formulas
     // hour angle directly, which still sweeps smoothly through the day instead of holding still or
     // dividing by zero.
     //
-    // NOTE: which literal world axis (+X vs -X) this maps to "compass east" hasn't been confirmed
-    // against RimWorld's actual world-space convention from decompiled code alone — verify in-game
-    // that shadows sweep the expected way (e.g. morning shadows pointing toward the map's west
-    // edge) and flip the sign in ShadowVectorFromSunPosition below if it's mirrored.
+    // HANDEDNESS (settled — this was an open question until it showed up on screen): +X is compass
+    // east, and the sun must rise there. The leading minus on sinAz is what makes that true and is
+    // NOT optional: HourAngleDegrees is negative before noon, so without it sin(H) < 0 drags the
+    // morning azimuth to 270 (west) and the sun runs backwards across the sky all day. We shipped
+    // that mirrored for a while — nothing downstream flips the axis back (ShadowVectorFromSunPosition
+    // negates both components equally, and Patch_ShadowDirection passes X straight to info.vector.x),
+    // so a sign here is a sign on screen. SolarAzimuth_SunRisesInTheEast pins it.
     public static float SolarAzimuthDegrees(float latitudeDegrees, float declinationDegrees, float elevationDegrees, float dayPercent)
     {
         float latRad = ToRadians(latitudeDegrees);
@@ -202,10 +205,13 @@ public static class Formulas
 
         float cosLat = MathF.Cos(latRad);
         float cosEl = MathF.Cos(elRad);
+        // Negated for the same reason sinAz is: the fallback has to sweep the same direction as the
+        // formula it stands in for, or the shadow reverses course at exactly the latitudes where the
+        // sun circles the horizon all day and the sweep is the only motion there is to see.
         if (Abs(cosLat) < 0.0001f || Abs(cosEl) < 0.0001f)
-            return NormalizeDegrees(HourAngleDegrees(dayPercent));
+            return NormalizeDegrees(-HourAngleDegrees(dayPercent));
 
-        float sinAz = MathF.Cos(declRad) * MathF.Sin(hourAngleRad) / cosEl;
+        float sinAz = -MathF.Cos(declRad) * MathF.Sin(hourAngleRad) / cosEl;
         float cosAz = (MathF.Sin(declRad) - MathF.Sin(latRad) * MathF.Sin(elRad)) / (cosLat * cosEl);
         return ToDegrees(MathF.Atan2(sinAz, cosAz));
     }
