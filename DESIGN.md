@@ -131,7 +131,7 @@ Skylights) see an unmodified brightness; we only warm the *hue* of the darkening
 with the planned §7 night-radiance floor (which sets night brightness) rather than fighting it — §2
 tints, §7 will light.
 
-## 3. Shadow tilt across the map (`Patch_ShadowTilt`) — experimental
+## 3. Shadow tilt across the map (`Patch_ShadowTilt`)
 
 The user asked whether shadows could be made subtly longer on one side of the map than the other
 (a per-position variant of effect 1, at colony-map scale rather than map-tile-of-the-world scale).
@@ -149,16 +149,51 @@ To vary shadow length by position without writing a custom shader or shipping an
 direction, magnitude scaled ±15% based on how far the section sits from the map center along the
 shadow axis, using the map's actual runtime size — no hardcoded map dimensions).
 
-This depends on `_CastVect` being a real per-material shader property (not only a value set via
-`Shader.SetGlobalVector` with no corresponding `Properties {}` entry) so a
-`MaterialPropertyBlock` override can win over the global for one draw call. The compiled shader
-asset isn't inspectable from decompiled C#, so this is unverified until tested in-game. The
-failure mode is safe: `MaterialPropertyBlock.SetVector` on an undeclared property name is a silent
-Unity no-op — every section falls back to rendering with the global vector, i.e. exactly vanilla's
-uniform look, no exception, no visual glitch. **Verify by loading a large map and comparing shadow
-length near opposite map edges at a low sun angle; if there's no visible difference, this
-subsystem is inert and should be considered deferred pending an actual shader edit, not treated as
-broken.**
+### What the shipped shader actually declares (issue #11)
+
+The compiled shader isn't visible from decompiled C#, but it *is* visible in
+`RimWorldLinux_Data/resources.assets`, which was scanned directly to settle this. Findings:
+
+- `MatBases.SunShadow`'s shader is **`Custom/Sun shadow`**, and it declares **no** `Properties {}`
+  entry for `_CastVect`. The literal string `_CastVect` occurs five times in the whole asset file:
+  twice inside the `SunShadow` / `SunShadowFade` materials' serialized `m_SavedProperties`, and three
+  times inside compiled shader blobs, as a member of the `$Globals` constant buffer. It never occurs
+  as a `SerializedProperty` name/description pair (the form real `Properties {}` entries take, e.g.
+  `_SwayHead` + `Sway head`). So it is a plain program uniform fed by `Shader.SetGlobalVector`.
+- The vertex program is, in effect,
+  `position.xyz = in_COLOR0.www * _CastVect.xyz + in_POSITION0.xyz` — **`_CastVect.xyz` is the
+  extrusion vector**, direction and length together, scaled per vertex by the caster-height alpha
+  `Regenerate()` bakes into the mesh colours. Rescaling it is exactly what this subsystem wants, and
+  it is genuinely consumed.
+- **`_CastVect.w` is read by nothing.** The fragment program emits `_Color`. This is the whole reason
+  the earlier live A/B (`Tests/Scenarios/penumbra_lowsun`), which folded shadow opacity into a
+  per-section `_CastVect.w`, produced zero visible change — opacity lives in the material colour
+  `SkyManager` lerps, so `.w` was always a dead channel. That result therefore says *nothing* about
+  whether the property block binds; it only proved `.w` is unused. Opacity lives in
+  `Patch_ShadowStrength` now, which is correct.
+- **`_PenumbraSoftness` does not appear anywhere in the game's assets.** The `MaterialPropertyBlock`
+  float that used to be pushed under that name was provably a silent no-op and has been deleted,
+  along with the per-section `SolarPosition.ElevationForMap` call that existed only to feed it.
+
+**Residual uncertainty, stated plainly.** Whether a `MaterialPropertyBlock` can override a `$Globals`
+uniform that the shader never declared in `Properties {}` is engine behaviour, not something readable
+out of the asset file. The evidence leans strongly toward yes: the per-draw constant buffer has to be
+filled by resolving every `$Globals` member *by name* against (property block → material sheet →
+global sheet), because that is the only way engine-supplied uniforms like `unity_MatrixVP` and
+`unity_FogColor` — likewise never in a `Properties {}` block — get any value at all. The apparent
+counter-example is that the shipped `SunShadow` material carries a baked `_CastVect` of
+`(-3.145, 0, -1.147, 0)` which demonstrably does *not* freeze in-game shadows; that is explained by a
+`Material`'s own sheet being reconciled against its shader's declared property list on load, a
+reconciliation a `MaterialPropertyBlock` (bound to no shader) never undergoes. **The decisive check
+is still a live edge-vs-centre shadow-length diff at low sun.** Until that is run, the subsystem
+stays rather than being deleted on an inference. The failure mode is safe either way:
+`MaterialPropertyBlock.SetVector` on an unbound name is a silent Unity no-op — every section falls
+back to the global vector, i.e. exactly vanilla's uniform look, no exception, no visual glitch.
+
+**Cost.** The per-draw property block defeats Unity's draw batching for shadow sections: roughly 6
+(close zoom) to 30 (zoomed out) shadow draws per frame stop merging, against RimWorld's existing
+several-hundred-draw baseline. Unprofiled; estimated well under 0.2 ms/frame. That is the price of
+the effect, and it disappears with the patch if the live diff ever shows the override doesn't bind.
 
 ### Angular-size penumbra — softening shadow edges near the horizon (`PenumbraMath`)
 
@@ -179,24 +214,26 @@ zero. A saturating map `w/(w+k)` turns that into a bounded softness in [0, 1].
 Two consumers, one physical model:
 
 - **Shipped, guaranteed-visible:** `PenumbraContrastFactor` (1 at high Sun, floored at
-  `1 − MaxContrastLoss` = 0.4 near the horizon) multiplies the per-section shadow opacity in
-  `Patch_ShadowTilt`'s draw path. A wider penumbra means a larger partially-shaded fraction of the
-  footprint, i.e. a lower-contrast, washed-out shadow — approximated in the opacity channel the
-  sun-shadow shader already reads, needing no shader property. Outright disappearance at the horizon
-  stays `ShadowIntensityFromElevation`'s job; the two compose by multiplication. Elevation comes from
-  the shared `SolarPosition.ElevationForMap`, so this reads the exact same Sun position as
+  `1 − MaxContrastLoss` = 0.4 near the horizon) multiplies shadow opacity in `Patch_ShadowStrength`
+  (`GenCelestial.CurShadowStrength`), the value `SkyManager` lerps `MatBases.SunShadow.color` by. A
+  wider penumbra means a larger partially-shaded fraction of the footprint, i.e. a lower-contrast,
+  washed-out shadow — approximated in the opacity channel the sun-shadow shader already reads,
+  needing no shader property. Outright disappearance at the horizon stays
+  `ShadowIntensityFromElevation`'s job; the two compose by multiplication. Elevation comes from the
+  shared `SolarPosition.ElevationForMap`, so this reads the exact same Sun position as
   `Patch_ShadowDirection`/`Patch_ShadowStrength`.
-- **Forward hook, no-op-safe:** `PenumbraSoftness` is also pushed into a `_PenumbraSoftness`
-  `MaterialPropertyBlock` float. **Blocker (same as the `Patch_ShadowTilt` `_CastVect` caveat):** we
-  can't confirm from decompiled C# whether `MatBases.SunShadow`'s compiled shader exposes an
-  edge-softness uniform. `MaterialPropertyBlock.SetFloat` on an undeclared name is a silent Unity
-  no-op, so this drives a true geometric edge blur *if and only if* such a uniform is ever confirmed,
-  and otherwise does nothing — the contrast attenuation above is what actually ships. Verify in-game
-  (or by inspecting the shader asset) before assuming the mesh edge itself blurs.
+- **No geometric edge blur, and no hook for one.** `PenumbraSoftness` used to also be pushed into a
+  `_PenumbraSoftness` `MaterialPropertyBlock` float in `Patch_ShadowTilt`, as a forward hook for a
+  shader that might one day declare such a uniform. Issue #11 settled that by scanning
+  `resources.assets`: the string `_PenumbraSoftness` appears nowhere in the game, so the push was a
+  guaranteed silent no-op and has been removed. `PenumbraSoftness` remains as the dimensionless form
+  of the physics — `PenumbraContrastFactor` is a fixed function of it, and `PenumbraProbe` pins it
+  live — but nothing pushes it at a shader. A true mesh-edge blur would need a shipped custom shader,
+  which is ruled out.
 
-Conflict risk: none beyond `Patch_ShadowTilt`'s existing profile — this only scales the opacity
-component of the same per-section draw and adds one no-op-safe float; it touches no new vanilla
-member (so no `ApiCompatibilityTests` addition is needed). Clean-room: solar angular diameter and
+Conflict risk: none of its own — the contrast factor rides `Patch_ShadowStrength`'s existing
+`CurShadowStrength` Postfix and touches no new vanilla member (so no `ApiCompatibilityTests`
+addition is needed). Clean-room: solar angular diameter and
 umbra/penumbra limb geometry are standard textbook astronomy/optics, not derived from any external
 mod. Visual only — no gameplay effect.
 

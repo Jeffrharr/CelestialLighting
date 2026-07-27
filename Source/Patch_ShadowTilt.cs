@@ -7,8 +7,8 @@ using Verse;
 
 namespace CelestialLighting;
 
-// EXPERIMENTAL — see DESIGN.md "Shadow tilt across the map" for the full writeup, including why
-// this might silently do nothing depending on how MatBases.SunShadow's shader is authored.
+// See DESIGN.md "Shadow tilt across the map" for the full writeup, including the shader evidence
+// summarised below.
 //
 // Vanilla draws every section's sun-shadow mesh with the exact same shadow vector, because
 // SkyManager.SetSunShadowVector sets it via Shader.SetGlobalVector — one value for the whole map,
@@ -18,27 +18,60 @@ namespace CelestialLighting;
 // This patch replaces SectionLayer_SunShadows.DrawLayer() so each section draws its shadow mesh
 // with its own MaterialPropertyBlock carrying a slightly rescaled shadow vector (same direction,
 // length nudged up or down a few percent depending on where the section sits along the shadow
-// axis). This relies on the shader's "_CastVect" being declared as a real per-material property
-// (not only a global set via Shader.SetGlobalVector) so a MaterialPropertyBlock can override it
-// per draw call — we can't inspect the compiled shader asset from decompiled C# to confirm that
-// ahead of time. If it isn't a real per-material property, MaterialPropertyBlock.SetVector on an
-// undeclared name is a silent no-op in Unity: every section still renders with the global vector,
-// i.e. this degrades to exactly vanilla's uniform look, with no exception and no visual glitch.
-// Verify in-game (see DESIGN.md) before assuming this looks any different from vanilla.
+// axis).
+//
 // SectionLayer_SunShadows is `internal`, so it can't be named directly (typeof(...) or as a
 // parameter type) from this assembly — TargetMethod() looks it up by name instead, and the
 // Prefix below takes its public base class SectionLayer_Dynamic, which Harmony accepts since the
 // runtime instance is still the internal subclass.
 //
-// NOTE (verified live 2026-07): the angular-size penumbra OPACITY effect used to be folded into the
-// per-section _CastVect.w below, and a live A/B (CelestialLighting/Tests/Scenarios/penumbra_lowsun)
-// showed it produced *zero* visible change — confirming the "might silently do nothing" warning
-// above, at least for opacity. Opacity was moved to Patch_ShadowStrength (the global material-colour
-// channel). The per-section LENGTH VARIATION that remains here rides the SAME _CastVect MPB override,
-// so it is very likely ALSO inert — it has NOT been separately verified in-game. TODO: confirm the
-// length variation actually renders (author a live scenario that reads a per-edge shadow length, or
-// diffs a shadow near the map edge vs centre) and, if it's a no-op, remove it rather than shipping
-// dead experimental code. Tracked separately from the penumbra fix.
+// --- SHADER EVIDENCE (issue #11, 2026-07) — this used to be guesswork; it is now read off the
+// shipped asset. Scanning RimWorldLinux_Data/resources.assets:
+//
+//   * The material MatBases.SunShadow loads is bound to the shader "Custom/Sun shadow", whose
+//     Properties {} block does not declare _CastVect at all. The literal string "_CastVect" occurs
+//     exactly five times in the whole asset file: twice in the SunShadow / SunShadowFade materials'
+//     serialized m_SavedProperties, and three times inside compiled shader blobs (as a member of the
+//     "$Globals" constant buffer). It never occurs as a SerializedProperty name/description pair
+//     ("_SwayHead" + "Sway head", "_Rotation" + "Rotation", ...), which is how a real Properties {}
+//     entry is stored. So _CastVect is a plain program uniform fed by Shader.SetGlobalVector.
+//
+//   * The vertex program amounts to
+//         position.xyz = in_COLOR0.www * _CastVect.xyz + in_POSITION0.xyz
+//     — _CastVect.xyz *is* the extrusion vector: direction and length together, scaled per vertex by
+//     the caster-height alpha SectionLayer_SunShadows.Regenerate() bakes into the mesh colours.
+//     Rescaling that vector is precisely the knob this patch wants, and it is genuinely consumed.
+//
+//   * _CastVect.w is read by nothing. The fragment program emits _Color. That — not an inert
+//     property block — is the entire explanation for the earlier live A/B
+//     (Tests/Scenarios/penumbra_lowsun), where folding shadow opacity into a per-section _CastVect.w
+//     produced *zero* visible change: opacity lives in the material colour SkyManager lerps, so .w
+//     was always a dead channel. That experiment therefore proves nothing about whether the property
+//     block binds. Opacity now lives in Patch_ShadowStrength, which is the correct home for it.
+//
+//   * "_PenumbraSoftness" does not occur anywhere in the game's assets. The forward hook that used to
+//     push it here was provably a silent no-op and has been deleted rather than left to mislead.
+//
+// --- RESIDUAL UNCERTAINTY, stated plainly. Whether a MaterialPropertyBlock can override a $Globals
+// uniform the shader never declared in Properties {} is engine behaviour, not something readable out
+// of the asset file. The evidence leans strongly toward "yes": the per-draw constant buffer must be
+// filled by resolving every $Globals member *by name* against (property block -> material sheet ->
+// global sheet), because that is the only way engine-supplied uniforms such as unity_MatrixVP and
+// unity_FogColor — likewise never in a Properties {} block — get any value at all. The apparent
+// counter-example is that the shipped SunShadow material carries a baked _CastVect of
+// (-3.145, 0, -1.147, 0) which demonstrably does *not* freeze in-game shadows; that is explained by a
+// Material's own sheet being reconciled against its shader's declared property list when it loads,
+// a reconciliation a MaterialPropertyBlock (which is bound to no shader) never undergoes.
+// The decisive check is still a live edge-vs-centre shadow-length diff at low sun. Until someone runs
+// it this stays, rather than being deleted on an inference. The failure mode remains safe either way:
+// if the override does not bind, every section renders with the global vector — exactly vanilla's
+// uniform look, no exception and no visual glitch.
+//
+// --- COST. The per-draw property block defeats Unity's draw batching for shadow sections: roughly
+// 6 (close zoom) to 30 (zoomed out) shadow draws per frame stop merging, against RimWorld's existing
+// several-hundred-draw baseline. Unprofiled, estimated well under 0.2 ms/frame. That is the price of
+// the effect; if the live diff ever shows the override does not bind, delete this whole file and the
+// cost goes with it.
 [HarmonyPatch]
 public static class Patch_ShadowTilt
 {
@@ -55,17 +88,6 @@ public static class Patch_ShadowTilt
     // Reused across draw calls instead of allocated per-section per-frame; Clear() resets it
     // before each SetVector so state never leaks between sections.
     private static readonly MaterialPropertyBlock PropBlock = new MaterialPropertyBlock();
-
-    // Forward hook for a true geometric edge blur. If MatBases.SunShadow's compiled shader ever
-    // exposes an edge-softness uniform under this name, the per-section PenumbraMath.PenumbraSoftness
-    // value we push below will drive it for free. Until then SetFloat on an undeclared property is a
-    // silent Unity no-op (same safe-degradation guarantee as _CastVect in Patch_ShadowTilt's
-    // MapSunLightDirection override), so the shipped, guaranteed-visible softening is the opacity
-    // contrast attenuation folded into shadowStrength — not this uniform. We cannot inspect the
-    // compiled shader asset from decompiled C# to confirm the property exists; this is the blocker
-    // recorded in the issue and DESIGN.md, deliberately left as a no-op-safe hook rather than a
-    // hard dependency.
-    private static readonly int PenumbraSoftnessId = Shader.PropertyToID("_PenumbraSoftness");
 
     static bool Prefix(SectionLayer_Dynamic __instance)
     {
@@ -89,24 +111,17 @@ public static class Patch_ShadowTilt
         // Shadow OPACITY — including the angular-size penumbra attenuation near the horizon — is
         // handled globally in Patch_ShadowStrength (GenCelestial.CurShadowStrength), which is the
         // value SkyManager lerps MatBases.SunShadow.color by and is what actually darkens the ground.
-        // A live A/B proved that scaling this per-section _CastVect.w changes nothing visible (the
-        // shader reads the global material colour, not a per-draw _CastVect.w), so it just carries
-        // lightInfo.intensity through unchanged — matching what vanilla would write there.
-        float elevation = SolarPosition.ElevationForMap(map);
+        // The shader never reads _CastVect.w at all (see the shader-evidence note above), so this
+        // just carries lightInfo.intensity through unchanged — matching the .w vanilla itself writes,
+        // so overriding the vector cannot accidentally disagree with the global on that channel.
         float shadowStrength = lightInfo.intensity;
-
-        // Forward hook only (see PenumbraSoftnessId): the [0,1] softness a future edge-blur shader
-        // would consume. Gated by the feature flag for consistency; inert until such a shader exists.
-        float penumbraSoftness = CelestialLightingFeatures.PenumbraContrast
-            ? PenumbraMath.PenumbraSoftness(elevation)
-            : 0f;
 
         List<LayerSubMesh> subMeshes = __instance.subMeshes;
         for (int i = 0; i < subMeshes.Count; i++)
         {
             LayerSubMesh subMesh = subMeshes[i];
             if (IsDrawable(subMesh))
-                DrawSubMesh(subMesh, shadowDir, lengthScale, shadowStrength, penumbraSoftness);
+                DrawSubMesh(subMesh, shadowDir, lengthScale, shadowStrength);
         }
 
         return false; // skip the original DrawLayer/base.DrawLayer entirely — we've done its job above
@@ -114,14 +129,11 @@ public static class Patch_ShadowTilt
 
     private static bool IsDrawable(LayerSubMesh subMesh) => subMesh.finalized && !subMesh.disabled;
 
-    private static void DrawSubMesh(LayerSubMesh subMesh, Vector2 shadowDir, float lengthScale, float shadowStrength, float penumbraSoftness)
+    private static void DrawSubMesh(LayerSubMesh subMesh, Vector2 shadowDir, float lengthScale, float shadowStrength)
     {
         PropBlock.Clear();
         PropBlock.SetVector(ShaderPropertyIDs.MapSunLightDirection,
             new Vector4(shadowDir.x * lengthScale, 0f, shadowDir.y * lengthScale, shadowStrength));
-        // No-op-safe forward hook (see PenumbraSoftnessId): drives a real geometric edge blur only if
-        // the shader ever declares _PenumbraSoftness; harmless otherwise.
-        PropBlock.SetFloat(PenumbraSoftnessId, penumbraSoftness);
 
         Graphics.DrawMesh(subMesh.mesh, Matrix4x4.identity, subMesh.material, subMesh.renderLayer,
             camera: null, submeshIndex: 0, properties: PropBlock);

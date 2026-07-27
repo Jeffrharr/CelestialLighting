@@ -9,9 +9,9 @@ namespace CelestialLighting.Probes;
 // RimWorldTestHarness/DESIGN.md's "Where probe tests live" for the full reasoning.
 //
 // Reads back PenumbraMath.PenumbraSoftness for the live map's current Sun elevation — the exact pure
-// value Patch_ShadowTilt uses to soften shadow opacity (via PenumbraContrastFactor, which is a fixed
-// function of this softness). Feeding SolarPosition.ElevationForMap through PenumbraSoftness here
-// mirrors the patch's own computation, so a scenario can pin the angular-size penumbra end-to-end
+// value Patch_ShadowStrength uses to soften shadow opacity (via PenumbraContrastFactor, which is a
+// fixed function of this softness). Feeding SolarPosition.ElevationForMap through PenumbraSoftness
+// here mirrors the patch's own computation, so a scenario can pin the angular-size penumbra end-to-end
 // against a real running game rather than only in the offline PenumbraMathTests.
 public sealed class PenumbraProbe : IProbe
 {
