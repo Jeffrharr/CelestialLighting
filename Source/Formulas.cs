@@ -315,6 +315,144 @@ public static class Formulas
     public static float ShadowLengthScale(float positionFraction, float maxVariation) =>
         1f + Clamp(positionFraction, -1f, 1f) * maxVariation;
 
+    // How much the shadow length grows/shrinks between the map's center and its edge along the
+    // current shadow axis. 0.15 means the far edge casts shadows ~15% longer than the near edge's
+    // ~15% shorter — a parallax cue that the sun is not infinitely distant. Deliberately small: it
+    // should read as "one side of the map looks a little different", not as obviously stretched
+    // geometry near the border. Lived in Patch_ShadowTilt until the variation moved into the mesh.
+    public const float ShadowLengthVariation = 0.15f;
+
+    // --- Baking the tilt into vertex alpha (issue #11) ---
+    //
+    // The shipped "Custom/Sun shadow" vertex program is, in effect,
+    //     position.xyz = in_COLOR0.www * _CastVect.xyz + in_POSITION0.xyz
+    // so the mesh's per-vertex ALPHA is already a per-vertex multiplier on the whole-map extrusion
+    // vector. Vanilla uses it to carry ThingDef.staticSunShadowHeight; folding the per-section
+    // length variation into the same number reproduces §3's effect without a per-draw
+    // MaterialPropertyBlock, and therefore without breaking Unity's batching of shadow sections.
+    //
+    // THE CONSTRAINT THAT SHAPES THIS: alpha is an unsigned byte, so the largest multiplier the
+    // mesh can express is exactly 1.0 — and vanilla already spends all of it. Surveying the shipped
+    // ThingDefs, staticSunShadowHeight takes the values {0.15, 0.17, 0.2, 0.3, 0.35, 0.5, 1.0}, and
+    // 1.0 is what walls, natural rock, coolers, vents and Anomaly's fleshmass declare: alpha 255,
+    // zero headroom. There is no way to make those shadows LONGER from inside the mesh, so the
+    // "+maxVariation" half of ShadowLengthScale is simply not representable. (Worse, it is not even
+    // safely truncatable: a C# float->byte cast is unchecked, so 255 * 1.0 * 1.15 = 293 wraps to
+    // 37 — a wall's shadow would collapse to a stub rather than clip. ShadowCasterAlphaByte clamps
+    // explicitly so no caller can reach that.)
+    //
+    // So the bake re-anchors the ramp instead of clipping it: dividing by (1 + maxVariation) puts
+    // the FAR edge of the map — the longest shadows — at exactly 1.0 and shortens everything else
+    // away from it. The far/near RATIO is preserved bit for bit, and that ratio is the entire
+    // visible effect: what a player sees is the gradient across the map, never the absolute length,
+    // which has no on-screen reference (and which the user's own "Shadow length" slider already
+    // moves much further than this). The one honest cost is that section-cast shadows now sit
+    // 1/(1 + maxVariation) shorter than the thing shadows drawn straight from the global vector
+    // (pawns, items — MeshMakerShadows/Printer_Shadow meshes we do not build); at the shipped 0.15
+    // that is 13%, versus the +15%/-15% disagreement the MaterialPropertyBlock version had.
+    //
+    // Anchoring at the far edge has a second, free benefit: because every baked multiplier is <= 1,
+    // the extruded geometry can never exceed the global vector, which ScaleShadowVector already
+    // clamps to MaxShadowLength. The property-block version could push a near-horizon shadow to
+    // 17.25 cells, outside the -15..15 range vanilla's own renderer is tuned for.
+    public static float NormalizedShadowLengthScale(float positionFraction, float maxVariation)
+    {
+        float variation = Max(maxVariation, 0f);
+        return ShadowLengthScale(positionFraction, variation) / (1f + variation);
+    }
+
+    // Caster height times the (already normalized, <= 1) length scale, as the byte the mesh stores.
+    //
+    // Rounds rather than truncates, unlike vanilla's own plain `(byte)(255f * height)`: rounding
+    // halves the worst-case quantization error to half a level, and half a level is the entire
+    // budget the rebake threshold below is derived from.
+    //
+    // On quantization generally — the thing issue #11 asked to check rather than assume. One alpha
+    // level is 1/255 of the GLOBAL extrusion vector, so its error in world units is
+    // |_CastVect| / 255, independent of caster height: short casters do not band worse than tall
+    // ones, they simply have proportionally fewer levels to spend on a proportionally shorter
+    // shadow. At Formulas.MaxShadowLength (15 cells) that is 0.059 cells, i.e. roughly one screen
+    // pixel at default zoom, and it is a step BETWEEN sections, where the effect is already
+    // quantized to one value per 17-cell section. The shortest shipped caster (0.15) still gets
+    // ~11 distinct levels across the map, against ~15 sections along the axis — so at worst two
+    // adjacent sections share a value, which is strictly less banding than the section grid itself
+    // imposes, never more.
+    public static byte ShadowCasterAlphaByte(float casterHeight, float lengthScale)
+    {
+        float alpha = 255f * casterHeight * lengthScale;
+        if (!(alpha > 0f))
+            return 0;
+        if (alpha >= 254.5f)
+            return 255;
+        return (byte)(alpha + 0.5f);
+    }
+
+    // Absolute angle, in degrees, between two shadow vectors. Magnitude is deliberately ignored:
+    // only the AXIS is baked into the mesh (position fraction is a dot product with the unit
+    // direction), while the vector's length stays live, per frame, in the shader global. Returns 0
+    // — "not stale" — for a degenerate vector, which is the right answer because a zero-length
+    // shadow vector means nothing is being drawn to go stale.
+    public static float ShadowAxisDeltaDegrees(float aX, float aZ, float bX, float bZ)
+    {
+        float magA = MathF.Sqrt(aX * aX + aZ * aZ);
+        float magB = MathF.Sqrt(bX * bX + bZ * bZ);
+        if (magA <= 0.0001f || magB <= 0.0001f)
+            return 0f;
+
+        float cosine = Clamp((aX * bX + aZ * bZ) / (magA * magB), -1f, 1f);
+        return ToDegrees(MathF.Acos(cosine));
+    }
+
+    // How far the shadow axis may drift from the one the meshes were baked against before they are
+    // rebuilt. This is the cost the bake trades the MaterialPropertyBlock's lost batching for, so
+    // the number is derived rather than picked:
+    //
+    //   Budget: the baked alpha of any section may not drift by more than half a level — below
+    //   that, the drift is not representable, so re-baking sooner buys literally nothing.
+    //   |d(alpha)| = 255 * height * (maxVariation / (1 + maxVariation)) * |d(fraction)|, worst case
+    //   at height 1.0, which gives |d(fraction)| <= 0.015.
+    //
+    //   Sensitivity: d(fraction)/d(azimuth) was evaluated numerically over every section center of
+    //   200x200 / 250x250 / 275x275 / 300x300 maps at every 0.1 degree of azimuth; the maximum is
+    //   ~2.0 per radian (it peaks at the corner sections when the axis runs diagonally). That puts
+    //   the half-level budget at 0.43 degrees.
+    //
+    // Rounded to 0.5, accepting up to ~0.6 of a level on a square map. In wall-clock terms the
+    // shadow axis sweeps ~360 degrees per game day, so this rebakes ~720 times a day: about 0.7/s
+    // at normal speed and 2.2/s at 3x, each costing (29.4 us/section measured post-bake, DESIGN.md
+    // 16) 0.26-1.00 ms across the 9-34 sections actually on screen. Off-screen sections are only
+    // flagged, never regenerated (Section.TryUpdate gates on the camera rect), so map size does not
+    // enter.
+    //
+    // Amortised that is 0.012-0.037 ms/frame at 60 fps, against the 0.300 ms/frame EVERY frame that
+    // the per-draw implementation this replaced was measured at in issue #23. So widening this
+    // constant to save rebakes buys very little and costs representable accuracy; the test that
+    // executes the derivation above is
+    // ShadowAxisRebakeDegrees_KeepsBakedAlphaWithinOneLevel_OnSquareMaps.
+    public const float ShadowAxisRebakeDegrees = 0.5f;
+
+    // Whether enough game time has passed since the last staleness check to be worth doing another.
+    // The throttle exists only to keep GetLightSourceInfo (whose vanilla half is not memoized) off
+    // the per-frame path; ShadowAxisRebakeDegrees is what actually decides when a rebake happens.
+    //
+    // ABSOLUTE difference, not `current - last >= interval`. Ticks are not monotonic: loading a
+    // save, dev-mode clock tools and RimWorldTestHarness's own SetTime step (which calls
+    // TickManager.DebugSetTicksGame) can all move the clock BACKWARDS, and the signed form then
+    // reads as "no time has passed" for as long as it takes to tick back past the old value —
+    // forever, if the game is paused. That is not hypothetical: a live scenario that jumped from
+    // 17:00 to 07:00 measured the shadow gradient still baked against the AFTERNOON axis, i.e.
+    // inverted, because this guard never let the check run. Keying on the magnitude of the jump
+    // costs nothing and makes any clock movement, in either direction, wake the check up.
+    //
+    // Keying on ticks rather than frames is what keeps this free while the game is paused, which is
+    // correct rather than merely cheap: the sun's position is a function of the tick, so a paused
+    // game's shadows cannot go stale.
+    public static bool ShadowAxisCheckDue(int currentTick, int lastCheckedTick, int intervalTicks)
+    {
+        int elapsed = currentTick - lastCheckedTick;
+        return (elapsed < 0 ? -elapsed : elapsed) >= intervalTicks;
+    }
+
     private static float Abs(float v) => v < 0f ? -v : v;
     private static float Min(float a, float b) => a < b ? a : b;
     private static float Max(float a, float b) => a > b ? a : b;

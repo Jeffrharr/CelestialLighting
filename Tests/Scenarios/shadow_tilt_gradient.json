@@ -1,0 +1,36 @@
+{
+  "name": "shadow_tilt_gradient",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "45" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "15" } },
+    { "type": "SetWeather", "args": { "weatherDef": "Clear", "instant": "true" } },
+
+    { "type": "SetTime", "args": { "hour": "17" } },
+
+    { "type": "SetTerrain", "args": { "def": "Concrete", "width": "3", "height": "3", "offset": "-105,0", "clear": "true" } },
+    { "type": "SetTerrain", "args": { "def": "Concrete", "width": "3", "height": "3", "offset": "105,0", "clear": "true" } },
+    { "type": "SetTerrain", "args": { "def": "Concrete", "width": "3", "height": "3", "offset": "0,-105", "clear": "true" } },
+    { "type": "SetTerrain", "args": { "def": "Concrete", "width": "3", "height": "3", "offset": "0,105", "clear": "true" } },
+    { "type": "SetTerrain", "args": { "def": "Concrete", "width": "3", "height": "3", "offset": "-75,-75", "clear": "true" } },
+    { "type": "SetTerrain", "args": { "def": "Concrete", "width": "3", "height": "3", "offset": "75,75", "clear": "true" } },
+    { "type": "SetTerrain", "args": { "def": "Concrete", "width": "3", "height": "3", "offset": "-75,75", "clear": "true" } },
+    { "type": "SetTerrain", "args": { "def": "Concrete", "width": "3", "height": "3", "offset": "75,-75", "clear": "true" } },
+
+    { "type": "PlaceThings", "args": {
+        "def": "Wall", "stuff": "BlocksGranite", "layout": "cells", "clear": "true",
+        "cells": "-105,0; 105,0; 0,-105; 0,105; -75,-75; 75,75; -75,75; 75,-75" } },
+
+    { "type": "LookAt", "args": { "zoom": "40" } },
+    { "type": "Wait", "args": { "frames": "5" } },
+
+    { "type": "Probe", "args": { "probeName": "shadow_extrude_far_cells", "expectedValue": "3.13", "tolerance": "0.35" } },
+    { "type": "Probe", "args": { "probeName": "shadow_extrude_near_cells", "expectedValue": "2.48", "tolerance": "0.35" } },
+    { "type": "Probe", "args": { "probeName": "shadow_extrude_ratio", "expectedValue": "1.25", "tolerance": "0.16" } },
+
+    { "type": "SetTime", "args": { "hour": "7" } },
+    { "type": "Wait", "args": { "frames": "5" } },
+
+    { "type": "Probe", "args": { "probeName": "shadow_extrude_ratio", "expectedValue": "1.27", "tolerance": "0.16" } }
+  ]
+}

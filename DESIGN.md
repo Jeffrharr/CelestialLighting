@@ -105,10 +105,11 @@ day percent so our physical sun crosses the horizon when vanilla's sky does, com
 angle symmetrically about noon (08:00 lands at |H| = 43.05°, not 60°). Anyone recomputing these
 pins by hand must apply that warp or they will "find" a discrepancy that isn't there.
 
-`Patch_ShadowTilt` (below) reads `lightInfo.intensity` from the same patched call rather than a
-second, independent `GenCelestial.CurShadowStrength(map)` call, so its per-section length scaling
-always agrees with this existence/intensity decision instead of silently falling back to vanilla's
-curve.
+`MapComponent_SunShadowAxis` (§3) reads both halves of this result back from the same patched call
+rather than making a second, independent `GenCelestial.CurShadowStrength(map)` call: the vector is
+the axis §3's length variation is baked against, and the intensity is how it tells "a shadow is on
+screen and its axis can go stale" from "nothing is drawn, so do not rebake". So §3 always agrees
+with this existence/intensity decision instead of silently falling back to vanilla's curve.
 
 ### `Patch_ShadowStrength` — the patch that actually suppresses moon shadows
 
@@ -166,7 +167,7 @@ Skylights) see an unmodified brightness; we only warm the *hue* of the darkening
 with the planned §7 night-radiance floor (which sets night brightness) rather than fighting it — §2
 tints, §7 will light.
 
-## 3. Shadow tilt across the map (`Patch_ShadowTilt`)
+## 3. Shadow tilt across the map (`Patch_ShadowMeshPerimeter` + `MapComponent_SunShadowAxis`)
 
 The user asked whether shadows could be made subtly longer on one side of the map than the other
 (a per-position variant of effect 1, at colony-map scale rather than map-tile-of-the-world scale).
@@ -176,13 +177,6 @@ Vanilla has no mechanism for this: `SkyManager.SetSunShadowVector` sets the shad
 map, applied uniformly by every section's `SunShadow`-shader draw call
 (`MeshMakerShadows`/`SectionLayer_SunShadows` build only the shadow mesh's *footprint*; the actual
 push/extrusion along the shadow vector happens in the shader itself, reading that one global).
-
-To vary shadow length by position without writing a custom shader or shipping an AssetBundle
-(both ruled out — see "Clean-room provenance" below), `Patch_ShadowTilt` replaces
-`SectionLayer_SunShadows.DrawLayer()` and draws each section's shadow submesh with its own
-`MaterialPropertyBlock`, setting a per-section-rescaled copy of the same `_CastVect` vector (same
-direction, magnitude scaled ±15% based on how far the section sits from the map center along the
-shadow axis, using the map's actual runtime size — no hardcoded map dimensions).
 
 ### What the shipped shader actually declares (issue #11)
 
@@ -197,38 +191,151 @@ The compiled shader isn't visible from decompiled C#, but it *is* visible in
   `_SwayHead` + `Sway head`). So it is a plain program uniform fed by `Shader.SetGlobalVector`.
 - The vertex program is, in effect,
   `position.xyz = in_COLOR0.www * _CastVect.xyz + in_POSITION0.xyz` — **`_CastVect.xyz` is the
-  extrusion vector**, direction and length together, scaled per vertex by the caster-height alpha
-  `Regenerate()` bakes into the mesh colours. Rescaling it is exactly what this subsystem wants, and
-  it is genuinely consumed.
+  extrusion vector**, direction and length together, **scaled per vertex by the mesh's own alpha**.
+  That alpha is the knob this subsystem now uses; see the next subsection.
 - **`_CastVect.w` is read by nothing.** The fragment program emits `_Color`. This is the whole reason
   the earlier live A/B (`Tests/Scenarios/penumbra_lowsun`), which folded shadow opacity into a
   per-section `_CastVect.w`, produced zero visible change — opacity lives in the material colour
-  `SkyManager` lerps, so `.w` was always a dead channel. That result therefore says *nothing* about
-  whether the property block binds; it only proved `.w` is unused. Opacity lives in
-  `Patch_ShadowStrength` now, which is correct.
+  `SkyManager` lerps, so `.w` was always a dead channel. Opacity lives in `Patch_ShadowStrength` now,
+  which is correct.
 - **`_PenumbraSoftness` does not appear anywhere in the game's assets.** The `MaterialPropertyBlock`
-  float that used to be pushed under that name was provably a silent no-op and has been deleted,
-  along with the per-section `SolarPosition.ElevationForMap` call that existed only to feed it.
+  float that used to be pushed under that name was provably a silent no-op and has been deleted.
 
-**Residual uncertainty, stated plainly.** Whether a `MaterialPropertyBlock` can override a `$Globals`
-uniform that the shader never declared in `Properties {}` is engine behaviour, not something readable
-out of the asset file. The evidence leans strongly toward yes: the per-draw constant buffer has to be
-filled by resolving every `$Globals` member *by name* against (property block → material sheet →
-global sheet), because that is the only way engine-supplied uniforms like `unity_MatrixVP` and
-`unity_FogColor` — likewise never in a `Properties {}` block — get any value at all. The apparent
-counter-example is that the shipped `SunShadow` material carries a baked `_CastVect` of
-`(-3.145, 0, -1.147, 0)` which demonstrably does *not* freeze in-game shadows; that is explained by a
-`Material`'s own sheet being reconciled against its shader's declared property list on load, a
-reconciliation a `MaterialPropertyBlock` (bound to no shader) never undergoes. **The decisive check
-is still a live edge-vs-centre shadow-length diff at low sun.** Until that is run, the subsystem
-stays rather than being deleted on an inference. The failure mode is safe either way:
-`MaterialPropertyBlock.SetVector` on an unbound name is a silent Unity no-op — every section falls
-back to the global vector, i.e. exactly vanilla's uniform look, no exception, no visual glitch.
+### Why the variation is baked into the mesh, not pushed per draw
 
-**Cost.** The per-draw property block defeats Unity's draw batching for shadow sections: roughly 6
-(close zoom) to 30 (zoomed out) shadow draws per frame stop merging, against RimWorld's existing
-several-hundred-draw baseline. Unprofiled; estimated well under 0.2 ms/frame. That is the price of
-the effect, and it disappears with the patch if the live diff ever shows the override doesn't bind.
+The first implementation (`Patch_ShadowTilt`, now deleted) replaced `SectionLayer_SunShadows.
+DrawLayer()` and drew each section's submesh with its own `MaterialPropertyBlock` carrying a
+per-section-rescaled `_CastVect`. It had two problems and one unknown:
+
+- **It was the mod's single most expensive thing, by a wide margin.** The first live profiler
+  capture (Dubs Performance Analyzer, issue #23) put `Patch_ShadowTilt:Prefix` at **0.300 ms/frame
+  average, 1.590 ms max, 8.71 µs per call, 7.73% of a 3.879 ms frame** — roughly two thirds of the
+  whole mod's 0.456 ms, and its max/frame is *identical* to the mod's max, so it was the spike as
+  well as the average. The call rate in that capture works out to ~34 sections per frame, i.e. the
+  zoomed-out end of the range. This was measured before any of the work in this section; §16's
+  earlier "unprofiled, estimated well under 0.2 ms/frame" was wrong by more than an order of
+  magnitude.
+- **And that number does not include the batching it also cost.** Every visible shadow section
+  became its own draw call — roughly 6 (close zoom) to 30 (zoomed out) draws per frame that stopped
+  merging. That penalty lands on the render thread and does not appear in the profiler table at all,
+  so 0.300 ms/frame is a floor, not a total.
+- **It was a high-conflict patch surface.** A `Prefix` returning `false` on `DrawLayer` skips
+  vanilla's method *and* any other mod's transpiler on it.
+- **It might have done nothing at all.** Whether a `MaterialPropertyBlock` can override a `$Globals`
+  uniform the shader never declared in `Properties {}` is engine behaviour, not shader content, and
+  PR #17 could not settle it statically. So the effect might have been inert while still costing the
+  batching.
+
+Baking the variation into the vertex alpha at `Regenerate()` time removes all three at once. The
+alpha is *definitionally* what the vertex program multiplies the extrusion vector by, so the effect
+cannot be inert; the property block and the `DrawLayer` prefix both disappear, so vanilla's own
+`DrawLayer` runs again and the sections batch; and the cost moves from per-frame to per-regenerate.
+`Patch_ShadowMeshPerimeter` (§4) already writes that alpha for caster height, so this is one extra
+multiply in a loop that was already running.
+
+**The constraint that shaped the design: alpha is a byte, so the largest multiplier the mesh can
+express is exactly 1.0 — and vanilla already spends all of it.** Surveying the shipped `ThingDef`s,
+`staticSunShadowHeight` takes the values {0.15, 0.17, 0.2, 0.3, 0.35, 0.5, 1.0}, and 1.0 is what
+walls, natural rock, coolers, vents and Anomaly's fleshmass declare — alpha 255, zero headroom. There
+is no way to make *those* shadows longer from inside the mesh, and they are precisely the shadows the
+effect is for. (Nor could it be left to clip: a C# `float`→`byte` cast is unchecked, so
+`255 × 1.0 × 1.15 = 293` **wraps to 37** — a wall's shadow would collapse to a stub. `Formulas.
+ShadowCasterAlphaByte` owns an explicit clamp so no caller can reach that, and a unit test pins it.)
+
+So the ramp is **re-anchored rather than clipped**: `Formulas.NormalizedShadowLengthScale` divides
+the whole thing by `1 + maxVariation`, putting the far edge of the map at exactly 1.0 and shortening
+everything else away from it. The far/near **ratio** — 1.15/0.85, the entire visible effect, since
+what a player sees is the gradient across the map and never the absolute length — is preserved bit
+for bit. What changes is a uniform 1/1.15 on section-cast shadows, which has no on-screen reference
+(the user's own "Shadow length" slider moves it much further). It also has a free benefit: every
+baked multiplier is ≤ 1, so the extruded geometry can never exceed the global vector, which
+`ScaleShadowVector` already clamps to `MaxShadowLength`. The property-block version could push a
+near-horizon shadow to 17.25 cells, outside the −15..15 range vanilla's own renderer is tuned for.
+
+**Byte quantization, checked rather than assumed** (issue #11 asked for exactly this). One alpha
+level is 1/255 of the *global* extrusion vector, so its error in world units is `|_CastVect| / 255`,
+**independent of caster height** — short casters do not band worse than tall ones, they simply have
+fewer levels to spend on a proportionally shorter shadow. At `MaxShadowLength` (15 cells) one level
+is 0.059 cells, roughly one screen pixel at default zoom, and it is a step *between* sections, where
+the effect is already quantized to one value per 17-cell section. The shortest shipped caster (0.15)
+still resolves ~11 distinct levels across the map against ~15 sections along the axis, so at worst
+two adjacent sections share a value — strictly less banding than the section grid itself imposes.
+The bake rounds rather than truncating (vanilla's own `(byte)(255f * height)` truncates), which
+halves the worst-case error to half a level.
+
+### Keeping the bake fresh: `MapComponent_SunShadowAxis`
+
+A baked value has to be invalidated, and this is what the approach costs. The position fraction is a
+dot product with the *unit* shadow direction, so only the **axis** matters — the vector's length
+stays live in the shader global, and a sun that is merely getting lower changes nothing baked.
+
+- **Threshold.** `Formulas.ShadowAxisRebakeDegrees = 0.5°`, derived rather than picked: the budget is
+  half an alpha level of drift (below that the drift is not representable, so rebaking sooner buys
+  nothing), which is `|Δfraction| ≤ 0.015` at height 1.0; `d(fraction)/d(azimuth)` peaks at ~2.0 per
+  radian over every section centre of 200²/250²/275²/300² maps at every 0.1° of azimuth, giving
+  0.43°. A unit test executes that derivation rather than trusting the comment.
+- **Frequency and cost, measured.** The axis sweeps ~360° per game day, so this rebakes ~720 times a
+  day — about 0.7/s at normal speed, 2.2/s at 3x — each regenerating one layer across only the
+  sections the camera can see (`WholeMapChanged` raises flags; `Section.TryUpdate` gates the
+  regenerate on the camera rect, so map size does not enter). `SectionRegenerateTimingProbe` on the
+  post-bake build reads `SectionLayer_SunShadows` at **29.1 / 29.6 µs over two runs against the 26 µs
+  §16 recorded before this change — the bake adds ~3.4 µs, +13%, per section regenerate.** (Same run,
+  the other six layers reproduced §16's numbers to within a few percent, so the comparison is
+  like-for-like and not a drifted baseline.) At the ~34 sections #23's capture was drawing, that is
+  **1.00 ms per rebake, 0.7–2.2 ms per second of wall clock, or 0.012–0.037 ms/frame amortised at 60
+  fps** — against **0.300 ms/frame, every frame**, on the same section count. **8–25× cheaper on CPU
+  before the recovered batching counts at all**, and the worst single frame improves too: 1.00 ms for
+  a full rebake against the 1.590 ms max the profiler caught.
+- **One stored axis per map, not the live one.** Sections regenerate independently and for unrelated
+  reasons (a wall goes up, a lamp toggles — see §16 on `GlowGrid.DirtyCell`). If each read the live
+  vector at its own regenerate time, a map would accumulate sections baked at different azimuths and
+  the gradient would break into visible steps. Every section reads the component's stored axis.
+- **Its own dirty flag.** `CL_SunShadowAxis` (a one-line `MapMeshFlagDef` this mod ships) is
+  subscribed to by exactly one layer, via `Patch_SunShadowAxisInvalidation`. Reusing
+  `MapMeshFlagDefOf.Buildings` 720 times a day would drag seven other section layers along for a
+  change that can only affect this one — see §16's flag-to-layers table. Because nothing but us ever
+  raises `CL_SunShadowAxis`, it adds **no** work to any vanilla edit and §16's table is unchanged.
+- **Render path, not tick path.** `MapComponentUpdate` shares the per-frame geometry memo (§ issue
+  #12) with `SkyManagerUpdate`'s own call, so the staleness check costs no extra solar evaluation;
+  from `MapComponentTick` it could land on a different `(frame, tick)` stamp and double the count the
+  `geometry_eval_count` scenario pins. A tick-interval guard makes it free while the game is paused,
+  because the sun does not move while the game is paused either.
+- **No rebake when nothing is drawn.** The check skips out when `GetLightSourceInfo(...).intensity`
+  is zero, which is what keeps a moonless night from rebaking twice a second for a mesh nobody can
+  see. The first frame a shadow returns, the axis is wildly stale and the rebake happens then.
+
+**Known limitation.** A `WeatherEvent` or a `CompAffectsSky` can override the shadow vector
+*downstream* of `GenCelestial.GetLightSourceInfo` (`SkyManager` consults
+`GetOverridenShadowVector()` first), so during one of those the baked axis follows the un-overridden
+sun while the global follows the override. The gradient is then oriented against the wrong axis
+until the override ends. It is cosmetic, it is bounded by ±13%, and chasing it would mean patching
+`SkyManager` itself for a case that lasts seconds.
+
+**Verification — the effect renders, measured.** `Tests/Scenarios/shadow_tilt_gradient.json` +
+`ShadowExtrusionProbe` are the test issue #11 asked for and that the property-block version never
+got: the actual extruded shadow length, in cells, of a full-height caster at each end of the shadow
+axis on a live map at low sun. Because the shader line above is known, `(alpha / 255) ×
+|_CastVect.xz|` *is* the rendered length, so this is an end-to-end number rather than a screenshot
+centroid (which has inverted the sign of a result here before). Live, at latitude 45, equinox, 17:00:
+
+| | cells |
+|---|---|
+| far end of the shadow axis | **3.134** |
+| near end | **2.488** |
+| ratio | **1.260** |
+| ratio again at 07:00, axis flipped to the other side of the sky | **1.287** |
+
+1.0 would have meant inert. The measured 1.26 is what a ±15% ramp gives at the |fraction| ≈ 0.76 the
+ring of test casters actually sits at, against the 1.353 a caster right on the map edge would read.
+
+**A bug this caught, worth recording.** The 07:00 probe is reached by a *backwards* clock jump, and
+on the first run it read **0.808 — the exact inverse of the afternoon gradient**, i.e. the meshes
+were still baked against the afternoon axis. The staleness throttle compared `currentTick -
+lastCheckedTick >= interval`, which a backwards jump reads as "no time has passed", wedging the check
+until the clock ticked back past the old value — never, if paused. `Formulas.ShadowAxisCheckDue` now
+compares the magnitude, so any clock movement in either direction wakes it, and three unit tests pin
+it. Ticks (not frames) remain the key, which is correct rather than merely cheap: the sun's position
+is a function of the tick, so a paused game's shadows genuinely cannot go stale.
 
 ### Angular-size penumbra — softening shadow edges near the horizon (`PenumbraMath`)
 
@@ -258,7 +365,8 @@ Two consumers, one physical model:
   shared `SolarPosition.ElevationForMap`, so this reads the exact same Sun position as
   `Patch_ShadowDirection`/`Patch_ShadowStrength`.
 - **No geometric edge blur, and no hook for one.** `PenumbraSoftness` used to also be pushed into a
-  `_PenumbraSoftness` `MaterialPropertyBlock` float in `Patch_ShadowTilt`, as a forward hook for a
+  `_PenumbraSoftness` `MaterialPropertyBlock` float in the since-deleted `Patch_ShadowTilt`, as a
+  forward hook for a
   shader that might one day declare such a uniform. Issue #11 settled that by scanning
   `resources.assets`: the string `_PenumbraSoftness` appears nowhere in the game, so the push was a
   guaranteed silent no-op and has been removed. `PenumbraSoftness` remains as the dimensionless form
@@ -291,8 +399,9 @@ triangle-winding pattern but traverses the shared edge in the opposite direction
 the existing west/east blocks mirror each other for their opposite sides — so the added quad's
 outward normal points north instead of south. Everything else in the method is copied unchanged
 from vanilla; this is a gap fill, not a redesign. `SectionLayerAccess.cs` holds the one reflection
-lookup for `SectionLayer.section` (a protected field with no public accessor), shared with
-`Patch_ShadowTilt` rather than duplicated.
+lookup for `SectionLayer.section` (a protected field with no public accessor). It was shared with
+`Patch_ShadowTilt` until §3's tilt moved into the mesh and that patch was deleted; it stays its own
+file so the next patch needing a `Section` reuses it rather than reinventing the `FieldRef`.
 
 Since then the per-cell `Building` lookups have been routed through `EaveShadowGrid`, which resolves
 an effective caster *height* per cell rather than an edifice, so §15's eaves can cast a roofline
@@ -1672,9 +1781,16 @@ constructor instantiates *all* of them except `SunShadows` (dropped when
 | `SectionLayer_BuildingsDamage` | `BuildingsDamage \| Buildings` | vanilla |
 | `SectionLayer_EdgeShadows` | `Buildings` | vanilla |
 | `SectionLayer_SubstructureProps` | `Terrain \| Buildings` | vanilla (Odyssey) |
-| `SectionLayer_SunShadows` | `Buildings` **→ `\| Roofs`** | vanilla, widened by `Patch_ShadowRoofInvalidation` (§15) |
+| `SectionLayer_SunShadows` | `Buildings` **→ `\| Roofs \| CL_SunShadowAxis`** | vanilla, widened by `Patch_ShadowRoofInvalidation` (§15) and `Patch_SunShadowAxisInvalidation` (§3) |
 | `SectionLayer_NightDesaturation` | `Roofs \| GroundGlow` | ours (§9) |
 | `SectionLayer_EaveShade` | `Roofs \| Buildings` | ours (§15b) |
+
+`CL_SunShadowAxis` is a `MapMeshFlagDef` this mod ships, and it is deliberately absent from the
+per-flag tables below: **nothing but `MapComponent_SunShadowAxis` ever raises it, and nothing but
+`SectionLayer_SunShadows` ever subscribes to it.** That is the whole reason it exists rather than a
+reuse of `Buildings`. It is the third reason the sun-shadow mesh regenerates (after §15's `Roofs`
+widening and vanilla's `Buildings`), but unlike those two it adds no work to any *vanilla* edit — it
+only adds work of its own, costed at the end of this section.
 
 Per flag, layers that regenerate in a dirtied on-screen section:
 
@@ -1783,6 +1899,43 @@ lamp toggle**, because `GlowGrid.DirtyCell` raises `Roofs` alongside `GroundGlow
 - **§7b's 95 µs postfix** is the second-largest term and belongs to the companion issue about the
   augmented lighting overlay, now with a number attached.
 
+### The one flag we raise ourselves (§3, issue #11)
+
+Everything above is about work vanilla's own edits drag us into. `CL_SunShadowAxis` is the opposite:
+work we schedule, on a cadence we chose, so it belongs in the same ledger.
+
+`MapComponent_SunShadowAxis` raises it whenever the shadow axis has drifted past 0.5° from the one
+the meshes were baked against — ~720 times per game day, i.e. ~0.7/s at normal speed and ~2.2/s at
+3x. It regenerates exactly one layer, `SectionLayer_SunShadows`, and only for sections the camera can
+see (`WholeMapChanged` raises flags; `Section.TryUpdate` gates the regenerate on the camera rect).
+
+Re-measured after the bake, that layer costs **29.1 / 29.6 µs over two runs, against the 26 µs in the
+table above** — the alpha multiply adds ~3.4 µs, +13%. The other six layers reproduced their numbers
+to within a few percent in the same runs, so this is a like-for-like delta rather than a drifted
+baseline. So 9–34 sections × 29.4 µs = **0.26–1.00 ms per rebake**, or roughly 0.2–2.2 ms per second
+of wall clock, spread across ~1–2 frames a second.
+
+The comparison that justifies it is no longer an estimate on either side. What this replaces is
+`Patch_ShadowTilt`'s per-draw prefix, which the first live profiler capture (issue #23) measured at
+**0.300 ms/frame average and 1.590 ms max — 7.73% of a 3.879 ms frame, two thirds of this mod's
+entire CPU cost** — at ~34 visible sections, the same count the upper bound above is taken at. So:
+
+| | old (`Patch_ShadowTilt`) | new (`CL_SunShadowAxis` rebake) |
+|---|---|---|
+| when | every frame | ~0.7/s (1x) to ~2.2/s (3x) |
+| per occurrence | 0.300 ms | 1.00 ms |
+| amortised at 60 fps | **0.300 ms/frame** | **0.012–0.037 ms/frame** |
+| worst single frame | 1.590 ms | 1.00 ms |
+| draw batching | broken for 6–34 sections | intact |
+
+The batching row is the one number still unmeasured, and it only ever moved in our favour: it is a
+render-thread cost the profiler table above does not include, so 0.300 ms/frame was a floor for the
+old design and 0.010–0.032 ms/frame is the whole of the new one.
+
+Two properties keep it from turning into the "dirty every frame" case that would be worse than what
+it replaces: the check itself is one dot product on a memoized geometry read (§ issue #12), and it
+returns early whenever no shadow is being drawn at all, so a moonless night costs nothing.
+
 ## Settings and presets
 
 Two cross-cutting settings ideas that span the subsystems above:
@@ -1832,17 +1985,20 @@ direction/length/strength and `CurSkyTarget`'s *colors*, never `.glow` itself. S
 sources (`CompGlower`, `GlowGrid.GroundGlowAt`) are entirely unaffected by this mod: there's no
 shared computation to skip or interact with in the first place.
 
-`SectionLayer_SunShadows` is a leaf, internal, non-subclassed vanilla type with `DrawLayer()` and
-`Regenerate()` overrides, both now Prefixed here (`Patch_ShadowTilt`, `Patch_ShadowMeshPerimeter`)
-— low risk of another mod patching either exact method, but if one does, Harmony will only run
-whichever prefix returns `true` from `__runOriginal` handling last (both returning `false` means
-only one prefix's replacement actually runs).
+`SectionLayer_SunShadows` is a leaf, internal, non-subclassed vanilla type. We Prefix exactly one of
+its methods, `Regenerate()` (`Patch_ShadowMeshPerimeter`) — low risk of another mod patching that
+exact method, but if one does, Harmony will only run whichever prefix returns `true` from
+`__runOriginal` handling last (both returning `false` means only one prefix's replacement actually
+runs). `DrawLayer()` used to be Prefixed here as well, by `Patch_ShadowTilt`; baking §3's length
+variation into the mesh released that surface entirely, so vanilla's `DrawLayer` runs untouched and
+the sections batch again. The two remaining touches on this type are Postfixes on its constructor
+(`Patch_ShadowRoofInvalidation`, `Patch_SunShadowAxisInvalidation`), which only OR bits into a public
+`ulong` and cannot suppress anything.
 
 One mod in this setup does: **Perspective: Eaves** transpiles `Regenerate`, and because our Prefix
 replaces the whole method its transpiled body never executes. That is not a load-order problem and
 cannot be resolved by one — it is why §15 reimplements the feature natively and why `About.xml`
-declares the mod `<incompatibleWith>` rather than merely `<loadAfter>`. `Patch_ShadowTilt` shares no
-target with it (`DrawLayer` is untouched by Eaves), and the mod's other three patches
+declares the mod `<incompatibleWith>` rather than merely `<loadAfter>`. The mod's other three patches
 (`SectionLayer_IndoorMask.Regenerate`, `HideRainFogOverlay`, and the `MapMeshDirty` transpilers)
 collide with nothing of ours — which is precisely the trap: with both installed the *rest* of Eaves
 keeps working, so the breakage reads as "eave shadows randomly stopped" rather than as a conflict.
@@ -1888,7 +2044,7 @@ Counted per map per frame, before the memo:
 | `CurShadowStrength` → `Patch_ShadowStrength` × 2 (current map only) | 6 | 2 |
 | `SetSunShadowVector` → `Patch_ShadowDirection` (current map only) | 3 | 1 |
 | `DateReadout` HUD (current map only) | 1 | 1 |
-| `Patch_ShadowTilt`, **per visible section** (current map only) | 4 | 1 |
+| `MapComponent_SunShadowAxis` staleness check, once per 15 ticks (all maps) | 1 | 1 |
 
 The per-call work is not just trigonometry: `Find.WorldGrid.LongLatOf` → `PlanetLayer.GetTileCenter`
 is a managed→native `[BurstCompile]` transition, and `MoonPosition` paid for a second one on top of

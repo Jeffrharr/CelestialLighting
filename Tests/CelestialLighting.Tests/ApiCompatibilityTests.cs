@@ -504,15 +504,56 @@ public class ApiCompatibilityTests
         Assert.That(field!.FieldType.FullName, Is.EqualTo("System.Int32"));
     }
 
-    // --- SectionLayer_SunShadows / SectionLayer / Section (Patch_ShadowTilt, Patch_ShadowMeshPerimeter) ---
+    // --- SectionLayer_SunShadows / SectionLayer / Section (Patch_ShadowMeshPerimeter,
+    //     Patch_ShadowRoofInvalidation, Patch_SunShadowAxisInvalidation) ---
+    //
+    // DrawLayer() used to be pinned here too, for Patch_ShadowTilt's Prefix. That patch is gone —
+    // §3's length variation is baked into the mesh instead of pushed per draw — so vanilla's own
+    // DrawLayer runs again and we no longer depend on its shape.
 
     [Test]
-    public void SectionLayer_SunShadows_DrawLayer_Exists()
+    public void SectionLayer_SunShadows_HasSectionConstructor()
     {
+        // Both subscription-widening Postfixes hang off this constructor: it is the only place a
+        // layer instance exists before anything can dirty it.
         var type = GetType("Verse.SectionLayer_SunShadows");
         Assert.That(type, Is.Not.Null, "Verse.SectionLayer_SunShadows no longer exists");
-        var method = type!.Methods.SingleOrDefault(m => m.Name == "DrawLayer" && m.Parameters.Count == 0);
-        Assert.That(method, Is.Not.Null, "SectionLayer_SunShadows.DrawLayer() no longer exists");
+        Assert.That(
+            type!.Methods.Any(m => m.IsConstructor && m.Parameters.Count == 1
+                && m.Parameters[0].ParameterType.FullName == "Verse.Section"),
+            Is.True,
+            "SectionLayer_SunShadows(Section) no longer exists — Patch_ShadowRoofInvalidation and "
+            + "Patch_SunShadowAxisInvalidation both resolve it by TargetMethod");
+    }
+
+    [Test]
+    public void MapMeshFlagDef_ConvertsToUlong()
+    {
+        // Our own CL_SunShadowAxis flag is OR-ed into relevantChangeTypes and passed to
+        // WholeMapChanged through this implicit operator; without it the flag is unusable and the
+        // baked shadow tilt would never refresh.
+        var type = GetType("RimWorld.MapMeshFlagDef");
+        Assert.That(type, Is.Not.Null, "RimWorld.MapMeshFlagDef no longer exists");
+        Assert.That(
+            type!.Methods.Any(m => m.Name == "op_Implicit" && m.ReturnType.FullName == "System.UInt64"),
+            Is.True, "MapMeshFlagDef no longer converts implicitly to ulong");
+        Assert.That(type.Methods.Any(m => m.Name == "PostSetIndices"), Is.True,
+            "MapMeshFlagDef.PostSetIndices no longer exists — a mod-added flag would get a zero mask");
+    }
+
+    [Test]
+    public void MapComponent_HasMapComponentUpdateAndMapConstructor()
+    {
+        // MapComponent_SunShadowAxis rides the render-path Update (not the tick path, so it shares
+        // the per-frame geometry memo) and is instantiated reflectively by Map.FillComponents.
+        var type = GetType("Verse.MapComponent");
+        Assert.That(type, Is.Not.Null, "Verse.MapComponent no longer exists");
+        Assert.That(type!.Methods.Any(m => m.Name == "MapComponentUpdate" && m.IsVirtual), Is.True,
+            "MapComponent.MapComponentUpdate no longer exists or is no longer virtual");
+        Assert.That(
+            type.Methods.Any(m => m.IsConstructor && m.Parameters.Count == 1
+                && m.Parameters[0].ParameterType.FullName == "Verse.Map"),
+            Is.True, "MapComponent(Map) no longer exists — Map.FillComponents will not construct ours");
     }
 
     [Test]

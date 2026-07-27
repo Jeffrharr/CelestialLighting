@@ -36,8 +36,8 @@ namespace CelestialLighting.Probes;
 // WHY IT REPORTS OVER A WINDOW OF COMPLETED FRAMES. The probe itself runs inside a frame, so the
 // frame it is read on is still accumulating. Counts are therefore banked per frame and reported over
 // frames that have already ended. The mean says what a steady frame costs; the max says what the
-// worst frame in the window cost, which is where the per-visible-section term (Patch_ShadowTilt) and
-// any tick-boundary double-evaluation would show up. Both are reported because either alone can
+// worst frame in the window cost, which is where a section-regenerate frame and any tick-boundary
+// double-evaluation would show up. Both are reported because either alone can
 // mislead: a mean hides spikes, a max hides that the spike was one frame in two hundred.
 public sealed class GeometryEvalCountProbe : IProbe
 {
