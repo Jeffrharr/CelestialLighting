@@ -67,6 +67,37 @@ public static class ProbeRegistration
         ProbeRegistry.Register(new SectionRegenerateTimingProbe(
             "regen_us_eave_shade", "CelestialLighting.SectionLayer_EaveShade"));
 
+        // #12/PR #18: how many times per frame solar and lunar geometry is asked for, and how many
+        // times it is actually derived. Eleven probes rather than one because the whole claim is the
+        // gap between those two series — a single "evaluations" number could not distinguish a memo
+        // that works from a caller that stopped asking. Mean and max are both reported for each: the
+        // mean is the steady frame, the max is the frame that also regenerated visible sections
+        // (Patch_ShadowTilt is per visible section) and is where any tick-boundary double-evaluation
+        // would surface. See GeometryEvalCountProbe's header for why this counts instead of timing.
+        GeometryEvalCounters.Install();
+        ProbeRegistry.Register(new GeometryEvalCountProbe(
+            "geom_solar_calls_mean", GeometryEvalCountProbe.Metric.SolarCallsMean));
+        ProbeRegistry.Register(new GeometryEvalCountProbe(
+            "geom_solar_calls_max", GeometryEvalCountProbe.Metric.SolarCallsMax));
+        ProbeRegistry.Register(new GeometryEvalCountProbe(
+            "geom_solar_evals_mean", GeometryEvalCountProbe.Metric.SolarEvalsMean));
+        ProbeRegistry.Register(new GeometryEvalCountProbe(
+            "geom_solar_evals_max", GeometryEvalCountProbe.Metric.SolarEvalsMax));
+        ProbeRegistry.Register(new GeometryEvalCountProbe(
+            "geom_moon_calls_mean", GeometryEvalCountProbe.Metric.MoonCallsMean));
+        ProbeRegistry.Register(new GeometryEvalCountProbe(
+            "geom_moon_calls_max", GeometryEvalCountProbe.Metric.MoonCallsMax));
+        ProbeRegistry.Register(new GeometryEvalCountProbe(
+            "geom_moon_evals_mean", GeometryEvalCountProbe.Metric.MoonEvalsMean));
+        ProbeRegistry.Register(new GeometryEvalCountProbe(
+            "geom_moon_evals_max", GeometryEvalCountProbe.Metric.MoonEvalsMax));
+        ProbeRegistry.Register(new GeometryEvalCountProbe(
+            "geom_frames_counted", GeometryEvalCountProbe.Metric.FramesCounted));
+        ProbeRegistry.Register(new GeometryEvalCountProbe(
+            "geom_memo_present", GeometryEvalCountProbe.Metric.MemoPresent));
+        ProbeRegistry.Register(new GeometryEvalCountProbe(
+            "geom_maps_loaded", GeometryEvalCountProbe.Metric.MapsLoaded));
+
         // Expose CelestialLighting's runtime feature flags to the harness's SetFeature step so a
         // scenario can screenshot an effect off then on. The setter just writes the shipped mod's
         // static flag; in production nothing calls it and the flag stays at its default (on).
@@ -213,6 +244,15 @@ public static class ProbeRegistration
             "realistic_day_length",
             enabled => CelestialLightingFeatures.SunClock =
                 enabled ? SunClockMode.Realistic : SunClockMode.LockedToVanilla);
+        // Not a CelestialLightingFeatures flag: opens a fresh counting window for the geometry
+        // evaluation probes above. A scenario resets, Waits out the segment it wants to characterize,
+        // then probes — otherwise every mean is diluted by whatever the scenario did before it, and
+        // the steady-state and section-regenerate segments cannot be told apart. Both arms reset;
+        // there is no "counting off" state, because a probe read with counting off would report a
+        // stale window rather than obviously nothing.
+        FeatureRegistry.Register(
+            "geometry_count_reset",
+            _ => GeometryEvalCounters.Reset());
         FeatureRegistry.Register(
             "pitch_black_true",
             enabled => NightRadianceSettings.Current.MinNightBrightness =

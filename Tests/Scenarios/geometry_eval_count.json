@@ -1,0 +1,445 @@
+{
+ "name": "geometry_eval_count",
+ "saveFile": "minimal_colony.rws",
+ "steps": [
+  {
+   "type": "SetTile",
+   "args": {
+    "latitude": "45"
+   }
+  },
+  {
+   "type": "SetSeason",
+   "args": {
+    "dayOfYear": "40"
+   }
+  },
+  {
+   "type": "SetWeather",
+   "args": {
+    "weatherDef": "Clear",
+    "instant": "true"
+   }
+  },
+  {
+   "type": "SetTime",
+   "args": {
+    "hour": "12"
+   }
+  },
+  {
+   "type": "SetTerrain",
+   "args": {
+    "def": "Concrete",
+    "width": "20",
+    "height": "20",
+    "offset": "0,10",
+    "clear": "true"
+   }
+  },
+  {
+   "type": "PlaceThings",
+   "args": {
+    "def": "Wall",
+    "stuff": "BlocksGranite",
+    "offset": "0,10",
+    "layout": "cells",
+    "clear": "true",
+    "cells": "-2,-2; -1,-2; 0,-2; 1,-2; 2,-2; -2,-1; 2,-1; -2,0; 2,0; -2,1; 2,1; -2,2; -1,2; 0,2; 1,2; 2,2"
+   }
+  },
+  {
+   "type": "SetRoof",
+   "args": {
+    "def": "RoofConstructed",
+    "width": "7",
+    "height": "7",
+    "offset": "0,10"
+   }
+  },
+  {
+   "type": "LookAt",
+   "args": {
+    "offset": "0,10",
+    "zoom": "14"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "geom_memo_present",
+    "expectedValue": "1",
+    "tolerance": "0.5"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "geom_maps_loaded",
+    "expectedValue": "1",
+    "tolerance": "0.5"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "geometry_count_reset",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "120"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "geom_frames_counted",
+    "expectedValue": "0",
+    "tolerance": "1000000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "geom_solar_calls_mean",
+    "expectedValue": "0",
+    "tolerance": "1000000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "geom_solar_calls_max",
+    "expectedValue": "0",
+    "tolerance": "1000000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "geom_solar_evals_mean",
+    "expectedValue": "1",
+    "tolerance": "0.5"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "geom_solar_evals_max",
+    "expectedValue": "1",
+    "tolerance": "0.5"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "geom_moon_calls_mean",
+    "expectedValue": "0",
+    "tolerance": "1000000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "geom_moon_calls_max",
+    "expectedValue": "0",
+    "tolerance": "1000000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "geom_moon_evals_mean",
+    "expectedValue": "0",
+    "tolerance": "1000000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "geom_moon_evals_max",
+    "expectedValue": "0",
+    "tolerance": "1000000"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "geometry_count_reset",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "SetRoof",
+   "args": {
+    "def": "RoofConstructed",
+    "width": "9",
+    "height": "9",
+    "offset": "0,10"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "20"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "geom_frames_counted",
+    "expectedValue": "0",
+    "tolerance": "1000000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "geom_solar_calls_mean",
+    "expectedValue": "0",
+    "tolerance": "1000000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "geom_solar_calls_max",
+    "expectedValue": "0",
+    "tolerance": "1000000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "geom_solar_evals_mean",
+    "expectedValue": "1",
+    "tolerance": "0.5"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "geom_solar_evals_max",
+    "expectedValue": "1",
+    "tolerance": "0.5"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "geom_moon_calls_mean",
+    "expectedValue": "0",
+    "tolerance": "1000000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "geom_moon_calls_max",
+    "expectedValue": "0",
+    "tolerance": "1000000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "geom_moon_evals_mean",
+    "expectedValue": "0",
+    "tolerance": "1000000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "geom_moon_evals_max",
+    "expectedValue": "0",
+    "tolerance": "1000000"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "geometry_count_reset",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "FastForward",
+   "args": {
+    "ticks": "600"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "3"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "geom_frames_counted",
+    "expectedValue": "0",
+    "tolerance": "1000000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "geom_solar_calls_mean",
+    "expectedValue": "0",
+    "tolerance": "1000000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "geom_solar_calls_max",
+    "expectedValue": "0",
+    "tolerance": "1000000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "geom_solar_evals_mean",
+    "expectedValue": "1",
+    "tolerance": "0.5"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "geom_solar_evals_max",
+    "expectedValue": "1",
+    "tolerance": "0.5"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "geom_moon_calls_mean",
+    "expectedValue": "0",
+    "tolerance": "1000000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "geom_moon_calls_max",
+    "expectedValue": "0",
+    "tolerance": "1000000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "geom_moon_evals_mean",
+    "expectedValue": "0",
+    "tolerance": "1000000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "geom_moon_evals_max",
+    "expectedValue": "0",
+    "tolerance": "1000000"
+   }
+  },
+  {
+   "type": "SetTime",
+   "args": {
+    "hour": "1"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "geometry_count_reset",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "120"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "geom_frames_counted",
+    "expectedValue": "0",
+    "tolerance": "1000000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "geom_solar_calls_mean",
+    "expectedValue": "0",
+    "tolerance": "1000000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "geom_solar_calls_max",
+    "expectedValue": "0",
+    "tolerance": "1000000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "geom_solar_evals_mean",
+    "expectedValue": "1",
+    "tolerance": "0.5"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "geom_solar_evals_max",
+    "expectedValue": "1",
+    "tolerance": "0.5"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "geom_moon_calls_mean",
+    "expectedValue": "0",
+    "tolerance": "1000000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "geom_moon_calls_max",
+    "expectedValue": "0",
+    "tolerance": "1000000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "geom_moon_evals_mean",
+    "expectedValue": "1",
+    "tolerance": "0.5"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "geom_moon_evals_max",
+    "expectedValue": "1",
+    "tolerance": "0.5"
+   }
+  }
+ ]
+}
