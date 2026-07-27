@@ -12,6 +12,12 @@
 
   <ItemGroup>
     <PackageReference Include="Krafs.Rimworld.Ref" Version="1.6.*" />
+    <!-- Compile-time only, the same form and for the same reason as CelestialLighting.csproj's:
+         0Harmony comes from the brrainz.harmony mod at runtime, and shipping a second copy in this
+         dev mod's Assemblies folder would load a second Harmony into the AppDomain. Needed because
+         GeometryEvalCountProbe counts geometry evaluations by patching the accessors from out here,
+         rather than by editing the shipped mod to carry a counter it would then have to ship. -->
+    <PackageReference Include="Lib.Harmony" Version="2.3.*" ExcludeAssets="runtime" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>
@@ -36,6 +42,7 @@
     <Compile Include="../Source/Probes/SunClockProbe.cs" Link="SunClockProbe.cs" />
     <Compile Include="../Source/Probes/EaveCellProbe.cs" Link="EaveCellProbe.cs" />
     <Compile Include="../Source/Probes/SectionRegenerateTimingProbe.cs" Link="SectionRegenerateTimingProbe.cs" />
+    <Compile Include="../Source/Probes/GeometryEvalCountProbe.cs" Link="GeometryEvalCountProbe.cs" />
   </ItemGroup>
 
   <ItemGroup>
