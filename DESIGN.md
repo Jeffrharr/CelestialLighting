@@ -65,10 +65,22 @@ that resolves latitude/declination/day-percent once per call and is shared by bo
   growing via `cot`, not from intensity fading in and out the way vanilla's `CurShadowStrength`
   did.
 
-**Not yet verified against RimWorld's actual world-space convention**: which literal axis (`+X`
-vs `-X`) corresponds to compass east isn't confirmed from decompiled code alone — verify in-game
-that shadows sweep the expected direction (e.g. morning shadows pointing toward the map's west
-edge) and flip the sign in `Formulas.ShadowVectorFromSunPosition` if it's mirrored.
+**Handedness (resolved)**: `+X` is compass east, and the sun rises there. This sat open for a
+while as "not verified from decompiled code alone", and it turned out we had it backwards the
+whole time — `SolarAzimuthDegrees` was missing the leading minus that the standard
+north-clockwise formula puts on `sin(Az) = -cos(δ)·sin(H)/cos(el)`. Since `HourAngleDegrees` is
+negative before noon, dropping that minus put the morning sun at 270° and ran the sun east-to-west
+backwards across every map. Nothing downstream flipped it back
+(`ShadowVectorFromSunPosition` negates east and north together, `Patch_ShadowDirection` passes `X`
+straight into `info.vector.x`), so the formula sign was the on-screen sign.
+
+Worth recording *how* it survived: the solar-geometry suite was thorough but every azimuth
+assertion was symmetric about noon (`SolarAzimuth_MirrorsAcrossNoon`) or evaluated at noon itself,
+where the sign cancels. A mirrored sky satisfies all of them. It took someone noticing the
+shadows in a screenshot. The fix added `SolarAzimuth_SunRisesInTheEast` and
+`ShadowVector_PointsWestAtSunriseAndEastAtSunset`, which are asymmetric by construction and can
+only pass one way round — the general lesson being that a symmetry test never pins an orientation,
+and orientation needs its own anchor.
 
 `Patch_ShadowTilt` (below) reads `lightInfo.intensity` from the same patched call rather than a
 second, independent `GenCelestial.CurShadowStrength(map)` call, so its per-section length scaling

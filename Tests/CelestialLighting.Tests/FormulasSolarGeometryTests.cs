@@ -183,6 +183,51 @@ public class FormulasSolarGeometryTests
     // --- SolarAzimuthDegrees ---
 
     [Test]
+    public void SolarAzimuth_SunRisesInTheEast()
+    {
+        // The handedness anchor. Everything else in this section is symmetric about noon and stays
+        // green with the sky mirrored east-west, which is precisely how a dropped minus sign on sinAz
+        // shipped a sun that rose in the west — caught by someone looking at a screenshot, not by the
+        // suite. Sunrise east / sunset west is the one assertion that can only pass one way round.
+        //
+        // Equinox at +-45 puts the sun exactly on the horizon at dayPercent 0.25 and 0.75, so these are
+        // true sunrise and sunset rather than "some time in the morning".
+        foreach (float latitude in new[] { 45f, -45f })
+        {
+            float sunriseElevation = Formulas.SolarElevationDegrees(latitude, 0f, 0.25f);
+            float sunsetElevation = Formulas.SolarElevationDegrees(latitude, 0f, 0.75f);
+            Assert.That(sunriseElevation, Is.EqualTo(0f).Within(0.01f), $"precondition: sunrise at lat {latitude}");
+            Assert.That(sunsetElevation, Is.EqualTo(0f).Within(0.01f), $"precondition: sunset at lat {latitude}");
+
+            float sunrise = NormalizeAzimuth(Formulas.SolarAzimuthDegrees(latitude, 0f, sunriseElevation, 0.25f));
+            float sunset = NormalizeAzimuth(Formulas.SolarAzimuthDegrees(latitude, 0f, sunsetElevation, 0.75f));
+            Assert.That(sunrise, Is.EqualTo(90f).Within(0.01f), $"sunrise is due east at lat {latitude}");
+            Assert.That(sunset, Is.EqualTo(270f).Within(0.01f), $"sunset is due west at lat {latitude}");
+        }
+    }
+
+    [Test]
+    public void ShadowVector_PointsWestAtSunriseAndEastAtSunset()
+    {
+        // The same fact one layer down, in the units that actually reach the screen: X is world east,
+        // so a sunrise shadow is thrown to negative X. Patch_ShadowDirection hands this straight to
+        // info.vector.x with no axis flip, so this sign IS the on-screen sign.
+        float sunriseElevation = Formulas.SolarElevationDegrees(45f, 0f, 0.25f);
+        float sunsetElevation = Formulas.SolarElevationDegrees(45f, 0f, 0.75f);
+
+        float sunriseAzimuth = Formulas.SolarAzimuthDegrees(45f, 0f, sunriseElevation, 0.25f);
+        float sunsetAzimuth = Formulas.SolarAzimuthDegrees(45f, 0f, sunsetElevation, 0.75f);
+
+        Formulas.ShadowVector atSunrise = Formulas.ShadowVectorFromSunPosition(sunriseElevation, sunriseAzimuth);
+        Formulas.ShadowVector atSunset = Formulas.ShadowVectorFromSunPosition(sunsetElevation, sunsetAzimuth);
+
+        Assert.That(atSunrise.X, Is.LessThan(0f), "sunrise shadow falls west");
+        Assert.That(atSunset.X, Is.GreaterThan(0f), "sunset shadow falls east");
+    }
+
+    private static float NormalizeAzimuth(float degrees) => degrees < 0f ? degrees + 360f : degrees;
+
+    [Test]
     public void SolarAzimuth_IsDueSouthAtNoonInTheNorthernHemisphere()
     {
         // Standard north-referenced azimuth: from a northern tile the noon sun sits due south (180).
@@ -206,8 +251,9 @@ public class FormulasSolarGeometryTests
     public void SolarAzimuth_MirrorsAcrossNoon()
     {
         // Morning and afternoon azimuths are equal and opposite about the noon meridian, so shadows
-        // sweep symmetrically through the day. (Which literal world axis maps to compass east is still
-        // flagged unverified in DESIGN.md §1 — this asserts the symmetry, not the handedness.)
+        // sweep symmetrically through the day. This asserts symmetry ONLY — it holds just as well with
+        // the whole sky mirrored east-west, which is how we shipped a backwards sun past a green suite.
+        // SolarAzimuth_SunRisesInTheEast is the test that pins the handedness down.
         float declination = Formulas.SolarDeclinationDegrees(20f);
         for (float offset = 0.05f; offset <= 0.4f; offset += 0.05f)
         {
@@ -225,14 +271,16 @@ public class FormulasSolarGeometryTests
         // cos(latitude) == 0 makes every azimuth "away from the pole", so the formula is degenerate.
         // The documented fallback tracks the hour angle directly, normalized into [0, 360) — it keeps
         // sweeping smoothly instead of dividing by zero or freezing the shadow in place.
+        // The fallback tracks the NEGATED hour angle, matching the sign on sinAz in the real formula,
+        // so the sun keeps circling the same way it does one degree of latitude further out.
         float declination = Formulas.SolarDeclinationDegrees(30f);
         foreach (float p in new[] { 0f, 0.25f, 0.5f, 0.75f })
         {
             float elevation = Formulas.SolarElevationDegrees(90f, declination, p);
             float azimuth = Formulas.SolarAzimuthDegrees(90f, declination, elevation, p);
 
-            float rawHourAngle = Formulas.HourAngleDegrees(p);
-            float expected = rawHourAngle < 0f ? rawHourAngle + 360f : rawHourAngle;
+            float negatedHourAngle = -Formulas.HourAngleDegrees(p);
+            float expected = negatedHourAngle < 0f ? negatedHourAngle + 360f : negatedHourAngle;
             Assert.That(azimuth, Is.EqualTo(expected).Within(0.01f), $"dayPercent {p}");
         }
     }
