@@ -43,9 +43,14 @@ public static class Patch_ShadowDirection
             // represent moonlight, but it isn't tied to any real moon position. Now that
             // GameComponent_MoonPhase exists we drive a *real* moon-cast shadow: if the moon is up
             // and illuminated, MoonPosition.ShadowForMap returns its (position-derived) vector and
-            // faint strength; otherwise (moon down, or new moon) it returns null and we suppress the
-            // shadow entirely rather than show a fake one. Patch_ShadowStrength consults the same
-            // MoonPosition adapter, so the shader alpha it sets always agrees with this vector.
+            // faint strength; otherwise (moon down, new moon, or a sky still too bright for the moon
+            // to compete with — see §6b) it returns null and we suppress the shadow entirely rather
+            // than show a fake one. Patch_ShadowStrength consults the same MoonPosition adapter, so
+            // the shader alpha it sets always agrees with this vector.
+            //
+            // This branch is therefore no longer a handover: crossing it does not start a moon
+            // shadow, it only stops the sun's. The moon's fades in on its own several degrees later,
+            // once the twilight sky has dropped to within reach of the moon's ~0.27 lux.
             (Vector2 vector, float strength)? moonShadow = MoonPosition.ShadowForMap(map);
             if (moonShadow.HasValue)
             {

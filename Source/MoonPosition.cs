@@ -110,7 +110,18 @@ public static class MoonPosition
             return null;
 
         Sky sky = SkyForMap(map);
-        float strength = MoonMath.MoonShadowStrength(sky.IlluminatedFraction, sky.ElevationDegrees);
+
+        // §6b: how bright the sky already is decides whether the moon's shadow can be seen at all, so
+        // the sun's elevation is an input here rather than the gate it used to be. Read from the same
+        // SolarPosition adapter both shadow patches read, so all three agree on one sun — the same
+        // discipline that keeps this file the single source of the moon.
+        float sunElevation = SolarPosition.ElevationForMap(map);
+
+        // Returns 0 (and so null, below) once the shadow would render under the perceptible floor —
+        // which now includes all of daylight, where the ratio is nonzero but four orders of magnitude
+        // too small to see. That is what removes the old sunset pop: there is no longer a moment where
+        // this switches from "no shadow" to "full shadow".
+        float strength = MoonMath.MoonShadowStrength(sky.IlluminatedFraction, sky.ElevationDegrees, sunElevation);
         if (strength <= 0f)
             return null;
 

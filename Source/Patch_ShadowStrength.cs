@@ -24,6 +24,12 @@ namespace CelestialLighting;
 // set here always matches the vector set there. If the moon is down or new, ShadowForMap returns
 // null and the night stays shadowless — exactly what the sun-only intensity (0 at night) already
 // gave.
+//
+// §6b note: the elevation test below is now only "who is the caster", not "can the moon be seen".
+// ShadowForMap answers the second question itself, from the moonlight-to-skylight ratio, and returns
+// null through the whole of civil twilight because the sky is still hundreds of times brighter than
+// the moon. So the two branches no longer meet at a step: the sun's ramp has already reached 0 by
+// the time this crosses over, and the moon's is still 0 for several degrees after it.
 [HarmonyPatch(typeof(GenCelestial), nameof(GenCelestial.CurShadowStrength))]
 public static class Patch_ShadowStrength
 {

@@ -53,9 +53,13 @@ public static class Patch_MoonShadowColor
         if (sunElevation > Formulas.AtmosphericRefractionDegrees)
             return;
 
-        // No moon shadow being cast (moon down, or new) => leave the night's shadow colour alone.
-        // Asking the same adapter the two shadow patches ask means this can never darken the ground for
-        // a shadow that isn't there.
+        // No moon shadow being cast (moon down, new, or the sky still too bright for one to register —
+        // §6b) => leave the night's shadow colour alone. Asking the same adapter the two shadow patches
+        // ask means this can never darken the ground for a shadow that isn't there.
+        //
+        // §6b made that guarantee load-bearing rather than incidental. A contrast ratio is never
+        // exactly zero, so without ShadowForMap's own perceptibility gate this would darken
+        // colors.shadow through every twilight for a shadow whose alpha is 0.0009.
         if (!MoonPosition.ShadowForMap(map).HasValue)
             return;
 
