@@ -1,0 +1,93 @@
+{
+  "name": "moon_shadow_twilight_fade",
+  "saveFile": "minimal_colony.rws",
+  "description": "§6b: the moon shadow fades in during nautical twilight rather than popping on at sunset. Walks lat 45 / day 37 (full moon) from just before sunset to deep night and pins where the shadow is absent, where it has arrived, and where it has saturated. The moon_shadow_render expectations track the SHIPPED PRESET's shadow-strength slider (CelestialSettingsMath.Presets.Cinematic.ShadowStrength, currently 0.8). Recompute after a preset change: rendered = 1 - MoonShadowStrength(illum, moonElev, sunElev) * ShadowStrength * (1 - 0.107), where 0.107 is MoonMath.MoonShadowColorValue(0.25, 0.28).",
+  "_comment": [
+    "Same tile as moon_sun_clock.json (lat 45, day 37, moon exactly full at noon) so the two read",
+    "against one another: that scenario proves the moon rides the warped clock, this one proves the",
+    "shadow it casts arrives at the right BRIGHTNESS rather than at the right moon position.",
+    "",
+    "Before §6b the moon shadow switched on the instant the sun passed the refraction horizon, at",
+    "whatever strength the moon's altitude implied — 0.881 at hour 21.3 here, in a sky still ~9 lux",
+    "against the full moon's 0.27. This scenario's hour-21.3 probe is that regression, inverted: it",
+    "must now read a clean 1.0 (no shadow at all).",
+    "",
+    "The sun_elevation probes are the anchors, and they are exact — they come from the same",
+    "SunClockMath warp the mod runs, calibrated against this scenario family's own live-probed 7.39",
+    "at hour 20. They fix which twilight phase each moment is in, so a moon_shadow_render reading",
+    "cannot be explained away as 'the clock moved' when what changed was the shadow model.",
+    "",
+    "Deliberately NOT probed: the steep middle of the fade (hours 21.6-21.8, where the render sweeps",
+    "0.96 -> 0.83). Contrast there is changing fast enough that pinning it would be pinning the",
+    "sub-degree accuracy of the moon's position rather than the fade, and the timelapse below already",
+    "shows that stretch to a human. The three pinned points bracket it: nothing at 21.3, arrived by",
+    "22.0, saturated by 23.0."
+  ],
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "45" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "37" } },
+    { "type": "LookAt", "args": { "zoom": "14" } },
+
+    { "_comment": "Guard against a vacuous run: if this is not a full moon, every expectation below is meaningless.",
+      "type": "SetTime", "args": { "hour": "12" } },
+    { "type": "Wait", "args": { "frames": "5" } },
+    { "type": "Probe", "args": { "probeName": "moon_illumination", "expectedValue": "1.0", "tolerance": "0.02" } },
+
+    { "_comment": "Hour 21.0 — two minutes BEFORE vanilla's sunset (21.032), sun still 0.58 deg up. The SUN still owns the shadow here, so this reads the sun branch's near-zero-elevation value. Probed to fix which side of the caster handover we start on; §6b must not move it.",
+      "type": "SetTime", "args": { "hour": "21" } },
+    { "type": "Wait", "args": { "frames": "5" } },
+    { "type": "Probe", "args": { "probeName": "sun_elevation", "expectedValue": "-0.58", "tolerance": "0.4" } },
+    { "type": "Probe", "args": { "probeName": "moon_shadow_render", "expectedValue": "0.995", "tolerance": "0.01" } },
+    { "type": "Screenshot", "args": { "fileName": "mstf_2100_presunset.png" } },
+
+    { "_comment": "THE REGRESSION PROBE. Hour 21.3, sun 4.8 deg below the horizon — past the caster handover, so the sun's shadow is gone, and the old model started the moon's here at 0.881. The sky is still ~8.9 lux, ~33x the full moon, so §6b says there is nothing to see. A failure here reading ~0.88 means the sun-below-horizon gate is back.",
+      "type": "SetTime", "args": { "hour": "21.3" } },
+    { "type": "Wait", "args": { "frames": "5" } },
+    { "type": "Probe", "args": { "probeName": "sun_elevation", "expectedValue": "-4.79", "tolerance": "0.4" } },
+    { "type": "Probe", "args": { "probeName": "moon_shadow_render", "expectedValue": "1.0", "tolerance": "0.01" } },
+    { "type": "Screenshot", "args": { "fileName": "mstf_2118_civil_twilight_no_shadow.png" } },
+
+    { "_comment": "Hour 21.5, end of civil twilight (sun -7.6, sky ~0.66 lux). Still nothing: a full moon needs the sky about 2x darker again before it can register. This is the probe that pins the fade as LATE rather than merely soft — a model that started the shadow at sunset but ramped it slowly would pass 21.3 and fail here.",
+      "type": "SetTime", "args": { "hour": "21.5" } },
+    { "type": "Wait", "args": { "frames": "5" } },
+    { "type": "Probe", "args": { "probeName": "sun_elevation", "expectedValue": "-7.62", "tolerance": "0.4" } },
+    { "type": "Probe", "args": { "probeName": "moon_shadow_render", "expectedValue": "1.0", "tolerance": "0.01" } },
+
+    { "_comment": "Hour 22.0, mid nautical twilight (sun -14.2, sky ~0.004 lux). The moon now dominates and the shadow has essentially arrived. Tolerance is wider than the endpoints because this sits on the shoulder of the curve, where a degree of moon altitude is still worth ~0.005 of render.",
+      "type": "SetTime", "args": { "hour": "22" } },
+    { "type": "Wait", "args": { "frames": "5" } },
+    { "type": "Probe", "args": { "probeName": "sun_elevation", "expectedValue": "-14.16", "tolerance": "0.4" } },
+    { "type": "Probe", "args": { "probeName": "moon_shadow_render", "expectedValue": "0.811", "tolerance": "0.03" } },
+    { "type": "Screenshot", "args": { "fileName": "mstf_2200_nautical_shadow_arrived.png" } },
+
+    { "_comment": "Hour 23.0, full darkness (sun -24, sky at the starlight floor). Saturated: the ratio is ~0.997 and the render sits on the artistic cap. Flat enough here that a tight tolerance is safe.",
+      "type": "SetTime", "args": { "hour": "23" } },
+    { "type": "Wait", "args": { "frames": "5" } },
+    { "type": "Probe", "args": { "probeName": "sun_elevation", "expectedValue": "-23.95", "tolerance": "0.4" } },
+    { "type": "Probe", "args": { "probeName": "moon_shadow_render", "expectedValue": "0.802", "tolerance": "0.02" } },
+    { "type": "Screenshot", "args": { "fileName": "mstf_2300_full_darkness.png" } },
+
+    { "_comment": "Off/on A/B at the saturated end, so the deep-night shadow is shown to be OURS and not something vanilla was drawing anyway.",
+      "type": "SetFeature", "args": { "featureName": "moon_shadows", "enabled": "false" } },
+    { "type": "Wait", "args": { "frames": "5" } },
+    { "type": "Probe", "args": { "probeName": "moon_shadow_render", "expectedValue": "1.0", "tolerance": "0.01" } },
+    { "type": "Screenshot", "args": { "fileName": "mstf_2300_moon_shadows_off.png" } },
+    { "type": "SetFeature", "args": { "featureName": "moon_shadows", "enabled": "true" } },
+    { "type": "Wait", "args": { "frames": "5" } },
+    { "type": "Probe", "args": { "probeName": "moon_shadow_render", "expectedValue": "0.802", "tolerance": "0.02" } },
+    { "type": "Screenshot", "args": { "fileName": "mstf_2300_moon_shadows_on.png" } },
+
+    { "_comment": "The fade itself, for a human: one frame every 0.05 h from just before sunset to full darkness. This is where the steep middle the probes skip actually gets reviewed — what it must NOT show is a single-frame step from no shadow to full shadow.",
+      "type": "Timelapse",
+      "args": {
+        "fromHour": "20.9",
+        "toHour": "23.0",
+        "stepHours": "0.05",
+        "fileNamePrefix": "mstf_fade"
+      }
+    },
+
+    { "_comment": "Leave the clock somewhere harmless for whatever runs next.",
+      "type": "SetTime", "args": { "hour": "12" } }
+  ]
+}

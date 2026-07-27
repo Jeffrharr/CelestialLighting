@@ -71,13 +71,15 @@
     { "type": "Probe", "args": { "probeName": "moon_shadow_render", "expectedValue": "0.9109", "tolerance": "0.02" } },
     { "type": "Screenshot", "args": { "fileName": "wsv_lowsun_rain_after.png" } },
 
-    { "_comment": "Night must be untouched: §6a's Patch_MoonShadowColor owns colors.shadow below the horizon and §13a stands down there, so this reads §6a's own value and not Clear's 0.718. NOTE the expected number is phase-derived, not copied from the full-moon scenario: at day 40 hour 2 the tick-derived cycle is 0.6722, a 73.5%-lit WANING GIBBOUS. Its shadow strength is therefore ramp(elev) * 0.735 * MoonShadowMaxStrength = 0.2057, times the preset's 0.8 slider = an alpha of 0.1646, which against §6a's 0.1071 shadow colour renders 1 - 0.1646*(1-0.1071) = 0.8531. Assuming a full moon here is exactly the mistake this comment exists to prevent.",
+    { "_comment": "Night must be untouched: §6a's Patch_MoonShadowColor owns colors.shadow below the horizon and §13a stands down there, so this reads §6a's own value and not Clear's 0.718. At day 40 hour 2 the tick-derived cycle is 0.6722 — a 73.5%-lit WANING GIBBOUS, not a full moon. Assuming a full moon here is exactly the mistake this comment exists to prevent.",
+      "_comment2": "§6b RE-BASELINE: 0.8531 -> 0.8023. The old model was linear in illuminated fraction, so a 73.5%-lit moon cast 73.5% of full strength (0.2057 alpha). §6b makes strength a contrast RATIO instead, and the sun is 47 degrees down here — the sky is at the 0.001 lux starlight floor, so this moon's 0.087 lux dominates it 87:1 and the shadow is at 0.2768, near the cap. Recompute: MoonLux(0.735, 73.2) = 0.267 * 0.735^3.5 * sin(73.2) = 0.0870; contrast = 0.0870/(0.0870+0.001) = 0.9886; strength = 0.9886 * 0.28 = 0.2768; times the preset's 0.8 slider = an alpha of 0.2215, which against §6a's 0.1071 shadow colour renders 1 - 0.2215*(1-0.1071) = 0.8023.",
+      "_comment3": "Phase still matters under §6b, but at the twilight end (WHEN a shadow appears) rather than as a proportional dimming in full darkness — see moon_shadow_twilight_fade.json. In a sky this dark, gibbous and full are within 0.003 of each other.",
       "type": "SetWeather", "args": { "weatherDef": "Clear", "instant": "true" } },
     { "type": "SetTime", "args": { "hour": "2" } },
     { "type": "Wait", "args": { "frames": "5" } },
     { "type": "Probe", "args": { "probeName": "moon_illumination", "expectedValue": "0.735", "tolerance": "0.02" } },
     { "type": "Probe", "args": { "probeName": "moon_elevation", "expectedValue": "73.2", "tolerance": "2.0" } },
-    { "type": "Probe", "args": { "probeName": "moon_shadow_render", "expectedValue": "0.8531", "tolerance": "0.02" } },
+    { "type": "Probe", "args": { "probeName": "moon_shadow_render", "expectedValue": "0.8023", "tolerance": "0.02" } },
 
     { "type": "SetTime", "args": { "hour": "12" } },
     { "type": "SetWeather", "args": { "weatherDef": "Clear", "instant": "true" } }
