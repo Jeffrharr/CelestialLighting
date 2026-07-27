@@ -1,3 +1,4 @@
+using System;
 using RimWorld;
 using UnityEngine;
 using Verse;
@@ -13,6 +14,11 @@ namespace CelestialLighting;
 // two shadow patches. If the moon component is absent (no game loaded, or on the main menu), every
 // accessor degrades to "no moon" (elevation far below the horizon, zero shadow, zero moonlight)
 // rather than throwing on the render path.
+//
+// SkyForMap is memoized per (map, frame, cycle position) — see GeometryMemo.cs. As with the sun,
+// keep it the only place moon geometry is derived: everything below (ShadowForMap,
+// MoonlightBrightnessForMap) reads through it, which is what makes one cached evaluation per frame
+// serve the whole render path.
 public static class MoonPosition
 {
     public readonly struct Sky
@@ -42,13 +48,40 @@ public static class MoonPosition
     // ProbeRegistration's moon_clock_warp bridge.
     public static bool WarpMoonClock = true;
 
+    // Per-frame memo (issue #12; rationale in GeometryMemo.cs). SkyForMap is the moon's twin of
+    // SolarPosition.InputsForMap: ShadowForMap, MoonlightBrightnessForMap, the HUD readout and
+    // Patch_MoonShadowColor's CurSkyTarget postfix all land here — six evaluations per frame on the
+    // current map, and each uncached one paid for a *second* WorldGrid.LongLatOf on top of the one
+    // inside InputsForMap.
+    private static readonly GeometryMemo<Sky> SkyMemo = new GeometryMemo<Sky>();
+
+    // Static delegate over a value tuple rather than a closure over `map`, so the memoized path
+    // allocates nothing per frame.
+    private static readonly Func<(Map map, float cyclePosition), Sky> ComputeSky = ComputeSkyForMap;
+
     public static Sky SkyForMap(Map map)
     {
         GameComponent_MoonPhase moon = GameComponent_MoonPhase.Current;
         if (moon == null)
             return NoMoon;
 
+        // Read (cheaply, from the tick) and folded into the memo key rather than left implicit,
+        // because it is the one input here that is NOT a pure function of (map, tick): the harness's
+        // eclipse staging slides the whole cycle mid-run by writing debugSynodicShiftTicks. Keying on
+        // the resulting cycle position means a staged eclipse can never be served a pre-stage moon.
         float cyclePosition = moon.CyclePosition;
+
+        return SkyMemo.Get(
+            map.uniqueID,
+            FrameStamp.Current().WithScalar(cyclePosition),
+            (map, cyclePosition),
+            ComputeSky);
+    }
+
+    private static Sky ComputeSkyForMap((Map map, float cyclePosition) args)
+    {
+        Map map = args.map;
+        float cyclePosition = args.cyclePosition;
 
         // The moon's day percent is NOT independent of the sun's — MoonMath.MoonDayPercent exists to
         // produce moonHourAngle == sunHourAngle - elongation, so whatever clock the sun is on, the

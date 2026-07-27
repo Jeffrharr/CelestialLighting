@@ -62,6 +62,11 @@
     <!-- Subsystem 15b pure core (how dark the ground under an eave is). Reads one constant off
          IndoorOcclusionMath, already linked above. -->
     <Compile Include="../../Source/EaveShadeMath.cs" Link="EaveShadeMath.cs" />
+    <!-- Issue #12's per-frame geometry memo. Verse-free by design (the live half that reads
+         Time.frameCount / the tick / the mode flags lives in Source/FrameStamp.cs), so its
+         hit/miss/invalidation rules are unit tested offline instead of inferred from in-game
+         symptoms — a memo bug looks exactly like a formula bug from the outside. -->
+    <Compile Include="../../Source/GeometryMemo.cs" Link="GeometryMemo.cs" />
   </ItemGroup>
 
 </Project>
