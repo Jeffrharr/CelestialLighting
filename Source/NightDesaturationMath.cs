@@ -1,3 +1,5 @@
+using System;
+
 namespace CelestialLighting;
 
 // Pure math only — no UnityEngine or Verse types anywhere in this file (same discipline as
@@ -78,6 +80,28 @@ public static class NightDesaturationMath
     // when the glow grid changes.
     public static float MapWash(float purkinjeFactor, float strength) =>
         Clamp01(purkinjeFactor) * Clamp01(strength) * MaxWash;
+
+    // A wash fraction as the byte alpha a mesh vertex carries.
+    //
+    // Lives here rather than in the layer so the equivalence test in NightWashWindowTests can compare
+    // the memoised vertex loop against the pre-memoisation one on the *shipped* conversion instead of
+    // a paraphrase of it — the same reason IndoorOcclusionMath owns §7b's CoverAlpha.
+    //
+    // Math.Round is deliberately not the `(int)(v * 255f + 0.5f)` form CoverAlpha uses: this replaced
+    // UnityEngine.Mathf.RoundToInt, which is `(int)Math.Round(f)` — banker's rounding — and the two
+    // disagree on every exact midpoint. Reproducing it exactly is what keeps this a pure refactor
+    // rather than a one-bit-per-vertex change nobody would have noticed until a pinned probe moved.
+    //
+    // The clamp is defensive: CellWash already returns [0, 1] and averaging clamped values cannot
+    // leave that range, so nothing in §9 can currently reach it.
+    public static byte WashAlpha(float wash)
+    {
+        int scaled = (int)Math.Round(wash * 255f);
+        if (scaled < 0)
+            return 0;
+
+        return scaled > 255 ? (byte)255 : (byte)scaled;
+    }
 
     private static float Clamp01(float v) => v < 0f ? 0f : (v > 1f ? 1f : v);
 }

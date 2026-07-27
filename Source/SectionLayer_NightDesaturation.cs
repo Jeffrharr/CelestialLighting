@@ -47,6 +47,16 @@ public class SectionLayer_NightDesaturation : SectionLayer
 
     public override void Regenerate()
     {
+        // Verse.Section.TryUpdate does NOT consult Visible before calling this — only DrawLayer does
+        // (see DESIGN.md §16) — so without this gate every player who has §9 switched off still pays
+        // the full bake on every lamp toggle, fire, and roof edit for a mesh that is never drawn.
+        // Measured live at 271 µs per section regenerate with the feature off.
+        if (!Visible)
+        {
+            DiscardMesh();
+            return;
+        }
+
         LayerSubMesh subMesh = GetSubMesh(NightDesaturationOverlay.Material);
         if (subMesh.mesh.vertexCount == 0)
             SectionLayerGeometryMaker_Solid.MakeBaseGeometry(section, subMesh, AltitudeLayer.Weather);
@@ -54,11 +64,16 @@ public class SectionLayer_NightDesaturation : SectionLayer
         subMesh.Clear(MeshParts.Colors);
 
         CellRect rect = section.CellRect;
+
+        // One glow query per cell of the section-plus-skirt window, instead of nine per cell inside
+        // it. See NightWashWindow's header for the geometry and the measurement behind it.
+        NightWashWindow wash = ResolveWash(rect);
+
         for (int x = rect.minX; x <= rect.maxX; x++)
         {
             for (int z = rect.minZ; z <= rect.maxZ; z++)
             {
-                AddCellColors(subMesh, x, z);
+                AddCellColors(subMesh, in wash, x, z);
             }
         }
 
@@ -66,23 +81,79 @@ public class SectionLayer_NightDesaturation : SectionLayer
         subMesh.FinalizeMesh(MeshParts.Colors);
     }
 
+    // Leaves nothing drawable behind when the feature is off.
+    //
+    // DrawLayer's own Visible check already stops the layer being drawn, so this is not what makes the
+    // wash disappear when a player unticks the box mid-game. What it prevents is the opposite
+    // direction: TryUpdate clears the layer's Dirty flag even when Regenerate returns early, so a mesh
+    // baked before the toggle would otherwise sit in subMeshes describing a glow grid that has since
+    // moved, ready to be drawn the instant the feature came back on. Disabling it means the worst case
+    // there is one frame of nothing rather than one frame of a stale wash — and NightDesaturationRedraw
+    // dirties the map on the toggle so that frame does not happen either.
+    //
+    // Disabling rather than clearing the colours: Clear + FinalizeMesh would re-upload the mesh to the
+    // GPU, which is a large part of the cost this gate exists to avoid. Regenerate's tail sets
+    // `disabled = false` again on the first bake after the feature comes back.
+    private void DiscardMesh()
+    {
+        for (int i = 0; i < subMeshes.Count; i++)
+            subMeshes[i].disabled = true;
+    }
+
+    // Reads local glow once for every cell the vertex loop can ask about — the section plus a one-cell
+    // skirt, clipped at the map edge — and hands each reading to the pure window, which applies
+    // NightDesaturationMath.CellWash and stores the result.
+    //
+    // Local light only — ignoreSky: true. The sky's own contribution is already the whole of
+    // PurkinjeMath's factor, which scales this layer through the material's alpha; counting it again
+    // per cell would both double it and, worse, invert the intent, since a brightening sky would start
+    // exempting the outdoor cells the effect is for.
+    private NightWashWindow ResolveWash(CellRect rect)
+    {
+        Map map = base.Map;
+        NightWashWindow wash = NightWashWindow.ForSection(
+            rect.minX, rect.minZ, rect.maxX, rect.maxZ, map.Size.x, map.Size.z);
+
+        GlowGrid glowGrid = map.glowGrid;
+        for (int z = wash.MinZ; z <= wash.MaxZ; z++)
+        {
+            for (int x = wash.MinX; x <= wash.MaxX; x++)
+            {
+                wash.Resolve(
+                    x,
+                    z,
+                    glowGrid.GroundGlowAt(new IntVec3(x, 0, z), ignoreCavePlants: false, ignoreSky: true));
+            }
+        }
+
+        return wash;
+    }
+
     // The nine vertices SectionLayerGeometryMaker_Solid emits per cell, in its order: four corners,
     // four edge midpoints, then the centre. Each is averaged over the cells it actually touches — a
     // corner belongs to four cells, an edge to two, the centre to one — which is what makes the wash
     // fade smoothly across cell boundaries instead of drawing a visible grid of squares. Vanilla's
-    // lighting overlay does the same averaging for the same reason.
-    private void AddCellColors(LayerSubMesh subMesh, int x, int z)
+    // lighting overlay does the same averaging for the same reason — and walks a vertex lattice to
+    // avoid paying for the overlap, which is what NightWashWindow now does here.
+    //
+    // The nine reads below are the whole reason the window exists: each cell in the section asks about
+    // itself and its eight neighbours, so every interior cell's glow is read nine times over the
+    // course of one regenerate.
+    //
+    // `in` rather than by value: this runs 289 times per regenerate and NightWashWindow is a readonly
+    // struct, so passing by reference costs nothing and skips 289 copies of its header.
+    private static void AddCellColors(LayerSubMesh subMesh, in NightWashWindow wash, int x, int z)
     {
-        float here = WashAt(x, z);
-        float west = WashAt(x - 1, z);
-        float east = WashAt(x + 1, z);
-        float south = WashAt(x, z - 1);
-        float north = WashAt(x, z + 1);
+        float here = wash.At(x, z);
+        float west = wash.At(x - 1, z);
+        float east = wash.At(x + 1, z);
+        float south = wash.At(x, z - 1);
+        float north = wash.At(x, z + 1);
 
-        byte bottomLeft = ToAlpha((here + west + south + WashAt(x - 1, z - 1)) * 0.25f);
-        byte topLeft = ToAlpha((here + west + north + WashAt(x - 1, z + 1)) * 0.25f);
-        byte topRight = ToAlpha((here + east + north + WashAt(x + 1, z + 1)) * 0.25f);
-        byte bottomRight = ToAlpha((here + east + south + WashAt(x + 1, z - 1)) * 0.25f);
+        byte bottomLeft = ToAlpha((here + west + south + wash.At(x - 1, z - 1)) * 0.25f);
+        byte topLeft = ToAlpha((here + west + north + wash.At(x - 1, z + 1)) * 0.25f);
+        byte topRight = ToAlpha((here + east + north + wash.At(x + 1, z + 1)) * 0.25f);
+        byte bottomRight = ToAlpha((here + east + south + wash.At(x + 1, z - 1)) * 0.25f);
 
         byte left = ToAlpha((here + west) * 0.5f);
         byte top = ToAlpha((here + north) * 0.5f);
@@ -100,26 +171,11 @@ public class SectionLayer_NightDesaturation : SectionLayer
         subMesh.colors.Add(WashColor(ToAlpha(here)));
     }
 
-    // Local light only — ignoreSky: true. The sky's own contribution is already the whole of
-    // PurkinjeMath's factor, which scales this layer through the material's alpha; counting it again
-    // per cell would both double it and, worse, invert the intent, since a brightening sky would
-    // start exempting the outdoor cells the effect is for.
-    //
-    // Out-of-bounds neighbours (the map edge) read as unlit rather than as an exemption, so the wash
-    // runs cleanly off the edge instead of fading out along it.
-    private float WashAt(int x, int z)
-    {
-        IntVec3 cell = new IntVec3(x, 0, z);
-        if (!cell.InBounds(base.Map))
-            return 1f;
-
-        return NightDesaturationMath.CellWash(
-            base.Map.glowGrid.GroundGlowAt(cell, ignoreCavePlants: false, ignoreSky: true));
-    }
-
     // White RGB: the wash's colour comes from the material (a dark grey), so the vertex carries only
     // "how much of it applies here". The shader multiplies the two.
     private static Color32 WashColor(byte alpha) => new Color32(byte.MaxValue, byte.MaxValue, byte.MaxValue, alpha);
 
-    private static byte ToAlpha(float wash) => (byte)Mathf.Clamp(Mathf.RoundToInt(wash * 255f), 0, 255);
+    // Forwards to the pure core, which owns the exact rounding (see NightDesaturationMath.WashAlpha)
+    // so the offline equivalence test compares shipped bytes rather than a transcription of them.
+    private static byte ToAlpha(float wash) => NightDesaturationMath.WashAlpha(wash);
 }

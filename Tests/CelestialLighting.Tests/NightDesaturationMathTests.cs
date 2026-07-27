@@ -109,4 +109,28 @@ public class NightDesaturationMathTests
         Assert.That(NightDesaturationMath.MapWash(factor, strength),
             Is.InRange(0f, NightDesaturationMath.MaxWash));
     }
+
+    // --- WashAlpha: the byte a mesh vertex actually carries ---
+
+    // Moved here out of the layer so NightWashWindowTests can compare the memoised vertex loop against
+    // the pre-memoisation one on the shipped conversion. It replaced UnityEngine.Mathf.RoundToInt, so
+    // what these pin is that it still rounds the way Mathf did — banker's rounding, ties to even —
+    // rather than the away-from-zero form used elsewhere in the mod. A silent switch would move one bit
+    // per vertex on every exact midpoint, which no visual test would ever catch.
+    [TestCase(0f, ExpectedResult = (byte)0)]
+    [TestCase(1f, ExpectedResult = (byte)255)]
+    [TestCase(0.5f, ExpectedResult = (byte)128)]        // 127.5 -> ties to even -> 128
+    [TestCase(0.25f, ExpectedResult = (byte)64)]        // 63.75 -> 64
+    [TestCase(0.1f, ExpectedResult = (byte)26)]         // 25.5 -> 26 either way
+    // The discriminating case: 0.3f * 255f is exactly 76.5, and ties-to-even gives 76 where the
+    // away-from-zero rounding CoverAlpha uses would give 77. This is the one that would move if
+    // someone "tidied" the two conversions into one shape.
+    [TestCase(0.3f, ExpectedResult = (byte)76)]
+    public byte WashAlpha_RoundsTheWayMathfDid(float wash) => NightDesaturationMath.WashAlpha(wash);
+
+    // Defensive only — CellWash returns [0, 1] and averaging clamped values cannot leave it — but a
+    // byte that wrapped instead of clamping would turn a fully-washed cell transparent.
+    [TestCase(1.5f, ExpectedResult = (byte)255)]
+    [TestCase(-0.5f, ExpectedResult = (byte)0)]
+    public byte WashAlpha_ClampsRatherThanWrapping(float wash) => NightDesaturationMath.WashAlpha(wash);
 }
