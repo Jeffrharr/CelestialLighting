@@ -12,3 +12,4 @@ Tools/**/obj/
 Tools/**/bin/
 Tools/**/__pycache__/
 *.pyc
+dist/
