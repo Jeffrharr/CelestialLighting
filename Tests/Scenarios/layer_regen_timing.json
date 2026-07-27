@@ -1,0 +1,39 @@
+{
+  "name": "layer_regen_timing",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "45" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "40" } },
+    { "type": "SetWeather", "args": { "weatherDef": "Clear", "instant": "true" } },
+    { "type": "SetTime", "args": { "hour": "12" } },
+
+    { "type": "SetTerrain", "args": { "def": "Concrete", "width": "30", "height": "30", "offset": "0,45", "clear": "true" } },
+    { "type": "SetRoof", "args": { "def": "RoofConstructed", "width": "9", "height": "9", "offset": "0,45" } },
+
+    { "type": "SetTerrain", "args": { "def": "Concrete", "width": "20", "height": "20", "offset": "0,10", "clear": "true" } },
+    { "type": "PlaceThings", "args": { "def": "Wall", "stuff": "BlocksGranite", "offset": "0,10", "layout": "cells", "clear": "true", "cells": "-2,-2; -1,-2; 0,-2; 1,-2; 2,-2; -2,-1; 2,-1; -2,0; 2,0; -2,1; 2,1; -2,2; -1,2; 0,2; 1,2; 2,2" } },
+    { "type": "SetRoof", "args": { "def": "RoofConstructed", "width": "7", "height": "7", "offset": "0,10" } },
+
+    { "type": "Probe", "args": { "probeName": "eave_cells", "expectedValue": "0", "tolerance": "1000000" } },
+
+    { "type": "Probe", "args": { "probeName": "regen_us_lighting_overlay", "expectedValue": "0", "tolerance": "1000000" } },
+    { "type": "Probe", "args": { "probeName": "regen_us_indoor_mask", "expectedValue": "0", "tolerance": "1000000" } },
+    { "type": "Probe", "args": { "probeName": "regen_us_gravship_hull", "expectedValue": "0", "tolerance": "1000000" } },
+    { "type": "Probe", "args": { "probeName": "regen_us_darkness", "expectedValue": "0", "tolerance": "1000000" } },
+    { "type": "Probe", "args": { "probeName": "regen_us_sun_shadows", "expectedValue": "0", "tolerance": "1000000" } },
+    { "type": "Probe", "args": { "probeName": "regen_us_night_desaturation", "expectedValue": "0", "tolerance": "1000000" } },
+    { "type": "Probe", "args": { "probeName": "regen_us_eave_shade", "expectedValue": "0", "tolerance": "1000000" } },
+
+    { "type": "SetFeature", "args": { "featureName": "indoor_sky_occlusion", "enabled": "false" } },
+    { "type": "Probe", "args": { "probeName": "regen_us_lighting_overlay", "expectedValue": "0", "tolerance": "1000000" } },
+    { "type": "SetFeature", "args": { "featureName": "indoor_sky_occlusion", "enabled": "true" } },
+
+    { "type": "SetFeature", "args": { "featureName": "low_light_desaturation", "enabled": "false" } },
+    { "type": "Probe", "args": { "probeName": "regen_us_night_desaturation", "expectedValue": "0", "tolerance": "1000000" } },
+    { "type": "SetFeature", "args": { "featureName": "low_light_desaturation", "enabled": "true" } },
+
+    { "type": "SetFeature", "args": { "featureName": "eave_shadows", "enabled": "false" } },
+    { "type": "Probe", "args": { "probeName": "regen_us_eave_shade", "expectedValue": "0", "tolerance": "1000000" } },
+    { "type": "SetFeature", "args": { "featureName": "eave_shadows", "enabled": "true" } }
+  ]
+}

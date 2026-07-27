@@ -29,6 +29,15 @@ namespace CelestialLighting;
 // implicitly, so OR-ing is a plain widening of the subscription — it can only cause extra
 // regenerates, never suppress one another mod is relying on.
 //
+// What those extra regenerates cost. This is one of four separate places that add work to a
+// map-mesh dirty flag (the other three are SectionLayer_NightDesaturation, SectionLayer_EaveShade
+// and Patch_IndoorSkyOcclusion), and no one of the four can show the total — DESIGN.md §16 has the
+// flag-to-layers table and the live timings. Two things there qualify the paragraph above: the
+// widened layer costs 26 µs per section regenerate (6% of what the mod adds to a `Roofs` flag), and
+// `Roofs` is not the rare player-initiated flag it sounds like — `GlowGrid.DirtyCell` raises it
+// alongside `GroundGlow`, so this widening also rebuilds the sun-shadow mesh every time a lamp
+// toggles, which can never change it. Cheap, but the one strictly-wasted regenerate we introduce.
+//
 // Known limitation (shared with Perspective: Eaves, and not introduced by us): a cell's eave status
 // depends on its ROOM, and enclosing a room can flip cells that are nowhere near the wall that
 // closed it — sealing a doorway makes an entire porch stop being a porch, but only the doorway's

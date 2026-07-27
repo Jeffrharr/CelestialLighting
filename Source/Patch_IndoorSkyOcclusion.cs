@@ -15,6 +15,16 @@ namespace CelestialLighting;
 //   section is dirtied (MapMeshFlagDefOf.Roofs or GroundGlow — see the layer's relevantChangeTypes),
 //   never per frame, so the extra pass is off the render hot path.
 //
+// FAN-OUT. "Off the render hot path" is true and is not the same as cheap. This is one of four
+// separate places that add work to a map-mesh dirty flag (the other three are
+// SectionLayer_NightDesaturation, SectionLayer_EaveShade and Patch_ShadowRoofInvalidation), and no
+// one of the four can show the total — DESIGN.md §16 has the flag-to-layers table and the live
+// timings. Measured, this postfix adds 95 µs per section regenerate against the 63 µs vanilla's
+// whole lighting overlay takes, i.e. it costs 2.5x the method it postfixes, and it is the second
+// largest term in what the mod adds to a roof edit. Also worth knowing before reasoning about how
+// often this runs: GlowGrid.DirtyCell raises Roofs as well as GroundGlow, so every lamp toggle
+// re-runs this pass over the sections it covers.
+//
 // Why Priority.First:
 //   Dub's Skylights brackets this same method — its Prefix nulls map.roofGrid for skylit cells so
 //   vanilla's roofed branch never fires, and its Postfix puts the roofs back. Running first means we

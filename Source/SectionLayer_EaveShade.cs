@@ -14,6 +14,13 @@ namespace CelestialLighting;
 // SectionLayer_NightDesaturation, and the same reason it collides with nothing: it is a new mesh
 // drawn alongside vanilla's, not a hijack of one.
 //
+// FAN-OUT. This is one of four separate places that add work to a map-mesh dirty flag (the other
+// three are SectionLayer_NightDesaturation, Patch_ShadowRoofInvalidation and
+// Patch_IndoorSkyOcclusion), and no one of the four can show the total. DESIGN.md §16 has the
+// flag-to-layers table and the live timings, including why the Buildings subscription below stays
+// despite issue #10 naming it the narrowing candidate: measured, this layer is 13 µs per section
+// regenerate, 3% of what the mod adds and the cheapest of the four.
+//
 // ALTITUDE. AltitudeLayer.Shadows, the same altitude vanilla's own sun shadows use, because this IS
 // one — it lands on terrain, under things and pawns, exactly as the cast band beside it does. The two
 // meshes are coplanar, which is harmless here: both are transparent-queue multiplies, so they

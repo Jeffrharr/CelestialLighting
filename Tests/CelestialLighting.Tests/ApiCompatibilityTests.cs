@@ -1153,6 +1153,73 @@ public class ApiCompatibilityTests
         Assert.That(field!.FieldType.FullName, Is.EqualTo("System.Boolean"));
     }
 
+    // --- §16 section-layer fan-out ---
+
+    // DESIGN.md §16 tabulates how many section layers regenerate per map-mesh dirty flag, and the
+    // whole point of writing it down was that the number lives in the interaction between files and
+    // is invisible from any one of them. The vanilla half of that table is just as invisible: it
+    // comes from Ludeon's constructors, so a RimWorld update that adds or drops one subscriber moves
+    // our documented baseline without touching a line of our code. This reads the subscriptions back
+    // out of the shipped Assembly-CSharp so the table fails loudly instead of going quietly stale.
+    //
+    // Deliberately asserts the exact set of type names rather than a count: "three layers take
+    // Roofs" stays true if Ludeon swaps one for another, and §16's per-flag microsecond totals are
+    // per-layer sums that such a swap would invalidate.
+    [TestCase("Roofs", "Verse.SectionLayer_IndoorMask,Verse.SectionLayer_LightingOverlay,RimWorld.SectionLayer_GravshipHull")]
+    [TestCase("GroundGlow", "Verse.SectionLayer_Darkness,Verse.SectionLayer_LightingOverlay")]
+    [TestCase("Buildings", "Verse.SectionLayer_BuildingsDamage,Verse.SectionLayer_EdgeShadows,Verse.SectionLayer_IndoorMask,Verse.SectionLayer_SunShadows,RimWorld.SectionLayer_GravshipHull,RimWorld.SectionLayer_SubstructureProps")]
+    public void VanillaSectionLayers_SubscribedTo_MatchDesignSection16(string flagName, string expectedCsv)
+    {
+        var expected = expectedCsv.Split(',').OrderBy(n => n).ToArray();
+        var actual = VanillaSectionLayers()
+            .Where(t => SubscribesTo(t, flagName))
+            .Select(t => t.FullName)
+            .OrderBy(n => n)
+            .ToArray();
+
+        Assert.That(actual, Is.EqualTo(expected),
+            $"The set of vanilla section layers subscribed to MapMeshFlagDefOf.{flagName} has "
+            + "changed. DESIGN.md §16's flag-to-layers table and its per-flag timings are now wrong "
+            + "— update both rather than this expectation alone.");
+    }
+
+    // Every non-abstract SectionLayer subclass in Assembly-CSharp, which is the set Verse.Section's
+    // constructor instantiates (typeof(SectionLayer).AllSubclassesNonAbstract()). Section's own
+    // exclusions are runtime conditions — biome, map info, DLC — not type-level ones, so none of
+    // them can be applied here and §16 names them in prose instead.
+    private IEnumerable<TypeDefinition> VanillaSectionLayers()
+    {
+        var byName = _module.Types.ToDictionary(t => t.FullName);
+
+        bool DerivesFromSectionLayer(TypeDefinition type)
+        {
+            var current = type.BaseType;
+            while (current != null)
+            {
+                if (current.FullName == "Verse.SectionLayer")
+                    return true;
+
+                current = byName.TryGetValue(current.FullName, out var resolved) ? resolved.BaseType : null;
+            }
+
+            return false;
+        }
+
+        return _module.Types.Where(t => !t.IsAbstract && DerivesFromSectionLayer(t));
+    }
+
+    // A layer declares its subscription as `relevantChangeTypes = (ulong)MapMeshFlagDefOf.X | ...`
+    // in its constructor, so the flags it takes are the MapMeshFlagDefOf fields that constructor
+    // loads. Reading the IL rather than running anything keeps this offline like the rest of the
+    // file.
+    private static bool SubscribesTo(TypeDefinition layer, string flagName) =>
+        layer.Methods
+            .Where(m => m.IsConstructor && m.HasBody)
+            .SelectMany(m => m.Body.Instructions)
+            .Any(i => i.Operand is FieldReference field
+                && field.DeclaringType.FullName == "RimWorld.MapMeshFlagDefOf"
+                && field.Name == flagName);
+
     // --- helpers ---
 
     private TypeDefinition? GetType(string fullName) =>

@@ -1462,6 +1462,166 @@ reason to patch, and the occlusion change is confined to a predicate inside our 
 `Room.UsesOutdoorTemperature` is the right predicate. No code was copied, and the two
 implementations share neither structure nor mechanism.
 
+## 16. Section-layer invalidation: what one dirty flag now costs (§7b / §9 / §15)
+
+**Problem.** Four separate decisions — §9's desaturation layer, §15b's eave-shade layer, §15's
+widening of the sun-shadow subscription, and §7b's postfix on vanilla's lighting overlay — each
+argue their own case correctly in their own file header, and not one of the four mentions the other
+three. What none of them can show is the *total*: how many section layers now regenerate when one
+map-mesh dirty flag is raised. That number only exists in the interaction, so a reader has to open
+four files and hold all four subscriptions in their head to see it. This section is where it is
+written down instead (issue #10).
+
+Nothing here argues for removing any of the four. Each is individually necessary; the point is that
+the compound cost has an owner and a number.
+
+### How a dirty flag becomes work
+
+`Verse.Section.TryUpdate(CellRect view)` is the path a live edit takes (decompiled 1.6). Three
+properties of that loop drive the whole cost picture, and all three are easy to get wrong from
+memory:
+
+- **It does not check `Visible`.** `RegenerateAllLayers` and `RegenerateDirtyLayers` both skip
+  invisible layers; `TryUpdate` does not — it tests only `(dirtyFlags & layer.relevantChangeTypes)`
+  and calls `Regenerate()`. So a layer of ours whose feature toggle is **off** still pays full
+  regenerate cost on every relevant dirty flag. Only `DrawLayer` consults `Visible`.
+- **Off-screen sections do not pay now.** The regenerate is gated on `bounds.Overlaps(view)`;
+  a dirtied section outside the camera is only flagged (`anyLayerDirty`) and regenerates later, in
+  `DrawSection`, if it ever comes on screen. A zone-roof order across 30 sections therefore costs
+  only the sections currently on camera — the rest is deferred or never paid at all.
+- **The unit of work is a whole section**, not the cell that changed: 17×17 = 289 cells, 9 vertices
+  each = 2601 vertex colours rebuilt and re-uploaded per layer. And `MapDrawer.MapMeshDirty` sets
+  `regenAdjacentCells` for `Roofs`/`Buildings`/`FogOfWar`, so one cell edit on a section boundary
+  dirties up to four sections.
+
+### Who subscribes to what
+
+Vanilla column verified by decompiling every non-abstract `SectionLayer` in 1.6's
+`Assembly-CSharp.dll` (not from memory — the counts in issue #10 were low, see below). `Section`'s
+constructor instantiates *all* of them except `SunShadows` (dropped when
+`map.info.disableSunShadows` or the biome disables shadows), `EdgeShadows` (biome) and
+`PollutionCloud` (no Biotech) — including the Odyssey layers, DLC or not.
+
+| Layer | `relevantChangeTypes` | Owner |
+|---|---|---|
+| `SectionLayer_LightingOverlay` | `Roofs \| GroundGlow` | vanilla (our §7b postfix rides its `Regenerate`) |
+| `SectionLayer_IndoorMask` | `Buildings \| Roofs \| FogOfWar` | vanilla |
+| `SectionLayer_GravshipHull` | `Buildings \| Terrain \| Things \| Roofs` | vanilla (Odyssey) |
+| `SectionLayer_Darkness` | `GroundGlow` | vanilla |
+| `SectionLayer_BuildingsDamage` | `BuildingsDamage \| Buildings` | vanilla |
+| `SectionLayer_EdgeShadows` | `Buildings` | vanilla |
+| `SectionLayer_SubstructureProps` | `Terrain \| Buildings` | vanilla (Odyssey) |
+| `SectionLayer_SunShadows` | `Buildings` **→ `\| Roofs`** | vanilla, widened by `Patch_ShadowRoofInvalidation` (§15) |
+| `SectionLayer_NightDesaturation` | `Roofs \| GroundGlow` | ours (§9) |
+| `SectionLayer_EaveShade` | `Roofs \| Buildings` | ours (§15b) |
+
+Per flag, layers that regenerate in a dirtied on-screen section:
+
+| Flag dirtied | Vanilla | With this mod | Ours |
+|---|---|---|---|
+| `Roofs` | 3 | **6** | `NightDesaturation`, `EaveShade`, `SunShadows` (widened) |
+| `GroundGlow` | 2 | **3** | `NightDesaturation` |
+| `Buildings` | 6 | **7** | `EaveShade` |
+| `Roofs \| GroundGlow` together | 4 | **7** | all three above |
+
+Issue #10 tabulated this as 1 → 4, 1 → 2 and 1 → 2. The *added* layers were right; the vanilla
+baseline was not. The real multiplier on `Roofs` is 2x, not 4x, and on `Buildings` it is +17%.
+
+### What actually raises these flags
+
+The frequency assumption matters more than the multiplier, and it is where the surprise is:
+
+- `RoofGrid.SetRoof` → `Roofs`. Player-initiated, infrequent. This is the case everyone pictures.
+- **`GlowGrid.DirtyCell` → `Roofs` *and* `GroundGlow`, both.** It is called per affected cell from
+  `RegisterGlower`/`DeRegisterGlower`/`LightBlockerAdded`/`LightBlockerRemoved`. So every lamp
+  switching on or off, every fire starting or dying, every sun lamp cycling at dawn raises `Roofs`
+  across the sections it covers. `Roofs` is not a rare flag; it is a lighting flag that also
+  happens to fire on roof edits.
+- `Building.SpawnSetup`/despawn → `Buildings`.
+- Ours, at settings-change frequency only: `IndoorOcclusionRedraw` → `WholeMapChanged(GroundGlow)`
+  and `EaveShadowRedraw` → `WholeMapChanged(Buildings)`, both change-detected so an open settings
+  window does not fire them at 60 Hz.
+
+The consequence worth writing down: because `GlowGrid.DirtyCell` raises `Roofs`, our widening of
+`SectionLayer_SunShadows` means **the sun-shadow mesh now rebuilds when a lamp toggles**, which can
+never change it. That is the one strictly-wasted regenerate the fan-out introduces, and it is a
+larger effect than the `Buildings` subscription issue #10 flagged as the narrowing candidate. Both
+are recorded here rather than acted on — see the measurement below for why.
+
+### Measured
+
+Issue #10's cost estimate was operation counting and said so. This is not: `SectionRegenerateTimingProbe`
+times one layer's `Regenerate()` on a live map — the same call `TryUpdate` makes — over four sections
+that contain roof, 2 warmup + 10 timed runs each, and reports the mean in microseconds. The scenario
+is `Tests/Scenarios/layer_regen_timing.json`.
+
+It has to be a live measurement. The three dominant terms are the glow-grid read, the region/room
+read and the Unity mesh upload inside `FinalizeMesh`, and none of the three exists outside a running
+game — an offline benchmark could only have timed the float arithmetic around them, which is not
+where the cost is. Numbers below are the mean over two full runs, which agreed to within 3%.
+
+| Layer | µs per section regenerate | On which flags |
+|---|---|---|
+| `SectionLayer_NightDesaturation` (ours, §9) | **271** | `Roofs`, `GroundGlow` |
+| `SectionLayer_LightingOverlay` **with** our §7b postfix | **158** | `Roofs`, `GroundGlow` |
+| `SectionLayer_LightingOverlay` with §7b switched off | 63 | `Roofs`, `GroundGlow` |
+| `SectionLayer_GravshipHull` (vanilla, Odyssey active) | 57 | `Roofs`, `Buildings`, … |
+| `SectionLayer_IndoorMask` (vanilla) | 30 | `Roofs`, `Buildings`, `FogOfWar` |
+| `SectionLayer_SunShadows` (vanilla, our §4/§15 prefix) | 26 | `Buildings`, **`Roofs`** |
+| `SectionLayer_EaveShade` (ours, §15b) | **13** | `Roofs`, `Buildings` |
+| `SectionLayer_Darkness` (vanilla) | 0.02 | `GroundGlow` (returns immediately without Anomaly) |
+
+Per `Roofs` flag, per dirtied on-screen section:
+
+| | µs | |
+|---|---|---|
+| vanilla | 150 | overlay 63 + indoor mask 30 + gravship hull 57 |
+| with this mod | 555 | + desaturation 271, + §7b's 95, + sun shadows 26, + eave shade 13 |
+
+**3.7x, not 4x-by-layer-count — and the layer count was the wrong thing to look at.** Two thirds of
+everything we add to a roof edit is one layer, and it is not either of the ones the issue suspected:
+
+| Our share of the +405 µs | |
+|---|---|
+| `SectionLayer_NightDesaturation` | 271 µs — **67%** |
+| §7b's postfix on vanilla's lighting overlay | 95 µs — 24% (it costs more than the layer it postfixes) |
+| `SectionLayer_SunShadows`, from the `Roofs` widening | 26 µs — 6% |
+| `SectionLayer_EaveShade` | 13 µs — **3%** |
+
+Two further measurements, each taken with the feature's own toggle switched off:
+
+- Desaturation off: **271 µs**, unchanged. Eave shadows off: 13 µs, unchanged. This is the
+  `Visible`-is-not-checked property above, confirmed on a live map rather than inferred from the
+  decompile — **a player who turns these features off pays the full cost of both layers anyway.**
+- §7b off: vanilla's lighting overlay drops from 158 µs to 63 µs. Our occlusion postfix is 2.5x the
+  cost of the entire vanilla layer it postfixes.
+
+In wall-clock terms a roof edit dirties its own section plus the sections of the eight adjacent
+cells — at most four distinct sections — so roofing a 10x10 room costs on the order of 2.2 ms with
+this mod against 0.6 ms without, once, in the frame the camera is looking at it, and nothing at all
+for sections off-screen. That is a real regression and not a hitch anybody will see. The frequency
+finding above matters far more than the roof case: the same 555 µs is paid per section on **every
+lamp toggle**, because `GlowGrid.DirtyCell` raises `Roofs` alongside `GroundGlow`.
+
+### Verdict, and what is deliberately not changed
+
+- **`SectionLayer_EaveShade` keeps its `Buildings` subscription.** Issue #10 named it as the
+  narrowing candidate on the reasoning that its trigger is broad and its payoff rare, which is true
+  — and measured, it is 13 µs, 3% of what we add, the cheapest layer in the mod. Dropping
+  `Buildings` would reintroduce "walling in a porch leaves it drawn as a porch" (§15's known
+  limitation, in its worst form) to save a number indistinguishable from noise. Not a trade worth
+  making.
+- **`SectionLayer_NightDesaturation` is where the cost actually is**, and there are two independent,
+  behaviour-preserving fixes available, both recorded here rather than taken in the same change that
+  documented the problem: (1) `WashAt` calls `GroundGlowAt` **nine times per cell** — once as the
+  cell, eight more as each neighbour's neighbour — which is 2601 glow-grid queries per section where
+  361 into a reusable (17+2)² scratch grid would answer identically; vanilla's own
+  `GenerateLightingOverlay` walks the vertex lattice precisely to avoid that. (2) An early return
+  when `!Visible` would drop the layer to nothing for every player who has the feature off, since
+  `TryUpdate` will not do it for us.
+- **§7b's 95 µs postfix** is the second-largest term and belongs to the companion issue about the
+  augmented lighting overlay, now with a number attached.
+
 ## Settings and presets
 
 Two cross-cutting settings ideas that span the subsystems above:

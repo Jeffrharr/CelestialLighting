@@ -35,6 +35,7 @@
     <Compile Include="../Source/Probes/SkyGlowProbe.cs" Link="SkyGlowProbe.cs" />
     <Compile Include="../Source/Probes/SunClockProbe.cs" Link="SunClockProbe.cs" />
     <Compile Include="../Source/Probes/EaveCellProbe.cs" Link="EaveCellProbe.cs" />
+    <Compile Include="../Source/Probes/SectionRegenerateTimingProbe.cs" Link="SectionRegenerateTimingProbe.cs" />
   </ItemGroup>
 
   <ItemGroup>
