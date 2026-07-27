@@ -651,6 +651,21 @@ reads `map.roofGrid` / `map.edificeGrid` and rewrites `mesh.colors32`.
   dirtied, so `IndoorOcclusionRedraw` forces a `WholeMapChanged(GroundGlow)` when the toggle or either
   slider changes (it compares the *resolved* floor, so either knob moving is caught without duplicating
   the max() rule) — otherwise the setting appears to do nothing until something else dirties the map.
+- **One resolution per cell, not one per read (`SkyOcclusionWindow`).** The lattice reads each cell up
+  to five times — four times as a neighbour of a corner vertex it meets at, once as its own centre — and
+  each read reaches `EaveCells.Encloses`, i.e. potentially a `Room` query. At `Section.Size == 17` that
+  was `18*18*4 + 17*17 == 1,585` live-map resolutions per regenerate, and the trigger is not the frame
+  but `MapMeshFlagDefOf.GroundGlow`, which *any* glower change dirties (a lamp toggling, a fire growing),
+  so the cost lands in bursts on ordinary gameplay events. The postfix therefore bakes a
+  `(Section.Size + 2)^2 == 361`-cell verdict window up front and reads it — the same trade §15's
+  `EaveShadowGrid` already makes for the same reason, deliberately solved the same way rather than a
+  second way: same one-cell skirt, same clip at the map edge, same allocate-per-regenerate (361 bytes,
+  and a shared static buffer would corrupt the mesh if anything ever re-entered `Regenerate`). Pure
+  refactor — every vertex alpha is identical, which `SkyOcclusionWindowTests` pins by running both
+  lattices and comparing. Two properties it preserves rather than papers over: `EaveCells`' `roof == null`
+  short-circuit still keeps the room query off unroofed cells (the window resolves exactly the cells the
+  lattice was already resolving, no more), and the corner pass's old `cell.InBounds(map)` guard now lives
+  in the window, which answers for an off-map cell with the same `false` that guard was contributing.
 - Skipped entirely on `disableSkyLighting` biomes (the Odyssey undercave), where vanilla already zeroes
   the sky contribution wholesale; there is nothing to occlude and overriding it would fight that contract.
 

@@ -54,6 +54,9 @@
     <Compile Include="../../Source/CelestialSettingsMath.cs" Link="CelestialSettingsMath.cs" />
     <!-- Subsystem 7b pure core (indoor sky occlusion). Verse-free, so it compiles under net8.0 as-is. -->
     <Compile Include="../../Source/IndoorOcclusionMath.cs" Link="IndoorOcclusionMath.cs" />
+    <!-- §7b's baked verdict window: geometry, storage and reads only, so it is Verse-free too and the
+         lattice-equivalence tests can drive the real shipped buffer rather than a stand-in. -->
+    <Compile Include="../../Source/SkyOcclusionWindow.cs" Link="SkyOcclusionWindow.cs" />
     <!-- Subsystem 14 pure core (sun-clock reconciliation). Depends on Formulas.cs, already linked. -->
     <Compile Include="../../Source/SunClockMath.cs" Link="SunClockMath.cs" />
     <!-- Subsystem 15 pure core (eaves). Verse-free, so it compiles under net8.0 as-is. Shared by
