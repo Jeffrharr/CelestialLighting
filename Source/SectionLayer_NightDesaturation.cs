@@ -18,6 +18,14 @@ namespace CelestialLighting;
 // needs no replacement shader for MatBases.LightOverlay, which was the reason the per-cell version
 // was previously judged impossible: it is a new mesh alongside vanilla's, not a hijack of one.
 //
+// FAN-OUT. This is one of four separate places that add work to a map-mesh dirty flag (the other
+// three are SectionLayer_EaveShade, Patch_ShadowRoofInvalidation and Patch_IndoorSkyOcclusion), and
+// no one of the four can show the total. DESIGN.md §16 has the flag-to-layers table and the live
+// timings. Read it before adding a fifth or widening any of the four: measured, THIS layer is the
+// expensive one — 271 µs per section regenerate, two thirds of everything the mod adds to a roof
+// edit, and paid in full even when the feature below is switched off, because Verse.Section's
+// TryUpdate does not consult Visible.
+//
 // ALTITUDE. AltitudeLayer.Weather, which is BELOW AltitudeLayer.LightingOverlay. So the wash lands on
 // the scene first and vanilla's night multiply darkens the result afterwards, rather than sitting on
 // top of the darkness as a grey haze. It is above every thing/pawn altitude, so an item lying on

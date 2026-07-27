@@ -47,6 +47,26 @@ public static class ProbeRegistration
         // the toggle did nothing" from "they match because this colony has no porch to shade".
         ProbeRegistry.Register(new EaveCellProbe());
 
+        // §16: what one map-mesh dirty flag costs, per layer, in microseconds. Seven probes rather
+        // than one because the question is a comparison — our three added regenerates against the
+        // vanilla ones already on the same flag — and a single total would hide exactly that. The
+        // layer names are strings because SectionLayer_SunShadows and SectionLayer_Darkness are
+        // internal to Assembly-CSharp; see SectionRegenerateTimingProbe's header.
+        ProbeRegistry.Register(new SectionRegenerateTimingProbe(
+            "regen_us_lighting_overlay", "Verse.SectionLayer_LightingOverlay"));
+        ProbeRegistry.Register(new SectionRegenerateTimingProbe(
+            "regen_us_indoor_mask", "Verse.SectionLayer_IndoorMask"));
+        ProbeRegistry.Register(new SectionRegenerateTimingProbe(
+            "regen_us_gravship_hull", "RimWorld.SectionLayer_GravshipHull"));
+        ProbeRegistry.Register(new SectionRegenerateTimingProbe(
+            "regen_us_darkness", "Verse.SectionLayer_Darkness"));
+        ProbeRegistry.Register(new SectionRegenerateTimingProbe(
+            "regen_us_sun_shadows", "Verse.SectionLayer_SunShadows"));
+        ProbeRegistry.Register(new SectionRegenerateTimingProbe(
+            "regen_us_night_desaturation", "CelestialLighting.SectionLayer_NightDesaturation"));
+        ProbeRegistry.Register(new SectionRegenerateTimingProbe(
+            "regen_us_eave_shade", "CelestialLighting.SectionLayer_EaveShade"));
+
         // Expose CelestialLighting's runtime feature flags to the harness's SetFeature step so a
         // scenario can screenshot an effect off then on. The setter just writes the shipped mod's
         // static flag; in production nothing calls it and the flag stays at its default (on).
