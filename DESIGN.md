@@ -966,6 +966,80 @@ Perspective family — see #36).
   - Corner and edge vertices are averaged over the cells they touch (4 / 2 / 1), the same smoothing
     vanilla's lighting overlay does, so the wash gradients around a light instead of drawing squares.
 
+  #### What the layer costs, and the two things that stopped it costing that (issue #20)
+
+  Live measurement of every section layer on the map (the fan-out table, §16) landed on this one:
+  **271 µs per section regenerate, the most expensive section layer in the game on a modded map,
+  vanilla's included, and 67% of everything this mod adds to a `Roofs` dirty flag.** That is not a
+  rare path — `GlowGrid.DirtyCell` raises `Roofs` *and* `GroundGlow`, and this layer subscribes to
+  both, so every lamp toggle, every fire growing or dying, and every sun lamp cycling at dawn paid it.
+
+  - **The averaging above was reading the glow grid nine times per cell.** Each of the 289 cells in a
+    section asks about itself and its eight neighbours, so one regenerate cost 2,601
+    `GlowGrid.GroundGlowAt` calls over a 19x19 = 361-cell footprint — every interior cell queried nine
+    times for the same answer. `Source/NightWashWindow.cs` bakes that footprint once and the vertex
+    loop reads it: **2,601 → 361 glow queries, a 7.2x reduction**, with the mesh byte-identical.
+    Vanilla's own `GenerateLightingOverlay` walks a vertex lattice for exactly this reason, and this
+    is the third time the same problem has been solved the same way here — `EaveShadowGrid` (§15) and
+    `SkyOcclusionWindow` (§7b) are the other two, and the three deliberately share one shape:
+    `readonly struct`, static factory, section-plus-one-cell-skirt clipped at the map edge, allocated
+    per regenerate rather than pooled (a shared buffer would corrupt the mesh under re-entry, and
+    ~1.4 KB on a call that never fires per frame is not worth the risk).
+  - **The layer paid all of that with the feature switched off.** `Verse.Section.TryUpdate` does not
+    consult `Visible` — only `DrawLayer` does — so `Regenerate` ran in full for every player who had
+    §9 unticked, building a mesh nothing would ever draw. It now returns early. Two consequences had
+    to be handled rather than assumed:
+    - `TryUpdate` clears a layer's `Dirty` flag even when `Regenerate` returns early, so the early
+      return marks the sub-mesh `disabled` on the way out. Otherwise a mesh baked before the toggle
+      sits in `subMeshes` describing a glow grid that has since moved, ready to be drawn the instant
+      the feature comes back. Disabling rather than clearing the colours is deliberate: `Clear` +
+      `FinalizeMesh` would re-upload the mesh, which is a large part of what the gate exists to avoid.
+    - Nothing is left marked dirty by the time a player ticks the box back on, so
+      `NightDesaturationRedraw` dirties `GroundGlow` map-wide on the change — the same
+      change-detected shape as `IndoorOcclusionRedraw` (§7b) and `EaveShadowRedraw` (§15), added for
+      the same reason: without it the setting reads as having done nothing until the next lamp or roof
+      edit happens to rebuild the sections.
+
+  **Measured, live, both halves back to back in one sitting** (`Tests/Scenarios/layer_regen_timing.json`,
+  the same probe and scenario §16's table came from; µs per section regenerate, mean of 10 timed runs
+  over 4 roofed sections after 2 warmups):
+
+  | | before | after | |
+  |---|---|---|---|
+  | `SectionLayer_NightDesaturation`, feature **on** | 298.9 | **104.8 / 107.3** | 2.8x faster |
+  | `SectionLayer_NightDesaturation`, feature **off** | 280.1 | **0.013 / 0.015** | the gate |
+
+  The feature-off row is the one worth reading twice: before the gate, a player who had §9 unticked
+  paid 280 µs per section per lamp toggle for a mesh that was never drawn. It now costs nothing
+  measurable — the same 0.01-0.02 µs floor `SectionLayer_Darkness` reports when it returns immediately.
+
+  The 2.8x on the feature-on row is less than the 7.2x reduction in glow queries, and that is expected
+  rather than disappointing: the queries were never the whole cost. What remains is the vertex
+  arithmetic and the Unity mesh upload in `FinalizeMesh`, neither of which this change touches, and
+  which now dominate what the layer does.
+
+  Every other layer in the same runs was flat — lighting overlay 161.8 → 163.8, indoor mask 29.5 →
+  30.7, gravship hull 60.6 → 59.0, sun shadows 25.6 → 26.0, eave shade 15.0 → 13.3, darkness 0.025 →
+  0.025 — which is what makes the desaturation delta attributable to the change rather than to machine
+  state drifting between the two runs.
+
+  Recomputing §16's headline on these numbers: **what this mod adds to one `Roofs` flag per on-screen
+  section falls from ~434 µs to ~241 µs, a 45% cut** (~136 µs for a player with §9 switched off). The
+  ranking that motivated issue #20 also inverts — desaturation drops from 69% of what we add to 44%,
+  and **§7b's postfix on vanilla's lighting overlay (~97 µs, still 2.5x the 67 µs layer it postfixes)
+  is now the largest single term this mod contributes.** That belongs to issue #9, which now has both
+  a number and first place.
+
+  Offline coverage for both is in `NightWashWindowTests` (the pre-refactor per-read resolution against
+  the windowed one, byte-identical vertex alphas across every section of a scene with lamps,
+  campfires, lamp-capped light and map edges, plus the query counts) and `NightDesaturationGateTests`
+  (IL inspection of the shipped assembly: the gate is in front of the work, the discard writes
+  `disabled`, and the settings path still triggers the rebuild — none of which a unit test can reach,
+  since `Regenerate` needs a live `Section`, `LayerSubMesh` and `GlowGrid`). `NightDesaturationMath`
+  gained `WashAlpha`, moved out of the layer so the equivalence test compares shipped bytes; it keeps
+  `Mathf.RoundToInt`'s banker's rounding rather than adopting `CoverAlpha`'s away-from-zero form,
+  which is pinned by a test at the one value where the two disagree.
+
   Live A/B at hour 2, feature off → on: flame core 0.836 → 0.836, lamp-cap-lit ground 0.629 → 0.630,
   unlit ground 0.114 → 0.054. That is the split the subsystem always claimed and never had.
 

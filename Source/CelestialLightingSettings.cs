@@ -148,6 +148,11 @@ public class CelestialLightingSettings : ModSettings
         // the eave toggle needs its own rebuild. Separate from the call above because the two write
         // different mesh layers and dirty different flags.
         EaveShadowRedraw.SyncTo(eaveShadows);
+
+        // §9's per-cell wash joined the same club when SectionLayer_NightDesaturation started skipping
+        // its bake while the feature is off: turning the box back on has to dirty the map, or the wash
+        // stays missing until the next lamp or roof edit happens to rebuild the sections.
+        NightDesaturationRedraw.SyncTo(lowLightDesaturation);
     }
 
     public override void ExposeData()

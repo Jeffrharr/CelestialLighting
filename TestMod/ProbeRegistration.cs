@@ -123,9 +123,18 @@ public static class ProbeRegistration
         FeatureRegistry.Register(
             CelestialLightingFeatures.NightAtmosphericGlowKey,
             enabled => NightRadianceSettings.Current.AtmosphericGlowEnabled = enabled);
+        // §9. Like §7b and §15 below, the flag write alone is no longer enough: the per-cell wash lives
+        // in baked section meshes and SectionLayer_NightDesaturation now skips the bake entirely while
+        // the feature is off, so a scenario flipping this back on must force the rebuild or its "after"
+        // screenshot shows no wash at all. (The material half — Patch_NightDesaturationStrength — still
+        // reacts per frame; only the mesh half needs this.)
         FeatureRegistry.Register(
             CelestialLightingFeatures.LowLightDesaturationKey,
-            enabled => CelestialLightingFeatures.LowLightDesaturation = enabled);
+            enabled =>
+            {
+                CelestialLightingFeatures.LowLightDesaturation = enabled;
+                NightDesaturationRedraw.ForceRebuild();
+            });
         FeatureRegistry.Register(
             CelestialLightingFeatures.SkyColorTemperatureKey,
             enabled => CelestialLightingFeatures.SkyColorTemperature = enabled);
