@@ -1,6 +1,7 @@
 {
   "name": "moon_sun_clock",
   "saveFile": "minimal_colony.rws",
+  "description": "Proves the moon rides §14's warped sun clock. The moon_elevation expectations are pure geometry and depend on nothing but latitude/day/hour, but the moon_shadow_render ones track the SHIPPED PRESET's shadow-strength slider (CelestialSettingsMath.Presets.Cinematic.ShadowStrength, currently 0.8) because Patch_ShadowStrength multiplies every shadow alpha by it. Recompute after a preset change: rendered = 1 - MoonShadowStrength * ShadowStrength * (1 - 0.107), where 0.107 is MoonMath.MoonShadowColorValue(0.25, 0.28) — §6a's night shadow colour, which a preset does NOT move.",
   "_comment": [
     "Proves the moon rides §14's warped sun clock rather than the raw one. Latitude 45 / day 37 is",
     "chosen because the moon is exactly full at noon there (tick-derived cycle 0.5000, so the",
@@ -45,12 +46,12 @@
     { "type": "Probe", "args": { "probeName": "moon_elevation", "expectedValue": "-3.38", "tolerance": "0.6" } },
     { "type": "Probe", "args": { "probeName": "moon_shadow_render", "expectedValue": "0.995", "tolerance": "0.01" } },
 
-    { "_comment": "Hour 21.1 — the first sampled moment PAST vanilla's sunset, so the sun shadow has just reached zero and the moon branch takes over. This is the pop, and the whole point of the fix. Raw clock: moon already 13.6 degrees up, so the moon shadow snaps straight to full strength (0.278) and the render drops to 0.752 in one step. Warped: moon still 2 degrees below the horizon, no shadow yet, material stays white.",
+    { "_comment": "Hour 21.1 — the first sampled moment PAST vanilla's sunset, so the sun shadow has just reached zero and the moon branch takes over. This is the pop, and the whole point of the fix. Raw clock: moon already 13.6 degrees up, so the moon shadow snaps straight to full strength (0.278, times the preset's 0.8 slider = an alpha of 0.222) and the render drops to 0.801 in one step. Warped: moon still 2 degrees below the horizon, no shadow yet, material stays white.",
       "type": "SetTime", "args": { "hour": "21.1" } },
     { "type": "SetFeature", "args": { "featureName": "moon_clock_warp", "enabled": "false" } },
     { "type": "Wait", "args": { "frames": "5" } },
     { "type": "Probe", "args": { "probeName": "moon_elevation", "expectedValue": "13.63", "tolerance": "0.6" } },
-    { "type": "Probe", "args": { "probeName": "moon_shadow_render", "expectedValue": "0.752", "tolerance": "0.02" } },
+    { "type": "Probe", "args": { "probeName": "moon_shadow_render", "expectedValue": "0.801", "tolerance": "0.02" } },
     { "type": "Screenshot", "args": { "fileName": "msc_handoff_moon_raw_clock.png" } },
     { "type": "SetFeature", "args": { "featureName": "moon_clock_warp", "enabled": "true" } },
     { "type": "Wait", "args": { "frames": "5" } },
@@ -58,11 +59,11 @@
     { "type": "Probe", "args": { "probeName": "moon_shadow_render", "expectedValue": "1.0", "tolerance": "0.01" } },
     { "type": "Screenshot", "args": { "fileName": "msc_handoff_moon_warped_clock.png" } },
 
-    { "_comment": "Hour 21.3, mid-ramp. The warped moon is 1 degree up and its shadow is fading IN (strength 0.167, render 0.851) rather than having snapped — the continuity the raw clock destroyed. The raw clock has been at full strength for 20 minutes by now.",
+    { "_comment": "Hour 21.3, mid-ramp. The warped moon is 1 degree up and its shadow is fading IN (strength 0.167, alpha 0.134 after the preset slider, render 0.881) rather than having snapped — the continuity the raw clock destroyed. The raw clock has been at full strength for 20 minutes by now.",
       "type": "SetTime", "args": { "hour": "21.3" } },
     { "type": "Wait", "args": { "frames": "5" } },
     { "type": "Probe", "args": { "probeName": "moon_elevation", "expectedValue": "0.98", "tolerance": "0.6" } },
-    { "type": "Probe", "args": { "probeName": "moon_shadow_render", "expectedValue": "0.851", "tolerance": "0.05" } },
+    { "type": "Probe", "args": { "probeName": "moon_shadow_render", "expectedValue": "0.881", "tolerance": "0.05" } },
 
     { "_comment": "Just after vanilla's sunrise (2.97). Raw clock leaves the full moon 8.8 degrees up in the morning sky; warped puts it below the horizon.",
       "type": "SetTime", "args": { "hour": "3" } },
@@ -75,7 +76,7 @@
       "type": "SetTime", "args": { "hour": "23" } },
     { "type": "Wait", "args": { "frames": "5" } },
     { "type": "Probe", "args": { "probeName": "moon_elevation", "expectedValue": "23.04", "tolerance": "0.6" } },
-    { "type": "Probe", "args": { "probeName": "moon_shadow_render", "expectedValue": "0.752", "tolerance": "0.06" } },
+    { "type": "Probe", "args": { "probeName": "moon_shadow_render", "expectedValue": "0.802", "tolerance": "0.06" } },
     { "type": "Screenshot", "args": { "fileName": "msc_midnight_moonlit.png" } },
 
     { "_comment": "§14's own contract is untouched by this change: vanilla's sky and our sun still agree about day/night at every hour.",

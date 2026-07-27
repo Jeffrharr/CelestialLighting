@@ -20,9 +20,22 @@ namespace CelestialLighting.Probes;
 //
 // Expected readings on a clear full-moon night, both of which a scenario can assert exactly:
 //   moon shadows OFF -> 1.0   (strength 0, so the lerp returns pure white: no shadow at all)
-//   moon shadows ON  -> ~0.75 (strength ~0.277 toward colour ~0.107 == the 25% darkening §6a targets)
+//   moon shadows ON  -> ~0.80 (alpha ~0.222 toward colour ~0.107 == a 19.9% darkening)
 // Before §6a the ON case read ~0.958 — a 4% darkening, which is what "computed correctly and rendered
 // invisibly" looked like as a number.
+//
+// That ~0.80 tracks the SHIPPED PRESET, so recompute it whenever the preset moves. §6a itself targets
+// a 25% darkening at peak (MoonShadowPeakDarkening against MoonShadowMaxStrength 0.28, which is what
+// fixes the colour at ~0.107), but Patch_ShadowStrength then multiplies the alpha by the player's
+// "Shadow strength" slider — 0.8 on Cinematic, the shipped default — so the alpha that reaches the
+// lerp is 0.28 * 0.8 = 0.222 and the darkening a new install actually sees is 19.9%. On Realistic
+// (slider 1.0) the same night reads the ~0.75 this comment used to document. Recompute:
+//
+//     rendered = 1 - MoonShadowStrength(...) * ShadowSettings.Strength * (1 - 0.107)
+//
+// Both terms are worth naming because a drift in this number is ambiguous otherwise: the same
+// reading moves whether the night's shadow COLOUR changed or only the alpha did. Issue #1 was read as
+// a colour drift (0.107 -> 0.286) when the colour had not moved at all — only the slider had gone live.
 //
 // Greyscale, so .r is the whole story: §6a writes a neutral grey and vanilla's night shadow colours
 // are neutral too.
