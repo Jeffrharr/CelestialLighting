@@ -25,6 +25,7 @@
          its <Compile Remove="Probes/**/*.cs" />), so there is only ever one copy of
          ShadowLeanProbe.cs on disk. -->
     <Compile Include="../Source/Probes/ShadowLeanProbe.cs" Link="ShadowLeanProbe.cs" />
+    <Compile Include="../Source/Probes/ShadowVectorXProbe.cs" Link="ShadowVectorXProbe.cs" />
     <Compile Include="../Source/Probes/CivilTwilightProbe.cs" Link="CivilTwilightProbe.cs" />
     <Compile Include="../Source/Probes/PenumbraProbe.cs" Link="PenumbraProbe.cs" />
     <Compile Include="../Source/Probes/MoonIlluminationProbe.cs" Link="MoonIlluminationProbe.cs" />

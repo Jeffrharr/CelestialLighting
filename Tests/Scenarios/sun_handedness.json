@@ -1,0 +1,23 @@
+{
+  "name": "sun_handedness",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "55" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "15" } },
+
+    { "type": "SetTime", "args": { "hour": "8" } },
+    { "type": "Probe", "args": { "probeName": "shadow_lean", "expectedValue": "0", "tolerance": "0.001" } },
+    { "type": "Probe", "args": { "probeName": "sun_elevation", "expectedValue": "24.7819", "tolerance": "0.01" } },
+    { "type": "Probe", "args": { "probeName": "shadow_vector_x", "expectedValue": "-2.2799", "tolerance": "0.01" } },
+    { "type": "Screenshot", "args": { "fileName": "handedness_morning.png" } },
+
+    { "type": "SetTime", "args": { "hour": "12" } },
+    { "type": "Probe", "args": { "probeName": "sun_elevation", "expectedValue": "35.0", "tolerance": "0.01" } },
+    { "type": "Probe", "args": { "probeName": "shadow_vector_x", "expectedValue": "0", "tolerance": "0.01" } },
+
+    { "type": "SetTime", "args": { "hour": "16" } },
+    { "type": "Probe", "args": { "probeName": "sun_elevation", "expectedValue": "24.7819", "tolerance": "0.01" } },
+    { "type": "Probe", "args": { "probeName": "shadow_vector_x", "expectedValue": "2.2799", "tolerance": "0.01" } },
+    { "type": "Screenshot", "args": { "fileName": "handedness_afternoon.png" } }
+  ]
+}
