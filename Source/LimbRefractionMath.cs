@@ -436,15 +436,20 @@ public static class LimbRefractionMath
     // deck seen from above, and a grazing sun lights a deck weakly for purely projective reasons.
     //
     // planetshineFloor is INJECTED, not defined here. It belongs to the vacuum night-light budget
-    // (§18b, issue #30) — airglow to zero, starlight unextinguished, moonlight replaced by light
-    // bounced off the planet below. This subsystem's job ends at "the sun is gone"; what is left when
-    // it is gone is somebody else's number, and taking it as a parameter is exactly what lets the two
-    // branches merge without either redefining the other's constant.
+    // (§18b) — airglow to zero, starlight unextinguished, planetshine standing in for the moon as the
+    // dominant reflector. This subsystem's job ends at "the sun is gone"; what is left when it is gone
+    // is somebody else's number, and taking it as a parameter is what keeps the two models from
+    // redefining each other's constants. The adapter supplies it from NightRadiance.FloorGlowFor.
     //
     // max() rather than a blend, for the same reason NightRadianceMath.ApplyNightFloor uses one: a
     // floor is a floor. While any sunlight survives it dominates by orders of magnitude, so the
     // handover happens on its own wherever the exponential crosses the floor — moving the floor moves
-    // the crossing, and nothing here has to know where that is.
+    // the crossing, and nothing here has to know where that is. That is worth more than it looks,
+    // because §18b's floor is moon-dependent — 0.0317 on a new moon and materially higher under a full
+    // one, since moonlight is a term in it — so the handover elevation
+    // slides up and down the band with the lunar cycle without a single constant here changing, and
+    // under a bright enough moon the last of the limb light is legitimately outshone before it reaches
+    // its reddest.
     //
     // Sea level: seaLevelGlow, untouched. Vanilla plus §7's night floor own the surface sky and this
     // must not add a second opinion on top of them.
