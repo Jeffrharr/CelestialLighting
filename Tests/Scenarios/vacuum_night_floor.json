@@ -1,0 +1,67 @@
+{
+  "name": "vacuum_night_floor",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "45" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "30" } },
+    { "type": "LookAt", "args": { "zoom": "18" } },
+
+    { "type": "SetTime", "args": { "hour": "22" } },
+    { "type": "Wait", "args": { "frames": "30" } },
+    { "type": "Probe", "args": { "probeName": "sun_elevation", "expectedValue": "-9.033", "tolerance": "0.05" } },
+    { "type": "Probe", "args": { "probeName": "moon_illumination", "expectedValue": "0.0364", "tolerance": "0.005" } },
+    { "type": "Probe", "args": { "probeName": "night_radiance", "expectedValue": "0.04017", "tolerance": "0.0005" } },
+    { "type": "Screenshot", "args": { "fileName": "vnf_ground_night.png" } },
+
+    { "type": "SetTime", "args": { "hour": "0" } },
+    { "type": "Wait", "args": { "frames": "30" } },
+    { "type": "Probe", "args": { "probeName": "sun_elevation", "expectedValue": "-21.56", "tolerance": "0.05" } },
+    { "type": "Probe", "args": { "probeName": "night_radiance", "expectedValue": "0.0400", "tolerance": "0.0005" } },
+
+    { "type": "SetSeason", "args": { "dayOfYear": "23" } },
+    { "type": "SetTime", "args": { "hour": "22" } },
+    { "type": "Wait", "args": { "frames": "30" } },
+    { "type": "Probe", "args": { "probeName": "moon_illumination", "expectedValue": "0.9145", "tolerance": "0.005" } },
+    { "type": "Probe", "args": { "probeName": "moon_elevation", "expectedValue": "-10.49", "tolerance": "0.1" } },
+    { "type": "Probe", "args": { "probeName": "night_radiance", "expectedValue": "0.0400", "tolerance": "0.0005" } },
+    { "type": "SetTime", "args": { "hour": "1" } },
+    { "type": "Wait", "args": { "frames": "30" } },
+    { "type": "Probe", "args": { "probeName": "moon_elevation", "expectedValue": "23.77", "tolerance": "0.1" } },
+    { "type": "Probe", "args": { "probeName": "night_radiance", "expectedValue": "0.09969", "tolerance": "0.0005" } },
+
+    { "type": "LandInOrbit", "args": { "latitude": "45", "mapSize": "150" } },
+    { "type": "SetTerrain", "args": { "def": "OrbitalPlatform", "width": "30", "height": "30" } },
+    { "type": "PlaceThings", "args": { "def": "Wall", "stuff": "Steel", "layout": "grid", "cols": "3", "rows": "3", "spacing": "6" } },
+    { "type": "LookAt", "args": { "zoom": "18" } },
+
+    { "type": "SetSeason", "args": { "dayOfYear": "30" } },
+    { "type": "SetTime", "args": { "hour": "22" } },
+    { "type": "Wait", "args": { "frames": "30" } },
+    { "type": "Probe", "args": { "probeName": "sun_elevation", "expectedValue": "-9.033", "tolerance": "0.05" } },
+    { "type": "Probe", "args": { "probeName": "night_radiance", "expectedValue": "0.03218", "tolerance": "0.0005" } },
+
+    { "type": "SetTime", "args": { "hour": "0" } },
+    { "type": "Wait", "args": { "frames": "30" } },
+    { "type": "Probe", "args": { "probeName": "sun_elevation", "expectedValue": "-21.56", "tolerance": "0.05" } },
+    { "type": "Probe", "args": { "probeName": "night_radiance", "expectedValue": "0.031668", "tolerance": "0.0002" } },
+
+    { "type": "Screenshot", "args": { "fileName": "vnf_orbit_night.png" } },
+    { "type": "SetFeature", "args": { "featureName": "night_atmospheric_glow", "enabled": "false" } },
+    { "type": "Wait", "args": { "frames": "120" } },
+    { "type": "Probe", "args": { "probeName": "night_radiance", "expectedValue": "0.00048", "tolerance": "0.0002" } },
+    { "type": "Screenshot", "args": { "fileName": "vnf_orbit_night_floorsoff.png" } },
+    { "type": "SetFeature", "args": { "featureName": "night_atmospheric_glow", "enabled": "true" } },
+    { "type": "Wait", "args": { "frames": "120" } },
+
+    { "type": "SetSeason", "args": { "dayOfYear": "23" } },
+    { "type": "SetTime", "args": { "hour": "22" } },
+    { "type": "Wait", "args": { "frames": "30" } },
+    { "type": "Probe", "args": { "probeName": "moon_illumination", "expectedValue": "0.894", "tolerance": "0.005" } },
+    { "type": "Probe", "args": { "probeName": "moon_elevation", "expectedValue": "-13.25", "tolerance": "0.1" } },
+    { "type": "Probe", "args": { "probeName": "night_radiance", "expectedValue": "0.031668", "tolerance": "0.0002" } },
+    { "type": "SetTime", "args": { "hour": "1" } },
+    { "type": "Wait", "args": { "frames": "30" } },
+    { "type": "Probe", "args": { "probeName": "moon_elevation", "expectedValue": "23.47", "tolerance": "0.1" } },
+    { "type": "Probe", "args": { "probeName": "night_radiance", "expectedValue": "0.09011", "tolerance": "0.0005" } }
+  ]
+}
