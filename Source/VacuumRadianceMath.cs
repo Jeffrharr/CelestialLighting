@@ -240,6 +240,14 @@ public static class VacuumRadianceMath
     // linear ratio, and it is the RIGHT comparison class — planetshine and moonlight are the same
     // physical thing (sunlight bounced off a nearby rock) so the look-calibration the moon already
     // carries transfers to planetshine by their true photometric ratio and nothing new is invented.
+    //
+    // It needs NO vacuum correction of its own, which is worth stating because FullMoonZenithLux is a
+    // sea-level number and MoonlightGlow below exists precisely to correct for that. The difference
+    // is what each use treats the constant as. This one uses it as a LUX-PER-GLOW SCALE, and that
+    // scale is a property of the renderer rather than of the sky: the vacuum full moon is both
+    // 1.294x the lux and 1.294x the glow, so the ratio between them — all this function needs — is
+    // identical in either regime. MoonlightGlow instead converts a glow value that was ANCHORED on
+    // the sea-level lux, where the extinction is a real error in the anchor.
     public static float ReflectedGlow(float lux, float maxMoonlightGlow) =>
         maxMoonlightGlow * lux / IlluminanceMath.FullMoonZenithLux;
 
@@ -249,18 +257,61 @@ public static class VacuumRadianceMath
     public static float PlanetshineFloorGlow(float maxMoonlightGlow) =>
         ReflectedGlow(PlanetshineFloorLux, maxMoonlightGlow);
 
+    // --- The moon: kept as a source, corrected as a measurement (§18c) ---
+
+    // Transmittance of the whole atmosphere straight up, for a POINT source at the zenith:
+    // 10^(-0.4 k) == 0.773. Distinct from StarlightTransmittance above, and the distinction is the
+    // reason both exist. The star field arrives from the entire hemisphere and each direction is
+    // extinguished by its own airmass, so its correction is the projection-weighted integral (0.641).
+    // The moon is one object in one direction, so its correction is the plain airmass at that
+    // direction — and at the zenith the airmass is exactly 1.
+    public static readonly float ZenithTransmittance =
+        MathF.Pow(10f, -0.4f * SeaLevelExtinctionMagPerAirmass);
+
+    // Moonlight in vacuum, in glow units, from the sea-level moonlight glow §7 computes.
+    //
+    // §18b kept the moon as a source and left this half — the PHOTOMETRY — to §18c, which needs it
+    // because a moonlit vacuum umbra is the one case where a vacuum shadow is meaningfully non-black
+    // and so the one case where the moon term is the shadow's fill.
+    //
+    // The correction is a calibration error, not a modelling change. §7's glow scale is anchored on
+    // IlluminanceMath.FullMoonZenithLux, 0.267 lux, which is a MEASURED SEA-LEVEL number — the moon's
+    // light has already crossed the atmosphere by the time anyone reads that figure off a light
+    // meter. Above the atmosphere the same full moon delivers 0.267 / 0.773 == 0.346 lux, so through
+    // the same linear scale it is worth 1/ZenithTransmittance == 1.294x the glow. Nothing about the
+    // moon changed; we stopped charging it for air that is not there.
+    //
+    // WHY THE ZENITH FACTOR AND NOT THE FULL AIRMASS LAW. §7's MoonAltitudeFactor is a pure sin(elev)
+    // PROJECTION term and models no extinction at all, so a low moon is already treated as
+    // unextinguished at sea level. The only extinction baked into the sea-level model is the one
+    // inside the zenith calibration constant, so the zenith factor is exactly the error there is to
+    // remove — dividing by an airmass-dependent transmittance would be correcting a term §7 never
+    // got wrong, and would make a low vacuum moon implausibly bright.
+    //
+    // NOTE the direction, which is the same trap StarlightGlow warns about: this is a DIVISION and
+    // the vacuum value sits ABOVE the sea-level one.
+    public static float MoonlightGlow(float seaLevelMoonlightGlow) =>
+        seaLevelMoonlightGlow / ZenithTransmittance;
+
     // --- The night floor in vacuum ---
 
     // The vacuum arm of NightRadianceMath.NightFloorGlow. Same shape as §7's sea-level sum — the
-    // sources ADD, so darkness stays emergent — with the three §18b substitutions applied:
-    // starlight divided by its extinction, airglow gone, planetshine added alongside a moon term
-    // that survives unchanged (see DESIGN.md §18b for why the moon is not replaced).
+    // sources ADD, so darkness stays emergent — with the §18b substitutions applied: starlight
+    // divided by its hemispheric extinction, airglow gone, planetshine added, and the moon retained
+    // as a source (see DESIGN.md §18b for why it is not replaced) at its unextinguished value (§18c).
+    //
+    // The pair that falls out is the point: a new-moon orbital night lands BELOW its sea-level
+    // counterpart (0.0317 against 0.0400) because airglow is gone, while a full-moon orbital night
+    // lands ABOVE it (0.2258 against 0.1900) because nothing is dimming the moon any more. Orbit has
+    // strictly more dynamic range between its darkest and brightest nights than the ground does, and
+    // §18c inherits that directly: an orbital umbra is near-black on a new moon and visibly grey
+    // under a full one.
     public static float NightFloorGlow(
         float seaLevelStarlightGlow, float moonlightGlow, float maxMoonlightGlow) =>
         Clamp(
             StarlightGlow(seaLevelStarlightGlow)
             + AirglowGlow
-            + moonlightGlow
+            + MoonlightGlow(moonlightGlow)
             + PlanetshineFloorGlow(maxMoonlightGlow),
             0f, 1f);
 
