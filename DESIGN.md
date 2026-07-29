@@ -2334,6 +2334,188 @@ biome with Odyssey uninstalled.
 `SetTile`/`SetBiome` target planet-surface tiles and `OrbitLayer.CanSelectLayer` refuses the layer
 unless a world object already exists on it. Nothing here has been validated in a running game.
 
+## 18c. Vacuum shadow contrast (`ShadowFillMath`)
+
+**Problem.** A cast shadow is never black, and the reason is not geometry. Stand in one at noon and
+you are still lit — by the whole dome of scattered sky above you. That fill is the entire content of
+vanilla's `SkyTarget.colors.shadow`, which `SkyManager` uses as the darkest colour any shadow can
+render (`Color.Lerp(white, colors.shadow, CurShadowStrength)`). Clear's daylight value is a faintly
+blue grey, `(0.718, 0.745, 0.757)`: a shadow keeps 74% of the lit ground's brightness, and the blue
+is Rayleigh scattering turning up in a colour channel.
+
+Take the air away and that number has no cause left. On an orbital platform §13a's substitution is
+modelling a dome that is not there, so a vacuum shadow renders at a 26% darkening when the physics
+says it should be nearly black.
+
+**Approach — a split, and the split is the whole subsystem.**
+
+| | |
+|---|---|
+| **KEPT, untouched** | The geometric penumbra (`PenumbraMath`). The sun subtends ~0.53° whether or not there is air in the way, so the widening of the penumbra as shadows lengthen is *identical* in vacuum. |
+| **DROPPED** | The umbra floor (skylight fill) and the sky-palette tint. Both are the atmosphere's contribution and both leave with it. |
+
+`ShadowFillMath.DaytimeUmbraFill(skyFillR, G, B, nightFloorGlow, litGlow, inVacuum)` is the single
+gated entry point, shaped to §18's convention (`Source/Vacuum.cs`): `inVacuum` last, required, vacuum
+value returned before any atmospheric term is read. Note what that shape buys beyond consistency —
+the three `skyFill` arguments are simply **not consulted** in the vacuum arm, so "drop the sky tint"
+is structural rather than a comment promising it.
+
+It ships inside `Patch_WeatherShadowColor` rather than as a fourth patch. That file is *the* daytime
+writer of `colors.shadow`, and what §18c changes is not when it writes but which fill it writes; two
+postfixes on `WeatherWorker.CurSkyTarget` both writing the field would be decided by whichever
+Harmony happened to order last. The full ownership table, all three arms splitting on shared
+discriminators (`SolarPosition` + `Formulas.AtmosphericRefractionDegrees`, and `Vacuum.InVacuumForMap`):
+
+| regime | owner |
+|---|---|
+| sun down | §6a `Patch_MoonShadowColor` — the moon is the caster |
+| sun up, has atmosphere | §13a — Clear's skylight fill |
+| sun up, in vacuum | §18c — §18b's night floor |
+
+### What actually fills a vacuum umbra — the question this had to answer rather than assume
+
+The issue's premise was that the vacuum shadow colour "comes from the reflected-planet term". Working
+it out changed the answer, and the intermediate numbers are worth recording because the intuitive
+result is wrong in *both* directions.
+
+**Planetshine is not small in daylight.** §18b evaluates `PlanetshineLux` only at astronomical
+twilight, where it is 0.00085 lux and rounds away. Above the horizon it is enormous — 33,000 lux
+under a zenith sun, 27.5% of the ground illuminance (essentially `albedo × discFill = 0.30 × 0.94`).
+Had it reached the deck, the vacuum umbra would keep ~0.27 and orbital shadows would be only modestly
+harsher than sea level's 0.74, not the near-black this subsystem renders.
+
+**It does not reach the deck, and the reason is the platform.** RimWorld's orbits are stationary
+(epic #8), so a platform hangs over a fixed lat/long and its deck faces that tile's *zenith* — exactly
+the direction away from the planet; the sun rises and sets across that deck the way it does on the
+ground below. The planet is therefore under the **floor**. Every cell on the deck has the platform's
+own structure between it and the planet, so planetshine lands on the underside and nowhere else.
+
+So a shadow on the deck is filled by what an upward-facing surface in vacuum can see: the star field
+(unextinguished — §18b's term that goes *up*) and the moon. Which is precisely §18b's published night
+floor, so §18c **consumes** `NightRadiance.FloorGlowFor(map)` and derives nothing. "How dark can the
+sky over this map get" and "what does a shadow here bottom out at" are one physical question asked
+from two directions, and the shared read is what makes them provably the same number rather than two
+patches computing the same sum and hoping.
+
+*Recorded for whoever evaluates `PlanetshineLux` above the horizon next:* the occlusion argument
+applies to §18b's own planetshine term too. At 0.00048 glow it is 1.5% of the vacuum night floor and
+moves no digit anyone can see, so it is left exactly as §18b defined it — but a future subsystem that
+reaches for that function in daylight (#32's limb flash is the obvious candidate) must apply the
+occlusion argument first or it will be off by four orders of magnitude.
+
+**And so the vacuum umbra is neutral grey** — not because grey is safe, but because both surviving
+sources are: an integrated star field is very nearly white and moonlight is neutral. There is no sky
+palette left to take a hue from, and the reflected-planet term that would have supplied one is the
+term the deck cannot see. §6a already writes a neutral grey at night for the adjacent reason (§9's
+low-light desaturation owns the night's colour cast), so this agrees with the mod's existing answer
+instead of inventing a second one.
+
+### The photometric half of the moon term (`VacuumRadianceMath.MoonlightGlow`)
+
+§18b kept the moon as a source in vacuum and left its photometry open. §18c needs it closed, because a
+moonlit vacuum umbra is the one case where a vacuum shadow is meaningfully non-black, i.e. the one
+case where the moon term *is* the shadow's fill.
+
+The correction is a calibration error, not a modelling change. §7's glow scale is anchored on
+`IlluminanceMath.FullMoonZenithLux` = 0.267 lux, a **measured sea-level** figure — the moon's light
+has already crossed the atmosphere by the time anyone reads it off a light meter. Above the atmosphere
+the same full moon delivers `0.267 / 0.773 = 0.346` lux, so through the same linear scale it is worth
+`1 / ZenithTransmittance = 1.294×` the glow. Nothing about the moon changed; we stopped charging it
+for air that is not there.
+
+Two things that look like they need the same fix and do not:
+
+- **Not the full airmass law.** §7's `MoonAltitudeFactor` is a pure `sin(elev)` *projection* and models
+  no extinction at all, so a low moon is already treated as unextinguished at sea level. The only
+  extinction baked into the sea-level model is the one inside the zenith calibration constant, so the
+  zenith factor is exactly the error there is to remove. An airmass-dependent divisor would be
+  correcting a term §7 never got wrong and would make a low vacuum moon implausibly bright.
+- **Not `ReflectedGlow`.** It uses the same sea-level constant, but as a *lux-per-glow scale*, and that
+  scale is a property of the renderer rather than of the sky: the vacuum full moon is both 1.294× the
+  lux and 1.294× the glow, so the ratio is identical in either regime.
+
+The pair that falls out is the headline, and §18c inherits it directly:
+
+| night floor | sea level | vacuum |
+|---|---|---|
+| new moon | 0.0400 | **0.0317** (airglow gone) |
+| full moon at zenith | 0.1900 | **0.2258** (nothing dimming it) |
+| dynamic range | 4.75× | **7.1×** |
+
+Orbit has strictly more range between its darkest and brightest nights than the ground does. An
+orbital umbra is near-black on a new moon and visibly grey under a full one — vacuum shadows are
+*harder*, not uniformly black.
+
+### Why the umbra keep is a divide
+
+`colors.shadow` is a **multiply** on ground the sky has already dimmed. Writing the floor straight in
+would not mean "the umbra bottoms out at the night floor"; it would mean "the umbra is the night floor
+*times* the current daylight", which at a low sun lands several times darker than an actual vacuum
+night — a shadow darker than the darkness. `VacuumUmbraKeep = floor / litGlow` converts the absolute
+floor into the relative multiply the renderer wants, with no tuned constant: at full daylight the
+umbra keeps exactly the floor, and as the lit ground dims toward it the ratio climbs toward 1 on its
+own.
+
+### What is softened, stated plainly
+
+One thing, and it is a bound rather than a taste call: `VacuumUmbraKeep` clamps at 1. With the fill at
+or above the direct beam there is no contrast left to draw, and a keep above 1 would render a shadow
+*brighter* than the ground beside it. Nothing else is softened. The resulting lit/shadow contrast —
+0.032 against sea level's 0.740, a 97% darkening against a 26% one — is an order of magnitude harsher
+than anything else the mod renders, and is deliberately left that way.
+
+Nothing scattering-derived is layered on top of the geometric penumbra, and nothing needed removing:
+§13's `ShadowContrastFactor` is the only scattering term in the shadow path and it is already
+structurally zero on `Space` maps (§13's `HasSky` rule and its clear-family palette rating both
+independently return 0 — see §18 and §13). `PenumbraContrastFactor` is *not* scattering-derived: it is
+the 2D approximation of the geometric penumbra itself, and it stays.
+
+### Ordering audit: does anything downstream assume a non-black umbra?
+
+Required before landing, because §15b's eave shade and §9's night wash both composite shadow colour.
+Findings, in full:
+
+- **§15b eave shade — one documented claim was wrong, no code was.** `EaveShadeOverlay` derives its
+  alpha from the *composed* `MatBases.SunShadow.color`, so it follows §18c automatically with no
+  vacuum branch: a vacuum eave lands at `0.605 × 0.032 ≈ 0.019` of open sunlit ground, or exactly 0
+  with the atmospheric floors off. That is the right answer for the same physical reason the cast band
+  beside it goes near-black — with no dome overhead, being under a roof and being in a shadow are the
+  same amount of "no direct sun, and nothing filling in". What did need correcting is
+  `EaveShadeMath`'s header, which stated "it cannot go pitch black" as a universal guarantee when it
+  was an *atmospheric* one (bounded below by vanilla's darkest palette entry, Clear's 0.740). The
+  bound was documented, never enforced in code. Header amended; the sea-level floor (~0.45) and the
+  vacuum floor (~0.019) are now pinned as a pair in `EaveShadeMathTests`.
+- **§9 night desaturation — no interaction, in either regime.** `SectionLayer_NightDesaturation` reads
+  local *glow*, never `colors.shadow`, and its wash is scaled by `PurkinjeMath`'s rod-vision factor,
+  which is 0 in daylight. §18c is a daytime-only writer, so the two never overlap. At night on a vacuum
+  map §18c does not write `colors.shadow` at all — §6a owns it.
+- **Sibling branches, checked at the commit level.** `eave-shadow-gap` has no unique commits (already
+  merged). `shadow-alpha` is merged in content and touches shadow *geometry* (mesh extrusion, the
+  vertex-alpha bake), never shadow colour. `layer-fanout` is comments plus a timing probe.
+  `nightdesat-cost` memoises §9's glow reads. None assumes anything about the umbra's value.
+
+**Conflict risk.** None new. `ShadowFillMath` is pure and referenced only by
+`Patch_WeatherShadowColor`, which keeps the single postfix on `WeatherWorker.CurSkyTarget` it always
+had — no new vanilla member is touched, so no `ApiCompatibilityTests` addition beyond §18's existing
+`BiomeDef_HasInVacuum` pin. Any other mod writing `colors.shadow` composes exactly as it did before,
+since the number written changed but the writer did not.
+
+**Verification.** Offline in `ShadowFillMathTests` (30 cases), written as vacuum/sea-level pairs per
+§18's convention so a regression in either half shows as a diverging pair. Two of those cases exist
+specifically to guard the "must not touch" half: the darkening *ratio* between the regimes is asserted
+constant across a matched-elevation sweep (any vacuum-derived softening would make it vary with
+elevation), and `PenumbraMath`'s public surface is asserted by reflection to admit no `inVacuum` at
+all — which under §18's convention is what a vacuum-aware pure function would be required to take.
+
+Live verification is blocked on `Jeffrharr/RimWorldTestHarness#17`, exactly as §18b is: scenarios
+cannot currently reach an orbital map, because `SetTile`/`SetBiome` target planet-surface tiles and
+`OrbitLayer.CanSelectLayer` refuses the layer unless a world object already exists on it. **Nothing
+here has been validated in a running game.** The plan once unblocked is an off/on A/B of
+`vacuum_shadow_contrast` on an orbital map at high sun, plus a probe read of the umbra — the existing
+`moon_shadow_render` probe already reads exactly the right value (`MatBases.SunShadow.color.r`, the
+final composed shadow colour), per the project rule that pixel centroids lie and probes give numbers.
+Expected readings at full sun on a new-moon orbital map: **off ~0.74**, **on ~0.03**.
+
 ## Settings and presets
 
 Two cross-cutting settings ideas that span the subsystems above:
