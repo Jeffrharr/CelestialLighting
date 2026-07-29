@@ -168,13 +168,19 @@ public class VacuumSuppressionTests
     // through a sky-filling one. A full-screen colour blend is the wrong shape at any strength, which
     // is why this is a hard zero rather than a scale factor.
 
+    // The sea-level column is NightVisibility(glow) x AuroraMath.MaxSkyTintStrength, so it moves
+    // whenever that shipped peak is retuned — as it was when the peak dropped 0.35 -> 0.18 because
+    // the old value read as a colour grade rather than an aurora. These are the recomputed values,
+    // not widened tolerances: a pin that tracks the shipped constant is the point, and the fact that
+    // only the sea-level half of each pair moved (the vacuum half stayed at 0) is exactly the
+    // diverging-pair signal this fixture exists to produce.
     [TestCase(45f, 0f)] // daylight: washed out at sea level too
-    [TestCase(20f, 0.009975f)] // sky just dark enough for a trace
-    [TestCase(10f, 0.220440f)]
-    [TestCase(5f, 0.328555f)]
-    [TestCase(0f, 0.350000f)] // sunset onward: full tint at sea level
-    [TestCase(-6f, 0.350000f)]
-    [TestCase(-30f, 0.350000f)] // deep night
+    [TestCase(20f, 0.0051299f)] // sky just dark enough for a trace
+    [TestCase(10f, 0.1133690f)]
+    [TestCase(5f, 0.1689713f)]
+    [TestCase(0f, 0.18f)] // sunset onward: full tint at sea level
+    [TestCase(-6f, 0.18f)]
+    [TestCase(-30f, 0.18f)] // deep night
     public void AuroraSkyTint_IsZeroInVacuum_AndPinnedAtSeaLevel(float elevation, float seaLevel)
     {
         float glow = SunGlowAtElevation(elevation);
@@ -187,10 +193,11 @@ public class VacuumSuppressionTests
             $"sea-level aurora sky tint moved at elevation {elevation}");
     }
 
+    // Same story as the sky column, against AuroraMath.MaxOverlayTintStrength (0.15 -> 0.08).
     [TestCase(45f, 0f)]
-    [TestCase(10f, 0.094474f)]
-    [TestCase(0f, 0.150000f)]
-    [TestCase(-30f, 0.150000f)]
+    [TestCase(10f, 0.0503862f)]
+    [TestCase(0f, 0.08f)]
+    [TestCase(-30f, 0.08f)]
     public void AuroraOverlayTint_IsZeroInVacuum_AndPinnedAtSeaLevel(float elevation, float seaLevel)
     {
         float glow = SunGlowAtElevation(elevation);

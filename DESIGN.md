@@ -2062,12 +2062,16 @@ the scenario fails if the gate ever stops firing *or* if it starts firing on the
 
 | Hour | | twilight_warmth | sky_color_temperature | aurora_tint |
 |---|---|---|---|---|
-| 19 | ground | 0.3520 | 2851.66 K | 0.0755 |
+| 19 | ground | 0.3520 | 2851.66 K | 0.0388 |
 | 19 | orbit | **0** | **5772 K** | **0** |
-| 21 | ground | 0.1531 | 2000 K | 0.3500 |
+| 21 | ground | 0.1531 | 2000 K | 0.1800 |
 | 21 | orbit | **0** | **5772 K** | **0** |
-| 22 | ground | 0 | 2000 K | 0.3500 |
+| 22 | ground | 0 | 2000 K | 0.1800 |
 | 22 | orbit | **0** | **5772 K** | **0** |
+
+On the pre-gate build the orbital column came back **bit-identical to the ground column** at every
+hour, which is the sharpest statement of what §18a fixes: an orbital map was not merely resembling
+the ground's atmospheric colours, it was computing exactly them.
 
 Two things worth recording about the pins. First, they are **calibrated from a live run, not
 predicted** — the offline sweep's helper derives sun glow from our own simulator's elevation, but the
