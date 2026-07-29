@@ -1,0 +1,19 @@
+{
+  "name": "aurora_event",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "20" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "40" } },
+    { "type": "SetTime", "args": { "hour": "1" } },
+    { "type": "SetFeature", "args": { "featureName": "pitch_black_nights", "enabled": "false" } },
+    { "type": "Probe", "args": { "probeName": "aurora_tint", "expectedValue": "0", "tolerance": "0.001" } },
+    { "type": "Screenshot", "args": { "fileName": "aurora_event_none.png" } },
+    { "type": "StartCondition", "args": { "conditionDef": "Aurora", "durationHours": "24", "agedHours": "2" } },
+    { "type": "Probe", "args": { "probeName": "aurora_tint", "expectedValue": "0.35", "tolerance": "0.02" } },
+    { "type": "Screenshot", "args": { "fileName": "aurora_event_warmup.png" } },
+    { "type": "SetFeature", "args": { "featureName": "aurora", "enabled": "false" } },
+    { "type": "Screenshot", "args": { "fileName": "aurora_event_off.png" } },
+    { "type": "SetFeature", "args": { "featureName": "aurora", "enabled": "true" } },
+    { "type": "Screenshot", "args": { "fileName": "aurora_event_on.png" } }
+  ]
+}
