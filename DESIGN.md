@@ -723,8 +723,8 @@ reads `map.roofGrid` / `map.edificeGrid` and rewrites `mesh.colors32`.
     contribute nothing to the OR, which needs no special case and keeps the two sections that each bake
     a shared boundary vertex in exact agreement (no 17-cell seams).
 - **"Roofed" means enclosed, not merely covered.** The one place we deliberately classify *narrower*
-  than vanilla. Asking `roofGrid.Roofed(cell)` outright blacked out porches and overhangs at noon
-  (issue #33) — they are roofed but stand open to the sky on their exposed sides. The `roofed` input
+  than vanilla. Asking `roofGrid.Roofed(cell)` outright blacked out porches and overhangs at
+  noon — they are roofed but stand open to the sky on their exposed sides. The `roofed` input
   is therefore `EaveCells.Encloses`, which also requires the cell's room to hold its own temperature
   (§15). Ungated, and shared with §15's shadow half so the two can never disagree about which cells
   are inside.
@@ -1008,7 +1008,7 @@ fires (flame core 0.836 → 0.836), but it desaturated nothing, for two independ
 our own — `SectionLayer_NightDesaturation` — and needs no replacement shader for
 `MatBases.LightOverlay`, which is what made the per-cell version look impossible. It is a new mesh
 drawn alongside vanilla's, not a hijack of one, so it collides with nothing (Dub's Skylights, the
-Perspective family — see #36).
+Perspective family).
 
   - **Registration is free.** `Verse.Section`'s constructor instantiates every non-abstract
     `SectionLayer` subclass it finds, so declaring the class is the registration — no Harmony patch.
@@ -1301,7 +1301,7 @@ Boundaries:
   a full moon — but that coupling is out of scope for a first pass; reacting to the live condition is
   enough to "look how we'd expect."
 
-**Integration seam (pending #6/#7).** Until the moon-position (§6) and night-radiance (§7)
+**Integration seam.** Until the moon-position (§6) and night-radiance (§7)
 subsystems merge, there is no authoritative "moonlight colour" to recolour, so `Patch_BloodMoon`
 tints the vanilla night sky in place. The self-contained detection + pure crimson recolour are the
 seam that plugs into them: once §7 owns the moonlit-sky colour, the tint should apply to *that* (so a
@@ -1386,7 +1386,7 @@ deficit is exactly 0 and the product zeroes it structurally. A luminance-only ru
 caves and the metal hell into blackness and needed an explicit guard bolted on; Orbit would have been
 spared only by the luck of shipping Clear's palette.
 
-### Modded weathers, and why the palette alone was not enough (issue #31)
+### Modded weathers, and why the palette alone was not enough
 
 §13 originally shipped with the palette rule as the *whole* classifier, arguing from the table above
 that it needed no roof check, no biome check and no defName list. That argument was sound about
@@ -1551,7 +1551,7 @@ shadow-angle range this was easy to miss; with §1 raking shadows through every 
 across the day and the season, it is a hole you cannot stop seeing.
 
 §7b's occlusion has the mirror-image bug: it treats *every* roofed cell as sealed, so the same porch
-goes pitch black at noon while standing wide open to the sky on three sides (issue #33). That was
+goes pitch black at noon while standing wide open to the sky on three sides. That was
 the most conspicuous artifact the feature shipped with.
 
 **Approach.** Both want the same finer distinction, so it is stated once, purely, in `EavesMath`. A

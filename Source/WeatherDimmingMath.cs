@@ -34,7 +34,7 @@ namespace CelestialLighting;
 // visual/atmospheric only" intact with no amendment: plant growth, solar output and pawn vision
 // stay bit-for-bit vanilla under every weather.
 //
-// HOW A WEATHER IS CLASSIFIED — three layers, none of them a defName list (issue #31):
+// HOW A WEATHER IS CLASSIFIED — three layers, none of them a defName list:
 //
 //   1. BiomeHasChangingWeather   is there weather over this map at all?     (map-level veto)
 //   2. PaletteOpacity            how overcast does the palette look?        (evidence)
@@ -132,8 +132,8 @@ public static class WeatherDimmingMath
     //
     // WHAT THIS IS *NOT* ENOUGH FOR, and the reason it is no longer the whole classifier. §13
     // originally shipped this as the complete story, on the strength of the regularity above. An
-    // audit of every WeatherDef in 81 installed defs across vanilla + 24 workshop mods (issue #31,
-    // reproducible via Tools/WeatherAudit) showed the `saturation: 1.25` convention is a *vanilla*
+    // audit of every WeatherDef in 81 installed defs across vanilla + 24 workshop mods
+    // (reproducible via Tools/WeatherAudit) showed the `saturation: 1.25` convention is a *vanilla*
     // convention that modded content does not follow: Biomes! Caverns' BMT_Calm and MultiFloors'
     // MF_UndergroundWeather are cave environments shipping overcast-shaped palettes, and this
     // function rates them 1.00 and 0.71. The fix is not to complicate the palette rule — every

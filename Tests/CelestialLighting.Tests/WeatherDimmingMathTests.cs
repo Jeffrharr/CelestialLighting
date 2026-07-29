@@ -77,7 +77,7 @@ public class WeatherDimmingMathTests
     //
     // NOTE what this deliberately no longer claims. It used to read "a modded cave weather that
     // somehow reported rain must still not dim", asserting an AND between palette and precipitation.
-    // Issue #31 reversed that: precipitation is now independent evidence of a deck (see
+    // The modded-weather audit reversed that: precipitation is now independent evidence of a deck (see
     // CloudOpacity_PrecipitationOverridesAnUnconvincingPalette), because a real modded rainstorm
     // shipping a half-clear palette was the more common failure by far. Cave weathers are handled by
     // the map-level guard instead — BiomeHasChangingWeather — which is where the question belongs.
@@ -139,7 +139,7 @@ public class WeatherDimmingMathTests
     {
         // Alpha Biomes' AB_ForsakenRainyNight_Alternate: a rainstorm (rainRate 1.0) whose day palette
         // is only partway to overcast — sky (0.65,0.70,0.75), saturation 1.1. The palette rule alone
-        // rates it 0.43, so before issue #31 a visibly wet sky dimmed as though half-clear.
+        // rates it 0.43, so before the precipitation override a visibly wet sky dimmed as though half-clear.
         float palette = WeatherDimmingMath.PaletteOpacity(0.65f, 0.70f, 0.75f, 1.1f);
         Assert.That(palette, Is.EqualTo(0.4286f).Within(1e-3f), "census value for this def changed");
 
@@ -226,7 +226,7 @@ public class WeatherDimmingMathTests
 
     // --- The modded census, as a regression fixture ---
     //
-    // The defs that motivated issue #31, with the opacity each must now classify to. These are the
+    // The defs that motivated the modded-weather audit, with the opacity each must now classify to. These are the
     // literal skyColorsDay values from the mods' own XML; the two that used to misfire are the ones
     // this row set exists to hold down. Cave environments (BMT_Calm, MF_UndergroundWeather) are NOT
     // here, because they are not fixed at this layer at all — their palettes still read as overcast
@@ -239,7 +239,7 @@ public class WeatherDimmingMathTests
     // Note the palette here. This def's XML says sky (255,0,0), and Verse.ParseHelper.ParseColor
     // treats any triple with a component above 1 as 0-255 bytes — so the value §13 actually sees is
     // (1,0,0), pure red, whose Rec.709 luma of 0.213 reads as a full luminance deficit. Worth pinning:
-    // issue #31's original audit script read the raw XML floats and concluded this storm dimmed 0%.
+    // the original audit script read the raw XML floats and concluded this storm dimmed 0%.
     [TestCase(1f, 0f, 0f, 0.9f, 1f, 1f,
         TestName = "Census_VPEH_Bloodstorm_byteColourParsesToPureRedNotSuperWhite")]
     [TestCase(0.95f, 0.90f, 0.80f, 1.0f, 0f, 0.34497f,

@@ -56,7 +56,7 @@ public class EaveShadeMathTests
     }
 
     // The guard that matters most, because "porch went pitch black at noon" is the failure this
-    // subsystem's sibling (issue #33) already caused once. The multiply is bounded below by vanilla's
+    // subsystem's sibling (§7b) already caused once. The multiply is bounded below by vanilla's
     // own shadow palette — the darkest tint any vanilla weather declares is Clear's 0.740 — so the
     // deepest an eave can ever go is ~0.45 of open sunlit ground, in full midday sun.
     [Test]

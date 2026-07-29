@@ -57,7 +57,7 @@ public static class BloodMoon
     // fact clamp glow — see DESIGN.md §13 — but §7's night floor does rewrite it, which is the real
     // reason to prefer the celestial value here.)
     //
-    // TODO(integration): once #6 (moon position) and #7 (night radiance) land, the authoritative
+    // TODO(integration): once §6 (moon position) and §7 (night radiance) land, the authoritative
     // moonlit-sky colour will come from the night-radiance subsystem. At that point Patch_BloodMoon
     // should recolour *that* moonlight colour (so a blood moon is a genuinely bright red night)
     // instead of tinting the vanilla night sky in place, and this ramp can additionally gate on the

@@ -8,7 +8,7 @@ namespace CelestialLighting.Tools;
 //
 // WHY THIS IS CHECKED IN. §13's whole premise is that a modded weather classifies itself, from data it
 // already ships, with no defName list — which is a claim about content nobody on the team wrote and
-// that changes every time the user's mod list does. The first audit of that claim (issue #31) was a
+// that changes every time the user's mod list does. The first audit of that claim was a
 // one-off script, and it made two errors that a checked-in tool makes structurally hard to repeat: it
 // reimplemented the formula instead of linking it (so its numbers were not the game's numbers), and it
 // read RimWorld's colour XML as literal floats (so it misread every 0-255 palette). This tool links

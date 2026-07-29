@@ -17,7 +17,7 @@ namespace CelestialLighting;
 //      IMAGE EFFECT over the finished frame. It cannot tell a campfire from the dark ground around
 //      it, so flames came out as grey as the dirt. Global by construction; no tuning fixes it.
 //
-//   2. SkyColorSet.sky (§9's replacement, PR #44). That colour becomes MatBases.LightOverlay.color,
+//   2. SkyColorSet.sky (§9's replacement). That colour becomes MatBases.LightOverlay.color,
 //      which the overlay MULTIPLIES the scene by. A multiply can scale channels or shift hue but can
 //      never pull them toward each other, so it cannot desaturate anything. Confirmed on a live A/B:
 //      draining that colour toward its own grey made unlit ground MORE saturated (0.398 -> 0.488),

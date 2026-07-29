@@ -1,7 +1,7 @@
 {
   "name": "weather_dimming_skyless",
   "saveFile": "minimal_colony.rws",
-  "description": "§13 / issue #31 — the map-level guard. Weather dimming must be OFF on a map whose biome has no climate, and ON again the moment the biome does, with the deck-shaped weather held constant across the switch so the biome is provably the only variable.",
+  "description": "§13 — the map-level guard. Weather dimming must be OFF on a map whose biome has no climate, and ON again the moment the biome does, with the deck-shaped weather held constant across the switch so the biome is provably the only variable.",
   "steps": [
     {
       "type": "SetTile",

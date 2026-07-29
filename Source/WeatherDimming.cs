@@ -14,7 +14,7 @@ namespace CelestialLighting;
 // This is also where the two live-state questions the pure classifier cannot answer are asked: does
 // this map have a sky at all (HasSky), and has the def declared its own answer (WeatherCloudDeck).
 // Both exist because §13's original palette-only classifier was tuned against a vanilla-only census
-// and misread modded cave environments as overcast — see issue #31 and DESIGN.md §13.
+// and misread modded cave environments as overcast — see DESIGN.md §13.
 //
 // WHY map.weatherManager AND NOT WeatherWorker's own `def`. Patch_WeatherDimming postfixes
 // WeatherWorker.CurSkyTarget, so the "obvious" read is the def belonging to the worker being
@@ -75,7 +75,7 @@ public static class WeatherDimming
 
     // Whether this map has a sky that weather can be overhead in.
     //
-    // §13's STRUCTURAL GUARD, and the half of issue #31 the pure classifier cannot reach. "Is this
+    // §13's STRUCTURAL GUARD, and the half of the problem the pure classifier cannot reach. "Is this
     // palette a cloud deck?" is a question about a WeatherDef; "is there any sky here?" is a question
     // about the map, and asking it here rather than trying to infer it from a palette is what closes
     // the entire cave / pocket-map / orbit class in one cheap check. §13 shipped without this on the

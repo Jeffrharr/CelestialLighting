@@ -184,7 +184,7 @@ internal sealed class DefLoader
 
     // Mirrors Verse.ParseHelper.ParseColor, and this is not a detail worth glossing: if ANY of the
     // three components exceeds 1, RimWorld reads the whole triple as 0-255 bytes and divides. Reading
-    // the XML floats literally is exactly the mistake issue #31's original audit made — it read Vanilla
+    // the XML floats literally is exactly the mistake §13's original audit made — it read Vanilla
     // Psycasts Expanded Hemosage's Bloodstorm palette of "(255,0,0)" as a superwhite sky and reported
     // that a full rainstorm dimmed 0%, when the game sees pure red and dims it 25.5%.
     internal static (float R, float G, float B)? ParseColor(string? text)

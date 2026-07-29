@@ -164,7 +164,7 @@ public static class MoonPosition
 
     // Normalized 0..1 moonlight contribution for the current map — the seam the night-radiance
     // subsystem (§7) consumes.
-    // TODO(integration): #4/#7 night-radiance should read this and sum it with its starlight/airglow
+    // TODO(integration): §7 night-radiance should read this and sum it with its starlight/airglow
     // floors (scaled by its own moonlight slider) rather than recomputing the moon itself.
     public static float MoonlightBrightnessForMap(Map map)
     {

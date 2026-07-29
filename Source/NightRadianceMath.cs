@@ -134,7 +134,7 @@ public static class NightRadianceMath
 
     // Default for NightRadianceSettings.MinNightBrightness — the shipped minimum overlay brightness.
     // 0 == a moonless / floors-off night renders genuinely pitch black (only lit things and UI show).
-    // We ship the full-strength look and let the settings screen (#23) / harness raise the clamp for
+    // We ship the full-strength look and let the settings screen / harness raise the clamp for
     // players who find true black hard to navigate; the balance is expected to be revisited once every
     // light source (moon, starlight/airglow, aurora, eclipse) is in and the night's overall floor is final.
     public const float DefaultMinNightBrightness = 0f;
