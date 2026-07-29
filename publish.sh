@@ -33,13 +33,22 @@ MANIFEST=(
   "About/Preview.png"
   "About/PublishedFileId.txt"
   "1.6/Assemblies/CelestialLighting.dll"
+  "1.6/Defs"
   "LICENSE"
 )
 
-# Directory names RimWorld treats as loadable mod content. If one of these appears in the repo but
-# no MANIFEST entry draws from it, someone added real content and did not update the whitelist —
-# which would silently publish a mod missing its defs or textures. Cheap guard against a failure
-# mode that is invisible until users report it.
+# Directory names RimWorld treats as loadable mod content, at the repo root or under a version
+# directory. Every tracked file below one of these must be covered by a MANIFEST entry, or someone
+# added real content and did not update the whitelist.
+#
+# This guard used to test only `[ -d "$dir" ]` at the repo root, which never matched anything: our
+# content lives at 1.6/Defs/, so it passed vacuously and v1.0.0 shipped to the Workshop with no
+# Defs/ at all. Subscribers got "Failed to find RimWorld.MapMeshFlagDef named CL_SunShadowAxis" and
+# silently lost sun-shadow mesh invalidation (the def's implicit ulong cast is null-safe, so the
+# subscription just OR'd 0 and no exception ever pointed at the cause). Nothing caught it locally
+# because the dev install is a symlink to this repo — the game we test always sees the full tree,
+# never the staged package. So the check now walks tracked files rather than directory existence,
+# and matches on manifest coverage rather than on a directory being mentioned.
 CONTENT_DIRS=(Defs Textures Sounds Patches Languages Sprites AssetBundles)
 
 STEAM=0
@@ -99,14 +108,40 @@ check_versions() {
   fi
 }
 
-# See CONTENT_DIRS above.
-check_content_dirs() {
-  local dir
-  for dir in "${CONTENT_DIRS[@]}"; do
-    if [ -d "$dir" ] && ! printf '%s\n' "${MANIFEST[@]}" | grep -q "^$dir/"; then
-      fail "$dir/ exists but no MANIFEST entry ships it — update MANIFEST in this script"
+# True when $1 is shipped by the MANIFEST — either named outright, or sitting under an entry that
+# names a whole directory. Directory entries are what let 1.6/Defs/ cover every def file in it
+# without this script needing a line per file.
+manifest_covers() {
+  local file="$1" entry
+  for entry in "${MANIFEST[@]}"; do
+    if [ "$file" = "$entry" ] || [ "${file#"$entry"/}" != "$file" ]; then
+      return 0
     fi
   done
+  return 1
+}
+
+# Tracked files that RimWorld would load as content: anything with a CONTENT_DIRS component in its
+# path. git ls-files rather than find, so build output and other untracked debris never register as
+# content someone forgot to ship.
+content_files() {
+  local dir
+  for dir in "${CONTENT_DIRS[@]}"; do
+    # Trailing /* is required: a pathspec containing a wildcard is fnmatch'd against the whole path,
+    # which drops git's usual "a directory means everything under it" shorthand. `*/Defs` matches
+    # nothing at all, and the guard silently passes — the exact way this check failed before.
+    git ls-files -- "$dir/*" "*/$dir/*"
+  done | sort -u
+}
+
+# See CONTENT_DIRS above.
+check_content_dirs() {
+  local file
+  while read -r file; do
+    if [ -n "$file" ] && ! manifest_covers "$file"; then
+      fail "$file is mod content but no MANIFEST entry ships it — update MANIFEST in this script"
+    fi
+  done <<< "$(content_files)"
 }
 
 check_content_dirs
@@ -126,10 +161,20 @@ rm -rf dist
 mkdir -p "$DIST"
 
 for entry in "${MANIFEST[@]}"; do
-  [ -f "$entry" ] || fail "missing from the working tree: $entry"
-  [ -s "$entry" ] || fail "empty, refusing to ship: $entry"
-  mkdir -p "$DIST/$(dirname "$entry")"
-  cp "$entry" "$DIST/$entry"
+  # A directory entry ships its whole subtree. The emptiness check applies per file either way: an
+  # empty def XML is as broken as an empty DLL, and a Defs/ directory with nothing in it means the
+  # content it was added to cover has gone missing.
+  if [ -d "$entry" ]; then
+    [ -n "$(find "$entry" -type f -size +0 -print -quit)" ] \
+      || fail "no non-empty files under, refusing to ship: $entry"
+    mkdir -p "$DIST/$entry"
+    cp -r "$entry/." "$DIST/$entry/"
+  else
+    [ -f "$entry" ] || fail "missing from the working tree: $entry"
+    [ -s "$entry" ] || fail "empty, refusing to ship: $entry"
+    mkdir -p "$DIST/$(dirname "$entry")"
+    cp "$entry" "$DIST/$entry"
+  fi
 done
 
 echo "publish: staged $(find "$DIST" -type f | wc -l) files, $(du -sh "$DIST" | cut -f1)"
