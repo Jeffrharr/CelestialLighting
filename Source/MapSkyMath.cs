@@ -78,4 +78,39 @@ public static class MapSkyMath
     // untouched, so weather_dimming_skyless.json — which pins Orbit at zero dimming — still passes
     // unchanged and remains the proof of that.
     public static bool IsEnclosed(bool hasSky, bool inVacuum) => !hasSky && !inVacuum;
+
+    // The ambient level an enclosed map sits at, all day, every day.
+    //
+    // Full rather than some dimmer value on purpose. This is the value BEFORE §7b's occlusion, and
+    // on an enclosed map essentially every cell is roofed, so what actually reaches the floor is
+    // this scaled by the minimum-indoor-brightness cap. Handing §7b a full sky is what makes that
+    // slider the single thing deciding how bright a cave is: Cinematic's 0.50 gives a clearly-lit
+    // cave at every hour, and Realistic's 0.0 keeps caves pitch black at every hour, so both presets
+    // go on meaning exactly what they advertise instead of acquiring a second, hidden knob.
+    public const float EnclosedAmbientGlow = 1f;
+
+    // Replaces an enclosed map's diurnal sky glow with that constant.
+    //
+    // WHY A CAVE MUST NOT TRACK THE SUN. Measured on a live enclosed map, sky glow ran 1.00 at noon
+    // and 0.00 at midnight, so a cave was legible by day and pure black by night. The minimum
+    // indoor brightness slider could not prevent it, because it is a FRACTION of the sky rather than
+    // a floor under it — 50% of a full sky is a lit cave, and 50% of nothing is still nothing. A
+    // sealed cave has no day, so the fix is to stop the sun reaching it at all rather than to floor
+    // the result afterwards.
+    //
+    // This also lands where Biomes! Caverns already was. Its BMT_Calm weather gives skyColorsDay,
+    // skyColorsDusk, skyColorsNightEdge and skyColorsNightMid *identical* values — its authors
+    // deliberately gave caverns no diurnal variation whatsoever, and holding glow constant is the
+    // same statement made about brightness rather than about colour.
+    //
+    // GAMEPLAY-INERT, and that was checked rather than assumed. Raising glow sounds like it should
+    // make plants grow and pawns see in the dark, but Verse.GlowGrid.GroundGlowAt only consults
+    // CurSkyGlow when `!map.roofGrid.Roofed(c)`, and Biomes! Caverns does not transpile GlowGrid —
+    // so on a cavern, where every cell carries BMT_RockRoofStable, sky glow is already excluded from
+    // gameplay light and only lamps count. The effect here is confined to what the lighting overlay
+    // renders. On an enclosed map that happens to have open cells, those cells do take the constant
+    // as real light; that is the intended reading — an underground map has no day for its open
+    // areas either — but it is the one case where this is more than a visual change.
+    public static float AmbientGlow(bool enclosed, float diurnalGlow) =>
+        enclosed ? EnclosedAmbientGlow : diurnalGlow;
 }

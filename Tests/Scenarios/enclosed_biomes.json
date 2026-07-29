@@ -89,12 +89,12 @@
       }
     },
     {
-      "_comment": "THE NUMERIC PROOF. \u00a75 was lifting a night floor with MOONLIGHT on a map under rock; gated, CurSkyGlow falls back to vanilla's midnight zero.",
+      "_comment": "\u00a717b: an enclosed map holds a constant ambient instead of tracking the sun, so this midnight reading must MATCH the noon one. Before \u00a717b it was 0 against noon's 1.00 \u2014 caves were legible by day and pure black by night, because minimum indoor brightness is a FRACTION of sky and 50% of nothing is still nothing. Gameplay-inert on roofed cells, which is every cell on a cavern: GlowGrid.GroundGlowAt only consults CurSkyGlow when the cell is unroofed.",
       "type": "Probe",
       "args": {
         "probeName": "sky_glow",
-        "expectedValue": "0.0000",
-        "tolerance": "0.005"
+        "expectedValue": "1.0",
+        "tolerance": "0.05"
       }
     },
     {
@@ -131,9 +131,10 @@
       "type": "Probe",
       "args": {
         "probeName": "sky_glow",
-        "expectedValue": "0.0000",
-        "tolerance": "0.005"
-      }
+        "expectedValue": "1.0",
+        "tolerance": "0.05"
+      },
+      "_comment": "\u00a717b: an enclosed map holds a constant ambient instead of tracking the sun, so this midnight reading must MATCH the noon one. Before \u00a717b it was 0 against noon's 1.00 \u2014 caves were legible by day and pure black by night, because minimum indoor brightness is a FRACTION of sky and 50% of nothing is still nothing. Gameplay-inert on roofed cells, which is every cell on a cavern: GlowGrid.GroundGlowAt only consults CurSkyGlow when the cell is unroofed."
     },
     {
       "type": "Screenshot",
@@ -154,6 +155,15 @@
         "probeName": "map_enclosed",
         "expectedValue": "1",
         "tolerance": "0.001"
+      }
+    },
+    {
+      "_comment": "Same enclosed map at NOON, for the day/night swing. Vanilla's own CurCelestialSunGlow is untouched by our gates, so a cave is still lit by full daylight here \u2014 which is what makes the midnight reading of 0 a swing rather than a constant.",
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_glow",
+        "expectedValue": "1.0",
+        "tolerance": "0.05"
       }
     },
     {

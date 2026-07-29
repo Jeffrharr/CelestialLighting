@@ -101,4 +101,38 @@ public class MapSkyMathTests
             MapSkyMath.IsEnclosed(hasSky: false, inVacuum: true), Is.False,
             "in a vacuum, skyless must NOT imply enclosed");
     }
+
+    // --- AmbientGlow: a cave has no day ---
+
+    [TestCase(0f)]
+    [TestCase(0.0996f)]
+    [TestCase(1f)]
+    public void AmbientGlow_Enclosed_IsConstantWhateverTheSunIsDoing(float diurnal)
+    {
+        // The whole point: measured on a live enclosed map, sky glow ran 1.00 at noon and 0.00 at
+        // midnight, so caves were legible by day and black by night. All three inputs must now
+        // produce the same output, because a sealed cave has no day.
+        Assert.That(
+            MapSkyMath.AmbientGlow(enclosed: true, diurnalGlow: diurnal),
+            Is.EqualTo(MapSkyMath.EnclosedAmbientGlow));
+    }
+
+    [TestCase(0f)]
+    [TestCase(0.0996f)]
+    [TestCase(1f)]
+    public void AmbientGlow_NotEnclosed_PassesTheSunStraightThrough(float diurnal)
+    {
+        // An open map keeps its day/night cycle untouched, including orbit, which is not enclosed.
+        Assert.That(
+            MapSkyMath.AmbientGlow(enclosed: false, diurnalGlow: diurnal), Is.EqualTo(diurnal));
+    }
+
+    [Test]
+    public void AmbientGlow_HandsSeventeenBAFullSkyToScale()
+    {
+        // Full rather than pre-dimmed, so that §7b's minimum-indoor-brightness cap is the single
+        // thing deciding cave brightness and both presets keep meaning what they advertise:
+        // Cinematic 0.50 -> a lit cave at every hour, Realistic 0.0 -> black at every hour.
+        Assert.That(MapSkyMath.EnclosedAmbientGlow, Is.EqualTo(1f));
+    }
 }
