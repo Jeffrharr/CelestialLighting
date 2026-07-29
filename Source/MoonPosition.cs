@@ -121,7 +121,13 @@ public static class MoonPosition
         Vector2 longLat = Find.WorldGrid.LongLatOf(map.Tile);
         int dayOfYear = GenDate.DayOfYear(Find.TickManager.TicksAbs, longLat.x);
 
-        float declination = MoonMath.MoonDeclinationDegrees(dayOfYear, cyclePosition);
+        // Evaluated through the SUN's declination model at the moon's equivalent day, rather than
+        // through MoonMath's own -cos, so the moon tracks whatever seasonal model the sun is on.
+        // With Realistic Axial Tilt that model is theirs and a quarter-year out of phase with ours;
+        // rebuilding the moon independently would leave it a season adrift of the sun. Identical to
+        // MoonMath.MoonDeclinationDegrees when RAT is absent — see MoonEquivalentSunDayOfYear.
+        float declination = AxialTiltCompat.SolarDeclinationDegrees(
+            MoonMath.MoonEquivalentSunDayOfYear(dayOfYear, cyclePosition));
         float moonDayPercent = MoonMath.MoonDayPercent(dayPercent, cyclePosition);
 
         // Reuse Formulas' own solar-position equations for the moon, feeding the moon's declination

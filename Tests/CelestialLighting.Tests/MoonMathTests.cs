@@ -122,6 +122,60 @@ public class MoonMathTests
         Assert.That(moon, Is.EqualTo(-sun).Within(Tolerance));
     }
 
+    // --- MoonEquivalentSunDayOfYear ---
+
+    [TestCase(0f, 0f)]
+    [TestCase(0f, 0.25f)]
+    [TestCase(0f, 0.5f)]
+    [TestCase(0f, 0.75f)]
+    [TestCase(15f, 0.13f)]
+    [TestCase(30f, 0.5f)]
+    [TestCase(42f, 0.87f)]
+    [TestCase(59f, 0.31f)]
+    public void MoonEquivalentSunDayOfYear_ReproducesMoonDeclination_ThroughTheSunModel(
+        float dayOfYear, float cyclePosition)
+    {
+        // The load-bearing equivalence. MoonPosition no longer calls MoonDeclinationDegrees; it
+        // evaluates the SUN's declination function at this shifted day, so the moon follows whatever
+        // seasonal model the sun is on (ours, or Realistic Axial Tilt's, which is phase-shifted).
+        //
+        // This pins that the indirection is exactly inert when the sun model is our own — that the
+        // refactor changed no shipped number for a player without RAT. If it drifts, every
+        // moon-shadow scenario pin drifts with it.
+        float viaSunModel = Formulas.SolarDeclinationDegrees(
+            MoonMath.MoonEquivalentSunDayOfYear(dayOfYear, cyclePosition));
+        float direct = MoonMath.MoonDeclinationDegrees(dayOfYear, cyclePosition);
+
+        Assert.That(viaSunModel, Is.EqualTo(direct).Within(Tolerance));
+    }
+
+    [TestCase(0f)]
+    [TestCase(15f)]
+    [TestCase(42f)]
+    public void MoonEquivalentSunDayOfYear_IsIdentity_AtNewMoon(float dayOfYear)
+    {
+        // Elongation 0 puts the moon at the sun's own ecliptic longitude, so the shift must vanish
+        // outright rather than merely round to something close. This is the property that keeps sun
+        // and moon provably on the same day under ANY declination model, including one whose phase
+        // we don't control.
+        Assert.That(
+            MoonMath.MoonEquivalentSunDayOfYear(dayOfYear, cyclePosition: 0f),
+            Is.EqualTo(dayOfYear).Within(Tolerance));
+    }
+
+    [TestCase(0f)]
+    [TestCase(15f)]
+    [TestCase(42f)]
+    public void MoonEquivalentSunDayOfYear_IsHalfAYearAhead_AtFullMoon(float dayOfYear)
+    {
+        // Elongation 180 is half a year of ecliptic travel. Any sinusoidal declination model negates
+        // across half a year, which is what makes the full moon ride opposite the sun — and it does
+        // so without this test needing to know which model is in play.
+        Assert.That(
+            MoonMath.MoonEquivalentSunDayOfYear(dayOfYear, cyclePosition: 0.5f),
+            Is.EqualTo(dayOfYear + Formulas.DaysPerYear / 2f).Within(Tolerance));
+    }
+
     // --- MoonDayPercent ---
 
     [TestCase(0.5f, 0f, 0.5f)] // new moon: moon tracks the sun (meridian at noon)

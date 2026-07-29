@@ -13,6 +13,12 @@ public static class CelestialLightingMod
     {
         new Harmony("celestiallighting").PatchAll();
 
+        // Tell Realistic Axial Tilt, if present, to stand its own lighting patches down — we render
+        // the sky, it owns the planet's solar geometry. Done here rather than lazily because it must
+        // happen before the first frame draws, and StaticConstructorOnStartup is the one point where
+        // every mod's patches are registered but nothing has rendered yet. No-op without RAT.
+        AxialTiltCompat.ClaimLighting();
+
         // Wire the night-radiance moon seam (§7) to the real moon subsystem (§6). MoonSeam defaults
         // to "no moon" so §7 builds and unit-tests standalone with no dependency on §6; here — the
         // one startup point where both subsystems are present in the shipped assembly — we point it

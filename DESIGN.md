@@ -3511,3 +3511,53 @@ copy of v1.0.0 reproduces `MapMeshFlagDef CL_SunShadowAxis`, and pointing it at 
 `dist/` passes. Both were confirmed in-game as well, by symlinking each package in turn as the
 `Mods/CelestialLighting` entry and booting the `moon_illumination` scenario: the published copy logs
 the error, the staged one logs nothing and passes.
+
+## Interop: Realistic Axial Tilt (`Source/AxialTiltCompat.cs`)
+
+**Problem.** Realistic Axial Tilt (RAT, `dsweber.RealisticAxialTilt`) lets the player choose their
+planet's obliquity at world gen and reshapes the seasons around it. We render the sky. Left alone
+the two mods fight over the same vanilla members: both postfix `GenCelestial.GetLightSourceInfo`
+and `GenCelestial.CurShadowStrength` and both overwrite `__result`, neither declaring a Harmony
+priority; and both prefix `SectionLayer_SunShadows.Regenerate` with `return false`, so whichever
+registers second never builds its shadow mesh at all — silently, with the winner decided by load
+order.
+
+**Approach — split by concern, not by patch.** RAT owns the planet's solar geometry; we own every
+pixel of lighting. Enforcing that by reflecting into their internals and neutralizing their patch
+classes one at a time would mean re-auditing their patch list every release, so instead the
+mechanism lives upstream: we contributed a public API to RAT
+(`RealisticAxialTilt.Api.RealisticAxialTiltApi`) carrying the planet's geometry plus a lighting
+claim. `AxialTiltCompat.ClaimLighting()` calls it once at init and *every* RAT lighting patch —
+present and future — stands down behind a single guard they maintain. Their axial-tilt gameplay
+(temperature, seasonal amplitude, plant rest and dormancy, world-params UI) is untouched.
+
+**Why we read declination, not the tilt angle.** RAT's seasonal phase is not vanilla's: vanilla
+`SunPositionUnmodified` and our `Formulas.DeclinationSign` both use `-cos(dayOfYear/60·2π)`, while
+RAT uses `sin(...)` — a quarter-year offset in where the solstices land. Consuming
+`SolarDeclinationDegrees(dayOfYear)` makes the phase *their* contract, so a change upstream
+propagates with no edit here. Reading `AxialTiltDegrees` and re-applying our own curve would agree
+at the equinoxes and drift in between, which takes a season of play to notice.
+
+**The moon.** `MoonPosition` no longer calls `MoonMath.MoonDeclinationDegrees`. It evaluates the
+*sun's* declination function at `MoonMath.MoonEquivalentSunDayOfYear(dayOfYear, cyclePosition)` —
+the moon rides the same ecliptic, and an offset in ecliptic angle is an offset in day-of-year.
+This is what keeps "matching moon" true under a model whose phase we don't control: rebuilding the
+moon from our own `-cos` while the sun ran on RAT's `sin` would leave the two bodies a season
+apart, visible only as a moon riding high on the wrong nights months into a save.
+`MoonMathTests.MoonEquivalentSunDayOfYear_ReproducesMoonDeclination_ThroughTheSunModel` pins that
+the indirection is exactly inert when the sun model is our own.
+
+**One seam.** Both reads funnel through `AxialTiltCompat.SolarDeclinationDegrees`, consumed at
+`SolarPosition.ComputeInputsForMap` (sun) and `MoonPosition` (moon). Because every sun-derived
+effect in the mod already resolves through `SolarPosition.Inputs`, that single line re-bases
+shadows, twilight, penumbra, night radiance and moon shadows together. Without RAT it is literally
+`Formulas.SolarDeclinationDegrees(dayOfYear)`, so the seam is inert for the single-mod case.
+
+**Conflict risk.** No hard assembly reference — everything is late-bound via `AccessTools`, the
+same idiom RAT's own `Compat/` classes use, so a user without RAT loads a build that has never
+heard of it. There is deliberately **no** fallback path into RAT's internals: an older RAT without
+the API is treated as absent (`ApiVersion >= 1` gate) and declared in `<incompatibleWith>`, rather
+than half-supported. `GeometryReady` is checked on every read because RAT's `cosTilt` defaults to
+`0f`, not `1f` — calling before their world comp seeds it returns a degenerate planet, not
+Earth-like defaults. `GeometryGeneration` is exposed for cache invalidation across saves with
+different tilts.

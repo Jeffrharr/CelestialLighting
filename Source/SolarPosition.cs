@@ -53,7 +53,11 @@ public static class SolarPosition
         Vector2 longLat = Find.WorldGrid.LongLatOf(map.Tile);
         float dayPercent = GenLocalDate.DayPercent(map);
         int dayOfYear = GenDate.DayOfYear(Find.TickManager.TicksAbs, longLat.x);
-        float declination = Formulas.SolarDeclinationDegrees(dayOfYear);
+        // Routed through AxialTiltCompat rather than straight to Formulas so that, with Realistic
+        // Axial Tilt installed, every sun-derived effect in the mod picks up that planet's obliquity
+        // AND its seasonal phase from one place. Without RAT this is exactly
+        // Formulas.SolarDeclinationDegrees(dayOfYear), so the seam is inert for the single-mod case.
+        float declination = AxialTiltCompat.SolarDeclinationDegrees(dayOfYear);
 
         // §14: in the default locked mode the day percent is warped so our physical sun crosses the
         // horizon exactly when vanilla's sky does. Doing it HERE rather than in ElevationForMap is

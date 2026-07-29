@@ -111,6 +111,20 @@ Requires Harmony.</description>
     <!-- Owlchemist's original, superseded but still installed in plenty of mod lists. Same
          transpiler, same collision. -->
     <li>Owlchemist.PerspectiveEaves</li>
+    <!-- "Realistic Axial Tilt". TEMPORARY — remove once a RAT release carries the interop API
+         (RealisticAxialTilt.Api.RealisticAxialTiltApi, version 1) we contributed upstream; at that
+         point this becomes a loadAfter entry instead, because the two mods are designed to compose:
+         RAT owns the planet's solar geometry, we own the lighting.
+
+         Until then they genuinely conflict. Both postfix GenCelestial.GetLightSourceInfo and
+         CurShadowStrength and both overwrite __result, and — the one that actually breaks things —
+         both prefix SectionLayer_SunShadows.Regenerate with `return false`, so whichever registers
+         second never builds its shadow mesh at all, silently, with the outcome decided by Harmony
+         registration order rather than by anything the player can see or set.
+
+         AxialTiltCompat enforces the same rule at runtime via an ApiVersion >= 1 gate, so an older
+         RAT is treated as absent rather than half-supported; this tag is the user-facing half. -->
+    <li>dsweber.RealisticAxialTilt</li>
   </incompatibleWith>
   <loadAfter>
     <li>Ludeon.RimWorld</li>
