@@ -51,12 +51,24 @@ public static class AuroraMath
     public const float FullVisibilityGlow = 0.1f;
 
     // How far to blend the sky/overlay colours toward the auroral hue at peak (night, mid-condition).
-    // Deliberately moderate: unlike vanilla's aurora we don't ship a shimmering overlay *texture*,
-    // only a colour tint, so we need a touch more colour than vanilla's ~0.075 to read as an aurora —
-    // but not so much that the sky turns flat neon. Overlay is nudged less than the sky so the
-    // vignette/overlay layer stays subordinate. Both are colour-only; neither touches glow.
-    public const float MaxSkyTintStrength = 0.35f;
-    public const float MaxOverlayTintStrength = 0.15f;
+    // Overlay is nudged less than the sky so the vignette/overlay layer stays subordinate. Both are
+    // colour-only; neither touches glow.
+    //
+    // These were 0.35/0.15, argued up from vanilla's 0.075/0.025 on the reasoning that we ship no
+    // shimmering overlay *texture*, only a flat colour, so we need more colour to read as an aurora.
+    // Rendered, that argument fails in the other direction: because the tint is flat and covers the
+    // whole map at once, 0.35 does not read as "a strong aurora" but as a green filter over the
+    // world — the flat-neon failure the original comment was trying to avoid. Measured on the
+    // aurora_event frame it moved mean frame RGB by (-13.8, +9.2, -14.1) out of 255, about 25%.
+    //
+    // A flat wash and a textured aurora are not the same effect at different strengths, so matching
+    // vanilla's *visible* intensity is the wrong target; the right one is a tint you notice without
+    // it reading as a colour grade. Roughly half, ~2.4x vanilla, lands there. Getting genuinely
+    // vivid auroras needs spatial structure and movement rather than a bigger number here — that is
+    // issue #42, and if it ships these two drop back toward vanilla's values as the base layer
+    // underneath it.
+    public const float MaxSkyTintStrength = 0.18f;
+    public const float MaxOverlayTintStrength = 0.08f;
 
     // The tint eases in over the condition's first FadeTicks and out over its last FadeTicks so a
     // solar flare doesn't snap a fully-green sky in and out at its start/end. 2500 ticks ≈ one

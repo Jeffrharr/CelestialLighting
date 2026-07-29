@@ -33,13 +33,12 @@ namespace CelestialLighting;
 // either, despite the letter promising exactly that. What vanilla's aurora *does* still deliver is
 // the saturation drop (1.25 -> 1.0) and its SkyGaze joy bonus, neither of which we touch.
 //
-// That same LerpDarken min is why we do not push the tint harder during the event than during a
-// flare: vanilla's own colour set becomes a per-channel ceiling while its condition is active, and
-// AuroraMath.MaxSkyTintStrength (0.35) already sits at roughly where the green channel starts to
-// clip against it. Tinting past that would pin green while red and blue kept falling, skewing the
-// hue rather than deepening it. Suppressing vanilla's SkyTarget outright would lift the ceiling, but
-// it buys ~1.5% of one channel in exchange for a second Harmony patch on a vanilla method and a
-// conflict surface with every other mod that touches auroras — not a trade worth making.
+// That same LerpDarken min also caps how hard the tint can usefully be pushed during the event:
+// vanilla's colour set is a per-channel ceiling while its condition runs, and past a tint of ~0.32
+// green pins while red and blue keep falling, skewing the hue rather than deepening it. At the
+// shipped AuroraMath.MaxSkyTintStrength (0.18) that ceiling is nowhere near binding, so suppressing
+// vanilla's SkyTarget to lift it would buy nothing at all — in exchange for a second Harmony patch
+// on a vanilla method and a conflict surface with every other mod that touches auroras.
 public static class AuroraConditions
 {
     // Cached on first successful lookup. SolarFlare is a core GameConditionDef but is NOT exposed on
