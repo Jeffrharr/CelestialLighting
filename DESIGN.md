@@ -2086,6 +2086,158 @@ fully determines its day length and sun path, and the orbit layer is a subdivide
 tiles are a couple of degrees wide. `LandInOrbit` therefore pins `WorldGrid.LongLatOf` to the
 requested latitude rather than accepting whatever the subdivision produced.
 
+## 18b. Vacuum night light budget (`VacuumRadianceMath` / `NightRadiance`)
+
+**Problem.** §7 makes night the sum of three dim sources — starlight, airglow, moonlight — and every
+one of them is a statement about standing at the bottom of an atmosphere with a moon overhead. On an
+Odyssey vacuum map (`BiomeDef.inVacuum`, the §18 gate) all three are wrong, and — the part that is
+easy to get backwards — they are not all wrong in the same direction.
+
+**Approach.** Three substitutions, in `Source/VacuumRadianceMath.cs`:
+
+| term | sea level | vacuum | why |
+|---|---|---|---|
+| airglow | 0.02 | **0** | the emission layer is at ~90 km; a 200 km platform is *above* it |
+| starlight | 0.02 | **0.031** | no atmosphere, no extinction — the term goes **up**, not down |
+| moonlight | phase × altitude | unchanged | still up there, still lit (see below) |
+| planetshine | — | ~0.0005 | new term, and derived to be negligible (see below) |
+
+**Starlight is the sign trap.** §7's 0.02 is a sea-level floor, so it is an *already-extinguished*
+number and the vacuum value is that floor **divided** by the transmittance, not multiplied. The
+transmittance is an integral rather than a `sec(z)`: starlight arrives from the whole hemisphere at
+once, each direction extinguished by its own airmass and contributing by its own cosine, so the
+figure that matters is the projection-weighted mean
+
+```
+T = 2 ∫₀¹ 10^(−0.4·k/u) · u du,      u = cos(zenith angle)
+```
+
+which at `k = 0.28` mag/airmass (sea-level clear, visual band) is **0.641** — well below the
+zenith-only 0.773, because the heavily-extinguished low sky is a lot of sky. So the vacuum gain is
+1.56× and starlight lands at 0.031.
+
+The claim being made is about the *ratio*, not the absolute value. §7's 0.02 is explicitly a
+look-calibrated floor, not a photometric one, so asserting a photometric number in vacuum would be a
+category error; applying the ratio preserves the calibration while encoding the physics of the
+change. Nothing here is sensitive to the coefficient: across the whole published 0.20–0.30 range the
+gain runs 1.38–1.61 and every claim below survives, which `VacuumRadianceMathTests` pins directly.
+
+**Planetshine, and the three open design questions.**
+
+*Does planetshine get a phase model, or is a constant floor honest?* **A constant, and the constant
+is derived to be ~zero.** The reasoning in the issue was that a sun–platform–planet phase term
+degenerates at a fixed lat/long into "the inverse of your own daylight", which the sun term already
+encodes. That is right, but it undersells the result, because the geometry says something sharper.
+At 200 km the platform sees a cap of ground `acos(R/(R+h)) = 14.17°` of surface arc wide, so it can
+see terrain up to 14.17° of solar depression *ahead* of its own — genuinely still lit by a sun the
+platform has lost. Integrating that cap (exact spherical trig for each ground point's solar
+elevation, Lambertian reflection at albedo 0.30, weighted by subtended solid angle and view cosine)
+gives planetshine as a real function of the platform's own sun elevation. Evaluated at the top of
+the full-night band, −18°, where it is largest, it comes to **0.00085 lux** — about 1/300th of a
+full moon, and in glow units 40× under §13a's perceptibility threshold. Below −32.2° it is
+identically **zero**, because by then even the far limb of the visible cap is past astronomical
+twilight.
+
+So planetshine is not a term that needs a phase model; it is a term that dies of its own accord
+exactly where the night floor lives. The shipped floor uses the −18° value as a constant, which is
+the supremum over the band and therefore errs toward *not* claiming orbit is darker than it is. The
+function is still there and still exact, because computing the answer is what makes "planetshine is
+negligible" a result rather than an assertion — and #32 will want the day-side branch of the same
+integral.
+
+One thing the integral deliberately excludes: `AmbientSkyLux` clamps to a 0.001 lux night floor
+which *is* starlight and airglow, and bouncing that off the ground and counting it as planetshine
+would double-count the very starlight term §18b just finished raising. Only the solar part of the
+ground's brightness counts. That subtraction is precisely what drives planetshine to exactly zero at
+deep night.
+
+*Does the moon survive alongside planetshine, or get replaced?* **It survives, unchanged.**
+Planetshine outranks the moon over the day side by four orders of magnitude, but the night floor is
+only ever consulted at orbital night, and there planetshine is ~zero and the moon is the *only*
+reflected source left. Replacing it would flatten every orbital night to one value and throw away
+information the model already has. It is passed through unrescaled, deliberately: `MaxMoonlightGlow`
+is a look-calibrated amplitude (§7) rather than a photometric quantity, and §7a's overlay ramp is
+anchored on it (`floors + full moon at zenith == vanilla brightness`), so applying an extinction
+gain here would move an invariant for no visible gain. The genuinely photometric half of the moon —
+`IlluminanceMath.FullMoonZenithLux`, which *is* a sea-level number — belongs to #31, where the moon
+appears as a shadow caster rather than as a floor.
+
+*Settings knob or derived value?* **Derived, and nothing new is exposed.** There is no vacuum
+slider. The only place a setting enters is the lux→glow conversion, which is anchored on the moon
+(`ReflectedGlow(lux, maxMoonlightGlow)`) so that turning reflected night light down turns planetshine
+down with it. Anchoring on the moon rather than inventing a lux→glow scale matters: §7's two night
+anchors (0.001 lux → 0.04 glow, 0.267 lux → 0.15 glow) imply scales 70× apart, because glow is
+deliberately compressive. Glow units are **summed** in §7's model and a compressive mapping is not
+additive, so a log fit would double-count the moment a second source appeared. The moon is a linear
+ratio and the right comparison class — planetshine and moonlight are the same physical thing,
+sunlight bounced off a nearby rock.
+
+**The design claim, and the test that owns it.** Because RimWorld's orbits are stationary
+(`PlanetLayer.LongLatOf` derives lat/long from a static tile centre; nothing gives an orbit tile a
+period — see the epic), a platform in the planet's shadow hangs directly over the planet's *own*
+night side. Planetshine is therefore at its minimum exactly when fill light would matter, and
+
+> **orbital night is the darkest state this mod can produce — darker than any surface night,
+> including a new moon.**
+
+0.0317 against 0.0400 at shipped defaults. `VacuumNightFloor_IsDarkerThanEverySurfaceNight` was
+written before any of the physics under it and is the assertion that must survive a retune; the
+individual anchors are not. Note it is a claim about **floors**: a vacuum night under a full moon is
+legitimately brighter than a surface new-moon night, because the moon is unaffected by any of this.
+
+No §7a change was needed for the screen to follow: the overlay ramp reads the actual glow, so a
+moonless orbital night keeps 0.0317/0.19 ≈ 17% of vanilla overlay brightness against the surface's
+21%. Darker on screen too, and it falls out.
+
+### The shared night floor (`NightRadiance.FloorGlowFor`)
+
+§18b is also where the night floor stopped belonging to §7 alone. Three subsystems need the same
+number:
+
+- **§7** blends the night sky toward it (`Patch_NightRadiance`)
+- **#31** vacuum shadow contrast — what a cast shadow bottoms out at once the skylight fill is gone
+- **#33** vacuum eclipse response — the umbral minimum totality falls to
+
+```csharp
+// pure core
+NightRadianceMath.NightFloorGlow(
+    float starlightGlow, float airglowGlow, float moonlightGlow,
+    float maxMoonlightGlow, bool inVacuum)
+
+// live-state adapter
+NightRadiance.FloorGlowFor(Map map)
+```
+
+One value reached from three directions, the same discipline `SolarPosition` enforces for sun
+elevation and `WeatherDimming` for cloud cover — and §9's `WeatherDimming.DimmingFor(map)` is the
+exact shape being copied. A **shared read**, not one patch stashing a value for another to pick up:
+a read has no patch ordering to get wrong, no staleness across frames, and no silent dependency on
+which Harmony patch ran first.
+
+Two deliberate non-behaviours. It reports the *floor*, not the current sky — no sun-elevation ramp
+(`ApplyNightFloor` owns that) and no weather multiply (§13 owns that, on the colour channel). And it
+is **not** gated on `CelestialLightingFeatures.NightRadiance`: that flag restores vanilla's flat
+night glow, a value this mod does not own and cannot report, so making the shared floor jump whenever
+an unrelated toggle flipped would be worse than useless to #31 and #33. Each consumer gates its own
+effect.
+
+The `inVacuum` discriminator is the last parameter and the vacuum branch returns before any
+atmospheric math runs, per the convention `Vacuum.cs` sets out for the whole §18 epic. Note the
+parameter asymmetry: `airglowGlow` is accepted and then ignored in vacuum, `maxMoonlightGlow` is used
+only in vacuum. Both are passed unconditionally so a call site never has to know which atmosphere it
+is in — which is the entire point of the discriminator being an argument.
+
+**Conflict risk.** None new. `VacuumRadianceMath` is pure and referenced only by `NightRadianceMath`;
+`NightRadiance` adds no patch of its own and `Patch_NightRadiance` keeps the same single postfix on
+`WeatherWorker.CurSkyTarget` it always had. No `ModsConfig.OdysseyActive` gate and no soft reference:
+`inVacuum` is a field on base `RimWorld.BiomeDef`, so this compiles and reads `false` on every vanilla
+biome with Odyssey uninstalled.
+
+**Verification.** Offline in `VacuumRadianceMathTests` (22 cases). Live verification is blocked on
+`Jeffrharr/RimWorldTestHarness#17` — scenarios cannot currently reach an orbital map, because
+`SetTile`/`SetBiome` target planet-surface tiles and `OrbitLayer.CanSelectLayer` refuses the layer
+unless a world object already exists on it. Nothing here has been validated in a running game.
+
 ## Settings and presets
 
 Two cross-cutting settings ideas that span the subsystems above:
