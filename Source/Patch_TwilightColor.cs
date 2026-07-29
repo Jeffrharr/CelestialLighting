@@ -54,7 +54,14 @@ public static class Patch_TwilightColor
         // Band width, peak position, the civil-twilight persistence band, and the factor curve
         // itself all live in Formulas, with edge-case unit tests covering the band edges, its peak,
         // the persistence pulse's boundaries, and how each scales with latitude strength.
-        float twilightFactor = WarmthFactor(sunGlow, elevation, strength);
+        // The §18 vacuum gate — one read of map.Biome.inVacuum, handed to the pure layer as a
+        // primitive like every other input here. Deliberately NOT an early-out in this file: the
+        // "twilight is zero without air" decision belongs next to the twilight math (and its unit
+        // tests) rather than in an adapter, so the shipped behaviour and the pinned behaviour are
+        // literally the same code. See Vacuum.cs for the convention #30-#33 follow.
+        bool inVacuum = Vacuum.InVacuumForMap(map);
+
+        float twilightFactor = WarmthFactor(sunGlow, elevation, strength, inVacuum);
 
         if (twilightFactor <= 0f)
             return;
@@ -70,8 +77,10 @@ public static class Patch_TwilightColor
     // geometric sunset exactly as it did before this feature — a faithful "before" the test harness
     // can screenshot for an A/B against the "after". See CelestialLightingFeatures for why off is
     // the old behaviour rather than zero.
-    private static float WarmthFactor(float sunGlow, float elevation, float strength) =>
+    // Both branches take the vacuum gate, so turning the civil-twilight feature off cannot smuggle
+    // ground twilight back onto a space map through the legacy path.
+    private static float WarmthFactor(float sunGlow, float elevation, float strength, bool inVacuum) =>
         CelestialLightingFeatures.CivilTwilightPersistence
-            ? Formulas.TwilightWarmthFactor(sunGlow, elevation, strength)
-            : Formulas.TwilightFactor(sunGlow, strength);
+            ? Formulas.TwilightWarmthFactor(sunGlow, elevation, strength, inVacuum)
+            : Formulas.TwilightFactor(sunGlow, strength, inVacuum);
 }
