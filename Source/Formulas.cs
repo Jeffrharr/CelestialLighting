@@ -49,8 +49,17 @@ public static class Formulas
     // exactly at golden hour even on the equator, by design (real equatorial sunsets are a little
     // warm too, just not as extended as high-latitude ones). Callers that want a hard zero at the
     // equator should gate on strength <= 0 themselves, as Patch_TwilightColor does.
-    public static float TwilightFactor(float sunGlow, float strength)
+    //
+    // inVacuum (DESIGN.md §18, the shared gate in Vacuum.cs): twilight IS scattering — sunlight
+    // lighting up air that the ground can no longer see the sun through. With no air there is no
+    // twilight at any latitude, at any sun height, so the whole factor is zero rather than a
+    // narrowed band. The band-width/peak-height helpers above stay ungated: they are shape
+    // parameters, and gating them would leave a caller able to get a nonzero shape out of a vacuum.
+    public static float TwilightFactor(float sunGlow, float strength, bool inVacuum)
     {
+        if (inVacuum)
+            return 0f;
+
         float bandWidth = TwilightBandWidth(strength);
         return Clamp01(1f - Abs(sunGlow - TwilightPeakGlow) / bandWidth) * TwilightPeakHeight(strength);
     }
@@ -101,9 +110,18 @@ public static class Formulas
     // latitude-dependent peak height so they meet smoothly at the horizon (where both are ~0).
     // max (not sum) avoids double-warming in any overlap and keeps the factor bounded by a single
     // peak height. All colour-only — the caller only ever writes SkyTarget colours, never glow.
-    public static float TwilightWarmthFactor(float sunGlow, float elevationDegrees, float strength)
+    //
+    // inVacuum zeroes BOTH pieces, not just the glow band. The civil-twilight persistence term is if
+    // anything the more atmospheric of the two: it exists precisely because scattered light keeps
+    // lighting the sky after the sun is geometrically down, which is the one thing a vacuum cannot
+    // do. Shipping this leaves a hard colour step at the orbital terminator; the deep-red limb
+    // refraction that physically replaces it is #32's job, not a reason to soften this to a ramp.
+    public static float TwilightWarmthFactor(float sunGlow, float elevationDegrees, float strength, bool inVacuum)
     {
-        float glowBand = TwilightFactor(sunGlow, strength);
+        if (inVacuum)
+            return 0f;
+
+        float glowBand = TwilightFactor(sunGlow, strength, inVacuum);
         float persistence = CivilTwilightPersistence(elevationDegrees) * TwilightPeakHeight(strength);
         return Max(glowBand, persistence);
     }
