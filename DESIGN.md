@@ -2138,6 +2138,126 @@ of work and must land after this, not instead of it.
 - **Night light budget, shadow contrast, and eclipse response** each need real math rather than
   suppression, and are tracked separately.
 
+### 18d. Limb refraction (`LimbRefractionMath` / `Patch_LimbRefraction`)
+
+The one item in the epic that **adds** a look rather than removing one, and the thing that makes §18a
+worth doing rather than merely correct. §18a takes the ground twilight off a space map and leaves a
+hard step at the terminator; this is what physically belongs there instead.
+
+**The phenomenon.** Nothing sits between an orbital platform and the sun, so the sun does not dim at
+all as it descends — right up until the planet gets in the way. For the last couple of degrees before
+occultation the light still reaching the platform has grazed the planet's atmospheric limb, taking the
+longest possible path through air, and Rayleigh scattering has removed everything but the red end. It
+is the same geometry that makes a totally eclipsed moon copper: the platform is briefly inside the
+planet's own penumbra, lit only by light bent through its ring of sunset. Then the solid limb covers
+the disc and there is nothing left but planetshine.
+
+**The anchors — the one arbitrary thing in the subsystem, stated once.** All of the geometry below
+needs a planet radius and an atmospheric depth, and RimWorld supplies neither. Rather than tune the
+result until it looked right, §18d picks Earth-like values **once**, names them here, and derives
+everything else:
+
+| # | Anchor | Value | Provenance |
+|---|---|---|---|
+| 1 | Planet radius | 6371 km | Earth's mean radius. RimWorld states no planet size; `PlanetLayerSettings.radius` (100 surface / 130 orbit) is a render-space unit for drawing the globe. |
+| 2 | Platform altitude | 200 km | `PlanetLayerDef.elevationString` on Odyssey's `OrbitLayer`. **This is an anchor, not a lookup** — see below. |
+| 3 | Refracting shell depth | 50 km | Troposphere + stratosphere; the part of the air thick enough to bend and redden a grazing ray. |
+| 4 | Atmospheric scale height | 8 km | Earth's. Sets the ramp's *shape*, not just its width. Consistent with anchor 3: 50 km is 6.25 scale heights, where density is ~0.2% of sea level. |
+| 5 | Solar angular diameter | 0.53° | Earth's. Smears both ends of the band by half a disc. |
+
+**Why altitude is an anchor and not a lookup.** `PlanetLayerDef.elevationString` is declared
+`[MustTranslate] public string elevationString = "{0}m"` — a **display string** for the world-map UI
+("200km" in Odyssey's `OrbitLayer`), and nothing in the game parses a number back out of it. The
+obvious alternative is a trap and is rejected explicitly: `PlanetLayerSettings.extraCameraAltitude` is
+a **camera parameter**, sitting in the same `IExposable` struct as `origin`, `viewAngle`,
+`subdivisions` and `backgroundWorldCameraOffset`, and Odyssey's orbit settings give it `300` against a
+sphere `radius` of `130` — over two planetary radii of pull-back. Read as physical altitude that would
+be ~15 000 km, not 200. Both facts are pinned by `ApiCompatibilityTests`
+(`PlanetLayerDef_ElevationString_IsStillOnlyADisplayString`,
+`PlanetLayerSettings_ExtraCameraAltitude_IsStillACameraParameterWeDoNotRead`), written to fail loudly
+if RimWorld ever grows a real numeric altitude — at which point §18d should derive from it and stop
+anchoring.
+
+**What follows from the anchors.** Three differences from ground twilight, all derived:
+
+| Quantity | Formula | Value |
+|---|---|---|
+| Horizon dip (solid limb) | `acos(R / (R+h))` | **14.172°** |
+| Shell-top dip | `acos((R+d) / (R+h))` | 12.266° |
+| Limb slant range | `sqrt((R+h)² − R²)` | 1608.9 km |
+| Shell arc | dip − shell-top dip | **1.907°** |
+| Band width | shell arc + solar disc | **2.437°** |
+| Band duration | width ÷ 15°/h | **9.75 min** (equatorial; a lower bound) |
+| Band top / bottom | `−(shellDip − r☉)` / `−(dip + r☉)` | **−12.001° / −14.437°** |
+| Sunlit overshoot past the ground | −0.83° − band bottom | **13.607° ≈ 54.4 min** |
+
+1. **The horizon is depressed** (14.17°), so the platform stays in full sun the better part of an hour
+   past the ground below it, at both ends of the day. Implemented as `SunClockMath.GlowFromElevation`
+   evaluated at `elevation + dip` — §14's existing three-anchor brightness curve re-referenced from the
+   ground's horizon to the platform's. That single addition *is* consequence 1, which is what makes
+   this subsystem "a curve swap in a ramp we already own" rather than a second brightness model.
+2. **The ramp is short**: 2.437° against a sea-level twilight running from −0.83° to −18° (17.17°).
+   About **one-seventh** the angular width, pinned against `NightRadianceMath`'s own two anchors so the
+   comparison is to the mod's real twilight rather than to a textbook number.
+3. **The ramp is red, then it stops.** Extinction is exponential in the ray's tangent altitude, so the
+   colour barely moves for the first half of the band and then collapses. The "step" to the night floor
+   is not a discontinuity anyone inserted; it is what an exponential looks like when the band runs out.
+
+**Exact vs. linearised.** The estimate the design was reasoned from — `atan(50 / 1609) = 1.780°` —
+is the first-order term of the exact difference of tangent lines (the impact parameter is
+`(R+h)·cos δ`, whose derivative at the dip is exactly the limb slant range). It runs 7% low because
+`sin` grows across the band. The shipped code uses the exact form, 1.907°;
+`LinearisedShellArc_MatchesExactFormToWithinAnEighthOfADegree` pins the 0.127° gap so the estimate
+stays a documented cross-check rather than a silent divergence.
+
+**Which side of the dip the band sits on.** Worth stating because the issue's prose reads the other
+way round ("full sun until −14.2°, then a ramp"). The dip *is* the solid limb by construction, so the
+refraction band necessarily sits **above** it and the step to the floor happens **at** it: full sun to
+−12.0°, red ramp to −14.4°, then nothing. Symmetric on sunrise, for free — elevation is the only input
+and `Formulas.SolarElevationDegrees` is even in hour angle, so there is no dusk-only branch to get
+backwards.
+
+**Colour.** Per-channel transmission is Beer-Lambert on `tau(z) = tau_grazing · exp(−z/H)`, with
+`tau_grazing = tau_zenith · sqrt(2πR/H)` — the standard grazing-column amplification, **70.7×** here,
+and the same factor that reddens an eclipsed moon. Zenith optical depth uses the published Rayleigh
+fit `0.0088·λ^-4.15`. At the limb that leaves red at 2.4%, green at 0.06% and blue at 4×10⁻⁸, with **no
+per-channel tuning anywhere**. The tint is carried as a *direction* (renormalised so the brightest
+channel is 1), exactly as `BloodMoonMath.CrimsonTint` does, so it can never double as a dimmer.
+
+The tint's **strength is a spike, not a ramp**: the spectral shift (`1 − normalised green`) scaled by
+`SolarDiscVisibleFraction`, peaking at 0.789 around −13.95° and returning to zero at both ends of the
+band. The second factor is load-bearing. Without it the strength would still be ~0.98 the instant the
+disc vanished, and because colour and glow are separate `SkyTarget` fields the tint would then sit on
+the sky for the whole of orbital night — a blood-red darkness held over from a sun that had already
+set. With it, the colour ends exactly where the light does, and what colour the night actually is stays
+entirely §18b's planetshine question. The spike is also the honest shape: this is a *flash*, cut off
+mid-deepening by the planet, not a sunset that fades.
+
+**The planetshine floor is injected, not defined here.** `VacuumSkyGlow` takes it as a parameter and
+`max()`es against it, for the same reason `NightRadianceMath.ApplyNightFloor` uses a max: a floor is a
+floor, and the handover happens on its own wherever the exponential crosses it. §18b owns that number;
+§18d's job ends at "the sun is gone". `Patch_LimbRefraction.PlanetshineFloorPlaceholder` is the entire
+binding surface — one constant, currently `0`, which is the safe direction to be wrong in since a zero
+floor can only leave the map darker than the real one would.
+
+**Deliberately out of scope: the green/blue flash.** Real astronauts report it at the top edge of the
+band, and it is genuinely there. It is also a *pointing* phenomenon — you see it because you are
+looking along the limb at one spot on the planet's edge. Our lighting is full-map ambient with no view
+direction at all, so there is no honest presentation of it here, and a green tint on the whole sky
+would be decoration pretending to be physics.
+
+**Not a `GameCondition`.** This is the daily planet-occultation — ordinary orbital night, once per game
+day, a pure function of sun elevation. §10a owns eclipses (moon transits the sun, once every few game
+years) and the two share no code path. The boundary is exact: *platform crosses into the planet's
+shadow* = daily = here; *moon crosses the sun* = rare = there.
+
+**Conflict risk.** `Patch_LimbRefraction` is a second postfix on `WeatherWorker.CurSkyTarget`
+alongside §2 and §7, and it writes `.glow` and `.colors` on vacuum maps only — every surface map sees
+a strict no-op at every elevation, which the paired sea-level column in `LimbRefractionMathTests`
+pins case by case. The one live interaction to settle on merge is §7's night floor, which currently
+ramps in from −0.83° and therefore overlaps this band on a vacuum map; that is exactly the value §18b
+is redefining, so the reconciliation belongs there rather than here.
+
 ### The elevation half — scoped out
 
 There is no continuous per-map altitude in vanilla to key a scale-height model to.
@@ -2181,6 +2301,10 @@ Second, latitude pinning matters more here than usual: with stationary orbits th
 fully determines its day length and sun path, and the orbit layer is a subdivided icosphere whose
 tiles are a couple of degrees wide. `LandInOrbit` therefore pins `WorldGrid.LongLatOf` to the
 requested latitude rather than accepting whatever the subdivision produced.
+
+§18d is a *temporal* effect, so per the project workflow its live validation wants a video of a
+full orbital sunset plus `limb_*` probe readings at fixed sun elevations through the band, rather
+than a still A/B.
 
 ## 18b. Vacuum night light budget (`VacuumRadianceMath` / `NightRadiance`)
 
