@@ -289,6 +289,32 @@ public class ApiCompatibilityTests
     }
 
     [Test]
+    public void BiomeDef_HasInVacuum()
+    {
+        // The single discriminator behind the whole §18 vacuum epic (Source/Vacuum.cs). Two things
+        // matter about it and both are asserted here.
+        //
+        // First, that it exists at all: if it is renamed or moved, every vacuum branch in the mod
+        // silently stops firing and space maps quietly go back to rendering sunsets and auroras —
+        // a failure with no error, no log line, and nothing visibly broken on any surface map.
+        //
+        // Second, that it lives on BASE RimWorld.BiomeDef rather than on an Odyssey-only type. That
+        // is the entire reason Vacuum.InVacuumForMap is a plain field read with no ModsConfig
+        // .OdysseyActive guard and no soft-reference plumbing — all DLC code ships in the base
+        // assembly, so this compiles and evaluates to false with Odyssey uninstalled. Because we
+        // resolve BiomeDef out of Assembly-CSharp here, this test failing to find the type is
+        // itself the signal that the assumption stopped holding.
+        var type = GetType("RimWorld.BiomeDef");
+        Assert.That(type, Is.Not.Null, "RimWorld.BiomeDef no longer exists");
+        var field = type!.Fields.SingleOrDefault(f => f.Name == "inVacuum" && f.IsPublic);
+        Assert.That(field, Is.Not.Null,
+            "BiomeDef.inVacuum no longer exists or is no longer public — every §18 vacuum branch "
+            + "(twilight, sky colour temperature, aurora tint) is gated on it");
+        Assert.That(field!.FieldType.FullName, Is.EqualTo("System.Boolean"),
+            "BiomeDef.inVacuum changed shape — Vacuum.InVacuumForMap returns it directly as a bool");
+    }
+
+    [Test]
     public void Def_HasGetModExtension()
     {
         // §13's per-def escape hatch (CelestialLighting.WeatherCloudDeck) is read through this.
