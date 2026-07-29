@@ -259,6 +259,15 @@ public static class ProbeRegistration
                 CelestialLightingFeatures.EaveShadows = enabled;
                 EaveShadowRedraw.ForceRebuild();
             });
+        // §18c vacuum shadow contrast. A plain per-frame material effect (colors.shadow feeds
+        // MatBases.SunShadow.color through SkyManager's own lerp), so unlike §7b/§15 above there is
+        // nothing baked to rebuild — the next frame shows the flip. The A/B this exists for is an
+        // orbital-map daytime shadow off vs on, read with the moon_shadow_render probe, which reads
+        // the composed MatBases.SunShadow.color and so measures the umbra directly rather than
+        // through pixels.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VacuumShadowContrastKey,
+            enabled => CelestialLightingFeatures.VacuumShadowContrast = enabled);
         // Not a CelestialLightingFeatures flag: bridges §7b's minimum-indoor-brightness slider so a
         // visual scenario can A/B a sealed room at full black against one held above it. "enabled" ==
         // true means raise the floor to a clearly-visible 0.25; false restores the shipped 0 (black).

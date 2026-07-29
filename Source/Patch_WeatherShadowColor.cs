@@ -63,21 +63,48 @@ namespace CelestialLighting;
 // Read live off WeatherDefOf.Clear rather than hard-coded, the same discipline SunClock uses for
 // vanilla's day length: if Ludeon retunes Clear's daylight shadow, we follow instead of silently
 // drifting away from the value this is defined as matching.
+//
+// §18c LIVES HERE TOO, and deliberately in this file rather than in a fourth patch of its own. This
+// is THE daytime writer of colors.shadow, and what §18c changes is not when it writes but which fill
+// it writes: on a vacuum map there is no dome doing the filling, so the umbra falls to §18b's night
+// light budget and the sky palette is not consulted at all. Making that one gated call
+// (ShadowFillMath.DaytimeUmbraFill, `inVacuum` last per Source/Vacuum.cs's convention) rather than a
+// second patch racing this one is what keeps the field single-writer per frame — with two postfixes
+// on the same method the winner would be whichever Harmony happened to order last.
+//
+// So the full ownership table for colors.shadow, all three arms splitting on shared discriminators:
+//
+//     sun down                -> §6a  Patch_MoonShadowColor   (the moon is the caster)
+//     sun up, has atmosphere  -> §13a this file, Clear's skylight fill
+//     sun up, in vacuum       -> §18c this file, §18b's night floor
+//
+// The horizon test is Formulas.AtmosphericRefractionDegrees via the shared SolarPosition adapter;
+// the vacuum test is Vacuum.InVacuumForMap. Neither is re-derived anywhere.
 [HarmonyPatch(typeof(WeatherWorker), nameof(WeatherWorker.CurSkyTarget))]
 public static class Patch_WeatherShadowColor
 {
     // Fallback for the window before defs are loaded (and for a modded Clear that somehow lacks the
     // set). Clear's shipped 1.6 skyColorsDay.shadow, so the fallback and the live read agree on
-    // vanilla.
-    private static readonly Color ClearDayShadowFallback = new Color(0.718f, 0.745f, 0.757f);
+    // vanilla. The three components live in ShadowFillMath so this anchor and §18c's vacuum umbra sit
+    // side by side in one pure file and the unit tests can pin them as a diverging pair.
+    private static readonly Color ClearDayShadowFallback = new Color(
+        ShadowFillMath.SeaLevelUmbraR, ShadowFillMath.SeaLevelUmbraG, ShadowFillMath.SeaLevelUmbraB);
 
     static void Postfix(Map map, ref SkyTarget __result)
     {
-        // Gated on §13, because §13's alpha is what replaces the softening we are removing. With
-        // weather dimming off, vanilla's flat colour is the ONLY thing making cloudy-day shadows
+        // §18's shared gate, read exactly once and passed down as a bool (Source/Vacuum.cs's
+        // convention). Two flags rather than one because the two halves of this patch are separate
+        // features that happen to write the same field: §13a substitutes Clear's skylight fill,
+        // §18c substitutes the night budget for it.
+        bool inVacuum = CelestialLightingFeatures.VacuumShadowContrast && Vacuum.InVacuumForMap(map);
+
+        // §13a's half is gated on §13, because §13's alpha is what replaces the softening it removes.
+        // With weather dimming off, vanilla's flat colour is the ONLY thing making cloudy-day shadows
         // weaker than clear-day ones, and neutralizing it would leave a blizzard casting shadows as
-        // hard as noon sun — the opposite of the faithful baseline that flag promises.
-        if (!CelestialLightingFeatures.WeatherDimming)
+        // hard as noon sun — the opposite of the faithful baseline that flag promises. §18c's half
+        // does not ride on that reasoning (there is no weather on a vacuum map to soften shadows in
+        // the first place), so it is deliberately not gated on §13 as well.
+        if (!inVacuum && !CelestialLightingFeatures.WeatherDimming)
             return;
 
         // Shadowless map (Biomes! Caverns' cavern biomes, and any biome declaring vanilla's
@@ -92,15 +119,30 @@ public static class Patch_WeatherShadowColor
             return;
 
         // Sun down: the moon is the caster and §6a's Patch_MoonShadowColor owns the colour. Split on
-        // the same shared horizon constant both shadow patches use, so the two writers of
-        // colors.shadow are exactly complementary and can never both fire on one frame.
+        // the same shared horizon constant every shadow patch uses, so the writers of colors.shadow
+        // are exactly complementary and can never both fire on one frame. That holds in vacuum too:
+        // vacuum NIGHT lights the shadow and the ground beside it from the same budget, making the
+        // contrast between them a moonlight question rather than a skylight-fill one — §6a's, not
+        // §18c's.
         float sunElevation = SolarPosition.ElevationForMap(map);
         if (sunElevation <= Formulas.AtmosphericRefractionDegrees)
             return;
 
-        Color clearDayShadow = ClearDayShadow();
-        __result.colors.shadow = new Color(
-            clearDayShadow.r, clearDayShadow.g, clearDayShadow.b, __result.colors.shadow.a);
+        // §18b's published night floor, read through the shared adapter rather than reassembled here:
+        // in vacuum a shadow bottoms out at exactly the value §7 uses for how dark the sky can get.
+        // Costs one field read and a moon lookup on non-vacuum maps too — cheap enough not to be
+        // worth a branch, and branching would put the gate in two places.
+        float nightFloor = NightRadiance.FloorGlowFor(map);
+
+        // __result.glow is the lit ground this umbra is a multiply against, and it is vanilla's own
+        // daylight here: the only patch of ours that writes .glow is §7's Patch_NightRadiance, which
+        // returns before touching it above NightFloorStartElevation, and we are above the refraction
+        // horizon, which is higher still.
+        Color skyFill = ClearDayShadow();
+        UmbraFill fill = ShadowFillMath.DaytimeUmbraFill(
+            skyFill.r, skyFill.g, skyFill.b, nightFloor, __result.glow, inVacuum);
+
+        __result.colors.shadow = new Color(fill.R, fill.G, fill.B, __result.colors.shadow.a);
     }
 
     // Not cached in a static field: WeatherDefOf is populated after defs load, and a game can be
