@@ -145,6 +145,26 @@ $(printf '%s\n' "$untracked" | sed 's/^/  /')"
 
 check_untracked_content
 
+# The other half of the v1.0.0 failure, and the half that content discovery does not address. That
+# release shipped an assembly binding CelestialLightingDefOf.CL_SunShadowAxis with no Defs/ beside
+# it, so every subscriber's log opened with "Failed to find RimWorld.MapMeshFlagDef named
+# CL_SunShadowAxis. There are 15 defs of this type loaded." Shipping Defs/ by default stops that
+# particular omission, but the assembly and the def tree can drift apart in the other direction too
+# — delete a def, keep the DefOf field — and the symptom is identical.
+#
+# Only the staged tree can answer this, and only from outside the game: the dev install is a symlink
+# to the repo, so the running game always sees assembly and defs together and cannot reproduce a
+# disagreement that exists solely in the package. PackagedDefOfTests reads the staged DLL's [DefOf]
+# fields with Mono.Cecil and resolves each against the staged Defs plus RimWorld's own Data/.
+check_staged_defofs() {
+  local out
+  echo "publish: checking the staged assembly's DefOf fields resolve"
+  if ! out=$(CL_PACKAGE_ROOT="$PWD/$DIST" ./test.sh --filter FullyQualifiedName~PackagedDefOfTests 2>&1); then
+    printf '%s\n' "$out" >&2
+    fail "the staged package binds DefOf fields to defs it does not ship (see above)"
+  fi
+}
+
 # --- build and stage --------------------------------------------------------------------------
 
 if [ "$BUILD" -eq 1 ]; then
@@ -181,6 +201,11 @@ while read -r entry; do
     stage "$entry"
   fi
 done <<< "$(content_files --cached)"
+
+# The staged tree is now the only thing that can be checked usefully: every guard above asks about
+# the repo, and the repo is not what subscribers get. This one asks the package itself whether the
+# assembly it contains and the defs it contains still agree — see check_staged_defofs.
+check_staged_defofs
 
 echo "publish: staged $(find "$DIST" -type f | wc -l) files, $(du -sh "$DIST" | cut -f1)"
 (cd dist && find CelestialLighting -type f | sort | sed 's/^/  /')
