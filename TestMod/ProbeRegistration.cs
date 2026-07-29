@@ -17,6 +17,8 @@ public static class ProbeRegistration
     static ProbeRegistration()
     {
         ProbeRegistry.Register(new ShadowLeanProbe());
+        ProbeRegistry.Register(new AxialTiltDeclinationProbe());
+        ProbeRegistry.Register(new AxialTiltActiveProbe());
         ProbeRegistry.Register(new ShadowVectorXProbe());
         ProbeRegistry.Register(new CivilTwilightProbe());
         // The composed, vacuum-gated factor Patch_TwilightColor actually blends with. CivilTwilight
