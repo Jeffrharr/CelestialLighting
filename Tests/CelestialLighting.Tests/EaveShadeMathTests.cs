@@ -56,9 +56,10 @@ public class EaveShadeMathTests
     }
 
     // The guard that matters most, because "porch went pitch black at noon" is the failure this
-    // subsystem's sibling (§7b) already caused once. The multiply is bounded below by vanilla's
-    // own shadow palette — the darkest tint any vanilla weather declares is Clear's 0.740 — so the
-    // deepest an eave can ever go is ~0.45 of open sunlit ground, in full midday sun.
+    // subsystem's sibling (§7b) already caused once. ON A MAP WITH AN ATMOSPHERE the multiply is
+    // bounded below by vanilla's own shadow palette — the darkest tint any vanilla weather declares
+    // is Clear's 0.740 — so the deepest an eave can ever go is ~0.45 of open sunlit ground, in full
+    // midday sun.
     [Test]
     public void DeepestPossibleEaveIsNowhereNearBlack()
     {
@@ -68,6 +69,42 @@ public class EaveShadeMathTests
         {
             Assert.That(deepest, Is.EqualTo(0.45f).Within(0.01f));
             Assert.That(deepest, Is.GreaterThan(0.4f), "an eave must stay plainly readable in full sun");
+        });
+    }
+
+    // §18c IS the stated exception to the bound above, and it is pinned here as a pair with it so the
+    // exception cannot be mistaken for the regression it looks like. This is the finding from §18c's
+    // ordering audit: §15b needed no vacuum branch (EaveShadeOverlay reads the composed
+    // MatBases.SunShadow.color, so it follows whatever tint SkyManager wrote), but its documented
+    // floor was an atmospheric claim stated as a universal one.
+    //
+    // On a vacuum map the tint is §18b's night light budget rather than a sky palette, so an eave
+    // lands near 0.024 of open sunlit ground — or at exactly 0 with the atmospheric floors off. That
+    // is the right answer for the same physical reason the cast band beside it goes near-black: with
+    // no dome overhead, being under a roof and being in a shadow are the same amount of "no direct
+    // sun, and nothing filling in".
+    [Test]
+    public void VacuumEaveGoesNearBlack_TheStatedExceptionToTheBoundAbove()
+    {
+        float vacuumKeep = ShadowFillMath.VacuumUmbraKeep(
+            NightRadianceMath.NightFloorGlow(
+                NightRadianceMath.DefaultStarlightGlow, NightRadianceMath.DefaultAirglowGlow, 0f,
+                NightRadianceMath.DefaultMaxMoonlightGlow, inVacuum: true),
+            litGlow: 1f);
+
+        float vacuumEave = EaveShadeMath.EaveBrightness(Cover, vacuumKeep);
+        float seaLevelEave = EaveShadeMath.EaveBrightness(Cover, ClearDayShadowKeep);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(vacuumEave, Is.EqualTo(0.019f).Within(0.005f));
+            Assert.That(seaLevelEave, Is.EqualTo(0.45f).Within(0.01f));
+
+            // Floors off, no moon: the budget is 0, so a vacuum eave is exactly black. No clamp in
+            // §15b stops it, and none should — NightRadianceSettings.MinNightBrightness is the one
+            // knob that governs how dark the mod is allowed to get.
+            Assert.That(EaveShadeMath.EaveBrightness(Cover, ShadowFillMath.VacuumUmbraKeep(0f, 1f)),
+                Is.EqualTo(0f));
         });
     }
 
