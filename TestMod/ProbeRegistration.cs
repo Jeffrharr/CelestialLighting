@@ -48,6 +48,11 @@ public static class ProbeRegistration
         ProbeRegistry.Register(new LimbRefractionProbe(
             "limb_tint_green", LimbRefractionProbe.Metric.TintGreen));
         ProbeRegistry.Register(new AuroraTintProbe());
+        // §11a's pair: aurora_curtain pins the ribbon overlay's alpha the same way aurora_tint pins the
+        // flat tint's, and aurora_curtain_cost carries the one performance number the offline benchmarks
+        // cannot supply — what a frame of field regeneration costs under RimWorld's own Mono runtime.
+        ProbeRegistry.Register(new AuroraCurtainProbe());
+        ProbeRegistry.Register(new AuroraCurtainCostProbe());
         ProbeRegistry.Register(new EclipseCoverageProbe());
         // §18e: what the coverage ramp is aimed AT, as opposed to how far along it is.
         // Paired with night_radiance it is the whole vacuum-eclipse claim in two numbers —
@@ -233,6 +238,12 @@ public static class ProbeRegistration
         FeatureRegistry.Register(
             CelestialLightingFeatures.AuroraKey,
             enabled => CelestialLightingFeatures.Aurora = enabled);
+        // §11a. Flipping this off restores §11's flat tint at its full solo strength rather than leaving a
+        // weaker sky, which is what makes it a usable A/B baseline: "off" is exactly what the mod
+        // rendered before the curtain existed, so the two screenshots differ only by this feature.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.AuroraCurtainKey,
+            enabled => CelestialLightingFeatures.AuroraCurtain = enabled);
         FeatureRegistry.Register(
             CelestialLightingFeatures.EclipseDarkeningKey,
             enabled => CelestialLightingFeatures.EclipseDarkening = enabled);
