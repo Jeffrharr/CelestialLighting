@@ -1,0 +1,19 @@
+{
+  "name": "axial_tilt_absent",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "45" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "15" } },
+    { "type": "SetTime", "args": { "hour": "12" } },
+    { "type": "LookAt", "args": { "offset": "0,10", "zoom": "14" } },
+    { "type": "Wait", "args": { "frames": "120" } },
+
+    { "type": "Probe", "args": { "probeName": "axial_tilt_active", "expectedValue": "0", "tolerance": "0.01" } },
+
+    { "type": "Probe", "args": { "probeName": "axial_tilt_declination", "expectedValue": "0", "tolerance": "0.35" } },
+
+    { "type": "Probe", "args": { "probeName": "shadow_lean", "expectedValue": "0", "tolerance": "0.35" } },
+
+    { "type": "Screenshot", "args": { "fileName": "axial_tilt_absent_noon.png" } }
+  ]
+}
