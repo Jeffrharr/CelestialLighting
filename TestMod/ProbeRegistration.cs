@@ -139,6 +139,30 @@ public static class ProbeRegistration
         FeatureRegistry.Register(
             CelestialLightingFeatures.NightAtmosphericGlowKey,
             enabled => NightRadianceSettings.Current.AtmosphericGlowEnabled = enabled);
+        // Not a feature flag either: this switches the whole aesthetic preset, and it exists because
+        // §7/§18b's night floors are INVISIBLE on the shipped default. Cinematic sets
+        // minNightBrightness to 0.50 — an accessibility clamp more than ten times every night floor
+        // the mod computes (surface 0.040, vacuum 0.0317, floors-off 0.0005) — so the overlay clamps
+        // to 0.50 in all three cases and the rendered frames come out pixel-identical. A scenario
+        // that screenshots a night-floor change on Cinematic is measuring the clamp, not the floor.
+        // Realistic puts both brightness floors at 0, which is the preset whose stated purpose is
+        // that an unlit night is actually dark, so it is the only one where the floor reaches pixels.
+        // ForceRebuild because Realistic also raises §9's desaturation (0.4 -> 0.85) and that half of
+        // the wash lives in baked section meshes, exactly as the LowLightDesaturation bridge below.
+        // Apply this BEFORE any night_atmospheric_glow toggle: ApplyToRuntime rewrites
+        // AtmosphericGlowEnabled from the persisted field and would silently undo it.
+        FeatureRegistry.Register(
+            "realistic_preset",
+            enabled =>
+            {
+                CelestialLightingSettings settings = CelestialLightingSettingsMod.Settings;
+                if (settings == null)
+                    return;
+
+                settings.ApplyPreset(enabled ? CelestialPreset.Realistic : CelestialPreset.Cinematic);
+                settings.ApplyToRuntime();
+                NightDesaturationRedraw.ForceRebuild();
+            });
         // §9. Like §7b and §15 below, the flag write alone is no longer enough: the per-cell wash lives
         // in baked section meshes and SectionLayer_NightDesaturation now skips the bake entirely while
         // the feature is off, so a scenario flipping this back on must force the rebuild or its "after"
