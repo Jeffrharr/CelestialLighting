@@ -314,6 +314,67 @@ public class ApiCompatibilityTests
             "BiomeDef.inVacuum changed shape — Vacuum.InVacuumForMap returns it directly as a bool");
     }
 
+    // --- §18d's two anchor-provenance guards (issue #32) ---
+    //
+    // These do not pin anything the mod CALLS. They pin the two facts that justify §18d picking its
+    // orbit altitude by hand instead of reading one off the game, which is the single least
+    // comfortable decision in the subsystem. If either fact stops holding, the honest response is to
+    // stop anchoring and start reading — so the assertions are written to fail loudly in exactly that
+    // case rather than to protect a call site.
+
+    [Test]
+    public void PlanetLayerDef_ElevationString_IsStillOnlyADisplayString()
+    {
+        // ANCHOR 2's provenance. §18d takes its 200 km from Odyssey's OrbitLayer elevationString,
+        // and calls it an anchor rather than a lookup precisely because this field is a
+        // [MustTranslate] format string for the world-map UI — "{0}m" in Core, "200km" in Odyssey.
+        // A string cannot be a simulation quantity, which is what makes the hand-picked value honest
+        // rather than lazy.
+        //
+        // If this ever becomes numeric, RimWorld has grown a real altitude and §18d should derive
+        // from it instead of anchoring. That is the failure this test is for.
+        var type = GetType("RimWorld.PlanetLayerDef");
+        Assert.That(type, Is.Not.Null, "RimWorld.PlanetLayerDef no longer exists");
+        var field = type!.Fields.SingleOrDefault(f => f.Name == "elevationString" && f.IsPublic);
+        Assert.That(field, Is.Not.Null,
+            "PlanetLayerDef.elevationString no longer exists — §18d's stated source for its 200 km "
+            + "anchor is gone and DESIGN.md §18d needs revisiting");
+        Assert.That(field!.FieldType.FullName, Is.EqualTo("System.String"),
+            "PlanetLayerDef.elevationString is no longer a string — if RimWorld now carries a real "
+            + "numeric layer altitude, §18d should derive its geometry from it rather than anchor "
+            + "to a hand-picked 200 km");
+    }
+
+    [Test]
+    public void PlanetLayerSettings_ExtraCameraAltitude_IsStillACameraParameterWeDoNotRead()
+    {
+        // The trap §18d explicitly declines to fall into, recorded so nobody "fixes" the anchor by
+        // wiring this up. extraCameraAltitude looks like the altitude field the subsystem wants, and
+        // it is not one: it lives in a struct of pure view parameters (origin, radius, viewAngle,
+        // subdivisions, backgroundWorldCameraOffset), and Odyssey's OrbitLayer sets it to 300 against
+        // a sphere radius of 130 — over two planetary radii of pull-back. Read as a physical altitude
+        // that is roughly 15000 km, not 200.
+        //
+        // Asserting the neighbours is the point: a lone float named "altitude" proves nothing, but a
+        // float sitting next to the camera framing parameters is self-evidently one of them.
+        var type = GetType("RimWorld.PlanetLayerSettings");
+        Assert.That(type, Is.Not.Null, "RimWorld.PlanetLayerSettings no longer exists");
+
+        var altitude = type!.Fields.SingleOrDefault(f => f.Name == "extraCameraAltitude" && f.IsPublic);
+        Assert.That(altitude, Is.Not.Null,
+            "PlanetLayerSettings.extraCameraAltitude no longer exists — DESIGN.md §18d names it as "
+            + "the camera parameter it deliberately does not use");
+        Assert.That(altitude!.FieldType.FullName, Is.EqualTo("System.Single"));
+
+        foreach (var neighbour in new[] { "radius", "viewAngle", "backgroundWorldCameraOffset" })
+        {
+            Assert.That(type.Fields.Any(f => f.Name == neighbour && f.IsPublic), Is.True,
+                $"PlanetLayerSettings.{neighbour} no longer exists — the evidence that "
+                + "extraCameraAltitude is a camera framing parameter rather than a physical "
+                + "altitude has weakened, so §18d's rejection of it needs re-checking");
+        }
+    }
+
     [Test]
     public void Def_HasGetModExtension()
     {
