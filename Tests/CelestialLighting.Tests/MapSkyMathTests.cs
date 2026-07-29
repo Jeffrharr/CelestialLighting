@@ -1,0 +1,104 @@
+using CelestialLighting;
+using NUnit.Framework;
+
+namespace CelestialLighting.Tests;
+
+// Covers the skyless gate (MapSkyMath) — the rule that stops sky-sourced effects applying to maps
+// with a rock ceiling, added for Biomes! Caverns compatibility.
+//
+// The interesting cases here are the ones with real biomes behind them, so each is named for the
+// content that motivates it. The composed rule is trivial; what is worth pinning is which real map
+// lands on which side of it, because that is what silently regressed before.
+[TestFixture]
+public class MapSkyMathTests
+{
+    // --- HasSky: can weather roll overhead? (§13's question) ---
+
+    [Test]
+    public void HasSky_NoBiome_IsSkyless()
+    {
+        // Pocket maps mid-generation hand back a null biome. Skyless is the conservative answer:
+        // declining to apply an effect leaves vanilla's own rendering untouched.
+        Assert.That(MapSkyMath.HasSky(false, false, 99), Is.False);
+    }
+
+    [Test]
+    public void HasSky_DisableSkyLighting_IsSkyless()
+    {
+        // Vanilla's Undercave. The flag wins outright regardless of how many weathers are offered —
+        // Undercave offers two (its own plus the Underground it inherits from Biome_Underground).
+        Assert.That(MapSkyMath.HasSky(true, true, 2), Is.False);
+    }
+
+    [TestCase(0)]
+    [TestCase(1)]
+    public void HasSky_FewerThanTwoWeathers_IsSkyless(int weatherChoices)
+    {
+        // Biomes! Caverns' BMT_CrystalCaverns / BMT_EarthenDepths / BMT_FungalForest all sit at
+        // exactly 1: one cavern weather at commonality 100, with vanilla's Rain/FoggyRain/
+        // DryThunderstorm listed at 0 specifically to suppress them. Counting nonzero commonalities
+        // rather than entries is what keeps them on this side of the line.
+        Assert.That(MapSkyMath.HasSky(true, false, weatherChoices), Is.False);
+    }
+
+    [TestCase(2)]
+    [TestCase(7)]
+    public void HasSky_TwoOrMoreWeathers_HasSky(int weatherChoices)
+    {
+        Assert.That(MapSkyMath.HasSky(true, false, weatherChoices), Is.True);
+    }
+
+    // --- IsEnclosed: is there a ceiling between this map and the sky? ---
+
+    [Test]
+    public void IsEnclosed_Cavern_IsEnclosed()
+    {
+        // A Biomes! Caverns cavern: no weather to roll, and not a vacuum. This is the case the whole
+        // gate exists for.
+        Assert.That(MapSkyMath.IsEnclosed(hasSky: false, inVacuum: false), Is.True);
+    }
+
+    [Test]
+    public void IsEnclosed_Orbit_IsNotEnclosed()
+    {
+        // THE REGRESSION THIS FILE EXISTS TO PREVENT. Orbit is skyless by the weather rule — it
+        // offers exactly one weather — but it has no ceiling at all, just no atmosphere. Folding the
+        // two questions together would have silently stripped every sky effect from orbit while
+        // nominally fixing caves. Orbit's own treatment is separate work; until then it must behave
+        // exactly as it does today.
+        Assert.That(MapSkyMath.IsEnclosed(hasSky: false, inVacuum: true), Is.False);
+    }
+
+    [Test]
+    public void IsEnclosed_OpenAir_IsNotEnclosed()
+    {
+        Assert.That(MapSkyMath.IsEnclosed(hasSky: true, inVacuum: false), Is.False);
+    }
+
+    [Test]
+    public void IsEnclosed_HasSkyWins_EvenInVacuum()
+    {
+        // Degenerate combination (a vacuum biome offering two weathers) — pinned only so the
+        // composition is total and a future edit cannot make "enclosed" depend on vacuum alone.
+        Assert.That(MapSkyMath.IsEnclosed(hasSky: true, inVacuum: true), Is.False);
+    }
+
+    // --- The two gates never collapse into one ---
+
+    [Test]
+    public void EnclosedAndSkyless_AgreeExceptInVacuum()
+    {
+        // Restates the invariant in one place: IsEnclosed is HasSky's complement everywhere EXCEPT
+        // vacuum, which is the single reason both predicates exist rather than one.
+        foreach (bool hasSky in new[] { false, true })
+        {
+            Assert.That(
+                MapSkyMath.IsEnclosed(hasSky, inVacuum: false), Is.EqualTo(!hasSky),
+                "outside a vacuum, enclosed must be exactly the complement of has-sky");
+        }
+
+        Assert.That(
+            MapSkyMath.IsEnclosed(hasSky: false, inVacuum: true), Is.False,
+            "in a vacuum, skyless must NOT imply enclosed");
+    }
+}

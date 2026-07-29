@@ -80,6 +80,17 @@ public static class Patch_WeatherShadowColor
         if (!CelestialLightingFeatures.WeatherDimming)
             return;
 
+        // Shadowless map (Biomes! Caverns' cavern biomes, and any biome declaring vanilla's
+        // disableShadows). Vanilla itself honours this flag at SectionLayer_SunShadows.Visible, so
+        // nothing we compute here would ever be drawn — and Biomes! Caverns additionally Prefix-skips
+        // that layer's DrawLayer outright. Reading vanilla's own field is what stops our shadow
+        // subsystems from disagreeing with vanilla about which maps are shadowless.
+        //
+        // Deliberately NOT MapSky.IsEnclosed: orbit has no ceiling and the harshest sunlight in the
+        // game, and gating shadows on the sky question would delete them from exactly the wrong place.
+        if (!MapSky.DrawsShadows(map))
+            return;
+
         // Sun down: the moon is the caster and §6a's Patch_MoonShadowColor owns the colour. Split on
         // the same shared horizon constant both shadow patches use, so the two writers of
         // colors.shadow are exactly complementary and can never both fire on one frame.

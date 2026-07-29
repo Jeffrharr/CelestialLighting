@@ -33,6 +33,13 @@ public static class Patch_AuroraTint
         if (!CelestialLightingFeatures.Aurora)
             return;
 
+        // Enclosed map (a Biomes! Caverns cavern, vanilla's undercave). An aurora is an
+        // upper-atmosphere effect; a solar flare can be in progress overhead while the map itself is
+        // under rock, and vanilla's condition is map-wide rather than sky-aware, so without this the
+        // flare tinted the inside of a cave green. See MapSkyMath.
+        if (MapSky.IsEnclosed(map))
+            return;
+
         GameCondition driver = AuroraConditions.ActiveTintDriver(map);
         if (driver == null)
             return;

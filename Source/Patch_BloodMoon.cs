@@ -25,6 +25,12 @@ public static class Patch_BloodMoon
         if (!CelestialLightingFeatures.BloodMoon)
             return;
 
+        // Enclosed map (a Biomes! Caverns cavern, vanilla's undercave): the moon this recolours
+        // the night around is not visible from inside a cave, and VRE-Sanguophage's condition is
+        // map-wide rather than sky-aware. See MapSkyMath.
+        if (MapSky.IsEnclosed(map))
+            return;
+
         float strength = BloodMoon.TintStrengthForMap(map);
         if (strength <= 0f)
             return;

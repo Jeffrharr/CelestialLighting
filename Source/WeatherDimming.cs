@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using RimWorld;
 using UnityEngine;
 using Verse;
@@ -43,7 +42,7 @@ public static class WeatherDimming
         if (weather == null)
             return 0f;
 
-        if (!HasSky(map))
+        if (!MapSky.HasSky(map))
             return 0f;
 
         return WeatherDimmingMath.BlendOpacity(
@@ -73,70 +72,19 @@ public static class WeatherDimming
             WeatherDimmingSettings.MaxDimming);
     }
 
-    // Whether this map has a sky that weather can be overhead in.
-    //
     // §13's STRUCTURAL GUARD, and the half of the problem the pure classifier cannot reach. "Is this
     // palette a cloud deck?" is a question about a WeatherDef; "is there any sky here?" is a question
-    // about the map, and asking it here rather than trying to infer it from a palette is what closes
-    // the entire cave / pocket-map / orbit class in one cheap check. §13 shipped without this on the
+    // about the map, and asking it rather than trying to infer it from a palette is what closes the
+    // entire cave / pocket-map / orbit class in one cheap check. §13 shipped without it on the
     // strength of a vanilla-only census; Biomes! Caverns and MultiFloors both ship cave environments
     // with overcast-shaped palettes, which the palette rule alone rates 1.00 and 0.71.
     //
-    // Two independent conditions, either of which means no sky:
-    //
-    //   - disableSkyLighting: the biome's own declaration that there is nothing overhead. This is the
-    //     same field SkyManagerUpdate itself branches on to stop writing colors.sky to
-    //     MatBases.LightOverlay at all, so it is vanilla's own notion of "skyless", not ours.
-    //   - a biome that offers fewer than two possible weathers can never change weather, so its one
-    //     palette is the map's fixed environment rather than a deck. WeatherDimmingMath's
-    //     BiomeHasChangingWeather documents exactly what that covers — including the biomes it does
-    //     NOT catch and why they turn out to be harmless anyway.
-    //
-    // NOT cached, deliberately. This runs a handful of times per frame — once per weather per
-    // SkyManagerUpdate, plus CurShadowStrength — never per cell, and the list it walks is a dozen
-    // entries at most. A cache keyed on BiomeDef would buy nothing measurable and would add a write
-    // that has to be reasoned about against RimWorld 1.6's worker threads.
-    private static bool HasSky(Map map)
-    {
-        BiomeDef biome = map.Biome;
-
-        // A map with no biome at all is a degenerate case (pocket maps mid-generation). Treat it as
-        // skyless: declining to dim leaves vanilla's own rendering untouched, which is the safe
-        // direction to be wrong in.
-        if (biome == null)
-            return false;
-
-        if (biome.disableSkyLighting)
-            return false;
-
-        return WeatherDimmingMath.BiomeHasChangingWeather(WeatherChoiceCount(biome));
-    }
-
-    // How many weathers this biome can actually roll, i.e. how many it lists at a commonality above
-    // zero. Counting *possibilities* rather than entries matters: Biomes! Caverns lists vanilla's
-    // Rain, FoggyRain and DryThunderstorm on its cavern biomes at commonality 0 precisely to suppress
-    // them, so an entry count would read those caverns as having a climate when their author has said
-    // the opposite.
-    //
-    // Reading the live def is also what makes this correct where reading the XML would not be: the
-    // list here is already the INHERITED one, so `Undercave` arrives with both its own weather and the
-    // `Underground` it inherits from `Biome_Underground`. Any offline reasoning about this rule has to
-    // reproduce that merge or it will undercount — see WeatherDimmingMath.BiomeHasChangingWeather.
-    private static int WeatherChoiceCount(BiomeDef biome)
-    {
-        List<WeatherCommonalityRecord> records = biome.baseWeatherCommonalities;
-        if (records == null)
-            return 0;
-
-        int count = 0;
-        foreach (WeatherCommonalityRecord record in records)
-        {
-            if (record != null && record.commonality > 0f)
-                count++;
-        }
-
-        return count;
-    }
+    // The rule itself now lives in MapSky, because Biomes! Caverns showed the question was never
+    // specific to weather: sunset warmth, colour temperature, aurora, blood moon, eclipses and a
+    // night floor lifted by MOONLIGHT are all equally meaningless under a rock ceiling, and all of
+    // them were applying themselves to sealed caves. This delegation is a pure move — the rule and
+    // the counting are unchanged, which is what keeps weather_dimming_skyless.json passing untouched
+    // and makes that scenario the regression proving the move was behaviour-preserving.
 
     // Classifies a single WeatherDef from data it already ships — its day palette and its
     // precipitation rates. No def-name list and no registration step; see

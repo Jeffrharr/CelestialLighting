@@ -46,7 +46,7 @@ public class SectionLayer_EaveShade : SectionLayer
     public override bool Visible =>
         CelestialLightingFeatures.EaveShadows
         && DebugViewSettings.drawShadows
-        && base.Map?.Biome?.disableShadows != true;
+        && MapSky.DrawsShadows(base.Map);
 
     public SectionLayer_EaveShade(Section section)
         : base(section)

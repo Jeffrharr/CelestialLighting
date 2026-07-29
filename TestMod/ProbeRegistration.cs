@@ -38,6 +38,11 @@ public static class ProbeRegistration
         ProbeRegistry.Register(new MoonShadowRenderProbe());
         ProbeRegistry.Register(new MoonElevationProbe());
         ProbeRegistry.Register(new WeatherDimmingProbe());
+        // The two map-kind gates themselves, so a cavern scenario pins the DECISION and not just its
+        // consequences — every gated effect also reads zero for unrelated reasons (wrong time of day,
+        // no active condition), so the effect probes alone cannot say whether a gate actually fired.
+        ProbeRegistry.Register(new MapEnclosedProbe());
+        ProbeRegistry.Register(new MapDrawsShadowsProbe());
         // Raw gameplay glow, so the weather_dimming scenario can assert §13's central negative: the
         // sky visibly darkens under a storm while this value does not move at all.
         ProbeRegistry.Register(new SkyGlowProbe());

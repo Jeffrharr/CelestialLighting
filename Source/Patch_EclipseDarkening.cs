@@ -26,11 +26,21 @@ namespace CelestialLighting;
 [HarmonyPatch(typeof(GameCondition_NoSunlight), nameof(GameCondition_NoSunlight.SkyTargetLerpFactor))]
 public static class Patch_EclipseDarkening
 {
-    static void Postfix(GameCondition_NoSunlight __instance, ref float __result)
+    // `map` is vanilla's own parameter — SkyTargetLerpFactor(Map) — injected by name rather than
+    // reached for through __instance, whose SingleMap/AffectedMaps would be a second, weaker answer to
+    // a question the method signature already answers exactly.
+    static void Postfix(GameCondition_NoSunlight __instance, Map map, ref float __result)
     {
         // Feature gate (default on): when off, leave vanilla's own SkyTargetLerpFactor result — the
         // faithful pre-feature baseline. Sits first so "off" is a true no-op.
         if (!CelestialLightingFeatures.EclipseDarkening)
+            return;
+
+        // Enclosed map (a Biomes! Caverns cavern, vanilla's undercave). §10a already declines to fire
+        // natural eclipses here, but the storyteller's random one can still land on any map, and
+        // reshaping its ramp would be claiming to render transit geometry nobody under a rock ceiling
+        // can see. Hand it back to vanilla's flat dim. See MapSkyMath.
+        if (MapSky.IsEnclosed(map))
             return;
 
         // Only reshape the actual Eclipse event. GameCondition_NoSunlight is also the condition class

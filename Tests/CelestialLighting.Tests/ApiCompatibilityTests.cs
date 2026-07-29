@@ -1250,6 +1250,41 @@ public class ApiCompatibilityTests
         Assert.That(field!.FieldType.FullName, Is.EqualTo("System.Boolean"));
     }
 
+    [Test]
+    public void BiomeDef_InVacuum_Exists()
+    {
+        // MapSky.IsEnclosed uses this to tell "no atmosphere" apart from "rock ceiling" — the one
+        // distinction that keeps orbit out of the skyless gate that Biomes! Caverns' caverns fall
+        // into. Both answer false to MapSky.HasSky, and only this field separates them, so losing it
+        // would silently strip every sky effect from orbit while the cave gate went on looking
+        // correct. That failure mode is invisible in a screenshot of a cave, which is exactly why it
+        // is pinned here rather than left to a scenario.
+        var type = GetType("RimWorld.BiomeDef");
+        Assert.That(type, Is.Not.Null, "RimWorld.BiomeDef no longer exists");
+        var field = type!.Fields.SingleOrDefault(f => f.Name == "inVacuum" && f.IsPublic);
+        Assert.That(field, Is.Not.Null, "BiomeDef.inVacuum no longer exists or is no longer public");
+        Assert.That(field!.FieldType.FullName, Is.EqualTo("System.Boolean"));
+    }
+
+    [Test]
+    public void SectionLayerSunShadows_StillHonoursDisableShadows()
+    {
+        // The justification for Gate B, in the same shape as the disableSkyLighting pin above: our
+        // shadow subsystems suppress themselves on a disableShadows biome only because vanilla's own
+        // SectionLayer_SunShadows already refuses to draw there. If vanilla stops reading the field,
+        // our reading of it is no longer "agreeing with vanilla" and needs rethinking.
+        var type = GetType("Verse.SectionLayer_SunShadows");
+        Assert.That(type, Is.Not.Null, "Verse.SectionLayer_SunShadows no longer exists");
+        Assert.That(
+            type!.Methods.Any(m =>
+                m.HasBody
+                && m.Body.Instructions.Any(i =>
+                    i.Operand is Mono.Cecil.FieldReference r && r.Name == "disableShadows")),
+            Is.True,
+            "SectionLayer_SunShadows no longer reads BiomeDef.disableShadows — Gate B was justified "
+            + "by vanilla itself using this field to mean 'this map draws no shadows'");
+    }
+
     // --- §16 section-layer fan-out ---
 
     // DESIGN.md §16 tabulates how many section layers regenerate per map-mesh dirty flag, and the

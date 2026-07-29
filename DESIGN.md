@@ -1942,6 +1942,102 @@ prefix measured **0.300 ms/frame average, 1.590 ms max — 7.73% of a 3.879 ms f
 mod's entire CPU cost** (issue #23) at ~34 visible sections, and it broke draw batching for every one
 of them on top, a render-thread cost that capture does not even include.
 
+## 17. Map-kind gates: which maps have a sky (`MapSky` / `MapSkyMath`)
+
+**Problem.** Every subsystem in this mod derives its output from the sun, the moon or the sky, and
+almost none of them ever asked whether the map they were rendering could *see* any of those. On a
+Biomes! Caverns cavern — a sealed map under a rock ceiling — the mod was warming the "sky" at
+sunset, shifting its colour temperature along a blackbody curve, tinting it green during a solar
+flare, recolouring it crimson for a blood moon, and, worst of the set, lifting §5's night floor
+using starlight and **moonlight**. That last one is not a tint: `Patch_NightRadiance` is the only
+patch in the mod that writes `SkyTarget.glow`, so an ungated night floor did not merely colour a
+cave, it lit one.
+
+Only §13 had ever asked the question, because only §13 was forced to: issue #31 showed that modded
+cave environments ship overcast-shaped palettes, so no palette classifier can tell a cloud deck from
+a cave ceiling and the map has to be asked directly. The rule it grew (`WeatherDimming.HasSky`) was
+correct and already caught all three Biomes! Caverns biomes; it was simply private to weather.
+
+**Approach.** Promote the rule into `MapSky` / `MapSkyMath` and give it a second, distinct
+predicate. There are now three questions, and keeping them apart is the whole design:
+
+| Question | Asked by | Cavern | Orbit | Open air |
+|---|---|---|---|---|
+| `HasSky` — can weather roll overhead? | §13 only | no | **no** | yes |
+| `IsEnclosed` — is there a ceiling? | §2, §5, §8, §10, §10a, §11, §12 | **yes** | **no** | no |
+| `DrawsShadows` — does this map draw shadows? | §1, §3, §4, §6a, §13, §15 | no | **yes** | yes |
+
+**Orbit is why there are three and not one.** Orbit is skyless by the weather rule — it offers
+exactly one weather — so the obvious implementation, gating everything on `HasSky`, would have
+silently stripped every sky effect from orbit while nominally fixing caves. Orbit has no atmosphere
+but a completely unobstructed view of the sun and stars, which is the opposite situation from a
+cavern. Vanilla already separates them with `BiomeDef.inVacuum` (set by Odyssey's `Space`/`Orbit`,
+set by no cave biome), so `IsEnclosed` is `!HasSky && !inVacuum` and costs no def-name list. What
+twilight or a colour-temperature shift should mean with no atmosphere to scatter through is a real
+question with a different answer from "nothing", and it is deliberately left as separate work rather
+than folded into cave compatibility by accident. `map_kind_gates.json` pins orbit at
+`map_enclosed 0` / `map_draws_shadows 1` so that folding the predicates back together fails a test.
+
+**Shadows key on `disableShadows`, not on the sky.** That is vanilla's own field, vanilla honours it
+itself at `SectionLayer_SunShadows.Visible`, and Biomes! Caverns sets it on all three cavern biomes —
+so reading it means our shadow subsystems cannot disagree with vanilla about which maps are
+shadowless. `ApiCompatibilityTests.SectionLayerSunShadows_StillHonoursDisableShadows` pins vanilla's
+own use of it, because that use is the entire justification for ours. One of the five sites is pure
+waste removal rather than correctness: `Patch_ShadowMeshPerimeter` stops building a per-section mesh
+that could never be drawn. A second such site — `MapComponent_SunShadowAxis`, which raised a
+whole-map dirty flag ~720× per game day — was written and then dropped on rebase, because deleting
+§3's across-map shadow tilt reduced that component to an inert tombstone and removed the cost
+outright rather than gating it.
+
+**What is deliberately NOT gated.**
+
+- **§7b indoor sky occlusion and §7a pitch-black nights.** A sealed cave rendering dark because it
+  has no sky is the correct result and this mod's premise, not a bug. Biomes! Caverns disagrees —
+  it transpiles `SectionLayer_LightingOverlay.Regenerate` so its sentinel roof reads as unroofed,
+  because it wants ambient-lit caverns — and we do override that, knowingly. Three things make it
+  defensible rather than rude: it is purely visual (§7b writes vertex alpha, never `GlowGrid`, so
+  no work speed, no plant growth, no solar power changes), the shipped Cinematic preset's
+  `MinIndoorBrightness = 0.50` leaves caverns half-lit rather than black, and the slider is the
+  documented control for anyone who wants Caverns' look back. Only the Realistic preset (floor 0)
+  blacks a cave out, which is exactly what that preset advertises.
+- **§9 Purkinje desaturation**, which keys on *measured* glow rather than on the sky and therefore
+  already self-corrects to whatever light a cave actually has. Gating it would break it.
+- **§14 `Patch_SunGlow`**, which postfixes `CelestialSunGlowPercent(float, int, float)` — no `Map`
+  is reachable, so it cannot be gated per-map. It is default-off.
+
+**Two things the live harness corrected, both of which had been asserted confidently first.**
+
+1. **Vanilla's `Undercave` is NOT caught, and nothing sets `disableSkyLighting`.** §13 already
+   documented that Undercave carries two weathers because XML inheritance *appends* rather than
+   replaces `baseWeatherCommonalities`. What was newly checked here is the other clause, and no def
+   — in vanilla or in any of the installed workshop mods — sets `disableSkyLighting` to true at all.
+   Vanilla `SkyManager` does read it, so the clause stays as the escape hatch it is, but it is
+   currently dead against the real def census and the weather count is doing all the work. Anomaly's
+   undercave therefore keeps its sky effects. That is pre-existing §13 behaviour, not a regression
+   (`weather_dimming_skyless.json` has always pinned Undercave as dimming), and closing it would be
+   a deliberate §13 change rather than part of cave compatibility. `map_kind_gates.json` pins the
+   gap so it is recorded rather than rediscovered.
+2. **`BMT_RockRoofStable` is `isThickRoof: true`.** So on a cavern map `EavesMath`'s thick-roof veto
+   fires and every cell resolves as enclosed rather than as an eave — §7b treats a cavern ceiling
+   exactly as it treats a mountain, which is the consistent answer and the reason the cavern reads
+   uniformly dark rather than blotchy.
+
+**Biomes! Caverns' partly-open caves are unaffected**, and this was checked rather than assumed.
+`BMT_ShallowCave`, `BMT_DesertShallows` and `BMT_GlacialHollows` are Geological Landforms
+`BiomeVariantDef`s layered over an ordinary surface tile, carving `RoofRockThick` regions into it
+instead of stamping the cavern sentinel roof. Geological Landforms patches `Map.Biomes` (plural) and
+**not** `Map.Biome`, so `map.Biome` stays the surface biome, every gate stays open, and the roofed
+rock is handled per-cell by §7b as real thick roof. `map_kind_gates.json` reproduces that shape and
+pins `map_enclosed 0`.
+
+**Conflict risk.** `MapSky` reads only vanilla `BiomeDef` fields (`disableSkyLighting`,
+`disableShadows`, `inVacuum`, `baseWeatherCommonalities`) and takes no reference to any third-party
+assembly, so there is nothing here for another mod to collide with — a mod that wants its map
+treated as enclosed gets there by declaring biome data, exactly as Biomes! Caverns already does.
+Not cached, deliberately, even at nine callers: every call is per-map-per-frame at worst, and a
+BiomeDef-keyed cache would have to be invalidated against the harness's own `SetBiome` step, which
+mutates `map.Biome` at runtime so scenarios can sweep biomes inside one run.
+
 ## Settings and presets
 
 Two cross-cutting settings ideas that span the subsystems above:
