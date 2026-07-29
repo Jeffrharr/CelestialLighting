@@ -62,8 +62,19 @@ public static class SkyColorTemperature
     // Linear ramp from HorizonKelvin (at/below the horizon) to ZenithKelvin (at/above
     // DaylightAltitudeDegrees), clamped flat past both ends. Monotonic in elevation, so a lower sun
     // is always at least as warm as a higher one — the property the whole subsystem depends on.
-    public static float ColorTemperatureKelvin(float elevationDegrees)
+    //
+    // inVacuum (DESIGN.md §18, the shared gate in Vacuum.cs): the entire ramp is a Rayleigh
+    // reddening model. Low sun looks warm on the ground because its light crosses tens of air masses
+    // on the way in and the short wavelengths scatter out of the beam; the sun's own emitted spectrum
+    // does not change as it descends. With no air there is no reddening at any altitude, so the curve
+    // pins flat to ZenithKelvin — the unreddened photospheric anchor the whole curve was built
+    // around, and now the only value it can return. Flat, not merely shallower: this is what "the
+    // spectrum does not vary with sun altitude" means as a function.
+    public static float ColorTemperatureKelvin(float elevationDegrees, bool inVacuum)
     {
+        if (inVacuum)
+            return ZenithKelvin;
+
         float t = InverseLerpClamped(0f, DaylightAltitudeDegrees, elevationDegrees);
         return Lerp(HorizonKelvin, ZenithKelvin, t);
     }
@@ -78,17 +89,35 @@ public static class SkyColorTemperature
     //     colour, so we hand off to the night-radiance subsystem instead of tinting darkness warm.
     // The adapter multiplies this geometric factor by its own per-channel blend strengths, exactly
     // the way Patch_TwilightColor multiplies Formulas.TwilightFactor by 0.35/0.25.
-    public static float TintStrength(float elevationDegrees)
+    //
+    // inVacuum (DESIGN.md §18): zero, so the adapter applies no tint at all and each WeatherDef's
+    // palette passes through untouched. Both of the factors below are atmospheric and neither
+    // survives: lowSunRamp is a stand-in for air-mass path length (there is none), and daylightGate's
+    // -6°..horizon fade is civil twilight, which §18a removes outright (see Formulas.TwilightFactor).
+    //
+    // Note this is a stronger statement than "pin the colour": ColorTemperatureKelvin pinning to
+    // ZenithKelvin does NOT by itself make the effect flat, because the Helland fit puts 5772 K at
+    // roughly (1.00, 0.95, 0.90) rather than at pure white. Blending toward that with an
+    // elevation-dependent strength would keep amber creeping into the sky as the sun dropped — the
+    // exact artefact §18a exists to remove. Zeroing the strength is what makes it flat; pinning the
+    // Kelvin keeps every other consumer of the curve (the sky_color_temperature probe, and #32 when
+    // it needs an unreddened reference to redden away from) reading the honest value.
+    public static float TintStrength(float elevationDegrees, bool inVacuum)
     {
+        if (inVacuum)
+            return 0f;
+
         float lowSunRamp = InverseLerpClamped(DaylightAltitudeDegrees, 0f, elevationDegrees);
         float daylightGate = InverseLerpClamped(NightFadeFloorDegrees, HorizonElevationDegrees, elevationDegrees);
         return lowSunRamp * daylightGate;
     }
 
     // Convenience composition used by both the adapter and the live probe so they can never derive a
-    // different colour from the same elevation: elevation → colour temperature → RGB.
-    public static Rgb SkyColorForElevation(float elevationDegrees) =>
-        BlackbodyToRgb(ColorTemperatureKelvin(elevationDegrees));
+    // different colour from the same elevation: elevation → colour temperature → RGB. Carries
+    // inVacuum straight through to the ramp, so in vacuum this is the constant unreddened anchor
+    // colour at every elevation.
+    public static Rgb SkyColorForElevation(float elevationDegrees, bool inVacuum) =>
+        BlackbodyToRgb(ColorTemperatureKelvin(elevationDegrees, inVacuum));
 
     // Blackbody colour temperature → linear-ish sRGB in [0, 1] per channel, via the widely published
     // (public-domain) Tanner Helland approximation of the Planckian locus. This is a standard
