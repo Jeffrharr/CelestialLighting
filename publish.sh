@@ -15,7 +15,9 @@ APPID=294100
 DIST=dist/CelestialLighting
 VDF=dist/workshop.vdf
 
-# The whole mod. Everything else in this repo is development scaffolding.
+# The parts of the mod that have to be named one by one, because nothing about their path marks
+# them as shippable. Loadable *content* is not listed here — see CONTENT_DIRS below, which picks it
+# up automatically. Everything else in this repo is development scaffolding.
 #
 # LICENSE ships even though RimWorld never reads it: MIT's one obligation is that the notice
 # accompany copies of the software, and a subscriber's mod folder IS their copy. About.xml only
@@ -33,22 +35,26 @@ MANIFEST=(
   "About/Preview.png"
   "About/PublishedFileId.txt"
   "1.6/Assemblies/CelestialLighting.dll"
-  "1.6/Defs"
   "LICENSE"
 )
 
-# Directory names RimWorld treats as loadable mod content, at the repo root or under a version
-# directory. Every tracked file below one of these must be covered by a MANIFEST entry, or someone
-# added real content and did not update the whitelist.
+# Directory names RimWorld treats as loadable mod content, whether they sit at the repo root or
+# under a version directory (Defs/… and 1.6/Defs/… are both loaded). Every *tracked* file beneath
+# one of these ships, automatically, whether or not it exists today — so adding a texture, a patch,
+# or a second def file is just `git add`, with no edit here.
 #
-# This guard used to test only `[ -d "$dir" ]` at the repo root, which never matched anything: our
-# content lives at 1.6/Defs/, so it passed vacuously and v1.0.0 shipped to the Workshop with no
-# Defs/ at all. Subscribers got "Failed to find RimWorld.MapMeshFlagDef named CL_SunShadowAxis" and
-# silently lost sun-shadow mesh invalidation (the def's implicit ulong cast is null-safe, so the
-# subscription just OR'd 0 and no exception ever pointed at the cause). Nothing caught it locally
-# because the dev install is a symlink to this repo — the game we test always sees the full tree,
-# never the staged package. So the check now walks tracked files rather than directory existence,
-# and matches on manifest coverage rather than on a directory being mentioned.
+# It used to be the other way round: content had to be named in MANIFEST, and a guard was supposed
+# to catch anyone who forgot. The guard tested `[ -d "$dir" ]` against these bare names at the repo
+# root, but our content lives at 1.6/Defs/, so it matched nothing, passed vacuously, and v1.0.0
+# shipped to the Workshop with no Defs/ at all. Subscribers got "Failed to find
+# RimWorld.MapMeshFlagDef named CL_SunShadowAxis" and silently lost sun-shadow mesh invalidation —
+# MapMeshFlagDef's implicit ulong cast is `def?.mask ?? 0`, so the null DefOf produced no exception
+# to point at the cause. Nothing caught it locally either, because the dev install is a symlink to
+# this repo and the running game therefore always sees the full tree, never the staged package.
+#
+# A whitelist you must remember to update is the wrong shape for content whose only job is to be
+# loaded. Inclusion is now the default and the remaining guard (check_untracked_content) covers the
+# one way content can still be missed: existing on disk but never committed.
 CONTENT_DIRS=(Defs Textures Sounds Patches Languages Sprites AssetBundles)
 
 STEAM=0
@@ -108,43 +114,36 @@ check_versions() {
   fi
 }
 
-# True when $1 is shipped by the MANIFEST — either named outright, or sitting under an entry that
-# names a whole directory. Directory entries are what let 1.6/Defs/ cover every def file in it
-# without this script needing a line per file.
-manifest_covers() {
-  local file="$1" entry
-  for entry in "${MANIFEST[@]}"; do
-    if [ "$file" = "$entry" ] || [ "${file#"$entry"/}" != "$file" ]; then
-      return 0
-    fi
-  done
-  return 1
-}
-
-# Tracked files that RimWorld would load as content: anything with a CONTENT_DIRS component in its
-# path. git ls-files rather than find, so build output and other untracked debris never register as
-# content someone forgot to ship.
+# Files under a CONTENT_DIRS directory, at the repo root or under a version directory. $1 selects
+# which git listing to draw from: --cached for tracked files (what ships), or
+# "--others --exclude-standard" for files present but never committed.
+#
+# The trailing /* on each pathspec is required. A pathspec containing a wildcard is fnmatch'd
+# against the whole path, which drops git's usual "naming a directory means everything under it"
+# shorthand — `*/Defs` matches literally nothing, and any check built on it passes while seeing no
+# files at all. That is a quieter version of the same bug the old guard had, so it is spelled out
+# here rather than left to be rediscovered.
 content_files() {
   local dir
   for dir in "${CONTENT_DIRS[@]}"; do
-    # Trailing /* is required: a pathspec containing a wildcard is fnmatch'd against the whole path,
-    # which drops git's usual "a directory means everything under it" shorthand. `*/Defs` matches
-    # nothing at all, and the guard silently passes — the exact way this check failed before.
-    git ls-files -- "$dir/*" "*/$dir/*"
+    git ls-files $1 -- "$dir/*" "*/$dir/*"
   done | sort -u
 }
 
-# See CONTENT_DIRS above.
-check_content_dirs() {
-  local file
-  while read -r file; do
-    if [ -n "$file" ] && ! manifest_covers "$file"; then
-      fail "$file is mod content but no MANIFEST entry ships it — update MANIFEST in this script"
-    fi
-  done <<< "$(content_files)"
+# Content is shipped from git, so a file that exists on disk but was never committed is invisible to
+# this script and would ship as a missing def or a missing texture — the same class of silent
+# breakage as the manifest omission, arriving by a different route. Untracked content is far more
+# likely to be a forgotten `git add` than a deliberate exclusion, so it stops the release.
+check_untracked_content() {
+  local untracked
+  untracked=$(content_files "--others --exclude-standard")
+  if [ -n "$untracked" ]; then
+    fail "untracked mod content — git add it or ignore it, it cannot ship as-is:
+$(printf '%s\n' "$untracked" | sed 's/^/  /')"
+  fi
 }
 
-check_content_dirs
+check_untracked_content
 
 # --- build and stage --------------------------------------------------------------------------
 
@@ -160,22 +159,28 @@ check_versions
 rm -rf dist
 mkdir -p "$DIST"
 
+stage() {
+  local entry="$1"
+  [ -f "$entry" ] || fail "missing from the working tree: $entry"
+  [ -s "$entry" ] || fail "empty, refusing to ship: $entry"
+  mkdir -p "$DIST/$(dirname "$entry")"
+  cp "$entry" "$DIST/$entry"
+}
+
 for entry in "${MANIFEST[@]}"; do
-  # A directory entry ships its whole subtree. The emptiness check applies per file either way: an
-  # empty def XML is as broken as an empty DLL, and a Defs/ directory with nothing in it means the
-  # content it was added to cover has gone missing.
-  if [ -d "$entry" ]; then
-    [ -n "$(find "$entry" -type f -size +0 -print -quit)" ] \
-      || fail "no non-empty files under, refusing to ship: $entry"
-    mkdir -p "$DIST/$entry"
-    cp -r "$entry/." "$DIST/$entry/"
-  else
-    [ -f "$entry" ] || fail "missing from the working tree: $entry"
-    [ -s "$entry" ] || fail "empty, refusing to ship: $entry"
-    mkdir -p "$DIST/$(dirname "$entry")"
-    cp "$entry" "$DIST/$entry"
-  fi
+  stage "$entry"
 done
+
+# Content is discovered rather than listed (see CONTENT_DIRS), and staged file by file rather than
+# by copying whole directories, so that anything sitting in a content directory untracked — a
+# scratch texture, an editor backup — cannot ride along into a release. check_untracked_content has
+# already refused the run if any such file exists, but staging from the same tracked listing means
+# the two can never disagree about what "content" means.
+while read -r entry; do
+  if [ -n "$entry" ]; then
+    stage "$entry"
+  fi
+done <<< "$(content_files --cached)"
 
 echo "publish: staged $(find "$DIST" -type f | wc -l) files, $(du -sh "$DIST" | cut -f1)"
 (cd dist && find CelestialLighting -type f | sort | sed 's/^/  /')
