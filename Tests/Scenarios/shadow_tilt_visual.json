@@ -1,0 +1,36 @@
+{
+  "name": "shadow_tilt_visual",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "45" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "15" } },
+    { "type": "SetWeather", "args": { "weatherDef": "Clear", "instant": "true" } },
+    { "type": "SetTime", "args": { "hour": "17" } },
+
+    { "type": "SetTerrain", "args": { "def": "Concrete", "width": "26", "height": "26", "offset": "-105,0", "clear": "true" } },
+    { "type": "SetTerrain", "args": { "def": "Concrete", "width": "26", "height": "26", "offset": "0,0", "clear": "true" } },
+    { "type": "SetTerrain", "args": { "def": "Concrete", "width": "26", "height": "26", "offset": "105,0", "clear": "true" } },
+
+    { "type": "PlaceThings", "args": {
+        "def": "Wall", "stuff": "BlocksGranite", "layout": "cells", "clear": "true", "offset": "-105,0",
+        "cells": "-6,4; -6,3; -6,2; -2,4; -2,3; -2,2; 2,4; 2,3; 2,2; 6,4; 6,3; 6,2; -6,-4; -2,-4; 2,-4; 6,-4" } },
+    { "type": "PlaceThings", "args": {
+        "def": "Wall", "stuff": "BlocksGranite", "layout": "cells", "clear": "true", "offset": "0,0",
+        "cells": "-6,4; -6,3; -6,2; -2,4; -2,3; -2,2; 2,4; 2,3; 2,2; 6,4; 6,3; 6,2; -6,-4; -2,-4; 2,-4; 6,-4" } },
+    { "type": "PlaceThings", "args": {
+        "def": "Wall", "stuff": "BlocksGranite", "layout": "cells", "clear": "true", "offset": "105,0",
+        "cells": "-6,4; -6,3; -6,2; -2,4; -2,3; -2,2; 2,4; 2,3; 2,2; 6,4; 6,3; 6,2; -6,-4; -2,-4; 2,-4; 6,-4" } },
+
+    { "type": "LookAt", "args": { "offset": "-105,0", "zoom": "18" } },
+    { "type": "Wait", "args": { "frames": "10" } },
+    { "type": "Screenshot", "args": { "fileName": "tilt_near_edge_west.png" } },
+
+    { "type": "LookAt", "args": { "offset": "0,0", "zoom": "18" } },
+    { "type": "Wait", "args": { "frames": "10" } },
+    { "type": "Screenshot", "args": { "fileName": "tilt_map_centre.png" } },
+
+    { "type": "LookAt", "args": { "offset": "105,0", "zoom": "18" } },
+    { "type": "Wait", "args": { "frames": "10" } },
+    { "type": "Screenshot", "args": { "fileName": "tilt_far_edge_east.png" } }
+  ]
+}
