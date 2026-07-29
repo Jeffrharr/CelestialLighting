@@ -161,6 +161,27 @@ public static class MoonMath
         return AxialTiltDegrees * -MathF.Cos(moonAngle);
     }
 
+    // The day-of-year at which the SUN would carry the moon's current declination.
+    //
+    // Same fact as MoonDeclinationDegrees above, expressed so it survives a change of seasonal
+    // model. The moon rides the same ecliptic as the sun, just elongation degrees along it, and an
+    // offset in ecliptic angle is an offset in day-of-year — a full 360 degrees of elongation is one
+    // year. So rather than rebuild the moon's declination from a tilt and a phase we assume, callers
+    // evaluate whatever declination function the SUN is currently using, at this shifted day.
+    //
+    // This matters because the sun's declination is no longer always ours. With Realistic Axial Tilt
+    // installed it comes from their model, whose seasonal phase sits a quarter-year off vanilla's
+    // (see AxialTiltCompat). Rebuilding the moon from our own -cos while the sun ran on their sin
+    // would put the two bodies a season apart: MoonDeclinationDegrees_EqualsSunDeclination_AtNewMoon
+    // is exactly the invariant that would break, and it would break silently — as a moon riding high
+    // on the wrong nights, months into a save.
+    //
+    // Deliberately returns an unwrapped day (may exceed DaysPerYear or go negative): every
+    // declination model we feed it is periodic in the year, so wrapping would add a branch that
+    // changes no result.
+    public static float MoonEquivalentSunDayOfYear(float dayOfYear, float cyclePosition) =>
+        dayOfYear + ElongationDegrees(cyclePosition) / 360f * Formulas.DaysPerYear;
+
     // The moon's effective "day percent" for reuse with Formulas.SolarElevationDegrees /
     // SolarAzimuthDegrees. Those functions convert dayPercent to an hour angle via (dayPercent -
     // 0.5) * 360; the moon's hour angle lags the sun's by exactly the elongation (the moon rises
