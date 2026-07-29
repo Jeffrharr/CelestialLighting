@@ -2812,6 +2812,145 @@ strict no-op at every elevation, which the paired sea-level column in `LimbRefra
 case by case. Against §2 there is no overlap even on a vacuum map: §2's warm band is over by −6° and
 §18a zeroes it there regardless, while §18d's band opens at −12.0°.
 
+## 18e. Eclipse response in vacuum (`VacuumEclipseMath` / `Patch_EclipseVacuumSky`)
+
+**This section reverses a line in epic #8.** The epic's work table said natural-eclipse generation
+"should not fire on vacuum maps rather than firing with meaningless geometry". That was written
+assuming an orbital platform's sun motion is an orbital period. It is not — see §18's stationary-orbit
+finding: `PlanetLayer.LongLatOf` derives lat/long from a static tile centre and nothing anywhere gives
+an orbit tile a period, a phase, or any motion. An orbital tile therefore has a fixed lat/long and
+sees the same sky as the surface tile below it, so a new moon at a node transits the sun for the
+platform at the same instant, for the same duration, and with the same impact parameter as for the
+ground beneath it.
+
+**§10a's geometry is valid in orbit and keeps firing.** `EclipseMath`, `MoonMath`'s inclination/nodal
+model, `MoonMath.DefaultNodalPeriodDays` and the ~one-every-few-game-years cadence test are all
+untouched by this subsystem, and the cadence target is unchanged in vacuum.
+
+**Problem.** What *is* wrong in vacuum is the response, and it is one physical fact with two
+consequences: there is nothing left to scatter light into the umbra. Standing at sea level inside the
+moon's shadow, most of the sky you can see is *not* in that shadow and goes on scattering sunlight
+down onto you the whole time. That is why a total eclipse at sea level is a deep blue-grey gloom
+rather than night, and it is exactly what vanilla's own `GameCondition_NoSunlight.EclipseSkyColors`
+encodes — a wan `(0.482, 0.603, 0.682)`, Rec. 709 luma **0.583**, i.e. 58% of full sky brightness at
+totality no matter what the glow says. At 200 km there is no scattering medium at all, so that
+pedestal should not be there.
+
+**Approach.** One postfix on `GameCondition_NoSunlight.SkyTarget`, deliberately separate from §10's
+existing postfix on `SkyTargetLerpFactor`. The two answer different halves of the same event:
+
+| patch | method | answers | in vacuum |
+|---|---|---|---|
+| `Patch_EclipseDarkening` (§10) | `SkyTargetLerpFactor` | *how fast* the sky reaches the umbra | unchanged — pure disc-overlap geometry, valid in orbit |
+| `Patch_EclipseVacuumSky` (§18e) | `SkyTarget` | *what the umbra is* | rewritten |
+
+Splitting it this way is what makes §18e structurally incapable of moving when an eclipse fires or
+how long it lasts. Two channels are rewritten and the rest of the target is left alone:
+
+| channel | sea level | vacuum | why |
+|---|---|---|---|
+| `glow` | vanilla's flat `0` | **the §18b night floor** (0.0317) | the umbra is lit by the night sources and nothing else |
+| `colors.sky` / `colors.overlay` | ×1 (exact identity) | ×0.167 | §7a's own glow→screen curve at that floor |
+| `colors.shadow` | untouched | untouched | shadow contrast in vacuum is #31/§18c's; two branches writing it is the drift #30 exists to prevent |
+| `colors.saturation` | untouched | untouched | colour handling on vacuum maps is #29/§18a's |
+
+**Totality goes near-black, and the umbral minimum IS the shared floor.** The glow bottoms out at
+`NightRadianceMath.NightFloorGlow` — #30's function, read through `NightRadiance.FloorGlowFor(map)`,
+the same one §7 blends the night sky toward and the same one #31 bottoms its shadows out at. Not a
+fraction of it, not a second constant: `VacuumEclipseMathTests` asserts the identity against the
+shared function rather than against a literal, so a retune of the night budget carries through
+instead of being pinned to a stale copy. #31 binds to the same function from the shadow side, so the
+two provably agree.
+
+Two results that look like bugs and are not. First, the vacuum umbra is a touch *brighter* than
+vanilla's, whose target glow is a flat 0 — totality in orbit is starlit, not switched off, and 0 was
+never physical. The near-black look comes from the colour channel, not from driving gameplay light to
+nothing. Second, the floor tracks the moon, so an eclipse under a full moon would bottom out higher —
+except that a solar eclipse happens at new moon *by definition*, so the moonlight term is ~0 and the
+vacuum umbra lands on unextinguished starlight. The moon blocking the sun is, correctly, showing us
+its unlit face.
+
+The colour scale reuses `NightRadianceMath.OverlayBrightnessFactor` — §7a's own glow→screen curve —
+rather than a new mapping, so "in vacuum, totality looks like night" is enforced by construction
+rather than by two constants that happen to match today. The player's `MinNightBrightness`
+playability clamp rides along inside it, which matters more here than anywhere else: totality is the
+one darkness a player cannot walk out of.
+
+**Ingress and egress harden, and there is no hardening knob.** With the pedestal gone, almost nothing
+is left in the sky that did not come straight through the uncovered part of the solar disc, so
+brightness follows the covered fraction far more literally. That falls out of removing the pedestal —
+a tuned steepening constant would be a look choice pretending to be physics.
+
+Quantified rather than asserted. `VacuumEclipseMath.CoverageTrackingError` is the mean absolute
+deviation, over a whole transit, between how far the sky has actually dimmed and the fraction of the
+solar disc covered. A response driven by disc overlap and nothing else scores exactly 0; every unit of
+score is light in the umbra that did not come through the sun. Sampling a central transit through
+§10a's own coverage ramp:
+
+| | umbral sky brightness | tracking error |
+|---|---|---|
+| sea level | 0.583 | 0.583 × mean coverage |
+| vacuum | 0.583 × 0.167 = **0.097** | 0.097 × mean coverage |
+
+— a factor of **6.0** tighter, swept across magnitudes 0.2 → 1.0 so the claim covers grazing partials
+(which are all ingress and egress) and not just totality. The test asserts a 4× margin, leaving room
+for the night floor to be retuned without leaving room for the claim to become decorative.
+
+**Lunar parallax stays ignored, and this is where the argument is written down.** A 200 km platform is
+displaced from the ground observer by at most 200 km against a lunar distance of ~384,400 km, so the
+moon shifts by at most `atan(200 / 384400) = 0.0298°` — about **6% of a lunar disc diameter**
+(2 × 0.274° = 0.548°). That is not zero. But §6 already accepts a flat-ecliptic approximation whose
+own error dwarfs it, and the eclipse's impact parameter comes from the moon's ecliptic latitude at
+new moon, which the nodal model does not produce to anything like 0.03° precision in the first place.
+A parallax term would be false precision bolted onto an approximation two orders of magnitude
+coarser. The existing simplification carries over unchanged; it needed the argument written down, not
+a new model.
+
+**The boundary that matters: orbital night is not an eclipse.** A platform crosses into the *planet's*
+shadow once per day. That is ordinary orbital night. It belongs to the sun clock and #32's
+limb-refraction ramp (§18d), it must never be modelled as a `GameCondition`, and it must never feed
+the eclipse cadence — a daily event entering a counter tuned for one every few years would destroy
+both. §18e only ever describes the moon transiting the sun.
+
+| event | cadence | owner |
+|---|---|---|
+| platform crosses into planet shadow | daily | sun clock + limb-refraction ramp (§18d) |
+| moon transits the sun | ~one every few game years | §10a natural eclipses, §18e response |
+
+**Out of scope: the corona.** A visible corona during totality would be the physically correct payoff
+of a no-atmosphere eclipse, and it is genuinely a thing only visible from up there. It is a
+*rendering* feature rather than a lighting one — a new drawn body, not a curve — so it is deliberately
+not built here and belongs in its own issue if it is ever wanted.
+
+**Conflict risk.** Low, and narrower than §10's existing patch. `Patch_EclipseVacuumSky` postfixes a
+method no other CelestialLighting patch touches, and it is gated three ways: the "Eclipse effects"
+master, `def == GameConditionDefOf.Eclipse` (so the Royalty SunBlocker machine, which shares
+`GameCondition_NoSunlight`, stays vanilla), and a null-biome guard for pocket maps mid-generation. On
+every planet-surface map it is a *provable* no-op rather than an intended one: the sea-level arm of
+`UmbralSkyBrightnessScale` returns exactly `1f` and `UmbralGlow` passes vanilla's value straight
+through, which `SeaLevelScale_IsExactlyOne_SoTheAdapterCannotDriftOnSurfaceMaps` pins bit-exactly.
+No `ModsConfig.OdysseyActive` gate and no soft reference: `inVacuum` is a field on base
+`RimWorld.BiomeDef`, so this compiles and reads `false` with Odyssey uninstalled.
+
+Because the rewrite goes through the condition's own `SkyTarget`, everything downstream that reads
+`SkyManager.CurSkyGlow` — including Dub's Skylights — sees the corrected umbra with no separate compat
+patch, exactly as §7 does.
+
+**Verification.** Offline in `VacuumEclipseMathTests` (27 cases), plus three new
+`ApiCompatibilityTests` pinning `GameCondition_NoSunlight.SkyTarget`'s nullable return,
+`EclipseSkyColors` (the sea-level anchor the whole comparison is relative to) and
+`SkyColorSet.LerpDarken` (which `EclipsedSkyBrightness` is an offline model of). The `eclipse_umbra_glow`
+probe reports the live umbral target by calling the patched method, so a scenario can pin it against
+`night_radiance`: on a vacuum map the two must read the *same* value, which is the whole §18e claim
+in two numbers.
+
+Live verification is blocked on `Jeffrharr/RimWorldTestHarness#17` — scenarios cannot currently reach
+an orbital map, because `SetTile`/`SetBiome` target planet-surface tiles and
+`OrbitLayer.CanSelectLayer` refuses the layer unless a world object already exists on it. Nothing here
+has been validated in a running game. When the block lifts, the eclipse scenario must run
+**standalone**: eclipse scenarios are `GameCondition`-driven and the harness only reloads between
+suites for MAP residue, so a lingering `Eclipse` condition contaminates whatever runs next.
+
 ## Settings and presets
 
 Two cross-cutting settings ideas that span the subsystems above:
