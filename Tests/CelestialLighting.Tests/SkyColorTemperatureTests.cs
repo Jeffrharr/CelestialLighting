@@ -20,16 +20,16 @@ public class SkyColorTemperatureTests
     [TestCase(90f, SkyColorTemperature.ZenithKelvin)] // zenith clamps flat to neutral
     public void ColorTemperatureKelvin_MatchesExpected(float elevation, float expected)
     {
-        Assert.That(SkyColorTemperature.ColorTemperatureKelvin(elevation), Is.EqualTo(expected).Within(0.5f));
+        Assert.That(SkyColorTemperature.ColorTemperatureKelvin(elevation, inVacuum: false), Is.EqualTo(expected).Within(0.5f));
     }
 
     [Test]
     public void ColorTemperatureKelvin_IsMonotonicNonDecreasing_AsSunClimbs()
     {
-        float previous = SkyColorTemperature.ColorTemperatureKelvin(-10f);
+        float previous = SkyColorTemperature.ColorTemperatureKelvin(-10f, inVacuum: false);
         for (float elevation = -10f; elevation <= 90f; elevation += 2.5f)
         {
-            float current = SkyColorTemperature.ColorTemperatureKelvin(elevation);
+            float current = SkyColorTemperature.ColorTemperatureKelvin(elevation, inVacuum: false);
             Assert.That(current, Is.GreaterThanOrEqualTo(previous - Tolerance),
                 $"colour temperature dropped as the sun rose (at elevation {elevation})");
             previous = current;
@@ -48,14 +48,14 @@ public class SkyColorTemperatureTests
     [TestCase(-20f, 0f)] // deep night: no tint
     public void TintStrength_MatchesExpected(float elevation, float expected)
     {
-        Assert.That(SkyColorTemperature.TintStrength(elevation), Is.EqualTo(expected).Within(0.001f));
+        Assert.That(SkyColorTemperature.TintStrength(elevation, inVacuum: false), Is.EqualTo(expected).Within(0.001f));
     }
 
     [Test]
     public void TintStrength_FadesSmoothlyBelowHorizon()
     {
         // Midway through the civil-twilight fade band (-6 .. -0.83), the gate is ~0.5.
-        float mid = SkyColorTemperature.TintStrength(-3.415f);
+        float mid = SkyColorTemperature.TintStrength(-3.415f, inVacuum: false);
         Assert.That(mid, Is.EqualTo(0.5f).Within(0.02f));
     }
 
@@ -111,9 +111,9 @@ public class SkyColorTemperatureTests
     [Test]
     public void SkyColorForElevation_MatchesManualComposition()
     {
-        SkyColorTemperature.Rgb direct = SkyColorTemperature.SkyColorForElevation(20f);
+        SkyColorTemperature.Rgb direct = SkyColorTemperature.SkyColorForElevation(20f, inVacuum: false);
         SkyColorTemperature.Rgb composed =
-            SkyColorTemperature.BlackbodyToRgb(SkyColorTemperature.ColorTemperatureKelvin(20f));
+            SkyColorTemperature.BlackbodyToRgb(SkyColorTemperature.ColorTemperatureKelvin(20f, inVacuum: false));
         Assert.That(direct.R, Is.EqualTo(composed.R).Within(Tolerance));
         Assert.That(direct.G, Is.EqualTo(composed.G).Within(Tolerance));
         Assert.That(direct.B, Is.EqualTo(composed.B).Within(Tolerance));
