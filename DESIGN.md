@@ -1260,16 +1260,26 @@ What vanilla's aurora *does* still deliver is the saturation drop (1.25 → 1.0)
 bonus, neither of which we touch. So this fills a hole rather than overpainting a render.
 
 **Why not suppress vanilla's `SkyTarget` and replace it outright.** While the `Aurora` condition is
-active its colour set becomes a per-channel *ceiling* on whatever we inject, and `MaxSkyTintStrength`
-(0.35) sits just past where the green channel starts to clip against it — our tinted sky computes to
-(0.369, 0.742, 0.569) and the min pins green back to 0.730. Suppressing vanilla would lift that
-ceiling, but it buys about 1.5% of one channel in exchange for a second Harmony patch on a vanilla
-method and a conflict surface with every other mod that touches auroras. Not worth it. The same
-ceiling is why the event doesn't get a *stronger* peak than a flare: past ~0.32 green pins while red
-and blue keep falling, which skews the hue rather than deepening it. `SkyColorSet.LerpDarken` and
+active its colour set is a per-channel *ceiling* on whatever we inject: green clips once the tint
+passes ~0.32, after which green pins while red and blue keep falling, skewing the hue rather than
+deepening it. At the shipped `MaxSkyTintStrength` of 0.18 that ceiling is nowhere near binding, so
+suppressing vanilla would buy exactly nothing — in exchange for a second Harmony patch on a vanilla
+method and a conflict surface with every other mod that touches auroras. (It was worth ~1.5% of one
+channel back when the tint was 0.35; it is worth 0 now.) `SkyColorSet.LerpDarken` and
 `SkyTarget.LerpDarken` are both asserted by `ApiCompatibilityTests`, so if Ludeon ever swaps that min
 for a plain `Lerp` — which would make vanilla's aurora render for real — the driver set gets
 re-decided rather than silently double-painting.
+
+**Why the tint is weak, and what would make auroras vivid.** 0.35/0.15 shipped first and rendered as
+a green filter over the whole world rather than as an aurora — the "flat neon" failure the constants'
+own comment was trying to avoid, arrived at by arguing *up* from vanilla's 0.075 on the grounds that
+we ship no overlay texture. The error is treating a flat wash and a textured aurora as the same
+effect at different strengths. They are not: a real aurora is legible because it has *structure* —
+bands, several colours at once, drift — and a map-wide uniform hue has none of that, so extra
+strength only makes it read more like a colour grade. 0.18/0.08 is a tint you notice without it
+grading the scene. Genuine vividness needs a `SkyOverlay` with spatial structure and movement, which
+is [issue #42](https://github.com/Jeffrharr/CelestialLighting/issues/42); if that lands, these two
+constants drop back toward vanilla's as the subtle base layer underneath it.
 
 **Approach.** A Harmony Postfix on `WeatherWorker.CurSkyTarget` — the same injection point as
 `Patch_TwilightColor` (§2). The two blend different, non-overlapping things (twilight warms the sky
@@ -1295,10 +1305,9 @@ advertises, keeps our render and vanilla's pointing the same direction in every 
 what matters under the per-channel min above), and means an aurora event never just looks like a
 recoloured solar flare.
 
-The blend strengths (`MaxSkyTintStrength`, `MaxOverlayTintStrength`) are deliberately moderate: we
-ship no shimmering overlay *texture* the way vanilla's aurora does, only a colour tint, so we need a
-touch more colour than vanilla's ~0.075 to read as an aurora without turning the sky flat neon.
-`AuroraConditions.CurrentSkyTintStrength` is shared by the patch and the `aurora_tint` live probe so
+The blend strengths (`MaxSkyTintStrength`, `MaxOverlayTintStrength`) are deliberately restrained —
+see "Why the tint is weak" above for how they were set and why arguing them upward from vanilla's
+~0.075 was the wrong move. `AuroraConditions.CurrentSkyTintStrength` is shared by the patch and the `aurora_tint` live probe so
 they can never derive a different value from each other — the same discipline `SolarPosition.cs`
 enforces between the shadow patches.
 

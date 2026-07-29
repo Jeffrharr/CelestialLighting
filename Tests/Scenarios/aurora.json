@@ -7,7 +7,7 @@
     { "type": "SetTime", "args": { "hour": "1" } },
     { "type": "SetFeature", "args": { "featureName": "pitch_black_nights", "enabled": "false" } },
     { "type": "StartCondition", "args": { "conditionDef": "SolarFlare", "durationHours": "24", "agedHours": "2" } },
-    { "type": "Probe", "args": { "probeName": "aurora_tint", "expectedValue": "0.35", "tolerance": "0.02" } },
+    { "type": "Probe", "args": { "probeName": "aurora_tint", "expectedValue": "0.18", "tolerance": "0.02" } },
     { "type": "Screenshot", "args": { "fileName": "aurora_warmup.png" } },
     { "type": "SetFeature", "args": { "featureName": "aurora", "enabled": "false" } },
     { "type": "Screenshot", "args": { "fileName": "aurora_off.png" } },
