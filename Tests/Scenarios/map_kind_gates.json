@@ -131,6 +131,45 @@
       }
     },
     {
+      "_comment": "GLOWFOREST (Odyssey) \u2014 a bioluminescent biome that is NOT a cave, pinned because the name invites exactly that confusion. It is an ordinary open-air surface tile offering ELEVEN weathers, sets none of disableSkyLighting / disableShadows / inVacuum, and its glow comes from CompGlower plants in the glow grid, which this mod never touches. Every gate must stay open: it keeps its full day/night cycle, twilight, colour temperature and shadows. Not to be confused with Biomes! Caverns' BMT_FungalForest, which IS an enclosed cavern and is covered by the caverns_* scenarios.",
+      "type": "SetBiome",
+      "args": {
+        "biomeDef": "Glowforest"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "map_enclosed",
+        "expectedValue": "0",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "map_draws_shadows",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "_comment": "And its weather still rolls \u2014 the \u00a713 classifier sees a real climate here, unlike a cavern's single fixed palette.",
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Fog",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "weather_dimming",
+        "expectedValue": "0.15",
+        "tolerance": "0.12"
+      }
+    },
+    {
       "type": "Assert",
       "args": {
         "kind": "vision",
