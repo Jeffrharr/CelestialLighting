@@ -42,19 +42,15 @@ public static class Patch_NightRadiance
         if (sunElevation > NightRadianceMath.NightFloorStartElevation)
             return;
 
-        NightRadianceSettings settings = NightRadianceSettings.Current;
-
-        // The atmospheric floors are exactly what the "true pitch-black" toggle rides on: with
-        // atmospheric glow disabled, starlight and airglow drop to 0 and only moonlight remains, so
-        // a new-moon (or moon-down) night is genuinely black — no separate pitch-black code path.
-        float starlight = settings.AtmosphericGlowEnabled ? settings.StarlightGlow : 0f;
-        float airglow = settings.AtmosphericGlowEnabled ? settings.AirglowGlow : 0f;
-
-        MoonState moon = MoonSeam.Provider(map);
-        float moonlight = NightRadianceMath.MoonlightGlow(
-            moon.IlluminatedFraction, moon.ElevationDegrees, settings.MaxMoonlightGlow);
-
-        float nightGlow = NightRadianceMath.NightSourceGlow(starlight, airglow, moonlight);
+        // The floor itself is no longer assembled here. §18b gave it two more consumers — #31 needs
+        // what a cast shadow bottoms out at once vacuum removes the skylight fill, #33 needs the
+        // umbral minimum an eclipse falls to — so it moved to the shared NightRadiance adapter and
+        // all three read the same function. They cannot disagree about how dark this map's night is.
+        //
+        // The vacuum substitutions (airglow gone, starlight unextinguished, planetshine instead of
+        // the moon as the dominant reflector) happen inside that read, so this patch needs no branch
+        // of its own: it asks for the floor and blends toward it exactly as it always did.
+        float nightGlow = NightRadiance.FloorGlowFor(map);
         __result.glow = NightRadianceMath.ApplyNightFloor(__result.glow, sunElevation, nightGlow);
     }
 }

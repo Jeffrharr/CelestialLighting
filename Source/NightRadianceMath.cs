@@ -68,6 +68,43 @@ public static class NightRadianceMath
     public static float NightSourceGlow(float starlightGlow, float airglowGlow, float moonlightGlow) =>
         Clamp01(starlightGlow + airglowGlow + moonlightGlow);
 
+    // THE NIGHT FLOOR. The single pure entry point for "how dark can the sky here get", for both
+    // atmospheres — and, deliberately, for more than one caller:
+    //
+    //   §7   Patch_NightRadiance blends the sky toward it at night
+    //   §18b the vacuum arm, DESIGN.md §18b
+    //   #31  what a cast shadow bottoms out at, once vacuum removes the skylight fill
+    //   #33  the umbral minimum an eclipse falls to
+    //
+    // One value reached from three directions, rather than three patches each deriving their own and
+    // drifting apart — the same discipline SolarPosition enforces for sun elevation and
+    // WeatherDimming for cloud cover. Live-state callers go through NightRadiance.FloorGlowFor(map);
+    // this is the primitives-in/primitives-out core underneath it.
+    //
+    // `inVacuum` is LAST, per the §18 convention Vacuum.cs sets out: every pure function that behaves
+    // differently in vacuum takes it as its final parameter, so a sea-level [TestCase] and its vacuum
+    // twin read one argument apart.
+    //
+    // Note the asymmetry in the parameters. airglowGlow is accepted and then ignored in vacuum
+    // (VacuumRadianceMath.AirglowGlow is 0); maxMoonlightGlow is used ONLY in vacuum, where it
+    // calibrates planetshine. Both are passed unconditionally so the call site never has to know
+    // which atmosphere it is in — that is the entire point of the discriminator being an argument.
+    public static float NightFloorGlow(
+        float starlightGlow,
+        float airglowGlow,
+        float moonlightGlow,
+        float maxMoonlightGlow,
+        bool inVacuum)
+    {
+        // Vacuum branch first and unconditionally, per Vacuum.cs's convention: the vacuum value is
+        // returned before any atmospheric math runs, so there is no chance of a sea-level term
+        // leaking into it.
+        if (inVacuum)
+            return VacuumRadianceMath.NightFloorGlow(starlightGlow, moonlightGlow, maxMoonlightGlow);
+
+        return NightSourceGlow(starlightGlow, airglowGlow, moonlightGlow);
+    }
+
     // 0 above NightFloorStartElevation (day/twilight untouched), ramping to 1 at
     // NightFloorFullElevation. Because start > full (both below the horizon, descending), this is an
     // inverse-lerp on a descending range — InverseLerpClamped handles the reversed endpoints.
