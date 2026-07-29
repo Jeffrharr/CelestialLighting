@@ -127,7 +127,9 @@ public static class AuroraConditions
 
         float sunGlow = GenCelestial.CurCelestialSunGlow(map);
         float ramp = RampFor(driver);
-        return AuroraMath.SkyTintStrength(sunGlow, ramp);
+        // Reads the same §18 vacuum gate the patch does (Vacuum.cs), so the aurora_tint probe keeps
+        // agreeing with the patch on a space map instead of reporting a tint nothing renders.
+        return AuroraMath.SkyTintStrength(sunGlow, ramp, Vacuum.InVacuumForMap(map));
     }
 
     // Fade ramp for a condition, translating its permanence into the "huge ticksLeft" AuroraMath
