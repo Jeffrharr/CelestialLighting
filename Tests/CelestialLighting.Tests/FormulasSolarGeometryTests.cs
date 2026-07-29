@@ -438,7 +438,7 @@ public class FormulasSolarGeometryTests
             {
                 for (float elevation = -10f; elevation <= 10f; elevation += 0.5f)
                 {
-                    float warmth = Formulas.TwilightWarmthFactor(glow, elevation, strength);
+                    float warmth = Formulas.TwilightWarmthFactor(glow, elevation, strength, inVacuum: false);
                     Assert.That(warmth, Is.InRange(0f, peak + 1e-5f),
                         $"strength {strength}, glow {glow}, elevation {elevation}");
                 }
