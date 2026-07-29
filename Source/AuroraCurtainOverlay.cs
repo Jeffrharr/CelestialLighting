@@ -133,32 +133,30 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
         return true;
     }
 
-    // Bakes field rows into the pixel buffer and uploads it.
+    // Bakes one slice of field rows into the pixel buffer and uploads the buffer.
     //
-    // LoadRawTextureData rather than SetPixels32: the pure core already writes RGBA bytes in exactly
-    // the layout TextureFormat.RGBA32 wants, so this is a straight memcpy of the buffer with no
-    // per-pixel Color32 marshalling in between. Apply(false) skips mip regeneration, which the texture
-    // does not have.
+    // NO PRIMING PASS, and that was a measured decision rather than a stylistic one. The obvious design
+    // bakes the whole field on the aurora's first frame so nothing unbaked is ever displayed.
+    // Benchmarked, a full 128² bake is ~4.9 ms under the .NET 8 JIT and Mono is materially slower — i.e.
+    // a dropped frame every single time an aurora begins, which is precisely the moment the player is
+    // most likely to be looking up.
     //
-    // The whole buffer uploads even though only a slice changed. That is deliberate: the upload is
-    // 64 KB of contiguous memory, which is far cheaper than the bookkeeping for a partial-rect update,
-    // and it keeps the buffer as the single source of truth for what the texture contains.
-    // NO PRIMING PASS, deliberately, and this was a measured decision rather than a stylistic one.
-    //
-    // The obvious design bakes the whole field on the aurora's first frame so nothing unbaked is ever
-    // displayed. Benchmarked, a full 128² bake is ~4.9 ms under the .NET 8 JIT and Mono is materially
-    // slower — i.e. a dropped frame every single time an aurora begins, which is precisely the moment
-    // the player is most likely to be looking.
-    //
-    // It is also unnecessary. `new byte[]` is zero-filled, so an unbaked row is RGBA(0,0,0,0), and under
-    // ADDITIVE blending zero contributes exactly nothing — an unbaked row is invisible, not garbage.
-    // Combine that with the condition's own hour-long fade-in, over which alpha climbs from zero, and
-    // the field quietly fills itself in over the first ~22 frames while the aurora is still too faint to
-    // see. The hitch buys nothing, so it is not paid.
+    // It is also unnecessary, which is the part worth writing down. `new byte[]` is zero-filled, so an
+    // unbaked row is RGBA(0,0,0,0), and under ADDITIVE blending zero contributes exactly nothing — an
+    // unbaked row is invisible, not garbage. Combine that with the condition's own hour-long fade-in,
+    // over which alpha climbs from zero anyway, and the field quietly fills itself in over the first ~22
+    // frames while the aurora is still far too faint to see. The hitch buys nothing, so it is not paid.
     //
     // The corollary is that the texture is NOT re-zeroed between auroras: the second aurora of a
     // playthrough inherits the first one's field and is therefore fully formed immediately, which is
     // strictly better than starting blank again.
+    //
+    // LoadRawTextureData rather than SetPixels32: the pure core already writes RGBA bytes in exactly the
+    // layout TextureFormat.RGBA32 wants, so this is a straight memcpy with no per-pixel Color32
+    // marshalling in between. Apply(false) skips mip regeneration, which this texture does not have.
+    // The whole buffer uploads even though only a slice changed — at 64 KB of contiguous memory that is
+    // cheaper than the bookkeeping for a partial-rect update, and it keeps the buffer as the single
+    // source of truth for what the texture holds.
     private void Regenerate(float time, Color tint, float tintWeight)
     {
         AuroraCurtain.FillRows(

@@ -1284,9 +1284,17 @@ we ship no overlay texture. The error is treating a flat wash and a textured aur
 effect at different strengths. They are not: a real aurora is legible because it has *structure* —
 bands, several colours at once, drift — and a map-wide uniform hue has none of that, so extra
 strength only makes it read more like a colour grade. 0.18/0.08 is a tint you notice without it
-grading the scene. Genuine vividness needs a `SkyOverlay` with spatial structure and movement, which
-is [issue #42](https://github.com/Jeffrharr/CelestialLighting/issues/42); if that lands, these two
-constants drop back toward vanilla's as the subtle base layer underneath it.
+grading the scene.
+
+That reasoning held right up to its own conclusion: genuine vividness needs structure and movement
+rather than a bigger number, so §11a below builds it, and **the flat tint now has two peaks rather
+than one.** With the curtain drawing, this layer's job shrinks to seating the ribbons in a sky of the
+right colour, and it steps all the way back to vanilla's own `0.075/0.025`
+(`AuroraMath.CurtainedSkyTintStrength`). With the curtain off it keeps `0.18/0.08`
+(`MaxSkyTintStrength`). Two pairs rather than one because the feature-flag rule in
+`CelestialLightingFeatures` requires that turning §11a off restores exactly what the mod rendered
+before §11a existed — a single lowered constant would instead leave the sky weaker than either
+version ever shipped, and quietly invalidate the harness A/B that the flag exists to enable.
 
 **Approach.** A Harmony Postfix on `WeatherWorker.CurSkyTarget` — the same injection point as
 `Patch_TwilightColor` (§2). The two blend different, non-overlapping things (twilight warms the sky
@@ -1324,6 +1332,174 @@ the wrong presentation rather than merely too strong a one. See §18.
 
 Deferred: a matching moonlight/HUD hook and per-condition settings sliders (the tint constants are
 already isolated in `AuroraMath` for that). Lowest priority of the planned set.
+
+### 11a. Aurora curtain — structure instead of saturation (`AuroraCurtainOverlay`)
+
+**Problem.** §11 can only ever put *one* colour on the whole map at once, because it lerps
+`SkyTarget.colors`, which is a single global value. So no tuning of it can produce what actually makes
+a real aurora legible: several colours visible simultaneously, arranged in bands, drifting and
+undulating, with brightness varying across the sky. Turning the one colour up doesn't approach that —
+it just grades the frame greener, which is why #41 had to halve it. A flat wash and a textured aurora
+are not the same effect at two strengths.
+
+**Approach.** A `Verse.SkyOverlay` drawn over the map, textured with a procedurally generated,
+tileable noise field that is regenerated a few rows per frame and UV-panned every frame.
+
+**Where the ribbons come from.** The band-forming technique is ported from the *Aurora Borealis* Godot
+shader by Klaufir ([godotshaders.com](https://godotshaders.com/shader/aurora-borealis/)), published
+under **CC0** — public domain, so there is nothing to license. Worth being explicit that this is a
+technique from an unrelated CC0 Godot shader and *not* from any RimWorld mod: the clean-room
+constraint this repo is built under concerns Sjaandi's *Tilt Planet!*, whose code was never available
+to anyone, and is untouched by this.
+
+The insight is that you do not draw noise to get an aurora — **you draw the contour where two noise
+fields are equal.** Subtract two fBm fields and push the difference through a `smoothstep`: the result
+is ~0 where A wins, ~1 where B wins, and sweeps through 0.5 along the boundary curve between them.
+Keying brightness on *proximity to 0.5* therefore lights a thin, closed, wandering curve — a ribbon —
+instead of a field of blobs. A steep power chain (`AuroraCurtain.Amplify`, magic number `0.166504`
+and all — it reads as `m⁴v² + mv⁴ + v⁸`) then crushes everything off the contour toward black, which
+is what gives the curtain a defined edge rather than a soft gradient.
+
+Two deliberate departures from the original:
+
+- **The raymarching is dropped.** It exists to give the curtain volume in a 3D scene. RimWorld's
+  camera is a fixed orthographic top-down, so there is no parallax to sell and ~100 samples per pixel
+  would produce very nearly what one sample produces.
+- **The two fields drift in *different* directions.** The original scrolls both together, so the
+  pattern translates rigidly and all its apparent writhing comes from the static domain warp the
+  fields slide beneath. Counter-drifting moves the boundary curve *non-rigidly* — ribbons stretch,
+  fold and pinch. That is the "undulate" half of the requirement, and it is free: same sample count
+  either way.
+
+**Why a CPU texture and not a shader.** RimWorld 1.6 is Unity 2022.3.35f1 and mods *can* load custom
+shaders from an `AssetBundle`, so this was a real option. Against it: a bundle must be built in the
+matching Unity Editor and shipped as per-platform binary blobs, and this repo ships no binary assets
+at all. In favour of the CPU: the cost is bounded by *resolution*, and an aurora is the one effect
+that loses nothing to blur. So the field is baked at 128² and stretched over the map.
+
+**Pure core / adapter split**, as everywhere else:
+
+- `Source/AuroraNoise.cs` — tileable value noise + fBm, with **separate X and Y periods**. Anisotropy
+  is not a flourish: auroral arcs are long bands, and with one period the only available shapes are
+  round. Not `Mathf.PerlinNoise`, which is not tileable, is undocumented as to algorithm, and lives in
+  `UnityEngine` — which would drag the generator out of the offline tests. **Tileability is
+  load-bearing**: the texture is panned every frame, so a field that does not wrap shows a hard seam
+  sweeping across the colony once per cycle.
+- `Source/AuroraCurtain.cs` — `Amplify` / `Wave` / `Envelope` / `HueField` / `PaletteColor` /
+  `FillRows`. The palette runs violet → green → red, reusing `AuroraMath.OxygenGreen` (557.7 nm) and
+  `OxygenRed` (630 nm) and adding `NitrogenViolet` (N₂⁺ first negative band, ~427.8 nm). Because fBm
+  clusters near 0.5, green holds the middle and the coloured fringes appear at the tails — green-
+  dominant with red above and violet below, which is what an aurora looks like, rather than a rainbow.
+  A separate very-low-frequency `Envelope` gates the ribbons in and out so the aurora occupies *part*
+  of the sky; without it the field covers the tile uniformly and drifts back toward §11's failure.
+- `Source/AuroraCurtainOverlay.cs` — owns the `Texture2D`, the two materials and the refresh schedule.
+- `Source/Patch_AuroraCurtainDraw.cs` — the draw hook.
+
+**Additive, above the lighting overlay.** `ShaderDatabase.MoteGlow` at `AltitudeLayer.VisEffects`. Both
+halves matter. Additive because an aurora emits light rather than replacing the sky behind it — under
+alpha blending, a bright ribbon over a near-black night must be nearly opaque before it reads at all,
+which pushes right back toward the flat wash. And `VisEffects` rather than `Weather` because Weather
+sits *directly below* `LightingOverlay`: a weather-altitude aurora is multiplied by the night sky
+colour, and with §7a driving that overlay toward opaque black the ribbons would be multiplied out of
+existence in precisely the conditions they exist for. `VisEffects` is above the lighting overlay and
+still below `FogOfWar`, so the curtain glows through the dark while unexplored map stays fogged.
+`ApiCompatibilityTests` asserts that *ordering*, not merely that the enum members exist.
+
+**Two layers, one texture.** The same field is drawn twice — the second tiled 2× and panning faster in
+the opposite direction. A single panning plane translates rigidly, and rigid translation of the whole
+sky is the one motion that reads as "the camera is moving" rather than "the aurora is moving". The
+second layer costs one extra `DrawMesh` and *zero* extra CPU, because it is the same texture.
+
+**Why not `GameCondition.SkyOverlays`, which is the obvious hook.** #42 proposed it, and decompiling
+1.6 shows it cannot work for a mod that does not own the condition:
+
+1. `SkyManager.UpdateOverlays` **never draws**. All it does with that list is call `SetOverlayColor`.
+   Drawing happens in `GameCondition.GameConditionDraw`, which is `virtual` and per-condition — and
+   neither `GameCondition_Aurora` nor `GameCondition_DisableElectricity` overrides it, because neither
+   has an overlay in vanilla. Only `GameCondition_UnnaturalDarkness` does.
+2. **The colour is not ours to choose.** It passes `curSky.colors.overlay` with
+   `alpha = SkyTargetLerpFactor`. `ForcedOverlayColor` overrides the RGB, but the alpha is still
+   clobbered — discarding the night-visibility-and-fade ramp that makes this a night effect at all.
+3. `SkyOverlays` is `virtual`, so patching the base would silently stop applying to any condition that
+   overrides it.
+
+So we own the whole lifecycle and postfix **`GameConditionManager.GameConditionManagerDraw(Map)`**
+instead: the exact point in `Map.MapUpdate` where vanilla draws condition overlays, non-virtual, and
+already inside the `drawingMap && Find.CurrentMap == this` branch. It recurses into `Parent`, so the
+postfix guards `__instance == map.gameConditionManager` to fire once rather than twice. A
+`MapComponent` would have needed no patch at all, but `Map.ExposeComponents` scribes the component
+list into every save, making one close to irreversible — see the `MapComponent_SunShadowAxis`
+tombstone for what removing one later costs.
+
+**Performance.** This is the only part of the mod doing per-pixel CPU work, so it has a budget and a
+measurement rather than a hope.
+
+The dominant term is structural: everything is gated on
+`Aurora && AuroraCurtain && ActiveTintDriver(map) != null && strength > 0`, evaluated *before* any
+allocation. A solar flare or `Aurora` event is rare, short and night-only, so for almost all of a
+playthrough §11a is one null check per frame and the texture is never allocated. It is a rare-event
+effect, not an always-on one.
+
+While an aurora *is* running, the field is refreshed 6 rows of 128 per frame — a full refresh every
+~22 frames, about a third of a second. That is far slower than it sounds because regeneration is not
+what makes the aurora move: the GPU pans the texture every frame, supplying all the smooth motion,
+while regeneration supplies only change of *shape*, which a real curtain does over seconds. Rows baked
+~22 frames apart differ invisibly, and `AuroraNoise`'s determinism guarantees the overlapping lattice
+agrees exactly, so there is no seam at the slice boundary.
+
+Benchmarked under the .NET 8 JIT (RimWorld's Mono is slower — the `aurora_curtain_cost` probe carries
+the real figure):
+
+| slice | cost/frame | notes |
+|---|---|---|
+| 4 rows | ~0.25 ms | no cheaper than 6 — per-call setup dominates |
+| **6 rows (shipped)** | **~0.24 ms** | the knee of the curve |
+| 16 rows | ~0.60 ms | |
+| 128 rows (whole field) | ~4.9 ms | a dropped frame |
+
+That last row killed a design. The obvious implementation bakes the whole field on the aurora's first
+frame so nothing unbaked is displayed — i.e. a guaranteed dropped frame every time an aurora begins,
+at exactly the moment the player looks up. **It is also unnecessary**, which is the neat part: `new
+byte[]` is zero-filled, so an unbaked row is `RGBA(0,0,0,0)`, and under additive blending zero
+contributes *nothing*. An unbaked row is invisible, not garbage. Combined with the condition's own
+hour-long fade-in, the field quietly fills itself in over the first ~22 frames while the aurora is
+still too faint to see. So there is no priming pass. The corollary is that the texture is not
+re-zeroed between events, which is strictly better: the second aurora of a playthrough is fully formed
+immediately.
+
+Resolution is the lever of last resort — 96² is a 1.8× saving and 64² a 4× one, both for no structural
+change. `Resolution` and `RowsPerUpdate` are public so `AuroraCurtainCostProbe` times the values
+actually shipped rather than a copy that can drift out of step with them.
+
+**Two precision traps, both wrapped.** The drift clock is `TicksGame`, which grows without bound:
+
+- `AuroraCurtain.DriftWrapTicks` (1,400,000) wraps the tick count **in integer arithmetic before the
+  cast to float**. A float carries a 24-bit mantissa, so past 16,777,216 — about 278 in-game days — it
+  cannot represent every integer, and an old colony's aurora would advance in visible jerks and then
+  stop advancing at all.
+- `AuroraCurtain.DriftWrapCycle` (840 lattice units) wraps the drift distance itself, and **840 is not
+  arbitrary**. Every drift coefficient in the file is a multiple of 1/20 (0.35, 0.6, 0.2 for the
+  ribbons; 0.25 envelope; 0.4 hue), so wrapping at 840 shifts each field by a multiple of 42 = 2·3·7 —
+  divisible by every base period in the file (3, 7, 2, 2, 2, 3), with the octave doubling preserving
+  the ratio. Every field therefore lands on an exact multiple of its own period and the wrap is
+  bit-identical rather than a once-per-1.4M-ticks pop. `AuroraCurtainTests` pins both the constants'
+  mutual agreement and the field's invariance across the wrap, so the pair cannot silently diverge.
+
+**Hue agreement with §11.** `AuroraCurtain.DriverTintWeight` (0.3) is how far the driver condition's own
+colour pulls the palette. Partial on purpose: at 1 the curtain would be a single hue again — the exact
+failure being fixed, since vanilla's Aurora event cycles one colour at a time — while at 0 the ribbons
+and the wash beneath them visibly disagree about the hue during an event.
+
+**Testing.** `AuroraNoiseTests` and `AuroraCurtainTests` pin #42's acceptance criteria as assertions
+rather than as taste: that the hue field reaches all three palette bands over one tile ("several
+colours at once"), that `Wave` is ribbon-shaped rather than a uniform wash, that the field changes over
+time, that the envelope leaves both lit and empty sky, and that a field assembled from several slices
+is **byte-identical** to one baked in a single pass — the property the whole incremental refresh rests
+on. `Wave` is also pinned tileable at both seams. `aurora_curtain` is the live strength probe
+(`AuroraConditions.CurrentCurtainStrength`, shared with the patch), `aurora_curtain_cost` the Mono
+timing, and `Tests/Scenarios/aurora_curtain.json` is a timelapse pair (off, then on) because this is a
+temporal effect and a still A/B cannot show drift. It also pins the flag rule end-to-end: with the
+curtain off, `aurora_tint` must read 0.18, and with it on, 0.075.
 
 ## 12. Blood moon rendering (`Patch_BloodMoon`) — soft-compat with a third-party event
 
