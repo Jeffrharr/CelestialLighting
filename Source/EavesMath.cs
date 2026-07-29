@@ -14,7 +14,7 @@ namespace CelestialLighting;
 //   * §4's shadow mesh (Patch_ShadowMeshPerimeter) never consults the roof grid, so it only ever
 //     considers *edifices* as shadow casters. A porch roof, an overhang, or the eave that oversails
 //     a wall casts nothing — sunlight lands on the porch floor as if the roof above it were not
-//     there. With §1/§3's full elevation/azimuth sweep raking shadows across the map all day this
+//     there. With §1's full elevation/azimuth sweep raking shadows across the map all day this
 //     reads as an obvious hole, much more so than it did under vanilla's narrow shadow angles.
 //
 //   * §7b's sky occlusion (Patch_IndoorSkyOcclusion) treats every roofed cell as sealed, so the

@@ -17,7 +17,7 @@ public class CelestialLightingSettings : ModSettings
     // preset" without a separate dirty flag.
     public CelestialPreset preset = CelestialPreset.Cinematic;
 
-    // --- Aesthetic knobs (mirror PresetKnobs; placeholders until §1/§3/§7/§9 land) ---
+    // --- Aesthetic knobs (mirror PresetKnobs; placeholders until §1/§7/§9 land) ---
     public float shadowLengthScale = Presets.Cinematic.ShadowLengthScale;
     public float shadowStrength = Presets.Cinematic.ShadowStrength;
     public float desaturation = Presets.Cinematic.Desaturation;
@@ -119,7 +119,7 @@ public class CelestialLightingSettings : ModSettings
         // saturation post-process and the tint is the whole effect.
         PurkinjeSettings.TintStrength = desaturation;
 
-        // §1/§3's two Look sliders. Read by Patch_ShadowDirection (vector length + LightInfo
+        // §1's two Look sliders. Read by Patch_ShadowDirection (vector length + LightInfo
         // intensity) and Patch_ShadowStrength (the shader alpha) through one shared static, so the
         // length and the opacity can never end up on different presets.
         ShadowSettings.LengthScale = shadowLengthScale;

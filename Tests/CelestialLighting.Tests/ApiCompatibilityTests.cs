@@ -29,7 +29,7 @@ public class ApiCompatibilityTests
     [OneTimeTearDown]
     public void Dispose() => _module?.Dispose();
 
-    // --- GenCelestial (Patch_ShadowDirection, Patch_ShadowTilt) ---
+    // --- GenCelestial (Patch_ShadowDirection) ---
 
     [Test]
     public void GenCelestial_GetLightSourceInfo_Exists()
@@ -505,51 +505,37 @@ public class ApiCompatibilityTests
     }
 
     // --- SectionLayer_SunShadows / SectionLayer / Section (Patch_ShadowMeshPerimeter,
-    //     Patch_ShadowRoofInvalidation, Patch_SunShadowAxisInvalidation) ---
+    //     Patch_ShadowRoofInvalidation) ---
     //
-    // DrawLayer() used to be pinned here too, for Patch_ShadowTilt's Prefix. That patch is gone —
-    // §3's length variation is baked into the mesh instead of pushed per draw — so vanilla's own
-    // DrawLayer runs again and we no longer depend on its shape.
+    // DrawLayer() used to be pinned here too, for the per-draw shadow-tilt Prefix. That patch and
+    // the across-map tilt it served are both gone (DESIGN.md §3), so vanilla's own DrawLayer runs
+    // again and we no longer depend on its shape.
 
     [Test]
     public void SectionLayer_SunShadows_HasSectionConstructor()
     {
-        // Both subscription-widening Postfixes hang off this constructor: it is the only place a
-        // layer instance exists before anything can dirty it.
+        // Patch_ShadowRoofInvalidation's subscription-widening Postfix hangs off this
+        // constructor: it is the only place a layer instance exists before anything can dirty it.
         var type = GetType("Verse.SectionLayer_SunShadows");
         Assert.That(type, Is.Not.Null, "Verse.SectionLayer_SunShadows no longer exists");
         Assert.That(
             type!.Methods.Any(m => m.IsConstructor && m.Parameters.Count == 1
                 && m.Parameters[0].ParameterType.FullName == "Verse.Section"),
             Is.True,
-            "SectionLayer_SunShadows(Section) no longer exists — Patch_ShadowRoofInvalidation and "
-            + "Patch_SunShadowAxisInvalidation both resolve it by TargetMethod");
+            "SectionLayer_SunShadows(Section) no longer exists — Patch_ShadowRoofInvalidation "
+            + "resolves it by TargetMethod");
     }
 
     [Test]
-    public void MapMeshFlagDef_ConvertsToUlong()
+    public void MapComponent_HasMapConstructor()
     {
-        // Our own CL_SunShadowAxis flag is OR-ed into relevantChangeTypes and passed to
-        // WholeMapChanged through this implicit operator; without it the flag is unusable and the
-        // baked shadow tilt would never refresh.
-        var type = GetType("RimWorld.MapMeshFlagDef");
-        Assert.That(type, Is.Not.Null, "RimWorld.MapMeshFlagDef no longer exists");
-        Assert.That(
-            type!.Methods.Any(m => m.Name == "op_Implicit" && m.ReturnType.FullName == "System.UInt64"),
-            Is.True, "MapMeshFlagDef no longer converts implicitly to ulong");
-        Assert.That(type.Methods.Any(m => m.Name == "PostSetIndices"), Is.True,
-            "MapMeshFlagDef.PostSetIndices no longer exists — a mod-added flag would get a zero mask");
-    }
-
-    [Test]
-    public void MapComponent_HasMapComponentUpdateAndMapConstructor()
-    {
-        // MapComponent_SunShadowAxis rides the render-path Update (not the tick path, so it shares
-        // the per-frame geometry memo) and is instantiated reflectively by Map.FillComponents.
+        // The only MapComponent left is the inert MapComponent_SunShadowAxis tombstone, which
+        // exists so saves written before the tilt was removed still load without a Scribe error.
+        // Map.FillComponents instantiates it reflectively through this constructor; if the
+        // signature moved, the tombstone would fail to construct and log the error it exists to
+        // prevent. Delete this test with the tombstone.
         var type = GetType("Verse.MapComponent");
         Assert.That(type, Is.Not.Null, "Verse.MapComponent no longer exists");
-        Assert.That(type!.Methods.Any(m => m.Name == "MapComponentUpdate" && m.IsVirtual), Is.True,
-            "MapComponent.MapComponentUpdate no longer exists or is no longer virtual");
         Assert.That(
             type.Methods.Any(m => m.IsConstructor && m.Parameters.Count == 1
                 && m.Parameters[0].ParameterType.FullName == "Verse.Map"),

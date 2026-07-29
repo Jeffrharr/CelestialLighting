@@ -68,10 +68,12 @@ public static class ProbeRegistration
         ProbeRegistry.Register(new SectionRegenerateTimingProbe(
             "regen_us_eave_shade", "CelestialLighting.SectionLayer_EaveShade"));
 
-        // #11: does §3's shadow tilt actually render? Three probes because a ratio alone cannot say
-        // whether both ends were measured at all — the two lengths in cells are what make a 1.0
-        // ratio readable as "inert" rather than "both sentinels". See ShadowExtrusionProbe's header
-        // for why this reads baked vertex alpha instead of screenshot pixels.
+        // Inertness guard for the removed across-map shadow tilt (issues #11, #26). These three
+        // originally asked "does §3's gradient actually render?"; now they assert it does NOT, at
+        // both ends of the shadow axis. Still three probes because a ratio alone cannot say whether
+        // both ends were measured at all — the two lengths in cells are what make a 1.0 ratio
+        // readable as "genuinely equal" rather than "both sentinels". See ShadowExtrusionProbe's
+        // header for why this reads baked vertex alpha instead of screenshot pixels.
         ProbeRegistry.Register(new ShadowExtrusionProbe(
             "shadow_extrude_far_cells", ShadowExtrusionProbe.Metric.FarEdgeCells));
         ProbeRegistry.Register(new ShadowExtrusionProbe(

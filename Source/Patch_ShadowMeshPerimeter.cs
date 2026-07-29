@@ -55,14 +55,6 @@ public static class Patch_ShadowMeshPerimeter
         EaveShadowGrid casters =
             EaveShadowGrid.Build(map, cellRect, CelestialLightingFeatures.EaveShadows);
 
-        // Section 3's shadow tilt, baked. One multiplier for the whole section — it is a function of
-        // where the section sits along the shadow axis, not of the cell — so it is resolved once
-        // here and multiplied into every caster's vertex alpha below. The axis it is computed
-        // against is the one MapComponent_SunShadowAxis has stored, NOT the live shadow vector, so
-        // that every section on the map agrees no matter what order they were last rebuilt in; that
-        // component is also what rebuilds them once the axis has drifted far enough to matter.
-        float lengthScale = MapComponent_SunShadowAxis.LengthScaleFor(map, cellRect);
-
         LayerSubMesh subMesh = __instance.GetSubMesh(MatBases.SunShadow);
         subMesh.Clear(MeshParts.All);
         subMesh.verts.Capacity = cellRect.Area * 2;
@@ -78,12 +70,16 @@ public static class Patch_ShadowMeshPerimeter
                     continue;
 
                 // The alpha the "Custom/Sun shadow" vertex program multiplies the global extrusion
-                // vector by, so it is both "how tall is this caster" and — since §3's tilt is baked
-                // rather than pushed per draw — "how far along the shadow axis is this section".
-                // Formulas.ShadowCasterAlphaByte owns the clamp: an unchecked float->byte cast of an
-                // over-1.0 product would WRAP, turning a wall's shadow into a stub.
+                // vector by — i.e. "how tall is this caster", and nothing else, exactly as vanilla
+                // intends it (see DESIGN.md §3 for the shader scan that established this).
+                // Formulas.ShadowCasterAlphaByte owns the clamp vanilla's own plain
+                // `(byte)(255f * height)` lacks: that cast is unchecked, and staticSunShadowHeight
+                // is an unvalidated ThingDef float, so any modded def declaring more than 1.0 WRAPS
+                // (1.2 -> 306 -> 50) and collapses that building's shadow to a stub. Vanilla's own
+                // defs never exceed 1.0, but this Prefix replaces the whole method for every mod in
+                // the load order, so the clamp is ours to provide.
                 Color32 item = new Color32(
-                    0, 0, 0, Formulas.ShadowCasterAlphaByte(staticSunShadowHeight, lengthScale));
+                    0, 0, 0, Formulas.ShadowCasterAlphaByte(staticSunShadowHeight));
 
                 // Flat footprint quad (unmoved by the shader — LowVertexColor's zero alpha).
                 int count = subMesh.verts.Count;

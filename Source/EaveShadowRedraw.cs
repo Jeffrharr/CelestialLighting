@@ -6,7 +6,7 @@ namespace CelestialLighting;
 
 // Mesh invalidation for §15's shadow half — the direct counterpart of IndoorOcclusionRedraw, and
 // there for the same reason: the caster heights EaveShadowGrid resolves are baked into section
-// meshes, which RimWorld only rebuilds when a section is dirtied. Unlike §1/§3's shadow direction
+// meshes, which RimWorld only rebuilds when a section is dirtied. Unlike §1's shadow direction
 // (a per-frame shader global), flipping the eave toggle changes nothing on screen until those
 // meshes are regenerated, which reads as "the setting did nothing".
 //

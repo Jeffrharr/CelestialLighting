@@ -9,7 +9,7 @@ namespace CelestialLighting;
 // class, the settings window, and the SkyManager patch — are thin adapters that read primitives off
 // this file and write primitives back.
 //
-// What lives here: the opinionated presets — named bundles of the correlated aesthetic knobs (§1/§3
+// What lives here: the opinionated presets — named bundles of the correlated aesthetic knobs (§1
 // shadows, §7/§7b brightness floors, §9 desaturation, §13 weather dimming) so a player can pick one
 // and never open a slider.
 
@@ -31,17 +31,17 @@ public enum CelestialPreset
 // The correlated aesthetic knobs a preset sets in one go. Deliberately a plain readonly struct of
 // primitives: the ModSettings class copies these fields into its own persisted fields when a preset
 // is applied, so a preset is "a bundle of the same values", never a separate runtime code path
-// (DESIGN.md). None of these are consumed by live patches yet — §1/§3/§7/§9 are being built in
+// (DESIGN.md). None of these are consumed by live patches yet — §1/§7/§9 are being built in
 // parallel — so today they are persisted placeholders; see PresetKnobs' field comments for which
 // future subsystem each one feeds.
 public readonly struct PresetKnobs
 {
-    // §1/§3: multiplier on the solar-position shadow simulator's max shadow length. 1.0 keeps the
+    // §1: multiplier on the solar-position shadow simulator's max shadow length. 1.0 keeps the
     // physically-derived length; >1 exaggerates the dramatic near-horizon stretch for a cinematic
     // look. TODO(integration): consumed once Patch_ShadowDirection reads settings.
     public readonly float ShadowLengthScale;
 
-    // §1/§3: overall multiplier on shadow opacity/strength, [0,1]. TODO(integration): consumed once
+    // §1: overall multiplier on shadow opacity/strength, [0,1]. TODO(integration): consumed once
     // Patch_ShadowStrength reads settings.
     public readonly float ShadowStrength;
 

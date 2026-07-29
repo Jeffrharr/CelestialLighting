@@ -1,5 +1,5 @@
 {
-  "name": "shadow_tilt_gradient",
+  "name": "shadow_gradient_inertness",
   "saveFile": "minimal_colony.rws",
   "steps": [
     { "type": "SetTile", "args": { "latitude": "45" } },
@@ -24,13 +24,13 @@
     { "type": "LookAt", "args": { "zoom": "40" } },
     { "type": "Wait", "args": { "frames": "5" } },
 
-    { "type": "Probe", "args": { "probeName": "shadow_extrude_far_cells", "expectedValue": "3.13", "tolerance": "0.35" } },
-    { "type": "Probe", "args": { "probeName": "shadow_extrude_near_cells", "expectedValue": "2.48", "tolerance": "0.35" } },
-    { "type": "Probe", "args": { "probeName": "shadow_extrude_ratio", "expectedValue": "1.25", "tolerance": "0.16" } },
+    { "type": "Probe", "args": { "probeName": "shadow_extrude_far_cells", "expectedValue": "3.17", "tolerance": "0.35" } },
+    { "type": "Probe", "args": { "probeName": "shadow_extrude_near_cells", "expectedValue": "3.17", "tolerance": "0.35" } },
+    { "type": "Probe", "args": { "probeName": "shadow_extrude_ratio", "expectedValue": "1.00", "tolerance": "0.02" } },
 
     { "type": "SetTime", "args": { "hour": "7" } },
     { "type": "Wait", "args": { "frames": "5" } },
 
-    { "type": "Probe", "args": { "probeName": "shadow_extrude_ratio", "expectedValue": "1.27", "tolerance": "0.16" } }
+    { "type": "Probe", "args": { "probeName": "shadow_extrude_ratio", "expectedValue": "1.00", "tolerance": "0.02" } }
   ]
 }

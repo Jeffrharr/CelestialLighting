@@ -11,21 +11,21 @@ namespace CelestialLighting.Probes;
 // CelestialLighting.csproj) and compiled into TestMod/CelestialLighting.Probes.csproj instead — the
 // shipped mod must never take a hard reference on RimWorldTestHarness, a dev-only tool.
 //
-// WHAT THIS MEASURES, and why it is the test issue #11 asked for. §3 makes shadows a few percent
-// longer toward one edge of the map than the other. Nobody had ever confirmed that renders: the
-// original implementation pushed a rescaled _CastVect through a per-draw MaterialPropertyBlock, and
-// whether a property block can override a $Globals uniform the shader never declared was an open
-// engine question (PR #17). Now that the variation is baked into the mesh's vertex alpha instead,
-// the value is CPU-visible right up to the vertex program, so it can be read back and multiplied
-// out rather than inferred from pixels.
+// WHAT THIS MEASURES. The extruded shadow length, in cells, of a like caster at each end of the
+// shadow axis. §3 used to bake a few percent of across-map length variation into vertex alpha, and
+// this probe existed to prove that rendered (issue #11). That feature is gone, so the probe's job
+// has inverted: a ratio of exactly 1.00 is now the PASS condition, and it guards two things at
+// once — that no per-section length gradient survives anywhere in the bake path, and that the bake
+// path still runs at all, since a dead path would report one of the sentinels below rather than two
+// plausible cell counts.
 //
 // The shadow a cell casts is exactly
 //     |extrusion| = (vertex alpha / 255) * |_CastVect.xz|
 // because the shipped "Custom/Sun shadow" vertex program is
 //     position.xyz = in_COLOR0.www * _CastVect.xyz + in_POSITION0.xyz
-// (read off resources.assets in #17). So this probe reads the live global vector RimWorld pushed
-// this frame, reads the alpha this mod baked into two sections at opposite ends of the shadow axis,
-// and reports the resulting shadow lengths in CELLS. A ratio of 1.0 would mean the effect is inert.
+// (read off resources.assets in #17; DESIGN.md §3 keeps that scan). So this probe reads the live
+// global vector RimWorld pushed this frame, reads the alpha this mod baked into two sections at
+// opposite ends of the shadow axis, and reports the resulting shadow lengths in CELLS.
 //
 // WHY NOT PIXELS. A screenshot centroid measures whatever else is on screen too — that has inverted
 // the sign of a result here before. The alpha is the last value the CPU owns before the GPU applies
@@ -47,13 +47,14 @@ public sealed class ShadowExtrusionProbe : IProbe
         // The same for the section furthest against the axis.
         NearEdgeCells,
 
-        // Far / near. This is the number that decides pass/fail: 1.0 means no gradient rendered.
+        // Far / near. This is the number that decides pass/fail, and 1.0 is now what it should
+        // read: no across-map gradient survives. Anything else means one has come back.
         FarOverNear,
     }
 
     // Only sections holding a caster at least this tall are compared, so the ratio is between two
-    // like casters rather than between a wall and a sandbag. 1.0 is what walls, rock and coolers
-    // declare — see the survey in Formulas' bake comment.
+    // like casters rather than between a wall and a sandbag. 1.0 is what walls, natural rock, coolers
+    // and vents declare; the rest of the shipped range is {0.15, 0.17, 0.2, 0.3, 0.35, 0.5}.
     private const float MinCasterHeight = 0.99f;
 
     // Sentinels rather than exceptions, so a bad setup reads as an obviously wrong number in the
@@ -85,21 +86,21 @@ public sealed class ShadowExtrusionProbe : IProbe
 
         Section? far = null;
         Section? near = null;
-        float farFraction = float.MinValue;
-        float nearFraction = float.MaxValue;
+        float farProjection = float.MinValue;
+        float nearProjection = float.MaxValue;
 
         foreach (Section section in TallCasterSections(map))
         {
-            float fraction = PositionFraction(map, section, axis);
-            if (fraction > farFraction)
+            float projection = ProjectionAlongAxis(map, section, axis);
+            if (projection > farProjection)
             {
-                farFraction = fraction;
+                farProjection = projection;
                 far = section;
             }
 
-            if (fraction < nearFraction)
+            if (projection < nearProjection)
             {
-                nearFraction = fraction;
+                nearProjection = projection;
                 near = section;
             }
         }
@@ -185,18 +186,15 @@ public sealed class ShadowExtrusionProbe : IProbe
         return false;
     }
 
-    // The same pure call the mesh builder makes, so "which end of the map is this" means exactly the
-    // same thing to the probe as it does to the bake.
-    private static float PositionFraction(Map map, Section section, Vector2 axis)
+    // Signed distance, in cells, of a section's centre from the map centre along the shadow axis.
+    // Only the ORDER matters — the probe uses it to pick the two extreme sections and nothing else —
+    // so this deliberately skips the half-extent normalisation and the [-1, 1] clamp that §3's
+    // deleted Formulas helper applied, both of which could tie two corner sections at the extremes.
+    private static float ProjectionAlongAxis(Map map, Section section, Vector2 axis)
     {
         Vector3 center = section.CellRect.CenterVector3;
+        Vector2 dir = axis.normalized;
 
-        return Formulas.ShadowLengthPositionFraction(
-            offsetX: center.x - map.Size.x / 2f,
-            offsetZ: center.z - map.Size.z / 2f,
-            shadowDirX: axis.x,
-            shadowDirZ: axis.y,
-            mapSizeX: map.Size.x,
-            mapSizeZ: map.Size.z);
+        return (center.x - map.Size.x / 2f) * dir.x + (center.z - map.Size.z / 2f) * dir.y;
     }
 }
