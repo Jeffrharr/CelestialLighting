@@ -67,6 +67,11 @@
     <Compile Include="../../Source/SkyOcclusionWindow.cs" Link="SkyOcclusionWindow.cs" />
     <!-- Subsystem 14 pure core (sun-clock reconciliation). Depends on Formulas.cs, already linked. -->
     <Compile Include="../../Source/SunClockMath.cs" Link="SunClockMath.cs" />
+    <!-- Subsystem 18d pure core (limb refraction on vacuum maps). Depends on Formulas for the
+         sea-level refraction horizon it measures its sunlit overshoot against, on SunClockMath
+         (directly above) for the elevation->glow curve it re-references to the platform's own
+         horizon, and on BloodMoonMath for the Rec. 601 luma weights — all three already linked. -->
+    <Compile Include="../../Source/LimbRefractionMath.cs" Link="LimbRefractionMath.cs" />
     <!-- Subsystem 15 pure core (eaves). Verse-free, so it compiles under net8.0 as-is. Shared by
          §4's shadow mesh and §7b's occlusion, which is the whole reason it is its own file. -->
     <Compile Include="../../Source/EavesMath.cs" Link="EavesMath.cs" />
