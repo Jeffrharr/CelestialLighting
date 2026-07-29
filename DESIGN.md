@@ -169,6 +169,9 @@ Skylights) see an unmodified brightness; we only warm the *hue* of the darkening
 with the planned §7 night-radiance floor (which sets night brightness) rather than fighting it — §2
 tints, §7 will light.
 
+Both factors take the shared `inVacuum` gate and return `0` on an Odyssey space map: twilight *is*
+scattering, so with no air there is no twilight to shorten. See §18.
+
 ## 3. The sun-shadow shader — and the across-map tilt we removed (`Patch_ShadowMeshPerimeter`)
 
 This section is now two things: the record of what RimWorld's shadow shader actually does, which
@@ -925,6 +928,10 @@ other mods read (see "Conflict risk"). Every vanilla member it depends on
 (`WeatherWorker.CurSkyTarget`, `SkyColorSet.sky`/`.overlay`, and the `SolarPosition` inputs) is
 already covered by `ApiCompatibilityTests` for §2 and §1, so no new API assertions were needed.
 
+On an Odyssey space map the curve pins flat to `ZenithKelvin` and `TintStrength` goes to `0` via the
+shared `inVacuum` gate — the whole ramp is a Rayleigh reddening model and there is no air path to
+redden through. See §18 for why both halves are needed.
+
 ## 9. Low-light desaturation / Purkinje shift (`Patch_LowLightDesaturation`)
 
 As scene brightness falls, human vision loses colour discrimination and everything drifts toward a
@@ -1310,6 +1317,10 @@ see "Why the tint is weak" above for how they were set and why arguing them upwa
 ~0.075 was the wrong move. `AuroraConditions.CurrentSkyTintStrength` is shared by the patch and the `aurora_tint` live probe so
 they can never derive a different value from each other — the same discipline `SolarPosition.cs`
 enforces between the shadow patches.
+
+Both tint strengths take the shared `inVacuum` gate and return `0` on an Odyssey space map: the
+630 nm emission this models sits ~630 km up and a platform sits at 200 km, so a full-screen tint is
+the wrong presentation rather than merely too strong a one. See §18.
 
 Deferred: a matching moonlight/HUD hook and per-condition settings sliders (the tint constants are
 already isolated in `AuroraMath` for that). Lowest priority of the planned set.
@@ -2037,6 +2048,113 @@ treated as enclosed gets there by declaring biome data, exactly as Biomes! Caver
 Not cached, deliberately, even at nine callers: every call is per-map-per-frame at worst, and a
 BiomeDef-keyed cache would have to be invalidated against the harness's own `SetBiome` step, which
 mutates `map.Biome` at runtime so scenarios can sweep biomes inside one run.
+
+## 18. Vacuum maps (`Vacuum.cs`) — the shared `inVacuum` gate
+
+Odyssey adds space maps (orbital platforms, gravships in transit). Every subsystem above models
+light travelling *through atmosphere*, and vanilla runs the full ground lighting cycle on those maps
+regardless: `SkyManagerUpdate → CurrentSkyTarget → WeatherWorker.CurSkyTarget` opens with
+`GenCelestial.CurCelestialSunGlow(map)`, and `Space`/`Orbit` set neither `disableSkyLighting` nor
+`disableShadows`. So our patches all fire normally 200 km up, and several of them are wrong there.
+
+### Detection
+
+`BiomeDef.inVacuum` is the discriminator, and it is a field on **base** `RimWorld.BiomeDef` — all
+DLC code ships in the base assembly, verified by decompiling 1.6 `Assembly-CSharp.dll` and pinned by
+`ApiCompatibilityTests.BiomeDef_HasInVacuum`. So `map.Biome.inVacuum` compiles and evaluates with
+Odyssey uninstalled, reading `false` on every vanilla biome. **No `ModsConfig.OdysseyActive` gate and
+no soft-reference plumbing** — that would add a second branch that can only ever agree with this one,
+and a second thing to keep in sync.
+
+This is deliberately a per-*map* question. Per-cell questions (a pressurised gravship hull on a
+vacuum map) have `Verse.VacuumUtility.GetVacuum(cell, map)` / `IsRoomAirtight(room)`; nothing in
+§18a needs them, since sky colour is a whole-map property. §7b's indoor occlusion is the subsystem
+most likely to want the per-cell version later.
+
+### The convention (`Source/Vacuum.cs`)
+
+One gate, threaded the same way everywhere, because several subsystems land on it and each inventing
+its own plumbing would leave no single place to check whether a map is airless:
+
+1. The **adapter** — a `Patch_*` file, or a thin helper that already takes a `Map` — calls
+   `Vacuum.InVacuumForMap(map)` exactly once and passes the resulting `bool` down. That function is
+   a one-line `map.Biome.inVacuum` and is the only place in the mod that reads the field.
+2. The **pure-math function** takes `bool inVacuum` as its **last parameter, required and never
+   defaulted**, and early-returns the vacuum value at the top before any atmospheric math runs. A
+   defaulted parameter would let a new call site silently opt out of a gate whose whole value is
+   that you cannot forget it. The branch lives with the math it suppresses, not in the adapter, so
+   the shipped behaviour and the unit-pinned behaviour are literally the same code — an adapter-side
+   early-out would leave the pure function still able to return a nonzero atmospheric value that
+   nothing tests and nothing renders.
+3. The **offline test** pins the vacuum value *and* its sea-level counterpart in the same
+   `[TestCase]` sweep (`Tests/CelestialLighting.Tests/VacuumSuppressionTests.cs`). Asserting only
+   "vacuum == 0" passes just as happily when the sea-level effect has itself regressed to zero,
+   hiding a broken subsystem behind a green vacuum test; pinning the pair makes either regression
+   show up as a divergence rather than as a single number quietly agreeing with a stale expectation.
+
+Live probes read the same gate as their patch (`SkyColorTemperatureProbe`,
+`AuroraConditions.CurrentSkyTintStrength`) — the same discipline `SolarPosition.cs` enforces between
+the shadow patches. A probe reporting a tint that nothing renders would be worse than no probe.
+
+### 18a. The three effects that collapse
+
+Grouped because none of them needs new math, only the gate.
+
+| Subsystem | Vacuum behaviour | Why |
+|---|---|---|
+| Twilight colour (§2, `Formulas.TwilightFactor` / `TwilightWarmthFactor`) | **Zero**, at every elevation and latitude | Twilight *is* scattering — sunlight lighting air the ground can no longer see the sun through. No air, no twilight. Not a shortened ramp: the contribution goes to 0. The below-horizon civil-twilight persistence term goes too; it is if anything the more atmospheric of the two pieces, since it exists precisely because scattered light keeps lighting the sky after the sun is geometrically down. |
+| Sky colour temperature (§8, `SkyColorTemperature`) | `ColorTemperatureKelvin` **pins flat to `ZenithKelvin`**; `TintStrength` goes to **0** | Warm-at-low-sun is Rayleigh reddening through a long air path; the sun's own emitted spectrum does not change as it descends. |
+| Aurora tint (§11, `AuroraMath`) | **Off** — both sky and overlay strengths | The 630 nm emission sheet is ~630 km up; an orbital platform sits at 200 km, so you look *down* on a localised curtain rather than up through a sky-filling one. A full-screen colour blend is the wrong *shape*, not merely too strong, which is why it is a hard zero and not a scale factor. |
+
+The colour-temperature row needs both halves, and this is the one non-obvious bit. Pinning the
+Kelvin alone does **not** flatten the effect: the Helland fit puts 5772 K at roughly
+`(1.00, 0.95, 0.90)`, not pure white, so an elevation-dependent blend toward it would keep creeping
+amber into the sky as the sun dropped — the exact artefact §18a exists to remove. Zeroing
+`TintStrength` is what makes it flat. Pinning the Kelvin is what keeps every *other* consumer of the
+curve honest: the `sky_color_temperature` probe, and the limb-refraction work below, which needs an
+unreddened reference to redden away from.
+
+Both twilight paths take the gate, including the legacy glow-keyed-only one behind
+`CelestialLightingFeatures.CivilTwilightPersistence`, so turning that feature off cannot smuggle
+ground twilight back onto a space map.
+
+**Accepted consequence: §18a alone leaves a hard colour step at the orbital terminator.** That is
+correct as far as it goes — the ground twilight it removes was never physical there — but it is not
+the finished look. The deep-red limb refraction that physically replaces it (sunlight bent through
+the planet's atmospheric limb, the same physics that makes an eclipsed moon copper) is its own piece
+of work and must land after this, not instead of it.
+
+### What is *not* gated, and why
+
+- **Seasonal shadow lean (§1/§3) keeps its referent.** RimWorld's orbits are stationary:
+  `PlanetLayer.LongLatOf(tileID)` derives lat/long from a static `GetTileCenter`, and nothing gives
+  an orbit-layer tile a period or a phase. A space map sits permanently above one lat/long and gets
+  the same 24-hour cycle, seasonal sun path, and latitude behaviour as the surface tile below it. So
+  there is no 16-sunrises-a-day problem to model, and the lean is exactly the surface tile's.
+- **Weather dimming (§13) is already structurally zero.** `Space` rolls only `Orbit`, whose palette
+  §13's classifier already rates clear-family `(1,1,1)`; separately §13's `HasSky` rule ("fewer than
+  two nonzero weather commonalities ⇒ no sky") independently catches `Space`, which declares exactly
+  one. Two independent reasons for the right answer — see the palette table in `WeatherDimmingMath.cs`.
+- **Night light budget, shadow contrast, and eclipse response** each need real math rather than
+  suppression, and are tracked separately.
+
+### The elevation half — scoped out
+
+There is no continuous per-map altitude in vanilla to key a scale-height model to.
+`PlanetLayerSettings.extraCameraAltitude` is a *camera* parameter and `PlanetLayerDef.elevationString`
+is a display string, so what is actually available is a two-state model (surface layer vs. orbit
+layer), not a smooth "thinner air with height" ramp. A continuous model would be invented and
+anchored to something arbitrary, which cuts against how the rest of the mod is pinned.
+
+### Verification status
+
+Live A/B validation on an actual orbital map is **blocked on `Jeffrharr/RimWorldTestHarness#17`**:
+scenarios cannot currently reach the Orbit planet layer, because `SetTile`/`SetBiome` target
+planet-surface tiles and `OrbitLayer.CanSelectLayer` refuses the layer unless a world object already
+exists on it. That blocks validating, not writing — the pure halves are primitives-in/primitives-out
+and fully covered offline in `VacuumSuppressionTests.cs`. Pinning latitude will matter more than
+usual in those scenarios: with stationary orbits, the platform's lat/long fully determines its day
+length and sun path.
 
 ## Settings and presets
 
