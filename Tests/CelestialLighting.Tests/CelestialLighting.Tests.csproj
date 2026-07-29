@@ -55,6 +55,10 @@
     <Compile Include="../../Source/SkyColorTemperature.cs" Link="SkyColorTemperature.cs" />
     <Compile Include="../../Source/AuroraMath.cs" Link="AuroraMath.cs" />
     <Compile Include="../../Source/EclipseMath.cs" Link="EclipseMath.cs" />
+    <!-- §18e's vacuum eclipse response. Depends on EclipseMath above (it samples the same
+         disc-overlap coverage ramp the shipped patch drives) and on NightRadianceMath, whose §7a
+         glow->screen curve it reuses rather than inventing a second one. -->
+    <Compile Include="../../Source/VacuumEclipseMath.cs" Link="VacuumEclipseMath.cs" />
     <Compile Include="../../Source/EclipseStaging.cs" Link="EclipseStaging.cs" />
     <Compile Include="../../Source/EclipseModeRules.cs" Link="EclipseModeRules.cs" />
     <Compile Include="../../Source/EclipseSettings.cs" Link="EclipseSettings.cs" />
