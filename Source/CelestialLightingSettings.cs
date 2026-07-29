@@ -33,6 +33,14 @@ public class CelestialLightingSettings : ModSettings
     public bool lowLightDesaturation = true;
     public bool skyColorTemperature = true;
     public bool aurora = true;
+
+    // §11a's ribbon curtain, a sub-toggle of `aurora` above. Separate because it is the one part of the
+    // aurora with a per-frame render cost, so a player on a weak machine (or one who simply prefers the
+    // plain tint) can drop it without losing auroras entirely — and because turning it off restores
+    // §11's stronger solo tint rather than leaving a weaker sky. See CelestialLightingFeatures
+    // .AuroraCurtain.
+    public bool auroraCurtain = true;
+
     public bool eclipseDarkening = true;
     public bool bloodMoon = true;
     public bool pitchBlackNights = true;
@@ -107,6 +115,7 @@ public class CelestialLightingSettings : ModSettings
         CelestialLightingFeatures.LowLightDesaturation = lowLightDesaturation;
         CelestialLightingFeatures.SkyColorTemperature = skyColorTemperature;
         CelestialLightingFeatures.Aurora = aurora;
+        CelestialLightingFeatures.AuroraCurtain = auroraCurtain;
         CelestialLightingFeatures.EclipseDarkening = eclipseDarkening;
         CelestialLightingFeatures.BloodMoon = bloodMoon;
         CelestialLightingFeatures.PitchBlackNights = pitchBlackNights;
@@ -167,6 +176,7 @@ public class CelestialLightingSettings : ModSettings
         Scribe_Values.Look(ref weatherDimming, "weatherDimming", true);
         Scribe_Values.Look(ref skyColorTemperature, "skyColorTemperature", true);
         Scribe_Values.Look(ref aurora, "aurora", true);
+        Scribe_Values.Look(ref auroraCurtain, "auroraCurtain", true);
         Scribe_Values.Look(ref eclipseDarkening, "eclipseDarkening", true);
         Scribe_Values.Look(ref bloodMoon, "bloodMoon", true);
         Scribe_Values.Look(ref pitchBlackNights, "pitchBlackNights", true);

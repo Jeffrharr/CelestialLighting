@@ -627,6 +627,119 @@ public class ApiCompatibilityTests
         Assert.That(targetLerpDarken, Is.Not.Null, "SkyTarget.LerpDarken(A, B, t) no longer exists");
     }
 
+    // --- §11a aurora curtain (AuroraCurtainOverlay / Patch_AuroraCurtainDraw) ---
+
+    [Test]
+    public void SkyOverlay_AbstractContract_IsUnchanged()
+    {
+        // AuroraCurtainOverlay derives from this. The three abstract members are the load-bearing part:
+        // if Ludeon adds a fourth, or renames one, our subclass silently stops overriding it and the
+        // curtain either never draws or never animates — the "silent override breakage" failure mode the
+        // repo CLAUDE.md warns about, which compiles perfectly and does nothing.
+        var type = GetType("Verse.SkyOverlay");
+        Assert.That(type, Is.Not.Null, "Verse.SkyOverlay no longer exists");
+        Assert.That(type!.IsAbstract, Is.True, "Verse.SkyOverlay is no longer abstract");
+
+        foreach (string name in new[] { "TickOverlay", "DrawOverlay", "SetOverlayColor" })
+        {
+            var method = type.Methods.SingleOrDefault(m => m.Name == name);
+            Assert.That(method, Is.Not.Null, $"SkyOverlay.{name} no longer exists");
+            Assert.That(method!.IsAbstract, Is.True, $"SkyOverlay.{name} is no longer abstract");
+        }
+
+        // Reset is virtual rather than abstract — we override it, so it must stay overridable.
+        var reset = type.Methods.SingleOrDefault(m => m.Name == "Reset");
+        Assert.That(reset, Is.Not.Null, "SkyOverlay.Reset no longer exists");
+        Assert.That(reset!.IsVirtual, Is.True, "SkyOverlay.Reset is no longer virtual");
+    }
+
+    [Test]
+    public void SkyOverlay_DrawWorldOverlay_TakesAnExplicitAltitude()
+    {
+        // AuroraCurtainOverlay.DrawOverlay calls the four-argument form specifically, because it must pass
+        // AltitudeLayer.VisEffects rather than accept the AltitudeLayer.Weather default — see the comment
+        // there, and the ordering test below, for why a weather-altitude aurora gets dimmed out.
+        var type = GetType("Verse.SkyOverlay");
+        Assert.That(type, Is.Not.Null, "Verse.SkyOverlay no longer exists");
+
+        var method = type!.Methods.SingleOrDefault(m =>
+            m.Name == "DrawWorldOverlay" && m.Parameters.Count == 4);
+        Assert.That(method, Is.Not.Null,
+            "SkyOverlay.DrawWorldOverlay(Map, Material, float altitude, int layer) no longer exists");
+        Assert.That(method!.IsStatic, Is.True, "DrawWorldOverlay is no longer static");
+        Assert.That(method.Parameters[2].ParameterType.FullName, Is.EqualTo("System.Single"),
+            "DrawWorldOverlay's third parameter is no longer the altitude");
+    }
+
+    [Test]
+    public void AltitudeLayer_VisEffects_SitsAboveLightingOverlayAndBelowFogOfWar()
+    {
+        // §11a's whole reason for choosing VisEffects. The curtain must draw ABOVE LightingOverlay, or
+        // §7a's pitch-black nights multiply it toward invisibility in exactly the conditions it exists
+        // for, and BELOW FogOfWar so unexplored map stays fogged. That is an ordering claim about a
+        // vanilla enum, so assert the ordering rather than merely that the names still exist.
+        var type = GetType("Verse.AltitudeLayer");
+        Assert.That(type, Is.Not.Null, "Verse.AltitudeLayer no longer exists");
+
+        int Ordinal(string name)
+        {
+            var field = type!.Fields.SingleOrDefault(f => f.Name == name);
+            Assert.That(field, Is.Not.Null, $"AltitudeLayer.{name} no longer exists");
+            return System.Convert.ToInt32(field!.Constant);
+        }
+
+        Assert.That(Ordinal("VisEffects"), Is.GreaterThan(Ordinal("LightingOverlay")),
+            "AltitudeLayer.VisEffects no longer sits above LightingOverlay — the curtain would be dimmed by night darkening");
+        Assert.That(Ordinal("VisEffects"), Is.LessThan(Ordinal("FogOfWar")),
+            "AltitudeLayer.VisEffects no longer sits below FogOfWar — the curtain would draw over unexplored map");
+    }
+
+    [Test]
+    public void GameConditionManager_GameConditionManagerDraw_Exists()
+    {
+        // Patch_AuroraCurtainDraw's injection point. Non-virtual and public, which is why it was chosen
+        // over GameCondition.SkyOverlays (virtual, and never actually draws anything) — see that file's
+        // header for the full derivation.
+        var type = GetType("RimWorld.GameConditionManager");
+        Assert.That(type, Is.Not.Null, "RimWorld.GameConditionManager no longer exists");
+
+        var method = type!.Methods.SingleOrDefault(m =>
+            m.Name == "GameConditionManagerDraw" && m.Parameters.Count == 1);
+        Assert.That(method, Is.Not.Null, "GameConditionManager.GameConditionManagerDraw(Map) no longer exists");
+        Assert.That(method!.IsPublic, Is.True, "GameConditionManagerDraw is no longer public");
+        Assert.That(method.IsVirtual, Is.False,
+            "GameConditionManagerDraw became virtual — a base-method patch may no longer apply to every caller");
+        Assert.That(method.Parameters[0].ParameterType.Name, Is.EqualTo("Map"));
+    }
+
+    [Test]
+    public void ShaderDatabase_MoteGlow_Exists()
+    {
+        // The additive shader the curtain composites with. Additive is not a preference here: under alpha
+        // blending a bright ribbon over a near-black night has to be almost opaque before it reads at all,
+        // which is the flat-wash failure §11a exists to escape.
+        var type = GetType("Verse.ShaderDatabase");
+        Assert.That(type, Is.Not.Null, "Verse.ShaderDatabase no longer exists");
+
+        var field = type!.Fields.SingleOrDefault(f => f.Name == "MoteGlow");
+        Assert.That(field, Is.Not.Null, "ShaderDatabase.MoteGlow no longer exists");
+        Assert.That(field!.FieldType.FullName, Is.EqualTo("UnityEngine.Shader"));
+        Assert.That(field.IsStatic, Is.True, "ShaderDatabase.MoteGlow is no longer static");
+    }
+
+    [Test]
+    public void MeshPool_WholeMapPlane_Exists()
+    {
+        // What SkyOverlay.DrawWorldOverlay draws the curtain onto — a single map-sized quad, which is why
+        // this subsystem costs one draw call per layer rather than touching any section mesh.
+        var type = GetType("Verse.MeshPool");
+        Assert.That(type, Is.Not.Null, "Verse.MeshPool no longer exists");
+
+        var field = type!.Fields.SingleOrDefault(f => f.Name == "wholeMapPlane");
+        Assert.That(field, Is.Not.Null, "MeshPool.wholeMapPlane no longer exists");
+        Assert.That(field!.FieldType.FullName, Is.EqualTo("UnityEngine.Mesh"));
+    }
+
     // --- GenLocalDate (Patch_ShadowDirection) ---
 
     [Test]

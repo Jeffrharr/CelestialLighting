@@ -74,6 +74,25 @@ public static class CelestialLightingFeatures
     // it — the faithful pre-feature baseline for the harness A/B.
     public static bool Aurora = true;
 
+    // Feature key for AuroraCurtain (see CivilTwilightPersistenceKey for why it lives here).
+    public const string AuroraCurtainKey = "aurora_curtain";
+
+    // §11a auroral curtain: the structured, drifting ribbon overlay drawn over the map during the same
+    // two events §11 tints for. §11 alone can only ever put ONE colour on the whole map at once, which
+    // is why it had to stay subtle — turned up, a uniform hue reads as a colour grade rather than as an
+    // aurora. This draws actual bands instead (AuroraCurtain generates the field, AuroraCurtainOverlay
+    // renders it), so the effect gets its vividness from structure and movement rather than saturation.
+    //
+    // When off, the aurora falls back to §11's flat tint AT ITS FULL 0.18/0.08 — not to a weaker sky.
+    // That is what makes "off" the faithful pre-curtain baseline the harness A/B screenshots against,
+    // and it is why AuroraMath carries two pairs of tint peaks instead of one: turning this off has to
+    // restore exactly what the mod rendered before §11a existed, rather than leaving the sky dimmer
+    // than either version ever shipped.
+    //
+    // Gated under Aurora as well as on its own: Aurora is the master for "does this mod do auroras at
+    // all", and a curtain drawing with that master off would be an aurora the player switched off.
+    public static bool AuroraCurtain = true;
+
     // Feature key for NightRadiance (see CivilTwilightPersistenceKey for why the const lives here).
     public const string NightRadianceKey = "night_radiance";
 

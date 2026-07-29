@@ -128,8 +128,38 @@ public static class AuroraConditions
         float sunGlow = GenCelestial.CurCelestialSunGlow(map);
         float ramp = RampFor(driver);
         // Reads the same §18 vacuum gate the patch does (Vacuum.cs), so the aurora_tint probe keeps
-        // agreeing with the patch on a space map instead of reporting a tint nothing renders.
-        return AuroraMath.SkyTintStrength(sunGlow, ramp, Vacuum.InVacuumForMap(map));
+        // agreeing with the patch on a space map instead of reporting a tint nothing renders, and the
+        // same §11a curtain flag, so it reports the peak the tint is actually running at.
+        return AuroraMath.SkyTintStrength(sunGlow, ramp, CurtainEnabled, Vacuum.InVacuumForMap(map));
+    }
+
+    // Whether §11a's ribbon curtain is the thing carrying the aurora right now, which is what decides
+    // whether the flat §11 tint above runs at its solo peak or steps back to vanilla's as a base wash.
+    //
+    // Deliberately keyed on the FEATURE FLAGS ONLY, not on the curtain's instantaneous alpha. Both
+    // layers derive their strength from the same NightVisibility × ramp product, so "is the curtain
+    // drawing at this instant" and "is the tint non-zero at this instant" are the same question — using
+    // the alpha here would make the tint's peak depend on a value derived from the tint's own inputs,
+    // for no gain and one circular dependency. Keyed this way, the two layers ramp in lockstep and the
+    // handover is invisible.
+    public static bool CurtainEnabled =>
+        CelestialLightingFeatures.Aurora && CelestialLightingFeatures.AuroraCurtain;
+
+    // Peak-agnostic alpha for the §11a curtain overlay right now on this map. Same contract, and the
+    // same reason for existing, as CurrentSkyTintStrength above: Patch_AuroraCurtainDraw and the
+    // aurora_curtain live probe both come through here, so a scenario pins the number the renderer
+    // actually used rather than one recomputed alongside it.
+    public static float CurrentCurtainStrength(Map map)
+    {
+        if (!CurtainEnabled)
+            return 0f;
+
+        GameCondition driver = ActiveTintDriver(map);
+        if (driver == null)
+            return 0f;
+
+        float sunGlow = GenCelestial.CurCelestialSunGlow(map);
+        return AuroraMath.CurtainStrength(sunGlow, RampFor(driver));
     }
 
     // Fade ramp for a condition, translating its permanence into the "huge ticksLeft" AuroraMath
