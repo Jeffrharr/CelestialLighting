@@ -2223,14 +2223,26 @@ an in-game upload publishes `Source/`, `Tests/`, `Tools/`, `TestMod/`, the ~150K
 metadata carries absolute `/home/deck/Developer/...` build paths. Roughly 600KB of mod inside tens
 of MB of scaffolding.
 
-**Approach.** `publish.sh` stages a whitelist into `dist/CelestialLighting/` and points both
-uploads at that tree rather than at the repo. The whitelist is the entire mod — `About/About.xml`,
-`About/Preview.png`, `About/PublishedFileId.txt`, `1.6/Assemblies/CelestialLighting.dll` and
-`LICENSE` — because this mod adds no defs, textures or sounds, only patches. `LICENSE` is there for
-MIT's one obligation: the notice has to accompany copies, and a subscriber's mod folder is their
-copy — About.xml naming MIT is discoverability, not the notice. Steam gets it via a generated
+**Approach.** `publish.sh` stages a curated tree into `dist/CelestialLighting/` and points both
+uploads at that tree rather than at the repo. Two rules decide what lands there. Scaffolding-free
+essentials are named one by one — `About/About.xml`, `About/Preview.png`,
+`About/PublishedFileId.txt`, `1.6/Assemblies/CelestialLighting.dll`, `LICENSE` — because nothing
+about their path marks them as shippable. Loadable *content* is discovered instead: every tracked
+file under a `Defs`/`Textures`/`Sounds`/`Patches`/`Languages`/`Sprites`/`AssetBundles` directory,
+at the repo root or under a version directory, ships automatically. `LICENSE` is there for MIT's one
+obligation: the notice has to accompany copies, and a subscriber's mod folder is their copy —
+About.xml naming MIT is discoverability, not the notice. Steam gets it via a generated
 `workshop.vdf` fed to `steamcmd +workshop_build_item`; GitHub gets the same tree zipped and
 attached to a release by `gh release create`.
+
+Content is discovered rather than listed because the listed version shipped v1.0.0 broken. A guard
+was supposed to catch a forgotten manifest entry, but it tested `[ -d Defs ]` at the repo root while
+our content lived at `1.6/Defs/`, so it matched nothing and passed vacuously. The release went out
+with no `Defs/` at all, and every subscriber's log opened with `Failed to find
+RimWorld.MapMeshFlagDef named CL_SunShadowAxis. There are 15 defs of this type loaded.` —
+`MapMeshFlagDef`'s implicit `ulong` cast is `def?.mask ?? 0`, so the null DefOf threw nothing that
+pointed at the cause. A whitelist you must remember to update is the wrong shape for content whose
+only job is to be loaded.
 
 Two properties of that split are worth stating, because both are easy to get wrong later:
 
@@ -2245,14 +2257,31 @@ Two properties of that split are worth stating, because both are easy to get wro
   Automating the Steam half from CI would mean committing a `config.vdf` session to a repo secret,
   which trades a real credential for very little — so `--steam` is a local operation by design.
 
-Three guards, all covering failures that are silent at upload time:
+Four guards, all covering failures that are silent at upload time:
 
 - A version directory in the repo that `About.xml` does not declare (or vice versa) aborts the run.
   Shipping assemblies under an undeclared version means RimWorld never loads them; declaring a
   version with no assemblies means the mod loads and does nothing.
-- A directory RimWorld treats as loadable content (`Defs`, `Textures`, `Sounds`, `Patches`,
-  `Languages`, `Sprites`, `AssetBundles`) that no whitelist entry draws from aborts the run. This
-  is the whitelist's one real hazard — add content, forget the manifest, publish a mod missing it —
-  and it stays invisible until users report it.
+- Content sitting in one of those directories but never committed aborts the run. Discovery reads
+  the tracked file list, so an uncommitted def or texture is invisible to staging and would ship as
+  a missing one — far more often a forgotten `git add` than a deliberate exclusion.
+- **A staged assembly that binds a `[DefOf]` field to a def the package does not contain aborts the
+  run.** This is the other half of the v1.0.0 failure and the half discovery does not address:
+  shipping `Defs/` by default stops the omission, but assembly and def tree can drift apart in the
+  opposite direction too — delete the def, keep the field — with an identical symptom. Only the
+  staged tree can be asked, and only from outside the game: the dev install is a symlink to the
+  repo, so a running game always sees assembly and defs together and cannot reproduce a
+  disagreement that exists solely in the package. `PackagedDefOfTests` reads the staged DLL's
+  `[DefOf]` fields with Mono.Cecil, mirrors `DefOfHelper.BindDefsFor`'s rules (public static fields,
+  `[DefAlias]` overrides the name, `[MayRequire…]` fields are allowed to be null), and resolves each
+  against the staged `Defs/` plus RimWorld's own `Data/`. `publish.sh` points it at `dist/` through
+  `CL_PACKAGE_ROOT`; run bare from `./test.sh` it checks the repo tree, which is the same question
+  one step earlier.
 - `--dry-run` writes `dist/workshop.vdf` and prints both upload commands without running them.
   Both uploads are hard to walk back; this is the intended way to inspect what would ship.
+
+The guard was written against the failure still live on the Workshop: pointing it at the subscribed
+copy of v1.0.0 reproduces `MapMeshFlagDef CL_SunShadowAxis`, and pointing it at a freshly staged
+`dist/` passes. Both were confirmed in-game as well, by symlinking each package in turn as the
+`Mods/CelestialLighting` entry and booting the `moon_illumination` scenario: the published copy logs
+the error, the staged one logs nothing and passes.
