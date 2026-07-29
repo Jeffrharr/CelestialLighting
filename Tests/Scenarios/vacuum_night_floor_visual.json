@@ -1,0 +1,39 @@
+{
+  "name": "vacuum_night_floor_visual",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    { "type": "SetFeature", "args": { "featureName": "realistic_preset", "enabled": "true" } },
+
+    { "type": "SetTile", "args": { "latitude": "45" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "30" } },
+    { "type": "LookAt", "args": { "zoom": "18" } },
+    { "type": "SetTime", "args": { "hour": "0" } },
+    { "type": "Wait", "args": { "frames": "120" } },
+    { "type": "Probe", "args": { "probeName": "sun_elevation", "expectedValue": "-21.56", "tolerance": "0.05" } },
+    { "type": "Probe", "args": { "probeName": "night_radiance", "expectedValue": "0.0400", "tolerance": "0.0005" } },
+    { "type": "Screenshot", "args": { "fileName": "vnfv_ground_deepnight.png" } },
+
+    { "type": "LandInOrbit", "args": { "latitude": "45", "mapSize": "150" } },
+    { "type": "SetTerrain", "args": { "def": "OrbitalPlatform", "width": "30", "height": "30" } },
+    { "type": "PlaceThings", "args": { "def": "Wall", "stuff": "Steel", "layout": "grid", "cols": "3", "rows": "3", "spacing": "6" } },
+    { "type": "LookAt", "args": { "zoom": "18" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "30" } },
+    { "type": "SetTime", "args": { "hour": "0" } },
+    { "type": "Wait", "args": { "frames": "120" } },
+    { "type": "Probe", "args": { "probeName": "sun_elevation", "expectedValue": "-21.56", "tolerance": "0.05" } },
+    { "type": "Probe", "args": { "probeName": "night_radiance", "expectedValue": "0.031668", "tolerance": "0.0002" } },
+    { "type": "Screenshot", "args": { "fileName": "vnfv_orbit_deepnight.png" } },
+
+    { "type": "SetFeature", "args": { "featureName": "night_atmospheric_glow", "enabled": "false" } },
+    { "type": "Wait", "args": { "frames": "120" } },
+    { "type": "Probe", "args": { "probeName": "night_radiance", "expectedValue": "0.00048", "tolerance": "0.0002" } },
+    { "type": "Screenshot", "args": { "fileName": "vnfv_orbit_floorsoff.png" } },
+    { "type": "SetFeature", "args": { "featureName": "night_atmospheric_glow", "enabled": "true" } },
+    { "type": "Wait", "args": { "frames": "120" } },
+
+    { "type": "SetFeature", "args": { "featureName": "realistic_preset", "enabled": "false" } },
+    { "type": "Wait", "args": { "frames": "120" } },
+    { "type": "Probe", "args": { "probeName": "night_radiance", "expectedValue": "0.031668", "tolerance": "0.0002" } },
+    { "type": "Screenshot", "args": { "fileName": "vnfv_orbit_cinematic.png" } }
+  ]
+}
