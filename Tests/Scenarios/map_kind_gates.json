@@ -1,0 +1,142 @@
+{
+  "name": "map_kind_gates",
+  "saveFile": "minimal_colony.rws",
+  "description": "The negative space of the Biomes! Caverns work: which maps must NOT be gated. Pins orbit as not-enclosed but shadow-casting (the regression that folding MapSky.HasSky and MapSky.IsEnclosed into one predicate would cause), the two vanilla enclosed biomes as caught by each of the rule's two clauses, and a partly-roofed surface map as keeping its sky. Runs on vanilla defs alone \u2014 no Biomes! Caverns needed.",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "20"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "19"
+      }
+    },
+    {
+      "_comment": "ORBIT \u2014 THE REGRESSION THIS FILE EXISTS FOR. Orbit is skyless by \u00a713's weather rule (it offers exactly one weather), so the obvious implementation of cave compatibility \u2014 gate everything on MapSky.HasSky \u2014 would have silently stripped every sky effect from orbit while nominally fixing caves. It must read NOT enclosed, because it has no ceiling, only no atmosphere. Vanilla's BiomeDef.inVacuum is what separates the two. Orbit's own treatment is separate work; until then it must behave exactly as it does today.",
+      "type": "SetBiome",
+      "args": {
+        "biomeDef": "Orbit"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "map_enclosed",
+        "expectedValue": "0",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "_comment": "And its shadows survive too \u2014 orbit is where sunlight is completely unobstructed, which is why Gate B keys on disableShadows rather than on the sky question.",
+      "type": "Probe",
+      "args": {
+        "probeName": "map_draws_shadows",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "_comment": "Unchanged from before this work: \u00a713 still treats orbit as having no weather. That HasSky and IsEnclosed disagree here is the whole point of them being two predicates.",
+      "type": "Probe",
+      "args": {
+        "probeName": "weather_dimming",
+        "expectedValue": "0.0000",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "gates_a_orbit_dusk.png"
+      }
+    },
+    {
+      "_comment": "UNDERCAVE \u2014 the documented boundary case, and the live run corrected this file's first draft. Anomaly's undercave is a genuinely enclosed map, yet it reads NOT enclosed: XML inheritance appends rather than replaces baseWeatherCommonalities, so it arrives with TWO weathers (its own Undercave plus the Underground it inherits from Biome_Underground) and the count rule spares it. It does not set disableSkyLighting either \u2014 nothing in vanilla or in any installed workshop mod sets that field true, so the other clause cannot catch it. This is PRE-EXISTING \u00a713 behaviour, not a regression from the Caverns work: weather_dimming_skyless.json already pins Undercave as dimming under Fog for exactly this reason. Pinned at 0 so the gap is recorded rather than rediscovered, and so that closing it later shows up here as a deliberate change.",
+      "type": "SetBiome",
+      "args": {
+        "biomeDef": "Undercave"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "map_enclosed",
+        "expectedValue": "0",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "_comment": "UNDERGROUND \u2014 vanilla's cave biome, caught by the single-weather clause. The vanilla stand-in for the Biomes! Caverns shape.",
+      "type": "SetBiome",
+      "args": {
+        "biomeDef": "Underground"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "map_enclosed",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "_comment": "THE SUNLIT, MOSTLY-ROOFED CAVE. Biomes! Caverns' BMT_ShallowCave / BMT_DesertShallows / BMT_GlacialHollows are Geological Landforms BiomeVariantDefs layered over an ordinary surface tile, carving RoofRockThick regions into it rather than stamping the cavern sentinel roof. GL patches Map.Biomes (plural) and NOT Map.Biome, so map.Biome stays the surface biome and these maps keep their sky. Reproduced here by its structural shape \u2014 a real biome with a thick-rock roof over part of it \u2014 because SetBiome cannot apply a variant.",
+      "type": "SetBiome",
+      "args": {
+        "biomeDef": "TemperateForest"
+      }
+    },
+    {
+      "type": "SetRoof",
+      "args": {
+        "anchor": "155,198",
+        "def": "RoofRockThick",
+        "width": "40",
+        "height": "40",
+        "offset": "0,5"
+      }
+    },
+    {
+      "_comment": "The map still has a sky. A partly-roofed cave must never trip the biome gate \u2014 the roofed part is handled per-cell by \u00a77b's occlusion, which this change deliberately does not touch.",
+      "type": "Probe",
+      "args": {
+        "probeName": "map_enclosed",
+        "expectedValue": "0",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "map_draws_shadows",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "gates_b_shallow_cave_dusk.png"
+      }
+    },
+    {
+      "type": "Assert",
+      "args": {
+        "kind": "vision",
+        "images": "gates_b_shallow_cave_dusk.png, gates_a_orbit_dusk.png",
+        "prompt": "Both images are the same colony at the same dusk hour on different biomes. Neither map is enclosed, so BOTH should still show the mod's dusk lighting \u2014 a warm, low, directional sunset cast. PASS if both images show sunset-coloured lighting. FAIL if either looks flat, neutral and unlit as though the sun had been switched off, which would mean a map-kind gate fired on a map that has a clear view of the sky. Ignore terrain, rock, roof cover and plant differences between the two biomes; only the presence of sunset lighting matters."
+      }
+    }
+  ]
+}

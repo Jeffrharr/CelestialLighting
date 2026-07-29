@@ -28,6 +28,13 @@ public static class Patch_TwilightColor
 
     static void Postfix(Map map, ref SkyTarget __result)
     {
+        // Enclosed map (a Biomes! Caverns cavern, vanilla's undercave): there is no sky to
+        // catch a sunset, so leave the def's palette exactly as its author wrote it. Sits before the
+        // latitude lookup so it is a true no-op. See MapSkyMath for the rule, and for the two
+        // neighbouring questions it deliberately refuses to answer.
+        if (MapSky.IsEnclosed(map))
+            return;
+
         float strength = LatitudeEffect.StrengthForMap(map);
         if (strength <= 0f)
             return;

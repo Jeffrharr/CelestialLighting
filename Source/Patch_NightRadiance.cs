@@ -31,6 +31,14 @@ public static class Patch_NightRadiance
         if (!CelestialLightingFeatures.NightRadiance)
             return;
 
+        // Enclosed map (a Biomes! Caverns cavern, vanilla's undercave). This is the gate that
+        // matters most of the nine: the night floor this patch raises is starlight, airglow and
+        // MOONLIGHT, none of which reach through a rock ceiling, and this is also the only patch in
+        // the mod that writes SkyTarget.glow — so leaving it ungated did not merely tint a cave, it
+        // lit one. See MapSkyMath.
+        if (MapSky.IsEnclosed(map))
+            return;
+
         // Same shared solar-position simulator every other subsystem uses (Patch_ShadowDirection,
         // Patch_ShadowStrength), so night timing can never disagree with the shadow/twilight patches
         // about where the sun actually is.

@@ -37,6 +37,13 @@ public static class Patch_SkyColorTemperature
         if (!CelestialLightingFeatures.SkyColorTemperature)
             return;
 
+        // Enclosed map (a Biomes! Caverns cavern, vanilla's undercave): no sky means no
+        // atmospheric scattering to shift warm at dawn and cool at noon, so the def's palette stands
+        // as authored. Notably this is what keeps BMT_FungalForest's bioluminescent palette intact
+        // rather than dragging it toward a blackbody curve it was never meant to sit on. See MapSkyMath.
+        if (MapSky.IsEnclosed(map))
+            return;
+
         // Re-derive sun elevation from our own simulator (via the shared SolarPosition adapter)
         // rather than reading __result.glow, for the same reason Patch_TwilightColor does: elevation
         // is the physically correct key for a colour-temperature curve and tracks true sun position

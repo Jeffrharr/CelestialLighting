@@ -67,8 +67,17 @@ Q. Does it work with Dub's Skylights?
 Q. Known conflicts?
 
   Perspective: Eaves - Celestial Lighting re-implements the functionality in a compatible way.
-  Biomes! Caverns - Modifies some of the same code. Working on a patch.
   Tilt the Earth! - Celestial Lighting hits the same systems. The inspiration for this mod.
+
+Q. Does it work with Biomes! Caverns?
+
+  Yes. An underground map has no sky, so sunrise and sunset colour, sky colour temperature,
+  moonlight, auroras, blood moons and eclipses all switch themselves off down there, and shadows
+  follow the biome's own "no shadows" setting.
+
+  Caves do render dark, because a sealed cave has no sky to light it - that is the intended result
+  rather than a conflict, and lamps and torches work normally. If you prefer Caverns' brighter
+  ambient-lit look, raise "Minimum indoor brightness" or turn off "Black unlit interiors".
 
 Q. Can I use pieces of this mod in my work?
 	
@@ -120,14 +129,27 @@ Requires Harmony.</description>
          we run BEFORE that restore and therefore read skylit cells as unroofed, leaving them sky-lit.
          Loading after it is what makes that ordering hold. -->
     <li>Dubwise.DubsSkylights</li>
-    <!-- Shared patch target with opposite intent, declared so the ordering is at least deterministic:
-         Biomes! Caverns transpiles SectionLayer_LightingOverlay.Regenerate to make cavern roofs read
-         as unroofed (its caverns are meant to feel sky-lit), while §7b raises sky occlusion for roofed
-         cells. Our Postfix only ever RAISES the baked alpha, so it can add occlusion to a body that mod
-         has already transpiled without corrupting it — but the two features do want opposite things
-         about caverns specifically. With both installed, "Black unlit interiors" is the toggle to turn
-         off if you want Biomes! Caverns' look. -->
+    <!-- Shared patch target, declared so the ordering is deterministic. Biomes! Caverns stamps a
+         sentinel roof (BMT_RockRoofStable, isThickRoof) on every cell of a cavern map and then
+         transpiles SectionLayer_LightingOverlay.Regenerate so that roof reads as unroofed, which is
+         what keeps its caverns ambient-lit. §7b postfixes the same method but reads map.roofGrid
+         directly, so it does not see that rewrite and occludes the cavern as the thick roof it
+         actually is. That is deliberate and stays: a sealed cave has no sky, which is this mod's
+         whole premise, and it is purely visual (§7b writes vertex alpha, never the glow grid) with
+         "Minimum indoor brightness" as the control for anyone who prefers the lit look.
+
+         What DID change for compatibility is everything upstream of that: MapSky.IsEnclosed now
+         stands the sky-sourced effects down on a cavern (twilight, sky colour temperature, aurora,
+         blood moon, eclipses, and §5's night floor, which was lifting glow with MOONLIGHT under a
+         rock ceiling), and MapSky.DrawsShadows honours the disableShadows flag Caverns sets on all
+         three cavern biomes. See DESIGN.md §17. -->
     <li>BiomesTeam.BiomesCaverns</li>
+    <!-- Biomes! Core owns the BMT_RockRoofStable RoofDef that Caverns stamps, and Geological
+         Landforms owns the BiomeVariantDefs behind its partly-open "shallow cave" maps. We read
+         neither directly — both reach us through vanilla BiomeDef/RoofDef fields — but our
+         map-kind gates resolve against defs they define, so load after them. -->
+    <li>BiomesTeam.BiomesCore</li>
+    <li>m00nl1ght.GeologicalLandforms</li>
     <!-- Soft compat: Vanilla Races Expanded – Sanguophage owns the VRE_BloodMoonCondition
          GameCondition we recolour the night around (see Patch_BloodMoon / DESIGN.md §12). We take
          no hard reference to it — the effect is inert when it's absent — but load after it so our

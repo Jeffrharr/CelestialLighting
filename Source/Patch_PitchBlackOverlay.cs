@@ -48,7 +48,7 @@ public static class Patch_PitchBlackOverlay
         if (current == null || current.skyManager != __instance)
             return;
 
-        // Biomes that declare disableSkyLighting (the Odyssey undercave) are the one case where vanilla
+        // Biomes that declare disableSkyLighting are the one case where vanilla
         // deliberately switches the overlay OFF — it writes (1,1,1,0), alpha zero. Lerping that toward
         // opaque black raises the alpha again and re-enables an overlay vanilla just disabled, veiling a
         // map that is already black away from artificial light. Leave those maps alone.

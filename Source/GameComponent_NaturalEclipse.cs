@@ -98,9 +98,19 @@ public class GameComponent_NaturalEclipse : GameComponent
         return true;
     }
 
-    // Fire only when a transit is geometrically active on this map AND the map is not already under an
-    // Eclipse (ours from a previous tick, or a lingering vanilla one) — the two must never stack.
+    // Fire only when the map can see the sky at all, AND a transit is geometrically active on this map,
+    // AND the map is not already under an Eclipse (ours from a previous tick, or a lingering vanilla
+    // one) — the last two must never stack.
+    //
+    // The MapSky.IsEnclosed term is why a colony living in a Biomes! Caverns cavern is never handed an
+    // eclipse it could not possibly witness. It carries more weight here than in the render patches:
+    // this is the one place §10a REGISTERS a GameCondition, so an ungated natural eclipse underground
+    // would raise a real alert and apply real solar-power consequences on a map with no sun overhead —
+    // a gameplay effect rather than a tint. Deliberately per-map rather than hoisted out of the
+    // Find.Maps walk: the transit is a shared celestial fact, but whether a given map can witness it
+    // is a property of that map.
     private bool ShouldFireOn(Map map) =>
-        EclipseIntegration.ShouldEclipseBeActive(map)
+        !MapSky.IsEnclosed(map)
+        && EclipseIntegration.ShouldEclipseBeActive(map)
         && map.gameConditionManager.GetActiveCondition(GameConditionDefOf.Eclipse) == null;
 }

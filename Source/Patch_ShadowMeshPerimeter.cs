@@ -48,6 +48,18 @@ public static class Patch_ShadowMeshPerimeter
         Section section = SectionLayerAccess.GetSection(__instance);
         Map map = section.map;
 
+        // Shadowless map (Biomes! Caverns' cavern biomes, or any biome setting vanilla's
+        // disableShadows). Vanilla's own SectionLayer_SunShadows.Visible reads the same flag, so the
+        // mesh we are about to build could never be drawn; Biomes! Caverns additionally Prefix-skips
+        // DrawLayer on its caverns. Returning false keeps the vanilla body skipped — this Prefix
+        // REPLACES Regenerate rather than augmenting it, so falling through to the original would
+        // build vanilla's mesh instead of none at all, which is the opposite of what is wanted.
+        //
+        // Worth more here than at the other Gate B sites: this is the whole per-section mesh build,
+        // and on a cavern map every section was paying for it every time the shadow axis moved.
+        if (!MapSky.DrawsShadows(map))
+            return false;
+
         float y = AltitudeLayer.Shadows.AltitudeFor();
         CellRect cellRect = section.CellRect;
         cellRect.ClipInsideMap(map);

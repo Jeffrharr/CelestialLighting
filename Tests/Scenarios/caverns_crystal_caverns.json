@@ -1,0 +1,207 @@
+{
+  "name": "caverns_crystal_caverns",
+  "saveFile": "minimal_colony.rws",
+  "requiredMods": {
+    "BiomesTeam.BiomesCaverns": "2969748433",
+    "BiomesTeam.BiomesCore": "2038000893",
+    "m00nl1ght.GeologicalLandforms": "2773943594"
+  },
+  "description": "Biomes! Caverns compatibility on BMT_CrystalCaverns. Pins both map-kind gates (MapSky.IsEnclosed / MapSky.DrawsShadows), proves \u00a75's night floor stops lifting glow under a rock ceiling, and captures the cave at midnight, noon and dusk so the result can be judged against what the Caverns authors intended rather than only asserted. Requires Biomes! Caverns + Biomes! Core + Geological Landforms in the mod list.",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "20"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "_comment": "BASELINE on open air, midnight. Establishes that on a map with a sky the gates are open and \u00a75's night floor is doing its job \u2014 this is the value the cavern reading below has to fall away from.",
+      "type": "SetTime",
+      "args": {
+        "hour": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "map_enclosed",
+        "expectedValue": "0",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "map_draws_shadows",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "_comment": "Vanilla's midnight glow is 0; everything above it here is \u00a75's night floor (starlight + airglow + moonlight). Same figure weather_dimming.json already pins.",
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_glow",
+        "expectedValue": "0.1419",
+        "tolerance": "0.02"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cav_crystal_caverns_a_openair_midnight.png"
+      }
+    },
+    {
+      "_comment": "Become a cavern: crystal caverns \u2014 a glittering blue-grey cave palette. Biome and weather together, because the biome alone would leave the previous weather's palette on the map and the screenshot would not be the cave the Caverns authors built.",
+      "type": "SetBiome",
+      "args": {
+        "biomeDef": "BMT_CrystalCaverns"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "BMT_Calm",
+        "instant": "true"
+      }
+    },
+    {
+      "_comment": "The sentinel roof Caverns stamps on every cell at map generation. Not needed to trip any gate \u2014 every gate here is biome-driven \u2014 but without it the screenshots are not of a cave, and looking at the result is half the point of this scenario.",
+      "type": "SetRoof",
+      "args": {
+        "anchor": "155,198",
+        "def": "BMT_RockRoofStable",
+        "width": "124",
+        "height": "83",
+        "offset": "0,5"
+      }
+    },
+    {
+      "_comment": "THE GATE. 1 means a ceiling stands between this map and the sky, so the sky-sourced effects stand down.",
+      "type": "Probe",
+      "args": {
+        "probeName": "map_enclosed",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "_comment": "Gate B, independently. Caverns sets vanilla's disableShadows on all three cavern biomes.",
+      "type": "Probe",
+      "args": {
+        "probeName": "map_draws_shadows",
+        "expectedValue": "0",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "_comment": "THE ONE NUMERIC PROOF A BEHAVIOUR ACTUALLY CHANGED. \u00a75 was lifting the night floor with starlight and MOONLIGHT on a map under a rock ceiling; gated, CurSkyGlow falls back to vanilla's midnight zero. Every other gated effect is a colour lerp that no probe can see, which is why the screenshots below carry those.",
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_glow",
+        "expectedValue": "0.0000",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "_comment": "Already correct before this change (\u00a713 has had the map-level guard since issue #31) \u2014 pinned so a regression in the shared MapSky move shows up here rather than silently.",
+      "type": "Probe",
+      "args": {
+        "probeName": "weather_dimming",
+        "expectedValue": "0.0000",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cav_crystal_caverns_b_cavern_midnight.png"
+      }
+    },
+    {
+      "_comment": "Noon in the same cavern. This is the frame to look at for 'does this still read as the authors' cave': sun at its highest, so an ungated twilight/colour-temperature shift would be at its most visible.",
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "map_enclosed",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cav_crystal_caverns_c_cavern_noon.png"
+      }
+    },
+    {
+      "_comment": "Dusk \u2014 the single worst case for \u00a72. On an open map the sky is warming hard here; under a rock ceiling it must not.",
+      "type": "SetTime",
+      "args": {
+        "hour": "19"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cav_crystal_caverns_d_cavern_dusk.png"
+      }
+    },
+    {
+      "_comment": "And back to open air, same tick, to prove the gates are a live per-frame read rather than something latched when the map loaded.",
+      "type": "SetBiome",
+      "args": {
+        "biomeDef": "TemperateForest"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "map_enclosed",
+        "expectedValue": "0",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "map_draws_shadows",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cav_crystal_caverns_e_openair_dusk.png"
+      }
+    },
+    {
+      "type": "Assert",
+      "args": {
+        "kind": "vision",
+        "images": "cav_crystal_caverns_d_cavern_dusk.png, cav_crystal_caverns_e_openair_dusk.png",
+        "prompt": "Both images are the same colony at the same dusk hour; only the biome differs. The FIRST is an enclosed cave, the SECOND is open air. The SECOND should show a warm orange/amber sunset cast across the map. The FIRST must NOT: a sealed cave has no sky, so it should keep its own cool blue-grey (or, for the fungal biome, its own bioluminescent) palette with no sunset warmth at all. PASS if only the second image looks like a sunset. FAIL if the first image also carries an orange/amber warm cast, which would mean the twilight or colour-temperature effect is still being applied under a rock ceiling. Ignore differences in terrain, plants, rock and roof cover \u2014 changing the biome changes all of those and none of them are what this checks."
+      }
+    }
+  ]
+}

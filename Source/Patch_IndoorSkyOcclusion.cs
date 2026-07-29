@@ -64,7 +64,7 @@ public static class Patch_IndoorSkyOcclusion
         if (map == null)
             return;
 
-        // Biomes that declare disableSkyLighting (the Odyssey undercave) already have no sky
+        // Biomes that declare disableSkyLighting already have no sky
         // contribution at all — vanilla zeroes the whole overlay for them — so there is nothing here
         // to occlude, and touching it would only fight that explicit vanilla contract.
         if (map.Biome != null && map.Biome.disableSkyLighting)

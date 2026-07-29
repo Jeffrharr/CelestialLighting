@@ -39,7 +39,7 @@ public static class Patch_EaveShade
         // Biomes that disable shadows outright (SectionLayer_SunShadows.Visible checks the same flag)
         // have no cast band for an eave to match, so there is nothing to reconcile with and shading
         // the porch alone would invent the very mismatch this exists to remove.
-        if (current.Biome != null && current.Biome.disableShadows)
+        if (!MapSky.DrawsShadows(current))
         {
             EaveShadeOverlay.Clear();
             return;
