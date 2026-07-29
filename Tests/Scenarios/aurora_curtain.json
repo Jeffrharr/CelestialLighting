@@ -1,0 +1,34 @@
+{
+  "name": "aurora_curtain",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "20" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "40" } },
+    { "type": "SetTime", "args": { "hour": "1" } },
+
+    { "type": "Probe", "args": { "probeName": "aurora_curtain", "expectedValue": "0", "tolerance": "0.001" } },
+    { "type": "Screenshot", "args": { "fileName": "aurora_curtain_none.png" } },
+
+    { "type": "StartCondition", "args": { "conditionDef": "Aurora", "durationHours": "24", "agedHours": "2" } },
+
+    { "type": "Probe", "args": { "probeName": "aurora_curtain", "expectedValue": "0.55", "tolerance": "0.02" } },
+    { "type": "Probe", "args": { "probeName": "aurora_tint", "expectedValue": "0.075", "tolerance": "0.005" } },
+
+    { "type": "SetFeature", "args": { "featureName": "aurora_curtain", "enabled": "false" } },
+    { "type": "Probe", "args": { "probeName": "aurora_curtain", "expectedValue": "0", "tolerance": "0.001" } },
+    { "type": "Probe", "args": { "probeName": "aurora_tint", "expectedValue": "0.18", "tolerance": "0.005" } },
+    { "type": "Screenshot", "args": { "fileName": "aurora_curtain_off.png" } },
+    { "type": "Timelapse", "args": { "fromHour": "0", "toHour": "4", "stepHours": "0.1", "fileNamePrefix": "aurora_curtain_off", "fps": "8" } },
+
+    { "type": "SetFeature", "args": { "featureName": "aurora_curtain", "enabled": "true" } },
+    { "type": "Probe", "args": { "probeName": "aurora_curtain", "expectedValue": "0.55", "tolerance": "0.02" } },
+    { "type": "Screenshot", "args": { "fileName": "aurora_curtain_on.png" } },
+    { "type": "Timelapse", "args": { "fromHour": "0", "toHour": "4", "stepHours": "0.1", "fileNamePrefix": "aurora_curtain_on", "fps": "8" } },
+
+    { "type": "SetTime", "args": { "hour": "12" } },
+    { "type": "Probe", "args": { "probeName": "aurora_curtain", "expectedValue": "0", "tolerance": "0.001" } },
+    { "type": "Screenshot", "args": { "fileName": "aurora_curtain_daylight.png" } },
+
+    { "type": "Probe", "args": { "probeName": "aurora_curtain_cost", "expectedValue": "1500", "tolerance": "1500" } }
+  ]
+}

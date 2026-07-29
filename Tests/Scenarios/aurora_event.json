@@ -6,6 +6,7 @@
     { "type": "SetSeason", "args": { "dayOfYear": "40" } },
     { "type": "SetTime", "args": { "hour": "1" } },
     { "type": "SetFeature", "args": { "featureName": "pitch_black_nights", "enabled": "false" } },
+    { "type": "SetFeature", "args": { "featureName": "aurora_curtain", "enabled": "false" } },
     { "type": "Probe", "args": { "probeName": "aurora_tint", "expectedValue": "0", "tolerance": "0.001" } },
     { "type": "Screenshot", "args": { "fileName": "aurora_event_none.png" } },
     { "type": "StartCondition", "args": { "conditionDef": "Aurora", "durationHours": "24", "agedHours": "2" } },
