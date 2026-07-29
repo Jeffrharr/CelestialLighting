@@ -225,8 +225,18 @@ public class VacuumRadianceMathTests
             NightRadianceMath.MoonlightGlow(1f, 90f, MaxMoonlight));
 
         Assert.That(fullMoon, Is.GreaterThan(newMoon));
-        Assert.That(fullMoon - newMoon, Is.EqualTo(MaxMoonlight).Within(Tolerance),
-            "the moon term is passed through unchanged, not rescaled");
+
+        // The moon survives as a SOURCE and is corrected as a MEASUREMENT (§18c, the photometric half
+        // this issue left open). §7's glow scale is anchored on IlluminanceMath.FullMoonZenithLux,
+        // which is a sea-level figure with the atmosphere's extinction already in it, so above the
+        // atmosphere the same moon is worth 1/ZenithTransmittance == 1.294x the glow. Pinned as a
+        // pair with the sea-level value so the correction cannot silently drift into the surface
+        // model, and expressed as the ratio rather than as 0.194 so it stays readable as "one
+        // atmosphere's worth of extinction removed".
+        Assert.That(fullMoon - newMoon,
+            Is.EqualTo(MaxMoonlight / VacuumRadianceMath.ZenithTransmittance).Within(Tolerance),
+            "the vacuum moon is the sea-level moon with its extinction divided back out");
+        Assert.That((fullMoon - newMoon) / MaxMoonlight, Is.EqualTo(1.294f).Within(0.001f));
     }
 
     [Test]
@@ -258,8 +268,17 @@ public class VacuumRadianceMathTests
         Assert.That(SurfaceFloor(0f), Is.EqualTo(0.04f).Within(Tolerance));
         Assert.That(VacuumFloor(0f), Is.EqualTo(0.0317f).Within(0.0005f));
 
+        // Full moon: the pair INVERTS, and that inversion is the headline of the vacuum night model.
+        // A new-moon orbital night is DARKER than its sea-level counterpart (airglow is gone), while a
+        // full-moon orbital night is BRIGHTER (nothing is dimming the moon any more, §18c). Orbit
+        // therefore has strictly more dynamic range between its darkest and brightest nights than the
+        // ground does — 7.1x against 4.75x — which §18c's umbra inherits directly.
         Assert.That(SurfaceFloor(MaxMoonlight), Is.EqualTo(0.19f).Within(Tolerance));
-        Assert.That(VacuumFloor(MaxMoonlight), Is.EqualTo(0.1817f).Within(0.0005f));
+        Assert.That(VacuumFloor(MaxMoonlight), Is.EqualTo(0.2258f).Within(0.0005f));
+
+        Assert.That(VacuumFloor(0f), Is.LessThan(SurfaceFloor(0f)), "darkest orbital night is darkest");
+        Assert.That(VacuumFloor(MaxMoonlight), Is.GreaterThan(SurfaceFloor(MaxMoonlight)),
+            "brightest orbital night is brightest");
     }
 
     [Test]
