@@ -206,7 +206,7 @@ public class ApiCompatibilityTests
         var type = GetType("Verse.WeatherDef");
         Assert.That(type, Is.Not.Null, "Verse.WeatherDef no longer exists");
         // sandRate is Odyssey's; it exists on the base def regardless, and §13 reads all three both
-        // for the intensity band and — since issue #31 — as the precipitation evidence that overrides
+        // for the intensity band and as the precipitation evidence that overrides
         // an unconvincing modded palette (WeatherDimmingMath.PrecipitationEvidence).
         foreach (var fieldName in new[] { "rainRate", "snowRate", "sandRate" })
         {
@@ -217,7 +217,7 @@ public class ApiCompatibilityTests
         }
     }
 
-    // --- BiomeDef weather census (§13's structural guard, issue #31) ---
+    // --- BiomeDef weather census (§13's structural guard) ---
     //
     // WeatherDimming.HasSky decides whether a map has a sky at all by asking its biome how many
     // weathers it can actually roll. That closes the cave / pocket-map / orbit class without a defName

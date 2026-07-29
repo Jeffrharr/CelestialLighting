@@ -6,7 +6,7 @@ namespace CelestialLighting;
 // being classified from its palette and precipitation rates (DESIGN.md §13).
 //
 // WHY THIS EXISTS RATHER THAN A LIST OF OURS. §13's premise is that a modded weather should be
-// handled automatically, from data it already ships — and the audit behind issue #31 shows that
+// handled automatically, from data it already ships — and the audit behind §13 shows that
 // premise holds for 79 of the 81 WeatherDefs across vanilla plus 24 installed workshop mods. But
 // "holds for almost everything" is not "holds for everything", and the residue is genuinely
 // undecidable from data: Vanilla Psycasts Expanded's VPE_RadioactiveFog and Vanilla Events

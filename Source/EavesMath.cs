@@ -18,8 +18,7 @@ namespace CelestialLighting;
 //     reads as an obvious hole, much more so than it did under vanilla's narrow shadow angles.
 //
 //   * §7b's sky occlusion (Patch_IndoorSkyOcclusion) treats every roofed cell as sealed, so the
-//     same porch goes pitch black at noon while standing wide open to the sky on three sides
-//     (issue #33).
+//     same porch goes pitch black at noon while standing wide open to the sky on three sides.
 //
 // Both want the same finer distinction, so it lives here once. A roofed cell is either ENCLOSED —
 // part of a room that holds its own temperature, i.e. genuinely inside a building — or an EAVE: it

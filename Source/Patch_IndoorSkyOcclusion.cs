@@ -188,7 +188,7 @@ public static class Patch_IndoorSkyOcclusion
     // The roof an EAVE carries (§15: roofed, but part of a room that breathes outdoor air — a porch,
     // a lean-to, the overhang that oversails a wall) is not passed on as "roofed" at all. Blacking a
     // porch out at noon while it stood open to the sky on three sides was this feature's most
-    // conspicuous artifact (issue #33), and Room.UsesOutdoorTemperature is the game's own test for
+    // conspicuous artifact, and Room.UsesOutdoorTemperature is the game's own test for
     // the distinction — sharing it with §15's shadow half means the two halves cannot disagree about
     // which cells are inside. Deliberately NOT gated on CelestialLightingFeatures.EaveShadows: that
     // flag turns a new *effect* on and off, whereas this is a correction to a question §7b was

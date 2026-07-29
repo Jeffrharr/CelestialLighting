@@ -5,7 +5,7 @@ namespace CelestialLighting;
 // In the shipped mod every switch is simply "on" and nothing flips it at runtime yet — the default
 // value IS the shipped behaviour, so the effect works with neither of the two intended consumers
 // present:
-//   1. The planned settings screen (PR #23) will drive these from user-facing toggles.
+//   1. The settings screen drives these from user-facing toggles.
 //   2. The dev-only test harness flips them via RimWorldTestHarness's SetFeature step — bridged in
 //      CelestialLighting.Probes' ProbeRegistration, so the shipped assembly still never references
 //      the harness — letting a single scenario screenshot a colony with an effect off and then on
@@ -175,7 +175,7 @@ public static class CelestialLightingFeatures
     // — the faithful pre-feature baseline for the harness A/B.
     //
     // Note the asymmetry with §7b: this flag gates only the shadow-caster injection. §7b's matching
-    // "a porch is not indoors" fix (issue #33) is unconditional, because there it is not a new effect
+    // "a porch is not indoors" fix is unconditional, because there it is not a new effect
     // but a correction to a question §7b was already asking wrongly.
     public static bool EaveShadows = true;
 

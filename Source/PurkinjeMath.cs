@@ -57,8 +57,8 @@ public static class PurkinjeMath
     // At full rod vision, how much of the scene's colour saturation is removed. Not 1.0 (a total
     // greyscale) on purpose: real scotopic vision isn't perfectly colourless, and leaving a sliver
     // of saturation keeps the night from reading as a flat black-and-white photo. The remaining
-    // fraction is (1 - MaxSaturationDrop). This is a sensible default; the settings pass (issue #9
-    // umbrella) is expected to expose it as a slider.
+    // fraction is (1 - MaxSaturationDrop). This is a sensible default; the settings pass is
+    // expected to expose it as a slider.
     public const float MaxSaturationDrop = 0.60f;
 
     // How far into rod (scotopic) vision the current glow puts us, in [0, 1]. 0 = full cone/colour
