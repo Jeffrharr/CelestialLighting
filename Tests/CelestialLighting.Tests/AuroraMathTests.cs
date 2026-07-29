@@ -91,29 +91,29 @@ public class AuroraMathTests
     public void SkyTintStrength_IsZero_InDaylight()
     {
         // Bright sky (glow above MaxVisibleGlow) yields no tint even at full ramp.
-        Assert.That(AuroraMath.SkyTintStrength(sunGlow: 0.9f, ramp: 1f), Is.EqualTo(0f).Within(Tolerance));
+        Assert.That(AuroraMath.SkyTintStrength(sunGlow: 0.9f, ramp: 1f, inVacuum: false), Is.EqualTo(0f).Within(Tolerance));
     }
 
     [Test]
     public void SkyTintStrength_IsZero_WhenRampZero()
     {
         // Fully dark sky but the condition has fully faded: still no tint.
-        Assert.That(AuroraMath.SkyTintStrength(sunGlow: 0f, ramp: 0f), Is.EqualTo(0f).Within(Tolerance));
+        Assert.That(AuroraMath.SkyTintStrength(sunGlow: 0f, ramp: 0f, inVacuum: false), Is.EqualTo(0f).Within(Tolerance));
     }
 
     [Test]
     public void SkyTintStrength_IsMaxAtPeak()
     {
         // Pitch dark and mid-condition: peaks exactly at MaxSkyTintStrength.
-        Assert.That(AuroraMath.SkyTintStrength(sunGlow: 0f, ramp: 1f),
+        Assert.That(AuroraMath.SkyTintStrength(sunGlow: 0f, ramp: 1f, inVacuum: false),
             Is.EqualTo(AuroraMath.MaxSkyTintStrength).Within(Tolerance));
     }
 
     [Test]
     public void OverlayTintStrength_IsWeakerThanSky_AtSamePeak()
     {
-        float sky = AuroraMath.SkyTintStrength(sunGlow: 0f, ramp: 1f);
-        float overlay = AuroraMath.OverlayTintStrength(sunGlow: 0f, ramp: 1f);
+        float sky = AuroraMath.SkyTintStrength(sunGlow: 0f, ramp: 1f, inVacuum: false);
+        float overlay = AuroraMath.OverlayTintStrength(sunGlow: 0f, ramp: 1f, inVacuum: false);
         Assert.That(overlay, Is.LessThan(sky));
         Assert.That(overlay, Is.EqualTo(AuroraMath.MaxOverlayTintStrength).Within(Tolerance));
     }
@@ -122,7 +122,7 @@ public class AuroraMathTests
     public void SkyTintStrength_ClampsRampAboveOne()
     {
         // Defensive: a ramp passed in above 1 must not push strength past the peak.
-        Assert.That(AuroraMath.SkyTintStrength(sunGlow: 0f, ramp: 5f),
+        Assert.That(AuroraMath.SkyTintStrength(sunGlow: 0f, ramp: 5f, inVacuum: false),
             Is.EqualTo(AuroraMath.MaxSkyTintStrength).Within(Tolerance));
     }
 

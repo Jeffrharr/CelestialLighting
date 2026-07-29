@@ -52,7 +52,7 @@ public class FormulasTests
     [Test]
     public void TwilightFactor_PeaksAtPeakGlow_FullStrength()
     {
-        float factor = Formulas.TwilightFactor(Formulas.TwilightPeakGlow, strength: 1f);
+        float factor = Formulas.TwilightFactor(Formulas.TwilightPeakGlow, strength: 1f, inVacuum: false);
         Assert.That(factor, Is.EqualTo(0.55f).Within(Tolerance));
     }
 
@@ -63,14 +63,14 @@ public class FormulasTests
         // 0 (the equator), sunGlow exactly at the peak still yields a small nonzero nudge —
         // Lerp(0.15, 0.55, 0) == 0.15, not 0. Patch_TwilightColor separately early-returns when
         // ctx.Strength <= 0, which is what actually keeps the equator untouched in practice.
-        float factor = Formulas.TwilightFactor(Formulas.TwilightPeakGlow, strength: 0f);
+        float factor = Formulas.TwilightFactor(Formulas.TwilightPeakGlow, strength: 0f, inVacuum: false);
         Assert.That(factor, Is.EqualTo(0.15f).Within(Tolerance));
     }
 
     [Test]
     public void TwilightFactor_IsZero_FarOutsideBand()
     {
-        float factor = Formulas.TwilightFactor(sunGlow: 0.99f, strength: 1f);
+        float factor = Formulas.TwilightFactor(sunGlow: 0.99f, strength: 1f, inVacuum: false);
         Assert.That(factor, Is.EqualTo(0f).Within(Tolerance));
     }
 
@@ -78,15 +78,15 @@ public class FormulasTests
     public void TwilightFactor_IsZero_AtExactBandEdge()
     {
         float bandWidth = Formulas.TwilightBandWidth(1f);
-        float factor = Formulas.TwilightFactor(Formulas.TwilightPeakGlow + bandWidth, strength: 1f);
+        float factor = Formulas.TwilightFactor(Formulas.TwilightPeakGlow + bandWidth, strength: 1f, inVacuum: false);
         Assert.That(factor, Is.EqualTo(0f).Within(Tolerance));
     }
 
     [Test]
     public void TwilightFactor_IsSymmetric_AroundPeakGlow()
     {
-        float below = Formulas.TwilightFactor(Formulas.TwilightPeakGlow - 0.05f, strength: 1f);
-        float above = Formulas.TwilightFactor(Formulas.TwilightPeakGlow + 0.05f, strength: 1f);
+        float below = Formulas.TwilightFactor(Formulas.TwilightPeakGlow - 0.05f, strength: 1f, inVacuum: false);
+        float above = Formulas.TwilightFactor(Formulas.TwilightPeakGlow + 0.05f, strength: 1f, inVacuum: false);
         Assert.That(below, Is.EqualTo(above).Within(Tolerance));
     }
 
@@ -106,7 +106,7 @@ public class FormulasTests
         // The refactor that extracted TwilightPeakHeight must not change TwilightFactor's peak:
         // at TwilightPeakGlow the band factor equals the peak height exactly.
         Assert.That(
-            Formulas.TwilightFactor(Formulas.TwilightPeakGlow, strength: 0.5f),
+            Formulas.TwilightFactor(Formulas.TwilightPeakGlow, strength: 0.5f, inVacuum: false),
             Is.EqualTo(Formulas.TwilightPeakHeight(0.5f)).Within(Tolerance));
     }
 
@@ -145,8 +145,8 @@ public class FormulasTests
     {
         // Above the horizon the persistence term is 0, so the combined factor is exactly the
         // original glow-keyed band — daytime/dusk behaviour is unchanged by this refinement.
-        float glowBand = Formulas.TwilightFactor(Formulas.TwilightPeakGlow, strength: 1f);
-        float combined = Formulas.TwilightWarmthFactor(Formulas.TwilightPeakGlow, elevationDegrees: 20f, strength: 1f);
+        float glowBand = Formulas.TwilightFactor(Formulas.TwilightPeakGlow, strength: 1f, inVacuum: false);
+        float combined = Formulas.TwilightWarmthFactor(Formulas.TwilightPeakGlow, elevationDegrees: 20f, strength: 1f, inVacuum: false);
         Assert.That(combined, Is.EqualTo(glowBand).Within(Tolerance));
     }
 
@@ -156,7 +156,8 @@ public class FormulasTests
         // The whole point of the refinement: with the sun below the horizon vanilla glow has pinned
         // to 0 (glow band -> 0), yet the combined factor is still positive during civil twilight.
         float persistencePeak = Formulas.TwilightWarmthFactor(
-            sunGlow: 0f, elevationDegrees: Formulas.CivilTwilightPeakDegrees, strength: 1f);
+            sunGlow: 0f, elevationDegrees: Formulas.CivilTwilightPeakDegrees, strength: 1f,
+            inVacuum: false);
         Assert.That(persistencePeak, Is.EqualTo(Formulas.TwilightPeakHeight(1f)).Within(Tolerance));
     }
 
@@ -164,7 +165,7 @@ public class FormulasTests
     public void TwilightWarmthFactor_IsZero_AtDeepNight()
     {
         // Sun well below civil twilight and glow at 0: no warm tint at all — night is left dark.
-        float factor = Formulas.TwilightWarmthFactor(sunGlow: 0f, elevationDegrees: -30f, strength: 1f);
+        float factor = Formulas.TwilightWarmthFactor(sunGlow: 0f, elevationDegrees: -30f, strength: 1f, inVacuum: false);
         Assert.That(factor, Is.EqualTo(0f).Within(Tolerance));
     }
 
@@ -174,8 +175,8 @@ public class FormulasTests
         // Both pieces are ~0 at the horizon (the glow band's left flank reaches 0 there at full
         // strength, and the persistence pulse starts at 0), so crossing sunset must not produce a
         // jump in the warm tint. Sample just above and just below and require them to stay close.
-        float justAbove = Formulas.TwilightWarmthFactor(sunGlow: 0.001f, elevationDegrees: 0.05f, strength: 1f);
-        float justBelow = Formulas.TwilightWarmthFactor(sunGlow: 0f, elevationDegrees: -0.05f, strength: 1f);
+        float justAbove = Formulas.TwilightWarmthFactor(sunGlow: 0.001f, elevationDegrees: 0.05f, strength: 1f, inVacuum: false);
+        float justBelow = Formulas.TwilightWarmthFactor(sunGlow: 0f, elevationDegrees: -0.05f, strength: 1f, inVacuum: false);
         Assert.That(justBelow, Is.EqualTo(justAbove).Within(0.02f));
     }
 
