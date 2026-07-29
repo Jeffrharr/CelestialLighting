@@ -58,7 +58,7 @@ Q. Are the darker nights are purely cosmetic?
 
 Q. Can I add or remove it mid-save?
 
-  Yes, both. The mod adds no defs, items or buildings to your save.
+  Yes, both. Nothing this mod makes is written into your save - no items, buildings or world state - so removing it leaves the colony exactly as it was. Loading a save that once had it installed may print a few red errors on that first load only; they are harmless.
 
 Q. Does it work with Dub's Skylights?
 
