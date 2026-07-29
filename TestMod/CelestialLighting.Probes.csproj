@@ -35,6 +35,9 @@
     <Compile Include="../Source/Probes/PurkinjeProbe.cs" Link="PurkinjeProbe.cs" />
     <Compile Include="../Source/Probes/NightDesaturationProbe.cs" Link="NightDesaturationProbe.cs" />
     <Compile Include="../Source/Probes/SkyColorTemperatureProbe.cs" Link="SkyColorTemperatureProbe.cs" />
+    <!-- §18d's limb-refraction ramp. Four metrics off one class, because a temporal effect
+         needs its own sun-elevation x-axis probed alongside the values plotted on it. -->
+    <Compile Include="../Source/Probes/LimbRefractionProbe.cs" Link="LimbRefractionProbe.cs" />
     <Compile Include="../Source/Probes/AuroraTintProbe.cs" Link="AuroraTintProbe.cs" />
     <Compile Include="../Source/Probes/EclipseCoverageProbe.cs" Link="EclipseCoverageProbe.cs" />
     <Compile Include="../Source/Probes/BloodMoonProbe.cs" Link="BloodMoonProbe.cs" />
