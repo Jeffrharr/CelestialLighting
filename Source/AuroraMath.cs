@@ -63,12 +63,35 @@ public static class AuroraMath
     //
     // A flat wash and a textured aurora are not the same effect at different strengths, so matching
     // vanilla's *visible* intensity is the wrong target; the right one is a tint you notice without
-    // it reading as a colour grade. Roughly half, ~2.4x vanilla, lands there. Getting genuinely
-    // vivid auroras needs spatial structure and movement rather than a bigger number here — that is
-    // issue #42, and if it ships these two drop back toward vanilla's values as the base layer
-    // underneath it.
+    // it reading as a colour grade. Roughly half, ~2.4x vanilla, lands there.
+    //
+    // These are the peaks used when §11a's curtain is NOT drawing — either because the player turned
+    // it off, or because the harness turned it off to shoot the A/B baseline. They are therefore the
+    // faithful pre-curtain behaviour, which is exactly what the feature-flag rule documented in
+    // CelestialLightingFeatures demands of an "off" state.
     public const float MaxSkyTintStrength = 0.18f;
     public const float MaxOverlayTintStrength = 0.08f;
+
+    // ...and these are the peaks used when the curtain IS drawing: all the way back to vanilla
+    // GameCondition_Aurora's own 0.075/0.025.
+    //
+    // The whole argument for 0.18 was that a flat tint is the only aurora we render, so it has to
+    // carry the effect alone. Once ribbons carry it that argument expires, and the flat layer's job
+    // shrinks to seating the curtain in a sky of the right colour so the ribbons look like they are
+    // IN the night rather than pasted ON it. Anything stronger underneath re-introduces the exact
+    // green colour grade #41 halved and #42 diagnosed, only now with ribbons on top of it.
+    public const float CurtainedSkyTintStrength = 0.075f;
+    public const float CurtainedOverlayTintStrength = 0.025f;
+
+    // Peak alpha of the §11a curtain overlay itself, at full night and mid-condition.
+    //
+    // Much larger than the flat-tint numbers above, and deliberately not comparable to them: those
+    // lerp the WHOLE sky toward a hue, where 0.18 already grades every pixel in the frame, whereas
+    // this scales an additive layer that is near-zero across most of its area — the ribbons are a thin
+    // contour, and the envelope blanks out roughly half the map besides. So 0.55 here puts far less
+    // total colour on screen than 0.18 there does; it concentrates it into bands instead of spreading
+    // it flat, which is the entire point of the subsystem.
+    public const float MaxCurtainStrength = 0.55f;
 
     // The tint eases in over the condition's first FadeTicks and out over its last FadeTicks so a
     // solar flare doesn't snap a fully-green sky in and out at its start/end. 2500 ticks ≈ one
@@ -111,23 +134,45 @@ public static class AuroraMath
     // into/through the condition we are (ramp) times the peak tint. Returns 0 whenever either factor
     // is 0 (bright sky, or a condition that has fully faded), so the adapter can early-out.
     //
-    // inVacuum (DESIGN.md §18, the shared gate in Vacuum.cs): off entirely. This one is a
-    // PRESENTATION argument rather than a physics one, and it holds at every intensity, which is why
-    // it is a hard zero and not a scale factor. The emission this file models is the atomic-oxygen
-    // 630 nm line, which the constants above already place at ~630 km altitude. An Odyssey orbital
-    // platform sits at 200 km (PlanetLayerDef Orbit's elevationString). Looking at a sheet of
-    // emission from beneath it, as you do from the ground, tints the whole sky — that is what a
-    // full-screen colour blend renders. Looking *down* on it from above does not: you would see a
-    // bright curtain against the planet's night side, localised in the frame. A full-screen tint is
-    // therefore the wrong shape at any strength, and no dimming of it becomes right.
-    public static float SkyTintStrength(float sunGlow, float ramp, bool inVacuum) =>
-        inVacuum ? 0f : NightVisibility(sunGlow) * Clamp01(ramp) * MaxSkyTintStrength;
+    // Two independent gates, from two different subsystems, and both belong here.
+    //
+    // `curtained` selects which peak applies — see the two pairs of constants above. A parameter rather
+    // than a read of CelestialLightingFeatures because this file is the pure core and owns no live
+    // state: the adapter passes in what it observed, and the tests can pin both arms.
+    //
+    // `inVacuum` (DESIGN.md §18, the shared gate in Vacuum.cs) turns it off entirely. That one is a
+    // PRESENTATION argument rather than a physics one, and it holds at every intensity, which is why it
+    // is a hard zero and not a scale factor. The emission this file models is the atomic-oxygen 630 nm
+    // line, which the constants above already place at ~630 km altitude. An Odyssey orbital platform
+    // sits at 200 km (PlanetLayerDef Orbit's elevationString). Looking at a sheet of emission from
+    // beneath it, as you do from the ground, tints the whole sky — that is what a full-screen colour
+    // blend renders. Looking *down* on it from above does not: you would see a bright curtain against
+    // the planet's night side, localised in the frame. A full-screen tint is the wrong shape at any
+    // strength, and no dimming of it becomes right.
+    public static float SkyTintStrength(float sunGlow, float ramp, bool curtained, bool inVacuum) =>
+        inVacuum
+            ? 0f
+            : NightVisibility(sunGlow) * Clamp01(ramp)
+                * (curtained ? CurtainedSkyTintStrength : MaxSkyTintStrength);
 
     // Same as SkyTintStrength but for the overlay layer, kept a fixed fraction weaker so the overlay
     // never out-saturates the sky itself. Gated identically — the overlay is the same tint on a
     // different layer, so leaving it lit in vacuum would just make the suppression half-done.
-    public static float OverlayTintStrength(float sunGlow, float ramp, bool inVacuum) =>
-        inVacuum ? 0f : NightVisibility(sunGlow) * Clamp01(ramp) * MaxOverlayTintStrength;
+    public static float OverlayTintStrength(float sunGlow, float ramp, bool curtained, bool inVacuum) =>
+        inVacuum
+            ? 0f
+            : NightVisibility(sunGlow) * Clamp01(ramp)
+                * (curtained ? CurtainedOverlayTintStrength : MaxOverlayTintStrength);
+
+    // Peak-agnostic alpha for the §11a curtain overlay. Shares NightVisibility and the condition ramp
+    // with the flat tint above on purpose: the ribbons and the wash beneath them must appear, peak and
+    // fade together, or the base layer visibly outlives the curtain at each end of the event.
+    //
+    // Not vacuum-gated here. The curtain is a bounded patch drawn in map space rather than a
+    // full-screen blend, so the shape argument above does not apply to it; §18's suppression of it, if
+    // wanted, belongs at the adapter where the map is in hand.
+    public static float CurtainStrength(float sunGlow, float ramp) =>
+        NightVisibility(sunGlow) * Clamp01(ramp) * MaxCurtainStrength;
 
     // Wraps a tick count into a [0, 1) phase over the given period; the adapter feeds Find.TickManager
     // .TicksGame so the shimmer advances with game time. Guards a non-positive period (returns 0)

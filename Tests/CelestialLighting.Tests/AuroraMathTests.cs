@@ -86,34 +86,40 @@ public class AuroraMathTests
     }
 
     // --- SkyTintStrength / OverlayTintStrength ---
+    //
+    // `curtained: false` throughout this first block is the pre-§11a arm — the flat tint carrying the
+    // aurora on its own, which is what the mod rendered before the curtain existed and what it must
+    // render again whenever the curtain is switched off. The curtained arm gets its own block below.
 
     [Test]
     public void SkyTintStrength_IsZero_InDaylight()
     {
         // Bright sky (glow above MaxVisibleGlow) yields no tint even at full ramp.
-        Assert.That(AuroraMath.SkyTintStrength(sunGlow: 0.9f, ramp: 1f, inVacuum: false), Is.EqualTo(0f).Within(Tolerance));
+        Assert.That(AuroraMath.SkyTintStrength(sunGlow: 0.9f, ramp: 1f, curtained: false),
+            Is.EqualTo(0f).Within(Tolerance));
     }
 
     [Test]
     public void SkyTintStrength_IsZero_WhenRampZero()
     {
         // Fully dark sky but the condition has fully faded: still no tint.
-        Assert.That(AuroraMath.SkyTintStrength(sunGlow: 0f, ramp: 0f, inVacuum: false), Is.EqualTo(0f).Within(Tolerance));
+        Assert.That(AuroraMath.SkyTintStrength(sunGlow: 0f, ramp: 0f, curtained: false),
+            Is.EqualTo(0f).Within(Tolerance));
     }
 
     [Test]
     public void SkyTintStrength_IsMaxAtPeak()
     {
         // Pitch dark and mid-condition: peaks exactly at MaxSkyTintStrength.
-        Assert.That(AuroraMath.SkyTintStrength(sunGlow: 0f, ramp: 1f, inVacuum: false),
+        Assert.That(AuroraMath.SkyTintStrength(sunGlow: 0f, ramp: 1f, curtained: false),
             Is.EqualTo(AuroraMath.MaxSkyTintStrength).Within(Tolerance));
     }
 
     [Test]
     public void OverlayTintStrength_IsWeakerThanSky_AtSamePeak()
     {
-        float sky = AuroraMath.SkyTintStrength(sunGlow: 0f, ramp: 1f, inVacuum: false);
-        float overlay = AuroraMath.OverlayTintStrength(sunGlow: 0f, ramp: 1f, inVacuum: false);
+        float sky = AuroraMath.SkyTintStrength(sunGlow: 0f, ramp: 1f, curtained: false, inVacuum: false);
+        float overlay = AuroraMath.OverlayTintStrength(sunGlow: 0f, ramp: 1f, curtained: false, inVacuum: false);
         Assert.That(overlay, Is.LessThan(sky));
         Assert.That(overlay, Is.EqualTo(AuroraMath.MaxOverlayTintStrength).Within(Tolerance));
     }
@@ -122,8 +128,69 @@ public class AuroraMathTests
     public void SkyTintStrength_ClampsRampAboveOne()
     {
         // Defensive: a ramp passed in above 1 must not push strength past the peak.
-        Assert.That(AuroraMath.SkyTintStrength(sunGlow: 0f, ramp: 5f, inVacuum: false),
+        Assert.That(AuroraMath.SkyTintStrength(sunGlow: 0f, ramp: 5f, curtained: false),
             Is.EqualTo(AuroraMath.MaxSkyTintStrength).Within(Tolerance));
+    }
+
+    // --- The curtained arm: the flat tint steps back when §11a's ribbons carry the aurora ---
+
+    [Test]
+    public void SkyTintStrength_StepsBackToVanilla_WhenCurtained()
+    {
+        Assert.That(AuroraMath.SkyTintStrength(sunGlow: 0f, ramp: 1f, curtained: true),
+            Is.EqualTo(AuroraMath.CurtainedSkyTintStrength).Within(Tolerance));
+        Assert.That(AuroraMath.OverlayTintStrength(sunGlow: 0f, ramp: 1f, curtained: true),
+            Is.EqualTo(AuroraMath.CurtainedOverlayTintStrength).Within(Tolerance));
+    }
+
+    [Test]
+    public void CurtainedTintIsWeakerThanSolo_OnBothChannels()
+    {
+        // The DIRECTION of the change is the whole point of having two constant pairs: with ribbons on
+        // top, the flat wash underneath must get weaker, never stronger, or #42's colour-grade complaint
+        // survives its own fix.
+        Assert.That(AuroraMath.CurtainedSkyTintStrength, Is.LessThan(AuroraMath.MaxSkyTintStrength));
+        Assert.That(AuroraMath.CurtainedOverlayTintStrength, Is.LessThan(AuroraMath.MaxOverlayTintStrength));
+    }
+
+    [Test]
+    public void CurtainedPeaksMatchVanillasOwnAuroraColorStrengths()
+    {
+        // GameCondition_Aurora uses 0.075 for its sky colour and 0.025 for its overlay. Landing exactly
+        // there is the documented intent (see AuroraMath's constants and DESIGN.md §11a), so pin it —
+        // retuning these should have to be a deliberate edit to this assertion as well.
+        Assert.That(AuroraMath.CurtainedSkyTintStrength, Is.EqualTo(0.075f).Within(Tolerance));
+        Assert.That(AuroraMath.CurtainedOverlayTintStrength, Is.EqualTo(0.025f).Within(Tolerance));
+    }
+
+    // --- CurtainStrength ---
+
+    [Test]
+    public void CurtainStrength_SharesTheNightAndFadeRampWithTheFlatTint()
+    {
+        // Both layers must appear, peak and fade together; otherwise the base wash visibly outlives the
+        // ribbons at each end of the event. Equal ratios is that property, stated as an assertion.
+        float curtain = AuroraMath.CurtainStrength(sunGlow: 0.3f, ramp: 0.5f);
+        float tint = AuroraMath.SkyTintStrength(sunGlow: 0.3f, ramp: 0.5f, curtained: true, inVacuum: false);
+
+        Assert.That(curtain / AuroraMath.MaxCurtainStrength,
+            Is.EqualTo(tint / AuroraMath.CurtainedSkyTintStrength).Within(Tolerance));
+    }
+
+    [Test]
+    public void CurtainStrength_IsZero_InDaylightAndAtZeroRamp()
+    {
+        Assert.That(AuroraMath.CurtainStrength(sunGlow: 0.9f, ramp: 1f), Is.EqualTo(0f).Within(Tolerance));
+        Assert.That(AuroraMath.CurtainStrength(sunGlow: 0f, ramp: 0f), Is.EqualTo(0f).Within(Tolerance));
+    }
+
+    [Test]
+    public void CurtainStrength_PeaksAtMaxAndClampsRamp()
+    {
+        Assert.That(AuroraMath.CurtainStrength(sunGlow: 0f, ramp: 1f),
+            Is.EqualTo(AuroraMath.MaxCurtainStrength).Within(Tolerance));
+        Assert.That(AuroraMath.CurtainStrength(sunGlow: 0f, ramp: 5f),
+            Is.EqualTo(AuroraMath.MaxCurtainStrength).Within(Tolerance));
     }
 
     // --- PhaseFromTicks ---

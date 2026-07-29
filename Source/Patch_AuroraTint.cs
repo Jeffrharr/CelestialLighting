@@ -67,13 +67,20 @@ public static class Patch_AuroraTint
         float sunGlow = GenCelestial.CurCelestialSunGlow(map);
         float ramp = AuroraConditions.RampFor(driver);
 
-        // The §18 vacuum gate (Vacuum.cs): from a 200 km platform you are above the 630 km emission
+        // Two gates, from two subsystems, both threaded into AuroraMath rather than early-returned here
+        // so each reason sits beside the strength it modifies.
+        //
+        // §18's vacuum gate (Vacuum.cs): from a 200 km platform you are above the 630 km emission
         // sheet's underside view, so a full-screen tint is the wrong presentation at any intensity.
-        // Threaded into AuroraMath rather than early-returned here so the reasoning sits with the
-        // tint strengths it zeroes; the guard below is then the single exit path.
+        //
+        // §11a's curtain: whether the ribbons are carrying the aurora decides which peak this flat tint
+        // runs at — on its own it goes to 0.18, underneath ribbons it steps back to vanilla's 0.075 as a
+        // base wash. See AuroraConditions.CurtainEnabled for why that is asked of the feature flags
+        // rather than of the curtain's current alpha.
         bool inVacuum = Vacuum.InVacuumForMap(map);
+        bool curtained = AuroraConditions.CurtainEnabled;
 
-        float skyStrength = AuroraMath.SkyTintStrength(sunGlow, ramp, inVacuum);
+        float skyStrength = AuroraMath.SkyTintStrength(sunGlow, ramp, curtained, inVacuum);
         if (skyStrength <= 0f)
             return;
 
@@ -82,7 +89,7 @@ public static class Patch_AuroraTint
         // in AuroraConditions because only the vanilla-aurora arm touches live condition state.
         Color tintColor = AuroraConditions.TintColorFor(driver, Find.TickManager.TicksGame);
 
-        float overlayStrength = AuroraMath.OverlayTintStrength(sunGlow, ramp, inVacuum);
+        float overlayStrength = AuroraMath.OverlayTintStrength(sunGlow, ramp, curtained, inVacuum);
         __result.colors.sky = Color.Lerp(__result.colors.sky, tintColor, skyStrength);
         __result.colors.overlay = Color.Lerp(__result.colors.overlay, tintColor, overlayStrength);
     }
