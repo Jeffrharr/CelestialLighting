@@ -48,6 +48,10 @@ public static class ProbeRegistration
             "limb_tint_green", LimbRefractionProbe.Metric.TintGreen));
         ProbeRegistry.Register(new AuroraTintProbe());
         ProbeRegistry.Register(new EclipseCoverageProbe());
+        // §18e: what the coverage ramp is aimed AT, as opposed to how far along it is.
+        // Paired with night_radiance it is the whole vacuum-eclipse claim in two numbers —
+        // equal in orbit (totality is night), different at sea level (vanilla's umbra is a flat 0).
+        ProbeRegistry.Register(new EclipseUmbraProbe());
         ProbeRegistry.Register(new BloodMoonProbe());
         // §6a's two instruments. moon_shadow_render measures the composed shadow colour the shader
         // actually uses, which is the only reliable way to test a moon shadow — a screenshot A/B of a
