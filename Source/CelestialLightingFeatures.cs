@@ -179,6 +179,25 @@ public static class CelestialLightingFeatures
     // but a correction to a question §7b was already asking wrongly.
     public static bool EaveShadows = true;
 
+    // Feature key for VacuumShadowContrast (see CivilTwilightPersistenceKey for why it lives here).
+    public const string VacuumShadowContrastKey = "vacuum_shadow_contrast";
+
+    // §18c vacuum shadow contrast: on an airless map (Odyssey orbital platforms), a daytime shadow
+    // bottoms out at §18b's night light budget instead of at a skylight fill there is no air to
+    // produce. Patch_WeatherShadowColor writes colors.shadow from NightRadiance.FloorGlowFor rather
+    // than from a sky palette; the geometric penumbra is untouched, because the sun subtends the same
+    // half-degree with or without air in the way. When off, that same patch keeps writing §13a's
+    // atmospheric fill on vacuum maps and they render exactly as they did before this feature — the
+    // faithful pre-feature baseline for the harness A/B.
+    //
+    // NOT surfaced in the settings screen, deliberately, and the §18 epic is expected to follow the
+    // same rule: a vacuum branch is DERIVED (there is no dome, so there is no fill) rather than tuned,
+    // so there is nothing here a player would sensibly want to dial. The flag exists for the harness
+    // A/B and as an escape hatch if some other mod's vacuum biome turns out to want the atmospheric
+    // look. Whether §18 as a whole eventually gets one user-facing "vacuum realism" switch is an open
+    // question on the epic.
+    public static bool VacuumShadowContrast = true;
+
     // §14 sun-clock reconciliation. An enum rather than two bools because the modes are mutually
     // exclusive by construction: locked warps OUR sun onto vanilla's clock, realistic makes VANILLA's
     // glow follow ours. Running both would mean each defining itself in terms of the other.

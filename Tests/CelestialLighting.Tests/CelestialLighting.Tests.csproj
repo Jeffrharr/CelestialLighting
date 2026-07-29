@@ -73,6 +73,12 @@
     <!-- Subsystem 15b pure core (how dark the ground under an eave is). Reads one constant off
          IndoorOcclusionMath, already linked above. -->
     <Compile Include="../../Source/EaveShadeMath.cs" Link="EaveShadeMath.cs" />
+    <!-- Subsystem 18c pure core (what fills a shadow: skylight at sea level, the night light budget
+         in vacuum). Reads EaveShadeMath's Rec. 709 helper above so there is one copy of those
+         weights, and its tests read NightRadianceMath's floor constants so the vacuum umbra is
+         pinned to the night budget it consumes rather than to a second copy of it. Both already
+         linked above. -->
+    <Compile Include="../../Source/ShadowFillMath.cs" Link="ShadowFillMath.cs" />
     <!-- Issue #12's per-frame geometry memo. Verse-free by design (the live half that reads
          Time.frameCount / the tick / the mode flags lives in Source/FrameStamp.cs), so its
          hit/miss/invalidation rules are unit tested offline instead of inferred from in-game
