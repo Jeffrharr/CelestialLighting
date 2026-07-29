@@ -11,7 +11,7 @@ namespace CelestialLighting;
 // MatBases.SunShadow.color is assigned — `Color.Lerp(Color.white, curSky.colors.shadow,
 // GenCelestial.CurShadowStrength(map))`, with our own Patch_ShadowStrength already folded into that
 // last term. Reading the finished material rather than re-deriving the depth from elevation is the
-// whole point: every shadow feature we own (§1/§3's elevation ramp, the angular-size penumbra, §13's
+// whole point: every shadow feature we own (§1's elevation ramp, the angular-size penumbra, §13's
 // weather softening, the moon's night handoff) reaches the screen through that one value, so an eave
 // can never drift from the shadow it is being matched to, including for features not written yet.
 [HarmonyPatch(typeof(SkyManager), nameof(SkyManager.SkyManagerUpdate))]

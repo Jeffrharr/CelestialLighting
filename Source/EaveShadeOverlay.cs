@@ -58,7 +58,7 @@ public static class EaveShadeOverlay
 
     // Called once per frame from Patch_EaveShade with the sun-shadow tint SkyManager just composed.
     // Reading that material's colour rather than re-deriving the shadow depth is deliberate: it is
-    // the one value every shadow feature we own already converges on (§1/§3's elevation ramp, §13's
+    // the one value every shadow feature we own already converges on (§1's elevation ramp, §13's
     // weather softening, the angular-size penumbra, the moon's night handoff all reach the screen
     // through GenCelestial.CurShadowStrength, which SkyManager lerps this colour by), so the eave
     // shade cannot drift from the cast shadow it is matching no matter what any of them do later.

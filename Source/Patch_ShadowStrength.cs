@@ -65,10 +65,11 @@ public static class Patch_ShadowStrength
             // horizon, where the solar-disk penumbra widens and shadows lose contrast.
             // CurShadowStrength is the CORRECT lever for this — it is exactly what SkyManager lerps
             // MatBases.SunShadow.color by (the material colour that actually darkens the ground) and
-            // writes into the _CastVect global. An earlier attempt folded this into
-            // the (since deleted) Patch_ShadowTilt's per-section _CastVect.w override, which a live
-            // A/B proved inert: visible opacity is the global material colour, not a per-draw
-            // _CastVect.w. Penumbra is a map-wide function of sun elevation, so this global point is
+            // writes into the _CastVect global. An earlier attempt folded this into a per-section
+            // _CastVect.w override, which a live A/B proved inert: visible opacity is the global
+            // material colour, not a per-draw _CastVect.w — DESIGN.md §3 has the scan of the shipped
+            // shader showing _CastVect.w is read by nothing at all. Penumbra is a map-wide function
+            // of sun elevation, so this global point is
             // its natural home. It models the SUN's disk only, so it lives in this sun-up branch and
             // never scales the moon shadow below.
             if (CelestialLightingFeatures.PenumbraContrast)

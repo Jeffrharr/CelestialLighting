@@ -11,8 +11,8 @@ namespace CelestialLighting;
 // Game.UpdatePlay calls MapUpdate() on *every* loaded map, SkyManager.CurrentSkyTarget() evaluates
 // WeatherWorker.CurSkyTarget twice (current weather and last weather, then lerps), and we hang nine
 // postfixes off that method — five of which need the sun. Add the two GenCelestial.CurShadowStrength
-// calls per SkyManagerUpdate and MapComponent_SunShadowAxis's throttled staleness check, and a single
-// tick's worth of unchanging geometry gets rebuilt over and over. Each rebuild is not just
+// calls per SkyManagerUpdate, and a single tick's worth of unchanging geometry gets rebuilt over and
+// over. Each rebuild is not just
 // arithmetic: it goes through Find.WorldGrid.LongLatOf -> PlanetLayer.GetTileCenter, a
 // managed->native [BurstCompile] transition, before any trigonometry runs.
 //
