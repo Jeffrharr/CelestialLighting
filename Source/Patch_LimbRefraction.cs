@@ -17,27 +17,19 @@ namespace CelestialLighting;
 // bakes them into MatBases.LightOverlay. Writing here means glow-reading mods (Dub's Skylights) see a
 // consistent value, and it means we compose with §2/§7 by field rather than by draw order.
 //
+// GLOW OWNERSHIP ON A VACUUM MAP. This patch owns SkyTarget.glow there outright, and §7's
+// Patch_NightRadiance stands down (see the gate in that file for the measured reason). VacuumSkyGlow
+// is a total answer at every elevation — it builds the sunlit term from scratch rather than scaling
+// whatever arrived, and max()es it against §18b's floor — so nothing is lost by there being one
+// writer instead of two postfixes racing on the same field. On a surface map this patch is a strict
+// no-op at every elevation and §7 is unchanged.
+//
 // NOT A GameCondition. This fires every game day on any vacuum map, purely as a function of sun
 // elevation. It is ordinary orbital night. §10a owns eclipses (moon transits the sun, once every few
 // game years) and the two never share a code path — see LimbRefractionMath's header for the boundary.
 [HarmonyPatch(typeof(WeatherWorker), nameof(WeatherWorker.CurSkyTarget))]
 public static class Patch_LimbRefraction
 {
-    // The floor the ramp steps down to when the sun finally goes behind the solid limb.
-    //
-    // BINDING POINT FOR #30 (§18b, branch `vacuum-night-budget`). The vacuum night-light budget —
-    // airglow to zero, starlight unextinguished, moonlight replaced by planetshine — is that issue's
-    // to define, and defining a second copy of it here is exactly the collision the epic is trying to
-    // avoid. So the pure core takes the floor as a parameter and this one constant is the whole
-    // binding surface: when #30 lands, this line becomes a call to its function and nothing else in
-    // §18d changes.
-    //
-    // Zero until then, which is the safe direction to be wrong in. LimbRefractionMath.VacuumSkyGlow
-    // takes max(sunlight, floor), so a floor of 0 can only ever leave the map darker than the real
-    // floor would — never brighter — and #8's own conclusion is that orbital night should be the
-    // darkest state the mod can produce anyway.
-    public const float PlanetshineFloorPlaceholder = 0f;
-
     static void Postfix(Map map, ref SkyTarget __result)
     {
         // One read of map.Biome.inVacuum for the whole subsystem, per Vacuum.cs's convention, handed
@@ -53,8 +45,22 @@ public static class Patch_LimbRefraction
         // the first caller in the frame.
         float sunElevation = SolarPosition.ElevationForMap(map);
 
+        // §18b's shared night floor, read rather than re-derived. This is the value the ramp steps
+        // down to once the solid limb covers the disc, and it is deliberately somebody else's number:
+        // airglow gone, starlight unextinguished, planetshine standing in for the moon as the
+        // dominant reflector is all §18b's model, and a second copy here is exactly the collision the
+        // epic has been untangling. NightRadiance.FloorGlowFor is a shared READ (§7, §18c and §18e
+        // consume the same function), so there is no ordering to get wrong and no staleness.
+        //
+        // Note it is moon-dependent by design — 0.0317 on a new moon, and materially higher under a
+        // full one — so the handover elevation MOVES with the lunar cycle. That is intended emergent
+        // behaviour rather than a wobble to be pinned out: under a bright moon the last of the limb
+        // light is genuinely outshone before it reaches its reddest, and the spike becomes a dark-moon
+        // spectacle. The same way §7's floor swallows the tail of ground twilight on a surface map.
+        float planetshineFloor = NightRadiance.FloorGlowFor(map);
+
         __result.glow = LimbRefractionMath.VacuumSkyGlow(
-            sunElevation, __result.glow, PlanetshineFloorPlaceholder, inVacuum);
+            sunElevation, __result.glow, planetshineFloor, inVacuum);
 
         ApplyLimbTint(ref __result, sunElevation, inVacuum);
     }

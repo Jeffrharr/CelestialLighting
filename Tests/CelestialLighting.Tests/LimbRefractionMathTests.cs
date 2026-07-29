@@ -475,6 +475,11 @@ public class LimbRefractionMathTests
         // elevation->glow curve evaluated at (elevation + dip): re-referencing the mod's existing
         // brightness statement from the ground's horizon to the platform's is the whole of the
         // "curve swap" this subsystem was described as.
+        //
+        // Floor deliberately 0 here so this isolates the SUNLIT term. The composed result against
+        // §18b's real floor is pinned separately below — keeping them apart means a change to §18b's
+        // night budget cannot silently repaint this curve, and a change to this curve cannot be
+        // mistaken for a floor regression.
         Assert.That(
             LimbRefractionMath.VacuumSkyGlow(elevation, seaLevelGlow: 0.5f, planetshineFloor: 0f, inVacuum: true),
             Is.EqualTo(expected).Within(Tolerance));
@@ -484,6 +489,120 @@ public class LimbRefractionMathTests
         Assert.That(
             LimbRefractionMath.VacuumSkyGlow(elevation, seaLevelGlow: 0.5f, planetshineFloor: 0f, inVacuum: false),
             Is.EqualTo(0.5f).Within(Tolerance));
+    }
+
+    // §18b's real new-moon vacuum floor, assembled through the same pure entry point
+    // NightRadiance.FloorGlowFor uses on a live map. Not a literal 0.0317: reading it through
+    // NightRadianceMath means a change to §18b's night budget shows up here as a moved pin rather
+    // than as two constants quietly disagreeing across a branch boundary.
+    private static float NewMoonVacuumFloor() =>
+        NightRadianceMath.NightFloorGlow(
+            NightRadianceMath.DefaultStarlightGlow,
+            NightRadianceMath.DefaultAirglowGlow,
+            moonlightGlow: 0f,
+            NightRadianceMath.DefaultMaxMoonlightGlow,
+            inVacuum: true);
+
+    [Test]
+    public void TheStepLandsOnSection18bsRealFloor_NotOnZero()
+    {
+        // The seam that used to be a placeholder constant of 0. §18d does not define the floor and
+        // must not: airglow gone, starlight unextinguished and planetshine standing in for the moon
+        // are all §18b's model. This pins only that the value §18d steps down to IS that model's, at
+        // the darkest phase.
+        Assert.That(NewMoonVacuumFloor(), Is.EqualTo(0.0317f).Within(0.0005f),
+            "§18b's new-moon vacuum floor moved — §18d's step endpoint tracks it by construction");
+
+        float deepNight = LimbRefractionMath.VacuumSkyGlow(
+            -30f, seaLevelGlow: 0f, planetshineFloor: NewMoonVacuumFloor(), inVacuum: true);
+
+        Assert.That(deepNight, Is.EqualTo(NewMoonVacuumFloor()).Within(1e-6f),
+            "past the band, the sky is exactly §18b's floor and nothing else");
+    }
+
+    [Test]
+    public void TheFloorIsMoonDependent_SoTheHandoverElevationMovesWithTheLunarCycle()
+    {
+        // Not a wobble to be pinned out — intended behaviour, and worth a test because it is the one
+        // property of §18d that is NOT a fixed curve. Because VacuumSkyGlow max()es rather than
+        // blends, a brighter floor swallows more of the band's tail without a single constant in this
+        // file changing. Under a bright enough moon the last of the limb light is genuinely outshone
+        // before it reaches its reddest.
+        float newMoon = NewMoonVacuumFloor();
+        float fullMoon = NightRadianceMath.NightFloorGlow(
+            NightRadianceMath.DefaultStarlightGlow,
+            NightRadianceMath.DefaultAirglowGlow,
+            moonlightGlow: NightRadianceMath.DefaultMaxMoonlightGlow,
+            NightRadianceMath.DefaultMaxMoonlightGlow,
+            inVacuum: true);
+
+        Assert.That(fullMoon, Is.GreaterThan(newMoon));
+
+        Assert.That(HandoverElevation(newMoon), Is.LessThan(HandoverElevation(fullMoon)),
+            "a brighter floor must take over EARLIER in the band (at a higher sun elevation), "
+            + "leaving less of the red spike visible");
+    }
+
+    // Sun elevation at which the sunlit term drops below the given floor — i.e. where the ramp hands
+    // over. Swept rather than solved because the sunlit term is an exponential times a circular
+    // segment and has no closed-form inverse worth writing.
+    private static float HandoverElevation(float floor)
+    {
+        for (int i = 0; i <= 4000; i++)
+        {
+            float elevation = Lerp(
+                LimbRefractionMath.BandTopElevationDegrees,
+                LimbRefractionMath.BandBottomElevationDegrees,
+                i / 4000f);
+            float lit = LimbRefractionMath.VacuumSkyGlow(
+                elevation, seaLevelGlow: 0f, planetshineFloor: 0f, inVacuum: true);
+            if (lit <= floor)
+                return elevation;
+        }
+
+        return LimbRefractionMath.BandBottomElevationDegrees;
+    }
+
+    [Test]
+    public void VacuumSkyGlow_AtDeepNightMatchesWhatTheSeaLevelNightFloorWouldHaveProduced()
+    {
+        // §18d now owns .glow outright on a vacuum map and Patch_NightRadiance stands down there
+        // (see the gate in that file). This is the check that standing down costs nothing: at and
+        // below the end of the sea-level twilight ramp, where §7's blend weight has reached 1, the
+        // two agree exactly. Everything §18d changes is ABOVE that point, which is precisely where
+        // §7's -0.83..-18 ramp has no referent on a platform whose own horizon is at -14.2.
+        float floor = NewMoonVacuumFloor();
+
+        foreach (float elevation in new[] { -18f, -25f, -40f, -70f })
+        {
+            float ours = LimbRefractionMath.VacuumSkyGlow(
+                elevation, seaLevelGlow: 0f, planetshineFloor: floor, inVacuum: true);
+            float sevens = NightRadianceMath.ApplyNightFloor(0f, elevation, floor);
+
+            Assert.That(ours, Is.EqualTo(sevens).Within(1e-6f),
+                $"the two owners disagree at {elevation} degrees, where they are supposed to coincide");
+        }
+    }
+
+    [Test]
+    public void SectionSevensRampWouldHaveErasedTheDepressedHorizon()
+    {
+        // The measured reason Patch_NightRadiance stands down, kept as a test rather than only as a
+        // comment so the gate cannot be removed quietly. ApplyNightFloor's weight ramps across the
+        // SEA-LEVEL twilight span (-0.83 to -18), which on a vacuum map is 24% of the way to the
+        // night floor at -5 degrees — where the platform is in broad daylight and §18d says 0.652.
+        float floor = NewMoonVacuumFloor();
+
+        float ours = LimbRefractionMath.VacuumSkyGlow(
+            -5f, seaLevelGlow: 0f, planetshineFloor: floor, inVacuum: true);
+        float sevensAlone = NightRadianceMath.ApplyNightFloor(0f, -5f, floor);
+
+        Assert.That(ours, Is.EqualTo(0.652f).Within(0.001f),
+            "the platform is still in full sun 5 degrees below the ground's horizon");
+        Assert.That(sevensAlone, Is.LessThan(0.05f));
+        Assert.That(ours / sevensAlone, Is.GreaterThan(20f),
+            "if this ratio ever approaches 1, §7's ramp has stopped being wrong up here and the "
+            + "vacuum gate in Patch_NightRadiance can be reconsidered");
     }
 
     [Test]
