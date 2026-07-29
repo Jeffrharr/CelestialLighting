@@ -31,6 +31,21 @@ public static class ProbeRegistration
         // much desaturation that actually turned into.
         ProbeRegistry.Register(new NightDesaturationProbe());
         ProbeRegistry.Register(new SkyColorTemperatureProbe());
+
+        // §18d's limb-refraction ramp. Four series rather than one because this is a temporal
+        // effect: the claim is that the platform holds full sun ~14 degrees past the ground's
+        // sunset and then loses it over ~2.4 degrees, and no single scalar can show a band's width
+        // or its position. limb_sun_elevation is the x-axis; the other three are what happens on it.
+        // limb_tint_green rather than red because normalisation pins red at 1, so green falling from
+        // ~1 to ~0.02 IS the reddening.
+        ProbeRegistry.Register(new LimbRefractionProbe(
+            "limb_sun_elevation", LimbRefractionProbe.Metric.SunElevation));
+        ProbeRegistry.Register(new LimbRefractionProbe(
+            "limb_sunlight_fraction", LimbRefractionProbe.Metric.SunlightFraction));
+        ProbeRegistry.Register(new LimbRefractionProbe(
+            "limb_tint_strength", LimbRefractionProbe.Metric.TintStrength));
+        ProbeRegistry.Register(new LimbRefractionProbe(
+            "limb_tint_green", LimbRefractionProbe.Metric.TintGreen));
         ProbeRegistry.Register(new AuroraTintProbe());
         ProbeRegistry.Register(new EclipseCoverageProbe());
         ProbeRegistry.Register(new BloodMoonProbe());
