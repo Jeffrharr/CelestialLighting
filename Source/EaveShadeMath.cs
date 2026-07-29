@@ -46,14 +46,24 @@ namespace CelestialLighting;
 // ground and 0.581 at the rim. The porch becomes the darkest thing in the picture and brightness
 // rises monotonically outward from it, which is what a roof looks like from above.
 //
-// AND IT CANNOT GO PITCH BLACK, which is the failure mode worth guarding by construction rather than
-// by taste. The multiply is bounded below by vanilla's own shadow palette: the darkest tint any
-// vanilla weather declares is Clear's 0.740, most are 0.92 or lighter, and shadow strength only ever
-// lerps that tint back toward white (1.0) as the sun drops — so the deepest an eave can ever go is
-// ~0.45 of open sunlit ground, in full midday sun. At dusk, under overcast, and all night the
-// multiply is at or near 1 and this contributes nothing at all, leaving the porch at exactly the
-// roof cover players already see. Nothing here can reach the fully-occluded interior (0.0) that §7b
-// applies to a sealed room; an eave is never treated as interior in the first place.
+// AND IT CANNOT GO PITCH BLACK — ON A MAP WITH AN ATMOSPHERE, which is the failure mode worth
+// guarding by construction rather than by taste. The multiply is bounded below by the shadow palette:
+// the darkest tint any vanilla weather declares is Clear's 0.740, most are 0.92 or lighter, and
+// shadow strength only ever lerps that tint back toward white (1.0) as the sun drops — so the deepest
+// an eave can ever go is ~0.45 of open sunlit ground, in full midday sun. At dusk, under overcast,
+// and all night the multiply is at or near 1 and this contributes nothing at all, leaving the porch
+// at exactly the roof cover players already see. Nothing here can reach the fully-occluded interior
+// (0.0) that §7b applies to a sealed room; an eave is never treated as interior in the first place.
+//
+// §18c IS THE STATED EXCEPTION, and it is a correct one rather than a regression. On a vacuum map the
+// shadow tint is no longer a sky palette at all — it is the night light budget (see ShadowFillMath):
+// ~0.04 of the lit ground with the atmospheric floors on, and exactly 0 with them off. An eave there
+// lands near 0.605 x 0.04 = 0.024, or at true black. That is the same answer for the same physical
+// reason the cast band beside it goes near-black: with no dome overhead, being under a roof and being
+// in a shadow are the same amount of "no direct sun, and nothing filling in". This file needs no
+// vacuum branch to produce it — the bound above was documented, never enforced in code, and the
+// arithmetic here is a multiply that faithfully follows whatever tint SkyManager composed. The claim
+// is what §18c corrected, not the maths.
 public static class EaveShadeMath
 {
     // How much of the sky a roofed cell renders at once vanilla has clamped its cover — the 0.605
