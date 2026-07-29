@@ -47,11 +47,17 @@ public static class Patch_SkyColorTemperature
         // DESIGN.md §13. The choice is unchanged and better justified.)
         float elevation = SolarPosition.ElevationForMap(map);
 
-        float tint = SkyColorTemperature.TintStrength(elevation);
+        // The §18 vacuum gate (Vacuum.cs). Threaded into the pure layer rather than early-returning
+        // here for the same reason as Patch_TwilightColor: the "no air, no reddening" decision lives
+        // with the curve it flattens. TintStrength returns 0 in vacuum, so the guard below is what
+        // actually turns the patch into a no-op there — one exit path, not two.
+        bool inVacuum = Vacuum.InVacuumForMap(map);
+
+        float tint = SkyColorTemperature.TintStrength(elevation, inVacuum);
         if (tint <= 0f)
             return;
 
-        SkyColorTemperature.Rgb rgb = SkyColorTemperature.SkyColorForElevation(elevation);
+        SkyColorTemperature.Rgb rgb = SkyColorTemperature.SkyColorForElevation(elevation, inVacuum);
         Color target = new Color(rgb.R, rgb.G, rgb.B);
 
         __result.colors.sky = Color.Lerp(__result.colors.sky, target, tint * SkyBlend);
