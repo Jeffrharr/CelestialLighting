@@ -429,6 +429,63 @@ public class ApiCompatibilityTests
         Assert.That(method, Is.Not.Null, "DefDatabase<T>.GetNamedSilentFail(string) no longer exists");
     }
 
+    [Test]
+    public void GameConditionDefOf_Aurora_Exists()
+    {
+        // The second of AuroraConditions' two drivers. Unlike SolarFlare this one IS on the DefOf,
+        // so we resolve it there rather than by defName.
+        var type = GetType("RimWorld.GameConditionDefOf");
+        Assert.That(type, Is.Not.Null, "RimWorld.GameConditionDefOf no longer exists");
+        var field = type!.Fields.SingleOrDefault(f => f.Name == "Aurora" && f.IsStatic);
+        Assert.That(field, Is.Not.Null, "GameConditionDefOf.Aurora no longer exists");
+        Assert.That(field!.FieldType.FullName, Is.EqualTo("Verse.GameConditionDef"),
+            "GameConditionDefOf.Aurora is no longer a GameConditionDef");
+    }
+
+    [Test]
+    public void GameConditionAurora_CurrentColor_Exists()
+    {
+        // AuroraConditions.TintColorFor borrows this so an aurora event tints toward whichever entry
+        // of vanilla's own eight-colour palette is currently up, instead of our flare shimmer.
+        var type = GetType("RimWorld.GameCondition_Aurora");
+        Assert.That(type, Is.Not.Null, "RimWorld.GameCondition_Aurora no longer exists");
+        var prop = type!.Properties.SingleOrDefault(p => p.Name == "CurrentColor");
+        Assert.That(prop, Is.Not.Null, "GameCondition_Aurora.CurrentColor no longer exists");
+        Assert.That(prop!.PropertyType.FullName, Is.EqualTo("UnityEngine.Color"));
+        Assert.That(prop.GetMethod?.IsPublic, Is.True, "GameCondition_Aurora.CurrentColor is no longer public");
+    }
+
+    [Test]
+    public void GameConditionManager_IsAlwaysDarkOutside_Exists()
+    {
+        // ActiveTintDriver stands down on always-dark maps, mirroring GameCondition_Aurora's own
+        // IsAlwaysDarkOutside guard, so we never paint an aurora onto a rock ceiling.
+        var type = GetType("RimWorld.GameConditionManager");
+        Assert.That(type, Is.Not.Null, "RimWorld.GameConditionManager no longer exists");
+        var prop = type!.Properties.SingleOrDefault(p => p.Name == "IsAlwaysDarkOutside");
+        Assert.That(prop, Is.Not.Null, "GameConditionManager.IsAlwaysDarkOutside no longer exists");
+        Assert.That(prop!.PropertyType.FullName, Is.EqualTo("System.Boolean"));
+    }
+
+    [Test]
+    public void SkyColorSet_LerpDarken_StillTakesPerChannelMin()
+    {
+        // The whole §11 premise for tinting during a vanilla aurora rests on this: SkyManager
+        // composes each condition's SkyTarget with LerpDarken, which mins per channel, so
+        // GameCondition_Aurora can only darken and its brighter-than-night colour set is discarded.
+        // If Ludeon ever swaps this for a plain Lerp, vanilla's aurora starts rendering for real and
+        // AuroraConditions' driver set needs re-deciding.
+        var type = GetType("Verse.SkyColorSet");
+        Assert.That(type, Is.Not.Null, "Verse.SkyColorSet no longer exists");
+        var method = type!.Methods.SingleOrDefault(m => m.Name == "LerpDarken" && m.Parameters.Count == 3);
+        Assert.That(method, Is.Not.Null, "SkyColorSet.LerpDarken(A, B, t) no longer exists");
+
+        var skyTarget = GetType("Verse.SkyTarget");
+        Assert.That(skyTarget, Is.Not.Null, "Verse.SkyTarget no longer exists");
+        var targetLerpDarken = skyTarget!.Methods.SingleOrDefault(m => m.Name == "LerpDarken" && m.Parameters.Count == 3);
+        Assert.That(targetLerpDarken, Is.Not.Null, "SkyTarget.LerpDarken(A, B, t) no longer exists");
+    }
+
     // --- GenLocalDate (Patch_ShadowDirection) ---
 
     [Test]

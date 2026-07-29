@@ -129,8 +129,8 @@ public class CelestialLightingSettingsMod : Mod
             "Let clouds, rain and storms darken the sky and soften shadows, scaled by how hard it is coming down. Vanilla changes the sky's colour with the weather but never its brightness. Visual only — plant growth and solar panel output are unaffected.");
         listing.CheckboxLabeled("Sky colour-temperature", ref Settings.skyColorTemperature,
             "Warm the sky toward the horizon on a continuous, altitude-keyed curve.");
-        listing.CheckboxLabeled("Aurora during solar flares", ref Settings.aurora,
-            "Shift the night sky toward auroral greens/reds while a solar flare is active.");
+        listing.CheckboxLabeled("Auroral sky tint", ref Settings.aurora,
+            "Shift the night sky toward auroral colours during a solar flare or an aurora event, and at no other time. A flare gets a slow green/red shimmer; an aurora event borrows the colour vanilla is already cycling through, which its own sky render is too bright to show.");
         listing.CheckboxLabeled("Eclipse effects", ref Settings.eclipseDarkening,
             "Master toggle for CelestialLighting's eclipse handling. Off = vanilla eclipses (flat dim, storyteller timing) and none of the modes below. On = reshaped darkening plus the eclipse mode selected below.");
         DrawEclipseModeRadio(listing);

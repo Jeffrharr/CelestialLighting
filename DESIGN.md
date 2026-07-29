@@ -1260,39 +1260,81 @@ never trigger it.)
 
 ## 11. Aurora and solar-flare sky tinting (`Patch_AuroraTint`)
 
-Same principle as §10: shift the night sky toward auroral greens/reds while a solar flare is active.
-**Visual only — the flare's electronics disruption and every other gameplay effect are left entirely
-untouched, and this blends only `SkyTarget.colors`, never `SkyTarget.glow`, so it stays in the same
-low-risk colour-only lane as §2/§8 (see "Conflict risk"): the brightness value other mods read is
-undisturbed.** Auroral emission colours (atomic-oxygen green ~557.7 nm, red ~630 nm) are physical
-constants, not mod-specific.
+Same principle as §10: shift the night sky toward auroral colours while an auroral event is running.
+**Visual only — the flare's electronics disruption, the aurora event's joy bonus, and every other
+gameplay effect are left entirely untouched, and this blends only `SkyTarget.colors`, never
+`SkyTarget.glow`, so it stays in the same low-risk colour-only lane as §2/§8 (see "Conflict risk"):
+the brightness value other mods read is undisturbed.** Auroral emission colours (atomic-oxygen green
+~557.7 nm, red ~630 nm) are physical constants, not mod-specific.
 
-**Why only the solar flare, not the vanilla `Aurora` condition.** Decompiling vanilla 1.6 showed
-`GameCondition_Aurora` *already* renders its own shifting auroral sky colours via a
-`GameCondition.SkyTarget(Map)` override that `SkyManager` applies on top of
-`WeatherWorker.CurSkyTarget`. Tinting it again here would double up and fight vanilla's own render.
-The `SolarFlare` condition (`GameCondition_DisableElectricity`) has *no* sky visual at all — yet a
-real solar flare is exactly what drives auroras — so tinting the night sky during a flare adds the
-missing visual without conflicting with anything vanilla does. `AuroraConditions` is the thin adapter
-that resolves the active driver; any future aurora-style condition lacking its own sky render can be
-added to its driver set. (`SolarFlare` is a core `GameConditionDef` but, unlike `Eclipse`/`Aurora`,
-is not exposed on `GameConditionDefOf`, so it's resolved by defName via `DefDatabase.GetNamedSilentFail`.)
+**Which events drive it — and nothing else does.** Exactly two conditions, resolved by
+`AuroraConditions`: `SolarFlare` and vanilla's own `Aurora`. The gate is deliberately a def lookup
+rather than anything keyed on darkness, because an aurora that turns up on an ordinary clear night is
+worse than no aurora at all. Always-dark maps are excluded too, mirroring `GameCondition_Aurora`'s own
+`IsAlwaysDarkOutside` guard. When both conditions are somehow active the `Aurora` event wins — it is
+the named, player-facing event, so its colour cycle should be the one on screen rather than two
+unrelated hues mixing. (`SolarFlare` is a core `GameConditionDef` but, unlike `Eclipse`/`Aurora`, is
+not exposed on `GameConditionDefOf`, so it's resolved by defName via `DefDatabase.GetNamedSilentFail`.)
+
+**Why tinting during a vanilla aurora doesn't double up — a corrected premise.** An earlier revision
+of this section drove the tint from `SolarFlare` only, on the grounds that `GameCondition_Aurora`
+*already* renders its own shifting sky colours via `GameCondition.SkyTarget(Map)`, so tinting again
+would fight it. That reasoning was wrong, in the same way §13's `maxGlow` premise was wrong, and the
+correction is the interesting part of this subsystem.
+
+`SkyManager.CurrentSkyTarget` composes each condition with `SkyTarget.LerpDarken`, and
+`SkyColorSet.LerpDarken` is `Color.Lerp(A.sky, A.sky.Min(B.sky), t)` — a **per-channel minimum**. A
+game condition can therefore only ever *darken* the sky. Vanilla's aurora returns
+`Lerp(white, currentColor, 0.075) · max(0.73, sunGlow)`, which at night is brighter than the sky in
+every channel:
+
+| clear night, green palette entry | R | G | B |
+|---|---|---|---|
+| `skyColorsNightMid` (weather) | 0.482 | 0.603 | 0.682 |
+| `GameCondition_Aurora.SkyTarget` | 0.675 | 0.730 | 0.675 |
+| `min()` — what actually renders | 0.482 | 0.603 | **0.675** |
+
+The only surviving change is blue, shaved by ~1%. Every entry in vanilla's eight-colour palette lands
+the same way, and its `glow = max(sunGlow, 0.25)` floor is min'd away just as completely, so it never
+brightens the map either — despite the letter promising "undulating colors… make the night brighter".
+What vanilla's aurora *does* still deliver is the saturation drop (1.25 → 1.0) and the SkyGaze joy
+bonus, neither of which we touch. So this fills a hole rather than overpainting a render.
+
+**Why not suppress vanilla's `SkyTarget` and replace it outright.** While the `Aurora` condition is
+active its colour set becomes a per-channel *ceiling* on whatever we inject, and `MaxSkyTintStrength`
+(0.35) sits just past where the green channel starts to clip against it — our tinted sky computes to
+(0.369, 0.742, 0.569) and the min pins green back to 0.730. Suppressing vanilla would lift that
+ceiling, but it buys about 1.5% of one channel in exchange for a second Harmony patch on a vanilla
+method and a conflict surface with every other mod that touches auroras. Not worth it. The same
+ceiling is why the event doesn't get a *stronger* peak than a flare: past ~0.32 green pins while red
+and blue keep falling, which skews the hue rather than deepening it. `SkyColorSet.LerpDarken` and
+`SkyTarget.LerpDarken` are both asserted by `ApiCompatibilityTests`, so if Ludeon ever swaps that min
+for a plain `Lerp` — which would make vanilla's aurora render for real — the driver set gets
+re-decided rather than silently double-painting.
 
 **Approach.** A Harmony Postfix on `WeatherWorker.CurSkyTarget` — the same injection point as
 `Patch_TwilightColor` (§2). The two blend different, non-overlapping things (twilight warms the sky
-at dusk-glow ~0.35; this tints it green only at deep night and only during a flare), so they stack
+at dusk-glow ~0.35; this tints only at deep night and only during an auroral event), so they stack
 cleanly regardless of postfix order. The pure core (`Source/AuroraMath.cs`, offline-tested) supplies:
 
 - a **night-visibility ramp** (`NightVisibility`) that fades the tint to zero as the sky brightens,
-  reusing vanilla's own `GameCondition_Aurora.MaxSunGlow` (0.5) as the upper cutoff so our
-  flare-driven tint disappears at the same brightness vanilla's aurora does — auroras are invisible
-  in daylight, so a daytime flare produces no sky colour;
-- a **condition fade** (`ConditionRampFactor`) easing the tint in over the flare's first ~hour and
-  out over its last ~hour (combined with `Min`, so a very short flare simply peaks lower than full
+  reusing vanilla's own `GameCondition_Aurora.MaxSunGlow` (0.5) as the upper cutoff so the tint
+  disappears at the same brightness vanilla's aurora does — auroras are invisible in daylight, so a
+  daytime flare produces no sky colour;
+- a **condition fade** (`ConditionRampFactor`) easing the tint in over the event's first ~hour and
+  out over its last ~hour (combined with `Min`, so a very short event simply peaks lower than full
   rather than ever snapping in);
 - a slow **green↔red shimmer** (`ShimmerRedMix` / `AuroralColorAtPhase`) advanced by game ticks,
   capped at `MaxRedMix` so the aurora stays green-dominant (as real ones mostly are), warming only
   partway toward the high-altitude red line at each cycle's peak.
+
+**Hue depends on the driver** (`AuroraConditions.TintColorFor`). A solar flare has no colour of its
+own, so it gets that green↔red emission-line shimmer. The vanilla `Aurora` event lends us its own
+`CurrentColor` instead — already cycling through vanilla's eight-entry palette (greens, cyans, blues,
+violets) on its own transition timer. Borrowing it gives the event the "undulating colors" its letter
+advertises, keeps our render and vanilla's pointing the same direction in every channel (which is
+what matters under the per-channel min above), and means an aurora event never just looks like a
+recoloured solar flare.
 
 The blend strengths (`MaxSkyTintStrength`, `MaxOverlayTintStrength`) are deliberately moderate: we
 ship no shimmering overlay *texture* the way vanilla's aurora does, only a colour tint, so we need a
