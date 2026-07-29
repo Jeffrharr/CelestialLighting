@@ -28,40 +28,13 @@ public static class Patch_TwilightColor
 
     static void Postfix(Map map, ref SkyTarget __result)
     {
-        float strength = LatitudeEffect.StrengthForMap(map);
-        if (strength <= 0f)
-            return;
-
-        // Deliberately re-derive sun glow from GenCelestial.CurCelestialSunGlow rather than reading
-        // __result.glow, so twilight timing is anchored to where the sun actually is rather than to
-        // what the sky currently looks like. Recomputing is cheap (trig only, no allocation).
-        //
-        // The original reason given here — that __result.glow "may already be clamped by the active
-        // WeatherDef's maxGlow (fog, rain, etc.)" — was wrong: maxGlow defaults to 1.0 and is set
-        // exactly once across all vanilla XML (Odyssey's Overcast, 0.95), so weather essentially
-        // never clamps it (DESIGN.md §13). The decision still stands, and for a stronger reason than
-        // the one it was made for: §7 rewrites __result.glow below the horizon with its night floor,
-        // so reading it here would make the twilight band track moonlight rather than the sun.
-        float sunGlow = GenCelestial.CurCelestialSunGlow(map);
-
-        // Solar elevation from the same shared simulator the shadow patches use
-        // (SolarPosition.ElevationForMap), so twilight timing and shadow timing can never derive a
-        // different sun position from each other. This is what drives the below-horizon
-        // civil-twilight persistence: glow (above) has already clamped to 0 by this point at night,
-        // but elevation keeps going negative, telling us how deep into twilight we are.
-        float elevation = SolarPosition.ElevationForMap(map);
-
-        // Band width, peak position, the civil-twilight persistence band, and the factor curve
-        // itself all live in Formulas, with edge-case unit tests covering the band edges, its peak,
-        // the persistence pulse's boundaries, and how each scales with latitude strength.
-        // The §18 vacuum gate — one read of map.Biome.inVacuum, handed to the pure layer as a
-        // primitive like every other input here. Deliberately NOT an early-out in this file: the
-        // "twilight is zero without air" decision belongs next to the twilight math (and its unit
-        // tests) rather than in an adapter, so the shipped behaviour and the pinned behaviour are
-        // literally the same code. See Vacuum.cs for the convention #30-#33 follow.
-        bool inVacuum = Vacuum.InVacuumForMap(map);
-
-        float twilightFactor = WarmthFactor(sunGlow, elevation, strength, inVacuum);
+        // Every input to the factor — latitude, sun glow, sun elevation, and the §18 vacuum flag —
+        // is lifted off live state by TwilightWarmth.ForMap, which the twilight_warmth live probe
+        // also calls. Sharing that one adapter is what stops the patch and the probe from deriving
+        // two different answers from the same frame (the discipline SolarPosition.cs enforces
+        // between the shadow patches). Band width, peak position, the civil-twilight persistence
+        // pulse and the vacuum gate itself all live in Formulas under offline unit tests.
+        float twilightFactor = TwilightWarmth.ForMap(map);
 
         if (twilightFactor <= 0f)
             return;
@@ -70,17 +43,4 @@ public static class Patch_TwilightColor
         __result.colors.overlay = Color.Lerp(__result.colors.overlay, WarmTwilight, twilightFactor * 0.25f);
         __result.colors.saturation = Mathf.Lerp(__result.colors.saturation, __result.colors.saturation * 1.4f, twilightFactor);
     }
-
-    // The warm-tint factor, honouring the CivilTwilightPersistence feature switch. On (the shipped
-    // default) folds in the below-horizon civil-twilight linger via TwilightWarmthFactor; off falls
-    // back to the pre-feature glow-keyed-only TwilightFactor, so the warm tint snaps off at
-    // geometric sunset exactly as it did before this feature — a faithful "before" the test harness
-    // can screenshot for an A/B against the "after". See CelestialLightingFeatures for why off is
-    // the old behaviour rather than zero.
-    // Both branches take the vacuum gate, so turning the civil-twilight feature off cannot smuggle
-    // ground twilight back onto a space map through the legacy path.
-    private static float WarmthFactor(float sunGlow, float elevation, float strength, bool inVacuum) =>
-        CelestialLightingFeatures.CivilTwilightPersistence
-            ? Formulas.TwilightWarmthFactor(sunGlow, elevation, strength, inVacuum)
-            : Formulas.TwilightFactor(sunGlow, strength, inVacuum);
 }

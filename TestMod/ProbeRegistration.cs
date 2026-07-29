@@ -18,6 +18,10 @@ public static class ProbeRegistration
         ProbeRegistry.Register(new ShadowLeanProbe());
         ProbeRegistry.Register(new ShadowVectorXProbe());
         ProbeRegistry.Register(new CivilTwilightProbe());
+        // The composed, vacuum-gated factor Patch_TwilightColor actually blends with. CivilTwilight
+        // above reads only one (deliberately ungated) component of it, so it cannot see §18a's
+        // suppression — on an orbital map it reports a pulse the renderer is not applying.
+        ProbeRegistry.Register(new TwilightWarmthProbe());
         ProbeRegistry.Register(new PenumbraProbe());
         ProbeRegistry.Register(new MoonIlluminationProbe());
         ProbeRegistry.Register(new NightRadianceProbe());
