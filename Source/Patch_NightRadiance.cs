@@ -50,6 +50,29 @@ public static class Patch_NightRadiance
         if (sunElevation > NightRadianceMath.NightFloorStartElevation)
             return;
 
+        // §18d owns .glow outright on a vacuum map, so this patch stands down there. One owner per
+        // field, the same discipline §6a states for colors.shadow.
+        //
+        // This is not tidiness, it is a correctness fix. ApplyNightFloor's weight ramps from -0.83
+        // to -18 degrees, which is the SEA-LEVEL twilight span — it encodes "how far through the
+        // atmosphere's own dusk are we". A vacuum map has no dusk to be partway through: the
+        // platform is in full sun until -12.0 and fully in the planet's shadow by -14.4
+        // (LimbRefractionMath's derived band), and between those two it is lit by refracted light
+        // this ramp knows nothing about. Left running, it would blend the sky 65-79% toward the
+        // night floor right through the limb band, and — much worse — 24% of the way there at -5
+        // degrees, where the platform is still in broad daylight. Measured against §18d's own
+        // numbers that is 0.0077 where the answer is 0.652: consequence 1 (the depressed horizon,
+        // ~54 extra minutes of sun) would be erased by a curve that has no referent up here.
+        //
+        // Nothing is lost by standing down. LimbRefractionMath.VacuumSkyGlow is a TOTAL answer for a
+        // vacuum map at any elevation — it computes the sunlit term from scratch and max()es it
+        // against this same NightRadiance.FloorGlowFor(map) — so the floor still reaches the sky,
+        // through one owner instead of two racing postfixes on the same field.
+        // VacuumSkyGlow_AtDeepNightMatchesWhatTheSeaLevelNightFloorWouldHaveProduced pins that the
+        // handover costs nothing at the elevations where the two agree.
+        if (Vacuum.InVacuumForMap(map))
+            return;
+
         // The floor itself is no longer assembled here. §18b gave it two more consumers — #31 needs
         // what a cast shadow bottoms out at once vacuum removes the skylight fill, #33 needs the
         // umbral minimum an eclipse falls to — so it moved to the shared NightRadiance adapter and
