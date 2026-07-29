@@ -54,7 +54,13 @@ public static class Patch_AuroraTint
         float sunGlow = GenCelestial.CurCelestialSunGlow(map);
         float ramp = AuroraConditions.RampFor(driver);
 
-        float skyStrength = AuroraMath.SkyTintStrength(sunGlow, ramp);
+        // The §18 vacuum gate (Vacuum.cs): from a 200 km platform you are above the 630 km emission
+        // sheet's underside view, so a full-screen tint is the wrong presentation at any intensity.
+        // Threaded into AuroraMath rather than early-returned here so the reasoning sits with the
+        // tint strengths it zeroes; the guard below is then the single exit path.
+        bool inVacuum = Vacuum.InVacuumForMap(map);
+
+        float skyStrength = AuroraMath.SkyTintStrength(sunGlow, ramp, inVacuum);
         if (skyStrength <= 0f)
             return;
 
@@ -63,7 +69,7 @@ public static class Patch_AuroraTint
         // in AuroraConditions because only the vanilla-aurora arm touches live condition state.
         Color tintColor = AuroraConditions.TintColorFor(driver, Find.TickManager.TicksGame);
 
-        float overlayStrength = AuroraMath.OverlayTintStrength(sunGlow, ramp);
+        float overlayStrength = AuroraMath.OverlayTintStrength(sunGlow, ramp, inVacuum);
         __result.colors.sky = Color.Lerp(__result.colors.sky, tintColor, skyStrength);
         __result.colors.overlay = Color.Lerp(__result.colors.overlay, tintColor, overlayStrength);
     }

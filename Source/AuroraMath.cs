@@ -110,13 +110,24 @@ public static class AuroraMath
     // Combined blend strength for the sky colour: how dark it is (NightVisibility) times how far
     // into/through the condition we are (ramp) times the peak tint. Returns 0 whenever either factor
     // is 0 (bright sky, or a condition that has fully faded), so the adapter can early-out.
-    public static float SkyTintStrength(float sunGlow, float ramp) =>
-        NightVisibility(sunGlow) * Clamp01(ramp) * MaxSkyTintStrength;
+    //
+    // inVacuum (DESIGN.md §18, the shared gate in Vacuum.cs): off entirely. This one is a
+    // PRESENTATION argument rather than a physics one, and it holds at every intensity, which is why
+    // it is a hard zero and not a scale factor. The emission this file models is the atomic-oxygen
+    // 630 nm line, which the constants above already place at ~630 km altitude. An Odyssey orbital
+    // platform sits at 200 km (PlanetLayerDef Orbit's elevationString). Looking at a sheet of
+    // emission from beneath it, as you do from the ground, tints the whole sky — that is what a
+    // full-screen colour blend renders. Looking *down* on it from above does not: you would see a
+    // bright curtain against the planet's night side, localised in the frame. A full-screen tint is
+    // therefore the wrong shape at any strength, and no dimming of it becomes right.
+    public static float SkyTintStrength(float sunGlow, float ramp, bool inVacuum) =>
+        inVacuum ? 0f : NightVisibility(sunGlow) * Clamp01(ramp) * MaxSkyTintStrength;
 
     // Same as SkyTintStrength but for the overlay layer, kept a fixed fraction weaker so the overlay
-    // never out-saturates the sky itself.
-    public static float OverlayTintStrength(float sunGlow, float ramp) =>
-        NightVisibility(sunGlow) * Clamp01(ramp) * MaxOverlayTintStrength;
+    // never out-saturates the sky itself. Gated identically — the overlay is the same tint on a
+    // different layer, so leaving it lit in vacuum would just make the suppression half-done.
+    public static float OverlayTintStrength(float sunGlow, float ramp, bool inVacuum) =>
+        inVacuum ? 0f : NightVisibility(sunGlow) * Clamp01(ramp) * MaxOverlayTintStrength;
 
     // Wraps a tick count into a [0, 1) phase over the given period; the adapter feeds Find.TickManager
     // .TicksGame so the shimmer advances with game time. Guards a non-positive period (returns 0)
