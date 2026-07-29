@@ -1212,6 +1212,51 @@ public class ApiCompatibilityTests
     }
 
     [Test]
+    public void GameConditionNoSunlight_SkyTarget_ExistsAndReturnsNullableSkyTarget()
+    {
+        // §18e's injection point. Patch_EclipseDarkening reshapes how FAST the sky reaches the umbra;
+        // this method is WHAT the umbra is, and the vacuum postfix rewrites it. Vanilla returns
+        // `SkyTarget?` — a plain SkyTarget return would mean the postfix's `ref SkyTarget? __result`
+        // silently stops binding, which Harmony reports as a patch failure rather than a compile one.
+        var type = GetType("RimWorld.GameCondition_NoSunlight");
+        Assert.That(type, Is.Not.Null, "RimWorld.GameCondition_NoSunlight no longer exists");
+        var method = type!.Methods.SingleOrDefault(m => m.Name == "SkyTarget" && m.Parameters.Count == 1);
+        Assert.That(method, Is.Not.Null,
+            "GameCondition_NoSunlight.SkyTarget(Map) no longer exists — §18e's vacuum umbra postfixes it");
+        Assert.That(method!.ReturnType.FullName, Is.EqualTo("System.Nullable`1<Verse.SkyTarget>"),
+            "GameCondition_NoSunlight.SkyTarget no longer returns SkyTarget?");
+    }
+
+    [Test]
+    public void GameConditionNoSunlight_EclipseSkyColors_Exists()
+    {
+        // The SEA-LEVEL ANCHOR of §18e. Vanilla's own umbral colour set is the wan grey that a total
+        // eclipse leaves behind at sea level (the unshadowed atmosphere scattering light into the
+        // umbra), and §18e is defined entirely relative to it: the vacuum arm scales this colour set
+        // toward the night floor, the sea-level arm multiplies it by exactly 1. If it stops existing,
+        // the comparison VacuumEclipseMathTests makes has lost the thing it compares against.
+        var type = GetType("RimWorld.GameCondition_NoSunlight");
+        Assert.That(type, Is.Not.Null, "RimWorld.GameCondition_NoSunlight no longer exists");
+        var field = type!.Fields.SingleOrDefault(f => f.Name == "EclipseSkyColors");
+        Assert.That(field, Is.Not.Null,
+            "GameCondition_NoSunlight.EclipseSkyColors no longer exists — §18e's sea-level umbral anchor");
+        Assert.That(field!.FieldType.FullName, Is.EqualTo("Verse.SkyColorSet"));
+    }
+
+    [Test]
+    public void SkyColorSet_LerpDarken_Exists()
+    {
+        // VacuumEclipseMath.EclipsedSkyBrightness is an offline model OF this method — it is how
+        // SkyManager.CurrentSkyTarget composes an active condition's target onto the weather's. If
+        // vanilla ever switched the condition composition to plain Lerp, our model would keep
+        // agreeing with itself while diverging from the game.
+        var type = GetType("Verse.SkyColorSet");
+        Assert.That(type, Is.Not.Null, "Verse.SkyColorSet no longer exists");
+        Assert.That(type!.Methods.Any(m => m.Name == "LerpDarken" && m.Parameters.Count == 3), Is.True,
+            "SkyColorSet.LerpDarken(A, B, t) no longer exists — §18e models the composed umbra with it");
+    }
+
+    [Test]
     public void GameCondition_ProgressMembers_Exist()
     {
         // Patch_EclipseDarkening (and EclipseCoverageProbe) derive eclipse progress from these.
