@@ -2050,15 +2050,37 @@ is a display string, so what is actually available is a two-state model (surface
 layer), not a smooth "thinner air with height" ramp. A continuous model would be invented and
 anchored to something arbitrary, which cuts against how the rest of the mod is pinned.
 
-### Verification status
+### Verification
 
-Live A/B validation on an actual orbital map is **blocked on `Jeffrharr/RimWorldTestHarness#17`**:
-scenarios cannot currently reach the Orbit planet layer, because `SetTile`/`SetBiome` target
-planet-surface tiles and `OrbitLayer.CanSelectLayer` refuses the layer unless a world object already
-exists on it. That blocks validating, not writing — the pure halves are primitives-in/primitives-out
-and fully covered offline in `VacuumSuppressionTests.cs`. Pinning latitude will matter more than
-usual in those scenarios: with stationary orbits, the platform's lat/long fully determines its day
-length and sun path.
+Offline: `Tests/CelestialLighting.Tests/VacuumSuppressionTests.cs` pins every effect's vacuum value
+against its sea-level counterpart across a sun-elevation sweep.
+
+Live: `Tests/Scenarios/vacuum_suppression.json`, which runs the same latitude (45), day (40) and
+hours on a planet surface and then on a real Odyssey orbital platform in one load, via the harness's
+`LandInOrbit` step. The ground half pins the effects alive and the orbit half pins them collapsed, so
+the scenario fails if the gate ever stops firing *or* if it starts firing on the ground. Measured:
+
+| Hour | | twilight_warmth | sky_color_temperature | aurora_tint |
+|---|---|---|---|---|
+| 19 | ground | 0.3520 | 2851.66 K | 0.0755 |
+| 19 | orbit | **0** | **5772 K** | **0** |
+| 21 | ground | 0.1531 | 2000 K | 0.3500 |
+| 21 | orbit | **0** | **5772 K** | **0** |
+| 22 | ground | 0 | 2000 K | 0.3500 |
+| 22 | orbit | **0** | **5772 K** | **0** |
+
+Two things worth recording about the pins. First, they are **calibrated from a live run, not
+predicted** — the offline sweep's helper derives sun glow from our own simulator's elevation, but the
+live pairing is looser than that, because `aurora_tint` keys on vanilla's `GenCelestial
+.CurCelestialSunGlow` while `sky_color_temperature` keys on our `SolarPosition` elevation. Those are
+two different sun models and they do not correspond exactly; predicting one from the other is off by
+a few degrees. The unit tests are unaffected (they pin pure functions at given inputs), but a live
+pin has to be measured.
+
+Second, latitude pinning matters more here than usual: with stationary orbits the platform's lat/long
+fully determines its day length and sun path, and the orbit layer is a subdivided icosphere whose
+tiles are a couple of degrees wide. `LandInOrbit` therefore pins `WorldGrid.LongLatOf` to the
+requested latitude rather than accepting whatever the subdivision produced.
 
 ## Settings and presets
 
