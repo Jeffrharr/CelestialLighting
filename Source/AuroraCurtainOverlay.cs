@@ -189,9 +189,38 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
                 tint.r, tint.g, tint.b, tintWeight);
 
         _rowCursor += spec.RefreshRows;
-        if (_rowCursor >= spec.ResolutionY)
-            _rowCursor = 0;
 
+        if (_rowCursor < spec.ResolutionY)
+            return;
+
+        // DOUBLE BUFFERED, with the CPU array as the back buffer and the GPU texture as the front. The
+        // upload happens only when a sweep COMPLETES, never mid-sweep.
+        //
+        // Two reasons, and the first only became true when the sweep started pinning its time. The
+        // buffer is baked a slice at a time, so mid-sweep it holds rows from the sweep in progress below
+        // the cursor and rows from the PREVIOUS sweep above it. While every row carried its own instant
+        // those two halves differed imperceptibly; now that a sweep is baked at one instant, the two
+        // halves are a whole sweep apart in time and meet at a horizontal line. That line is faint at
+        // normal speed and grows with game speed, which is the worst kind of artifact — invisible while
+        // you are looking for it and obvious to a player at 3x.
+        //
+        // The second is plain bandwidth: this pushed ~147 KB to the GPU every frame to reveal six new
+        // rows. Now it pushes the same 147 KB once every ResolutionY / RefreshRows frames.
+        //
+        // The cost is that the displayed field lags by up to one sweep — about half a second — which for
+        // a field whose whole shape evolves over minutes is not a cost at all.
+        _rowCursor = 0;
+        Upload();
+    }
+
+    // Pushes the back buffer to the GPU.
+    //
+    // Also called once at allocation, and that call is not optional: a freshly constructed Texture2D's
+    // contents are UNDEFINED, not zeroed. While the upload happened every frame that never mattered
+    // because the first frame overwrote it; uploading only on sweep completion would otherwise leave
+    // whatever the driver handed us on screen for the first thirty-odd frames of an aurora.
+    private void Upload()
+    {
         _texture.LoadRawTextureData(_pixels);
         _texture.Apply(false);
     }
@@ -290,6 +319,11 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
             Sheets[i].mainTexture = _texture;
 
         _rowCursor = 0;
+
+        // See Upload: a new Texture2D's contents are undefined, so the zeroed back buffer has to be
+        // pushed once before anything is drawn. Zero alpha is invisible under additive blending, which
+        // is what lets the field fill itself in over the first sweep without a priming pass.
+        Upload();
     }
 
     private static Material[] BuildSheetMaterials()
