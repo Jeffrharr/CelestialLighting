@@ -228,7 +228,22 @@ public class AuroraCurtainHemRaysTests
         }
 
         Assert.That(bright, Is.LessThan(side * side / 5), "too much of the sky is bright — this is a wash");
-        Assert.That(dark, Is.GreaterThan(side * side / 3), "not enough genuinely dark sky between arcs");
+
+        // 28%, loosened from the 33% that was inherited from the contour field's version of this test,
+        // and the reason is a change of architecture rather than a change of taste.
+        //
+        // This measures darkness WITHIN ONE TILE. While the tile was stretched over the whole map those
+        // were the same quantity, so one threshold could police both "the arcs have gaps between them"
+        // and "the sky is mostly empty". They are now different quantities: the tile is drawn as a
+        // bounded SHEET covering part of the map, so in-tile density says nothing about how much of the
+        // sky is lit. Taller rays deliberately filled more of the tile — that is the approved look — and
+        // holding the old number would have meant undoing it to satisfy a property the tile no longer
+        // owns.
+        //
+        // What this still usefully guards is that arcs remain separated INSIDE a sheet. The map-level
+        // property — most of the sky dark, the aurora not obscuring the game — belongs to the sheet
+        // layout and is asserted in AuroraSheetLayoutTests.
+        Assert.That(dark, Is.GreaterThan(side * side * 28 / 100), "arcs have merged — no dark sky between them");
     }
 
     // Several colours at once, which is the requirement a single flat tint could never meet. The hue
