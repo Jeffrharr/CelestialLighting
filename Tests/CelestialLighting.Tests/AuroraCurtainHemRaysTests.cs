@@ -257,6 +257,54 @@ public class AuroraCurtainHemRaysTests
         Assert.That(sliced, Is.EqualTo(whole));
     }
 
+    // --- The cached column table must be the reference path ---
+
+    // The adapter bakes six rows a frame and used to rebuild the whole per-column table on every one of
+    // those calls, which threw away this field's entire performance argument. Holding the table across a
+    // sweep is only legitimate if it produces the SAME PIXELS, and nothing but this test says so.
+    [Test]
+    public void CachedTable_ProducesByteIdenticalRowsToTheSingleShotPath()
+    {
+        const int width = 64;
+        const int height = 48;
+        const float time = 7777f;
+
+        byte[] oneShot = new byte[width * height * 4];
+        byte[] cached = new byte[width * height * 4];
+
+        AuroraCurtainHemRays.FillRows(oneShot, width, height, 0, height, time, 0.2f, 0.9f, 0.3f, 0.3f);
+
+        // Filled a slice at a time, exactly as the game does, from one table pinned at one instant.
+        AuroraCurtainHemRays.ColumnTable table =
+            AuroraCurtainHemRays.BuildColumnTable(null, width, time);
+
+        for (int row = 0; row < height; row += 6)
+            AuroraCurtainHemRays.FillRows(cached, table, width, height, row, 6, 0.2f, 0.9f, 0.3f, 0.3f);
+
+        Assert.That(cached, Is.EqualTo(oneShot));
+    }
+
+    // A rebuilt table must not depend on what the previous one held — the arrays are reused between
+    // sweeps precisely so a steady-state bake allocates nothing, and reuse is where stale state hides.
+    [Test]
+    public void RebuildingATable_ForgetsThePreviousSweepEntirely()
+    {
+        const int width = 48;
+        const int height = 32;
+
+        byte[] fresh = new byte[width * height * 4];
+        byte[] reused = new byte[width * height * 4];
+
+        AuroraCurtainHemRays.ColumnTable a = AuroraCurtainHemRays.BuildColumnTable(null, width, 1234f);
+        AuroraCurtainHemRays.FillRows(fresh, a, width, height, 0, height, 0f, 0f, 0f, 0f);
+
+        AuroraCurtainHemRays.ColumnTable b = AuroraCurtainHemRays.BuildColumnTable(null, width, 90000f);
+        b = AuroraCurtainHemRays.BuildColumnTable(b, width, 1234f);
+        AuroraCurtainHemRays.FillRows(reused, b, width, height, 0, height, 0f, 0f, 0f, 0f);
+
+        Assert.That(reused, Is.EqualTo(fresh));
+    }
+
     // --- Shape properties #42 actually asked for ---
 
     // Structure, not a wash: a real curtain leaves most of the sky genuinely dark. This is the same

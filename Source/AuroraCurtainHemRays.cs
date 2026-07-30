@@ -756,6 +756,94 @@ public static class AuroraCurtainHemRays
     // The structure is the performance claim made concrete. Column state is evaluated once per column
     // into a scratch table and the pixel loop reads it — so the noise cost scales with the tile WIDTH
     // and the arithmetic cost with its AREA, where the contour field pays noise cost on area.
+    // Everything about a bake that depends on u and not on v, held so it can be reused across the many
+    // slices of one refresh sweep.
+    //
+    // WHY THIS TYPE EXISTS. This field's whole performance argument is that the noise is a function of
+    // u alone, so an entire texture COLUMN shares it: 19 samples per column, none per pixel. The
+    // adapter, though, bakes six rows per frame, and the table was rebuilt on every one of those
+    // calls — so the saving collapsed from "19 samples per column" to "19 samples per column, thirty-two
+    // times over". Roughly 3,600 samples a frame to fill 1,152 pixels.
+    //
+    // Holding the table for a whole sweep costs one thing and buys another. It costs a pinned `time`:
+    // every row of a sweep is baked from the instant the sweep began rather than from the instant that
+    // row was reached. That is not a regression but a fix — the rolling refresh already accepted that
+    // rows baked frames apart differ imperceptibly, and pinning makes the tile SELF-CONSISTENT instead
+    // of shearing slightly in time between its bottom and top, which it silently did before.
+    public sealed class ColumnTable
+    {
+        internal ColumnState[] Columns;
+        internal float[] Wobbles;
+        internal int Width;
+        internal float Time;
+    }
+
+    // Builds (or refills) the per-column table for one sweep. Reuses the given table's arrays when they
+    // are the right size, so a steady-state bake allocates nothing at all.
+    public static ColumnTable BuildColumnTable(ColumnTable reuse, int width, float time)
+    {
+        if (width < 1)
+            width = 1;
+
+        ColumnTable table = reuse ?? new ColumnTable();
+
+        if (table.Columns == null || table.Width != width)
+        {
+            table.Columns = new ColumnState[width * Curtains.Length];
+            table.Wobbles = new float[width];
+            table.Width = width;
+        }
+
+        table.Time = time;
+        BuildColumns(table.Columns, table.Wobbles, width, 1f / width, Drift(time));
+        return table;
+    }
+
+    // Fills rows from a prebuilt table. Identical output to the single-shot FillRows at the table's own
+    // time — asserted by AuroraCurtainHemRaysTests, because "identical" is the entire justification for
+    // caching and is not otherwise checkable.
+    public static void FillRows(
+        byte[] rgba, ColumnTable table, int width, int height, int firstRow, int rowCount,
+        float tintR, float tintG, float tintB, float tintWeight)
+    {
+        if (rgba == null || table == null || table.Columns == null || width < 1 || height < 1)
+            return;
+
+        int lastRow = Math.Min(firstRow + rowCount, height);
+        int startRow = Math.Max(firstRow, 0);
+
+        if (startRow >= lastRow || table.Width != width)
+            return;
+
+        FillFromColumns(rgba, table.Columns, table.Wobbles, width, height, startRow, lastRow,
+            tintR, tintG, tintB, Clamp01(tintWeight));
+    }
+
+    private static void FillFromColumns(
+        byte[] rgba, ColumnState[] columns, float[] wobbles, int width, int height,
+        int startRow, int lastRow, float tintR, float tintG, float tintB, float tint)
+    {
+        float invHeight = 1f / height;
+
+        for (int y = startRow; y < lastRow; y++)
+        {
+            float v = y * invHeight;
+            int rowBase = y * width * 4;
+
+            for (int x = 0; x < width; x++)
+            {
+                Sample sample = SampleColumn(columns, wobbles, x, v);
+                AuroraMath.Rgb colour = PaletteColor(sample.Hue);
+
+                int i = rowBase + x * 4;
+                rgba[i] = ToByte(Lerp(colour.R, tintR, tint));
+                rgba[i + 1] = ToByte(Lerp(colour.G, tintG, tint));
+                rgba[i + 2] = ToByte(Lerp(colour.B, tintB, tint));
+                rgba[i + 3] = ToByte(sample.Alpha);
+            }
+        }
+    }
+
     public static void FillRows(
         byte[] rgba, int width, int height, int firstRow, int rowCount, float time,
         float tintR, float tintG, float tintB, float tintWeight)
@@ -778,23 +866,8 @@ public static class AuroraCurtainHemRays
         float[] wobbles = RentWobbles(width);
         BuildColumns(columns, wobbles, width, invWidth, drift);
 
-        for (int y = startRow; y < lastRow; y++)
-        {
-            float v = y * invHeight;
-            int rowBase = y * width * 4;
-
-            for (int x = 0; x < width; x++)
-            {
-                Sample sample = SampleColumn(columns, wobbles, x, v);
-                AuroraMath.Rgb colour = PaletteColor(sample.Hue);
-
-                int i = rowBase + x * 4;
-                rgba[i] = ToByte(Lerp(colour.R, tintR, tint));
-                rgba[i + 1] = ToByte(Lerp(colour.G, tintG, tint));
-                rgba[i + 2] = ToByte(Lerp(colour.B, tintB, tint));
-                rgba[i + 3] = ToByte(sample.Alpha);
-            }
-        }
+        FillFromColumns(rgba, columns, wobbles, width, height, startRow, lastRow,
+            tintR, tintG, tintB, tint);
     }
 
     // ---- Internals ---------------------------------------------------------------------------------
