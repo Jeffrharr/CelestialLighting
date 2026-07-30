@@ -1,0 +1,301 @@
+{
+  "name": "eave_misclassify_sun_sweep",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Concrete",
+        "width": "15",
+        "height": "15",
+        "offset": "0,30",
+        "clear": "true"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "0,30",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "-3,-3; -2,-3; -1,-3; 0,-3; 1,-3; 2,-3; 3,-3; -3,3; -2,3; -1,3; 0,3; 1,3; 2,3; 3,3; -3,-2; -3,-1; -3,0; -3,1; -3,2; 3,-2; 3,-1; 3,0; 3,1; 3,2"
+      }
+    },
+    {
+      "type": "SetRoof",
+      "args": {
+        "def": "RoofConstructed",
+        "width": "7",
+        "height": "7",
+        "offset": "0,30"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "anchor": "125,3",
+        "def": "Concrete",
+        "width": "15",
+        "height": "13",
+        "offset": "0,0",
+        "clear": "true"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "anchor": "125,3",
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "0,0",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "-3,3; -2,3; -1,3; 0,3; 1,3; 2,3; 3,3; -3,-3; -3,-2; -3,-1; -3,0; -3,1; -3,2; 3,-3; 3,-2; 3,-1; 3,0; 3,1; 3,2"
+      }
+    },
+    {
+      "type": "SetRoof",
+      "args": {
+        "anchor": "125,3",
+        "def": "RoofConstructed",
+        "width": "7",
+        "height": "7",
+        "offset": "0,0"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "indoor_sky_occlusion",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "eave_cells",
+        "expectedValue": "30",
+        "tolerance": "1"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "7"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "0,30",
+        "zoom": "14"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "sweep_control_07.png"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "anchor": "125,3",
+        "offset": "0,0",
+        "zoom": "14"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "sweep_edge_07.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "9"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "0,30",
+        "zoom": "14"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "sweep_control_09.png"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "anchor": "125,3",
+        "offset": "0,0",
+        "zoom": "14"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "sweep_edge_09.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "0,30",
+        "zoom": "14"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "sweep_control_12.png"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "anchor": "125,3",
+        "offset": "0,0",
+        "zoom": "14"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "sweep_edge_12.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "16"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "0,30",
+        "zoom": "14"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "sweep_control_16.png"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "anchor": "125,3",
+        "offset": "0,0",
+        "zoom": "14"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "sweep_edge_16.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "18"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "0,30",
+        "zoom": "14"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "sweep_control_18.png"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "anchor": "125,3",
+        "offset": "0,0",
+        "zoom": "14"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "sweep_edge_18.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "19"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "0,30",
+        "zoom": "14"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "sweep_control_19.png"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "anchor": "125,3",
+        "offset": "0,0",
+        "zoom": "14"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "sweep_edge_19.png"
+      }
+    }
+  ]
+}
