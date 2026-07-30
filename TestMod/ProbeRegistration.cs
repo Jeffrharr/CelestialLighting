@@ -83,7 +83,13 @@ public static class ProbeRegistration
         ProbeRegistry.Register(new SunElevationProbe());
         // §15: how many cells on this map are eaves at all. Separates "the A/B images match because
         // the toggle did nothing" from "they match because this colony has no porch to shade".
-        ProbeRegistry.Register(new EaveCellProbe());
+        // Two counts, not one: the eave predicate and the shadow-caster predicate differ on a
+        // mountain roof, and a scenario reading only the first cannot see a thick/constructed
+        // roofline seam at all — the eave count is correct there and the caster count is the one
+        // that was wrong. See EaveCellProbe and EavesMath.
+        ProbeRegistry.Register(new EaveCellProbe("eave_cells", EaveCellProbe.Metric.Eaves));
+        ProbeRegistry.Register(
+            new EaveCellProbe("roof_shadow_cells", EaveCellProbe.Metric.ShadowCasters));
 
         // §16: what one map-mesh dirty flag costs, per layer, in microseconds. Seven probes rather
         // than one because the question is a comparison — our three added regenerates against the

@@ -80,8 +80,11 @@ public readonly struct EaveShadowGrid
         // EaveCells short-circuits on the roof grid before it reaches the room query, which is the
         // expensive half — this runs over every cell of a 361-cell window, and the overwhelming
         // majority of cells on any map are unroofed.
+        //
+        // CastsRoofShadow, not IsEave: a mountain roofline casts here even though it is not an eave
+        // for §7b/§15b's purposes. See EavesMath for the seam that split them.
         IntVec3 cell = new IntVec3(x, 0, z);
-        return EavesMath.CasterHeight(edificeHeight, EaveCells.IsEave(map, cell));
+        return EavesMath.CasterHeight(edificeHeight, EaveCells.CastsRoofShadow(map, cell));
     }
 
     private static int Max(int a, int b) => a > b ? a : b;

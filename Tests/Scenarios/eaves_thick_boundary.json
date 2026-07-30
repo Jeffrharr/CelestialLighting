@@ -75,7 +75,15 @@
       "args": {
         "probeName": "eave_cells",
         "expectedValue": "9",
-        "tolerance": "400"
+        "tolerance": "1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "roof_shadow_cells",
+        "expectedValue": "18",
+        "tolerance": "1"
       }
     },
     {

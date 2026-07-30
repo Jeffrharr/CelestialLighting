@@ -21,13 +21,17 @@ namespace CelestialLighting;
 // points north instead of south. Everything else here is copied from vanilla's Regenerate() —
 // this is not a redesign, just the one missing case filled in.
 //
-// The one further change since: the per-cell `Building` lookups now go through EaveShadowGrid,
+// Two further changes since. The first: the per-cell `Building` lookups now go through EaveShadowGrid,
 // which resolves an effective caster HEIGHT per cell rather than an edifice, so §15's eaves (roofed
 // cells that are not enclosed — porches, overhangs) can cast a roofline shadow. That substitution
 // is exactly equivalent to vanilla's own tests whenever §15 is off: vanilla's `building == null`
 // branches are indistinguishable from "height 0" here, because every neighbour test only runs once
 // the centre cell's own height is already > 0, so a null neighbour's 0 satisfies `< centreHeight`
 // for precisely the reason `building == null` did.
+//
+// The second: a caster cell with no shorter neighbour emits nothing at all, where vanilla still
+// emits its (invisible, zero-alpha) footprint quad. See EmitCell — this is what keeps admitting a
+// mountain's whole interior as a caster from costing vertices for geometry that cannot draw.
 //
 // Because this Prefix replaces the whole method body, any OTHER mod's transpiler on Regenerate is
 // skipped — including Perspective: Eaves, which is why §15 exists at all and why About.xml declares
@@ -76,100 +80,7 @@ public static class Patch_ShadowMeshPerimeter
         for (int i = cellRect.minX; i <= cellRect.maxX; i++)
         {
             for (int j = cellRect.minZ; j <= cellRect.maxZ; j++)
-            {
-                float staticSunShadowHeight = casters.At(i, j);
-                if (!(staticSunShadowHeight > 0f))
-                    continue;
-
-                // The alpha the "Custom/Sun shadow" vertex program multiplies the global extrusion
-                // vector by — i.e. "how tall is this caster", and nothing else, exactly as vanilla
-                // intends it (see DESIGN.md §3 for the shader scan that established this).
-                // Formulas.ShadowCasterAlphaByte owns the clamp vanilla's own plain
-                // `(byte)(255f * height)` lacks: that cast is unchecked, and staticSunShadowHeight
-                // is an unvalidated ThingDef float, so any modded def declaring more than 1.0 WRAPS
-                // (1.2 -> 306 -> 50) and collapses that building's shadow to a stub. Vanilla's own
-                // defs never exceed 1.0, but this Prefix replaces the whole method for every mod in
-                // the load order, so the clamp is ours to provide.
-                Color32 item = new Color32(
-                    0, 0, 0, Formulas.ShadowCasterAlphaByte(staticSunShadowHeight));
-
-                // Flat footprint quad (unmoved by the shader — LowVertexColor's zero alpha).
-                int count = subMesh.verts.Count;
-                subMesh.verts.Add(new Vector3(i, y, j));
-                subMesh.verts.Add(new Vector3(i, y, j + 1));
-                subMesh.verts.Add(new Vector3(i + 1, y, j + 1));
-                subMesh.verts.Add(new Vector3(i + 1, y, j));
-                subMesh.colors.Add(LowVertexColor);
-                subMesh.colors.Add(LowVertexColor);
-                subMesh.colors.Add(LowVertexColor);
-                subMesh.colors.Add(LowVertexColor);
-
-                int count2 = subMesh.verts.Count;
-                subMesh.tris.Add(count2 - 4);
-                subMesh.tris.Add(count2 - 3);
-                subMesh.tris.Add(count2 - 2);
-                subMesh.tris.Add(count2 - 4);
-                subMesh.tris.Add(count2 - 2);
-                subMesh.tris.Add(count2 - 1);
-
-                if (i > 0 && casters.At(i - 1, j) < staticSunShadowHeight)
-                {
-                    int count3 = subMesh.verts.Count;
-                    subMesh.verts.Add(new Vector3(i, y, j));
-                    subMesh.verts.Add(new Vector3(i, y, j + 1));
-                    subMesh.colors.Add(item);
-                    subMesh.colors.Add(item);
-                    subMesh.tris.Add(count + 1);
-                    subMesh.tris.Add(count);
-                    subMesh.tris.Add(count3);
-                    subMesh.tris.Add(count3);
-                    subMesh.tris.Add(count3 + 1);
-                    subMesh.tris.Add(count + 1);
-                }
-                if (i < map.Size.x - 1 && casters.At(i + 1, j) < staticSunShadowHeight)
-                {
-                    int count4 = subMesh.verts.Count;
-                    subMesh.verts.Add(new Vector3(i + 1, y, j + 1));
-                    subMesh.verts.Add(new Vector3(i + 1, y, j));
-                    subMesh.colors.Add(item);
-                    subMesh.colors.Add(item);
-                    subMesh.tris.Add(count + 2);
-                    subMesh.tris.Add(count4);
-                    subMesh.tris.Add(count4 + 1);
-                    subMesh.tris.Add(count4 + 1);
-                    subMesh.tris.Add(count + 3);
-                    subMesh.tris.Add(count + 2);
-                }
-                if (j > 0 && casters.At(i, j - 1) < staticSunShadowHeight)
-                {
-                    int count5 = subMesh.verts.Count;
-                    subMesh.verts.Add(new Vector3(i, y, j));
-                    subMesh.verts.Add(new Vector3(i + 1, y, j));
-                    subMesh.colors.Add(item);
-                    subMesh.colors.Add(item);
-                    subMesh.tris.Add(count);
-                    subMesh.tris.Add(count + 3);
-                    subMesh.tris.Add(count5);
-                    subMesh.tris.Add(count + 3);
-                    subMesh.tris.Add(count5 + 1);
-                    subMesh.tris.Add(count5);
-                }
-                // The added fourth face — vanilla has no equivalent block for this direction.
-                if (j < map.Size.z - 1 && casters.At(i, j + 1) < staticSunShadowHeight)
-                {
-                    int count6 = subMesh.verts.Count;
-                    subMesh.verts.Add(new Vector3(i + 1, y, j + 1));
-                    subMesh.verts.Add(new Vector3(i, y, j + 1));
-                    subMesh.colors.Add(item);
-                    subMesh.colors.Add(item);
-                    subMesh.tris.Add(count + 2);
-                    subMesh.tris.Add(count + 1);
-                    subMesh.tris.Add(count6);
-                    subMesh.tris.Add(count + 1);
-                    subMesh.tris.Add(count6 + 1);
-                    subMesh.tris.Add(count6);
-                }
-            }
+                EmitCell(subMesh, casters, map, i, j, y);
         }
 
         if (subMesh.verts.Count > 0)
@@ -180,5 +91,124 @@ public static class Patch_ShadowMeshPerimeter
         }
 
         return false;
+    }
+
+    // One cell's contribution: a flat footprint quad plus a skirt on each of the four edges whose
+    // neighbour is shorter. Extracted from the loop above only so the two early exits can be plain
+    // returns — vanilla's body is otherwise transcribed unchanged.
+    private static void EmitCell(
+        LayerSubMesh subMesh, EaveShadowGrid casters, Map map, int i, int j, float y)
+    {
+        float staticSunShadowHeight = casters.At(i, j);
+        if (!(staticSunShadowHeight > 0f))
+            return;
+
+        // Which edges this cell is actually on the outside of. Vanilla asks these four questions
+        // inline, one per block, after the footprint quad is already committed; asking them up front
+        // is what lets the whole cell be skipped below.
+        bool west = i > 0 && casters.At(i - 1, j) < staticSunShadowHeight;
+        bool east = i < map.Size.x - 1 && casters.At(i + 1, j) < staticSunShadowHeight;
+        bool south = j > 0 && casters.At(i, j - 1) < staticSunShadowHeight;
+        bool north = j < map.Size.z - 1 && casters.At(i, j + 1) < staticSunShadowHeight;
+
+        // A cell buried inside a caster blob — every neighbour at least as tall — draws nothing: no
+        // skirt block below can fire, and the footprint quad carries zero alpha so the shader never
+        // extrudes it. Vanilla emits it anyway, which is free enough on a colony's few hundred wall
+        // cells but is not free now that a whole cave's interior classifies as a caster: a 60x60
+        // mined-out cavern would otherwise pay 14,400 vertices per regenerate to render nothing.
+        //
+        // The four skirt blocks index back into this quad (count+1 .. count+3), so skipping it is
+        // only sound while none of them fires — which is exactly the condition tested here.
+        if (!west && !east && !south && !north)
+            return;
+
+        // The alpha the "Custom/Sun shadow" vertex program multiplies the global extrusion
+        // vector by — i.e. "how tall is this caster", and nothing else, exactly as vanilla
+        // intends it (see DESIGN.md §3 for the shader scan that established this).
+        // Formulas.ShadowCasterAlphaByte owns the clamp vanilla's own plain
+        // `(byte)(255f * height)` lacks: that cast is unchecked, and staticSunShadowHeight
+        // is an unvalidated ThingDef float, so any modded def declaring more than 1.0 WRAPS
+        // (1.2 -> 306 -> 50) and collapses that building's shadow to a stub. Vanilla's own
+        // defs never exceed 1.0, but this Prefix replaces the whole method for every mod in
+        // the load order, so the clamp is ours to provide.
+        Color32 item = new Color32(
+            0, 0, 0, Formulas.ShadowCasterAlphaByte(staticSunShadowHeight));
+
+        // Flat footprint quad (unmoved by the shader — LowVertexColor's zero alpha).
+        int count = subMesh.verts.Count;
+        subMesh.verts.Add(new Vector3(i, y, j));
+        subMesh.verts.Add(new Vector3(i, y, j + 1));
+        subMesh.verts.Add(new Vector3(i + 1, y, j + 1));
+        subMesh.verts.Add(new Vector3(i + 1, y, j));
+        subMesh.colors.Add(LowVertexColor);
+        subMesh.colors.Add(LowVertexColor);
+        subMesh.colors.Add(LowVertexColor);
+        subMesh.colors.Add(LowVertexColor);
+
+        int count2 = subMesh.verts.Count;
+        subMesh.tris.Add(count2 - 4);
+        subMesh.tris.Add(count2 - 3);
+        subMesh.tris.Add(count2 - 2);
+        subMesh.tris.Add(count2 - 4);
+        subMesh.tris.Add(count2 - 2);
+        subMesh.tris.Add(count2 - 1);
+
+        if (west)
+        {
+            int count3 = subMesh.verts.Count;
+            subMesh.verts.Add(new Vector3(i, y, j));
+            subMesh.verts.Add(new Vector3(i, y, j + 1));
+            subMesh.colors.Add(item);
+            subMesh.colors.Add(item);
+            subMesh.tris.Add(count + 1);
+            subMesh.tris.Add(count);
+            subMesh.tris.Add(count3);
+            subMesh.tris.Add(count3);
+            subMesh.tris.Add(count3 + 1);
+            subMesh.tris.Add(count + 1);
+        }
+        if (east)
+        {
+            int count4 = subMesh.verts.Count;
+            subMesh.verts.Add(new Vector3(i + 1, y, j + 1));
+            subMesh.verts.Add(new Vector3(i + 1, y, j));
+            subMesh.colors.Add(item);
+            subMesh.colors.Add(item);
+            subMesh.tris.Add(count + 2);
+            subMesh.tris.Add(count4);
+            subMesh.tris.Add(count4 + 1);
+            subMesh.tris.Add(count4 + 1);
+            subMesh.tris.Add(count + 3);
+            subMesh.tris.Add(count + 2);
+        }
+        if (south)
+        {
+            int count5 = subMesh.verts.Count;
+            subMesh.verts.Add(new Vector3(i, y, j));
+            subMesh.verts.Add(new Vector3(i + 1, y, j));
+            subMesh.colors.Add(item);
+            subMesh.colors.Add(item);
+            subMesh.tris.Add(count);
+            subMesh.tris.Add(count + 3);
+            subMesh.tris.Add(count5);
+            subMesh.tris.Add(count + 3);
+            subMesh.tris.Add(count5 + 1);
+            subMesh.tris.Add(count5);
+        }
+        // The added fourth face — vanilla has no equivalent block for this direction.
+        if (north)
+        {
+            int count6 = subMesh.verts.Count;
+            subMesh.verts.Add(new Vector3(i + 1, y, j + 1));
+            subMesh.verts.Add(new Vector3(i, y, j + 1));
+            subMesh.colors.Add(item);
+            subMesh.colors.Add(item);
+            subMesh.tris.Add(count + 2);
+            subMesh.tris.Add(count + 1);
+            subMesh.tris.Add(count6);
+            subMesh.tris.Add(count + 1);
+            subMesh.tris.Add(count6 + 1);
+            subMesh.tris.Add(count6);
+        }
     }
 }
