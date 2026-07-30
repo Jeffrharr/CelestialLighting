@@ -55,6 +55,16 @@ public static class Program
     // A field generator plus everything the composite needs to lay it over the map.
     private sealed class FieldSpec
     {
+        // Whether the game draws this field as a BOUNDED PATCH rather than a texture tiled over the map.
+        //
+        // This is not cosmetic for the previewer. A tiled render shows the field repeating edge to edge,
+        // which is what §11a used to do and no longer does — so every edge, taper and corner tuned
+        // against a tiled preview would be tuned against something the player never sees. The whole
+        // value of this tool is that it renders the shipped geometry, so it has to know the difference.
+        public bool Bounded;
+        public float PatchWidthCells;
+        public float PatchHeightCells;
+
         public string Name;
         public int Resolution;
         public float TintWeight;
@@ -132,6 +142,13 @@ public static class Program
     private static FieldSpec HemRaysSpec() => new FieldSpec
     {
         Name = "hemrays",
+        Bounded = true,
+
+        // The maximum a display can be. In game each aurora picks a random size between this and half
+        // of it, so this is the biggest and softest-looking case — the one where texel density is
+        // lowest and any blur shows first.
+        PatchWidthCells = AuroraSheetLayout.PatchMaxWidth,
+        PatchHeightCells = AuroraSheetLayout.PatchMaxHeight,
         Resolution = AuroraCurtainHemRays.Resolution,
         TintWeight = AuroraCurtainHemRays.DriverTintWeight,
         Fill = AuroraCurtainHemRays.FillRows,
@@ -335,6 +352,12 @@ public static class Program
         int height = cellsY * pixelsPerCell;
         byte[] image = new byte[width * height * 4];
 
+        // Centred in the view. The game places it randomly inside the camera rectangle, but a previewer
+        // that moved it between runs would make two renders impossible to compare, which is the one
+        // thing this tool exists for.
+        float patchLeft = (ViewCellsX - spec.PatchWidthCells) * 0.5f;
+        float patchBottom = (cellsY - spec.PatchHeightCells) * 0.5f;
+
         for (int py = 0; py < height; py++)
         {
             float cellY = (float)(height - 1 - py) / pixelsPerCell;
@@ -347,12 +370,27 @@ public static class Program
                 float g = NightGround[1];
                 float b = NightGround[2];
 
-                for (int l = 0; l < spec.Layers.Length; l++)
+                if (spec.Bounded)
                 {
-                    Layer layer = spec.Layers[l];
-                    float u = cellX / layer.CellsPerRepeatX + ticks * layer.PanU % 1f;
-                    float v = cellY / layer.CellsPerRepeatY + ticks * layer.PanV % 1f;
-                    Add(spec, field, u, v, strength * layer.Alpha, ref r, ref g, ref b);
+                    // One quad, one repeat of the field across it, and nothing outside it — exactly what
+                    // AuroraCurtainOverlay draws. Note there is no pan term: a bounded patch cannot pan
+                    // its UVs, because the taper is baked at u/v 0 and 1 and any offset would slide those
+                    // feathered edges into the middle of the quad. In game the patch MOVES instead.
+                    float u = (cellX - patchLeft) / spec.PatchWidthCells;
+                    float v = (cellY - patchBottom) / spec.PatchHeightCells;
+
+                    if (u >= 0f && u < 1f && v >= 0f && v < 1f)
+                        Add(spec, field, u, v, strength, ref r, ref g, ref b);
+                }
+                else
+                {
+                    for (int l = 0; l < spec.Layers.Length; l++)
+                    {
+                        Layer layer = spec.Layers[l];
+                        float u = cellX / layer.CellsPerRepeatX + ticks * layer.PanU % 1f;
+                        float v = cellY / layer.CellsPerRepeatY + ticks * layer.PanV % 1f;
+                        Add(spec, field, u, v, strength * layer.Alpha, ref r, ref g, ref b);
+                    }
                 }
 
                 int dst = (py * width + px) * 4;
