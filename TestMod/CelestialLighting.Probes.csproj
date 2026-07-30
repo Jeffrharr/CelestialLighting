@@ -8,6 +8,19 @@
     <Nullable>enable</Nullable>
     <OutputPath>1.6/Assemblies</OutputPath>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+
+    <!-- Where the harness's built assemblies live. The default resolves when this project is built
+         from CelestialLighting's own main checkout. It does NOT resolve from a git worktree: those
+         sit a directory deeper under .worktrees/, so the relative path lands on
+         .worktrees/RimWorldTestHarness, which does not exist. Override it to build a worktree
+         against the harness checkout — or harness worktree — it actually means:
+
+           ./TestMod/build.sh /p:RimWorldTestHarnessDir=/abs/path/to/RimWorldTestHarness
+
+         A property rather than a symlink at that missing path, deliberately: a symlink there is
+         global, so one agent pointing it at their harness branch would silently redirect every other
+         agent's worktree build to that branch's assemblies. -->
+    <RimWorldTestHarnessDir Condition="'$(RimWorldTestHarnessDir)' == ''">../../RimWorldTestHarness</RimWorldTestHarnessDir>
   </PropertyGroup>
 
   <ItemGroup>
@@ -65,7 +78,14 @@
       <Private>false</Private>
     </Reference>
     <Reference Include="RimWorldTestHarness">
-      <HintPath>../../RimWorldTestHarness/1.6/Assemblies/RimWorldTestHarness.dll</HintPath>
+      <HintPath>$(RimWorldTestHarnessDir)/1.6/Assemblies/RimWorldTestHarness.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- The harness's game-type-free half, where the registries that must stay unit-testable live
+         (WorldOverrideHookRegistry). A separate assembly rather than part of the one above, so
+         referencing it explicitly is required even though both ship in the same Assemblies folder. -->
+    <Reference Include="RimWorldTestHarness.Shared">
+      <HintPath>$(RimWorldTestHarnessDir)/1.6/Assemblies/RimWorldTestHarness.Shared.dll</HintPath>
       <Private>false</Private>
     </Reference>
   </ItemGroup>

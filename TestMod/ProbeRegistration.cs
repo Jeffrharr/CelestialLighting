@@ -1,6 +1,7 @@
 using RimWorld;
 using RimWorldTestHarness.Mod.Features;
 using RimWorldTestHarness.Mod.Probes;
+using RimWorldTestHarness.Shared;
 using Verse;
 
 namespace CelestialLighting.Probes;
@@ -348,5 +349,18 @@ public static class ProbeRegistration
             "pitch_black_true",
             enabled => NightRadianceSettings.Current.MinNightBrightness =
                 enabled ? 0f : NightRadianceMath.DefaultMinNightBrightness);
+
+        // SunClock caches its measured half-day per TILE, re-measuring only when the absolute day
+        // rolls over. The harness's SetTile does not move the colony — it overrides what
+        // WorldGrid.LongLatOf reports — so the tile key never changes and the cache cannot tell the
+        // latitude under it did. Left unhooked, a scenario at latitude 45 can read a half-day measured
+        // for its predecessor at latitude 20 and report a confidently wrong sun_elevation; the
+        // scenario's own SetSeason sometimes hides it by rolling the day index, which makes the bug
+        // depend on step ordering rather than on anything a reader would think to check.
+        //
+        // Registered here rather than inside SunClock because the shipped assembly must not reference
+        // the harness — this bridge is the only place allowed to know both types exist. In production
+        // nothing fires the hook and the cache behaves exactly as it does today.
+        WorldOverrideHookRegistry.Register(SunClock.Clear);
     }
 }
