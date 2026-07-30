@@ -47,6 +47,21 @@ public static class Patch_ShadowDirection
         if (!MapSky.DrawsShadows(map))
             return;
 
+        // Sky blacked out right now (issue #35 — Glowforest, a smoke vent, a sun blocker; never an
+        // eclipse, see MapSkyMath.ConditionBlacksOutSky). Patch_ShadowStrength owns the value that
+        // actually renders and zeroes it on the same test, so this is the consistency half of the pair:
+        // this postfix's LightInfo.intensity is read by nothing in vanilla for LightType.Shadow, but a
+        // third-party postfix that does read it should not be handed a confident sun the map cannot see.
+        //
+        // Intensity only — the vector is deliberately left as vanilla wrote it. Zeroing it would be
+        // inventing a direction rather than declining to assert one, and with strength at zero nothing
+        // is drawn along it anyway.
+        if (MapSky.SkyBlackedOut(map))
+        {
+            __result.intensity = 0f;
+            return;
+        }
+
         SolarPosition.Inputs inputs = SolarPosition.InputsForMap(map);
         float elevation = Formulas.SolarElevationDegrees(inputs.Latitude, inputs.Declination, inputs.DayPercent);
 

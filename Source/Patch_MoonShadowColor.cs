@@ -58,6 +58,18 @@ public static class Patch_MoonShadowColor
         if (!MapSky.DrawsShadows(map))
             return;
 
+        // Sky blacked out right now (issue #35 — Glowforest, a smoke vent, a sun blocker; never an
+        // eclipse, see MapSkyMath.ConditionBlacksOutSky). No moonlight arrives through an opaque cloud
+        // deck, so there is no moon shadow whose contrast needs rescuing.
+        //
+        // Worth its own gate rather than riding on Patch_ShadowStrength's zero, because colors.shadow is
+        // not always consumed through the lerp that zero neutralizes: when a WeatherEvent supplies an
+        // OverrideShadowVector, SkyManager skips `Color.Lerp(Color.white, ..., CurShadowStrength)`
+        // entirely and uses colors.shadow as the material colour directly. On those frames a darkened
+        // night shadow colour would render at full depth under a blacked-out sky.
+        if (MapSky.SkyBlackedOut(map))
+            return;
+
         // Sun up: it owns the shadow. Same shared simulator and same horizon constant both shadow
         // patches use, so all three can never disagree about when night has started.
         float sunElevation = SolarPosition.ElevationForMap(map);

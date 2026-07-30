@@ -555,6 +555,60 @@ public class ApiCompatibilityTests
     }
 
     [Test]
+    public void GameConditionNoSunlight_StillTheBlackoutBaseClass()
+    {
+        // §17's dynamic gate (MapSky.SkyBlackedOut) keys on this class rather than on a def-name list,
+        // so every blackout source in the game — Odyssey's DarkenedSkies, Royalty's SunBlocker, a
+        // modded one — is caught for free. If Ludeon ever gives DarkenedSkies its own unrelated base
+        // class, that gate silently stops firing on the headline case.
+        var type = GetType("RimWorld.GameCondition_NoSunlight");
+        Assert.That(type, Is.Not.Null, "RimWorld.GameCondition_NoSunlight no longer exists");
+        Assert.That(type!.BaseType?.FullName, Is.EqualTo("RimWorld.GameCondition"));
+
+        // Odyssey's DarkenedSkies uses the _Instant subclass, so the `is` test above has to keep
+        // reaching it through inheritance.
+        var instant = GetType("RimWorld.GameCondition_NoSunlight_Instant");
+        Assert.That(instant, Is.Not.Null, "RimWorld.GameCondition_NoSunlight_Instant no longer exists");
+        Assert.That(instant!.BaseType?.FullName, Is.EqualTo("RimWorld.GameCondition_NoSunlight"),
+            "GameCondition_NoSunlight_Instant no longer derives from GameCondition_NoSunlight — "
+            + "Odyssey's DarkenedSkies would stop matching §17's blackout gate");
+    }
+
+    [Test]
+    public void GameConditionManager_ActiveConditionsAndParent_Exist()
+    {
+        // MapSky.SkyBlackedOut walks the manager chain itself (map's own conditions, then the world's)
+        // rather than calling GetAllGameConditionsAffectingMap, which allocates into a caller-supplied
+        // list on a per-frame path. That means it depends on both of these directly.
+        var type = GetType("RimWorld.GameConditionManager");
+        Assert.That(type, Is.Not.Null, "RimWorld.GameConditionManager no longer exists");
+
+        var active = type!.Properties.SingleOrDefault(p => p.Name == "ActiveConditions");
+        Assert.That(active, Is.Not.Null, "GameConditionManager.ActiveConditions no longer exists");
+        Assert.That(active!.PropertyType.FullName,
+            Is.EqualTo("System.Collections.Generic.List`1<RimWorld.GameCondition>"));
+
+        var parent = type.Properties.SingleOrDefault(p => p.Name == "Parent");
+        Assert.That(parent, Is.Not.Null, "GameConditionManager.Parent no longer exists");
+        Assert.That(parent!.PropertyType.FullName, Is.EqualTo("RimWorld.GameConditionManager"));
+    }
+
+    [Test]
+    public void GameCondition_CanApplyOnMap_Exists()
+    {
+        // SkyBlackedOut filters on CanApplyOnMap and nothing else, because that is exactly the filter
+        // SkyManager.CurrentSkyTarget applies when composing a condition's SkyTarget — so our gate
+        // opens and closes on the same frames vanilla's own darkening does.
+        var type = GetType("RimWorld.GameCondition");
+        Assert.That(type, Is.Not.Null, "RimWorld.GameCondition no longer exists");
+        var method = type!.Methods.SingleOrDefault(m =>
+            m.Name == "CanApplyOnMap" && m.Parameters.Count == 1
+            && m.Parameters[0].ParameterType.FullName == "Verse.Map");
+        Assert.That(method, Is.Not.Null, "GameCondition.CanApplyOnMap(Map) no longer exists");
+        Assert.That(method!.ReturnType.FullName, Is.EqualTo("System.Boolean"));
+    }
+
+    [Test]
     public void SkyColorSet_LerpDarken_StillTakesPerChannelMin()
     {
         // The whole §11 premise for tinting during a vanilla aurora rests on this: SkyManager
@@ -1176,6 +1230,11 @@ public class ApiCompatibilityTests
     {
         // The postfix gates on this def so it only reshapes the real Eclipse event (not the
         // Royalty SunBlocker machine, which shares the GameCondition_NoSunlight class).
+        //
+        // §17's MapSky.SkyBlackedOut compares against the same field in the opposite direction — it
+        // treats every GameCondition_NoSunlight EXCEPT this one as a blackout. Losing this field is
+        // therefore the single change that would make the blackout gate swallow our own §10/§10a
+        // eclipse handling, so it is now load-bearing for two subsystems.
         var type = GetType("RimWorld.GameConditionDefOf");
         Assert.That(type, Is.Not.Null, "RimWorld.GameConditionDefOf no longer exists");
         var field = type!.Fields.SingleOrDefault(f => f.Name == "Eclipse");

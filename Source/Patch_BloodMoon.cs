@@ -31,6 +31,14 @@ public static class Patch_BloodMoon
         if (MapSky.IsEnclosed(map))
             return;
 
+        // Sky blacked out right now (issue #35 — Glowforest, a smoke vent, a sun blocker; never an
+        // eclipse, see MapSkyMath.ConditionBlacksOutSky). The moon this recolours the night around is
+        // behind an opaque cloud deck, which hides it exactly as a rock ceiling does. Same LerpDarken
+        // caveat as §2: a crimson tint lowers green and blue, so the per-channel min would have kept
+        // most of it and only clipped the red.
+        if (MapSky.SkyBlackedOut(map))
+            return;
+
         float strength = BloodMoon.TintStrengthForMap(map);
         if (strength <= 0f)
             return;

@@ -31,6 +31,12 @@ namespace CelestialLighting;
 //     not a bug to gate away. Those two stay on.
 //   - §9 Purkinje desaturation, which keys on MEASURED glow rather than on the sky, and therefore
 //     already self-corrects to whatever light a cave actually has. Gating it would break it.
+//
+// A THIRD KIND OF MAP: one that has a sky and no ceiling, but nothing visible through it (issue #35).
+// Odyssey's Glowforest sits under a permanent sulfur overcast, and any map with an AncientSmokeVent
+// spends roughly 3 days in 7 under the same one. Neither is enclosed and both draw shadows, so both
+// gates above stay open and every sun- and moon-derived effect ran on them. That question is
+// ConditionBlacksOutSky below, and it is dynamic rather than a BiomeDef property — see its header.
 public static class MapSkyMath
 {
     // Composes the two independent conditions, either of which means there is no sky.
@@ -78,6 +84,43 @@ public static class MapSkyMath
     // untouched, so weather_dimming_skyless.json — which pins Orbit at zero dimming — still passes
     // unchanged and remains the proof of that.
     public static bool IsEnclosed(bool hasSky, bool inVacuum) => !hasSky && !inVacuum;
+
+    // Whether ONE active GameCondition means the sky over this map is opaque right now — no sun, no
+    // moon, no stars. MapSky.SkyBlackedOut folds this over the conditions actually affecting a map.
+    //
+    // This is the third map-kind question, and the only DYNAMIC one. HasSky and IsEnclosed are
+    // properties of a BiomeDef and cannot change while a map is loaded; this one turns on and off
+    // several times a game year on the same map, which is exactly why it could not be answered by
+    // adding a clause to IsEnclosed.
+    //
+    // WHY A CONDITION CLASS RATHER THAN A DEF LIST. Everything that blacks out a RimWorld sky is a
+    // GameCondition_NoSunlight, and there are four sources across vanilla and the DLCs:
+    //
+    //   - Odyssey's `DarkenedSkies` (GameCondition_NoSunlight_Instant) as a PERMANENT biome condition.
+    //     `Glowforest` declares it in `biomeMapConditions` and says so in its own description —
+    //     "geysers spew out massive sulfur clouds that cast the region into permanent darkness". That
+    //     map is emphatically not enclosed: it is an ordinary surface tile offering eleven weathers and
+    //     setting none of disableSkyLighting / disableShadows / inVacuum.
+    //   - The same `DarkenedSkies`, TIMED, from an `AncientSmokeVent`'s CompAncientVentEmitter, which
+    //     cycles it roughly 3 days on / 4 days off on any map that has one. This is the case that
+    //     proves the question is per-map runtime state rather than biome data.
+    //   - Royalty's `SunBlocker` machine.
+    //   - Vanilla's `Eclipse` — which is why the carve-out below exists.
+    //
+    // Keying on the class means a modded blackout condition is caught for free, exactly as IsEnclosed
+    // catches every modded cave biome through vanilla biome data rather than a def-name list.
+    //
+    // THE ECLIPSE CARVE-OUT, which is the one way to get this wrong that no A/B on a blacked-out map
+    // would reveal. Eclipse is the same condition class, and §10/§10a exist specifically to reshape it,
+    // so gating on the class alone would quietly switch our own eclipse handling off. Excluded by def
+    // here, the mirror image of Patch_EclipseDarkening excluding SunBlocker by def — same technique,
+    // opposite direction.
+    //
+    // It is also a genuinely different fact about the world, not just an implementation carve-out: an
+    // eclipse covers the SUN while leaving the sky transparent, which is why stars come out during a
+    // total one. Nothing comes out under a sulfur overcast.
+    public static bool ConditionBlacksOutSky(bool isNoSunlightCondition, bool isEclipse) =>
+        isNoSunlightCondition && !isEclipse;
 
     // The ambient level an enclosed map sits at, all day, every day.
     //

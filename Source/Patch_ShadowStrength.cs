@@ -46,6 +46,37 @@ public static class Patch_ShadowStrength
         if (!MapSky.DrawsShadows(map))
             return;
 
+        // Sky blacked out right now (issue #35 — Glowforest's permanent sulfur overcast, a smoke vent's
+        // 3-days-in-7 one, Royalty's sun blocker; never an eclipse, see
+        // MapSkyMath.ConditionBlacksOutSky). No direct beam arrives, so nothing casts a shadow.
+        //
+        // THIS IS THE PATCH THAT ACTUALLY REMOVES THE SHADOW, and it has to WRITE zero rather than
+        // return — returning would hand back vanilla's own value, which is near full strength at noon
+        // because CurShadowStrength is a pure function of CurCelestialSunGlow with no condition term at
+        // all. Zero here reaches the screen twice over: SkyManager sets
+        // `MatBases.SunShadow.color = Color.Lerp(Color.white, curSky.colors.shadow, CurShadowStrength)`,
+        // and a white multiply is an invisible shadow, and it writes the same zero into the
+        // MapSunLightDirection shader global.
+        //
+        // Vanilla LOOKS like it handles this and does not. GameCondition_NoSunlight's EclipseSkyColors
+        // carries Color.white as its shadow colour, which reads as "suppress the shadow" — but
+        // SkyManager composes conditions with SkyColorSet.LerpDarken, i.e. `A.shadow.Min(B.shadow)`
+        // per channel, and white is the per-channel MAXIMUM. So that white is a no-op and a
+        // blacked-out map kept its full-strength daytime shadows in vanilla too. Ours were worse only in
+        // that we overwrite the strength with an elevation-derived value and so could not accidentally
+        // inherit a dark-sky reduction that was never there. Measured on a live blacked-out Glowforest
+        // with the sun low: MatBases.SunShadow.color.r read 0.778 — a 22% ground darkening with crisp
+        // sun-angled bands — under a sky whose glow was already zero (sky_blackout_gate.json).
+        //
+        // This zero is also what silently carries §15b's eave shade with it: Patch_EaveShade reads the
+        // finished MatBases.SunShadow.color rather than re-deriving depth, so a white cast band gives a
+        // white — invisible — porch shade on the same frame, with no mesh to rebuild.
+        if (MapSky.SkyBlackedOut(map))
+        {
+            __result = 0f;
+            return;
+        }
+
         float elevation = SolarPosition.ElevationForMap(map);
 
         // Weather softening (§13). Under a cloud deck the direct beam is replaced by diffuse
