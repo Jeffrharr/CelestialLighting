@@ -1,0 +1,13 @@
+{
+  "name": "aurora_watch",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "20" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "40" } },
+    { "type": "SetTime", "args": { "hour": "22" } },
+
+    { "type": "StartCondition", "args": { "conditionDef": "Aurora", "durationHours": "240", "agedHours": "2" } },
+
+    { "type": "Wait", "args": { "frames": "5000000" } }
+  ]
+}
