@@ -61,6 +61,8 @@
     <!-- The alternative §11a shape function under evaluation (issue #42). Depends on AuroraCurtain
          for Amplify and PaletteColor, so the link above is a hard prerequisite for this one. -->
     <Compile Include="../../Source/AuroraCurtainHemRays.cs" Link="AuroraCurtainHemRays.cs" />
+    <Compile Include="../../Source/AuroraFieldSpec.cs" Link="AuroraFieldSpec.cs" />
+    <Compile Include="../../Source/AuroraSheetLayout.cs" Link="AuroraSheetLayout.cs" />
     <Compile Include="../../Source/EclipseMath.cs" Link="EclipseMath.cs" />
     <!-- §18e's vacuum eclipse response. Depends on EclipseMath above (it samples the same
          disc-overlap coverage ramp the shipped patch drives) and on NightRadianceMath, whose §7a

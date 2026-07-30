@@ -29,19 +29,20 @@ public sealed class AuroraCurtainCostProbe : IProbe
 
     public float Read(Map map)
     {
-        int side = AuroraCurtainOverlay.Resolution;
+        int width = AuroraCurtainOverlay.ResolutionX;
+        int height = AuroraCurtainOverlay.ResolutionY;
         int rows = AuroraCurtainOverlay.RowsPerUpdate;
-        byte[] buffer = new byte[side * side * 4];
+        byte[] buffer = new byte[AuroraFieldRegistry.Active.PixelCount];
 
         // Advance both the time and the row cursor across runs exactly as the live refresh does. Holding
         // either fixed would let the JIT and the data cache flatter the measurement in ways the real
         // rolling refresh never enjoys.
         for (int i = 0; i < WarmupRuns; i++)
-            Fill(buffer, side, rows, i);
+            Fill(buffer, width, height, rows, i);
 
         Stopwatch watch = Stopwatch.StartNew();
         for (int i = 0; i < TimedRuns; i++)
-            Fill(buffer, side, rows, WarmupRuns + i);
+            Fill(buffer, width, height, rows, WarmupRuns + i);
         watch.Stop();
 
         // Stopwatch ticks are not microseconds on every platform, hence the explicit frequency
@@ -50,14 +51,17 @@ public sealed class AuroraCurtainCostProbe : IProbe
         return (float)microsPerFrame;
     }
 
-    private static void Fill(byte[] buffer, int side, int rows, int iteration)
+    // Times whichever field is live, at whichever resolution and slice size it declares, rather than a
+    // hardcoded AuroraCurtain at a hardcoded square size — the point of the probe is that it measures
+    // the thing the game actually bakes.
+    private static void Fill(byte[] buffer, int width, int height, int rows, int iteration)
     {
-        AuroraCurtain.FillRows(
-            buffer, side, side,
-            firstRow: iteration * rows % side,
+        AuroraFieldRegistry.Active.Fill(
+            buffer, width, height,
+            firstRow: iteration * rows % height,
             rowCount: rows,
             time: iteration * 60f,
             tintR: 0.2f, tintG: 0.9f, tintB: 0.3f,
-            tintWeight: AuroraCurtain.DriverTintWeight);
+            tintWeight: AuroraFieldRegistry.Active.TintWeight);
     }
 }

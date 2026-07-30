@@ -61,7 +61,7 @@ public static class Patch_AuroraCurtainDraw
         Color tint = AuroraConditions.TintColorFor(driver, Find.TickManager.TicksGame);
 
         if (AuroraCurtainOverlay.Instance.Advance(
-                Find.TickManager.TicksGame, strength, tint, AuroraCurtain.DriverTintWeight))
+                map, Find.TickManager.TicksGame, strength, tint, AuroraFieldRegistry.Active.TintWeight))
         {
             AuroraCurtainOverlay.Instance.DrawOverlay(map);
         }
