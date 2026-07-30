@@ -1,0 +1,872 @@
+{
+  "name": "limb_refraction_video_before",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    {
+      "type": "LandInOrbit",
+      "args": {
+        "latitude": "45",
+        "mapSize": "150"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "OrbitalPlatform",
+        "width": "30",
+        "height": "30"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "Steel",
+        "layout": "grid",
+        "cols": "3",
+        "rows": "3",
+        "spacing": "6"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "zoom": "18"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "30"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "30"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "limbvid_before_000.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.12"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "30"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "limbvid_before_001.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.14"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "30"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "limbvid_before_002.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.16"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "30"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "limbvid_before_003.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.18"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "30"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "limbvid_before_004.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.2"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "30"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "limbvid_before_005.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.22"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "30"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "limbvid_before_006.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.24"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "30"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "limbvid_before_007.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.26"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "30"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "limbvid_before_008.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.28"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "30"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "limbvid_before_009.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.3"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "30"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "limbvid_before_010.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.32"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "30"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "limbvid_before_011.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.34"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "30"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "limbvid_before_012.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.36"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "30"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "limbvid_before_013.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.38"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "30"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "limbvid_before_014.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.4"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "30"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "limbvid_before_015.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.42"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "30"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "limbvid_before_016.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.44"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "30"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "limbvid_before_017.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.46"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "30"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "limbvid_before_018.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.48"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "30"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "limbvid_before_019.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.5"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "30"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "limbvid_before_020.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.52"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "30"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "limbvid_before_021.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.54"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "30"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "limbvid_before_022.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.56"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "30"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "limbvid_before_023.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.58"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "30"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "limbvid_before_024.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.6"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "30"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "limbvid_before_025.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.62"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "30"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "limbvid_before_026.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.64"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "30"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "limbvid_before_027.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.66"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "30"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "limbvid_before_028.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.68"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "30"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "limbvid_before_029.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.7"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "30"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "limbvid_before_030.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.72"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "30"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "limbvid_before_031.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.74"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "30"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "limbvid_before_032.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.76"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "30"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "limbvid_before_033.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.78"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "30"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "limbvid_before_034.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.8"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "30"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "limbvid_before_035.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.82"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "30"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "limbvid_before_036.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.84"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "30"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "limbvid_before_037.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.86"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "30"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "limbvid_before_038.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.88"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "30"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "limbvid_before_039.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.9"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "30"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "limbvid_before_040.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.92"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "30"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "limbvid_before_041.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.94"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "30"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "limbvid_before_042.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.96"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "30"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "limbvid_before_043.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.98"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "30"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "limbvid_before_044.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "23.0"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "30"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "limbvid_before_045.png"
+      }
+    }
+  ]
+}
