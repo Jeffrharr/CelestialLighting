@@ -1375,7 +1375,8 @@ Two deliberate departures from the original:
 shaders from an `AssetBundle`, so this was a real option. Against it: a bundle must be built in the
 matching Unity Editor and shipped as per-platform binary blobs, and this repo ships no binary assets
 at all. In favour of the CPU: the cost is bounded by *resolution*, and an aurora is the one effect
-that loses nothing to blur. So the field is baked at 128² and stretched over the map.
+that loses nothing to blur. So the field is baked small — 192² for the shipping field — and drawn
+over the map as a small number of bounded quads (see *Sheet geometry* below).
 
 **Pure core / adapter split**, as everywhere else:
 
@@ -1385,8 +1386,17 @@ that loses nothing to blur. So the field is baked at 128² and stretched over th
   `UnityEngine` — which would drag the generator out of the offline tests. **Tileability is
   load-bearing**: the texture is panned every frame, so a field that does not wrap shows a hard seam
   sweeping across the colony once per cycle.
-- `Source/AuroraCurtain.cs` — `Amplify` / `Wave` / `Envelope` / `HueField` / `PaletteColor` /
-  `FillRows`. The palette runs violet → green → red, reusing `AuroraMath.OxygenGreen` (557.7 nm) and
+- **Two fields, one contract.** `Source/AuroraCurtainHemRays.cs` is what ships: it *authors* the
+  curtain silhouette directly in 2D — a bright wandering hem, brightness falling off above it,
+  vertical striations cut into the falloff, three curtains summed additively. Every noise sample is a
+  function of `u` alone, so a whole texture column shares them and the per-pixel loop does arithmetic
+  only. `Source/AuroraCurtain.cs` is the original contour field, kept compiled and tested but not
+  drawn — see §11b. `Source/AuroraFieldSpec.cs` describes either as data (resolution, tint weight,
+  drift wrap, sheets), so the adapter, the cost probe and `Tools/AuroraPreview` all read the same
+  numbers rather than three drifting copies. `AuroraMath` owns the primitives both fields share
+  (`Amplify`, the hue-band edges, the emission colours), so neither field owns the other's.
+
+  The contour field's palette runs violet → green → red, reusing `AuroraMath.OxygenGreen` (557.7 nm) and
   `OxygenRed` (630 nm) and adding `NitrogenViolet` (N₂⁺ first negative band, ~427.8 nm). Because fBm
   clusters near 0.5, green holds the middle and the coloured fringes appear at the tails — green-
   dominant with red above and violet below, which is what an aurora looks like, rather than a rainbow.
@@ -1405,10 +1415,36 @@ existence in precisely the conditions they exist for. `VisEffects` is above the 
 still below `FogOfWar`, so the curtain glows through the dark while unexplored map stays fogged.
 `ApiCompatibilityTests` asserts that *ordering*, not merely that the enum members exist.
 
-**Two layers, one texture.** The same field is drawn twice — the second tiled 2× and panning faster in
-the opposite direction. A single panning plane translates rigidly, and rigid translation of the whole
-sky is the one motion that reads as "the camera is moving" rather than "the aurora is moving". The
-second layer costs one extra `DrawMesh` and *zero* extra CPU, because it is the same texture.
+**Sheet geometry — why this is no longer one map-wide plane.** The first build drew the field on
+`MeshPool.wholeMapPlane` through `SkyOverlay`'s own helper. That plane is 2000 world units across with
+its UVs pre-multiplied by 200 (`MeshMakerPlanes.NewWholeMapPlane`), i.e. one repeat per ten cells, and
+the adapter divided that out to reach the feature size it wanted. **It tiles in both axes.**
+
+For the contour field that is harmless — an overhead view of a wandering ribbon, where one patch looks
+much like another. For the hem-rays field it is fatal, because **its v axis is not map-north; it is
+altitude up the curtain**. Repeating v does not tile a texture, it stamps the same three arcs, hems and
+all, up the map: ~1.6 copies of a distinctive stack on one screen at 76 cells per repeat, and 3.3 up a
+250-cell map. It reads as wallpaper.
+
+So the overlay owns its own quad and draws a *sheet* per display, each with its **v scale pinned to
+exactly 1** — one vertical repeat, so vertical tiling is arithmetically impossible rather than tuned
+away, at any map size and any zoom. Horizontal repeats remain and are the acceptable kind: a hem line
+repeating every 150 cells is well past one screen, and each sheet carries its own u phase and may be
+mirrored in u, so no two read as copies. `AuroraSheetLayout` places them at deliberately **irregular**
+fractions of map height — evenly spaced sheets are periodicity wearing a different hat — computed in
+floats from `Map.Size`, never from `Map.Center`, which is `Size.x / 2` in integer arithmetic and so half
+a cell off on every even-sized map, and every stock map size is even.
+
+The sky between and beyond the sheets is genuinely empty. That is intended: a real display occupies a
+band of sky, not all of it, and the effect must not obscure the game underneath. §11's flat tint still
+colours the whole sky faintly, so the gaps are not black. It also makes "one giant aurora" a layout
+value rather than a code path — a giant is a single sheet with a large `CellsPerRepeatY`.
+
+`wholeMapPlane` is a **shared static mesh** used by every vanilla weather overlay, so adjusting its UVs
+was never an option; it would have altered rain and snow for every mod in the load order. The quad's
+vertex order, UVs and winding are copied verbatim from decompiled `MeshMakerPlanes.NewPlaneMesh` rather
+than reasoned out, because a quad wound the wrong way renders as *nothing at all* — no error, no
+warning, no clue.
 
 **Why not `GameCondition.SkyOverlays`, which is the obvious hook.** #42 proposed it, and decompiling
 1.6 shows it cannot work for a mod that does not own the condition:
@@ -1500,6 +1536,38 @@ on. `Wave` is also pinned tileable at both seams. `aurora_curtain` is the live s
 timing, and `Tests/Scenarios/aurora_curtain.json` is a timelapse pair (off, then on) because this is a
 temporal effect and a still A/B cannot show drift. It also pins the flag rule end-to-end: with the
 curtain off, `aurora_tint` must read 0.18, and with it on, 0.075.
+
+### 11b. The contour field, and why it is kept but not drawn (sketch — not implemented)
+
+`Source/AuroraCurtain.cs` draws the **contour** where two counter-drifting fBm fields are equal. It was
+§11a's first field and it is not what ships, but it is deliberately kept compiled, unit-tested and
+rendered by `Tools/AuroraPreview` rather than deleted.
+
+**Why it lost.** It is *physically honest and visually unrecognisable.* From directly overhead — which
+is the only angle RimWorld's camera has — a real auroral arc genuinely is a flat wandering squiggle;
+the vertical curtain everyone pictures is a side-on phenomenon we have no viewing angle for. The Godot
+shader the technique came from recovered the iconic look by raymarching, which buys nothing here: there
+is no view ray to smear along and no parallax to sell. Rendered, it reads as green smoke. §11a's
+shipping field gives up on deriving the silhouette from a projection and simply authors it, accepting a
+committed up-direction as the price.
+
+**Why it is kept.** Two reasons, and the first is the real one.
+
+1. **A world map is viewed from space, where an overhead contour is correct rather than merely honest.**
+   Seen from orbit an aurora *is* a contour — the auroral oval, a band around the magnetic pole. So the
+   contour field is the natural texture for a world-map auroral overlay, drawn at high latitudes on the
+   globe. That would reuse the same pure core, the same noise primitive and the same palette, with a
+   `WorldDrawLayer` in place of the map overlay. §11a's `AuroraFieldSpec` already expresses it; nothing
+   about the field would need re-deriving.
+
+2. It is the honest option should a "Realistic" aurora setting ever be wanted. **Deliberately not
+   offered today**: a player picking "overhead view" from a radio button would reasonably conclude the
+   aurora was broken and file a bug. The option only becomes meaningful once (1) exists, where the
+   overhead view is not a compromise but the correct projection.
+
+Note the Realistic/Cinematic presets deliberately carry only correlated aesthetic sliders — per-effect
+toggles and mode enums (`EclipseMode`, `SunClockMode`) stay out of them by design, and a field choice
+would too. That omission is intentional and should not be "fixed".
 
 ## 12. Blood moon rendering (`Patch_BloodMoon`) — soft-compat with a third-party event
 
