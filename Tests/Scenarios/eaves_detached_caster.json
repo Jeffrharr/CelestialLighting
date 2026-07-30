@@ -1,0 +1,32 @@
+{
+  "name": "eaves_detached_caster",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "45" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "40" } },
+    { "type": "SetWeather", "args": { "weatherDef": "Clear", "instant": "true" } },
+
+    { "type": "SetTerrain", "args": { "def": "Concrete", "width": "40", "height": "30", "offset": "0,45", "clear": "true" } },
+
+    { "type": "PlaceThings", "args": {
+      "def": "Wall", "stuff": "BlocksGranite", "offset": "0,45", "layout": "cells", "clear": "true",
+      "cells": "-7,-5; -7,-4; -7,-3; -7,-2; -7,-1; -7,0; -7,1; -7,2; -7,3; -7,4; -7,5" } },
+
+    { "type": "SetRoof", "args": { "def": "RoofConstructed", "width": "1", "height": "11", "offset": "-5,45" } },
+
+    { "type": "PlaceThings", "args": {
+      "def": "TorchLamp", "offset": "0,45", "layout": "cells",
+      "cells": "-5,-3; -5,0; -5,3" } },
+
+    { "type": "SetRoof", "args": { "def": "RoofConstructed", "width": "1", "height": "11", "offset": "5,45" } },
+
+    { "type": "SetTime", "args": { "hour": "18" } },
+    { "type": "Probe", "args": { "probeName": "shadow_extrude_far_cells", "expectedValue": "4", "tolerance": "12" } },
+    { "type": "LookAt", "args": { "offset": "0,45", "zoom": "16" } },
+
+    { "type": "SetFeature", "args": { "featureName": "eave_shadows", "enabled": "false" } },
+    { "type": "Screenshot", "args": { "fileName": "roofline_18h_off.png" } },
+    { "type": "SetFeature", "args": { "featureName": "eave_shadows", "enabled": "true" } },
+    { "type": "Screenshot", "args": { "fileName": "roofline_18h_on.png" } }
+  ]
+}
