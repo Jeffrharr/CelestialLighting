@@ -65,15 +65,19 @@ public static class AuroraCurtain
     public const int WaveXPeriod = 3;
     public const int WaveYPeriod = 7;
 
-    // Three octaves is where this stops paying: the ribbon is a contour of the difference field, so
-    // the fine octaves only perturb the curve's path. A fourth is invisible at the texture size we
-    // bake at and costs a third more samples.
-    public const int WaveOctaves = 3;
+    // Two octaves, not three. Three was the initial guess and the first live run showed why it is
+    // wrong: the ribbon is a CONTOUR of the difference field, so every extra octave only makes the
+    // curve wander more, and rendered that read as thin wiry filaments — glowing worms — rather than as
+    // curtains. Auroral arcs are sweeping, not scribbled. Dropping the octave also removes 2 of the 11
+    // noise samples per pixel, so the look and the cost improved together.
+    public const int WaveOctaves = 2;
 
-    // Half-width of the smoothstep the field difference is pushed through, and therefore how thick
-    // the ribbons are. Small values give hairline curves that alias badly once the texture is
-    // stretched over the map; large values fill the sky and stop reading as bands.
-    public const float Smoothness = 0.16f;
+    // Half-width of the smoothstep the field difference is pushed through, and therefore how thick the
+    // ribbons are. This was 0.16, which the first live run rendered as hairlines: a contour is
+    // infinitely thin by nature, and it is entirely this constant that gives it width. 0.30 is wide
+    // enough to read as a curtain with soft edges. Push it much further and the bands merge into a wash,
+    // which is the failure §11a exists to avoid.
+    public const float Smoothness = 0.42f;
 
     // Amplitude of the static domain warp, in lattice units. This is the original shader's `distort`:
     // a third noise field displaces the sample coordinate of both ribbon fields identically, so the
@@ -139,8 +143,8 @@ public static class AuroraCurtain
     public const int EnvelopeXPeriod = 2;
     public const int EnvelopeYPeriod = 2;
     public const int EnvelopeOctaves = 2;
-    public const float EnvelopeFloor = 0.30f;
-    public const float EnvelopeRange = 0.28f;
+    public const float EnvelopeFloor = 0.22f;
+    public const float EnvelopeRange = 0.34f;
 
     // ---- Palette -----------------------------------------------------------------------------
 
@@ -158,11 +162,15 @@ public static class AuroraCurtain
     public const float HueGreenLow = 0.30f;
     public const float HueGreenHigh = 0.66f;
 
-    // The hue field's own scale. Much coarser than the ribbons: the point is that DIFFERENT PARTS OF
-    // ONE RIBBON are different colours, which needs the hue to vary slower than the ribbon does, not
-    // faster. Faster would give per-pixel confetti.
-    public const int HueXPeriod = 2;
-    public const int HueYPeriod = 3;
+    // The hue field's own scale. Coarser than the ribbons — the point is that DIFFERENT PARTS OF ONE
+    // RIBBON are different colours, which needs hue to vary slower than the ribbon does. But not nearly
+    // as coarse as first written: at 2x3 one hue lobe spanned ~100 map cells, which is WIDER THAN THE
+    // VISIBLE WINDOW, so the whole screen sat inside a single lobe and rendered one flat green. That is
+    // #42's own complaint reappearing one level down — several colours have to be visible *at once*, and
+    // "at once" means within one screen, not within one map. 5x7 puts a lobe at ~40x28 cells, so a few
+    // are always in frame. Offline preview (Tools/AuroraPreview) is what made this visible.
+    public const int HueXPeriod = 5;
+    public const int HueYPeriod = 7;
     public const int HueOctaves = 2;
 
     // How far the driver condition's own colour is allowed to pull the palette (see FillRows' tint
@@ -174,6 +182,49 @@ public static class AuroraCurtain
     // and during a vanilla Aurora event the wash and the ribbons visibly disagree about the hue. 0.3
     // keeps the palette's structure dominant while tying the two layers to the same night.
     public const float DriverTintWeight = 0.3f;
+
+    // ---- Layer geometry ------------------------------------------------------------------------
+    //
+    // How the baked field is laid over the map, and how it moves. These live in the pure core rather
+    // than in AuroraCurtainOverlay — where they are actually applied to a Material — for one reason:
+    // Tools/AuroraPreview renders this field offline, and it can only be trusted to show what the game
+    // shows if it reads the SAME numbers. Duplicating them into the previewer would produce a tool that
+    // silently drifts from the thing it is previewing, which is worse than no tool.
+    //
+    // MeshPool.wholeMapPlane is 2000 world units across with its UVs multiplied by 200
+    // (MeshMakerPlanes.NewWholeMapPlane), i.e. one texture repeat per ten cells at material scale 1.
+    // Vanilla's weather textures are authored for that density; ours is not, so the adapter divides it
+    // out. Left alone, the field repeats ~25 times across a 250-cell map and the ribbons read as rows of
+    // tiny cursive squiggles — which is exactly what the first live run rendered.
+    public const float PlaneRepeatsPerCell = 0.1f;
+
+    // Cells spanned by one repeat of each layer, i.e. the on-screen feature size. 200/110 rather than
+    // the 160/80 first tried: with the ribbons widened (see Smoothness) the field wants to be larger, so
+    // one band spans a good fraction of the visible window instead of several crossing it at once.
+    public const float Layer1CellsPerRepeat = 200f;
+    public const float Layer2CellsPerRepeat = 110f;
+
+    // Second layer's share of the alpha. Below the first so the near curtain dominates and the far one
+    // reads as depth rather than as a competing aurora. Trimmed from 0.55 after the first live run,
+    // where two near-equal layers crossing each other produced a double-line "outline" artifact.
+    public const float Layer2Alpha = 0.4f;
+
+    // Pan offsets per game tick, in texture-repeat units. Deliberately not parallel and not equal: two
+    // layers translating together is a rigid shift of the whole sky, which reads as the camera moving
+    // rather than the aurora moving. 6e-5/tick advances one repeat (200 cells) every ~16,700 ticks —
+    // roughly 24 cells an hour, gentle enough to read as weather rather than a scrolling background.
+    public const float Layer1PanU = 6e-5f;
+    public const float Layer1PanV = 1.4e-5f;
+    public const float Layer2PanU = -2.2e-4f;
+    public const float Layer2PanV = -3e-5f;
+
+    // Edge length of the baked texture. 96², down from the 128² first shipped to the live harness, on
+    // the strength of that run's aurora_curtain_cost: 1423 microseconds per frame against ~240 predicted
+    // from the offline .NET 8 benchmark. Mono is ~6x slower here than the JIT, which is the gap that
+    // probe exists to close. 1.4 ms of a 16.6 ms frame is ~9%, more than an atmospheric background should
+    // ask for even during a rare event; 96² is a 1.8x saving and costs nothing visible now that the
+    // ribbons are deliberately soft and large. 64² remains in reserve at 4x.
+    public const int Resolution = 96;
 
     // ---- Seeds ---------------------------------------------------------------------------------
     // Fixed rather than randomised per game. The aurora is a map-wide backdrop, not a generated
