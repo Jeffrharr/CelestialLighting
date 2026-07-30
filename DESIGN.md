@@ -1622,7 +1622,9 @@ inside a building — or an **eave**: roofed, but breathing outdoor air. `Room.U
 is the game's own answer to that question (it decides whether a room heats, whether rain reaches it,
 whether pawns count as sheltered), so keying off it means our notion of "indoors" cannot drift from
 the one the simulation already uses. `IsEave` and `IsEnclosed` are exact complements within roofed
-cells, pinned by a test — a gap there would mean a cell that neither casts nor occludes.
+cells, pinned by a test — a gap there would mean a cell that neither casts nor occludes. (The two
+halves turned out to want *nearly* the same distinction, diverging on exactly one input; see the
+thick-roof bullets below.)
 
 - **Shadow half** (gated by the "Eave shadows" toggle). `EaveShadowGrid` resolves an effective
   caster *height* per cell — the edifice's `staticSunShadowHeight`, or `max(that, 1.0)` on an eave,
@@ -1638,9 +1640,40 @@ cells, pinned by a test — a gap there would mean a cell that neither casts nor
   `UsesOutdoorTemperature` is `TouchesMapEdge || OpenRoofCount >= 25%`, and a cave system that reaches
   the map edge — the common case — satisfies the first disjunct for its entire interior. Without the
   veto every cell of such a cave would classify as an eave: §7b would stop occluding it (a cavern lit
-  at 61% of the sky, precisely the bug §7b exists to fix) and every cell of it would start casting a
-  roofline shadow. There is no sky under a mountain in any case, which is the same exception vanilla
+  at 61% of the sky, precisely the bug §7b exists to fix) and §15b would paint its whole floor as an
+  open-air porch. There is no sky under a mountain in any case, which is the same exception vanilla
   itself makes in `SectionLayer_LightingOverlay`.
+- **…but a mountain roofline still casts.** The veto above was originally stated once and consumed by
+  all three of the shadow, occlusion and shade halves, and that overreached. At the boundary between
+  mined-out mountain and built structure — the commonest shape in a mountain base — one continuous
+  roofline runs from `RoofRockThick` to `RoofConstructed` with no visible seam, and the shared veto
+  made the constructed half throw a full shadow while the mountain half threw none, every frame the
+  sun was up. So `EavesMath` states two predicates over the same four inputs: `CastsRoofShadow`
+  (§15's mesh) and `IsEave` (§7b and §15b), differing *only* in the `thickRoof` term, with the
+  relationship `IsEave == CastsRoofShadow && !thickRoof` pinned over the whole input space by a test.
+  The veto guards what is *under* the roof — is there sky above this cell? — not what the roof's
+  *edge* does to the sunlight beside it, and those turned out to be two questions.
+
+  Two consequences, both accepted knowingly:
+
+  - **A mountain casts exactly one wall of shadow, no more.** `Formulas.ShadowCasterAlphaByte` packs
+    the height into a vertex-colour *byte* and the shader is `position += colour.a * _CastVect`, so
+    alpha 255 = 1.0 = one wall of extrusion, and there is no room in the channel to say "cliff". A
+    mountain that under-throws reads as unremarkable; a mountain that throws nothing beside a shed
+    that throws fully reads as a bug. The defect being fixed is the discontinuity, not the length.
+  - **Admitting a whole cavern costs no pixels and, now, no vertices.** Only a caster blob's
+    *trailing* perimeter renders (the leading-edge skirts are backface-culled — see 15b), and a
+    cavern cell's neighbours are either more cavern at the same height or solid rock, which vanilla
+    already declares at 1.0; only cells where a mountain roofline actually meets open sky gain a
+    quad. The footprint quad was the remaining per-cell cost, so `Patch_ShadowMeshPerimeter` now
+    skips it — along with the whole cell — when no neighbour is shorter. That is sound precisely
+    because the footprint is invisible (15b below) and because the four skirt blocks that index back
+    into it are exactly the ones that cannot fire under that condition. It reorders work rather than
+    adding it: the four neighbour comparisons were already being made, one per skirt block.
+
+  Pinned live by `Tests/Scenarios/eaves_thick_boundary.json`, which reads *both* counts — `eave_cells`
+  9 and `roof_shadow_cells` 18 over one 18-cell roofline — because the eave count is correct at such a
+  boundary and the caster count was the one that was wrong.
 - **Invalidation.** `SectionLayer_SunShadows`'s constructor sets `relevantChangeTypes =
   MapMeshFlagDefOf.Buildings` and nothing more — it never had a reason to care about roofs. Now that
   roof state feeds a caster height it does, and `RoofGrid.SetRoof` dirties only `Roofs`.

@@ -1,3 +1,4 @@
+using System;
 using RimWorldTestHarness.Mod.Probes;
 using Verse;
 
@@ -7,8 +8,8 @@ namespace CelestialLighting.Probes;
 // CelestialLighting.csproj) and compiled into TestMod/CelestialLighting.Probes.csproj instead — the
 // shipped mod must never take a hard reference to RimWorldTestHarness, a dev-only tool.
 //
-// Counts the cells on the map that §15 classifies as eaves: roofed, in a room, and that room
-// breathes outdoor air. This is the input side of the subsystem measured directly.
+// Counts the cells on the map that §15's predicates admit. This is the input side of the subsystem
+// measured directly.
 //
 // Why a count rather than something read off the shadow mesh. The visible effect IS a screenshot
 // A/B — a porch going from sunlit to shaded is a large, unmistakable change, unlike §6a's 1-3/255
@@ -17,14 +18,38 @@ namespace CelestialLighting.Probes;
 // with "the predicate found nothing" and "the predicate worked but the mesh never rebuilt". This
 // number separates those two, which is exactly the ambiguity that would otherwise cost an hour.
 //
-// Reads the same EavesMath predicate the renderer does rather than re-deriving it, so the probe can
-// never agree with a formula the shipped code has stopped using. Deliberately NOT gated on
+// TWO metrics because §15 has two predicates that differ on exactly one input, a mountain roof (see
+// EavesMath). Reporting only one of them would leave the thick-roof seam invisible to the harness in
+// precisely the way it was invisible in code review: the eave count is *correct* at a mined-out
+// boundary and the shadow count is the one that was wrong. A scenario that pins both pins the split.
+//
+// Reads the same EavesMath predicates the renderer does rather than re-deriving them, so the probe
+// can never agree with a formula the shipped code has stopped using. Deliberately NOT gated on
 // CelestialLightingFeatures.EaveShadows: it reports what the map contains, not what is switched on,
 // so a scenario can assert the count is stable across an A/B and attribute any image difference to
 // the toggle alone.
 public sealed class EaveCellProbe : IProbe
 {
-    public string Name => "eave_cells";
+    public enum Metric
+    {
+        // Roofed, not under a mountain, in a room that breathes outdoor air — what §7b declines to
+        // occlude and §15b paints. A porch.
+        Eaves,
+
+        // The same without the mountain veto — what §15 lets cast a roofline shadow. Never smaller
+        // than Eaves, and larger by exactly the map's open-air thick-roofed cell count.
+        ShadowCasters,
+    }
+
+    private readonly Metric metric;
+
+    public string Name { get; }
+
+    public EaveCellProbe(string name, Metric metric)
+    {
+        Name = name;
+        this.metric = metric;
+    }
 
     public float Read(Map map)
     {
@@ -35,10 +60,23 @@ public sealed class EaveCellProbe : IProbe
         // resolves a section window instead) is entirely fine here.
         foreach (IntVec3 cell in map.AllCells)
         {
-            if (EaveCells.IsEave(map, cell))
+            if (Admits(map, cell))
                 count++;
         }
 
         return count;
+    }
+
+    private bool Admits(Map map, IntVec3 cell)
+    {
+        switch (metric)
+        {
+            case Metric.Eaves:
+                return EaveCells.IsEave(map, cell);
+            case Metric.ShadowCasters:
+                return EaveCells.CastsRoofShadow(map, cell);
+            default:
+                throw new ArgumentOutOfRangeException(nameof(metric), metric, null);
+        }
     }
 }
