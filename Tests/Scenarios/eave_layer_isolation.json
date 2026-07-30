@@ -17,7 +17,7 @@
     { "type": "SetTime", "args": { "hour": "18" } },
     { "type": "LookAt", "args": { "offset": "0,45", "zoom": "20" } },
 
-    { "type": "Probe", "args": { "probeName": "eave_cells", "expectedValue": "90", "tolerance": "400" } },
+    { "type": "Probe", "args": { "probeName": "eave_cells", "expectedValue": "90", "tolerance": "1" } },
 
     { "type": "SetFeature", "args": { "featureName": "eave_shadows", "enabled": "true" } },
     { "type": "SetFeature", "args": { "featureName": "eave_shade", "enabled": "true" } },
