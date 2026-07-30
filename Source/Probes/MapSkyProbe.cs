@@ -38,3 +38,21 @@ public sealed class MapDrawsShadowsProbe : IProbe
 
     public float Read(Map map) => MapSky.DrawsShadows(map) ? 1f : 0f;
 }
+
+// Whether the sky over this map is opaque RIGHT NOW — the dynamic gate (issue #35).
+//
+// The reason this one needs a probe even more than the other two do: it is the only map-kind gate that
+// is not a function of map.Biome, so a scenario cannot infer it from the biome it selected. It reads 0
+// on a bare Glowforest (the harness's SetBiome does not run biomeMapConditions) and 1 only once a
+// StartCondition step has actually registered DarkenedSkies, which is precisely the distinction a
+// scenario has to be able to assert to prove the gate is condition-driven rather than biome-driven.
+//
+// It must also read 0 under an Eclipse. That carve-out is invisible in every downstream effect probe —
+// an eclipse and a smoke vent both leave the sky near black — so this is the only place a scenario can
+// catch §10/§10a being switched off by their own condition class.
+public sealed class MapSkyBlackedOutProbe : IProbe
+{
+    public string Name => "map_sky_blacked_out";
+
+    public float Read(Map map) => MapSky.SkyBlackedOut(map) ? 1f : 0f;
+}

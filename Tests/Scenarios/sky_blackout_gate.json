@@ -1,0 +1,228 @@
+{
+  "name": "sky_blackout_gate",
+  "saveFile": "minimal_colony.rws",
+  "description": "§17's dynamic map-kind gate (issue #35): a map with a sky and no ceiling, but nothing visible through it. Glowforest is the headline case — Odyssey gives it a PERMANENT DarkenedSkies condition via biomeMapConditions — and any map with an AncientSmokeVent gets the same condition on a ~3-days-on/4-off cycle. Neither is enclosed and both draw shadows, so map_kind_gates.json's two static gates stay open on them and every sun- and moon-derived effect ran regardless. Takes both baselines FIRST (hour 19 for the colour claim, hour 17 for the shadow claim), because the harness has no EndCondition step and every condition registered below is permanent for the rest of the run. MUST RUN STANDALONE: GameConditions survive the harness's soft reset (see core_design_suite.txt).",
+  "steps": [
+    {
+      "_comment": "Latitude and season fixed for the whole run; only the hour moves. Two hours are needed because the two lanes peak at different ones: cast shadows are long and legible with the sun low but not yet set (17), while §2's twilight warmth and §8's low-sun blackbody tint only reach full strength closer to the horizon (19). A single-hour scenario could only ever prove one of the two well.",
+      "type": "SetTile",
+      "args": {
+        "latitude": "20"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "_comment": "Clear, set explicitly rather than inherited from the save: the shadow reading is defined against Clear's skyColorsDay.shadow (0.718, 0.745, 0.757), which is also what §13a writes at a high sun, and the colour readings against Clear's dusk palette. A leftover front would move the baselines and not the blacked-out values.",
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetBiome",
+      "args": {
+        "biomeDef": "Glowforest"
+      }
+    },
+    {
+      "_comment": "DUSK BASELINE — the colour lane's A. Hour 19 at latitude 20 on day 40 is inside §2's warm band, the same hour map_kind_gates.json uses for its dusk A/B.",
+      "type": "SetTime",
+      "args": {
+        "hour": "19"
+      }
+    },
+    {
+      "_comment": "THE POINT OF TAKING THE BASELINE ON GLOWFOREST ITSELF. SetBiome swaps map.Biome; it does not run biomeMapConditions, so a bare Glowforest carries no condition and the gate must read 0. Same biome, same tile: this is what makes the gate demonstrably condition-driven rather than a hidden biome special-case.",
+      "type": "Probe",
+      "args": {
+        "probeName": "map_sky_blacked_out",
+        "expectedValue": "0",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "_comment": "The two STATIC gates, re-pinned from map_kind_gates.json on purpose: this work must not have quietly reclassified Glowforest as enclosed or shadowless. If either flips, the fix landed on the wrong gate.",
+      "type": "Probe",
+      "args": {
+        "probeName": "map_enclosed",
+        "expectedValue": "0",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "map_draws_shadows",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "_comment": "Warmth of the composed sky (red minus blue of MatBases.LightOverlay.color) at an open-sky dusk: strongly positive, which is §2 and §8 doing their job on a map that can see the sun. Present as context for the blacked-out reading at the end of the run, which must be near zero.",
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_overlay_warmth",
+        "expectedValue": "0.3690",
+        "tolerance": "0.02"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "blackout_a1_dusk_open.png"
+      }
+    },
+    {
+      "_comment": "LOW-SUN BASELINE — the shadow lane's A, and NOT noon, which was the first draft. At noon on this tile the sun is close to overhead, so §1 extrudes cast shadows to about zero length: the pre-fix and post-fix frames came out pixel-identical (mean channel difference 0.25/255) even though the shadow MATERIAL had gone from 0.776 to pure white. The probe moved and nothing on screen did. Hour 17 puts the sun low enough to throw long, unmistakable shadows, so the numeric claim and the visible one are about the same thing.",
+      "type": "SetTime",
+      "args": {
+        "hour": "17"
+      }
+    },
+    {
+      "_comment": "The composed shadow colour with an open sky: MatBases.SunShadow.color.r, which SkyManager builds as Color.Lerp(Color.white, curSky.colors.shadow, CurShadowStrength). The target colour is Clear's 0.718 and the strength is the elevation ramp scaled by the preset's 0.8 shadow-strength slider, so this lands short of 0.718 rather than on it. TRACKS THE SHIPPED PRESET — recompute rather than widen if a preset knob moves.",
+      "type": "Probe",
+      "args": {
+        "probeName": "moon_shadow_render",
+        "expectedValue": "0.7782",
+        "tolerance": "0.02"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "blackout_a2_lowsun_open.png"
+      }
+    },
+    {
+      "_comment": "THE ECLIPSE CARVE-OUT, ASSERTED BEFORE THE BLACKOUT BECAUSE THE HARNESS CANNOT END A CONDITION. Eclipse is the same GameCondition_NoSunlight class the gate keys on, and §10/§10a exist to reshape it, so a gate on the class alone would switch our own eclipse handling off — invisibly, because an eclipse sky and a sulfur sky both read near black in every downstream probe. This is the only place that failure is observable at all.",
+      "type": "StartCondition",
+      "args": {
+        "conditionDef": "Eclipse",
+        "durationHours": "24",
+        "agedHours": "12"
+      }
+    },
+    {
+      "_comment": "Still 0: the gate must report an eclipse as harmless. The sky overhead is now genuinely dark, and that is the right answer anyway — an eclipse covers the SUN while leaving the sky transparent, which is why stars come out during a total one and nothing comes out under a sulfur overcast.",
+      "type": "Probe",
+      "args": {
+        "probeName": "map_sky_blacked_out",
+        "expectedValue": "0",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "_comment": "And §10 is still reshaping it — the positive half of the same claim. agedHours 12 parks the unnatural ramp at full coverage, exactly as eclipse.json pins it.",
+      "type": "Probe",
+      "args": {
+        "probeName": "eclipse_coverage",
+        "expectedValue": "1.0",
+        "tolerance": "0.02"
+      }
+    },
+    {
+      "_comment": "Shadows survive an eclipse, identical to the open-sky baseline. Not an aspiration — a pin on today's behaviour, so a later decision to suppress shadows during an eclipse (a real question, deliberately out of scope for issue #35) shows up here as a deliberate change rather than as collateral. Vanilla behaves the same way, for the reason the blacked-out step below spells out.",
+      "type": "Probe",
+      "args": {
+        "probeName": "moon_shadow_render",
+        "expectedValue": "0.7782",
+        "tolerance": "0.02"
+      }
+    },
+    {
+      "_comment": "THE CONDITION THE GATE IS FOR. Odyssey's DarkenedSkies is GameCondition_NoSunlight_Instant, so TransitionTicks is 0 and it is at full strength on the frame it starts — no FastForward or agedHours needed, unlike the aurora ramp. durationHours 0 makes it permanent, which is how Glowforest itself ships it (biomeMapConditions + canBePermanent).",
+      "type": "StartCondition",
+      "args": {
+        "conditionDef": "DarkenedSkies",
+        "durationHours": "0"
+      }
+    },
+    {
+      "_comment": "THE DECISION. Same biome, same tile, same tick, same weather as the baseline — only a live GameCondition has changed. No downstream effect probe can make this assertion, because every gated effect also reads zero for unrelated reasons.",
+      "type": "Probe",
+      "args": {
+        "probeName": "map_sky_blacked_out",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "_comment": "THE HEADLINE FIX. Pure white == the shadow is gone, because SkyManager multiplies the ground by this colour. Pre-fix this read the same 0.7782 as the two steps above. Vanilla LOOKS like it suppresses shadows under GameCondition_NoSunlight — EclipseSkyColors carries Color.white as its shadow colour — but SkyManager composes conditions with SkyColorSet.LerpDarken, i.e. per-channel MIN, and white is the per-channel maximum, so that white was always a no-op. Patch_ShadowStrength now writes 0, which whitens the material and carries §15b's eave shade with it on the same frame, with no mesh to rebuild.",
+      "type": "Probe",
+      "args": {
+        "probeName": "moon_shadow_render",
+        "expectedValue": "1.0",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "_comment": "GAMEPLAY-INERT, the same negative §13 asserts. Under DarkenedSkies vanilla drives glow to 0 through SkyTarget.LerpDarken — glow is the one channel it genuinely flattens — and this change must not move it in either direction: §5's night floor declining to lift it is the point, and nothing else here may lift it either. This is the value plant growth and solar panels read.",
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_glow",
+        "expectedValue": "0.0",
+        "tolerance": "0.02"
+      }
+    },
+    {
+      "_comment": "§7a's overlay darkening off FOR THE SCREENSHOT ONLY, and every probe above has already been read at the shipped default. Without this the blacked-out frame is halved on top of an already-dark sky and comes out near black, which makes 'are there cast shadows?' unjudgeable — the pair would look like an argument about brightness rather than about shadows. Turning it off costs the comparison nothing: §7a is inert with the sun up (OverlayBrightnessFactor returns 1 at full glow), so it was doing nothing in the open-sky baseline this frame is paired against.",
+      "type": "SetFeature",
+      "args": {
+        "featureName": "pitch_black_nights",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "blackout_b2_lowsun_darkened.png"
+      }
+    },
+    {
+      "_comment": "Back on before anything else reads a composed value — the dusk probe below is pinned WITH §7a's halving in it.",
+      "type": "SetFeature",
+      "args": {
+        "featureName": "pitch_black_nights",
+        "enabled": "true"
+      }
+    },
+    {
+      "_comment": "On to the dusk hour the colour baseline used, with the blackout now live — the colour lane's B.",
+      "type": "SetTime",
+      "args": {
+        "hour": "19"
+      }
+    },
+    {
+      "_comment": "THE COLOUR CONSEQUENCE, taken at the same hour 19 as its baseline. Measured, this is the SMALL half of issue #35 and the pin is sized to say so honestly — the gate moves this reading from +0.0139 to -0.0096, a swing of 0.0235, so the tolerance has to stay well under that. Why the swing is small even though our warmth is large: LerpDarken's per-channel min clips red hard to the condition's own 0.482, leaving only the blue and green we had lowered to survive, and §7a's overlay darkening then halves whatever is left (Cinematic's MinNightBrightness 0.50). What the gate buys here is a sky that is genuinely neutral rather than one that is warm-by-a-hair for a reason nobody could justify. TRACKS THE SHIPPED PRESET twice over — recompute rather than widen if a preset knob moves.",
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_overlay_warmth",
+        "expectedValue": "-0.0096",
+        "tolerance": "0.012"
+      }
+    },
+    {
+      "_comment": "Captured for the record, and deliberately NOT given a vision assert of its own. A 'does this dusk look warm?' judgement would pass whether or not this gate exists — pre-fix the blacked-out dusk already measured +0.0139, which is visually neutral — so it would read as evidence while discriminating nothing. The sky_overlay_warmth probe above is what separates the two builds.",
+      "type": "Screenshot",
+      "args": {
+        "fileName": "blackout_b1_dusk_darkened.png"
+      }
+    },
+    {
+      "type": "Assert",
+      "args": {
+        "kind": "vision",
+        "images": "blackout_a2_lowsun_open.png, blackout_b2_lowsun_darkened.png",
+        "prompt": "Two frames of the same colony at the same late-afternoon hour on the same biome, with the sun low. In the second the sun is blocked by a permanent sulfur overcast. Look at the walled structure near the centre of each frame. PASS if the first image shows a clear sun-angled shadow band cast to one side of that structure, AND the second shows no cast shadow beside it at all. FAIL if the second image still shows a sun-angled band beside the structure. Ignore the overall brightness and colour difference between the two images, plant glow, and pawn positions; only the presence of a directional cast shadow matters."
+      }
+    }
+  ]
+}
