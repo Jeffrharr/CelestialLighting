@@ -981,6 +981,51 @@ public class ApiCompatibilityTests
         Assert.That(method, Is.Not.Null, "Altitudes.AltitudeFor(AltitudeLayer) no longer exists");
     }
 
+    // §11a draws the aurora one AltInc above FogOfWar, so both the constant and the two layers it is
+    // measured between have to keep existing. If AltInc were renamed the mod would not compile; if the
+    // LAYER ORDER changed the mod would compile and quietly draw the aurora in the wrong place — under
+    // the fog, or over the map-edge clipper — which is why the ordering is asserted and not just the
+    // names.
+    [Test]
+    public void Altitudes_AltInc_Exists()
+    {
+        var type = GetType("Verse.Altitudes");
+        Assert.That(type, Is.Not.Null, "Verse.Altitudes no longer exists");
+        Assert.That(type!.Fields.Any(f => f.Name == "AltInc"), Is.True,
+            "Altitudes.AltInc no longer exists — AuroraCurtainOverlay offsets above FogOfWar by it");
+    }
+
+    [Test]
+    public void AltitudeLayer_KeepsTheOrderTheAuroraDependsOn()
+    {
+        var type = GetType("Verse.AltitudeLayer");
+        Assert.That(type, Is.Not.Null, "Verse.AltitudeLayer no longer exists");
+
+        int Index(string name)
+        {
+            var field = type!.Fields.SingleOrDefault(f => f.Name == name);
+            Assert.That(field, Is.Not.Null, $"AltitudeLayer.{name} no longer exists");
+            return System.Convert.ToInt32(field!.Constant);
+        }
+
+        int weather = Index("Weather");
+        int lighting = Index("LightingOverlay");
+        int visEffects = Index("VisEffects");
+        int fog = Index("FogOfWar");
+        int clipper = Index("WorldClipper");
+
+        // Weather below LightingOverlay is why we cannot draw there: §7a's pitch-black nights would
+        // multiply the aurora away in exactly the conditions it exists for.
+        Assert.That(weather, Is.LessThan(lighting), "Weather is no longer below LightingOverlay");
+
+        // We draw above FogOfWar so neither roofs nor unexplored ground hide the sky...
+        Assert.That(lighting, Is.LessThan(visEffects));
+        Assert.That(visEffects, Is.LessThan(fog), "VisEffects is no longer below FogOfWar");
+
+        // ...but below WorldClipper, which must keep covering us so a patch cannot spill off the map.
+        Assert.That(fog, Is.LessThan(clipper), "FogOfWar is no longer below WorldClipper");
+    }
+
     [Test]
     public void ThingDef_StaticSunShadowHeight_Exists()
     {

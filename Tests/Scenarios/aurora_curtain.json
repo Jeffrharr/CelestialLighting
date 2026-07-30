@@ -43,6 +43,12 @@
       }
     },
     {
+      "type": "Wait",
+      "args": {
+        "frames": "120"
+      }
+    },
+    {
       "type": "Probe",
       "args": {
         "probeName": "aurora_curtain",

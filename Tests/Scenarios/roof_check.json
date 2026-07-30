@@ -1,0 +1,29 @@
+{
+  "name": "roof_check",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "20" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "40" } },
+
+    { "type": "SetRoof", "args": { "def": "RoofRockThick", "width": "80", "height": "44", "offset": "0,6" } },
+
+    { "type": "SetTime", "args": { "hour": "1" } },
+    { "type": "StartCondition", "args": { "conditionDef": "Aurora", "durationHours": "24", "agedHours": "2" } },
+    { "type": "Wait", "args": { "frames": "120" } },
+    { "type": "Screenshot", "args": { "fileName": "roof_check_aurora.png" } },
+
+    { "type": "LookAt", "args": { "anchor": "40,205", "offset": "0,0", "zoom": "40" } },
+    { "type": "Wait", "args": { "frames": "120" } },
+    { "type": "Screenshot", "args": { "fileName": "roof_check_fog_nw.png" } },
+
+    { "type": "LookAt", "args": { "anchor": "210,40", "offset": "0,0", "zoom": "40" } },
+    { "type": "Wait", "args": { "frames": "120" } },
+    { "type": "Screenshot", "args": { "fileName": "roof_check_fog_se.png" } },
+
+    { "type": "LookAt", "args": { "anchor": "110,134", "offset": "0,0", "zoom": "37" } },
+    { "type": "SetTime", "args": { "hour": "12" } },
+    { "type": "SetWeather", "args": { "weatherDef": "RainyThunderstorm" } },
+    { "type": "Wait", "args": { "frames": "120" } },
+    { "type": "Screenshot", "args": { "fileName": "roof_check_rain_day.png" } }
+  ]
+}
