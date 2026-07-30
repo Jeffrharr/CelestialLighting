@@ -184,6 +184,18 @@ public static class ProbeRegistration
         // the wash lives in baked section meshes, exactly as the LowLightDesaturation bridge below.
         // Apply this BEFORE any night_atmospheric_glow toggle: ApplyToRuntime rewrites
         // AtmosphericGlowEnabled from the persisted field and would silently undo it.
+        //
+        // Registered with defaultEnabled: FALSE, which is load-bearing rather than tidiness. This is
+        // not a feature flag whose resting state is "the shipped behaviour is on" — the two-argument
+        // Register overload's assumption, and correct for every genuine effect toggle around it. Here
+        // "on" means a preset the mod does NOT ship on, so the resting state is off.
+        //
+        // Registered as true, FeatureRegistry.ResetAll() — which WorldStateReset runs between every
+        // pair of scenarios in a suite — called this setter with true and applied Realistic to a run
+        // that had never asked for it. Everything downstream of a preset knob then silently measured
+        // the wrong preset from the second scenario onward: weather_dimming_census and
+        // weather_dimming read every non-zero dimming fraction 1.5x high (Realistic's 0.30 against
+        // Cinematic's 0.20) and had been failing in-suite while passing standalone.
         FeatureRegistry.Register(
             "realistic_preset",
             enabled =>
@@ -195,7 +207,8 @@ public static class ProbeRegistration
                 settings.ApplyPreset(enabled ? CelestialPreset.Realistic : CelestialPreset.Cinematic);
                 settings.ApplyToRuntime();
                 NightDesaturationRedraw.ForceRebuild();
-            });
+            },
+            defaultEnabled: false);
         // §9. Like §7b and §15 below, the flag write alone is no longer enough: the per-cell wash lives
         // in baked section meshes and SectionLayer_NightDesaturation now skips the bake entirely while
         // the feature is off, so a scenario flipping this back on must force the rebuild or its "after"
@@ -345,10 +358,27 @@ public static class ProbeRegistration
         FeatureRegistry.Register(
             "geometry_count_reset",
             _ => GeometryEvalCounters.Reset());
+        // The off arm restores the floor the SETTINGS carry, not NightRadianceMath's compile-time
+        // default. Those are not the same number and the difference is the whole bug: the math default
+        // is 0f, so both arms used to write 0f and turning this feature "off" restored nothing. That
+        // made ResetAll — which runs between every pair of scenarios in a suite — pin the night floor
+        // at 0 for the rest of the run, against Cinematic's shipped 0.50, and every later night
+        // reading was measured under a preset nobody selected: weather_dimming's sky_glow read 0.0817
+        // against a pinned 0.1419 and its purkinje correspondingly high, because §9 keys rod vision on
+        // a darker apparent sky.
+        //
+        // defaultEnabled: false for the same reason as realistic_preset above — "on" here means true
+        // black, which is not what the mod ships, so the resting state is off.
         FeatureRegistry.Register(
             "pitch_black_true",
-            enabled => NightRadianceSettings.Current.MinNightBrightness =
-                enabled ? 0f : NightRadianceMath.DefaultMinNightBrightness);
+            enabled =>
+            {
+                CelestialLightingSettings settings = CelestialLightingSettingsMod.Settings;
+                NightRadianceSettings.Current.MinNightBrightness = enabled
+                    ? 0f
+                    : settings?.minNightBrightness ?? NightRadianceMath.DefaultMinNightBrightness;
+            },
+            defaultEnabled: false);
 
         // SunClock caches its measured half-day per TILE, re-measuring only when the absolute day
         // rolls over. The harness's SetTile does not move the colony — it overrides what
