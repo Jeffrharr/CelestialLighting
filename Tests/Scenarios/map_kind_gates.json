@@ -131,7 +131,7 @@
       }
     },
     {
-      "_comment": "GLOWFOREST (Odyssey) \u2014 a bioluminescent biome that is NOT a cave, pinned because the name invites exactly that confusion. It is an ordinary open-air surface tile offering ELEVEN weathers, sets none of disableSkyLighting / disableShadows / inVacuum, and its glow comes from CompGlower plants in the glow grid, which this mod never touches. Every gate must stay open: it keeps its full day/night cycle, twilight, colour temperature and shadows. Not to be confused with Biomes! Caverns' BMT_FungalForest, which IS an enclosed cavern and is covered by the caverns_* scenarios.",
+      "_comment": "GLOWFOREST (Odyssey) \u2014 a bioluminescent biome that is NOT a cave, pinned because the name invites exactly that confusion. It is an ordinary open-air surface tile offering ELEVEN weathers, sets none of disableSkyLighting / disableShadows / inVacuum, and its glow comes from CompGlower plants in the glow grid, which this mod never touches. Every STATIC gate must stay open: it keeps its full day/night cycle, twilight, colour temperature and shadows. Not to be confused with Biomes! Caverns' BMT_FungalForest, which IS an enclosed cavern and is covered by the caverns_* scenarios. §17's DYNAMIC gate is a separate matter and does close on a real Glowforest: Odyssey gives it a permanent DarkenedSkies condition through biomeMapConditions, which SetBiome does not run, so this file sees the biome without it. That is the right split — these two pins are about biome data, and sky_blackout_gate.json owns the condition.",
       "type": "SetBiome",
       "args": {
         "biomeDef": "Glowforest"

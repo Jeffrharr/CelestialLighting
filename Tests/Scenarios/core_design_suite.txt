@@ -16,7 +16,7 @@
 # scenario is deliberately NOT here and must be run as its own process:
 #
 #   for s in daylight_inertness eclipse eclipse_ramp_flyin eclipse_ramp_flyout aurora blood_moon \
-#            natural_eclipse natural_eclipse_trigger; do
+#            natural_eclipse natural_eclipse_trigger sky_blackout_gate; do
 #     ../RimWorldTestHarness/Runner/run_test.sh Tests/Scenarios/$s.json --mod . --mod TestMod
 #   done
 #

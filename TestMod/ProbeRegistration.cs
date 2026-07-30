@@ -57,14 +57,22 @@ public static class ProbeRegistration
         ProbeRegistry.Register(new MoonShadowRenderProbe());
         ProbeRegistry.Register(new MoonElevationProbe());
         ProbeRegistry.Register(new WeatherDimmingProbe());
-        // The two map-kind gates themselves, so a cavern scenario pins the DECISION and not just its
+        // The three map-kind gates themselves, so a cavern scenario pins the DECISION and not just its
         // consequences — every gated effect also reads zero for unrelated reasons (wrong time of day,
         // no active condition), so the effect probes alone cannot say whether a gate actually fired.
         ProbeRegistry.Register(new MapEnclosedProbe());
         ProbeRegistry.Register(new MapDrawsShadowsProbe());
+        // map_sky_blacked_out is the dynamic one (issue #35): unlike the other two it is not a function
+        // of map.Biome, so a scenario has to start a real GameCondition to move it, and it is the only
+        // place the eclipse carve-out is observable at all.
+        ProbeRegistry.Register(new MapSkyBlackedOutProbe());
         // Raw gameplay glow, so the weather_dimming scenario can assert §13's central negative: the
         // sky visibly darkens under a storm while this value does not move at all.
         ProbeRegistry.Register(new SkyGlowProbe());
+        // The composed sky's warm/cool axis, read off the material SkyManager actually tints the map
+        // through. The only sky probe downstream of the map-kind gates — the other two recompute their
+        // patch's input and so cannot see a gate fire at all (issue #35).
+        ProbeRegistry.Register(new SkyOverlayWarmthProbe());
         // §14: one number that says whether vanilla's sky and our sun agree about day/night.
         ProbeRegistry.Register(new SunClockDisagreementProbe());
         ProbeRegistry.Register(new SunElevationProbe());
