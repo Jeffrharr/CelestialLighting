@@ -306,6 +306,24 @@ public static class ProbeRegistration
                 CelestialLightingFeatures.EaveShadows = enabled;
                 EaveShadowRedraw.ForceRebuild();
             });
+        // §15b's shade, as a SEPARATE axis from the caster above. In a shipped game one setting drives
+        // both; here they are independent so a scenario can hold one fixed and move the other, which
+        // is the only way a frame can say WHICH layer owns a boundary artifact. The caster-on /
+        // shade-off cell is the diagnostic case: it is precisely the bright lip §15b exists to remove,
+        // so a scenario can now produce that artifact deliberately and measure it.
+        //
+        // EaveShadowRedraw is the right rebuild despite the name: it dirties every section with
+        // MapMeshFlagDefOf.Buildings, and SectionLayer_EaveShade subscribes to Roofs | Buildings, so
+        // the flag reaches this layer as well as the sun-shadow meshes. Both halves of §15 therefore
+        // re-bake off one call, which is also what keeps an A/B honest — a toggle that rebuilt only
+        // one layer would leave the other showing what was baked before the flip.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.EaveShadeKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.EaveShade = enabled;
+                EaveShadowRedraw.ForceRebuild();
+            });
         // §18c vacuum shadow contrast. A plain per-frame material effect (colors.shadow feeds
         // MatBases.SunShadow.color through SkyManager's own lerp), so unlike §7b/§15 above there is
         // nothing baked to rebuild — the next frame shows the flip. The A/B this exists for is an

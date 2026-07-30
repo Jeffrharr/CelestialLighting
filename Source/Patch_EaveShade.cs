@@ -30,7 +30,7 @@ public static class Patch_EaveShade
         if (current == null || current.skyManager != __instance)
             return;
 
-        if (!CelestialLightingFeatures.EaveShadows)
+        if (!CelestialLightingFeatures.EaveShade)
         {
             EaveShadeOverlay.Clear();
             return;

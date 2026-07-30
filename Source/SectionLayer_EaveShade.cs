@@ -44,7 +44,7 @@ public class SectionLayer_EaveShade : SectionLayer
     // alpha, which is zero when there is no shadow anyway, and gating visibility on a brightness test
     // would make the layer flicker in and out across dusk for no gain.
     public override bool Visible =>
-        CelestialLightingFeatures.EaveShadows
+        CelestialLightingFeatures.EaveShade
         && DebugViewSettings.drawShadows
         && MapSky.DrawsShadows(base.Map);
 
