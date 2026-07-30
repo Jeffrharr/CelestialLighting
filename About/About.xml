@@ -118,6 +118,7 @@ Requires Harmony.</description>
     <li>Ludeon.RimWorld.Ideology</li>
     <li>Ludeon.RimWorld.Biotech</li>
     <li>Ludeon.RimWorld.Anomaly</li>
+    <li>Ludeon.RimWorld.Odyssey</li>
     <li>brrainz.harmony</li>
     <!-- Two separate interops with Dub's Skylights, one of them a genuine shared patch target:
          (a) it reads SkyManager.CurSkyGlow, which only our opt-in accessibility minimum-brightness
