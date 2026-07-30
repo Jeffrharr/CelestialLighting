@@ -1,0 +1,22 @@
+{
+  "name": "eave_door_leak_mountain",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "45" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "40" } },
+    { "type": "SetWeather", "args": { "weatherDef": "Clear", "instant": "true" } },
+    { "type": "SetTerrain", "args": { "def": "Concrete", "width": "17", "height": "17", "offset": "0,30", "clear": "true" } },
+    { "type": "PlaceThings", "args": {
+        "def": "Wall", "stuff": "BlocksGranite", "offset": "0,30", "layout": "cells", "clear": "true",
+        "cells": "-3,-3; -2,-3; -1,-3; 1,-3; 2,-3; 3,-3; -3,3; -2,3; -1,3; 0,3; 1,3; 2,3; 3,3; -3,-2; -3,-1; -3,0; -3,1; -3,2; 3,-2; 3,-1; 3,0; 3,1; 3,2" } },
+    { "type": "PlaceThings", "args": {
+        "def": "Door", "stuff": "BlocksGranite", "offset": "0,27", "layout": "cells", "clear": "false", "cells": "0,0" } },
+    { "type": "SetRoof", "args": { "def": "RoofRockThick", "width": "7", "height": "7", "offset": "0,30" } },
+    { "type": "SetTime", "args": { "hour": "12" } },
+    { "type": "LookAt", "args": { "offset": "0,30", "zoom": "13" } },
+    { "type": "Screenshot", "args": { "fileName": "door_thick_on.png" } },
+    { "type": "SetFeature", "args": { "featureName": "indoor_sky_occlusion", "enabled": "false" } },
+    { "type": "Screenshot", "args": { "fileName": "door_thick_off.png" } },
+    { "type": "SetFeature", "args": { "featureName": "indoor_sky_occlusion", "enabled": "true" } }
+  ]
+}
