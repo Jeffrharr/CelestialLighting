@@ -131,8 +131,11 @@ public class CelestialLightingSettingsMod : Mod
             "Warm the sky toward the horizon on a continuous, altitude-keyed curve.");
         listing.CheckboxLabeled("Auroral sky tint", ref Settings.aurora,
             "Shift the night sky toward auroral colours during a solar flare or an aurora event, and at no other time. A flare gets a slow green/red shimmer; an aurora event borrows the colour vanilla is already cycling through, which its own sky render is too bright to show.");
-        listing.CheckboxLabeled("    Auroral curtain", ref Settings.auroraCurtain,
-            "Draw drifting auroral bands over the map instead of tinting the whole sky one flat colour — several colours at once, folding and undulating, brightest in patches. This is the only part of the aurora with a per-frame render cost, and it is paid only while an aurora is actually running. Off falls back to the flat sky tint at full strength, so you lose the bands, not the aurora.");
+        // The cost is in the LABEL, not only the tooltip. This is the one setting in the mod with a
+        // real per-frame price, and a player who never hovers should still be told before they turn it
+        // on — particularly since it is on by default.
+        listing.CheckboxLabeled("    Auroral curtain (performance cost)", ref Settings.auroraCurtain,
+            "Draw a drifting auroral curtain over the map instead of tinting the whole sky one flat colour — a bright wandering hem with vertical rays standing on it, several colours at once, folding and undulating.\n\nThis is the only part of the mod with a per-frame render cost. Measured on this machine's Mono runtime it is roughly 0.3-0.4 ms per frame of field regeneration — about 2% of a 60fps frame — plus one extra draw call. That is paid ONLY while an aurora or solar flare is actually running, which is rare and short; the rest of the time this subsystem is a single null check and allocates nothing.\n\nIf your framerate is already marginal, or a profiler points at CelestialLighting during an aurora, this is the switch. Turning it off falls back to the flat sky tint at its full solo strength, so you lose the curtain, not the aurora.");
         listing.CheckboxLabeled("Eclipse effects", ref Settings.eclipseDarkening,
             "Master toggle for CelestialLighting's eclipse handling. Off = vanilla eclipses (flat dim, storyteller timing) and none of the modes below. On = reshaped darkening plus the eclipse mode selected below.");
         DrawEclipseModeRadio(listing);

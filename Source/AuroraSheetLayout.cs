@@ -147,26 +147,36 @@ public static class AuroraSheetLayout
     // different effect.
     public const float PatchMinScale = 0.5f;
 
-    // Places one display inside the given view rectangle, in map cells.
+    // Places one display somewhere on the map, in map cells.
     //
-    // The view rather than the map, because "somewhere on the map" and "wholly visible" are different
-    // constraints and only the second one is what anyone actually wanted. A patch placed at a random
-    // point of a 250-cell map is usually nowhere near the colony the player is looking at; placed at a
-    // random point of the VIEW it is always framed, while still being a fixed piece of sky the player
-    // can pan away from afterwards.
-    public static AuroraSheetPlacement RandomPlacement(
-        int seed, float viewMinX, float viewMinZ, float viewMaxX, float viewMaxZ, float driftPhase)
+    // THE MAP, NOT THE CAMERA. An earlier version picked the spot inside the camera's view rectangle so
+    // the display would always be framed. That was solving the wrong problem — it was compensating for a
+    // separate bug where the placement was recomputed every frame, which made the patch slide with the
+    // camera — and it does not make sense on its own terms: where an aurora is has nothing to do with
+    // where the player happens to be looking. A display now happens over a piece of ground, and you see
+    // it if you are looking that way, which also means the overlay no longer touches CameraDriver at
+    // all.
+    public static AuroraSheetPlacement RandomPlacement(int seed, int mapX, int mapZ)
     {
-        float width = PatchMaxWidth * ScaleFrom(seed, 1);
-        float height = PatchMaxHeight * ScaleFrom(seed, 2);
+        // Clamped to what the map can actually hold, wander included. A pocket or quest map can be 75
+        // cells against a display up to 70 wide, and an oversized patch would hang off the edge where
+        // its taper is clipped by geometry rather than fading — the exact hard edge the taper exists to
+        // remove. Shrinking it simply draws a smaller display, which is the right answer on a small map.
+        float width = Math.Min(PatchMaxWidth * ScaleFrom(seed, 1), mapX - 2f * PatchDriftCells);
+        float height = Math.Min(PatchMaxHeight * ScaleFrom(seed, 2), mapZ);
+
+        width = Math.Max(width, 1f);
+        height = Math.Max(height, 1f);
 
         // Inset by the drift as well as the half-extent, so a patch that has wandered to the end of its
         // travel is still wholly framed rather than half off the edge at the extremes of its motion.
-        float centreX = PlaceWithin(seed, 3, viewMinX, viewMaxX, width * 0.5f + PatchDriftCells);
-        float centreZ = PlaceWithin(seed, 4, viewMinZ, viewMaxZ, height * 0.5f);
+        // Inset so the whole display — including the far end of its wander — is on the map, because a
+        // patch overhanging the edge would have its taper clipped by geometry rather than fading out.
+        float centreX = PlaceWithin(seed, 3, 0f, mapX, width * 0.5f + PatchDriftCells);
+        float centreZ = PlaceWithin(seed, 4, 0f, mapZ, height * 0.5f);
 
         return new AuroraSheetPlacement(
-            centreX + PatchDriftCells * driftPhase,
+            centreX,
             centreZ,
             width,
             height,
@@ -174,6 +184,25 @@ public static class AuroraSheetLayout
             vScale: 1f,
             uPhase: 0f,
             alpha: 1f);
+    }
+
+    // Applies this frame's east-west wander to a placement already fixed in MAP coordinates.
+    //
+    // Split from RandomPlacement because the two happen at completely different rates and confusing
+    // them is how the patch ended up glued to the camera: the spot is chosen ONCE, when the aurora
+    // begins, from the view rectangle at that moment — after which it is a piece of sky at fixed map
+    // coordinates and the camera must never be consulted again. Only the wander changes per frame.
+    public static AuroraSheetPlacement WithDrift(in AuroraSheetPlacement placed, float driftPhase)
+    {
+        return new AuroraSheetPlacement(
+            placed.CenterX + PatchDriftCells * driftPhase,
+            placed.CenterZ,
+            placed.Width,
+            placed.Height,
+            placed.UScale,
+            placed.VScale,
+            placed.UPhase,
+            placed.Alpha);
     }
 
     private static float ScaleFrom(int seed, int salt) =>
