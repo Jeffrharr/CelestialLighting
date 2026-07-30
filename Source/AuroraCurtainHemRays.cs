@@ -152,7 +152,7 @@ public static class AuroraCurtainHemRays
     // RayTopFloor). Exists so the tileability constraint can be stated as one comparison —
     // RayHeightMax + HemUnderhang < 1 is what guarantees a curtain's tail dies out before it wraps
     // round into its own hem and the field stops being periodic in v for the wrong reason.
-    public const float RayHeightMax = 0.68f;
+    public const float RayHeightMax = 0.97f;
 
     // Brightness a column keeps where the ray field says "gap", in [0, 1]. At 0 the gaps are black and
     // the curtain is a picket fence with nothing behind it; at 1 there are no rays at all. 0.46 leaves
@@ -344,13 +344,24 @@ public static class AuroraCurtainHemRays
         // arguing about which is the subject.
         public readonly float Weight;
 
+        // This curtain's colour, on AuroraCurtain.PaletteColor's scale, applied uniformly over the
+        // whole sheet: below 0.30 slides violet, 0.30-0.66 is green, above 0.66 slides red.
+        //
+        // Flat per curtain, replacing the height-driven ramp. That ramp modelled the real
+        // stratification — violet fringe, green body, red top, because the 630 nm line is emitted
+        // higher than the 557.7 nm one — but it gave every curtain the same gradient, so three arcs
+        // could not read as three different colours. This is an art-directed palette, chosen so the
+        // curtains separate visually.
+        public readonly float CurtainHue;
+
         public readonly int Seed;
 
         public CurtainSpec(
             float hemCenter, int hemPeriod, int hemOctaves, float hemAmplitude, float hemDrift,
             float hemRise, int rayPeriod, float rayDrift, int rayClumpPeriod, int envelopePeriod,
-            float envelopeDrift, float rayHeight, float weight, int seed)
+            float envelopeDrift, float rayHeight, float weight, float curtainHue, int seed)
         {
+            CurtainHue = curtainHue;
             HemCenter = hemCenter;
             HemPeriod = hemPeriod;
             HemOctaves = hemOctaves;
@@ -380,12 +391,49 @@ public static class AuroraCurtainHemRays
     // Hem amplitudes are much larger than the first pass's 0.05: at 76 map cells to the tile that was
     // four cells of wander across the whole sky, which previewed as a spirit level rather than an arc.
     // 0.11 is ~8 cells, enough that a fold is visible inside one screen.
+    // The bottom of this field's colour ramp.
+    //
+    // AuroraCurtain.NitrogenViolet is (0.35, 0.30, 1.00) — the honest N2+ 427.8 nm colour, and it
+    // renders as blue rather than violet because that emission line genuinely IS blue-violet: its green
+    // component almost equals its red, so nothing pulls it toward purple. That is right for the contour
+    // field, which is the physically-honest path, and it is left untouched there.
+    //
+    // This field's palette is art-directed anyway (see CurtainSpec.CurtainHue), and a deep purple
+    // separates the top curtain from the green one far better than a blue does. The trick is entirely
+    // in the green channel: red well above green reads as purple, red near green as blue.
+    public static readonly AuroraMath.Rgb CurtainPurple = new AuroraMath.Rgb(0.62f, 0.10f, 0.92f);
+
+    // As AuroraCurtain.PaletteColor — same scale, same green plateau, same red ramp — but anchored on
+    // CurtainPurple. Duplicated rather than parameterised because the contour field's version is one of
+    // the things this file is being compared against, and a shared function taking a colour argument
+    // would let a retune of one silently move the other.
+    public static AuroraMath.Rgb PaletteColor(float hue01)
+    {
+        float h = Clamp01(hue01);
+
+        if (h < AuroraCurtain.HueGreenLow)
+            return LerpRgb(CurtainPurple, AuroraMath.OxygenGreen, h / AuroraCurtain.HueGreenLow);
+
+        if (h > AuroraCurtain.HueGreenHigh)
+            return LerpRgb(
+                AuroraMath.OxygenGreen, AuroraMath.OxygenRed,
+                (h - AuroraCurtain.HueGreenHigh) / (1f - AuroraCurtain.HueGreenHigh));
+
+        return AuroraMath.OxygenGreen;
+    }
+
+    private static AuroraMath.Rgb LerpRgb(AuroraMath.Rgb a, AuroraMath.Rgb b, float t) =>
+        new AuroraMath.Rgb(
+            a.R + (b.R - a.R) * t,
+            a.G + (b.G - a.G) * t,
+            a.B + (b.B - a.B) * t);
+
     private static readonly CurtainSpec[] Curtains =
     {
-        //             hemC   hemP oct hemAmp hemDrift hemRise   rayP rayDrift clump envP envDrift rayH  weight seed
-        new CurtainSpec(0.19f, 3, 2, 0.110f, 0.25f,  1f / 32f,   60, 1.00f,  12,  2, 0.25f,  0.68f, 1.00f, 10009),
-        new CurtainSpec(0.57f, 5, 2, 0.085f, -0.50f, -2f / 32f,  40, -0.75f,  8,  3, -0.25f, 0.52f, 0.76f, 20011),
-        new CurtainSpec(0.84f, 4, 2, 0.070f, 0.75f,  3f / 32f,   30, 0.50f,   6,  2, 0.50f,  0.34f, 0.52f, 30011),
+        //             hemC   hemP oct hemAmp hemDrift hemRise   rayP rayDrift clump envP envDrift rayH  weight hue   seed
+        new CurtainSpec(0.19f, 3, 2, 0.110f, 0.25f,  1f / 32f,   60, 1.00f,  12,  2, 0.25f,  0.97f, 1.00f, 0.46f, 10009),
+        new CurtainSpec(0.57f, 5, 2, 0.085f, -0.50f, -2f / 32f,  40, -0.75f,  8,  3, -0.25f, 0.74f, 0.76f, 1.00f, 20011),
+        new CurtainSpec(0.84f, 4, 2, 0.070f, 0.75f,  3f / 32f,   30, 0.50f,   6,  2, 0.50f,  0.49f, 0.52f, 0.06f, 30011),
     };
 
     // Read-only access to the table above, for the offline tests that check the invariants this file's
@@ -424,13 +472,21 @@ public static class AuroraCurtainHemRays
         // The same product without the ray modulation, for the continuous hem ridge.
         public readonly float CoreWeight;
 
-        public ColumnState(float hem, float invRayTop, float invRayHeight, float rayWeight, float coreWeight)
+        // This curtain's flat hue, carried through from its CurtainSpec. Constant in u, so it has no
+        // business being per-column — but CurtainAt is handed a ColumnState and nothing else, and
+        // copying one float costs nothing next to threading the spec into the pixel loop as well.
+        public readonly float CurtainHue;
+
+        public ColumnState(
+            float hem, float invRayTop, float invRayHeight, float rayWeight, float coreWeight,
+            float curtainHue)
         {
             Hem = hem;
             InvRayTop = invRayTop;
             InvRayHeight = invRayHeight;
             RayWeight = rayWeight;
             CoreWeight = coreWeight;
+            CurtainHue = curtainHue;
         }
     }
 
@@ -532,7 +588,8 @@ public static class AuroraCurtainHemRays
             1f / Math.Max(rayTop, 1e-4f),
             1f / Math.Max(c.RayHeight, 1e-4f),
             rayMod * gate,
-            HemCoreGain * gate);
+            HemCoreGain * gate,
+            c.CurtainHue);
     }
 
     // The per-pixel half: pure arithmetic on a ColumnState, no noise, no hashing, no division.
@@ -544,7 +601,9 @@ public static class AuroraCurtainHemRays
             ? BelowHem(s, col)
             : AboveHem(s, col);
 
-        return new Sample(alpha, HueAtHeight(s * col.InvRayHeight, hueWobble));
+        // Flat hue: the sheet is one colour top to bottom. The wobble still rides on it so the colour
+        // varies slightly ALONG the curtain, which keeps it from looking like a printed band.
+        return new Sample(alpha, Clamp01(col.CurtainHue + hueWobble));
     }
 
     // Signed height of v above a hem, in tile heights, in [-HemUnderhang, 1 - HemUnderhang). Both
@@ -656,7 +715,7 @@ public static class AuroraCurtainHemRays
             for (int x = 0; x < width; x++)
             {
                 Sample sample = SampleColumn(columns, wobbles, x, v);
-                AuroraMath.Rgb colour = AuroraCurtain.PaletteColor(sample.Hue);
+                AuroraMath.Rgb colour = PaletteColor(sample.Hue);
 
                 int i = rowBase + x * 4;
                 rgba[i] = ToByte(Lerp(colour.R, tintR, tint));
