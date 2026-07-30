@@ -55,3 +55,19 @@ weather_dimming.json
 # (ScenarioResidue.Map), and it is still in-flight work whose expected softness (0.5367) does not
 # match what the current build reads at its chosen hour (0.0920). Run it standalone while that is
 # being settled.
+
+# vacuum_night_floor.json belongs with the moon-dependent scenarios above and NOT in this list, which
+# is worth stating explicitly because it reads like a candidate: its residue (NewMap | Map) is
+# reload-required, and SuitePlanner does isolate it correctly and automatically, so isolation is not
+# what disqualifies it. Its moon_illumination and moon_elevation pins are — moon phase is a function
+# of the absolute tick, and a soft reset restoring TicksGame is not enough to reproduce the fixture's
+# own tick once earlier scenarios have moved the clock.
+#
+# Measured rather than assumed, 2026-07-30: added here and run, it failed with moon_illumination
+# 0.1795 against a pinned 0.0364 and both moon_elevation pins out by 6-7 degrees, while passing
+# standalone in the same build minutes later. Its off-noon sun_elevation went with them (-16.29
+# against -9.033) and its midnight one was exact, which is the clock moving, not the latitude.
+#
+# The gap it was added to close is real and still open: nothing runs this file on a cadence, which is
+# how a pin ce6bdbf invalidated sat broken across five merges. Closing it wants a per-scenario
+# absolute-tick anchor, not a line in this list.
