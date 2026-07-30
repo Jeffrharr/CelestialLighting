@@ -185,10 +185,10 @@ public class VacuumSuppressionTests
     {
         float glow = SunGlowAtElevation(elevation);
 
-        Assert.That(AuroraMath.SkyTintStrength(glow, ramp: 1f, inVacuum: true),
+        Assert.That(AuroraMath.SkyTintStrength(glow, ramp: 1f, curtained: false, inVacuum: true),
             Is.EqualTo(0f).Within(Tolerance),
             $"aurora sky tint survived into vacuum at elevation {elevation}");
-        Assert.That(AuroraMath.SkyTintStrength(glow, ramp: 1f, inVacuum: false),
+        Assert.That(AuroraMath.SkyTintStrength(glow, ramp: 1f, curtained: false, inVacuum: false),
             Is.EqualTo(seaLevel).Within(Tolerance),
             $"sea-level aurora sky tint moved at elevation {elevation}");
     }
@@ -202,10 +202,10 @@ public class VacuumSuppressionTests
     {
         float glow = SunGlowAtElevation(elevation);
 
-        Assert.That(AuroraMath.OverlayTintStrength(glow, ramp: 1f, inVacuum: true),
+        Assert.That(AuroraMath.OverlayTintStrength(glow, ramp: 1f, curtained: false, inVacuum: true),
             Is.EqualTo(0f).Within(Tolerance),
             $"aurora overlay tint survived into vacuum at elevation {elevation}");
-        Assert.That(AuroraMath.OverlayTintStrength(glow, ramp: 1f, inVacuum: false),
+        Assert.That(AuroraMath.OverlayTintStrength(glow, ramp: 1f, curtained: false, inVacuum: false),
             Is.EqualTo(seaLevel).Within(Tolerance),
             $"sea-level aurora overlay tint moved at elevation {elevation}");
     }
@@ -221,9 +221,9 @@ public class VacuumSuppressionTests
         for (float elevation = -30f; elevation <= 90f; elevation += 2.5f)
         {
             float glow = SunGlowAtElevation(elevation);
-            Assert.That(AuroraMath.SkyTintStrength(glow, ramp, inVacuum: true),
+            Assert.That(AuroraMath.SkyTintStrength(glow, ramp, curtained: false, inVacuum: true),
                 Is.EqualTo(0f).Within(Tolerance), $"sky tint at elevation {elevation}, ramp {ramp}");
-            Assert.That(AuroraMath.OverlayTintStrength(glow, ramp, inVacuum: true),
+            Assert.That(AuroraMath.OverlayTintStrength(glow, ramp, curtained: false, inVacuum: true),
                 Is.EqualTo(0f).Within(Tolerance), $"overlay tint at elevation {elevation}, ramp {ramp}");
         }
     }
