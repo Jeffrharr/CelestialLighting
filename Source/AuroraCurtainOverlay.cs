@@ -90,6 +90,11 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
     // Next row to regenerate; wraps at ResolutionY, so the refresh rolls continuously up the texture.
     private int _rowCursor;
 
+    // Per-column work for the sweep in progress, held across its slices. Rebuilt only when the cursor
+    // returns to the bottom, which is what turns "19 noise samples per column, thirty-two times over"
+    // into "19 samples per column".
+    private AuroraCurtainHemRays.ColumnTable _columnTable;
+
     // How many quads to draw this frame, decided in Advance where the map is in hand.
     private int _liveSheets;
 
@@ -176,9 +181,12 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
     // marshalling in between. Apply(false) skips mip regeneration, which this texture does not have.
     private void Regenerate(AuroraFieldSpec spec, float time, Color tint, float tintWeight)
     {
-        spec.Fill(
-            _pixels, spec.ResolutionX, spec.ResolutionY, _rowCursor, spec.RefreshRows, time,
-            tint.r, tint.g, tint.b, tintWeight);
+        if (spec.CachesColumnTable)
+            RegenerateFromTable(spec, time, tint, tintWeight);
+        else
+            spec.Fill(
+                _pixels, spec.ResolutionX, spec.ResolutionY, _rowCursor, spec.RefreshRows, time,
+                tint.r, tint.g, tint.b, tintWeight);
 
         _rowCursor += spec.RefreshRows;
         if (_rowCursor >= spec.ResolutionY)
@@ -186,6 +194,24 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
 
         _texture.LoadRawTextureData(_pixels);
         _texture.Apply(false);
+    }
+
+    // Rebuilds the per-column table only at the start of a sweep, then reuses it for every slice of
+    // that sweep.
+    //
+    // The `time` a sweep is baked at is therefore PINNED to the instant the sweep began, rather than
+    // advancing row by row. That is a fix rather than a compromise: the rolling refresh already relies
+    // on rows baked frames apart differing imperceptibly, and pinning makes the tile self-consistent
+    // instead of shearing slightly in time between its bottom and its top — which it quietly did
+    // before and which nobody had looked for.
+    private void RegenerateFromTable(AuroraFieldSpec spec, float time, Color tint, float tintWeight)
+    {
+        if (_rowCursor == 0 || _columnTable == null)
+            _columnTable = AuroraCurtainHemRays.BuildColumnTable(_columnTable, spec.ResolutionX, time);
+
+        AuroraCurtainHemRays.FillRows(
+            _pixels, _columnTable, spec.ResolutionX, spec.ResolutionY, _rowCursor, spec.RefreshRows,
+            tint.r, tint.g, tint.b, tintWeight);
     }
 
     // Sets every drawn sheet's UV scale, pan offset and colour for this frame.

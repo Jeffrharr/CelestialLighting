@@ -1415,6 +1415,22 @@ existence in precisely the conditions they exist for. `VisEffects` is above the 
 still below `FogOfWar`, so the curtain glows through the dark while unexplored map stays fogged.
 `ApiCompatibilityTests` asserts that *ordering*, not merely that the enum members exist.
 
+**Cost, and where it actually goes.** The shipping field's noise is a function of `u` alone, so a whole
+texture column shares it — 19 samples per column, none per pixel. The adapter bakes 6 rows a frame, and
+originally rebuilt that table on every one of those calls, which turned the saving into *19 samples per
+column, thirty-two times over*: ~3,600 samples a frame to fill 1,152 pixels. The table is now built once
+per refresh sweep and reused across its slices.
+
+Measured on Mono in the live harness, that took a frame of regeneration from **828 µs to 425 µs**. Note
+the discrepancy: samples fell ~22×, cost fell ~2×. With the noise hoisted, **per-pixel arithmetic is the
+bottleneck**, so resolution is now the expensive knob — the opposite of the contour field, and the reason
+`aurora_curtain_cost` is pinned tightly rather than left as a "did it explode" guard.
+
+One deliberate behavioural consequence: a sweep's `time` is pinned to the instant the sweep began rather
+than advancing row by row. That is a fix rather than a compromise — the rolling refresh already relies on
+rows baked frames apart differing imperceptibly, and pinning makes the tile self-consistent instead of
+shearing slightly in time between its bottom and top, which it quietly did before.
+
 **Sheet geometry — why this is no longer one map-wide plane.** The first build drew the field on
 `MeshPool.wholeMapPlane` through `SkyOverlay`'s own helper. That plane is 2000 world units across with
 its UVs pre-multiplied by 200 (`MeshMakerPlanes.NewWholeMapPlane`), i.e. one repeat per ten cells, and

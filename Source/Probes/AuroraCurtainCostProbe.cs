@@ -51,17 +51,40 @@ public sealed class AuroraCurtainCostProbe : IProbe
         return (float)microsPerFrame;
     }
 
-    // Times whichever field is live, at whichever resolution and slice size it declares, rather than a
-    // hardcoded AuroraCurtain at a hardcoded square size — the point of the probe is that it measures
-    // the thing the game actually bakes.
+    // Times whichever field is live, at whichever resolution and slice size it declares, and — for a
+    // field that caches its per-column table — in the same rebuild rhythm the adapter uses.
+    //
+    // THAT RHYTHM IS THE WHOLE POINT. The table is rebuilt once per sweep and reused by every slice of
+    // it, so slices are cheap and the first slice of a sweep is not. Timing a single slice would
+    // therefore report whichever kind it happened to land on, and timing only the cheap ones would hide
+    // the build entirely — the measurement would improve while the frame cost did not. Each timed
+    // iteration here is one slice with the build amortised exactly as the game amortises it.
     private static void Fill(byte[] buffer, int width, int height, int rows, int iteration)
     {
-        AuroraFieldRegistry.Active.Fill(
-            buffer, width, height,
-            firstRow: iteration * rows % height,
-            rowCount: rows,
-            time: iteration * 60f,
+        int firstRow = iteration * rows % height;
+
+        if (!AuroraFieldRegistry.Active.CachesColumnTable)
+        {
+            AuroraFieldRegistry.Active.Fill(
+                buffer, width, height, firstRow, rows,
+                time: iteration * 60f,
+                tintR: 0.2f, tintG: 0.9f, tintB: 0.3f,
+                tintWeight: AuroraFieldRegistry.Active.TintWeight);
+            return;
+        }
+
+        // Rebuild on the sweep boundary only, exactly as AuroraCurtainOverlay does, and pin the time to
+        // the instant the sweep began for the same reason it does.
+        if (firstRow == 0 || _table == null)
+            _table = AuroraCurtainHemRays.BuildColumnTable(_table, width, iteration * 60f);
+
+        AuroraCurtainHemRays.FillRows(
+            buffer, _table, width, height, firstRow, rows,
             tintR: 0.2f, tintG: 0.9f, tintB: 0.3f,
             tintWeight: AuroraFieldRegistry.Active.TintWeight);
     }
+
+    // Held between calls so the probe's own rebuild cadence matches the adapter's rather than paying
+    // for a fresh table on every reading.
+    private static AuroraCurtainHemRays.ColumnTable _table;
 }

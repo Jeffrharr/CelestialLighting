@@ -87,12 +87,19 @@ public sealed class AuroraFieldSpec
 
     public readonly AuroraFillRows Fill;
 
+    // Whether this field's bake can hoist per-column work across a whole refresh sweep. True only for
+    // hem-rays, whose noise is a function of u alone; the contour field samples 2D noise per pixel and
+    // has nothing to hoist. The adapter reads this to decide whether to hold a column table; the two
+    // paths produce identical pixels, which AuroraCurtainHemRaysTests asserts byte for byte.
+    public readonly bool CachesColumnTable;
+
     public readonly AuroraSheetSpec[] Sheets;
 
     public AuroraFieldSpec(
         string name, int resolutionX, int resolutionY, float tintWeight, int driftWrapTicks,
-        int refreshRows, AuroraFillRows fill, AuroraSheetSpec[] sheets)
+        int refreshRows, AuroraFillRows fill, AuroraSheetSpec[] sheets, bool cachesColumnTable = false)
     {
+        CachesColumnTable = cachesColumnTable;
         Name = name;
         ResolutionX = resolutionX;
         ResolutionY = resolutionY;
@@ -135,7 +142,8 @@ public static class AuroraFieldRegistry
                 AuroraCurtainHemRays.PanV,
                 alpha: 1f,
                 spansMapVertically: false),
-        });
+        },
+        cachesColumnTable: true);
 
     // Contour: two counter-panning sheets over the whole map. A single panning plane translates
     // rigidly, and rigid translation of the whole sky reads as the camera moving rather than the aurora
