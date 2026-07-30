@@ -42,6 +42,50 @@ public static class AuroraMath
     public static readonly Rgb OxygenGreen = new Rgb(0.16f, 1f, 0.36f);
     public static readonly Rgb OxygenRed = new Rgb(1f, 0.15f, 0.18f);
 
+    // ---- Shared curtain primitives -------------------------------------------------------------
+    //
+    // Amplify and the hue-band edges below started life inside AuroraCurtain, because it was the only
+    // field there was. There are now two — AuroraCurtain (the physically honest overhead contour) and
+    // AuroraCurtainHemRays (the art-directed side-on curtain) — and the second was reaching into the
+    // first for these. That is the wrong shape: it makes one field own the other's primitives, so a
+    // retune of the contour field could silently move the curtain field, and neither can be removed
+    // independently of the other. They live here instead, next to the emission colours they are used
+    // with, in a file both fields already depend on.
+    //
+    // Where the hue-band edges sit on the palette scale: below Low the colour slides toward the low
+    // fringe, above High toward oxygen red, and the whole middle is pure oxygen green. An fBm clusters
+    // near 0.5, so a hue field driven through these naturally produces a green-dominant band with
+    // coloured tails — which is also what an aurora looks like.
+    public const float HueGreenLow = 0.30f;
+    public const float HueGreenHigh = 0.66f;
+
+    // The steep response curve, ported verbatim (magic number included) from the CC0 "Aurora Borealis"
+    // Godot shader by Klaufir (https://godotshaders.com/shader/aurora-borealis/). Reads as
+    // m⁴·v² + m·v⁴ + v⁸: three successive squarings, each weighted less than the last, summed. The v⁸
+    // term dominates above ~0.8 and everything below ~0.5 is crushed toward zero, which is what
+    // separates a ribbon from its background. A plain pow(v, 8) is close but loses the faint ambient
+    // floor the two smaller terms leave behind — and that floor is the difference between a curtain
+    // hanging in a glowing sky and a curtain hanging in a void.
+    //
+    // Deliberately NOT normalised — Amplify(1) is about 1.167. Each caller divides by its own peak,
+    // because they feed it different input ranges.
+    public static float Amplify(float value)
+    {
+        const float magic = 0.166504f;
+
+        float v = Clamp01(value);
+        float output = 0f;
+
+        v *= v;
+        output += magic * magic * magic * magic * v;
+        v *= v;
+        output += magic * v;
+        v *= v;
+        output += v;
+
+        return output;
+    }
+
     // Auroras are only visible against a dark sky, so the tint must fade out as the sky brightens.
     // These two thresholds are in GenCelestial.CurCelestialSunGlow units. The upper bound reuses
     // vanilla's own GameCondition_Aurora.MaxSunGlow (0.5) — the glow above which vanilla stops
