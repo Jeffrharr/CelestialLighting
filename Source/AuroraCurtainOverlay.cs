@@ -93,6 +93,24 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
     // How many quads to draw this frame, decided in Advance where the map is in hand.
     private int _liveSheets;
 
+    // The drift phase PlaceSheets resolved this frame, so DrawOverlay puts each quad where its material
+    // state was prepared for. Recomputing it there would work but would silently desynchronise the
+    // moment either call site changed.
+    private float _driftPhase;
+
+    // The tick this aurora began, used to seed its size and position. Captured on the 0 -> lit
+    // transition rather than read from the condition, because the overlay is driven through Advance and
+    // has no handle on the driver; and held for the whole event so the patch does not jitter frame to
+    // frame. Reset when the aurora ends, so the NEXT one lands somewhere else — which is the point.
+    private int _eventSeed;
+
+    private bool _eventLit;
+
+    // The placement resolved this frame. One display per aurora now, so this is a single value rather
+    // than a table: fixed placement made every aurora identical, and the second one a player sees
+    // should not be a copy of the first.
+    private AuroraSheetPlacement _placement;
+
     private AuroraCurtainOverlay()
     {
     }
@@ -110,7 +128,16 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
         // The zero-cost path. No allocation, no field work, no draw: for the overwhelming majority of
         // frames in a playthrough this is where the subsystem ends.
         if (strength <= 0f || map == null)
+        {
+            _eventLit = false;
             return false;
+        }
+
+        if (!_eventLit)
+        {
+            _eventLit = true;
+            _eventSeed = ticksGame;
+        }
 
         AuroraFieldSpec spec = Spec;
         EnsureAllocated(spec);
@@ -169,25 +196,50 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
     // offset inside one texture repeat; wrapping there is exactly seamless because the field tiles.
     private void PlaceSheets(AuroraFieldSpec spec, Map map, int wrapped, float strength)
     {
+        _driftPhase = AuroraCurtainHemRays.Oscillate(wrapped * AuroraCurtainHemRays.DriftRate);
+
+        if (spec.Sheets[0].SpansMapVertically)
+        {
+            PlaceSpanningSheets(spec, map, wrapped, strength);
+            return;
+        }
+
+        // Placed inside the CAMERA's rectangle rather than anywhere on the map. "Somewhere on the map"
+        // and "wholly visible" are different constraints, and only the second is what was wanted: a
+        // random point of a 250-cell map is usually nowhere near the colony the player is watching.
+        // Chosen once per aurora from the event seed, so it stays put for the event and the player can
+        // pan away from it afterwards exactly as they could from a fixed one.
+        CellRect view = Find.CameraDriver.CurrentViewRect;
+
+        _placement = AuroraSheetLayout.RandomPlacement(
+            _eventSeed, view.minX, view.minZ, view.maxX, view.maxZ, _driftPhase);
+
+        _liveSheets = 1;
+
+        Material mat = Sheets[0];
+        mat.mainTextureScale = new Vector2(_placement.UScale, _placement.VScale);
+        mat.mainTextureOffset = Vector2.zero;
+        mat.color = new Color(1f, 1f, 1f, strength * _placement.Alpha);
+    }
+
+    // The contour field's path, unchanged: whole-map planes that tile and pan their UVs.
+    private void PlaceSpanningSheets(AuroraFieldSpec spec, Map map, int wrapped, float strength)
+    {
         _liveSheets = AuroraSheetLayout.PlacementCount(spec, map.Size.z);
 
         for (int i = 0; i < _liveSheets; i++)
         {
             AuroraSheetPlacement p = AuroraSheetLayout.Placement(spec, i, map.Size.x, map.Size.z);
+            AuroraSheetSpec sheet = spec.Sheets[i];
             Material mat = Sheets[i];
 
             mat.mainTextureScale = new Vector2(p.UScale, p.VScale);
-
-            // Material.mainTextureOffset, not SetTextureOffset with a Verse property ID: RimWorld's
-            // ShaderPropertyIDs exposes its own custom `_Main_TexOffset` / `_Main_TexScale` properties,
-            // not Unity's standard `_MainTex`, and MoteGlow is an ordinary `_MainTex` shader. This pair
-            // of Unity properties addresses `_MainTex` by definition, so there is no name to get wrong.
-            AuroraSheetSpec sheet = spec.Sheets[i < spec.Sheets.Length ? i : 0];
             mat.mainTextureOffset = new Vector2(
-                (wrapped * sheet.PanU + p.UPhase) % 1f,
-                wrapped * sheet.PanV % 1f);
-
+                (wrapped * sheet.PanU + p.UPhase) % 1f, wrapped * sheet.PanV % 1f);
             mat.color = new Color(1f, 1f, 1f, strength * p.Alpha);
+
+            if (i == 0)
+                _placement = p;
         }
     }
 
@@ -199,9 +251,8 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
         _pixels = new byte[spec.PixelCount];
 
         // No mip chain: the plane is viewed at roughly one scale and mips would only cost memory and a
-        // generation pass per upload. Repeat wrap is what makes the pan seamless — Clamp would smear
-        // the edge row across the map as soon as the offset moved off zero. Bilinear because softness
-        // is the intent here, not a compromise.
+        // generation pass per upload. Repeat wrap is what makes a tiling sheet seamless; a bounded
+        // patch never samples outside [0,1] anyway. Bilinear because softness is the intent here.
         _texture = new Texture2D(spec.ResolutionX, spec.ResolutionY, TextureFormat.RGBA32, mipChain: false)
         {
             name = "CelestialLighting_AuroraCurtain",
@@ -227,6 +278,10 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
 
     // A 1x1 quad in the XZ plane centred on the origin, so the draw matrix's scale reads directly as
     // the sheet's size in map cells.
+    //
+    // Vertex order, UVs and winding copied verbatim from decompiled Verse.MeshMakerPlanes.NewPlaneMesh
+    // rather than reasoned out, because a quad wound the wrong way renders as nothing at all — no
+    // error, no warning, no clue.
     private static Mesh BuildSheetQuad()
     {
         Mesh mesh = new Mesh { name = "CelestialLighting_AuroraSheet" };
@@ -256,9 +311,7 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
 
     // Vanilla's own tick entry point. Left empty on purpose: everything it would do needs the aurora's
     // current strength and driver colour, which vanilla has no way to hand us, so Patch_AuroraCurtainDraw
-    // calls Advance instead. Implemented because SkyOverlay declares it abstract, not because it runs —
-    // if a future RimWorld ever routes our overlay through SkyManager.UpdateOverlays, an empty tick is
-    // the safe behaviour rather than a second, uncoordinated animation clock.
+    // calls Advance instead. Implemented because SkyOverlay declares it abstract, not because it runs.
     public override void TickOverlay(Map map, float lerpFactor)
     {
     }
@@ -271,17 +324,14 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
         // AltitudeLayer.VisEffects, not Weather, and that is load-bearing. Weather sits directly BELOW
         // LightingOverlay, so a weather-altitude aurora gets multiplied by the night sky colour — and
         // with §7a pitch-black nights driving that overlay toward opaque black, the aurora would be
-        // multiplied out of existence in exactly the conditions it exists for. VisEffects is above the
-        // lighting overlay and still below FogOfWar, so the curtains glow through the dark while
-        // unexplored map stays properly fogged.
-        //
-        // Each sheet is nudged a fraction of an altitude increment above the last purely so the draw
-        // order is a stated fact. Additive blending is commutative, so it changes nothing visually.
+        // multiplied out of existence in exactly the conditions it exists for.
         float altitude = AltitudeLayer.VisEffects.AltitudeFor();
 
         for (int i = 0; i < _liveSheets; i++)
         {
-            AuroraSheetPlacement p = AuroraSheetLayout.Placement(Spec, i, map.Size.x, map.Size.z);
+            AuroraSheetPlacement p = _liveSheets == 1
+                ? _placement
+                : AuroraSheetLayout.Placement(Spec, i, map.Size.x, map.Size.z);
 
             Graphics.DrawMesh(
                 SheetQuad,

@@ -85,15 +85,36 @@ public static class AuroraSheetLayout
     // How much clear sky to leave per sheet, as a multiple of the sheet's own height. Above 1 means the
     // gaps are wider than the sheets, which is what keeps the aurora a feature of the sky rather than a
     // covering over it — and is what the "do not obscure the game" requirement amounts to numerically.
-    public const float SheetSpacing = 1.6f;
+    public const float SheetSpacing = 4.6f;
 
     // Where sheets sit up the map, as fractions of its height, in the order they are added.
+    //
+    // SLOT 0 IS PLACED WHERE A PLAYER IS ACTUALLY LOOKING, THE REST FOR THE MAP. Placement stays
+    // map-relative — a display hangs over a fixed piece of sky and the player can pan away from it,
+    // which is the honest behaviour and the reason the aurora is scenery rather than a HUD element.
+    //
+    // But "map-relative" is not the same as "anywhere", and getting this wrong is what made the patch
+    // look clipped through several iterations. A RimWorld camera sits over the COLONY, not the map
+    // centre: the harness fixture's own camera rests at (110, 134) on a 250-cell map — 0.44 and 0.54
+    // as fractions — with an orthographic size of ~37, i.e. a view about 131 x 74 cells. A patch put
+    // at the map centre lands 15 cells off that view's centre and only ~2 cells inside its right edge,
+    // which reads exactly like being cut off, and no amount of shrinking the patch fixes it because
+    // the error is in the position rather than the size.
+    //
+    // So slot 0 sits at the fractions a colony camera actually looks at. The others are scattered for
+    // someone who pans, and are expected to be out of frame.
     //
     // Deliberately IRREGULAR. Evenly spaced sheets are periodicity wearing a different hat: three
     // curtains at 0.25/0.50/0.75 would read as one pattern repeating, which is the exact defect this
     // file exists to remove. These gaps are 0.36, 0.20 and 0.44 of map height — no two alike, and none
     // a simple multiple of another.
-    private static readonly float[] CentreFractions = { 0.30f, 0.66f, 0.86f, 0.42f };
+    private static readonly float[] CentreFractions = { 0.54f, 0.26f, 0.80f, 0.40f };
+
+    // And where they sit ACROSS the map. Sheets are bounded in u as well as v — one horizontal repeat,
+    // feathered at both ends — so a display is a patch of sky with all four edges visible rather than a
+    // band running off both sides of the screen. Paired with the z fractions above these put the
+    // patches on a diagonal, which is why neither list is sorted the same way.
+    private static readonly float[] CentreFractionsX = { 0.44f, 0.26f, 0.72f, 0.60f };
 
     // Descending, so the sky has one dominant display with fainter ones behind it rather than several
     // arguing about which is the subject.
@@ -104,6 +125,85 @@ public static class AuroraSheetLayout
 
     // Alternating, so adjacent sheets are mirror images and the eye cannot match their hems.
     private static readonly bool[] Mirrored = { false, true, false, true };
+
+    // ---- Per-display size and position ---------------------------------------------------------
+    //
+    // A display is now placed ONCE PER AURORA, at a random spot, at a random size. Fixed placement made
+    // every aurora identical, which is the one thing a rare event cannot afford: the second one a
+    // player sees should not be a copy of the first.
+    //
+    // The randomness is seeded from the tick the aurora began, so it is stable for the whole event —
+    // the patch does not jitter frame to frame — and reproducible, which is what lets a harness
+    // scenario screenshot it at all.
+
+    // Largest a display may be, in map cells. Deliberately smaller than the view: at 70 x 37 against a
+    // ~131 x 74 view the patch occupies rather over half of each axis, leaving room for it to sit
+    // somewhere other than dead centre and still show all four of its tapered edges.
+    public const float PatchMaxWidth = 70f;
+    public const float PatchMaxHeight = 37f;
+
+    // Smallest, as a fraction of the maximum. Half means the largest display has four times the area of
+    // the smallest, which is a wide enough spread to be obvious without the small ones reading as a
+    // different effect.
+    public const float PatchMinScale = 0.5f;
+
+    // Places one display inside the given view rectangle, in map cells.
+    //
+    // The view rather than the map, because "somewhere on the map" and "wholly visible" are different
+    // constraints and only the second one is what anyone actually wanted. A patch placed at a random
+    // point of a 250-cell map is usually nowhere near the colony the player is looking at; placed at a
+    // random point of the VIEW it is always framed, while still being a fixed piece of sky the player
+    // can pan away from afterwards.
+    public static AuroraSheetPlacement RandomPlacement(
+        int seed, float viewMinX, float viewMinZ, float viewMaxX, float viewMaxZ, float driftPhase)
+    {
+        float width = PatchMaxWidth * ScaleFrom(seed, 1);
+        float height = PatchMaxHeight * ScaleFrom(seed, 2);
+
+        // Inset by the drift as well as the half-extent, so a patch that has wandered to the end of its
+        // travel is still wholly framed rather than half off the edge at the extremes of its motion.
+        float centreX = PlaceWithin(seed, 3, viewMinX, viewMaxX, width * 0.5f + PatchDriftCells);
+        float centreZ = PlaceWithin(seed, 4, viewMinZ, viewMaxZ, height * 0.5f);
+
+        return new AuroraSheetPlacement(
+            centreX + PatchDriftCells * driftPhase,
+            centreZ,
+            width,
+            height,
+            Hash01(seed, 5) < 0.5f ? -1f : 1f,
+            vScale: 1f,
+            uPhase: 0f,
+            alpha: 1f);
+    }
+
+    private static float ScaleFrom(int seed, int salt) =>
+        PatchMinScale + (1f - PatchMinScale) * Hash01(seed, salt);
+
+    private static float PlaceWithin(int seed, int salt, float low, float high, float margin)
+    {
+        float lo = low + margin;
+        float hi = high - margin;
+
+        // A view too small to hold the patch: centre it and accept the overhang rather than placing it
+        // at a nonsense coordinate. Only reachable on a heavily zoomed-in camera.
+        if (hi <= lo)
+            return (low + high) * 0.5f;
+
+        return lo + (hi - lo) * Hash01(seed, salt);
+    }
+
+    // Small deterministic hash, so a given aurora always lands in the same place. Same shape as
+    // AuroraNoise's, masked to 24 bits so the result is exactly representable in a float.
+    private static float Hash01(int seed, int salt)
+    {
+        unchecked
+        {
+            uint h = (uint)(seed * 374761393 + salt * 668265263);
+            h = (h ^ (h >> 13)) * 1274126177u;
+            h ^= h >> 16;
+            return (h & 0xFFFFFF) * (1f / 16777216f);
+        }
+    }
 
     // How many quads this field wants over a map of this height.
     //
@@ -124,11 +224,29 @@ public static class AuroraSheetLayout
         return Clamp(fits, 1, MaxSheets);
     }
 
-    public static AuroraSheetPlacement Placement(AuroraFieldSpec spec, int index, int mapX, int mapZ)
+    // How far a bounded patch wanders east-west from its home position, in map cells.
+    //
+    // A bounded patch CANNOT be moved by panning its UVs, and that is worth stating plainly because it
+    // is the obvious thing to try and it fails in a way that looks like a different bug. The taper is
+    // baked into the texture at u = 0 and u = 1; with a non-zero UV offset and Repeat wrapping, those
+    // feathered edges slide into the MIDDLE of the quad while the quad's own edges land on mid-field
+    // content and are cut off square. The live run showed exactly that — a hard vertical line down one
+    // side of an otherwise soft patch.
+    //
+    // So the patch keeps a fixed UV window and MOVES INSTEAD, which is what a real display does anyway.
+    // Trimmed from 26: the drift has to be small enough that a patch framed in view cannot wander out
+    // of it. At 80 cells wide inside a ~120-cell view there are only ~20 cells of slack either side.
+    public const float PatchDriftCells = 5f;
+
+    // driftPhase is a triangle wave in [-1, 1] rather than an unbounded slide, for the same reason the
+    // hems oscillate: a patch that drifts forever eventually reaches the map edge, where it would be
+    // clipped by geometry rather than fading by its own taper.
+    public static AuroraSheetPlacement Placement(
+        AuroraFieldSpec spec, int index, int mapX, int mapZ, float driftPhase = 0f)
     {
         return SpansMap(spec)
             ? SpanningPlacement(spec.Sheets[index], mapX, mapZ)
-            : BoundedPlacement(spec.Sheets[0], index, mapX, mapZ);
+            : BoundedPlacement(spec.Sheets[0], index, mapX, mapZ, driftPhase);
     }
 
     // The whole-map case, which is the old behaviour expressed as a placement: one quad covering the
@@ -145,19 +263,31 @@ public static class AuroraSheetLayout
     }
 
     private static AuroraSheetPlacement BoundedPlacement(
-        AuroraSheetSpec sheet, int index, int mapX, int mapZ)
+        AuroraSheetSpec sheet, int index, int mapX, int mapZ, float driftPhase)
     {
         int slot = index % MaxSheets;
 
-        float height = sheet.CellsPerRepeatY;
-        float uScale = mapX / sheet.CellsPerRepeatX;
+        // Clamped to the map, because a patch wider than the map it sits on cannot show its own taper —
+        // the fade would happen off the edge and the player would see a hard cut, which is the whole
+        // defect the feather exists to remove. Pocket and quest maps get down to 75 cells, well under a
+        // patch's natural size. Shrinking the quad while the UV scale stays at one repeat simply draws
+        // the same display smaller, which is the right answer for a small map anyway.
+        float height = Math.Min(sheet.CellsPerRepeatY, mapZ);
+        float width = Math.Min(sheet.CellsPerRepeatX, mapX);
+
+        // Alternate sheets drift in opposite directions, so two patches on screen never move as one
+        // rigid picture — the same argument as the mirrored u scale, applied to motion.
+        float wander = PatchDriftCells * driftPhase * (Mirrored[slot] ? -1f : 1f);
 
         return new AuroraSheetPlacement(
-            mapX * 0.5f,
-            CentreZ(CentreFractions[slot], height, mapZ),
-            mapX,
+            CentreOnAxis(CentreFractionsX[slot], width, mapX) + wander,
+            CentreOnAxis(CentreFractions[slot], height, mapZ),
+            width,
             height,
-            Mirrored[slot] ? -uScale : uScale,
+            // Exactly one HORIZONTAL repeat too, mirrored for alternate sheets. One repeat is what lets
+            // the field's own u feather reach both edges of the quad, which is what makes the patch
+            // taper away instead of being sliced off.
+            Mirrored[slot] ? -1f : 1f,
             // Exactly one vertical repeat. Not "about one" — this is the invariant.
             vScale: 1f,
             UPhases[slot],
@@ -169,13 +299,21 @@ public static class AuroraSheetLayout
     // Computed in FLOATS from Size, never from Map.Center, which is `Size.x / 2` in integer arithmetic
     // and therefore half a cell off true centre on every even-sized map — and every stock RimWorld map
     // size is even.
-    private static float CentreZ(float fraction, float height, int mapZ)
+    private static float CentreOnAxis(float fraction, float extent, int mapExtent)
     {
-        if (height >= mapZ)
-            return mapZ * 0.5f;
+        if (extent >= mapExtent)
+            return mapExtent * 0.5f;
 
-        float half = height * 0.5f;
-        return Clamp(fraction * mapZ, half, mapZ - half);
+        float half = extent * 0.5f;
+
+        // Inset by the drift amplitude as well as the half-extent, so a patch that has wandered to the
+        // end of its travel is still wholly on the map and still shows its own taper rather than being
+        // clipped by the map edge.
+        float margin = half + PatchDriftCells;
+        if (margin * 2f >= mapExtent)
+            return mapExtent * 0.5f;
+
+        return Clamp(fraction * mapExtent, margin, mapExtent - margin);
     }
 
     private static bool SpansMap(AuroraFieldSpec spec) => spec.Sheets[0].SpansMapVertically;
