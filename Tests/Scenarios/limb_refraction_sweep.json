@@ -1,0 +1,1314 @@
+{
+  "name": "limb_refraction_sweep",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    {
+      "type": "LandInOrbit",
+      "args": {
+        "latitude": "45",
+        "mapSize": "150"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "OrbitalPlatform",
+        "width": "30",
+        "height": "30"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "Steel",
+        "layout": "grid",
+        "cols": "3",
+        "rows": "3",
+        "spacing": "6"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "zoom": "18"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "30"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.2"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "20"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "99"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sunlight_fraction",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_tint_strength",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_tint_green",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.24"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "20"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "99"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sunlight_fraction",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_tint_strength",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_tint_green",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.28"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "20"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "99"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sunlight_fraction",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_tint_strength",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_tint_green",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.32"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "20"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "99"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sunlight_fraction",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_tint_strength",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_tint_green",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.36"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "20"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "99"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sunlight_fraction",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_tint_strength",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_tint_green",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.4"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "20"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "99"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sunlight_fraction",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_tint_strength",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_tint_green",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.44"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "20"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "99"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sunlight_fraction",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_tint_strength",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_tint_green",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.48"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "20"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "99"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sunlight_fraction",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_tint_strength",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_tint_green",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.52"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "20"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "99"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sunlight_fraction",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_tint_strength",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_tint_green",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.56"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "20"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "99"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sunlight_fraction",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_tint_strength",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_tint_green",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.6"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "20"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "99"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sunlight_fraction",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_tint_strength",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_tint_green",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.64"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "20"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "99"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sunlight_fraction",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_tint_strength",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_tint_green",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.68"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "20"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "99"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sunlight_fraction",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_tint_strength",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_tint_green",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.72"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "20"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "99"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sunlight_fraction",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_tint_strength",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_tint_green",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.76"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "20"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "99"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sunlight_fraction",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_tint_strength",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_tint_green",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.8"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "20"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "99"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sunlight_fraction",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_tint_strength",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_tint_green",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.84"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "20"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "99"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sunlight_fraction",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_tint_strength",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_tint_green",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.88"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "20"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "99"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sunlight_fraction",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_tint_strength",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_tint_green",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.92"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "20"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "99"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sunlight_fraction",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_tint_strength",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_tint_green",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.96"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "20"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "99"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sunlight_fraction",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_tint_strength",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_tint_green",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "23.0"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "20"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "99"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sunlight_fraction",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_tint_strength",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_tint_green",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "23.04"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "20"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "99"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sunlight_fraction",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_tint_strength",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_tint_green",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "23.08"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "20"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "99"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sunlight_fraction",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_tint_strength",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_tint_green",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "23.12"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "20"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "99"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sunlight_fraction",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_tint_strength",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_tint_green",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "23.16"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "20"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "99"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sunlight_fraction",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_tint_strength",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_tint_green",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "23.2"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "20"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "99"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sunlight_fraction",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_tint_strength",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_tint_green",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.3"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "60"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "limb_after_22_3.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.45"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "60"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "limb_after_22_45.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.55"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "60"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "limb_after_22_55.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.65"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "60"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "limb_after_22_65.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.75"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "60"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "limb_after_22_75.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.85"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "60"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "limb_after_22_85.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "23.0"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "60"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "limb_after_23_0.png"
+      }
+    }
+  ]
+}
