@@ -1,0 +1,20 @@
+{
+  "name": "vacuum_shadow_contrast_realistic",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    { "type": "LandInOrbit", "args": { "latitude": "45", "mapSize": "150" } },
+    { "type": "SetTerrain", "args": { "def": "OrbitalPlatform", "width": "30", "height": "30" } },
+    { "type": "PlaceThings", "args": { "def": "Wall", "stuff": "Steel", "layout": "grid", "cols": "3", "rows": "3", "spacing": "6" } },
+    { "type": "LookAt", "args": { "zoom": "18" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "30" } },
+    { "type": "SetTime", "args": { "hour": "17" } },
+    { "type": "Wait", "args": { "frames": "60" } },
+    { "type": "Probe", "args": { "probeName": "moon_shadow_render", "expectedValue": "0", "tolerance": "9" } },
+    { "type": "Screenshot", "args": { "fileName": "vscr_cinematic.png" } },
+
+    { "type": "SetFeature", "args": { "featureName": "realistic_preset", "enabled": "true" } },
+    { "type": "Wait", "args": { "frames": "120" } },
+    { "type": "Probe", "args": { "probeName": "moon_shadow_render", "expectedValue": "0", "tolerance": "9" } },
+    { "type": "Screenshot", "args": { "fileName": "vscr_realistic.png" } }
+  ]
+}
