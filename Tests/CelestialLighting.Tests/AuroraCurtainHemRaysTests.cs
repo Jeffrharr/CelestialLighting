@@ -159,6 +159,62 @@ public class AuroraCurtainHemRaysTests
         }
     }
 
+    // --- The base of the curtain must stay inside the quad ---
+
+    // The live run taught this one. Vertical drift used to be `drift * HemRise` with drift growing
+    // without bound, so every hem migrated steadily up the tile and wrapped around. Under a repeating
+    // texture that was invisible. Drawn as a bounded sheet it means THE BASE LEAVES THE QUAD — the hem
+    // slides off one edge and reappears at the other, and a curtain with no visible bottom is not a
+    // curtain, it is a smear.
+    //
+    // Swept across u and across a whole drift cycle, because the failure is a slow migration: any
+    // single sample looks fine and the band is only violated some hours later.
+    [Test]
+    public void EveryHem_StaysInsideTheQuad_AtEveryPointOfTheDriftCycle()
+    {
+        for (int i = 0; i < AuroraCurtainHemRays.CurtainCount; i++)
+        {
+            AuroraCurtainHemRays.CurtainSpec c = AuroraCurtainHemRays.Curtain(i);
+
+            for (int step = 0; step <= 48; step++)
+            {
+                float drift = AuroraCurtainHemRays.DriftWrapCycle * step / 48f;
+
+                for (int gx = 0; gx < 16; gx++)
+                {
+                    float hem = AuroraCurtainHemRays.EvaluateColumn(c, gx / 16f, drift).Hem;
+
+                    Assert.That(hem - AuroraCurtainHemRays.HemUnderhang,
+                        Is.GreaterThan(0f),
+                        $"curtain {i} hem underhang falls off the bottom at drift {drift}");
+                    Assert.That(hem + c.RayHeight,
+                        Is.LessThan(1f),
+                        $"curtain {i} rays run off the top at drift {drift}");
+                }
+            }
+        }
+    }
+
+    // The feather is what removes the hard horizontal seam a bounded quad's edge otherwise rules
+    // across the map — the live run showed exactly that seam before this existed.
+    [Test]
+    public void FieldFadesToNothingAtBothQuadEdges()
+    {
+        Assert.That(AuroraCurtainHemRays.VerticalFeather(0f), Is.EqualTo(0f).Within(1e-5f));
+        Assert.That(AuroraCurtainHemRays.VerticalFeather(1f), Is.EqualTo(0f).Within(1e-5f));
+        Assert.That(AuroraCurtainHemRays.VerticalFeather(0.5f), Is.EqualTo(1f).Within(1e-5f));
+
+        for (int gx = 0; gx < 24; gx++)
+        {
+            float u = gx / 24f;
+
+            Assert.That(AuroraCurtainHemRays.At(u, 0f, 9000f).Alpha, Is.EqualTo(0f).Within(1e-4f),
+                $"bottom edge is not dark at u={u} — this is a visible seam");
+            Assert.That(AuroraCurtainHemRays.At(u, 0.999f, 9000f).Alpha, Is.LessThan(0.02f),
+                $"top edge is not dark at u={u} — this is a visible seam");
+        }
+    }
+
     // --- The fast path must be the reference path ---
 
     // FillRows hoists the noise into a per-column table; At evaluates it per point. The whole

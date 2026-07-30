@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using CelestialLighting;
 using NUnit.Framework;
@@ -67,8 +68,13 @@ public class AuroraSheetLayoutTests
                 Assert.That(p.Width, Is.GreaterThan(0f), $"sheet {i} on {x}x{z} width");
                 Assert.That(p.Height, Is.GreaterThan(0f), $"sheet {i} on {x}x{z} height");
                 Assert.That(p.Alpha, Is.GreaterThan(0f).And.LessThanOrEqualTo(1f), $"sheet {i} alpha");
-                Assert.That(p.CenterX, Is.EqualTo(x * 0.5f).Within(1e-4f), $"sheet {i} not centred in x");
-                Assert.That(p.CenterZ, Is.GreaterThan(0f).And.LessThan(z), $"sheet {i} centre off-map");
+                // Both axes bounded now, so the whole patch must sit on the map — otherwise its taper
+                // happens off-screen and the edge reads as a cut instead of a fade.
+                Assert.That(p.CenterX - p.Width * 0.5f, Is.GreaterThanOrEqualTo(-0.01f), $"sheet {i} off west edge");
+                Assert.That(p.CenterX + p.Width * 0.5f, Is.LessThanOrEqualTo(x + 0.01f), $"sheet {i} off east edge");
+                Assert.That(p.CenterZ - p.Height * 0.5f, Is.GreaterThanOrEqualTo(-0.01f), $"sheet {i} off south edge");
+                Assert.That(p.CenterZ + p.Height * 0.5f, Is.LessThanOrEqualTo(z + 0.01f), $"sheet {i} off north edge");
+                Assert.That(Math.Abs(p.UScale), Is.EqualTo(1f).Within(1e-4f), $"sheet {i} would tile in u");
             }
         });
     }
@@ -76,22 +82,34 @@ public class AuroraSheetLayoutTests
     [Test]
     public void SheetsAreNotEvenlySpaced()
     {
-        // Evenly spaced sheets are periodicity wearing a different hat — three arcs at 0.25/0.50/0.75
-        // read as one pattern repeating, which is the defect this whole design removes. Only asserted
-        // where there are enough sheets for "spacing" to mean anything.
-        AuroraFieldSpec spec = AuroraFieldRegistry.HemRays;
-        const int x = 400;
-        const int z = 400;
+        // Evenly spaced sheets are periodicity wearing a different hat — patches at 0.25/0.50/0.75 read
+        // as one pattern repeating, which is the defect this whole design removes.
+        //
+        // Asserted against the placement TABLES rather than against a particular map, because how many
+        // sheets a map yields depends on the sheet height, and this test previously needed three. When
+        // the height grew, a 400-cell map started yielding two, the Assume stopped holding, and the test
+        // went quietly inconclusive — still green, no longer checking anything. Driving it from the
+        // tables instead means it cannot be switched off by a tuning change.
+        var gaps = new List<float>();
 
-        int count = AuroraSheetLayout.PlacementCount(spec, z);
-        Assume.That(count, Is.GreaterThanOrEqualTo(3), "need three sheets for a spacing to compare");
+        for (int i = 1; i < AuroraSheetLayout.MaxSheets; i++)
+        {
+            AuroraSheetPlacement a = AuroraSheetLayout.Placement(AuroraFieldRegistry.HemRays, i - 1, 400, 400);
+            AuroraSheetPlacement b = AuroraSheetLayout.Placement(AuroraFieldRegistry.HemRays, i, 400, 400);
+            gaps.Add(b.CenterZ - a.CenterZ);
+        }
 
-        float first = AuroraSheetLayout.Placement(spec, 1, x, z).CenterZ
-            - AuroraSheetLayout.Placement(spec, 0, x, z).CenterZ;
-        float second = AuroraSheetLayout.Placement(spec, 2, x, z).CenterZ
-            - AuroraSheetLayout.Placement(spec, 1, x, z).CenterZ;
+        for (int i = 1; i < gaps.Count; i++)
+            Assert.That(gaps[i], Is.Not.EqualTo(gaps[i - 1]).Within(1f),
+                $"sheet spacing {i} repeats the previous one — that is periodicity again");
 
-        Assert.That(second, Is.Not.EqualTo(first).Within(1f), "sheet spacing is uniform");
+        // And the same across the map, since patches are bounded in u too.
+        for (int i = 1; i < AuroraSheetLayout.MaxSheets; i++)
+            Assert.That(
+                AuroraSheetLayout.Placement(AuroraFieldRegistry.HemRays, i, 400, 400).CenterX,
+                Is.Not.EqualTo(AuroraSheetLayout.Placement(AuroraFieldRegistry.HemRays, i - 1, 400, 400).CenterX)
+                    .Within(1f),
+                $"sheets {i - 1} and {i} sit in the same column of sky");
     }
 
     [Test]
@@ -128,7 +146,10 @@ public class AuroraSheetLayoutTests
         float even = AuroraSheetLayout.Placement(spec, 0, 250, 250).CenterX;
         float odd = AuroraSheetLayout.Placement(spec, 0, 251, 250).CenterX;
 
-        Assert.That(odd - even, Is.EqualTo(0.5f).Within(1e-4f));
+        // Placement is a fraction of Size in floats, so a one-cell wider map moves the patch by that
+        // fraction of a cell. Integer division would round both to the same place.
+        Assert.That(odd - even, Is.GreaterThan(0f).And.LessThan(1f));
+        Assert.That(odd, Is.Not.EqualTo(even));
     }
 
     [Test]
@@ -144,6 +165,7 @@ public class AuroraSheetLayoutTests
 
         Assert.That(p.Width, Is.EqualTo(250f).Within(1e-4f));
         Assert.That(p.Height, Is.EqualTo(250f).Within(1e-4f));
+        Assert.That(p.CenterX, Is.EqualTo(125f).Within(1e-4f));
         Assert.That(p.VScale, Is.GreaterThan(1f), "a whole-map contour sheet should tile in v");
     }
 

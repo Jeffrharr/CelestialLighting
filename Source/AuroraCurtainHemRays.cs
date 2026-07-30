@@ -152,7 +152,7 @@ public static class AuroraCurtainHemRays
     // RayTopFloor). Exists so the tileability constraint can be stated as one comparison —
     // RayHeightMax + HemUnderhang < 1 is what guarantees a curtain's tail dies out before it wraps
     // round into its own hem and the field stops being periodic in v for the wrong reason.
-    public const float RayHeightMax = 0.97f;
+    public const float RayHeightMax = 0.45f;
 
     // Brightness a column keeps where the ray field says "gap", in [0, 1]. At 0 the gaps are black and
     // the curtain is a picket fence with nothing behind it; at 1 there are no rays at all. 0.46 leaves
@@ -253,8 +253,8 @@ public static class AuroraCurtainHemRays
     // outside that screen. The vertical repeat lands just inside it, which is fine and arguably right:
     // vertically the tile is three DIFFERENT curtains, so its repeat reads as a fourth arc further
     // north rather than as a repeat.
-    public const float CellsPerRepeatX = 150f;
-    public const float CellsPerRepeatY = 76f;
+    public const float CellsPerRepeatX = 88f;
+    public const float CellsPerRepeatY = 46f;
 
     // Tile repeats per game tick. Horizontal only: the field already moves itself vertically, per
     // curtain and at different rates (HemRise below), and that is non-rigid, whereas a vertical pan
@@ -428,12 +428,81 @@ public static class AuroraCurtainHemRays
             a.G + (b.G - a.G) * t,
             a.B + (b.B - a.B) * t);
 
+    // Fraction of the tile over which a bounded sheet fades in at its bottom edge and out at its top.
+    //
+    // This exists because the sheet stopped being a tile. While the texture was stretched across the
+    // whole map and repeated, there were no edges: a curtain whose rays ran off the top simply
+    // reappeared at the bottom, and that wrap-around was deliberate — the third curtain's tail grazing
+    // the first one's hem is what made the sky have no "top". Drawn as a BOUNDED quad showing one
+    // repeat, that same content is sliced off by the quad's edge and reads as a hard horizontal seam
+    // ruled across the map. The live run showed exactly that.
+    //
+    // So the field now fades to nothing at both edges. It costs the wrap-around tail, which no longer
+    // has anywhere to wrap to, and it is what makes the curtain rise out of the dark and dissolve at
+    // the top instead of being cut off.
+    // Widened from 0.07 for the same reason HorizontalTaper exists: at 0.07 the glow was still live
+    // when the ramp began, so the ramp was removing curtain rather than following it down. At 0.16 the
+    // rays have already faded on their own before the edge is anywhere near.
+    public const float EdgeFeather = 0.16f;
+
+    // How far in from each side the display has faded to nothing, as a fraction of the tile.
+    //
+    // This is deliberately MUCH wider than EdgeFeather, and the difference is the whole point. A narrow
+    // feather at the very edge does not give the aurora ends — it CUTS a display that would otherwise
+    // have run on, and a cut is exactly what it looks like. At 0.22 the field is already dark well
+    // before the texture runs out, so the aurora's extent is a property of the aurora rather than of
+    // the quad it happens to be drawn on, and its edges can never reach the quad's.
+    //
+    // The cost is real and worth stating: roughly a fifth of the texture at each side carries little or
+    // nothing, so the display occupies about 56% of the tile at full strength. That is the price of
+    // ends that look like ends.
+    public const float HorizontalTaper = 0.22f;
+
+    // Smooth ramp to zero across HorizontalTaper at each side, so a sheet fades out well inside its own
+    // quad rather than being sliced off at it.
+    //
+    // Applied per column rather than per pixel, because it depends only on u — it folds into the column
+    // weights alongside the envelope gate and costs nothing in the inner loop.
+    public static float HorizontalFeather(float u)
+    {
+        float t = u - (float)Math.Floor(u);
+        return Smoothstep01(t / HorizontalTaper) * Smoothstep01((1f - t) / HorizontalTaper);
+    }
+
+    // Smooth ramp to zero at v = 0 and v = 1. Still exactly periodic — both ends are zero — so the
+    // vertical-wrap proof and its test are untouched.
+    public static float VerticalFeather(float v)
+    {
+        float t = v - (float)Math.Floor(v);
+        return Smoothstep01(t / EdgeFeather) * Smoothstep01((1f - t) / EdgeFeather);
+    }
+
+    // Triangle wave in [-1, 1] over one drift cycle, replacing what used to be an unbounded slide.
+    //
+    // Vertical drift used to be `drift * HemRise` with drift growing without bound, so every hem
+    // migrated steadily up or down the tile and wrapped around. Under a repeating texture that was
+    // invisible and gave the curtains their slow crossing motion. Under a bounded sheet it means THE
+    // BASE OF THE CURTAIN LEAVES THE QUAD — the hem slides off one edge and reappears at the other,
+    // which is both a visible pop and a curtain with no visible bottom, the one feature that makes it
+    // read as a curtain at all.
+    //
+    // Oscillating keeps the crossing motion — the three curtains still drift past each other, since
+    // they have different amplitudes and signs — while bounding every hem inside a band we can
+    // guarantee sits within the quad. Exactly periodic over DriftWrapCycle, so the bit-exact wrap proof
+    // in this file's header still holds.
+    public static float Oscillate(float drift)
+    {
+        float phase = drift / DriftWrapCycle;
+        phase -= (float)Math.Floor(phase);
+        return 4f * Math.Abs(phase - 0.5f) - 1f;
+    }
+
     private static readonly CurtainSpec[] Curtains =
     {
         //             hemC   hemP oct hemAmp hemDrift hemRise   rayP rayDrift clump envP envDrift rayH  weight hue   seed
-        new CurtainSpec(0.19f, 3, 2, 0.110f, 0.25f,  1f / 32f,   60, 1.00f,  12,  2, 0.25f,  0.97f, 1.00f, 0.46f, 10009),
-        new CurtainSpec(0.57f, 5, 2, 0.085f, -0.50f, -2f / 32f,  40, -0.75f,  8,  3, -0.25f, 0.74f, 0.76f, 1.00f, 20011),
-        new CurtainSpec(0.84f, 4, 2, 0.070f, 0.75f,  3f / 32f,   30, 0.50f,   6,  2, 0.50f,  0.49f, 0.52f, 0.06f, 30011),
+        new CurtainSpec(0.28f, 3, 2, 0.045f, 0.25f,  1f / 32f,   60, 1.00f,  12,  2, 0.25f,  0.45f, 1.00f, 0.46f, 10009),
+        new CurtainSpec(0.38f, 5, 2, 0.040f, -0.50f,  2f / 32f,  40, -0.75f,  8,  3, -0.25f, 0.36f, 0.82f, 1.00f, 20011),
+        new CurtainSpec(0.48f, 4, 2, 0.035f, 0.75f, -2f / 32f,   30, 0.50f,   6,  2, 0.50f,  0.27f, 0.68f, 0.06f, 30011),
     };
 
     // Read-only access to the table above, for the offline tests that check the invariants this file's
@@ -535,7 +604,7 @@ public static class AuroraCurtainHemRays
             hueWeighted += s.Alpha * s.Hue;
         }
 
-        return Resolve(alpha, hueWeighted, wobble);
+        return Resolve(alpha, hueWeighted, wobble, v);
     }
 
     // The per-column half of the field: everything that depends on u and not on v. This is the only
@@ -553,7 +622,7 @@ public static class AuroraCurtainHemRays
 
         // Vertical drift is applied here rather than to v, so it costs nothing and so the wrap
         // argument in DriftWrapCycle only has to hold modulo 1.
-        float hem = c.HemCenter + (wander - 0.5f) * 2f * c.HemAmplitude + drift * c.HemRise;
+        float hem = c.HemCenter + (wander - 0.5f) * 2f * c.HemAmplitude + Oscillate(drift) * c.HemRise;
 
         // One octave for the rays, not two. Two was the first guess and it is wrong for the same
         // reason AuroraCurtain dropped its third: an extra octave here halves the feature size, and at
@@ -583,12 +652,14 @@ public static class AuroraCurtainHemRays
         // The Max guards are not defensive noise: 0*Infinity is NaN, and a NaN alpha propagates into
         // every overlapping curtain through the sum. A zero RayHeight is nonsense but it should produce
         // an invisible curtain, not a hole in the texture.
+        float edge = HorizontalFeather(u);
+
         return new ColumnState(
             Wrap01(hem),
             1f / Math.Max(rayTop, 1e-4f),
             1f / Math.Max(c.RayHeight, 1e-4f),
-            rayMod * gate,
-            HemCoreGain * gate,
+            rayMod * gate * edge,
+            HemCoreGain * gate * edge,
             c.CurtainHue);
     }
 
@@ -756,7 +827,7 @@ public static class AuroraCurtainHemRays
             hueWeighted += s.Alpha * s.Hue;
         }
 
-        return Resolve(alpha, hueWeighted, wobble);
+        return Resolve(alpha, hueWeighted, wobble, v);
     }
 
     // Collapses the per-curtain contributions. Alpha SUMS — that is the "curtains overlap in terms of
@@ -764,12 +835,18 @@ public static class AuroraCurtainHemRays
     // the alpha-weighted mean, because where two curtains overlap the colour a viewer sees is the sum
     // of two emissions, not the nearer one's; where nothing is lit the weighting is undefined and the
     // hue is irrelevant, so it falls back to the wobbled green.
-    private static Sample Resolve(float alpha, float hueWeighted, float wobble)
+    //
+    // The vertical feather is applied HERE, to alpha only and after the hue has been resolved, so the
+    // edges of a sheet fade out without their colour drifting as they go — scaling hueWeighted along
+    // with alpha would leave the ratio unchanged but scaling only one of them would tint the fade.
+    private static Sample Resolve(float alpha, float hueWeighted, float wobble, float v)
     {
+        float feather = VerticalFeather(v);
+
         if (alpha <= 0f)
             return new Sample(0f, Clamp01(HueAtHem + wobble));
 
-        return new Sample(Clamp01(alpha), Clamp01(hueWeighted / alpha));
+        return new Sample(Clamp01(alpha) * feather, Clamp01(hueWeighted / alpha));
     }
 
     // Remaps the raw envelope noise so that a useful fraction of each curtain is genuinely dark rather
