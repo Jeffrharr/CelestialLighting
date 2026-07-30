@@ -1,0 +1,40 @@
+{
+  "name": "eave_map_edge_room",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "45" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "40" } },
+    { "type": "SetWeather", "args": { "weatherDef": "Clear", "instant": "true" } },
+
+    { "type": "SetTerrain", "args": { "def": "Concrete", "width": "15", "height": "15", "offset": "0,30", "clear": "true" } },
+    { "type": "PlaceThings", "args": {
+        "def": "Wall", "stuff": "BlocksGranite", "offset": "0,30", "layout": "cells", "clear": "true",
+        "cells": "-3,-3; -2,-3; -1,-3; 0,-3; 1,-3; 2,-3; 3,-3; -3,3; -2,3; -1,3; 0,3; 1,3; 2,3; 3,3; -3,-2; -3,-1; -3,0; -3,1; -3,2; 3,-2; 3,-1; 3,0; 3,1; 3,2" } },
+    { "type": "SetRoof", "args": { "def": "RoofConstructed", "width": "7", "height": "7", "offset": "0,30" } },
+
+    { "type": "SetTerrain", "args": { "anchor": "125,3", "def": "Concrete", "width": "15", "height": "13", "offset": "0,0", "clear": "true" } },
+    { "type": "PlaceThings", "args": {
+        "anchor": "125,3",
+        "def": "Wall", "stuff": "BlocksGranite", "offset": "0,0", "layout": "cells", "clear": "true",
+        "cells": "-3,3; -2,3; -1,3; 0,3; 1,3; 2,3; 3,3; -3,-3; -3,-2; -3,-1; -3,0; -3,1; -3,2; 3,-3; 3,-2; 3,-1; 3,0; 3,1; 3,2" } },
+    { "type": "SetRoof", "args": { "anchor": "125,3", "def": "RoofConstructed", "width": "7", "height": "7", "offset": "0,0" } },
+
+    { "type": "SetTime", "args": { "hour": "12" } },
+
+    { "type": "Probe", "args": { "probeName": "eave_cells", "expectedValue": "30", "tolerance": "1" } },
+
+    { "type": "SetFeature", "args": { "featureName": "indoor_sky_occlusion", "enabled": "true" } },
+    { "type": "LookAt", "args": { "offset": "0,30", "zoom": "14" } },
+    { "type": "Screenshot", "args": { "fileName": "edge_control_sealed.png" } },
+    { "type": "LookAt", "args": { "anchor": "125,3", "offset": "0,0", "zoom": "14" } },
+    { "type": "Screenshot", "args": { "fileName": "edge_mapedge_room.png" } },
+
+    { "type": "SetFeature", "args": { "featureName": "indoor_sky_occlusion", "enabled": "false" } },
+    { "type": "LookAt", "args": { "offset": "0,30", "zoom": "14" } },
+    { "type": "Screenshot", "args": { "fileName": "edge_control_sealed_noocc.png" } },
+    { "type": "LookAt", "args": { "anchor": "125,3", "offset": "0,0", "zoom": "14" } },
+    { "type": "Screenshot", "args": { "fileName": "edge_mapedge_room_noocc.png" } },
+
+    { "type": "SetFeature", "args": { "featureName": "indoor_sky_occlusion", "enabled": "true" } }
+  ]
+}
