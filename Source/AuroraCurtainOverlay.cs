@@ -19,25 +19,19 @@ namespace CelestialLighting;
 [StaticConstructorOnStartup]
 public sealed class AuroraCurtainOverlay : SkyOverlay
 {
-    // Texture edge length, in pixels, of the field baked per map.
-    //
-    // 128² stretched over a whole map is very soft, and that is the point: an aurora is the one effect
-    // that loses nothing to blur, so resolution is the cheapest possible thing to spend. Cost scales
-    // with the square, so this is also the lever of last resort if the aurora_curtain_cost probe says
-    // the budget is blown — 96² is a 1.8x saving and 64² a 4x one, both for no structural change.
-    //
-    // Public so AuroraCurtainCostProbe times the size we actually ship rather than a copy of the number
-    // that can drift out of step with it — the same discipline AuroraConditions applies to the strength
-    // the tint patches and their probe share.
-    public const int Resolution = 128;
+    // Texture edge length. Aliases AuroraCurtain.Resolution — that is where the size lives, next to the
+    // field it dimensions, and where the reasoning for 96 is recorded. Re-exposed on this type because
+    // AuroraCurtainCostProbe reads the pair (Resolution, RowsPerUpdate) from here to time the exact slice
+    // the game bakes.
+    public const int Resolution = AuroraCurtain.Resolution;
 
-    // Rows regenerated per frame while an aurora is running. 6 of 128 means a full refresh every ~22
-    // frames, roughly a third of a second at 60 fps.
+    // Rows regenerated per frame while an aurora is running. 6 of 96 means a full refresh every 16
+    // frames, about a quarter of a second at 60 fps.
     //
     // That is far slower than it sounds, because regeneration is NOT what makes the aurora move. The
     // GPU pans the texture every single frame (see the pan rates below), which supplies all the smooth
     // motion; regeneration only supplies change of SHAPE, and a real curtain's form evolves over
-    // seconds to minutes. Rows baked ~22 frames apart therefore differ by an invisible amount, and
+    // seconds to minutes. Rows baked ~16 frames apart therefore differ by an invisible amount, and
     // AuroraNoise's determinism guarantees the rows that overlap in the lattice agree exactly, so there
     // is no seam at the slice boundary.
     //
@@ -50,29 +44,10 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
     // Public for the same reason as Resolution above.
     public const int RowsPerUpdate = 6;
 
-    // UV offset per game tick for the two layers, and the second layer's tiling.
-    //
-    // TWO LAYERS, one texture. A single panning plane translates rigidly, and rigid translation of the
-    // whole sky is the one motion that reads as "the camera is moving" rather than "the aurora is
-    // moving". Drawing the same field twice — at different tilings, panning at different speeds in
-    // different directions — makes the sum move non-uniformly across the frame, which is what sells
-    // drift. It costs one extra DrawMesh and zero extra CPU field work, because it is the same texture.
-    //
-    // The second layer tiles 2x, so its ribbons are half the size, reading as a further-off curtain.
-    // Integer tiling only: the texture is seamless, but only if it wraps on a whole number of tiles.
-    //
-    // Rates are per TICK, not per frame, so the drift obeys game speed and pause exactly as the field's
-    // own evolution does. ~6e-5 UV/tick is about one map-width every 4.6 in-game hours — gentle enough
-    // to read as weather rather than as a scrolling background.
-    private const float Layer1PanU = 6e-5f;
-    private const float Layer1PanV = 1.4e-5f;
-    private const float Layer2PanU = -2.2e-4f;
-    private const float Layer2PanV = -3e-5f;
-    private const float Layer2Tiling = 2f;
-
-    // Second layer's share of the alpha. Below the first so the near curtain stays dominant and the
-    // far one reads as depth rather than as a competing aurora.
-    private const float Layer2Alpha = 0.55f;
+    // The field's on-screen geometry and motion — feature sizes, pan rates, the second layer's alpha,
+    // and the wholeMapPlane UV fact that forces the scale division — all live in AuroraCurtain, next to
+    // the field they describe. That is so Tools/AuroraPreview can render exactly what this draws; see the
+    // "Layer geometry" section there for each number and why it holds its value.
 
     // Additive, not alpha-blended. An aurora emits light; it does not replace the sky behind it. Under
     // alpha blending a bright ribbon over a near-black night has to be almost opaque before it reads at
@@ -184,10 +159,20 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
         // Unity's standard `_MainTex`, and MoteGlow is an ordinary `_MainTex` shader. This pair of Unity
         // properties addresses `_MainTex` by definition, so there is no name to get wrong.
         Layer1.mainTextureOffset =
-            new Vector2(wrapped * Layer1PanU % 1f, wrapped * Layer1PanV % 1f);
+            new Vector2(wrapped * AuroraCurtain.Layer1PanU % 1f, wrapped * AuroraCurtain.Layer1PanV % 1f);
 
         Layer2.mainTextureOffset =
-            new Vector2(wrapped * Layer2PanU % 1f, wrapped * Layer2PanV % 1f);
+            new Vector2(wrapped * AuroraCurtain.Layer2PanU % 1f, wrapped * AuroraCurtain.Layer2PanV % 1f);
+    }
+
+    // Texture scale that makes one repeat span `cellsPerRepeat` map cells, given wholeMapPlane's
+    // 0.1-repeats-per-cell UVs. Uniform in both axes: the field's own anisotropy (AuroraCurtain's
+    // separate X/Y periods) is what elongates the bands, and stretching the UVs as well would double up
+    // on that and turn the ribbons into smears.
+    private static Vector2 RepeatScale(float cellsPerRepeat)
+    {
+        float scale = 1f / (cellsPerRepeat * AuroraCurtain.PlaneRepeatsPerCell);
+        return new Vector2(scale, scale);
     }
 
     private void EnsureAllocated()
@@ -210,7 +195,11 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
 
         Layer1.mainTexture = _texture;
         Layer2.mainTexture = _texture;
-        Layer2.mainTextureScale = new Vector2(Layer2Tiling, Layer2Tiling);
+
+        // Both layers need an explicit scale — the default of 1 is wholeMapPlane's one-repeat-per-ten-
+        // cells, which is what turned the first live run into rows of squiggles. See the constants above.
+        Layer1.mainTextureScale = RepeatScale(AuroraCurtain.Layer1CellsPerRepeat);
+        Layer2.mainTextureScale = RepeatScale(AuroraCurtain.Layer2CellsPerRepeat);
 
         _rowCursor = 0;
     }
@@ -251,7 +240,7 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
         Layer1.color = color;
 
         Color far = color;
-        far.a *= Layer2Alpha;
+        far.a *= AuroraCurtain.Layer2Alpha;
         Layer2.color = far;
     }
 

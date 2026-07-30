@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <AssemblyName>AuroraPreview</AssemblyName>
+    <RootNamespace>CelestialLighting.Tools</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- The whole point of this tool: it renders the SHIPPED field generator, linked as source, not a
+         reimplementation of it. AuroraCurtain also owns the layer geometry (feature sizes, pan rates,
+         second-layer alpha) precisely so the composite below can be faithful rather than a lookalike. -->
+    <Compile Include="../../Source/AuroraMath.cs" Link="AuroraMath.cs" />
+    <Compile Include="../../Source/AuroraNoise.cs" Link="AuroraNoise.cs" />
+    <Compile Include="../../Source/AuroraCurtain.cs" Link="AuroraCurtain.cs" />
+  </ItemGroup>
+</Project>
