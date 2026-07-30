@@ -23,7 +23,7 @@ public class AuroraCurtainTests
 
         for (int i = 0; i <= 100; i++)
         {
-            float v = AuroraCurtain.Amplify(i / 100f);
+            float v = AuroraMath.Amplify(i / 100f);
             Assert.That(v, Is.GreaterThanOrEqualTo(previous), $"not monotonic at {i / 100f}");
             Assert.That(v, Is.GreaterThanOrEqualTo(0f));
             previous = v;
@@ -37,8 +37,8 @@ public class AuroraCurtainTests
         // unit-range mapping. Wave is what normalises, dividing by Amplify(0.95) because 0.95 is the most
         // Intensity can ever hand it. Pinning the overshoot here documents why that division exists; drop
         // it and every alpha in the texture would clip.
-        Assert.That(AuroraCurtain.Amplify(1f), Is.GreaterThan(1f));
-        Assert.That(AuroraCurtain.Amplify(1f), Is.LessThan(1.2f));
+        Assert.That(AuroraMath.Amplify(1f), Is.GreaterThan(1f));
+        Assert.That(AuroraMath.Amplify(1f), Is.LessThan(1.2f));
     }
 
     [Test]
@@ -46,16 +46,16 @@ public class AuroraCurtainTests
     {
         // This is the property that separates a ribbon from its background: without a steep response the
         // whole field lights up and the effect degenerates into the flat wash §11a exists to replace.
-        Assert.That(AuroraCurtain.Amplify(0.5f), Is.LessThan(0.02f));
-        Assert.That(AuroraCurtain.Amplify(0.2f), Is.LessThan(0.001f));
-        Assert.That(AuroraCurtain.Amplify(0.95f), Is.GreaterThan(0.5f));
+        Assert.That(AuroraMath.Amplify(0.5f), Is.LessThan(0.02f));
+        Assert.That(AuroraMath.Amplify(0.2f), Is.LessThan(0.001f));
+        Assert.That(AuroraMath.Amplify(0.95f), Is.GreaterThan(0.5f));
     }
 
     [Test]
     public void Amplify_ClampsOutOfRangeInput()
     {
-        Assert.That(AuroraCurtain.Amplify(-5f), Is.EqualTo(0f).Within(Tolerance));
-        Assert.That(AuroraCurtain.Amplify(5f), Is.EqualTo(AuroraCurtain.Amplify(1f)).Within(Tolerance));
+        Assert.That(AuroraMath.Amplify(-5f), Is.EqualTo(0f).Within(Tolerance));
+        Assert.That(AuroraMath.Amplify(5f), Is.EqualTo(AuroraMath.Amplify(1f)).Within(Tolerance));
     }
 
     // --- Intensity: distance from the contour ---
@@ -191,12 +191,12 @@ public class AuroraCurtainTests
     {
         // A step at either edge would render as a visible colour boundary cutting across a ribbon.
         AssertNearlyEqual(
-            AuroraCurtain.PaletteColor(AuroraCurtain.HueGreenLow - 0.001f),
-            AuroraCurtain.PaletteColor(AuroraCurtain.HueGreenLow + 0.001f));
+            AuroraCurtain.PaletteColor(AuroraMath.HueGreenLow - 0.001f),
+            AuroraCurtain.PaletteColor(AuroraMath.HueGreenLow + 0.001f));
 
         AssertNearlyEqual(
-            AuroraCurtain.PaletteColor(AuroraCurtain.HueGreenHigh - 0.001f),
-            AuroraCurtain.PaletteColor(AuroraCurtain.HueGreenHigh + 0.001f));
+            AuroraCurtain.PaletteColor(AuroraMath.HueGreenHigh - 0.001f),
+            AuroraCurtain.PaletteColor(AuroraMath.HueGreenHigh + 0.001f));
     }
 
     [Test]
@@ -215,9 +215,9 @@ public class AuroraCurtainTests
             {
                 float h = AuroraCurtain.HueField(i / (float)side, j / (float)side, 4000f);
 
-                if (h < AuroraCurtain.HueGreenLow)
+                if (h < AuroraMath.HueGreenLow)
                     sawViolet = true;
-                else if (h > AuroraCurtain.HueGreenHigh)
+                else if (h > AuroraMath.HueGreenHigh)
                     sawRed = true;
                 else
                     sawGreen = true;

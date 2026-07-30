@@ -265,8 +265,8 @@ public class AuroraCurtainHemRaysTests
 
                 if (s.Alpha > 0.05f)
                 {
-                    sawGreen |= s.Hue >= AuroraCurtain.HueGreenLow && s.Hue <= AuroraCurtain.HueGreenHigh;
-                    sawRed |= s.Hue > AuroraCurtain.HueGreenHigh;
+                    sawGreen |= s.Hue >= AuroraMath.HueGreenLow && s.Hue <= AuroraMath.HueGreenHigh;
+                    sawRed |= s.Hue > AuroraMath.HueGreenHigh;
                 }
             }
         }

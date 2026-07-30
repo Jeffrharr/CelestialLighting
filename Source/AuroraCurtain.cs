@@ -154,13 +154,9 @@ public static class AuroraCurtain
     // exact sRGB triple, so this is an in-gamut approximation chosen to read as the right hue.
     public static readonly AuroraMath.Rgb NitrogenViolet = new AuroraMath.Rgb(0.35f, 0.30f, 1f);
 
-    // Where the palette sits on the hue field. Between these two the colour is pure oxygen green;
-    // below, it slides to nitrogen violet, above to oxygen red. The hue field is an fBm, so its values
-    // cluster near 0.5 and the green band therefore covers most of the map with coloured fringes at
-    // the tails — which is what an aurora actually looks like, green-dominant with red above and
-    // violet below, rather than a rainbow.
-    public const float HueGreenLow = 0.30f;
-    public const float HueGreenHigh = 0.66f;
+    // The hue-band edges and the Amplify response curve moved to AuroraMath — see the "Shared curtain
+    // primitives" section there for why. This field's palette still reads violet-green-red across them;
+    // only their address changed.
 
     // The hue field's own scale. Coarser than the ribbons — the point is that DIFFERENT PARTS OF ONE
     // RIBBON are different colours, which needs hue to vary slower than the ribbon does. But not nearly
@@ -239,30 +235,7 @@ public static class AuroraCurtain
     // Peak value Amplify can return for the intensity range Wave feeds it (see Intensity below,
     // whose maximum is 0.95). Dividing by it normalises the ribbon to [0, 1] so callers get a
     // meaningful alpha rather than "whatever the power chain happened to produce".
-    private static readonly float PeakAmplified = Amplify(0.95f);
-
-    // The steep response curve, ported verbatim (magic number included) from the CC0 shader. Reads as
-    // m⁴·v² + m·v⁴ + v⁸: three successive squarings, each weighted less than the last, summed. The
-    // v⁸ term dominates above ~0.8 and everything below ~0.5 is crushed toward zero, which is what
-    // separates a ribbon from its background. A plain pow(v, 8) is close but loses the faint ambient
-    // floor the two smaller terms leave behind — and that floor is the difference between a curtain
-    // hanging in a glowing sky and a curtain hanging in a void.
-    public static float Amplify(float value)
-    {
-        const float magic = 0.166504f;
-
-        float v = Clamp01(value);
-        float output = 0f;
-
-        v *= v;
-        output += magic * magic * magic * magic * v;
-        v *= v;
-        output += magic * v;
-        v *= v;
-        output += v;
-
-        return output;
-    }
+    private static readonly float PeakAmplified = AuroraMath.Amplify(0.95f);
 
     // Ribbon intensity at texture coordinate (u, v) ∈ [0,1)² at the given time, in [0, 1].
     //
@@ -292,7 +265,7 @@ public static class AuroraCurtain
             WaveXPeriod, WaveYPeriod, FieldBSeed, WaveOctaves);
 
         float boundary = Smoothstep(-Smoothness, Smoothness, a - b);
-        return Amplify(Intensity(boundary)) / PeakAmplified;
+        return AuroraMath.Amplify(Intensity(boundary)) / PeakAmplified;
     }
 
     // Distance from the boundary, remapped so that "right on the contour" (boundary == 0.5) is
@@ -340,11 +313,11 @@ public static class AuroraCurtain
     {
         float h = Clamp01(hue01);
 
-        if (h < HueGreenLow)
-            return LerpRgb(NitrogenViolet, AuroraMath.OxygenGreen, h / HueGreenLow);
+        if (h < AuroraMath.HueGreenLow)
+            return LerpRgb(NitrogenViolet, AuroraMath.OxygenGreen, h / AuroraMath.HueGreenLow);
 
-        if (h > HueGreenHigh)
-            return LerpRgb(AuroraMath.OxygenGreen, AuroraMath.OxygenRed, (h - HueGreenHigh) / (1f - HueGreenHigh));
+        if (h > AuroraMath.HueGreenHigh)
+            return LerpRgb(AuroraMath.OxygenGreen, AuroraMath.OxygenRed, (h - AuroraMath.HueGreenHigh) / (1f - AuroraMath.HueGreenHigh));
 
         return AuroraMath.OxygenGreen;
     }

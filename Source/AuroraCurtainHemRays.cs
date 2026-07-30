@@ -289,7 +289,7 @@ public static class AuroraCurtainHemRays
 
     // Peak the ray sharpener can return, used to renormalise it back to [0, 1]. Precomputed because
     // Amplify is a chain of multiplies and this is a loop-invariant.
-    private static readonly float PeakAmplified = AuroraCurtain.Amplify(1f);
+    private static readonly float PeakAmplified = AuroraMath.Amplify(1f);
 
     // Reciprocals of the two fixed vertical scales, so the pixel loop multiplies instead of dividing.
     private const float InvHemUnderhang = 1f / HemUnderhang;
@@ -411,13 +411,13 @@ public static class AuroraCurtainHemRays
     {
         float h = Clamp01(hue01);
 
-        if (h < AuroraCurtain.HueGreenLow)
-            return LerpRgb(CurtainPurple, AuroraMath.OxygenGreen, h / AuroraCurtain.HueGreenLow);
+        if (h < AuroraMath.HueGreenLow)
+            return LerpRgb(CurtainPurple, AuroraMath.OxygenGreen, h / AuroraMath.HueGreenLow);
 
-        if (h > AuroraCurtain.HueGreenHigh)
+        if (h > AuroraMath.HueGreenHigh)
             return LerpRgb(
                 AuroraMath.OxygenGreen, AuroraMath.OxygenRed,
-                (h - AuroraCurtain.HueGreenHigh) / (1f - AuroraCurtain.HueGreenHigh));
+                (h - AuroraMath.HueGreenHigh) / (1f - AuroraMath.HueGreenHigh));
 
         return AuroraMath.OxygenGreen;
     }
@@ -565,7 +565,7 @@ public static class AuroraCurtainHemRays
         // RaySharpen. Its job there is to crush a soft contour gradient into a defined edge; its job
         // here is the same one dimension down, because value noise is smooth and rounded and raw it
         // gives a brightness wobble rather than lines.
-        float raySharp = Lerp(rayRaw, AuroraCurtain.Amplify(rayRaw) / PeakAmplified, RaySharpen);
+        float raySharp = Lerp(rayRaw, AuroraMath.Amplify(rayRaw) / PeakAmplified, RaySharpen);
 
         // The bundle field multiplies the sharpened rays rather than being summed with them, so a
         // quiet stretch of curtain has faint rays rather than a different set of rays.
