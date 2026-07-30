@@ -17,7 +17,7 @@
 #
 #   for s in daylight_inertness eclipse eclipse_ramp_flyin eclipse_ramp_flyout aurora blood_moon \
 #            natural_eclipse natural_eclipse_trigger sky_blackout_gate \
-#            sky_blackout_eclipse_carveout; do
+#            sky_blackout_eclipse_carveout vacuum_eclipse vacuum_eclipse_frames; do
 #     ../RimWorldTestHarness/Runner/run_test.sh Tests/Scenarios/$s.json --mod . --mod TestMod
 #   done
 #
