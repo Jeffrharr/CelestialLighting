@@ -1,0 +1,149 @@
+{
+  "name": "eaves_thick_lit",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Concrete",
+        "width": "34",
+        "height": "34",
+        "offset": "0,45",
+        "clear": "true"
+      }
+    },
+    {
+      "type": "SetRoof",
+      "args": {
+        "def": "RoofConstructed",
+        "width": "1",
+        "height": "9",
+        "offset": "-4,49"
+      }
+    },
+    {
+      "type": "SetRoof",
+      "args": {
+        "def": "RoofRockThick",
+        "width": "1",
+        "height": "9",
+        "offset": "-4,40"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "TorchLamp",
+        "offset": "0,45",
+        "layout": "cells",
+        "cells": "-2,-6; -2,-3; -2,0; -2,3; -2,6"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "-1,45",
+        "zoom": "22"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "eave_cells",
+        "expectedValue": "9",
+        "tolerance": "400"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "shadow_extrude_far_cells",
+        "expectedValue": "4",
+        "tolerance": "12"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "18"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "eave_shadows",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "lit18_off.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "eave_shadows",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "lit18_on.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "16"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "eave_shadows",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "lit16_off.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "eave_shadows",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "lit16_on.png"
+      }
+    }
+  ]
+}

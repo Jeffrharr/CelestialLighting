@@ -1,0 +1,105 @@
+{
+  "name": "eaves_room_flip",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Concrete",
+        "width": "30",
+        "height": "30",
+        "offset": "0,45",
+        "clear": "true"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "0,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "-9,-9; -9,-8; -9,-7; -9,-6; -9,-5; -9,-4; -9,-3; -9,-2; -9,-1; -9,0; -9,1; -9,2; -9,3; -9,4; -9,5; -9,6; -9,7; -9,8; -9,9; -8,-9; -8,9; -7,-9; -7,9; -6,-9; -6,9; -5,-9; -5,9; -4,-9; -4,9; -3,-9; -3,9; -2,-9; -2,9; -1,-9; -1,9; 0,-9; 0,9; 1,-9; 1,9; 2,-9; 2,9; 3,-9; 3,9; 4,-9; 4,9; 5,-9; 5,9; 6,-9; 6,9; 7,-9; 7,9; 8,-9; 8,9; 9,-9; 9,-8; 9,-7; 9,-6; 9,-5; 9,-4; 9,-3; 9,-2; 9,-1; 9,0; 9,1; 9,2; 9,3; 9,4; 9,5; 9,6; 9,7; 9,8; 9,9"
+      }
+    },
+    {
+      "type": "SetRoof",
+      "args": {
+        "def": "RoofConstructed",
+        "width": "10",
+        "height": "17",
+        "offset": "-3,45"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "18"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "0,45",
+        "zoom": "20"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "eave_cells",
+        "expectedValue": "170",
+        "tolerance": "200"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "flip_before.png"
+      }
+    },
+    {
+      "type": "SetRoof",
+      "args": {
+        "def": "RoofConstructed",
+        "width": "7",
+        "height": "17",
+        "offset": "5,45"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "eave_cells",
+        "expectedValue": "0",
+        "tolerance": "400"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "flip_after.png"
+      }
+    }
+  ]
+}
