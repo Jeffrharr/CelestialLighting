@@ -1,0 +1,28 @@
+{
+  "name": "aurora_stationary",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "20" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "40" } },
+    { "type": "SetTime", "args": { "hour": "1" } },
+
+    { "type": "StartCondition", "args": { "conditionDef": "Aurora", "durationHours": "240", "agedHours": "2" } },
+    { "type": "Wait", "args": { "frames": "120" } },
+
+    { "type": "LookAt", "args": { "anchor": "125,125", "offset": "0,0", "zoom": "60" } },
+    { "type": "Wait", "args": { "frames": "30" } },
+    { "type": "Screenshot", "args": { "fileName": "aurora_stationary_wide.png" } },
+
+    { "type": "LookAt", "args": { "anchor": "95,125", "offset": "0,0", "zoom": "60" } },
+    { "type": "Wait", "args": { "frames": "30" } },
+    { "type": "Screenshot", "args": { "fileName": "aurora_stationary_pan_west.png" } },
+
+    { "type": "LookAt", "args": { "anchor": "155,125", "offset": "0,0", "zoom": "60" } },
+    { "type": "Wait", "args": { "frames": "30" } },
+    { "type": "Screenshot", "args": { "fileName": "aurora_stationary_pan_east.png" } },
+
+    { "type": "LookAt", "args": { "anchor": "125,95", "offset": "0,0", "zoom": "60" } },
+    { "type": "Wait", "args": { "frames": "30" } },
+    { "type": "Screenshot", "args": { "fileName": "aurora_stationary_pan_south.png" } }
+  ]
+}

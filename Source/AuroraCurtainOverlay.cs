@@ -116,6 +116,14 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
     // should not be a copy of the first.
     private AuroraSheetPlacement _placement;
 
+    // Where this aurora sits, in MAP coordinates, chosen once when it began. The camera rectangle picks
+    // the spot and is then never consulted again — reading it per frame made the patch a fraction OF THE
+    // VIEW, so it slid along with the camera and read as glued to the screen rather than hanging over a
+    // piece of ground.
+    private AuroraSheetPlacement _placementBase;
+
+    private bool _placed;
+
     private AuroraCurtainOverlay()
     {
     }
@@ -135,6 +143,7 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
         if (strength <= 0f || map == null)
         {
             _eventLit = false;
+            _placed = false;
             return false;
         }
 
@@ -259,16 +268,16 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
             return;
         }
 
-        // Placed inside the CAMERA's rectangle rather than anywhere on the map. "Somewhere on the map"
-        // and "wholly visible" are different constraints, and only the second is what was wanted: a
-        // random point of a 250-cell map is usually nowhere near the colony the player is watching.
-        // Chosen once per aurora from the event seed, so it stays put for the event and the player can
-        // pan away from it afterwards exactly as they could from a fixed one.
-        CellRect view = Find.CameraDriver.CurrentViewRect;
+        // Chosen ONCE per aurora, from the event seed, in map coordinates. Nothing here reads the
+        // camera: a display hangs over a piece of ground, and whether it is on screen is the player's
+        // business, not the layout's.
+        if (!_placed)
+        {
+            _placementBase = AuroraSheetLayout.RandomPlacement(_eventSeed, map.Size.x, map.Size.z);
+            _placed = true;
+        }
 
-        _placement = AuroraSheetLayout.RandomPlacement(
-            _eventSeed, view.minX, view.minZ, view.maxX, view.maxZ, _driftPhase);
-
+        _placement = AuroraSheetLayout.WithDrift(_placementBase, _driftPhase);
         _liveSheets = 1;
 
         Material mat = Sheets[0];

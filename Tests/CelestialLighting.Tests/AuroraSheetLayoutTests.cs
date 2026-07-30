@@ -152,6 +152,101 @@ public class AuroraSheetLayoutTests
         Assert.That(odd, Is.Not.EqualTo(even));
     }
 
+    // Every display, at every seed, sits wholly on the map — including at the far end of its wander.
+    // A patch overhanging the edge would have its taper clipped by geometry instead of fading out, which
+    // is the hard-edge defect the taper exists to remove.
+    [Test]
+    public void EveryDisplayIsWhollyOnTheMap_AtEveryDriftPhase()
+    {
+        foreach (int[] size in MapSizes)
+        {
+            for (int seed = 0; seed < 60; seed++)
+            {
+                AuroraSheetPlacement placed = AuroraSheetLayout.RandomPlacement(seed, size[0], size[1]);
+
+                foreach (float phase in new[] { -1f, 0f, 1f })
+                {
+                    AuroraSheetPlacement p = AuroraSheetLayout.WithDrift(placed, phase);
+
+                    Assert.That(p.CenterX - p.Width * 0.5f, Is.GreaterThanOrEqualTo(-0.01f),
+                        $"{size[0]}x{size[1]} seed {seed} phase {phase}: off west edge");
+                    Assert.That(p.CenterX + p.Width * 0.5f, Is.LessThanOrEqualTo(size[0] + 0.01f),
+                        $"{size[0]}x{size[1]} seed {seed} phase {phase}: off east edge");
+                    Assert.That(p.CenterZ - p.Height * 0.5f, Is.GreaterThanOrEqualTo(-0.01f),
+                        $"{size[0]}x{size[1]} seed {seed}: off south edge");
+                    Assert.That(p.CenterZ + p.Height * 0.5f, Is.LessThanOrEqualTo(size[1] + 0.01f),
+                        $"{size[0]}x{size[1]} seed {seed}: off north edge");
+                }
+            }
+        }
+    }
+
+    // --- A placed aurora is a piece of sky, not a HUD element ---
+
+    // The per-frame update must not be able to move the display anywhere except along its own east-west
+    // wander. This is the guard on a bug that reached the game: the placement was recomputed every frame
+    // from the camera's view rectangle, and because the position is a FRACTION OF THAT RECTANGLE it slid
+    // with the camera — the aurora appeared glued to the screen instead of hanging over the ground.
+    //
+    // Choosing the spot needs the camera; keeping it must not. Splitting the two is what fixed it, and
+    // this pins the half that runs every frame.
+    [Test]
+    public void PerFrameDrift_MovesTheDisplayEastWestAndNothingElse()
+    {
+        AuroraSheetPlacement placed = AuroraSheetLayout.RandomPlacement(4242, 250, 250);
+
+        foreach (float phase in new[] { -1f, -0.25f, 0f, 0.5f, 1f })
+        {
+            AuroraSheetPlacement moved = AuroraSheetLayout.WithDrift(placed, phase);
+
+            Assert.That(moved.CenterZ, Is.EqualTo(placed.CenterZ), $"drift moved it north/south at {phase}");
+            Assert.That(moved.Width, Is.EqualTo(placed.Width), $"drift resized it at {phase}");
+            Assert.That(moved.Height, Is.EqualTo(placed.Height), $"drift resized it at {phase}");
+            Assert.That(moved.UScale, Is.EqualTo(placed.UScale), $"drift re-mirrored it at {phase}");
+            Assert.That(moved.Alpha, Is.EqualTo(placed.Alpha), $"drift changed its alpha at {phase}");
+
+            Assert.That(System.Math.Abs(moved.CenterX - placed.CenterX),
+                Is.LessThanOrEqualTo(AuroraSheetLayout.PatchDriftCells + 1e-4f),
+                $"drift moved it further than its own wander at {phase}");
+        }
+    }
+
+    // The seed alone decides the display, so the same aurora is the same aurora — and a different one is
+    // genuinely different rather than the same patch in a new place.
+    [Test]
+    public void TheSameAurora_AlwaysLandsInTheSamePlaceAtTheSameSize()
+    {
+        AuroraSheetPlacement a = AuroraSheetLayout.RandomPlacement(99, 250, 250);
+        AuroraSheetPlacement b = AuroraSheetLayout.RandomPlacement(99, 250, 250);
+
+        Assert.That(b.CenterX, Is.EqualTo(a.CenterX));
+        Assert.That(b.CenterZ, Is.EqualTo(a.CenterZ));
+        Assert.That(b.Width, Is.EqualTo(a.Width));
+
+        AuroraSheetPlacement other = AuroraSheetLayout.RandomPlacement(100, 250, 250);
+        Assert.That(
+            other.CenterX != a.CenterX || other.CenterZ != a.CenterZ || other.Width != a.Width,
+            Is.True, "two different auroras produced an identical display");
+    }
+
+    // Sizes stay inside the band that was asked for: never larger than the maximum, never smaller than
+    // half of it.
+    [Test]
+    public void EveryDisplaySizeIsWithinItsBand()
+    {
+        for (int seed = 0; seed < 200; seed++)
+        {
+            AuroraSheetPlacement p = AuroraSheetLayout.RandomPlacement(seed, 250, 250);
+
+            Assert.That(p.Width, Is.InRange(
+                AuroraSheetLayout.PatchMaxWidth * AuroraSheetLayout.PatchMinScale - 1e-3f,
+                AuroraSheetLayout.PatchMaxWidth + 1e-3f), $"seed {seed} width");
+            Assert.That(p.Height, Is.InRange(
+                AuroraSheetLayout.PatchMaxHeight * AuroraSheetLayout.PatchMinScale - 1e-3f,
+                AuroraSheetLayout.PatchMaxHeight + 1e-3f), $"seed {seed} height");
+        }
+    }
+
     [Test]
     public void SpanningField_CoversTheMapAndKeepsItsTiling()
     {
