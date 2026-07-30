@@ -381,11 +381,25 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
         if (_texture == null)
             return;
 
-        // AltitudeLayer.VisEffects, not Weather, and that is load-bearing. Weather sits directly BELOW
-        // LightingOverlay, so a weather-altitude aurora gets multiplied by the night sky colour — and
-        // with §7a pitch-black nights driving that overlay toward opaque black, the aurora would be
-        // multiplied out of existence in exactly the conditions it exists for.
-        float altitude = AltitudeLayer.VisEffects.AltitudeFor();
+        // ABOVE FogOfWar, and every part of that is deliberate.
+        //
+        // Not Weather (31): it sits directly below LightingOverlay, so a weather-altitude aurora gets
+        // multiplied by the night sky colour — and with §7a's pitch-black nights driving that overlay
+        // toward opaque black, the aurora would be multiplied out of existence in exactly the conditions
+        // it exists for.
+        //
+        // Not VisEffects (33) either, which is where this started. SectionLayer_IndoorMask draws between
+        // Weather and VisEffects — measured, not assumed: with a block of RoofRockThick laid over the
+        // map, vanilla rain's streaks vanish underneath it while our aurora carried straight across the
+        // boundary at full strength. Sitting above that mask is what we WANT (an aurora is sky, and the
+        // sky does not stop existing over a mountain), so VisEffects was right about roofs.
+        //
+        // It was wrong about fog. FogOfWar (34) would have covered the aurora over unexplored ground,
+        // and an aurora is no more hidden by a player's ignorance of the terrain than by a roof. One
+        // AltInc above FogOfWar puts us over the fog while staying inside its band — comfortably below
+        // WorldClipper (36), which must keep drawing over us so the patch cannot spill past the map
+        // edge. The whole change is a Y coordinate in the draw matrix; it costs nothing.
+        float altitude = AltitudeLayer.FogOfWar.AltitudeFor() + Altitudes.AltInc;
 
         for (int i = 0; i < _liveSheets; i++)
         {
