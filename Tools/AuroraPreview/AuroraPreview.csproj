@@ -13,5 +13,9 @@
     <Compile Include="../../Source/AuroraMath.cs" Link="AuroraMath.cs" />
     <Compile Include="../../Source/AuroraNoise.cs" Link="AuroraNoise.cs" />
     <Compile Include="../../Source/AuroraCurtain.cs" Link="AuroraCurtain.cs" />
+    <!-- The alternative shape function under evaluation (issue #42, DESIGN.md 11a). Linked alongside
+         the contour field rather than instead of it: the only useful output of this tool while the
+         two are competing is both of them rendered from the same code at the same instant. -->
+    <Compile Include="../../Source/AuroraCurtainHemRays.cs" Link="AuroraCurtainHemRays.cs" />
   </ItemGroup>
 </Project>
