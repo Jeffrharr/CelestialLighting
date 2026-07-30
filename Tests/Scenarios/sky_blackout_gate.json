@@ -101,47 +101,12 @@
       }
     },
     {
-      "_comment": "THE ECLIPSE CARVE-OUT, ASSERTED BEFORE THE BLACKOUT BECAUSE THE HARNESS CANNOT END A CONDITION. Eclipse is the same GameCondition_NoSunlight class the gate keys on, and §10/§10a exist to reshape it, so a gate on the class alone would switch our own eclipse handling off — invisibly, because an eclipse sky and a sulfur sky both read near black in every downstream probe. This is the only place that failure is observable at all.",
-      "type": "StartCondition",
-      "args": {
-        "conditionDef": "Eclipse",
-        "durationHours": "24",
-        "agedHours": "12"
-      }
-    },
-    {
-      "_comment": "Still 0: the gate must report an eclipse as harmless. The sky overhead is now genuinely dark, and that is the right answer anyway — an eclipse covers the SUN while leaving the sky transparent, which is why stars come out during a total one and nothing comes out under a sulfur overcast.",
-      "type": "Probe",
-      "args": {
-        "probeName": "map_sky_blacked_out",
-        "expectedValue": "0",
-        "tolerance": "0.001"
-      }
-    },
-    {
-      "_comment": "And §10 is still reshaping it — the positive half of the same claim. agedHours 12 parks the unnatural ramp at full coverage, exactly as eclipse.json pins it.",
-      "type": "Probe",
-      "args": {
-        "probeName": "eclipse_coverage",
-        "expectedValue": "1.0",
-        "tolerance": "0.02"
-      }
-    },
-    {
-      "_comment": "Shadows survive an eclipse, identical to the open-sky baseline. Not an aspiration — a pin on today's behaviour, so a later decision to suppress shadows during an eclipse (a real question, deliberately out of scope for issue #35) shows up here as a deliberate change rather than as collateral. Vanilla behaves the same way, for the reason the blacked-out step below spells out.",
-      "type": "Probe",
-      "args": {
-        "probeName": "moon_shadow_render",
-        "expectedValue": "0.7782",
-        "tolerance": "0.02"
-      }
-    },
-    {
-      "_comment": "THE CONDITION THE GATE IS FOR. Odyssey's DarkenedSkies is GameCondition_NoSunlight_Instant, so TransitionTicks is 0 and it is at full strength on the frame it starts — no FastForward or agedHours needed, unlike the aurora ramp. durationHours 0 makes it permanent, which is how Glowforest itself ships it (biomeMapConditions + canBePermanent).",
+      "_comment": "THE CONDITION THE GATE IS FOR. durationHours 240 with agedHours 48, and NOT the durationHours 0 this scenario first used. StartCondition documents <=0 as permanent, but GameConditionMaker.MakeCondition(def, -1) assigns GameCondition.Duration, whose setter sets permanent = FALSE — so TicksLeft goes negative, GameConditionUtility.LerpInOutValue divides it by a zero TransitionTicks and Mathf.Lerp clamps the result to 0, and the condition contributes NOTHING to the sky while still being registered. Our gate keys on the condition's presence and so fired correctly either way, which is exactly why the mistake survived a passing run: every gate probe was right and the frames behind them were dark for the wrong reason. Back-dating with agedHours also keeps TicksPassed positive across the SetTime steps below, which would otherwise rewind the clock behind startTick and re-zero the same factor. Harness issue filed separately.",
       "type": "StartCondition",
       "args": {
         "conditionDef": "DarkenedSkies",
-        "durationHours": "0"
+        "durationHours": "240",
+        "agedHours": "48"
       }
     },
     {
@@ -194,10 +159,77 @@
       }
     },
     {
-      "_comment": "On to the dusk hour the colour baseline used, with the blackout now live — the colour lane's B.",
+      "_comment": "PERMANENT NIGHT — the claim a reviewer is most likely to want and the one the first draft of this file could not make, because its blackout was inert. A blacked-out map must have no day left in it: not merely a dark noon, but the SAME darkness at every hour. Vanilla delivers this on its own once the condition actually applies (SkyTarget.LerpDarken drives glow to Min(A.glow, 0) and the sky colour to the per-channel min of the weather palette and EclipseSkyColors, both of which are hour-independent once clamped), and this mod must not reintroduce a cycle on top of it — which §5's night floor would have done, ungated. Measured across the day the composed frame sits at mean RGB 22.6/24.8/23.9, against an open-sky midnight of 22.3/24.8/23.4: permanent night, to within a percent.",
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_glow",
+        "expectedValue": "0.0",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "_comment": "Identical to the midnight reading below. -0.100 is vanilla's own wan blue-grey (0.482, 0.603, 0.682 => -0.200) halved by §7a at the Cinematic preset's MinNightBrightness 0.50.",
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_overlay_warmth",
+        "expectedValue": "-0.1000",
+        "tolerance": "0.012"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "blackout_c1_noon_darkened.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "23"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_glow",
+        "expectedValue": "0.0",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "_comment": "Same number as noon, eleven hours apart. If a future change reintroduces a diurnal term on a blacked-out map, these two probes stop agreeing before any screenshot could show it.",
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_overlay_warmth",
+        "expectedValue": "-0.1000",
+        "tolerance": "0.012"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "blackout_c2_midnight_darkened.png"
+      }
+    },
+    {
+      "_comment": "The one hour that is NOT constant, pinned so it is a known residue rather than a future surprise. At dusk Clear's palette carries blue 0.423, BELOW the condition's own 0.682, and LerpDarken takes the per-channel minimum — so the weather's lower blue survives and the frame reads ~6/255 bluer-poor than the rest of the day. Vanilla's composition, not ours, and small enough to leave alone. The dusk warmth reading below is taken here for the same reason and is the one place the colour lane can be measured at all, since §2 and §8 are exactly zero with the sun high.",
       "type": "SetTime",
       "args": {
         "hour": "19"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_glow",
+        "expectedValue": "0.0",
+        "tolerance": "0.005"
       }
     },
     {
