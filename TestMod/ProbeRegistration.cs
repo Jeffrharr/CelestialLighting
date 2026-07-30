@@ -258,10 +258,14 @@ public static class ProbeRegistration
         // => NaturalOnly (pure geometric eclipses, so a scenario films/validates the §10a trigger in
         // isolation), disabled => UnnaturalOnly (the shipped default, which fires no events at all).
         // The disabled arm tracks the shipped default deliberately: a scenario that never sets this
-        // feature must see exactly what a player sees on a fresh install.
+        // feature must see exactly what a player sees on a fresh install. defaultEnabled: false is
+        // what actually delivers that — without it FeatureRegistry.ResetAll(), which runs between
+        // every pair of scenarios in a suite, selected the ENABLED arm and left every later scenario
+        // on NaturalOnly against the shipped UnnaturalOnly.
         FeatureRegistry.Register(
             "natural_eclipse",
-            enabled => EclipseSettings.Mode = enabled ? EclipseMode.NaturalOnly : EclipseMode.UnnaturalOnly);
+            enabled => EclipseSettings.Mode = enabled ? EclipseMode.NaturalOnly : EclipseMode.UnnaturalOnly,
+            defaultEnabled: false);
         // Dev-only staging for the natural-eclipse trigger validation: a real eclipse only happens
         // once every few game years, so this phase-slides the modeled moon (via the pure EclipseStaging
         // math) onto a genuine new-moon-at-node alignment one pre-roll ahead of "now", after which the
@@ -291,7 +295,19 @@ public static class ProbeRegistration
                     EclipseStaging.DefaultPreRollTicks);
                 moon.debugSynodicShiftTicks = shifts.SynodicShiftTicks;
                 moon.debugNodalShiftTicks = shifts.NodalShiftTicks;
-            });
+            },
+            // defaultEnabled: false, and this one is the most damaging of the family to get wrong.
+            // Registered as true, FeatureRegistry.ResetAll() phase-slid the moon onto an eclipse
+            // alignment between every pair of scenarios in a suite, so from the second scenario onward
+            // the moon was not where the calendar said — silently, because the shift is applied inside
+            // GameComponent_MoonPhase.CyclePosition and every clock reading stays correct.
+            //
+            // Measured 2026-07-30: a scenario reading the moon at day-of-year 40 reported
+            // moon_illumination 0.7347 standalone and 0.4988 after a suite prefix, with the harness's
+            // own ticks_abs_day reading exactly 40 in BOTH. The clock was never wrong; only the moon
+            // was. That is what makes this worth a comment rather than a one-word diff — the obvious
+            // diagnosis for a drifting moon is a drifting clock, and here the clock is innocent.
+            defaultEnabled: false);
         // Not a CelestialLightingFeatures flag: bridges the minimum-brightness clamp so a visual
         // scenario can force a genuinely pitch-black night (MinNightBrightness -> 0) instead of the
         // shipped playable floor. "enabled" == true means clamp to 0 (true black); false restores the
