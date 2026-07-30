@@ -44,12 +44,27 @@ indoor_min_brightness.json
 
 # --- weather: each sets its own, so they need no reload between them ---
 weather_dimming_census.json
-weather_dimming.json
 
-# Both of the above pin absolute dimming fractions, which scale with §13's strength knob (the
-# preset's weatherDimming value). They are pinned against the shipped default and move together if a
-# preset default changes — a run where every row is low by the same ratio is that, not a classifier
-# regression.
+# It pins absolute dimming fractions, which scale with §13's strength knob (the preset's
+# weatherDimming value). They are pinned against the shipped default and move together if a preset
+# default changes — a run where every row is low by the same ratio is that, not a classifier
+# regression. Every probe in it reads at noon, which is what keeps it safe here.
+#
+# weather_dimming.json is NOT here, and the ladder is not why: its first seven probes agree with the
+# census exactly. Its last four do not. They read sky_glow and purkinje at hour 2, and night sky glow
+# carries a moonlight term, so it belongs with the moon-dependent scenarios above for the reason
+# given there — SetSeason and SetTime fix the day-of-year and hour but not the absolute tick, and the
+# moon is a function of the tick.
+#
+# Measured 2026-07-30: in-suite it read sky_glow 0.0817 against a pinned 0.1419 with purkinje
+# correspondingly high (§9 keys rod vision on a darker apparent sky), and 0.1455 standalone minutes
+# later in the same build. Run it on its own:
+#
+#   ../RimWorldTestHarness/Runner/run_test.sh Tests/Scenarios/weather_dimming.json --mod . --mod TestMod
+#
+# The census keeps the ladder covered here — 40 probes across 20 weather types against
+# weather_dimming's 7 — so dropping it from the suite costs no §13 coverage, only the feature-toggle
+# A/B and the blizzard frames, both of which are visual checks rather than cadence checks.
 #
 # penumbra_lowsun.json is deliberately absent: it builds a wall grid and repaints terrain
 # (ScenarioResidue.Map), and it is still in-flight work whose expected softness (0.5367) does not
