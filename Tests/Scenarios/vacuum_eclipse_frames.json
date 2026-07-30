@@ -1,0 +1,98 @@
+{
+  "name": "vacuum_eclipse_frames",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    {
+      "type": "LandInOrbit",
+      "args": {
+        "latitude": "45",
+        "mapSize": "150"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "OrbitalPlatform",
+        "width": "30",
+        "height": "30"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "Steel",
+        "layout": "grid",
+        "cols": "3",
+        "rows": "3",
+        "spacing": "6"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "zoom": "18"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "30"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "30"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "eclf_orbit_clear.png"
+      }
+    },
+    {
+      "type": "StartCondition",
+      "args": {
+        "conditionDef": "Eclipse",
+        "durationHours": "6",
+        "agedHours": "3"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "120"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_glow",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "night_radiance",
+        "expectedValue": "0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "eclf_orbit_eclipse.png"
+      }
+    }
+  ]
+}
