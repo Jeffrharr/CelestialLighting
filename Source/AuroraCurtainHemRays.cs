@@ -152,7 +152,7 @@ public static class AuroraCurtainHemRays
     // RayTopFloor). Exists so the tileability constraint can be stated as one comparison —
     // RayHeightMax + HemUnderhang < 1 is what guarantees a curtain's tail dies out before it wraps
     // round into its own hem and the field stops being periodic in v for the wrong reason.
-    public const float RayHeightMax = 0.34f;
+    public const float RayHeightMax = 0.68f;
 
     // Brightness a column keeps where the ray field says "gap", in [0, 1]. At 0 the gaps are black and
     // the curtain is a picket fence with nothing behind it; at 1 there are no rays at all. 0.46 leaves
@@ -383,9 +383,9 @@ public static class AuroraCurtainHemRays
     private static readonly CurtainSpec[] Curtains =
     {
         //             hemC   hemP oct hemAmp hemDrift hemRise   rayP rayDrift clump envP envDrift rayH  weight seed
-        new CurtainSpec(0.19f, 3, 2, 0.110f, 0.25f,  1f / 32f,   60, 1.00f,  12,  2, 0.25f,  0.34f, 1.00f, 10009),
-        new CurtainSpec(0.57f, 5, 2, 0.085f, -0.50f, -2f / 32f,  40, -0.75f,  8,  3, -0.25f, 0.26f, 0.76f, 20011),
-        new CurtainSpec(0.84f, 4, 2, 0.070f, 0.75f,  3f / 32f,   30, 0.50f,   6,  2, 0.50f,  0.17f, 0.52f, 30011),
+        new CurtainSpec(0.19f, 3, 2, 0.110f, 0.25f,  1f / 32f,   60, 1.00f,  12,  2, 0.25f,  0.68f, 1.00f, 10009),
+        new CurtainSpec(0.57f, 5, 2, 0.085f, -0.50f, -2f / 32f,  40, -0.75f,  8,  3, -0.25f, 0.52f, 0.76f, 20011),
+        new CurtainSpec(0.84f, 4, 2, 0.070f, 0.75f,  3f / 32f,   30, 0.50f,   6,  2, 0.50f,  0.34f, 0.52f, 30011),
     };
 
     // Read-only access to the table above, for the offline tests that check the invariants this file's
