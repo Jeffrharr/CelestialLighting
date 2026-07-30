@@ -113,6 +113,11 @@ public class CelestialLightingSettings : ModSettings
         CelestialLightingFeatures.IndoorSkyOcclusion = indoorSkyOcclusion;
         CelestialLightingFeatures.WeatherDimming = weatherDimming;
         CelestialLightingFeatures.EaveShadows = eaveShadows;
+        // One player-facing switch drives both halves of §15 — the split flag exists only so the
+        // harness can isolate them (see CelestialLightingFeatures.EaveShade). A shipped game must
+        // never see the caster on with the shade off: that combination is exactly the bright-lip
+        // artifact §15b was written to remove.
+        CelestialLightingFeatures.EaveShade = eaveShadows;
 
         // §9's tint strength. This slider was persisted and then ignored by every earlier version of
         // this method; it scales the per-cell night tint now that §9 no longer touches the global

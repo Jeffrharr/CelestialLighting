@@ -179,6 +179,28 @@ public static class CelestialLightingFeatures
     // but a correction to a question §7b was already asking wrongly.
     public static bool EaveShadows = true;
 
+    // Feature key for EaveShade (see CivilTwilightPersistenceKey for why the const lives here).
+    public const string EaveShadeKey = "eave_shade";
+
+    // §15b eave shade: the roofed cell ITSELF is darkened, which the cast-shadow mesh structurally
+    // cannot do — the skirt that would sweep back across a caster's own footprint is the
+    // backface-culled one, so a caster never shades the cell it stands on. Without this the roof
+    // reads as a bright lip against the shadow it is throwing, which is the artifact §15b exists to
+    // remove.
+    //
+    // Split from EaveShadows purely as a DIAGNOSTIC axis, and the user-facing behaviour is
+    // unchanged: CelestialLightingSettings drives both from the one `eaveShadows` setting, so a
+    // player still has a single switch and the two halves can never diverge in a shipped game. What
+    // the split buys is that the harness can now turn the caster and the shade off independently and
+    // attribute a boundary artifact to one of them — with a single flag both halves vanish together
+    // and every A/B frame is silent about which layer owned the effect.
+    //
+    // The two are separable at all only because they reach the screen by different routes: the
+    // caster is baked into the sun-shadow mesh (EaveShadowGrid), the shade is its own SectionLayer.
+    // They must agree about WHICH cells are involved — see EavesMath — but nothing forces them to be
+    // switched on together.
+    public static bool EaveShade = true;
+
     // Feature key for VacuumShadowContrast (see CivilTwilightPersistenceKey for why it lives here).
     public const string VacuumShadowContrastKey = "vacuum_shadow_contrast";
 
