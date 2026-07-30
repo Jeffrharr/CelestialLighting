@@ -1970,13 +1970,18 @@ a cave ceiling and the map has to be asked directly. The rule it grew (`WeatherD
 correct and already caught all three Biomes! Caverns biomes; it was simply private to weather.
 
 **Approach.** Promote the rule into `MapSky` / `MapSkyMath` and give it a second, distinct
-predicate. There are now three questions, and keeping them apart is the whole design:
+predicate. A fourth question was added later for issue #35 (see "A third kind of map" below). Keeping
+them apart is the whole design:
 
-| Question | Asked by | Cavern | Orbit | Open air |
-|---|---|---|---|---|
-| `HasSky` — can weather roll overhead? | §13 only | no | **no** | yes |
-| `IsEnclosed` — is there a ceiling? | §2, §5, §8, §10, §10a, §11, §12 | **yes** | **no** | no |
-| `DrawsShadows` — does this map draw shadows? | §1, §3, §4, §6a, §13, §15 | no | **yes** | yes |
+| Question | Asked by | Cavern | Orbit | Open air | Glowforest |
+|---|---|---|---|---|---|
+| `HasSky` — can weather roll overhead? | §13 only | no | **no** | yes | yes |
+| `IsEnclosed` — is there a ceiling? | §2, §5, §8, §10, §10a, §11, §12 | **yes** | **no** | no | no |
+| `DrawsShadows` — does this map draw shadows? | §1, §3, §4, §6a, §13, §15 | no | **yes** | yes | yes |
+| `SkyBlackedOut` — is the sky opaque *right now*? | §1, §2, §3, §5, §6a, §8, §11, §12, §13a | no | no | no | **yes** |
+
+The first three are all functions of `map.Biome` and cannot change while a map is loaded. The fourth
+is not, and that is the whole reason it could not be a clause on any of them.
 
 **Orbit is why there are three and not one.** Orbit is skyless by the weather rule — it offers
 exactly one weather — so the obvious implementation, gating everything on `HasSky`, would have
@@ -2041,13 +2046,98 @@ instead of stamping the cavern sentinel roof. Geological Landforms patches `Map.
 rock is handled per-cell by §7b as real thick roof. `map_kind_gates.json` reproduces that shape and
 pins `map_enclosed 0`.
 
+### A third kind of map: a sky with nothing visible through it (issue #35)
+
+**Problem.** The two gates above are both properties of a `BiomeDef`, and there is a third kind of map
+neither covers: one with a sky, no ceiling and shadows enabled, but *nothing visible overhead*.
+Odyssey's `Glowforest` is the headline case and says so in its own description — "geysers spew out
+massive sulfur clouds that cast the region into permanent darkness" — implemented as a permanent
+map-wide `DarkenedSkies` condition in `biomeMapConditions`. It is otherwise an ordinary surface tile
+offering **eleven** weathers and setting none of `disableSkyLighting` / `disableShadows` / `inVacuum`,
+so both gates stayed open and every sun- and moon-derived effect ran on it.
+
+It is also not biome-specific and not static: Odyssey's `AncientSmokeVent` causes the same
+`DarkenedSkies` on **any** map that has one, cycling roughly 3 days on / 4 days off. Royalty's
+`SunBlocker` machine is a third source. All four blackout sources in the game (those three plus the
+eclipse) are `GameCondition_NoSunlight`.
+
+**Approach.** A fourth predicate, `MapSky.SkyBlackedOut(map)`, keyed on the condition **class** rather
+than a def-name list — so a modded blackout condition is caught for free, exactly as `IsEnclosed`
+catches every modded cave biome through vanilla biome data. It walks the map's `GameConditionManager`
+chain and then the world's, filtering on `CanApplyOnMap` and *nothing else*, because that is precisely
+the filter `SkyManager.CurrentSkyTarget` applies when composing a condition's `SkyTarget` — so our gate
+opens and closes on the same frames vanilla's own darkening does. `HiddenByOtherCondition` is
+deliberately not consulted: it reports `silencedByConditions` and governs the UI label, while
+`CurrentSkyTarget` darkens the sky regardless.
+
+**The eclipse is carved out**, and that is the one way to get this wrong that nothing downstream could
+catch: `Eclipse` is the same class, §10/§10a exist to reshape it, and an eclipse sky and a sulfur sky
+read near-identically in every effect probe. It is excluded by def, the mirror image of
+`Patch_EclipseDarkening` excluding `SunBlocker` by def. It is also a genuinely different fact about the
+world — an eclipse covers the *sun* while leaving the sky transparent, which is why stars come out
+during a total one and nothing comes out under a sulfur overcast.
+
+**Vanilla looks like it already handles this, and does not.** `GameCondition_NoSunlight`'s
+`EclipseSkyColors` carries `Color.white` as its shadow colour, which reads as "suppress the shadow" —
+but `SkyManager` composes conditions with `SkyColorSet.LerpDarken`, i.e. `A.shadow.Min(B.shadow)` per
+channel, and white is the per-channel **maximum**. That white has always been a no-op, and
+`GenCelestial.CurShadowStrength` is a pure function of `CurCelestialSunGlow` with no condition term at
+all, so a blacked-out map keeps its full-strength cast shadows in vanilla too. Measured live on
+Glowforest with `DarkenedSkies` at a low sun: `MatBases.SunShadow.color.r` read **0.778** — a 22%
+ground darkening with crisp sun-angled bands — under a sky the mod had just driven to zero glow.
+`Patch_ShadowStrength` now writes 0 there, which whitens the material and removes the band
+(`sky_blackout_gate.json`).
+
+**What that per-frame write buys for free: no mesh invalidation anywhere.** The obvious worry with a
+*dynamic* gate is §16's baked section meshes — a condition starting or ending would have to dirty them
+the way `IndoorOcclusionRedraw` does. It does not, because every map-wide magnitude in this mod is a
+per-frame material or shader-global write and only the per-cell *shape* lives in a mesh, and no shape
+depends on the sun: §15b's eave shade reads the finished `MatBases.SunShadow.color` (so it whitens on
+the same frame, with its mesh untouched), §9's wash strength is re-derived from `CurSkyGlow` every
+`SkyManagerUpdate`, and §7b's occlusion never consults sun or moon at all. Gating
+`Patch_ShadowMeshPerimeter` or `SectionLayer_EaveShade.Visible` *would* have needed invalidation, and
+both are deliberately left alone: their output is already invisible once the material is white, so the
+only thing a gate could buy there is waste-removal, paid for with a dirty-flag storm on a
+several-times-a-week condition.
+
+**The colour half is real but small, and the pin says so.** §2's twilight target and §8's blackbody
+tint both raise red and *lower* blue, and `LerpDarken`'s per-channel min preserves a lowered channel —
+so a blacked-out dusk kept most of our warmth and only had its red clipped to the condition's own
+0.482. Measured, the gate moves the composed sky's red-minus-blue from +0.0139 to -0.0096 at dusk:
+visible as "neutral rather than warm-by-a-hair", not as the dark orange a first reading of the
+composition suggests. §5's night floor was already being flattened by vanilla before the gate, because
+`glow` is the one channel `LerpDarken` genuinely collapses (`Lerp(A.glow, Min(A.glow, 0), t)`); gating
+it stops the mod asserting moonlight it cannot see and closes the partial-lerp window during a sun
+blocker's 200-tick fade-in.
+
+**Binary rather than a strength factor**, deliberately. Both real cases are step functions —
+`DarkenedSkies` is `GameCondition_NoSunlight_Instant` (`TransitionTicks` 0) and Glowforest's is
+permanent — so the only thing a float would buy is Royalty's `SunBlocker` fading in over 200 ticks
+(3.3 s), against threading a blend factor through seven patches. The hook if it ever matters is
+`SkyTargetLerpFactor`.
+
+**§10a still fires natural eclipses on a blacked-out map**, unlike on an enclosed one. A transit is a
+celestial fact and §10a fires on geometry; making eclipse cadence hostage to a smoke vent's 3-on/4-off
+cycle would silently thin the ~one-per-few-years rate `natural_eclipse` pins, for an event whose
+gameplay consequences (solar power) are already gone under the blackout anyway. §11's aurora keeps its
+own separate `GameConditionManager.IsAlwaysDarkOutside` guard too — vanilla's version of this question,
+narrower on both axes (permanent only, eclipse-blind) — because its justification is different: it
+mirrors what `GameCondition_Aurora` does to itself.
+
 **Conflict risk.** `MapSky` reads only vanilla `BiomeDef` fields (`disableSkyLighting`,
-`disableShadows`, `inVacuum`, `baseWeatherCommonalities`) and takes no reference to any third-party
-assembly, so there is nothing here for another mod to collide with — a mod that wants its map
-treated as enclosed gets there by declaring biome data, exactly as Biomes! Caverns already does.
+`disableShadows`, `inVacuum`, `baseWeatherCommonalities`), vanilla `GameCondition` state and
+`GameConditionDefOf.Eclipse`, and takes no reference to any third-party assembly, so there is nothing
+here for another mod to collide with — a mod that wants its map treated as enclosed gets there by
+declaring biome data, exactly as Biomes! Caverns already does, and one that wants a blackout gets there
+by subclassing `GameCondition_NoSunlight`, which is what a blackout already is.
 Not cached, deliberately, even at nine callers: every call is per-map-per-frame at worst, and a
 BiomeDef-keyed cache would have to be invalidated against the harness's own `SetBiome` step, which
-mutates `map.Biome` at runtime so scenarios can sweep biomes inside one run.
+mutates `map.Biome` at runtime so scenarios can sweep biomes inside one run. `SkyBlackedOut` is
+uncached for a stronger reason: a colony carries a handful of conditions against the dozen weather
+entries `IsEnclosed` already walks at the same call sites, and it is the one predicate here that
+genuinely changes mid-session, so a cache would need the `RegisterCondition` / `OnConditionEnd` hooks
+the static gates do not — cost and risk on the same side. Vanilla makes the opposite trade with
+`GameConditionManager.cachedAlwaysDark` and pays exactly those two hooks for it.
 
 ## 18. Vacuum maps (`Vacuum.cs`) — the shared `inVacuum` gate
 
