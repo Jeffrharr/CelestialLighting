@@ -40,6 +40,19 @@ public static class Patch_AuroraTint
         if (MapSky.IsEnclosed(map))
             return;
 
+        // Sky blacked out right now (issue #35 — Glowforest, a smoke vent, a sun blocker; never an
+        // eclipse, see MapSkyMath.ConditionBlacksOutSky). An aurora burns ~100 km up, well above any
+        // sulfur cloud, and is hidden by one exactly as it is hidden by a rock ceiling.
+        //
+        // Partly redundant with AuroraConditions.ActiveTintDriver below, which already stands down on
+        // GameConditionManager.IsAlwaysDarkOutside — and deliberately kept anyway, because that guard is
+        // narrower on both axes: vanilla's flag counts only PERMANENT blackouts (so it misses a smoke
+        // vent's timed one, which is most of issue #35) and does not exclude the eclipse. It stays
+        // because its own justification is different: it mirrors what vanilla's GameCondition_Aurora
+        // does to itself, and matching vanilla there is worth keeping independently of this gate.
+        if (MapSky.SkyBlackedOut(map))
+            return;
+
         GameCondition driver = AuroraConditions.ActiveTintDriver(map);
         if (driver == null)
             return;

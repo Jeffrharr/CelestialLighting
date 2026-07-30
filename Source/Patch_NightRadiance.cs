@@ -39,6 +39,19 @@ public static class Patch_NightRadiance
         if (MapSky.IsEnclosed(map))
             return;
 
+        // Sky blacked out right now (issue #35 — Glowforest, a smoke vent, a sun blocker; never an
+        // eclipse, see MapSkyMath.ConditionBlacksOutSky). Starlight, airglow and moonlight do not reach
+        // through an opaque cloud deck any more than through a rock ceiling.
+        //
+        // The visible symptom here was small BEFORE this gate and it is worth recording why, because it
+        // is the one place vanilla's composition already covered for us: glow is the one channel
+        // SkyTarget.LerpDarken really does flatten (Lerp(A.glow, Min(A.glow, 0), t) -> 0 at full lerp),
+        // so the lifted floor was being discarded a moment after we wrote it. What this fixes is the
+        // mod asserting moonlight it cannot see, plus the partial lerp during a sun blocker's 200-tick
+        // fade-in, where the floor was briefly real.
+        if (MapSky.SkyBlackedOut(map))
+            return;
+
         // Same shared solar-position simulator every other subsystem uses (Patch_ShadowDirection,
         // Patch_ShadowStrength), so night timing can never disagree with the shadow/twilight patches
         // about where the sun actually is.

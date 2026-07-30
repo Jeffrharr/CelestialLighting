@@ -44,6 +44,14 @@ public static class Patch_SkyColorTemperature
         if (MapSky.IsEnclosed(map))
             return;
 
+        // Sky blacked out right now (issue #35 — Glowforest, a smoke vent, a sun blocker; never an
+        // eclipse, see MapSkyMath.ConditionBlacksOutSky). A blackbody curve models the colour of
+        // scattered SUNLIGHT and none is arriving: what is overhead is opaque sulfur cloud, whose colour
+        // belongs to the condition rather than to a solar-elevation curve. Leaving it to vanilla's
+        // LerpDarken min() was not enough for the reason Patch_TwilightColor spells out.
+        if (MapSky.SkyBlackedOut(map))
+            return;
+
         // Re-derive sun elevation from our own simulator (via the shared SolarPosition adapter)
         // rather than reading __result.glow, for the same reason Patch_TwilightColor does: elevation
         // is the physically correct key for a colour-temperature curve and tracks true sun position

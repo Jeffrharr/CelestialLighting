@@ -35,12 +35,31 @@ public static class Patch_TwilightColor
         if (MapSky.IsEnclosed(map))
             return;
 
+        // Sky blacked out right now (Glowforest's permanent sulfur overcast, a smoke vent's 3-days-in-7
+        // one, Royalty's sun blocker — never an eclipse; see MapSkyMath.ConditionBlacksOutSky). No
+        // sunset reaches through an opaque cloud deck.
+        //
+        // Not cosmetic tidying: vanilla composes a condition's dark SkyTarget with
+        // SkyColorSet.LerpDarken, which takes the per-channel MIN, and warming a sky LOWERS its green
+        // and blue. So the min keeps almost all of our warmth and only clips the red.
+        //
+        // A separate term from §18a's vacuum gate inside TwilightWarmth.ForMap below, not a clause on
+        // it, because the two say different things: a vacuum map has no atmosphere to scatter a sunset
+        // through, while this one has plenty of atmosphere and something opaque under it. They also
+        // disagree on every map — orbit is never blacked out, Glowforest is never in vacuum.
+        if (MapSky.SkyBlackedOut(map))
+            return;
+
         // Every input to the factor — latitude, sun glow, sun elevation, and the §18 vacuum flag —
         // is lifted off live state by TwilightWarmth.ForMap, which the twilight_warmth live probe
         // also calls. Sharing that one adapter is what stops the patch and the probe from deriving
         // two different answers from the same frame (the discipline SolarPosition.cs enforces
         // between the shadow patches). Band width, peak position, the civil-twilight persistence
         // pulse and the vacuum gate itself all live in Formulas under offline unit tests.
+        //
+        // The blackout gate deliberately sits OUTSIDE this adapter, so twilight_warmth keeps
+        // reporting what the twilight curve says while map_sky_blacked_out reports whether it is
+        // being applied — two probes, two questions, neither masking the other.
         float twilightFactor = TwilightWarmth.ForMap(map);
 
         if (twilightFactor <= 0f)

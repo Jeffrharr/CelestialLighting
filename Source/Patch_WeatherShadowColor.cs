@@ -118,6 +118,17 @@ public static class Patch_WeatherShadowColor
         if (!MapSky.DrawsShadows(map))
             return;
 
+        // Sky blacked out right now (issue #35 — Glowforest, a smoke vent, a sun blocker; never an
+        // eclipse, see MapSkyMath.ConditionBlacksOutSky). This patch exists to restore contrast to a
+        // shadow the weather had flattened; under an opaque cloud deck there is no cast band at all, so
+        // restoring its contrast would be sharpening something that should not be on screen.
+        //
+        // Gated for the same reason §6a is, not merely by symmetry: a WeatherEvent's OverrideShadowVector
+        // makes SkyManager use colors.shadow directly, bypassing the CurShadowStrength lerp that
+        // Patch_ShadowStrength's zero works through.
+        if (MapSky.SkyBlackedOut(map))
+            return;
+
         // Sun down: the moon is the caster and §6a's Patch_MoonShadowColor owns the colour. Split on
         // the same shared horizon constant every shadow patch uses, so the writers of colors.shadow
         // are exactly complementary and can never both fire on one frame. That holds in vacuum too:

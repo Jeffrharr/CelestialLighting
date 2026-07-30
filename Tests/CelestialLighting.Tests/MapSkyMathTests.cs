@@ -3,8 +3,10 @@ using NUnit.Framework;
 
 namespace CelestialLighting.Tests;
 
-// Covers the skyless gate (MapSkyMath) — the rule that stops sky-sourced effects applying to maps
-// with a rock ceiling, added for Biomes! Caverns compatibility.
+// Covers the map-kind gates (MapSkyMath) — the rules that stop sky- and sun-sourced effects applying
+// to maps that cannot see either. Grown in two passes: the skyless gate for Biomes! Caverns
+// compatibility (a rock ceiling), then ConditionBlacksOutSky for issue #35 (an opaque sky on an
+// otherwise ordinary open-air map).
 //
 // The interesting cases here are the ones with real biomes behind them, so each is named for the
 // content that motivates it. The composed rule is trivial; what is worth pinning is which real map
@@ -100,6 +102,40 @@ public class MapSkyMathTests
         Assert.That(
             MapSkyMath.IsEnclosed(hasSky: false, inVacuum: true), Is.False,
             "in a vacuum, skyless must NOT imply enclosed");
+    }
+
+    // --- ConditionBlacksOutSky: is the sky opaque right now? (issue #35) ---
+
+    [Test]
+    public void ConditionBlacksOutSky_DarkenedSkies_BlacksOut()
+    {
+        // Odyssey's DarkenedSkies, the headline case both ways round: permanent on Glowforest via
+        // biomeMapConditions, and timed on any map with an AncientSmokeVent (~3 days on / 4 off).
+        // Same def, same class, so one test covers both — which is the point of keying on the class.
+        Assert.That(
+            MapSkyMath.ConditionBlacksOutSky(isNoSunlightCondition: true, isEclipse: false), Is.True);
+    }
+
+    [Test]
+    public void ConditionBlacksOutSky_Eclipse_DoesNotBlackOut()
+    {
+        // THE CARVE-OUT, and the one failure mode nothing downstream could catch. Eclipse is the same
+        // GameCondition_NoSunlight class, and §10/§10a exist to reshape it — so a gate on the class
+        // alone would switch our own eclipse handling off while every effect probe still read zero,
+        // because an eclipse sky is near black either way.
+        Assert.That(
+            MapSkyMath.ConditionBlacksOutSky(isNoSunlightCondition: true, isEclipse: true), Is.False);
+    }
+
+    [TestCase(false)]
+    [TestCase(true)]
+    public void ConditionBlacksOutSky_OtherCondition_NeverBlacksOut(bool isEclipse)
+    {
+        // Every other condition a colony carries — a solar flare, a toxic fallout, a psychic drone.
+        // The class term is necessary, not just sufficient: a def-name check that forgot it would let
+        // any non-eclipse condition suppress the whole mod.
+        Assert.That(
+            MapSkyMath.ConditionBlacksOutSky(isNoSunlightCondition: false, isEclipse), Is.False);
     }
 
     // --- AmbientGlow: a cave has no day ---

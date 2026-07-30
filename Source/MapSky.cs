@@ -8,17 +8,20 @@ namespace CelestialLighting;
 // shadows deliberately use a different flag). This file only pulls the primitives off live
 // BiomeDef state.
 //
-// The three questions every map-kind-sensitive patch in this mod asks, and the ONLY three:
+// The four questions every map-kind-sensitive patch in this mod asks, and the ONLY four:
 //
 //   HasSky(map)       — can weather roll overhead? §13's question, and only §13's.
 //   IsEnclosed(map)   — is there a ceiling between this map and the sky? Gates the sky-sourced and
 //                       sky-tinting effects.
 //   DrawsShadows(map) — does this map render shadows at all? Gates the shadow subsystems.
+//   SkyBlackedOut(map)— is the sky opaque right now? The dynamic one; composes with either of the two
+//                       above depending on the lane. Issue #35.
 //
-// They are separate on purpose, and orbit is why. Orbit answers false / false / true: no weather,
-// no ceiling, harsh unfiltered sunlight. Collapsing the first two would silently strip orbit of
-// every sky effect; collapsing in the third would delete shadows from the one place sunlight is
-// completely unobstructed.
+// The first three are separate on purpose, and orbit is why. Orbit answers false / false / true: no
+// weather, no ceiling, harsh unfiltered sunlight. Collapsing the first two would silently strip orbit
+// of every sky effect; collapsing in the third would delete shadows from the one place sunlight is
+// completely unobstructed. The fourth is separate for a different reason: it is the only one that is
+// not a BiomeDef property, so it cannot be a clause on any of them.
 //
 // This lived as a private WeatherDimming.HasSky until Biomes! Caverns showed the question was
 // general rather than a §13 detail; WeatherDimming now delegates here, so §13's behaviour and its
@@ -31,6 +34,13 @@ namespace CelestialLighting;
 // reasoned about against RimWorld 1.6's worker threads, and would have to be invalidated against
 // the harness's own SetBiome step, which mutates map.Biome at runtime specifically so scenarios
 // like weather_dimming_skyless.json can sweep biomes inside a single run.
+//
+// SkyBlackedOut is not cached either, and it is the cheaper of the two: a real colony carries a
+// handful of active conditions at most, against the dozen weather entries IsEnclosed already walks at
+// the very same call sites. It is also the one predicate here that genuinely changes mid-session, so a
+// cache would need the invalidation hooks (RegisterCondition / OnConditionEnd) that the static gates
+// do not — cost and risk on the same side of the ledger. Vanilla makes the opposite trade with
+// GameConditionManager.cachedAlwaysDark and pays for it with exactly those two hooks.
 public static class MapSky
 {
     // Whether weather can roll overhead — see MapSkyMath.HasSky. This is §13's question. If you are
@@ -76,6 +86,82 @@ public static class MapSky
     {
         BiomeDef biome = map?.Biome;
         return biome == null || !biome.disableShadows;
+    }
+
+    // Whether the sky over this map is opaque RIGHT NOW — an active non-eclipse blackout condition.
+    // See MapSkyMath.ConditionBlacksOutSky for which conditions those are, why the class rather than a
+    // def list is the test, and why the eclipse must be carved out.
+    //
+    // Composes with the two static gates rather than replacing either, because the two lanes need
+    // different companions: a sky-colour effect wants `IsEnclosed || SkyBlackedOut` and a shadow effect
+    // wants `!DrawsShadows || SkyBlackedOut`. There is no single combined predicate that serves both, so
+    // each call site names the two terms it needs.
+    //
+    // FALSE for a null map, matching DrawsShadows' direction rather than HasSky's: an unknown map should
+    // keep rendering what it renders today, and for a gate that SUPPRESSES our effect that means false.
+    public static bool SkyBlackedOut(Map map)
+    {
+        if (map == null)
+            return false;
+
+        // Walk the manager chain the same way vanilla's own GameConditionManager.ElectricityDisabled
+        // does: a map's own conditions, then the world's, which is where quest- and planet-scale
+        // conditions live. Reading map.gameConditionManager.ActiveConditions alone would miss those.
+        GameConditionManager manager = map.gameConditionManager;
+        while (manager != null)
+        {
+            if (AnyConditionBlacksOutSky(manager.ActiveConditions, map))
+                return true;
+
+            manager = manager.Parent;
+        }
+
+        return false;
+    }
+
+    private static bool AnyConditionBlacksOutSky(List<GameCondition> conditions, Map map)
+    {
+        if (conditions == null)
+            return false;
+
+        for (int i = 0; i < conditions.Count; i++)
+        {
+            if (BlacksOutSky(conditions[i], map))
+                return true;
+        }
+
+        return false;
+    }
+
+    private static bool BlacksOutSky(GameCondition condition, Map map)
+    {
+        if (condition == null)
+            return false;
+
+        // Class test first, because it is one type check and rejects almost every condition a real
+        // colony ever carries, whereas CanApplyOnMap below is several branches and a possible
+        // waterBodyTracker walk.
+        //
+        // A null GameConditionDefOf.Eclipse (defs not loaded yet) compares equal to a null condition
+        // def and reads as "this IS the eclipse", i.e. as not blacked out — the direction that leaves
+        // rendering alone.
+        bool blacksOut = MapSkyMath.ConditionBlacksOutSky(
+            condition is GameCondition_NoSunlight,
+            condition.def == GameConditionDefOf.Eclipse);
+        if (!blacksOut)
+            return false;
+
+        // CanApplyOnMap and nothing else, deliberately: this is exactly the filter
+        // SkyManager.CurrentSkyTarget applies when it decides whether a condition's SkyTarget composes
+        // into the sky, so our gate opens and closes on precisely the frames vanilla's own darkening
+        // does. It also gets the underground exclusion for free — both DarkenedSkies and Eclipse set
+        // allowUnderground false, so neither is ever reported on a cave map.
+        //
+        // NOT HiddenByOtherCondition, even though vanilla's ElectricityDisabled pairs the two. That one
+        // reports `silencedByConditions` (DarkenedSkies is silenced by Anomaly's UnnaturalDarkness) and
+        // governs the UI label and gameplay silencing — CurrentSkyTarget ignores it and darkens the sky
+        // anyway, so consulting it here would re-open our gate on a map that is still visibly black.
+        return condition.CanApplyOnMap(map);
     }
 
     // How many weathers this biome can actually roll, i.e. how many it lists at a commonality above
