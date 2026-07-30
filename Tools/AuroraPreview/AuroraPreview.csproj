@@ -17,5 +17,7 @@
          the contour field rather than instead of it: the only useful output of this tool while the
          two are competing is both of them rendered from the same code at the same instant. -->
     <Compile Include="../../Source/AuroraCurtainHemRays.cs" Link="AuroraCurtainHemRays.cs" />
+    <Compile Include="../../Source/AuroraFieldSpec.cs" Link="AuroraFieldSpec.cs" />
+    <Compile Include="../../Source/AuroraSheetLayout.cs" Link="AuroraSheetLayout.cs" />
   </ItemGroup>
 </Project>
