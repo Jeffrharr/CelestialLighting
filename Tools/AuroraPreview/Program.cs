@@ -84,6 +84,14 @@ public static class Program
         Console.WriteLine();
         Console.WriteLine("sidebyside.png            contour on top, hem-rays below, same instant and ground");
 
+        WriteSideBySideFrames(outDir, contour, hemRays, tint, strength);
+        Console.WriteLine($"frames_sidebyside/        {FrameCount} frames of the same stacked layout, both" +
+                          " fields on the same tick");
+        Console.WriteLine();
+        Console.WriteLine("  ./make_animation.sh <outdir> 12 contour");
+        Console.WriteLine("  ./make_animation.sh <outdir> 12 hemrays");
+        Console.WriteLine("  ./make_animation.sh <outdir> 12 sidebyside");
+
         return 0;
     }
 
@@ -143,6 +151,105 @@ public static class Program
         },
     };
 
+    // ---- Animation -------------------------------------------------------------------------------
+    //
+    // The filmstrip below was always a compromise. Six stills an hour apart can tell you the field is
+    // moving and roughly how fast, but they cannot tell you whether it is MOVING WELL — whether the
+    // curtain writhes and folds or merely slides sideways, which is the entire difference between an
+    // aurora and a scrolling texture, and the thing issue #42 actually complains about.
+    //
+    // So we also dump frame sequences. Deliberately directories of PNGs rather than an encoded video
+    // written from C#: encoding is not this tool's job, ffmpeg is already on the box and far better at
+    // it, and raw frames stay useful for anything else (a side-by-side, a contact sheet, a single frame
+    // pulled out to look at closely).
+    //
+    // THE THREE CONSTANTS BELOW ARE COPIED FROM THE aurora-overlay BRANCH AND MUST NOT DRIFT FROM IT.
+    // Both branches are animating the same question, and a GIF at a different time base cannot be
+    // watched back to back against the other one without mentally rescaling the speed — which is
+    // exactly the judgement error the animation exists to remove.
+    private const int FrameCount = 48;
+
+    // 300 ticks is five in-game minutes. Across 48 frames that is four in-game hours, over which the
+    // near layer pans further than the 120-cell view is wide, so every part of the field passes through
+    // frame at least once and nothing hides at the edge.
+    private const int TicksPerFrame = 300;
+
+    // Half the still's resolution. These are judged as motion, where detail matters far less than
+    // cadence, and it keeps the whole sequence to a couple of seconds of rendering.
+    private const int FramePixelsPerCell = 4;
+
+    // NOT a seamless loop, and it cannot cheaply be made one: the drift and the pan offsets have
+    // different periods and their common cycle is DriftWrapTicks — millions of ticks, thousands of
+    // frames. A player never sees a loop either, so matching that is the honest preview.
+    private static void WriteFrames(string outDir, FieldSpec spec, float[] tint, float strength)
+    {
+        string dir = Path.Combine(outDir, "frames_" + spec.Name);
+        Directory.CreateDirectory(dir);
+
+        for (int f = 0; f < FrameCount; f++)
+        {
+            int ticks = f * TicksPerFrame;
+            byte[] field = BakeField(spec, ticks, tint);
+            byte[] frame = Composite(spec, field, ticks, strength, ViewCellsY, FramePixelsPerCell);
+
+            Png.Write(Path.Combine(dir, $"frame_{f:D3}.png"),
+                ViewCellsX * FramePixelsPerCell, ViewCellsY * FramePixelsPerCell, frame);
+        }
+    }
+
+    // The same stacked layout as sidebyside.png, one frame per tick step, with BOTH fields advanced to
+    // the same tick. This is the deliverable: "which of these moves more like an aurora" is a question
+    // about two clips playing at once, and answering it from two separate GIFs means holding one in
+    // memory while watching the other, which is precisely what nobody can do reliably.
+    private static void WriteSideBySideFrames(
+        string outDir, FieldSpec top, FieldSpec bottom, float[] tint, float strength)
+    {
+        string dir = Path.Combine(outDir, "frames_sidebyside");
+        Directory.CreateDirectory(dir);
+
+        int width = ViewCellsX * FramePixelsPerCell;
+        int panel = ViewCellsY * FramePixelsPerCell;
+        int height = panel * 2 + DividerRows;
+
+        for (int f = 0; f < FrameCount; f++)
+        {
+            int ticks = f * TicksPerFrame;
+
+            byte[] topFrame = Composite(
+                top, BakeField(top, ticks, tint), ticks, strength, ViewCellsY, FramePixelsPerCell);
+            byte[] bottomFrame = Composite(
+                bottom, BakeField(bottom, ticks, tint), ticks, strength, ViewCellsY, FramePixelsPerCell);
+
+            byte[] image = new byte[width * height * 4];
+            Array.Copy(topFrame, 0, image, 0, topFrame.Length);
+            FillDivider(image, width, panel);
+            Array.Copy(bottomFrame, 0, image, (panel + DividerRows) * width * 4, bottomFrame.Length);
+
+            Png.Write(Path.Combine(dir, $"frame_{f:D3}.png"), width, height, image);
+        }
+    }
+
+    // Rows of separator between the two panels, painted opaque rather than left as the buffer's zeroed
+    // (and therefore fully transparent) default. GIF has one-bit alpha and ffmpeg's palettegen would
+    // have to spend it on a divider nobody is looking at, which is how a transparent gutter turns into
+    // a flickering one.
+    private const int DividerRows = 3;
+
+    private static void FillDivider(byte[] image, int width, int panel)
+    {
+        for (int y = panel; y < panel + DividerRows; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                int i = (y * width + x) * 4;
+                image[i] = 90;
+                image[i + 1] = 90;
+                image[i + 2] = 90;
+                image[i + 3] = 255;
+            }
+        }
+    }
+
     // ---- Output ---------------------------------------------------------------------------------
 
     private static byte[] Render(string outDir, FieldSpec spec, float[] tint, float strength)
@@ -152,13 +259,17 @@ public static class Program
         WriteFieldTexture(Path.Combine(outDir, spec.Name + "_field.png"), spec, field);
         Console.WriteLine($"{spec.Name}_field.png      {spec.Resolution}^2 baked texture, 4x nearest zoom");
 
-        byte[] composite = Composite(spec, field, ticks: 0, strength, ViewCellsY);
+        byte[] composite = Composite(spec, field, ticks: 0, strength, ViewCellsY, PixelsPerCell);
         Png.Write(Path.Combine(outDir, spec.Name + "_composite.png"),
             ViewCellsX * PixelsPerCell, ViewCellsY * PixelsPerCell, composite);
         Console.WriteLine($"{spec.Name}_composite.png  {ViewCellsX}x{ViewCellsY} cells, additive over night ground");
 
         WriteFilmstrip(Path.Combine(outDir, spec.Name + "_motion.png"), spec, tint, strength);
         Console.WriteLine($"{spec.Name}_motion.png     6 frames, 1 in-game hour apart, to judge drift and undulation");
+
+        WriteFrames(outDir, spec, tint, strength);
+        Console.WriteLine($"frames_{spec.Name}/      {FrameCount} frames, {TicksPerFrame} ticks apart" +
+                          $" — ./make_animation.sh <outdir> 12 {spec.Name}");
 
         ReportCoverage(spec, field);
         ReportCost(spec, tint);
@@ -217,19 +328,20 @@ public static class Program
     // Irrelevant for the contour field, which has no preferred direction; load-bearing for the hem-rays
     // field, whose entire premise is that rays point up. Getting it wrong would render it upside down and
     // the comparison would be meaningless.
-    private static byte[] Composite(FieldSpec spec, byte[] field, int ticks, float strength, int cellsY)
+    private static byte[] Composite(
+        FieldSpec spec, byte[] field, int ticks, float strength, int cellsY, int pixelsPerCell)
     {
-        int width = ViewCellsX * PixelsPerCell;
-        int height = cellsY * PixelsPerCell;
+        int width = ViewCellsX * pixelsPerCell;
+        int height = cellsY * pixelsPerCell;
         byte[] image = new byte[width * height * 4];
 
         for (int py = 0; py < height; py++)
         {
-            float cellY = (float)(height - 1 - py) / PixelsPerCell;
+            float cellY = (float)(height - 1 - py) / pixelsPerCell;
 
             for (int px = 0; px < width; px++)
             {
-                float cellX = (float)px / PixelsPerCell;
+                float cellX = (float)px / pixelsPerCell;
 
                 float r = NightGround[0];
                 float g = NightGround[1];
@@ -271,7 +383,7 @@ public static class Program
         {
             int ticks = f * ticksPerHour;
             byte[] field = BakeField(spec, ticks, tint);
-            byte[] strip = Composite(spec, field, ticks, strength, stripCells);
+            byte[] strip = Composite(spec, field, ticks, strength, stripCells, PixelsPerCell);
 
             Array.Copy(strip, 0, image, f * (stripHeight + 2) * width * 4, strip.Length);
         }
@@ -285,11 +397,12 @@ public static class Program
     {
         int width = ViewCellsX * PixelsPerCell;
         int panel = ViewCellsY * PixelsPerCell;
-        int height = panel * 2 + 3;
+        int height = panel * 2 + DividerRows;
         byte[] image = new byte[width * height * 4];
 
         Array.Copy(top, 0, image, 0, top.Length);
-        Array.Copy(bottom, 0, image, (panel + 3) * width * 4, bottom.Length);
+        FillDivider(image, width, panel);
+        Array.Copy(bottom, 0, image, (panel + DividerRows) * width * 4, bottom.Length);
 
         Png.Write(path, width, height, image);
     }
