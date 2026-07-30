@@ -124,6 +124,10 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
 
     private bool _placed;
 
+    // The tick the field was last baked at. Sentinel is int.MinValue rather than 0, because tick 0 is a
+    // real tick a scenario can genuinely sit on.
+    private int _lastBakedTick = int.MinValue;
+
     private AuroraCurtainOverlay()
     {
     }
@@ -161,7 +165,27 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
         // advance in jerks and eventually freeze. See AuroraCurtainHemRays.DriftWrapTicks.
         int wrapped = ticksGame % spec.DriftWrapTicks;
 
-        Regenerate(spec, wrapped, tint, tintWeight);
+        // BAKE ON TICKS, DRAW ON FRAMES.
+        //
+        // This postfix runs from Map.MapUpdate, i.e. once per rendered FRAME, but everything the field
+        // depends on is a function of TicksGame. So at any framerate above the tick rate the extra
+        // frames were re-baking pixels identical to the ones already in the buffer — at ~350 fps that
+        // is five of every six bakes thrown away — and while the game is PAUSED it regenerated forever
+        // against a frozen clock, which is the worst case because a paused game is exactly when someone
+        // is reading a tooltip and not expecting the mod to be busy.
+        //
+        // Profiling is what found this: the per-call cost was fine and the call COUNT was the problem.
+        // Gating on the tick changing costs one comparison and removes the redundancy entirely, with no
+        // visual difference of any kind — the field cannot change faster than game time does.
+        //
+        // Placement still updates every frame. It is a handful of float operations, it keeps alpha
+        // responsive as the condition fades, and it is not what the profiler was pointing at.
+        if (ticksGame != _lastBakedTick)
+        {
+            _lastBakedTick = ticksGame;
+            Regenerate(spec, wrapped, tint, tintWeight);
+        }
+
         PlaceSheets(spec, map, wrapped, strength);
         return true;
     }
