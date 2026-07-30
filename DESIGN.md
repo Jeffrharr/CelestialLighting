@@ -2110,6 +2110,33 @@ composition suggests. §5's night floor was already being flattened by vanilla b
 it stops the mod asserting moonlight it cannot see and closes the partial-lerp window during a sun
 blocker's 200-tick fade-in.
 
+**A blacked-out map is permanent night, and that is vanilla's doing rather than ours.** Once the
+condition actually applies, `LerpDarken` drives glow to `Min(A.glow, 0)` and the sky colour to the
+per-channel minimum of the weather palette and `EclipseSkyColors`, both hour-independent — so the map
+has no day left in it. Measured across a full day on a blacked-out Glowforest the composed frame sits
+at mean RGB 22.6/24.8/23.9 at noon, 17:00 and 23:00 alike, against an open-sky midnight of
+22.3/24.8/23.4. Those numbers are identical before and after this change, so the gate neither creates
+nor removes the property; what it does is stop §5's night floor from being the one thing that could
+have reintroduced a cycle (vanilla was already flattening it, so this is belt-and-braces) and remove
+the sun shadows that were the only remaining evidence of a sun. `sky_blackout_gate.json` pins noon
+against midnight directly, because a diurnal term creeping back in is the regression a screenshot
+would show last. The single exception is dusk, where Clear's palette carries blue 0.423 — *below* the
+condition's own 0.682 — so the per-channel min keeps the weather's lower blue and the frame reads
+~6/255 poorer in blue than the rest of the day. Vanilla's composition, small, and left alone.
+
+**A harness trap this work fell into and the scenarios now document.** `GameConditionUtility.LerpInOutValue`
+returns 0 for a condition whose `TicksPassed` is negative *or* whose `TicksLeft` is, so a registered
+condition can contribute nothing to the sky while still being present. Both routes were hit:
+`StartCondition`'s `durationHours: 0` documents itself as permanent but reaches
+`GameConditionMaker.MakeCondition(def, -1)`, and `GameCondition.Duration`'s setter sets
+`permanent = false` — so `TicksLeft` is negative rather than the condition being permanent; and a
+`SetTime` step that rewinds the clock behind `startTick` makes `TicksPassed` negative. The first draft
+of `sky_blackout_gate.json` hit the former, which is worth recording because of *how* it hid: our gate
+keys on the condition's presence and so fired correctly regardless, every probe passed, and the frames
+behind them were dark because of the Eclipse the same scenario started for the carve-out check. One
+condition per scenario (hence `sky_blackout_eclipse_carveout.json`) plus `agedHours` back-dating is
+what makes either file's darkness attributable to the thing it names.
+
 **Binary rather than a strength factor**, deliberately. Both real cases are step functions —
 `DarkenedSkies` is `GameCondition_NoSunlight_Instant` (`TransitionTicks` 0) and Glowforest's is
 permanent — so the only thing a float would buy is Royalty's `SunBlocker` fading in over 200 ticks

@@ -1,0 +1,98 @@
+{
+  "name": "sky_blackout_eclipse_carveout",
+  "saveFile": "minimal_colony.rws",
+  "description": "The other half of §17's dynamic gate (issue #35): an Eclipse must NOT read as a blackout. Split out of sky_blackout_gate.json rather than sharing its run, because the harness has no EndCondition step — an eclipse started there stayed live for every step after it, so the blackout half's darkness could not be attributed to the blackout. One condition per scenario is the only way either claim means anything. MUST RUN STANDALONE: GameConditions survive the harness's soft reset (see core_design_suite.txt).",
+  "steps": [
+    {
+      "_comment": "Same tile, season, weather, biome and hour as sky_blackout_gate.json's shadow lane, so the readings here are directly comparable to that file's open-sky baseline and blacked-out result.",
+      "type": "SetTile",
+      "args": {
+        "latitude": "20"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetBiome",
+      "args": {
+        "biomeDef": "Glowforest"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "17"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "map_sky_blacked_out",
+        "expectedValue": "0",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "_comment": "agedHours 12 into a 24-hour eclipse parks the unnatural ramp at full coverage, as eclipse.json pins it. Back-dating startTick also keeps TicksPassed positive, which matters more than it looks: GameConditionUtility.LerpInOutValue returns 0 for a condition whose TicksPassed is negative or whose TicksLeft is, so a scenario that rewinds the clock past startTick silently renders its own condition inert.",
+      "type": "StartCondition",
+      "args": {
+        "conditionDef": "Eclipse",
+        "durationHours": "24",
+        "agedHours": "12"
+      }
+    },
+    {
+      "_comment": "THE CARVE-OUT. Eclipse is the same GameCondition_NoSunlight class the gate keys on, and §10/§10a exist to reshape it, so a gate on the class alone would switch our own eclipse handling off. This is the only place that failure is observable: an eclipse sky and a sulfur sky read near-identically in every downstream effect probe, because vanilla composes both from the same EclipseSkyColors.",
+      "type": "Probe",
+      "args": {
+        "probeName": "map_sky_blacked_out",
+        "expectedValue": "0",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "_comment": "And §10 is still reshaping it — the positive half of the same claim. A gate that had swallowed the eclipse would leave this at vanilla's flat dim instead.",
+      "type": "Probe",
+      "args": {
+        "probeName": "eclipse_coverage",
+        "expectedValue": "1.0",
+        "tolerance": "0.02"
+      }
+    },
+    {
+      "_comment": "Shadows survive an eclipse, identical to sky_blackout_gate.json's open-sky baseline at this same hour (0.7782) and unlike its blacked-out result (1.0). Not an aspiration — a pin on today's behaviour, so a later decision to suppress shadows during an eclipse (a real question, deliberately out of scope for issue #35) shows up as a deliberate change rather than as collateral. Vanilla behaves the same way: GameCondition_NoSunlight's Color.white shadow is a no-op under SkyColorSet.LerpDarken's per-channel min.",
+      "type": "Probe",
+      "args": {
+        "probeName": "moon_shadow_render",
+        "expectedValue": "0.7782",
+        "tolerance": "0.02"
+      }
+    },
+    {
+      "_comment": "The eclipse DOES darken the sky — this is what makes the pair above meaningful rather than vacuous. The gate stays open on a map that is visibly black, which is exactly the distinction 'the sun is covered' versus 'the sky is opaque' is about.",
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_glow",
+        "expectedValue": "0.0",
+        "tolerance": "0.02"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "carveout_eclipse_lowsun.png"
+      }
+    }
+  ]
+}
