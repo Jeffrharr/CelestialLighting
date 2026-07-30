@@ -13,3 +13,9 @@ Tools/**/bin/
 Tools/**/__pycache__/
 *.pyc
 dist/
+
+# Offline preview output (Tools/AuroraPreview). Renders are large, binary, and regenerable from the
+# shipped pure core in about a second, so they are working artifacts rather than source — a 7 MB GIF
+# in history is permanent, and the field it shows is not. Keep them here while iterating; attach the
+# two or three that matter to the PR instead of committing them.
+Tools/AuroraPreview/renders/
