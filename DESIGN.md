@@ -1415,6 +1415,26 @@ existence in precisely the conditions they exist for. `VisEffects` is above the 
 still below `FogOfWar`, so the curtain glows through the dark while unexplored map stays fogged.
 `ApiCompatibilityTests` asserts that *ordering*, not merely that the enum members exist.
 
+**What occludes it, and why that disagrees with vanilla weather.** Neither roofs nor fog of war hide the
+aurora. Vanilla weather behaves the opposite way — measured, not assumed: with a block of `RoofRockThick`
+laid over the map (`Tests/Scenarios/roof_check.json`), rain's streak variation drops from 11.7 to 4.7
+under the roof while the aurora carries across the boundary at full strength. That places
+`SectionLayer_IndoorMask` between `AltitudeLayer.Weather` and `VisEffects`; it could not be read from the
+code, because those materials are `MatLoader` assets whose render queue lives in a Unity bundle rather
+than in `Assembly-CSharp.dll`.
+
+The inconsistency is deliberate, and it is about how a player *thinks* rather than about physics. **An
+aurora is ~100 km up; rain lands on your head.** A roof stopping rain matches intuition exactly, so
+vanilla is right to occlude it. A roof stopping a light in the upper atmosphere does not — you would
+still see it through the gap you are standing in, and a colonist under a mountain is not the audience
+anyway. The same argument covers fog of war: an aurora is not hidden by the player's ignorance of the
+terrain beneath it, so §11a draws one `AltInc` above `FogOfWar` and, in strict physical terms, both games
+are being inconsistent in opposite directions. This one picks the reading a person would expect.
+
+The ordering is pinned by `ApiCompatibilityTests`, not just the member names — a renamed `AltInc` stops
+the mod compiling, whereas a reordered `AltitudeLayer` leaves it compiling and quietly drawing the aurora
+under the fog or over `WorldClipper`.
+
 **Cost, and where it actually goes.** The shipping field's noise is a function of `u` alone, so a whole
 texture column shares it — 19 samples per column, none per pixel. The adapter bakes 6 rows a frame, and
 originally rebuilt that table on every one of those calls, which turned the saving into *19 samples per
