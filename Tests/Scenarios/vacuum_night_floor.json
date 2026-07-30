@@ -62,6 +62,10 @@
     { "type": "SetTime", "args": { "hour": "1" } },
     { "type": "Wait", "args": { "frames": "30" } },
     { "type": "Probe", "args": { "probeName": "moon_elevation", "expectedValue": "23.47", "tolerance": "0.1" } },
-    { "type": "Probe", "args": { "probeName": "night_radiance", "expectedValue": "0.09011", "tolerance": "0.0005" } }
+    {
+      "_comment": "THE MOONLIT ORBITAL FLOOR, and the one pin ce6bdbf ('stop charging the vacuum moon for air that is not there') missed when it recomputed the other two. That commit rescaled the vacuum moon by 1/ZenithTransmittance = 1.294x, because IlluminanceMath.FullMoonZenithLux is a MEASURED SEA-LEVEL figure and the same moon above the atmosphere delivers 0.267 / 0.773 lux. Only the moon term moves, so the correction is exact arithmetic rather than a re-measurement: the moonless orbital floor is 0.031668 (pinned three times above, and it still passes), the stale 0.09011 therefore carried a moon term of 0.058442, and 0.031668 + 0.058442 * 1.294 = 0.10729 against a measured 0.10730. Recomputed rather than loosened, and the tolerance deliberately stays at 0.0005 so the next photometry change has to come back through here too.",
+      "type": "Probe",
+      "args": { "probeName": "night_radiance", "expectedValue": "0.10730", "tolerance": "0.0005" }
+    }
   ]
 }
