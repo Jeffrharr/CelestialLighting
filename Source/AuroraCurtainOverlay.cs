@@ -59,7 +59,14 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
     // MaxSheets of them, allocated up front because `new Material` must be on the main thread and the
     // sheet count is not known until a map is drawn. Unused ones cost a few hundred bytes and never
     // reach a draw call.
+    //
+    // TWO SETS, not one, because each display is drawn twice — once from the field as it was at the end
+    // of the last refresh sweep and once from the sweep before that, cross-faded. See Upload for why
+    // that is what makes the aurora move smoothly, and why additive blending makes the cross-fade exact
+    // rather than approximate.
     private static readonly Material[] Sheets = BuildSheetMaterials();
+
+    private static readonly Material[] PrevSheets = BuildSheetMaterials();
 
     // One unit quad in the XZ plane, centred on the origin, scaled per sheet by the draw matrix.
     //
@@ -80,11 +87,17 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
     // of a playthrough this subsystem is one null check per frame and these two stay null.
     //
     // They are NOT released when the event ends, which the plan originally called for and which is the
-    // wrong trade. Together they are ~150 KB — genuinely nothing — while releasing them buys a
+    // wrong trade. Together they are ~300 KB — genuinely nothing — while releasing them buys a
     // destroyed-texture-still-referenced bug and a realloc storm if an aurora sits flickering at the
     // night-visibility threshold. What actually costs is the per-frame regeneration, and that stops
     // dead the moment strength hits zero (see Advance).
-    private Texture2D _texture;
+    //
+    // Two textures rather than one: _texNew holds the field as of the last completed sweep, _texPrev
+    // as of the one before it, and the pair is cross-faded across the sweep in progress. They swap
+    // roles on every upload, so neither is "the" texture and the pixel buffer bakes into whichever is
+    // about to become the new front.
+    private Texture2D _texNew;
+    private Texture2D _texPrev;
     private byte[] _pixels;
 
     // Next row to regenerate; wraps at ResolutionY, so the refresh rolls continuously up the texture.
@@ -94,6 +107,9 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
     // returns to the bottom, which is what turns "19 noise samples per column, thirty-two times over"
     // into "19 samples per column".
     private AuroraCurtainHemRays.ColumnTable _columnTable;
+
+    // The driver colour the sweep in progress is being baked with, pinned when it began. See Regenerate.
+    private Color _sweepTint = Color.white;
 
     // How many quads to draw this frame, and which slot each one belongs to. Decided in Advance where
     // the map is in hand. Slots are not consecutive — slot 2 can be lit while 0, 1 and 3 are dark — so
@@ -242,12 +258,20 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
     // marshalling in between. Apply(false) skips mip regeneration, which this texture does not have.
     private void Regenerate(AuroraFieldSpec spec, float time, Color tint, float tintWeight)
     {
+        // THE TINT IS PINNED PER SWEEP, exactly as `time` is, and for the same reason. Each slice used
+        // to bake the driver's colour as sampled on ITS tick, so a tile assembled over 32 ticks carried
+        // a vertical gradient of colours rather than one. It shows up during the vanilla Aurora event,
+        // whose palette transitions run 280 ticks: a sweep spans ~11% of a full colour change, so the
+        // top and bottom of the tile were visibly a different green. Pinning costs one Color field.
+        if (_rowCursor == 0)
+            _sweepTint = tint;
+
         if (spec.CachesColumnTable)
-            RegenerateFromTable(spec, time, tint, tintWeight);
+            RegenerateFromTable(spec, time, _sweepTint, tintWeight);
         else
             spec.Fill(
                 _pixels, spec.ResolutionX, spec.ResolutionY, _rowCursor, spec.RefreshRows, time,
-                tint.r, tint.g, tint.b, tintWeight);
+                _sweepTint.r, _sweepTint.g, _sweepTint.b, tintWeight);
 
         _rowCursor += spec.RefreshRows;
 
@@ -274,17 +298,82 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
         Upload();
     }
 
-    // Pushes the back buffer to the GPU.
+    // Retires the field on screen and promotes the one just baked, then pushes the back buffer into the
+    // freed texture.
     //
-    // Also called once at allocation, and that call is not optional: a freshly constructed Texture2D's
-    // contents are UNDEFINED, not zeroed. While the upload happened every frame that never mattered
-    // because the first frame overwrote it; uploading only on sweep completion would otherwise leave
-    // whatever the driver handed us on screen for the first thirty-odd frames of an aurora.
+    // ================================================================================================
+    // WHY THE OLD FIELD IS KEPT: THE UPLOAD IS THE ONLY THING THAT MOVES A BOUNDED PATCH
+    //
+    // §11a's performance argument used to run: regeneration is coarse, but that is fine because "the
+    // GPU pans the texture every frame, supplying all the smooth motion, while regeneration supplies
+    // only change of shape". That was true of the whole-map spanning plane. It stopped being true when
+    // sheets became bounded patches, because a bounded patch CANNOT pan its UVs — with a non-zero
+    // offset and Repeat wrapping the baked taper slides into the middle of the quad — so PlaceSheets
+    // pins its offset to zero and the field's own PanU is never applied.
+    //
+    // Which left the upload as the ONLY thing changing the interior of a patch, and the upload happens
+    // once per completed sweep. Baking on ticks rather than frames then stretched a sweep from ~32
+    // frames to 32 ticks — over three times longer in wall-clock at any framerate above the tick rate —
+    // so the one remaining source of motion got 3.3x chunkier. The colour is where it shows first,
+    // because during a vanilla Aurora event the palette is transitioning over 280 ticks and a sweep
+    // boundary every 32 of those quantises that glide into ~9 visible steps.
+    //
+    // ================================================================================================
+    // THE FIX, AND WHY ADDITIVE BLENDING MAKES IT FREE OF SHADER WORK
+    //
+    // Keep the previous completed sweep as well, and draw each display twice: the old field at 1-t and
+    // the new one at t, where t is how far the sweep in progress has got. Under ADDITIVE blending the
+    // two draws sum, so old*(1-t) + new*t is an EXACT linear cross-fade — not an approximation of one,
+    // and with no custom shader, no second UV set and no render texture.
+    //
+    // The result advances once per tick instead of once per sweep: 32x finer, and per-tick is as fine
+    // as it can meaningfully be, since every input the field has is a function of TicksGame.
+    //
+    // The costs are a second 147 KB texture and a second draw call per live display, both paid only
+    // while an aurora is actually up. The displayed field also lags by one more sweep — about half a
+    // second, for a field whose shape evolves over minutes.
+    //
+    // The two fields being blended are 32 ticks apart, i.e. ~0.6% of one feature period, so they are
+    // very nearly the same picture and the blend reads as motion rather than as a dissolve. That is
+    // what makes this a cross-fade in name only: it is interpolating between two samples of a
+    // continuous field, which is exactly what was missing.
+    //
+    // Called once at allocation too, and that call is not optional: a freshly constructed Texture2D's
+    // contents are UNDEFINED, not zeroed. Both textures are primed there, so the very first sweep
+    // cross-fades from a zeroed field — invisible under additive blending — rather than from whatever
+    // the driver happened to hand us.
     private void Upload()
     {
-        _texture.LoadRawTextureData(_pixels);
-        _texture.Apply(false);
+        Texture2D retired = _texPrev;
+        _texPrev = _texNew;
+        _texNew = retired;
+
+        _texNew.LoadRawTextureData(_pixels);
+        _texNew.Apply(false);
+
+        BindTextures();
     }
+
+    // Materials hold a texture reference rather than an index, so the roles swapping has to be pushed
+    // into them. Eight assignments once per sweep, against the alternative of resolving which texture
+    // is which on every draw.
+    private void BindTextures()
+    {
+        for (int i = 0; i < Sheets.Length; i++)
+        {
+            Sheets[i].mainTexture = _texNew;
+            PrevSheets[i].mainTexture = _texPrev;
+        }
+    }
+
+    // How far through the sweep in progress the refresh has got, in [0, 1). This is the cross-fade
+    // factor: 0 just after an upload (show the older field, which is what was on screen a moment ago)
+    // rising to 1 as the newer one is reached.
+    //
+    // Derived from the row cursor rather than from a separate clock, so it cannot disagree with the
+    // refresh it is describing — the same discipline that keeps _driftPhase resolved once per frame.
+    private float SweepProgress =>
+        Spec.ResolutionY <= 0 ? 1f : (float)_rowCursor / Spec.ResolutionY;
 
     // Rebuilds the per-column table only at the start of a sweep, then reuses it for every slice of
     // that sweep.
@@ -345,14 +434,24 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
         AuroraSheetPlacement p = AuroraSheetLayout.WithDrift(home, _driftPhase * home.UScale);
         _placements[slot] = p;
 
-        Material mat = Sheets[slot];
-        mat.mainTextureScale = new Vector2(p.UScale, p.VScale);
-        mat.mainTextureOffset = Vector2.zero;
-
         // Three factors, and all three have to be here rather than folded into one. `strength` is the
         // whole effect (night visibility and the condition's own hour-long ramp), `p.Alpha` is this
         // display's peak brightness, and `display.Alpha` is where it is in its own few-hour life.
-        mat.color = new Color(1f, 1f, 1f, strength * p.Alpha * display.Alpha);
+        float alpha = strength * p.Alpha * display.Alpha;
+
+        // Split across the two fields being cross-faded. The two alphas sum to `alpha` at every t, so
+        // the display's brightness is unaffected by where in the sweep it is caught — under additive
+        // blending the split is a lerp, not a doubling. See Upload.
+        float t = SweepProgress;
+        SetSheet(Sheets[slot], p, alpha * t);
+        SetSheet(PrevSheets[slot], p, alpha * (1f - t));
+    }
+
+    private static void SetSheet(Material mat, in AuroraSheetPlacement p, float alpha)
+    {
+        mat.mainTextureScale = new Vector2(p.UScale, p.VScale);
+        mat.mainTextureOffset = Vector2.zero;
+        mat.color = new Color(1f, 1f, 1f, alpha);
     }
 
     // The spot a slot's current display stands on, placed once when the display spawned and reused for
@@ -396,17 +495,24 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
     private void PlaceSpanningSheets(AuroraFieldSpec spec, Map map, int wrapped, float strength)
     {
         _liveCount = AuroraSheetLayout.PlacementCount(spec, map.Size.z);
+        float t = SweepProgress;
 
         for (int i = 0; i < _liveCount; i++)
         {
             AuroraSheetPlacement p = AuroraSheetLayout.Placement(spec, i, map.Size.x, map.Size.z);
             AuroraSheetSpec sheet = spec.Sheets[i];
-            Material mat = Sheets[i];
 
-            mat.mainTextureScale = new Vector2(p.UScale, p.VScale);
-            mat.mainTextureOffset = new Vector2(
+            // This field DOES pan its UVs, so it never lost its per-frame motion the way a bounded
+            // patch did. It is cross-faded anyway: the pan moves the field rigidly and the sweep is
+            // still what changes its shape, so the same stepping is there, just better hidden.
+            Vector2 offset = new Vector2(
                 (wrapped * sheet.PanU + p.UPhase) % 1f, wrapped * sheet.PanV % 1f);
-            mat.color = new Color(1f, 1f, 1f, strength * p.Alpha);
+            float alpha = strength * p.Alpha;
+
+            SetSheet(Sheets[i], p, alpha * t);
+            SetSheet(PrevSheets[i], p, alpha * (1f - t));
+            Sheets[i].mainTextureOffset = offset;
+            PrevSheets[i].mainTextureOffset = offset;
 
             _placements[i] = p;
             _liveSlots[i] = i;
@@ -415,31 +521,33 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
 
     private void EnsureAllocated(AuroraFieldSpec spec)
     {
-        if (_texture != null && _pixels.Length == spec.PixelCount)
+        if (_texNew != null && _pixels.Length == spec.PixelCount)
             return;
 
         _pixels = new byte[spec.PixelCount];
+        _texNew = NewFieldTexture(spec);
+        _texPrev = NewFieldTexture(spec);
+        _rowCursor = 0;
 
-        // No mip chain: the plane is viewed at roughly one scale and mips would only cost memory and a
-        // generation pass per upload. Repeat wrap is what makes a tiling sheet seamless; a bounded
-        // patch never samples outside [0,1] anyway. Bilinear because softness is the intent here.
-        _texture = new Texture2D(spec.ResolutionX, spec.ResolutionY, TextureFormat.RGBA32, mipChain: false)
+        // See Upload: a new Texture2D's contents are undefined, so the zeroed back buffer has to be
+        // pushed once before anything is drawn. Twice here, so BOTH halves of the cross-fade start from
+        // a zeroed field rather than from driver garbage. Zero alpha is invisible under additive
+        // blending, which is what lets the field fill itself in over the first sweep without a priming
+        // pass.
+        Upload();
+        Upload();
+    }
+
+    // No mip chain: the plane is viewed at roughly one scale and mips would only cost memory and a
+    // generation pass per upload. Repeat wrap is what makes a tiling sheet seamless; a bounded patch
+    // never samples outside [0,1] anyway. Bilinear because softness is the intent here.
+    private static Texture2D NewFieldTexture(AuroraFieldSpec spec) =>
+        new Texture2D(spec.ResolutionX, spec.ResolutionY, TextureFormat.RGBA32, mipChain: false)
         {
             name = "CelestialLighting_AuroraCurtain",
             wrapMode = TextureWrapMode.Repeat,
             filterMode = FilterMode.Bilinear,
         };
-
-        for (int i = 0; i < Sheets.Length; i++)
-            Sheets[i].mainTexture = _texture;
-
-        _rowCursor = 0;
-
-        // See Upload: a new Texture2D's contents are undefined, so the zeroed back buffer has to be
-        // pushed once before anything is drawn. Zero alpha is invisible under additive blending, which
-        // is what lets the field fill itself in over the first sweep without a priming pass.
-        Upload();
-    }
 
     private static Material[] BuildSheetMaterials()
     {
@@ -493,7 +601,7 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
 
     public override void DrawOverlay(Map map)
     {
-        if (_texture == null)
+        if (_texNew == null)
             return;
 
         // ABOVE FogOfWar, and every part of that is deliberate.
@@ -527,15 +635,23 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
             // Separated by slot rather than by draw order, so two displays keep a stable front-to-back
             // relationship as others light and go dark around them. Under additive blending the order
             // does not change the result; it only has to be deterministic so nothing z-fights.
-            Graphics.DrawMesh(
-                SheetQuad,
-                Matrix4x4.TRS(
-                    new Vector3(p.CenterX, altitude + slot * 0.0015f, p.CenterZ),
-                    Quaternion.identity,
-                    new Vector3(p.Width, 1f, p.Height)),
-                Sheets[slot],
-                0);
+            Matrix4x4 trs = Matrix4x4.TRS(
+                new Vector3(p.CenterX, altitude + slot * 0.0015f, p.CenterZ),
+                Quaternion.identity,
+                new Vector3(p.Width, 1f, p.Height));
+
+            // Both halves of the cross-fade, at the same place and the same size — the only difference
+            // is which sweep's field they carry and how much of it they contribute. Either can be
+            // skipped at the ends of a sweep, where its share rounds to nothing.
+            DrawSheet(Sheets[slot], trs);
+            DrawSheet(PrevSheets[slot], trs);
         }
+    }
+
+    private static void DrawSheet(Material mat, Matrix4x4 trs)
+    {
+        if (mat.color.a > 0f)
+            Graphics.DrawMesh(SheetQuad, trs, mat, 0);
     }
 
     // Kept because SkyOverlay declares it abstract. Per-sheet alpha is set in PlaceSheets, which knows
@@ -543,8 +659,14 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
     // the one call that matters — Reset's parking of every sheet.
     public override void SetOverlayColor(Color color)
     {
+        // Both halves of every cross-fade. Missing PrevSheets here would leave the older field drawing
+        // at whatever alpha it last held after a Reset, which is exactly the stale-material-on-screen
+        // case Reset exists to prevent.
         for (int i = 0; i < Sheets.Length; i++)
+        {
             Sheets[i].color = color;
+            PrevSheets[i].color = color;
+        }
     }
 
     // Called when the sky state is being torn down or reset. Park EVERY sheet transparent — not just

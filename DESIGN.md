@@ -1556,12 +1556,37 @@ allocation. A solar flare or `Aurora` event is rare, short and night-only, so fo
 playthrough §11a is one null check per frame and the texture is never allocated. It is a rare-event
 effect, not an always-on one.
 
-While an aurora *is* running, the field is refreshed 6 rows of 128 per frame — a full refresh every
-~22 frames, about a third of a second. That is far slower than it sounds because regeneration is not
-what makes the aurora move: the GPU pans the texture every frame, supplying all the smooth motion,
-while regeneration supplies only change of *shape*, which a real curtain does over seconds. Rows baked
-~22 frames apart differ invisibly, and `AuroraNoise`'s determinism guarantees the overlapping lattice
-agrees exactly, so there is no seam at the slice boundary.
+While an aurora *is* running, the field is refreshed 6 rows of 192 per **tick** — a full sweep every 32
+ticks, about half a second. Rows baked a sweep apart differ invisibly, and `AuroraNoise`'s determinism
+guarantees the overlapping lattice agrees exactly, so there is no seam at the slice boundary.
+
+**Where the smooth motion comes from — and the claim that expired.** This paragraph used to say
+regeneration could be coarse because "the GPU pans the texture every frame, supplying all the smooth
+motion, while regeneration supplies only change of shape". That was true of the whole-map spanning
+plane and **stopped being true when sheets became bounded patches**: a bounded patch cannot pan its
+UVs — with a non-zero offset and `Repeat` wrapping, the baked taper slides into the middle of the quad
+and the quad's own edges get cut off square — so `PlaceSheets` pins its offset to zero and the field's
+own `PanU` is never applied. That left the *upload* as the only thing changing a patch's interior, and
+the upload fires once per completed sweep. Baking on ticks rather than frames (which is right on its
+own terms) then stretched a sweep from ~32 frames to 32 ticks, so the sole remaining source of motion
+got **3.3× chunkier**. It shows in the colour first, because during a vanilla `Aurora` event the
+palette transitions over 280 ticks and a sweep boundary every 32 of those quantises that glide into ~9
+visible steps.
+
+So the overlay keeps the **previous** completed sweep as well and draws each display twice: the old
+field at `1-t` and the new one at `t`, where `t` is how far the sweep in progress has got. Under
+additive blending the two draws sum, so this is an **exact** linear cross-fade — no custom shader, no
+second UV set, no render texture. The displayed field then advances once per tick instead of once per
+sweep, which is 32× finer and as fine as it can meaningfully be, since every input the field has is a
+function of `TicksGame`. The two fields being blended are 32 ticks apart, i.e. ~0.6% of one feature
+period, so it interpolates between two samples of a continuous field rather than dissolving between two
+pictures. Costs: a second 147 KB texture, a second draw call per live display, and one more sweep of
+display lag (~half a second) — all paid only while an aurora is up.
+
+The **driver tint is pinned per sweep** for the same reason `time` is. Each slice used to bake the
+colour as sampled on its own tick, so a tile assembled over 32 ticks carried a vertical gradient of
+colours; against those 280-tick palette transitions that is ~11% of a full colour change between the
+top and bottom of one tile.
 
 Benchmarked under the .NET 8 JIT (RimWorld's Mono is slower — the `aurora_curtain_cost` probe carries
 the real figure):
