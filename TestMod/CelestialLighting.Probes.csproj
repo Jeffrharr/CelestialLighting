@@ -41,6 +41,13 @@
     <Compile Include="../Source/Probes/AxialTiltDeclinationProbe.cs" Link="AxialTiltDeclinationProbe.cs" />
     <Compile Include="../Source/Probes/AxialTiltActiveProbe.cs" Link="AxialTiltActiveProbe.cs" />
     <Compile Include="../Source/Probes/AxialTiltLunarProbe.cs" Link="AxialTiltLunarProbe.cs" />
+    <Compile Include="../Source/Probes/PlanetsmithActiveProbe.cs" Link="PlanetsmithActiveProbe.cs" />
+    <Compile Include="../Source/Probes/PlanetsmithTiltProbe.cs" Link="PlanetsmithTiltProbe.cs" />
+    <!-- The only file under Probes/ that WRITES to another mod's state rather than reading ours: it
+         puts a steep tilt on the loaded world so the Planetsmith interop has something a probe can
+         see. The file itself explains why a save fixture cannot supply one. Dev-only by
+         construction, like everything else in this project. -->
+    <Compile Include="../Source/Probes/PlanetsmithTiltOverride.cs" Link="PlanetsmithTiltOverride.cs" />
     <Compile Include="../Source/Probes/MoonDeclinationProbe.cs" Link="MoonDeclinationProbe.cs" />
     <Compile Include="../Source/Probes/ShadowVectorXProbe.cs" Link="ShadowVectorXProbe.cs" />
     <Compile Include="../Source/Probes/CivilTwilightProbe.cs" Link="CivilTwilightProbe.cs" />

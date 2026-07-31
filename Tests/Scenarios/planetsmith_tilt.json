@@ -1,0 +1,80 @@
+{
+  "name": "planetsmith_tilt",
+  "saveFile": "minimal_colony.rws",
+  "requiredMods": {
+    "aspctt.planetsmith": "3773634615"
+  },
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "45" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "30" } },
+    { "type": "SetTime", "args": { "hour": "12" } },
+    { "type": "LookAt", "args": { "offset": "0,10", "zoom": "14" } },
+    { "type": "Wait", "args": { "frames": "120" } },
+
+    { "type": "Probe", "args": { "probeName": "planetsmith_active", "expectedValue": "1", "tolerance": "0.01" } },
+
+    { "type": "Probe", "args": { "probeName": "axial_tilt_active", "expectedValue": "0", "tolerance": "0.01" } },
+
+    { "type": "Probe", "args": { "probeName": "planetsmith_tilt", "expectedValue": "23.4", "tolerance": "0.02" } },
+
+    { "type": "Probe", "args": { "probeName": "axial_tilt_declination", "expectedValue": "23.4", "tolerance": "0.05" } },
+
+    { "type": "Screenshot", "args": { "fileName": "planetsmith_default_tilt_noon.png" } },
+
+    { "type": "SetFeature", "args": { "featureName": "planetsmith_steep_tilt", "enabled": "true" } },
+    { "type": "Wait", "args": { "frames": "30" } },
+
+    { "type": "Probe", "args": { "probeName": "planetsmith_tilt", "expectedValue": "60", "tolerance": "0.05" } },
+
+    { "type": "Probe", "args": { "probeName": "axial_tilt_declination", "expectedValue": "60", "tolerance": "0.05" } },
+
+    { "type": "Screenshot", "args": { "fileName": "planetsmith_steep_tilt_noon.png" } },
+
+    { "type": "SetFeature", "args": { "featureName": "planetsmith_geometry", "enabled": "false" } },
+    { "type": "Wait", "args": { "frames": "30" } },
+
+    { "type": "Probe", "args": { "probeName": "planetsmith_active", "expectedValue": "0", "tolerance": "0.01" } },
+
+    { "type": "Probe", "args": { "probeName": "planetsmith_tilt", "expectedValue": "23.44", "tolerance": "0.05" } },
+
+    { "type": "Probe", "args": { "probeName": "axial_tilt_declination", "expectedValue": "23.44", "tolerance": "0.05" } },
+
+    { "type": "Screenshot", "args": { "fileName": "planetsmith_feature_off_noon.png" } },
+
+    { "type": "SetFeature", "args": { "featureName": "planetsmith_geometry", "enabled": "true" } },
+    { "type": "Wait", "args": { "frames": "30" } },
+
+    { "type": "SetSeason", "args": { "dayOfYear": "0" } },
+    { "type": "Wait", "args": { "frames": "30" } },
+
+    { "type": "Probe", "args": { "probeName": "axial_tilt_declination", "expectedValue": "-60", "tolerance": "0.05" } },
+
+    { "type": "Screenshot", "args": { "fileName": "planetsmith_steep_tilt_midwinter.png" } },
+
+    { "type": "SetSeason", "args": { "dayOfYear": "15" } },
+    { "type": "Wait", "args": { "frames": "30" } },
+
+    { "type": "Probe", "args": { "probeName": "axial_tilt_declination", "expectedValue": "0", "tolerance": "0.05" } },
+
+    { "type": "SetSeason", "args": { "dayOfYear": "30" } },
+    { "type": "SetTime", "args": { "hour": "15" } },
+    { "type": "Wait", "args": { "frames": "30" } },
+
+    { "type": "Probe", "args": { "probeName": "sun_elevation", "expectedValue": "54.39", "tolerance": "0.35" } },
+
+    { "type": "Probe", "args": { "probeName": "shadow_extrude_far_cells", "expectedValue": "1.003", "tolerance": "0.02" } },
+
+    { "type": "Screenshot", "args": { "fileName": "planetsmith_steep_tilt_1500.png" } },
+
+    { "type": "SetFeature", "args": { "featureName": "planetsmith_steep_tilt", "enabled": "false" } },
+    { "type": "Wait", "args": { "frames": "30" } },
+
+    { "type": "Probe", "args": { "probeName": "planetsmith_tilt", "expectedValue": "23.4", "tolerance": "0.02" } },
+
+    { "type": "Probe", "args": { "probeName": "sun_elevation", "expectedValue": "52.69", "tolerance": "0.35" } },
+
+    { "type": "Probe", "args": { "probeName": "shadow_extrude_far_cells", "expectedValue": "1.067", "tolerance": "0.02" } },
+
+    { "type": "Screenshot", "args": { "fileName": "planetsmith_default_tilt_1500.png" } }
+  ]
+}
