@@ -37,6 +37,7 @@
     <!-- Linked, not copied: this compiles the exact file CelestialLighting.csproj excludes (see
          its <Compile Remove="Probes/**/*.cs" />), so there is only ever one copy of
          ShadowLeanProbe.cs on disk. -->
+    <Compile Include="../Source/Probes/SkirtProbe.cs" Link="SkirtProbe.cs" />
     <Compile Include="../Source/Probes/ShadowLeanProbe.cs" Link="ShadowLeanProbe.cs" />
     <Compile Include="../Source/Probes/AxialTiltDeclinationProbe.cs" Link="AxialTiltDeclinationProbe.cs" />
     <Compile Include="../Source/Probes/AxialTiltActiveProbe.cs" Link="AxialTiltActiveProbe.cs" />

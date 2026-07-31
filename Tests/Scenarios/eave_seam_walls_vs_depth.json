@@ -1,0 +1,113 @@
+{
+  "name": "eave_seam_walls_vs_depth",
+  "saveFile": "minimal_colony.rws",
+  "description": "Separates the two things every previous test confounded: whether the seam is caused by the WALLS around a roof or by the roof's DEPTH. Three eaves in one frame at one sun. A: a 12x12 open-air porch, no walls (known clean). B: a walled 12x12 room roofed only across a 2-cell strip (the reported seam). C: the same bare 2-cell strip with no walls at all. If C is clean the walls are the cause; if C seams the depth is, and the walls were incidental.",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Concrete",
+        "width": "70",
+        "height": "36",
+        "offset": "0,45",
+        "clear": "true"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "0,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "4,-6; 4,5; 5,-6; 5,5; 6,-6; 6,5; 7,-6; 7,5; 8,-6; 8,5; 9,-6; 9,5; 10,-6; 10,5; 11,-6; 11,5; 12,-6; 12,5; 13,-6; 13,5; 14,-6; 14,5; 15,-6; 15,5; 4,-5; 15,-5; 4,-4; 15,-4; 4,-3; 15,-3; 4,-2; 15,-2; 4,-1; 15,-1; 4,0; 15,0; 4,1; 15,1; 4,2; 15,2; 4,3; 15,3; 4,4; 15,4"
+      }
+    },
+    {
+      "type": "SetRoof",
+      "args": {
+        "def": "RoofConstructed",
+        "width": "12",
+        "height": "12",
+        "offset": "-14,45"
+      }
+    },
+    {
+      "type": "SetRoof",
+      "args": {
+        "def": "RoofConstructed",
+        "width": "12",
+        "height": "2",
+        "offset": "10,45"
+      }
+    },
+    {
+      "type": "SetRoof",
+      "args": {
+        "def": "RoofConstructed",
+        "width": "12",
+        "height": "2",
+        "offset": "26,45"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "18"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "6,45",
+        "zoom": "20"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "iso3_18h_on.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "eave_shadows",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "iso3_18h_off.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "eave_shadows",
+        "enabled": "true"
+      }
+    }
+  ]
+}

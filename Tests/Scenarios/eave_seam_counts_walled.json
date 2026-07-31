@@ -1,0 +1,109 @@
+{
+  "name": "eave_seam_counts_walled",
+  "saveFile": "minimal_colony.rws",
+  "description": "Caster/eave counts for one 12x2 roof strip, walled. Compared against its twin to say whether enclosing the strip changes which cells cast at all, or only where their skirts land.",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Concrete",
+        "width": "40",
+        "height": "32",
+        "offset": "0,45",
+        "clear": "true"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "0,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "-6,5; -5,5; -4,5; -3,5; -2,5; -1,5; 0,5; 1,5; 2,5; 3,5; 4,5; 5,5; -6,-6; -5,-6; -4,-6; -3,-6; -2,-6; -1,-6; 0,-6; 1,-6; 2,-6; 3,-6; 4,-6; 5,-6; -6,-5; -6,-4; -6,-3; -6,-2; -6,-1; -6,0; -6,1; -6,2; -6,3; -6,4; 5,-5; 5,-4; 5,-3; 5,-2; 5,-1; 5,0; 5,1; 5,2; 5,3; 5,4"
+      }
+    },
+    {
+      "type": "SetRoof",
+      "args": {
+        "def": "RoofConstructed",
+        "width": "12",
+        "height": "2",
+        "offset": "0,45"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "18"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "0,45",
+        "zoom": "16"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "eave_cells",
+        "expectedValue": "0",
+        "tolerance": "9999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "roof_shadow_cells",
+        "expectedValue": "0",
+        "tolerance": "9999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "caster_cells",
+        "expectedValue": "0",
+        "tolerance": "999999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "north_skirt_cells",
+        "expectedValue": "0",
+        "tolerance": "999999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "caster_height_sum",
+        "expectedValue": "0",
+        "tolerance": "999999"
+      }
+    }
+  ]
+}
