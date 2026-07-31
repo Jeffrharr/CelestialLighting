@@ -1,3 +1,4 @@
+using System;
 using CelestialLighting;
 using NUnit.Framework;
 
@@ -282,6 +283,77 @@ public class AuroraCurtainHemRaysTests
             AuroraCurtainHemRays.FillRows(cached, table, width, height, row, 6, 0.2f, 0.9f, 0.3f, 0.3f);
 
         Assert.That(cached, Is.EqualTo(oneShot));
+    }
+
+    // --- The field itself, pinned to the byte ---
+
+    // WHY A HASH AND NOT A PROPERTY. Every other test in this file asserts something the field's
+    // comments CLAIM — that it tiles, that the wrap is exact, that no hem reaches into its own rays.
+    // None of them would notice the field quietly becoming a different-looking aurora that still
+    // satisfied all of them, and CachedTable_ProducesByteIdenticalRowsToTheSingleShotPath only checks
+    // the two bake paths against EACH OTHER, so a change that moved both in step passes it.
+    //
+    // That is exactly the hole an optimisation pass falls through. The per-pixel loop is the most
+    // expensive thing §11a does (issue #60: ~490 ns/px under Mono against 43 ns/px under the .NET 8
+    // JIT), so it will be rewritten for speed more than once, and every such rewrite is supposed to be
+    // OUTPUT-PRESERVING. This is what makes that claim checkable rather than a promise: hoist an
+    // invariant, flatten a call chain, inline a helper — the hash does not move. Get the arithmetic
+    // subtly wrong and it does, in the one place a screenshot would not.
+    //
+    // The values below were taken from the field as it stood BEFORE any such pass. If a deliberate
+    // retune of the LOOK changes them they are meant to be re-pinned in the same commit that changes
+    // the look, with the new aurora described in the message — never widened, and never re-pinned in a
+    // commit whose subject says "perf".
+    //
+    // Three times rather than one because the drift feeds the noise, and a single instant could pass
+    // on a field that had stopped moving. 64x48 rather than the shipped 192x192 only to keep the test
+    // quick; it is the same loop at either size.
+    [TestCase(0f)]
+    [TestCase(4321f)]
+    [TestCase(1_399_999f)]
+    public void Field_IsByteIdenticalToItsPinnedBake(float time)
+    {
+        const int width = 64;
+        const int height = 48;
+
+        byte[] baked = new byte[width * height * 4];
+        AuroraCurtainHemRays.FillRows(baked, width, height, 0, height, time, 0.2f, 0.9f, 0.3f, 0.3f);
+
+        Assert.That(Fnv1a64(baked), Is.EqualTo(PinnedFieldHash(time)));
+    }
+
+    // Kept beside the test rather than inlined as a [TestCase] argument because a ulong literal is not
+    // a valid attribute argument in every C# version this file has to compile under, and because a
+    // switch reads as a table of pins rather than as three magic numbers in three attributes.
+    private static ulong PinnedFieldHash(float time)
+    {
+        if (time == 0f)
+            return 0xC2BBD6EE1B6364D6ul;
+
+        if (time == 4321f)
+            return 0xFEC2F3ECED722DA1ul;
+
+        if (time == 1_399_999f)
+            return 0xCFF303EE5636DD71ul;
+
+        throw new ArgumentOutOfRangeException(
+            nameof(time), time, "no pinned hash for this instant — add one rather than skipping it");
+    }
+
+    // FNV-1a, written out rather than taken from the BCL, because the pinned constants have to stay
+    // meaningful across runtimes and framework versions — string.GetHashCode and the collection hashes
+    // are explicitly allowed to vary by process.
+    private static ulong Fnv1a64(byte[] data)
+    {
+        ulong hash = 14695981039346656037ul;
+
+        foreach (byte b in data)
+        {
+            hash ^= b;
+            hash *= 1099511628211ul;
+        }
+
+        return hash;
     }
 
     // A rebuilt table must not depend on what the previous one held — the arrays are reused between
