@@ -76,6 +76,47 @@ public class FormulasObliquityTests
     }
 
     /// <summary>
+    /// Obliquity enters LINEARLY: doubling the tilt doubles the declination on every day. This is
+    /// what makes our number and Planetsmith's commensurable rather than merely both called "tilt".
+    /// Their seasonality is scaled by <c>TiltFactor = axialTilt / 23.4</c> — also linear in the tilt —
+    /// so a 60° world is 2.56× the seasonal temperature swing for them and 2.56× the declination
+    /// amplitude for us, and the sky's seasons stay in proportion to the biomes' by construction
+    /// rather than by tuning.
+    /// </summary>
+    [TestCase(2f)]
+    [TestCase(0.5f)]
+    [TestCase(60f / 23.4f)]
+    public void Obliquity_EntersLinearly(float scale)
+    {
+        const float baseTilt = 23.4f;
+
+        for (float day = 0f; day < Formulas.DaysPerYear; day += 1f)
+        {
+            Assert.That(
+                Formulas.SolarDeclinationDegrees(day, baseTilt * scale),
+                Is.EqualTo(scale * Formulas.SolarDeclinationDegrees(day, baseTilt)).Within(Tolerance),
+                $"scale {scale}, day {day}");
+        }
+    }
+
+    /// <summary>
+    /// At zero obliquity our sky is exactly seasonless, where Planetsmith's biome scoring keeps 12% of
+    /// a baseline swing (its <c>MinTiltFactor</c> floor). Pinned as a KNOWN and deliberate divergence:
+    /// that floor exists so their biome scoring does not degenerate into a single band, not because an
+    /// upright planet has seasons, and mimicking it would mean tilting our sun on a world the player
+    /// asked to stand upright. The two only disagree at the very end of the slider.
+    /// </summary>
+    [Test]
+    public void ZeroObliquity_IsSeasonlessForUsEvenThoughPlanetsmithFloorsItsOwnSwing()
+    {
+        for (float day = 0f; day < Formulas.DaysPerYear; day += 1f)
+        {
+            Assert.That(
+                Formulas.SolarDeclinationDegrees(day, 0f), Is.EqualTo(0f).Within(Tolerance), $"day {day}");
+        }
+    }
+
+    /// <summary>
     /// The equinoxes stay put. Day 15 and day 45 are where DeclinationSign crosses zero, and they
     /// must do so at every tilt — this is the "no phase change" claim at its two most visible points,
     /// and it is also the reason a scenario cannot measure this interop at an equinox.

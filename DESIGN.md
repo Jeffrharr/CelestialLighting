@@ -3818,12 +3818,36 @@ radiance and the moon together.
 argues at length that consuming RAT's obliquity and re-applying our own curve would be wrong, and it
 would — for RAT. RAT reckons the year from a different point than we do (`sin` where we use `-cos`, a
 quarter-year apart), so their tilt without their phase agrees at the equinoxes and is a season out in
-between. Planetsmith has no phase to disagree about: it does not model the in-game year at all, and
-its tilt was only ever a scalar multiplying a seasonality term during generation. Their own
-world-params dialog says so, warning that this tilt "decides how the seasons shape the planet's
-biomes while it is generated" and is separate from the one Worldbuilder uses for in-game temperature
-swings. So scaling our curve by their obliquity is the whole of the correct answer here, not a
-shortcut around a missing API. `FormulasObliquityTests.Obliquity_ScalesTheSwingWithoutMovingThePhase`
+between. Planetsmith has no phase to disagree about, and this is worth stating from their code rather
+than from their description, because "does it have a seasonal curve we should be using instead?" is
+the first question this design has to answer. It does not. Their tilt does exactly three things:
+
+    TiltFactor    = AxialTilt / 23.4f                                  // a scalar ratio
+    PoleMeanTemp += (AxialTilt - 23.4f) * 0.6f                         // a constant offset
+    swing[i]      = Lerp(3, 22, |lat|/90) * max(0.12f, TiltFactor)
+                      * seasonIntensity * (1 + 0.6f * continentality)  // an amplitude
+
+`SeasonalityPass` writes that swing out as `WinterMinTemp[i]` / `SummerMaxTemp[i]` — two *bounds*,
+not a curve — and those arrays are read only by `BiomePass.SelectBiome`, `MonsoonPass`, and their
+world-map overlay. There is no day-of-year term anywhere in the assembly, and nothing they compute
+reaches the running game's temperature, let alone a sun position. Their own world-params dialog says
+the same thing in prose, warning that this tilt "decides how the seasons shape the planet's biomes
+while it is generated" and is separate from the one Worldbuilder uses for in-game swings. So scaling
+our curve by their obliquity is the whole of the correct answer here, not a shortcut around a
+missing API — there is no curve of theirs being ignored.
+
+**The units agree by construction.** Their tilt enters linearly (`TiltFactor = tilt / 23.4`) and so
+does ours (`declination = tilt × -cos(...)`), so a 60° world is 2.56× the seasonal temperature swing
+for them and 2.56× the declination amplitude for us. The sky's seasons stay in proportion to the
+biomes' without any tuning constant of ours to keep in step with theirs.
+`FormulasObliquityTests.Obliquity_EntersLinearly` pins our half of that.
+
+**One deliberate divergence,** at the upright end of the slider. Their `MinTiltFactor = 0.12` floor
+keeps 12% of a baseline swing even at tilt 0, while our declination there is exactly zero — a
+genuinely seasonless sky over biomes that still carry a slight seasonal spread. The floor exists so
+their biome scoring does not degenerate into a single band, not because an upright planet has
+seasons, and mimicking it would mean tilting our sun on a world the player asked to stand upright.
+Pinned and named in the tests so it reads as a decision rather than an oversight. `FormulasObliquityTests.Obliquity_ScalesTheSwingWithoutMovingThePhase`
 pins the property that makes it true — solstices and equinoxes land on the same days at every tilt.
 
 **Precedence.** With both third-party mods installed RAT wins and Planetsmith is not consulted;
