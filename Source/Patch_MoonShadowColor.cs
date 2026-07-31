@@ -47,6 +47,18 @@ public static class Patch_MoonShadowColor
         if (!CelestialLightingFeatures.MoonShadows)
             return;
 
+        // Sun up: it owns the shadow. Same shared simulator and same horizon constant both shadow
+        // patches use, so all three can never disagree about when night has started.
+        //
+        // Hoisted above the two MapSky gates below for the reason Patch_NightRadiance's matching
+        // early-out is hoisted — all four gates here are side-effect-free returns, this is the one
+        // that holds for the whole of daylight, and it is the cheapest: ElevationForMap is a
+        // per-map-per-frame memo hit, while DrawsShadows and SkyBlackedOut are uncached walks paid
+        // twice per frame per map on the CurSkyTarget path.
+        float sunElevation = SolarPosition.ElevationForMap(map);
+        if (sunElevation > Formulas.AtmosphericRefractionDegrees)
+            return;
+
         // Shadowless map (Biomes! Caverns' cavern biomes, and any biome declaring vanilla's
         // disableShadows). Vanilla itself honours this flag at SectionLayer_SunShadows.Visible, so
         // nothing we compute here would ever be drawn — and Biomes! Caverns additionally Prefix-skips
@@ -68,12 +80,6 @@ public static class Patch_MoonShadowColor
         // entirely and uses colors.shadow as the material colour directly. On those frames a darkened
         // night shadow colour would render at full depth under a blacked-out sky.
         if (MapSky.SkyBlackedOut(map))
-            return;
-
-        // Sun up: it owns the shadow. Same shared simulator and same horizon constant both shadow
-        // patches use, so all three can never disagree about when night has started.
-        float sunElevation = SolarPosition.ElevationForMap(map);
-        if (sunElevation > Formulas.AtmosphericRefractionDegrees)
             return;
 
         // No moon shadow being cast (moon down, new, or the sky still too bright for one to register —

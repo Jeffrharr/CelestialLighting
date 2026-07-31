@@ -1,0 +1,54 @@
+{
+  "name": "idle_layer_draws",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "45" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "40" } },
+    { "type": "SetWeather", "args": { "weatherDef": "Clear", "instant": "true" } },
+
+    { "type": "SetTerrain", "args": { "def": "Concrete", "width": "20", "height": "20", "offset": "0,10", "clear": "true" } },
+    { "type": "PlaceThings", "args": { "def": "Wall", "stuff": "BlocksGranite", "offset": "0,10", "layout": "cells", "clear": "true", "cells": "-2,-2; -1,-2; 0,-2; 1,-2; 2,-2; -2,-1; 2,-1; -2,0; 2,0; -2,1; 2,1; -2,2; -1,2; 0,2; 1,2; 2,2" } },
+    { "type": "SetRoof", "args": { "def": "RoofConstructed", "width": "9", "height": "9", "offset": "0,10" } },
+    { "type": "LookAt", "args": { "offset": "0,10", "zoom": "14" } },
+
+    { "type": "SetTime", "args": { "hour": "12" } },
+    { "type": "Wait", "args": { "frames": "30" } },
+    { "type": "SetFeature", "args": { "featureName": "draw_count_reset", "enabled": "true" } },
+    { "type": "Wait", "args": { "frames": "90" } },
+
+    { "type": "Probe", "args": { "probeName": "draw_frames_counted", "expectedValue": "91", "tolerance": "2" } },
+    { "type": "Probe", "args": { "probeName": "sections_drawn_mean", "expectedValue": "0", "tolerance": "1000000" } },
+    { "type": "Probe", "args": { "probeName": "wash_draws_mean", "expectedValue": "0", "tolerance": "0.01" } },
+    { "type": "Probe", "args": { "probeName": "wash_draws_max", "expectedValue": "0", "tolerance": "0.01" } },
+    { "type": "Probe", "args": { "probeName": "shade_draws_mean", "expectedValue": "8", "tolerance": "0.5" } },
+    { "type": "Probe", "args": { "probeName": "purkinje", "expectedValue": "0", "tolerance": "0.001" } },
+    { "type": "Screenshot", "args": { "fileName": "idle_layer_draws_noon" } },
+
+    { "type": "SetTime", "args": { "hour": "0" } },
+    { "type": "Wait", "args": { "frames": "30" } },
+    { "type": "SetFeature", "args": { "featureName": "draw_count_reset", "enabled": "true" } },
+    { "type": "Wait", "args": { "frames": "90" } },
+
+    { "type": "Probe", "args": { "probeName": "sections_drawn_mean", "expectedValue": "0", "tolerance": "1000000" } },
+    { "type": "Probe", "args": { "probeName": "wash_draws_mean", "expectedValue": "8", "tolerance": "0.5" } },
+    { "type": "Probe", "args": { "probeName": "wash_draws_max", "expectedValue": "8", "tolerance": "0.5" } },
+    { "type": "Probe", "args": { "probeName": "shade_draws_mean", "expectedValue": "8", "tolerance": "0.5" } },
+    { "type": "Probe", "args": { "probeName": "purkinje", "expectedValue": "0.747870207", "tolerance": "0.002" } },
+    { "type": "Probe", "args": { "probeName": "night_desaturation_wash", "expectedValue": "0.164531454", "tolerance": "0.002" } },
+    { "type": "Screenshot", "args": { "fileName": "idle_layer_draws_midnight" } },
+
+    { "type": "SetFeature", "args": { "featureName": "eclipse_stage_alignment", "enabled": "true" } },
+    { "type": "Wait", "args": { "frames": "30" } },
+    { "type": "SetFeature", "args": { "featureName": "draw_count_reset", "enabled": "true" } },
+    { "type": "Wait", "args": { "frames": "90" } },
+
+    { "type": "Probe", "args": { "probeName": "moon_illumination", "expectedValue": "0", "tolerance": "1000000" } },
+    { "type": "Probe", "args": { "probeName": "sections_drawn_mean", "expectedValue": "0", "tolerance": "1000000" } },
+    { "type": "Probe", "args": { "probeName": "wash_draws_mean", "expectedValue": "8", "tolerance": "0.5" } },
+    { "type": "Probe", "args": { "probeName": "shade_draws_mean", "expectedValue": "0", "tolerance": "1000000" } },
+    { "type": "Probe", "args": { "probeName": "shade_draws_max", "expectedValue": "0", "tolerance": "1000000" } },
+    { "type": "Screenshot", "args": { "fileName": "idle_layer_draws_newmoon" } },
+
+    { "type": "SetFeature", "args": { "featureName": "eclipse_stage_alignment", "enabled": "false" } }
+  ]
+}

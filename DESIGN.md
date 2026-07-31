@@ -2282,6 +2282,65 @@ for sections off-screen. That is a real regression and not a hitch anybody will 
 finding above matters far more than the roof case: the same 555 µs is paid per section on **every
 lamp toggle**, because `GlowGrid.DirtyCell` raises `Roofs` alongside `GroundGlow`.
 
+### The other half of the ledger: what the layers cost when they are *idle*
+
+Everything above measures a **regenerate**, which happens only when a section is dirtied. It misses
+the cost the same two layers carry every frame regardless, and that turned out to be the one a player
+actually feels — because it is paid continuously rather than on an edit.
+
+Both of our map-wide overlays split the same way vanilla's lighting does: the per-cell part is baked
+into the mesh, the map-wide strength lives in the shared material's alpha. That split is right, and it
+has a blind spot. `MapDrawLayer.DrawLayer` gates only on `Visible` and `subMesh.disabled` — it knows
+nothing about the material — so a layer whose alpha is zero still submits one `Graphics.DrawMesh` per
+on-screen section per frame. The GPU then runs a viewport-sized transparent blend that writes no
+pixels, which on a fill-rate-bound machine is the larger half of the waste.
+
+Each layer is transparent for half of every day, in opposite phases:
+
+| Layer | Transparent when | Why exactly zero, not merely small |
+|---|---|---|
+| `SectionLayer_NightDesaturation` (§9) | all of daylight | `PurkinjeMath.PurkinjeFactor` is an `InverseLerpClamped` that reaches 0 at `OnsetGlow` |
+| `SectionLayer_EaveShade` (§15b) | moonless night, blacked-out sky | `EaveShadeMath.ShadeAlpha` of a white `MatBases.SunShadow` tint |
+
+Measured live (`Tests/Scenarios/idle_layer_draws.json`, `SectionLayerDrawCountProbe`, 8 sections on
+screen at zoom 14, mean over 91 frames):
+
+| | before | after |
+|---|---|---|
+| wash submissions/frame at noon | **8** | **0** |
+| wash submissions/frame at midnight | 8 | 8 |
+| eave-shade submissions/frame, moonlit midnight | 8 | 8 |
+| eave-shade submissions/frame, new moon | **8** | **0** |
+| all section-layer submissions/frame | 174 | 166 |
+
+So the two layers were 16 of 174 submissions — 9% of everything the map draws — and half of that was
+always dead. It scales with visible sections, not with map size: the same run zoomed out costs
+proportionally more.
+
+**The fix is a `DrawLayer` override, deliberately not a clause on `Visible`,** and the distinction is
+load-bearing rather than stylistic. `Section.TryUpdate` does not consult `Visible` before calling
+`Regenerate`, but it **does** clear the layer's `Dirty` flag afterwards, and §9's `Regenerate` discards
+its mesh when `!Visible`. Gating visibility on brightness would therefore let a daytime lamp toggle
+throw the wash away and mark the layer clean, leaving the map blank at dusk until something dirtied it
+again — the same "the setting did nothing" failure `NightDesaturationRedraw` exists to prevent, but
+fired by the clock instead of by a click. Skipping at the draw leaves the bake, the `Dirty` bookkeeping
+and `Visible` all untouched.
+
+It is also not the flicker-across-dusk test both layers' `Visible` comments reject. That one is a
+threshold on how dark it is; this is "the alpha we already wrote is exactly zero", where drawn and
+skipped are the same pixels by construction — the identical test `SetMapWash` already short-circuits
+on before touching the material.
+
+**What this does not fix.** The bake is still time-of-day-blind: §9's wash alphas come from local glow
+with `ignoreSky: true`, so a daytime lamp toggle still pays the full per-section regenerate above for a
+mesh that will not be drawn. Skipping *that* by time of day would trade a per-edit cost for a whole-map
+rebuild at dusk, which is a worse shape of cost, so it stays.
+
+**A premise this measurement corrected.** The eave shade was expected to be idle all night, and it is
+not — with a moon up, eaves genuinely shade moonlight, and `shade_draws` stays at 8 through a moonlit
+midnight. Its saving is real but narrower than §9's: moonless nights, overcast, and blacked-out skies
+only. The new-moon arm of the scenario exists to keep that branch proven rather than assumed.
+
 ### Verdict, and what is deliberately not changed
 
 - **`SectionLayer_EaveShade` keeps its `Buildings` subscription.** Issue #10 named it as the

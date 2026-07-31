@@ -48,6 +48,22 @@ public class SectionLayer_EaveShade : SectionLayer
         && DebugViewSettings.drawShadows
         && MapSky.DrawsShadows(base.Map);
 
+    // The night twin of SectionLayer_NightDesaturation.DrawLayer, and the same trade: skip the
+    // submission on frames where the shade material is fully transparent, which is every night plus
+    // any day the cast shadow itself has been zeroed. Read that override's comment for why this is a
+    // draw-time skip rather than a clause on Visible — Section.TryUpdate ignores Visible and clears
+    // Dirty, so hiding this layer by brightness would strand a stale bake at dawn.
+    //
+    // Unlike §9's, this layer's Regenerate has no !Visible early return, so nothing here is discarded
+    // when it stops drawing; the mesh simply stops being submitted.
+    public override void DrawLayer()
+    {
+        if (!EaveShadeOverlay.Drawing)
+            return;
+
+        base.DrawLayer();
+    }
+
     public SectionLayer_EaveShade(Section section)
         : base(section)
     {

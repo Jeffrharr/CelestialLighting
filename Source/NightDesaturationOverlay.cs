@@ -31,6 +31,14 @@ public static class NightDesaturationOverlay
 
     public static Material Material => WashMaterial;
 
+    // Whether the wash would put anything on screen right now. False for the whole of daylight, where
+    // PurkinjeMath.PurkinjeFactor is an InverseLerpClamped that reaches exactly 0 at OnsetGlow — not
+    // merely small, so this is a real "nothing to draw" and not a threshold anyone has to tune.
+    //
+    // Read by SectionLayer_NightDesaturation.DrawLayer to skip the submission entirely; see there for
+    // why the skip lives at the draw and not in Visible.
+    public static bool Drawing => WashMaterial.color.a > 0f;
+
     private static Material BuildWashMaterial()
     {
         Material material = new Material(ShaderDatabase.Transparent)

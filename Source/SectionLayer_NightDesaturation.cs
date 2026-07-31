@@ -37,6 +37,34 @@ public class SectionLayer_NightDesaturation : SectionLayer
     // make the layer's visibility flicker across dusk for no gain.
     public override bool Visible => CelestialLightingFeatures.LowLightDesaturation;
 
+    // Skips the submission on every frame the wash is fully transparent — which is the whole of
+    // daylight, since PurkinjeMath.PurkinjeFactor is an InverseLerpClamped that reaches exactly 0 at
+    // OnsetGlow. Before this, the layer submitted one Graphics.DrawMesh per on-screen section per
+    // frame, all day, for a mesh that blends nothing: MapDrawLayer.DrawLayer gates only on Visible and
+    // subMesh.disabled, and neither knows about the material's alpha. The CPU side of that is one call
+    // per visible section; the GPU side is a viewport-sized transparent pass that writes no pixels,
+    // which on a fill-rate-bound machine is the larger half.
+    //
+    // WHY NOT Visible, WHICH IS THE OBVIOUS PLACE. Verse.Section.TryUpdate does not consult Visible
+    // before calling Regenerate, but it DOES clear the layer's Dirty flag afterwards (see DESIGN.md
+    // §16), and Regenerate's own !Visible branch discards the mesh. So folding a brightness test into
+    // Visible would let a daytime lamp toggle discard the wash and mark the layer clean, and it would
+    // then stay blank at dusk until something dirtied the map again — exactly the "the setting did
+    // nothing" failure NightDesaturationRedraw exists to prevent, but triggered by the clock instead
+    // of by a click. Skipping at the draw leaves the bake, the Dirty bookkeeping and Visible all
+    // untouched, so the mesh stays current and the first frame with a non-zero alpha draws it.
+    //
+    // This is also NOT the flickering-across-dusk test the Visible comment above rejects. That one is
+    // a threshold on how dark it is; this is "the alpha we already wrote is exactly zero", where drawn
+    // and skipped are the same pixels by construction. SetMapWash short-circuits on the same test.
+    public override void DrawLayer()
+    {
+        if (!NightDesaturationOverlay.Drawing)
+            return;
+
+        base.DrawLayer();
+    }
+
     public SectionLayer_NightDesaturation(Section section)
         : base(section)
     {
