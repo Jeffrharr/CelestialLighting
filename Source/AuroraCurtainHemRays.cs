@@ -819,27 +819,100 @@ public static class AuroraCurtainHemRays
             tintR, tintG, tintB, Clamp01(tintWeight));
     }
 
+    // ================================================================================================
+    // DO NOT PUT [MethodImpl(AggressiveInlining)] ON THIS LOOP'S HELPERS. MEASURED.
+    //
+    // It is the obvious next move — the leaves here (Clamp01, Lerp, ToByte, Smoothstep01, Falloff,
+    // BelowHem, AboveHem, PaletteColor) are entered about ten times per texel, and Mono's JIT inlines
+    // far less aggressively than RyuJIT. Attributing all ten was tried, and measured in place under
+    // the game's own runtime (issue #60, aurora_path_fillrows_us_per_call):
+    //
+    //     before this pass, no attributes      566 us per FillRows call
+    //     this pass WITH AggressiveInlining    643 us   (+14%)
+    //     this pass without, otherwise same    433 us   (-24%)
+    //
+    // So the attributes cost ~49% on Mono — while making the identical code 26% FASTER under the
+    // .NET 8 JIT. That is the trap: Tools/AuroraBench would have reported the change as a clear win.
+    // The loop body is already large once the three curtains are flattened into it, and inlining ten
+    // more bodies on top appears to push Mono's register allocator into spilling.
+    //
+    // Those three figures come from runs taken close together, which matters: repeat runs of the same
+    // build on this hardware vary by roughly 20% (a later run of the last row read 352-395 us), so the
+    // A/B is only meaningful because the builds were compared back to back rather than against a
+    // remembered number. Anything smaller than about 20% needs repeat runs before it is a result.
+    //
+    // The lesson generalises past this file. The offline benchmark bounds what the pure math CAN cost
+    // and is worth having for that; it is not evidence about the runtime that ships, and a bake-loop
+    // optimisation is not verified until it has been measured under Mono.
     private static void FillFromColumns(
         byte[] rgba, ColumnState[] columns, float[] wobbles, int width, int height,
         int startRow, int lastRow, float tintR, float tintG, float tintB, float tint)
     {
         float invHeight = 1f / height;
 
+        int curtains = Curtains.Length;
+
         for (int y = startRow; y < lastRow; y++)
         {
             float v = y * invHeight;
             int rowBase = y * width * 4;
 
+            // HOISTED OUT OF THE PIXEL LOOP, and this is the single biggest saving in the bake.
+            // VerticalFeather is a function of v alone, so every one of the row's `width` pixels was
+            // recomputing the same number — 191 wasted evaluations per row at the shipped 192, each
+            // carrying a Math.Floor (a real call on Mono, not an intrinsic), two divides and two
+            // smoothsteps. It used to sit inside Resolve, one level below the pixel loop, which is
+            // exactly where a v-only invariant is invisible.
+            float feather = VerticalFeather(v);
+
             for (int x = 0; x < width; x++)
             {
-                Sample sample = SampleColumn(columns, wobbles, x, v);
-                AuroraMath.Rgb colour = PaletteColor(sample.Hue);
+                // The three-curtain sum, INLINED from SampleColumn/CurtainAt/Resolve rather than
+                // called. Those three exist for the previewer and the tests, which read one point at a
+                // time and want the composition spelled out; here they cost four `Sample` struct
+                // returns per pixel, and Mono's JIT does not inline across them the way RyuJIT does.
+                // The accumulation order is unchanged — curtain 0, then 1, then 2 — because float
+                // addition is not associative and reordering it would move the pinned field hash.
+                float wobble = wobbles[x];
+                int baseIndex = x * curtains;
+
+                float alpha = 0f;
+                float hueWeighted = 0f;
+
+                for (int c = 0; c < curtains; c++)
+                {
+                    ref ColumnState col = ref columns[baseIndex + c];
+
+                    float s = SignedHeightAboveHem(v, col.Hem);
+                    float a = s < 0f ? BelowHem(s, col) : AboveHem(s, col);
+
+                    alpha += a;
+                    hueWeighted += a * Clamp01(col.CurtainHue + wobble);
+                }
+
+                // Resolve, inlined. Same two branches, same order of operations; `feather` is the
+                // value hoisted above rather than a fresh evaluation.
+                float outAlpha;
+                float hue;
+
+                if (alpha <= 0f)
+                {
+                    outAlpha = 0f;
+                    hue = Clamp01(HueAtHem + wobble);
+                }
+                else
+                {
+                    outAlpha = Clamp01(alpha) * feather;
+                    hue = Clamp01(hueWeighted / alpha);
+                }
+
+                AuroraMath.Rgb colour = PaletteColor(hue);
 
                 int i = rowBase + x * 4;
                 rgba[i] = ToByte(Lerp(colour.R, tintR, tint));
                 rgba[i + 1] = ToByte(Lerp(colour.G, tintG, tint));
                 rgba[i + 2] = ToByte(Lerp(colour.B, tintB, tint));
-                rgba[i + 3] = ToByte(sample.Alpha);
+                rgba[i + 3] = ToByte(outAlpha);
             }
         }
     }

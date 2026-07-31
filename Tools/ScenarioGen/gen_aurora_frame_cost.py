@@ -35,6 +35,7 @@ READ = [
     "aurora_path_draw_us",
     "aurora_path_setsheet_us",
     "aurora_path_drawsheet_us",
+    "aurora_path_driver_per_frame",
     "aurora_path_bake_per_frame",
     "aurora_path_upload_per_frame",
     "aurora_path_setsheet_per_frame",
