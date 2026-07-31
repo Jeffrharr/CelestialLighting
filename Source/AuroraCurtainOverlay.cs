@@ -189,9 +189,17 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
         // frames in a playthrough this is where the subsystem ends.
         if (strength <= 0f || map == null)
         {
-            _eventLit = false;
-            _liveCount = 0;
-            ForgetHomes();
+            // Guarded on _eventLit rather than run unconditionally. This branch is the one almost every
+            // frame of a playthrough takes, and §11a's whole performance story is that it costs a null
+            // check there — clearing four slots' worth of state on every one of those frames, forever,
+            // to undo an aurora that ended days ago is exactly the always-on cost that story rules out.
+            if (_eventLit)
+            {
+                _eventLit = false;
+                _liveCount = 0;
+                ForgetHomes();
+            }
+
             return false;
         }
 
