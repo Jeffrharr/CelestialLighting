@@ -1,4 +1,5 @@
 using System;
+using System.Reflection;
 using HarmonyLib;
 using Verse;
 
@@ -50,6 +51,11 @@ public static class AxialTiltCompat
     private static Func<int> ratGeometryGeneration;
     private static Func<string, bool> ratTryClaimLighting;
 
+    // Optional, and so nullable where the five above are not: RAT's lunar geometry landed after
+    // ApiVersion 1 was minted and landed additively, which by their own contract does NOT bump the
+    // version. The version gate therefore cannot see it and we probe for the method itself.
+    private static Func<float, float, float> ratLunarDeclinationDegrees;
+
     // True once RAT is present, exposes an Api we understand, and has seeded its geometry.
     //
     // GeometryReady is not a formality: before their world comp's FinalizeInit runs, their cosTilt
@@ -72,6 +78,44 @@ public static class AxialTiltCompat
     // two can never end up on different models of the year.
     public static float SolarDeclinationDegrees(float dayOfYear) =>
         Active ? ratDeclinationDegrees(dayOfYear) : Formulas.SolarDeclinationDegrees(dayOfYear);
+
+    // True only when the feature is on, RAT is active, AND their build carries lunar geometry. All
+    // three, because all three vary independently: the flag is the player's (and the harness's)
+    // switch, Active is whether RAT is there and seeded, and the binding is whether THIS RAT build
+    // has a moon at all. That last one is not hypothetical — RAT shipped the interop API before it
+    // shipped the moon, additively, so both builds answer Active identically and only the resolved
+    // method tells them apart. Flag first: it is a field read, and it short-circuits the bind.
+    public static bool LunarGeometryActive =>
+        CelestialLightingFeatures.AxialTiltLunarGeometry
+        && Active
+        && ratLunarDeclinationDegrees != null;
+
+    // The moon's half of the seam above.
+    //
+    // WHOSE MOON IS THIS. RAT now models the moon as a body on an INCLINED orbit — inclination and
+    // ascending-node regression, both player-tunable — rather than one riding the ecliptic exactly.
+    // That is planet geometry, which is theirs under the split, so we take their declination when
+    // they have one. What we keep is the phase: cyclePosition is ours, from GameComponent_MoonPhase,
+    // and we hand it to them (their API documents exactly this call — "supply your own cycle
+    // position ... for any offset"). Phase is what drives illumination, moonlight, the HUD label and
+    // eclipse staging, all of which are lighting and all of which are ours. The consequence worth
+    // knowing: with both mods installed RAT's own moonOrbitalDays slider does not move our moon,
+    // because the cycle it would set is the one we are overriding. Their moonInclinationDeg does.
+    //
+    // Reachable three ways, which is why the fallback below is a first-class path and not an error
+    // case: no RAT, a RAT predating their lunar block, or a player who turned
+    // CelestialLightingFeatures.AxialTiltLunarGeometry off.
+    //
+    // The fallback is not a lesser approximation bolted on; it is exactly this same model at
+    // inclination 0. RAT builds the moon's ecliptic longitude as (dayOfYear/60 + cyclePosition)*2pi
+    // — the sun's longitude advanced by the elongation — which is our MoonEquivalentSunDayOfYear fed
+    // through whichever solar declination function is live. So an older RAT, or no RAT at all, lands
+    // on a moon that differs from the inclined one only by their inclination term (5.1 degrees by
+    // default), and never by a phase or a season. MoonMathTests pins that equivalence from our side.
+    public static float MoonDeclinationDegrees(float dayOfYear, float cyclePosition) =>
+        LunarGeometryActive
+            ? ratLunarDeclinationDegrees(dayOfYear, cyclePosition)
+            : SolarDeclinationDegrees(MoonMath.MoonEquivalentSunDayOfYear(dayOfYear, cyclePosition));
 
     // Called once at mod init. Tells RAT to stand its lighting patches down.
     //
@@ -125,13 +169,30 @@ public static class AxialTiltCompat
             typeof(Func<float, float>), AccessTools.Method(api, "SolarDeclinationDegrees"));
         ratTryClaimLighting = (Func<string, bool>)Delegate.CreateDelegate(
             typeof(Func<string, bool>), AccessTools.Method(api, "TryClaimLighting"));
+        BindLunarGeometry(api);
 
         Log.Message(
             "[CelestialLighting] Realistic Axial Tilt detected; using its solar geometry for sun, "
-            + "shadows and moon.");
+            + "shadows and moon"
+            + (ratLunarDeclinationDegrees != null
+                ? ", including its inclined lunar orbit."
+                : " (no lunar geometry in this RAT build; the moon rides the ecliptic exactly)."));
 
         bound = true;
         return true;
+    }
+
+    // Optional binding, so a miss is silent: an older RAT that has the API but not the moon is a
+    // perfectly healthy mod list, not a mismatch to warn about. AccessTools.Method returns null
+    // rather than throwing when the member is absent, which is the whole reason the probe is cheap.
+    private static void BindLunarGeometry(Type api)
+    {
+        MethodInfo lunarDeclination = AccessTools.Method(api, "LunarDeclinationDegrees");
+        if (lunarDeclination == null)
+            return;
+
+        ratLunarDeclinationDegrees = (Func<float, float, float>)Delegate.CreateDelegate(
+            typeof(Func<float, float, float>), lunarDeclination);
     }
 
     // Bound as delegates rather than called through PropertyInfo.GetValue every time: Active is read

@@ -3538,14 +3538,50 @@ RAT uses `sin(...)` — a quarter-year offset in where the solstices land. Consu
 propagates with no edit here. Reading `AxialTiltDegrees` and re-applying our own curve would agree
 at the equinoxes and drift in between, which takes a season of play to notice.
 
-**The moon.** `MoonPosition` no longer calls `MoonMath.MoonDeclinationDegrees`. It evaluates the
-*sun's* declination function at `MoonMath.MoonEquivalentSunDayOfYear(dayOfYear, cyclePosition)` —
-the moon rides the same ecliptic, and an offset in ecliptic angle is an offset in day-of-year.
-This is what keeps "matching moon" true under a model whose phase we don't control: rebuilding the
+**The moon.** `MoonPosition` no longer calls `MoonMath.MoonDeclinationDegrees`; it resolves the
+moon's declination through `AxialTiltCompat.MoonDeclinationDegrees`, which has two arms.
+
+*With RAT's lunar geometry* (upstream `13e709e`), the moon is theirs: `LunarDeclinationDegrees`
+places it on an **inclined** orbit — a player-tunable inclination with a regressing ascending node —
+rather than on the ecliptic exactly. That is planet geometry, so it is theirs under the split. What
+stays ours is the **phase**: we pass our own `cyclePosition` from `GameComponent_MoonPhase` into
+their function, which their API explicitly invites ("supply your own cycle position … for any
+offset"). Phase drives illumination, moonlight, the HUD label and eclipse staging — all lighting,
+all ours. The consequence worth stating: with both mods installed, RAT's `moonOrbitalDays` slider
+does not move our moon, because our cycle is the one overriding it. Their `moonInclinationDeg` does.
+
+*Without it* — no RAT, a RAT predating their lunar block, or the feature switched off — we evaluate
+the *sun's* declination function at `MoonMath.MoonEquivalentSunDayOfYear(dayOfYear, cyclePosition)`,
+because the moon rides the same ecliptic and an offset in ecliptic angle is an offset in
+day-of-year. The two arms are the *same model at two inclinations*, which is what makes the fallback
+a baseline rather than a degradation: RAT builds the moon's ecliptic longitude as
+`(dayOfYear/60 + cyclePosition)·2π` — the sun's longitude advanced by the elongation — which is
+precisely that shifted day, so setting their inclination to 0 collapses the arms onto each other.
+`MoonMathTests.MoonEquivalentSunDayOfYear_MatchesRatEclipticLongitudeConstruction` pins our side of
+that identity.
+
+Either arm keeps the moon on whatever seasonal model the sun is on, which is the point: rebuilding the
 moon from our own `-cos` while the sun ran on RAT's `sin` would leave the two bodies a season
 apart, visible only as a moon riding high on the wrong nights months into a save.
 `MoonMathTests.MoonEquivalentSunDayOfYear_ReproducesMoonDeclination_ThroughTheSunModel` pins that
 the indirection is exactly inert when the sun model is our own.
+
+**Why the lunar arm is behind a feature flag** (`axial_tilt_lunar_geometry`, default on) when the
+solar seam is not. RAT's lunar block arrived *additively*, and by their own contract additive
+changes leave `ApiVersion` alone — so the version gate cannot see it, and two RAT builds a player
+might have answer `GeometryReady` identically while only one has a moon.
+`AxialTiltCompat.LunarGeometryActive` is therefore the flag **and** `Active` **and** a resolved
+`LunarDeclinationDegrees`, never one of the three. Turning it off does not disable the interop —
+under RAT the moon still runs on their seasonal model, just without their orbital inclination — so
+"off" is simultaneously the harness's A/B baseline and a real escape hatch if an upstream lunar
+change ever misbehaves.
+
+**Measured.** One live run at latitude 45, day-of-year 15, noon (`axial_tilt_interop`, which flips
+the feature mid-scenario so both arms see the same world, tick and moon phase): moon declination
+**21.85°** on their inclined moon, **22.91°** on the fallback, against a sun that reads 23.45° in
+both arms — the flag reaches the moon and nothing else. Without RAT the same moon reads **4.87°**
+(`axial_tilt_absent`), a quarter-year away: that gap is the seasonal-phase handover, not the
+inclination. All three match an offline recomputation of RAT's `LunarSinDecl` to four decimals.
 
 **One seam.** Both reads funnel through `AxialTiltCompat.SolarDeclinationDegrees`, consumed at
 `SolarPosition.ComputeInputsForMap` (sun) and `MoonPosition` (moon). Because every sun-derived
@@ -3557,7 +3593,10 @@ shadows, twilight, penumbra, night radiance and moon shadows together. Without R
 same idiom RAT's own `Compat/` classes use, so a user without RAT loads a build that has never
 heard of it. There is deliberately **no** fallback path into RAT's internals: an older RAT without
 the API is treated as absent (`ApiVersion >= 1` gate) and declared in `<incompatibleWith>`, rather
-than half-supported. `GeometryReady` is checked on every read because RAT's `cosTilt` defaults to
+than half-supported. Upstream has since merged the API and the lighting gate (`08f5b49`; all seven
+of their lighting patches consult `LightingSuppressed`), so that tag becomes a `loadAfter` the day a
+RAT *release* carries it — it is keyed to the published Workshop build, which still does not, and
+not to their main branch, because the published build is the one in players' mod lists. `GeometryReady` is checked on every read because RAT's `cosTilt` defaults to
 `0f`, not `1f` — calling before their world comp seeds it returns a degenerate planet, not
 Earth-like defaults. `GeometryGeneration` is exposed for cache invalidation across saves with
 different tilts.

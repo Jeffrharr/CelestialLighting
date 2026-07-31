@@ -19,6 +19,8 @@ public static class ProbeRegistration
         ProbeRegistry.Register(new ShadowLeanProbe());
         ProbeRegistry.Register(new AxialTiltDeclinationProbe());
         ProbeRegistry.Register(new AxialTiltActiveProbe());
+        ProbeRegistry.Register(new AxialTiltLunarProbe());
+        ProbeRegistry.Register(new MoonDeclinationProbe());
         ProbeRegistry.Register(new ShadowVectorXProbe());
         ProbeRegistry.Register(new CivilTwilightProbe());
         // The composed, vacuum-gated factor Patch_TwilightColor actually blends with. CivilTwilight
@@ -173,6 +175,13 @@ public static class ProbeRegistration
         FeatureRegistry.Register(
             CelestialLightingFeatures.MoonShadowsKey,
             enabled => CelestialLightingFeatures.MoonShadows = enabled);
+        // The only A/B on this list whose two arms both require a THIRD mod to be installed: off is
+        // the moon we place on the ecliptic ourselves, on is Realistic Axial Tilt's inclined one, and
+        // flipping it inside one run is the only way to compare them against the same world, tick and
+        // moon phase. Comparing two RAT builds instead would vary the tilt world along with the moon.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.AxialTiltLunarGeometryKey,
+            enabled => CelestialLightingFeatures.AxialTiltLunarGeometry = enabled);
         FeatureRegistry.Register(
             CelestialLightingFeatures.NightRadianceKey,
             enabled => CelestialLightingFeatures.NightRadiance = enabled);

@@ -10,10 +10,28 @@
 
     { "type": "Probe", "args": { "probeName": "axial_tilt_active", "expectedValue": "1", "tolerance": "0.01" } },
 
+    { "type": "Probe", "args": { "probeName": "axial_tilt_lunar", "expectedValue": "1", "tolerance": "0.01" } },
+
     { "type": "Probe", "args": { "probeName": "axial_tilt_declination", "expectedValue": "23.45", "tolerance": "0.35" } },
+
+    { "type": "Probe", "args": { "probeName": "moon_declination", "expectedValue": "21.85", "tolerance": "0.35" } },
 
     { "type": "Probe", "args": { "probeName": "shadow_lean", "expectedValue": "0", "tolerance": "0.35" } },
 
-    { "type": "Screenshot", "args": { "fileName": "axial_tilt_interop_noon.png" } }
+    { "type": "Screenshot", "args": { "fileName": "axial_tilt_interop_noon.png" } },
+
+    { "type": "SetFeature", "args": { "featureName": "axial_tilt_lunar_geometry", "enabled": "false" } },
+    { "type": "Wait", "args": { "frames": "5" } },
+
+    { "type": "Probe", "args": { "probeName": "axial_tilt_lunar", "expectedValue": "0", "tolerance": "0.01" } },
+
+    { "type": "Probe", "args": { "probeName": "moon_declination", "expectedValue": "22.91", "tolerance": "0.35" } },
+
+    { "type": "Probe", "args": { "probeName": "axial_tilt_declination", "expectedValue": "23.45", "tolerance": "0.35" } },
+
+    { "type": "SetFeature", "args": { "featureName": "axial_tilt_lunar_geometry", "enabled": "true" } },
+    { "type": "Wait", "args": { "frames": "5" } },
+
+    { "type": "Probe", "args": { "probeName": "moon_declination", "expectedValue": "21.85", "tolerance": "0.35" } }
   ]
 }

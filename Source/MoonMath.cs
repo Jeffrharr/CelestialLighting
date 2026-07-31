@@ -176,6 +176,13 @@ public static class MoonMath
     // is exactly the invariant that would break, and it would break silently — as a moon riding high
     // on the wrong nights, months into a save.
     //
+    // Since RAT shipped lunar geometry this is the FALLBACK arm of AxialTiltCompat.MoonDeclination-
+    // Degrees rather than the only path, and the arithmetic below is what makes that a safe demotion:
+    // RAT builds the moon's ecliptic longitude as (dayOfYear/60 + cyclePosition)·2π, i.e. the sun's
+    // longitude advanced by the elongation, which is precisely this shifted day. Their moon is this
+    // moon plus an orbital inclination; drop the inclination and the two are the same body. The pin
+    // is MoonEquivalentSunDayOfYear_MatchesRatEclipticLongitudeConstruction.
+    //
     // Deliberately returns an unwrapped day (may exceed DaysPerYear or go negative): every
     // declination model we feed it is periodic in the year, so wrapping would add a branch that
     // changes no result.

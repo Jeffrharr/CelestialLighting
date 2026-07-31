@@ -116,7 +116,15 @@ Requires Harmony.</description>
          point this becomes a loadAfter entry instead, because the two mods are designed to compose:
          RAT owns the planet's solar geometry, we own the lighting.
 
-         Until then they genuinely conflict. Both postfix GenCelestial.GetLightSourceInfo and
+         Upstream has merged it (dsweber2/realisticAxialTilt 08f5b49) and all seven of their lighting
+         patches now consult LightingSuppressed, so the flip is waiting on a RELEASE, not on code.
+         Deliberately keyed to the published build rather than to their main branch: the Workshop
+         copy players actually have (3768758984) still carries no Api type, and it is that build,
+         not the repository, that decides whether a mod list conflicts. -->
+
+    <!-- Below is what happens on that published build, and why the tag is not merely cautious.
+
+         They genuinely conflict there. Both postfix GenCelestial.GetLightSourceInfo and
          CurShadowStrength and both overwrite __result, and — the one that actually breaks things —
          both prefix SectionLayer_SunShadows.Regenerate with `return false`, so whichever registers
          second never builds its shadow mesh at all, silently, with the outcome decided by Harmony
