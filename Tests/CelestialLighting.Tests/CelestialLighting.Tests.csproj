@@ -53,6 +53,13 @@
     <!-- Subsystem 8 pure core. Depends on Formulas.AtmosphericRefractionDegrees, so Formulas.cs
          above must be linked too (it already is). -->
     <Compile Include="../../Source/SkyColorTemperature.cs" Link="SkyColorTemperature.cs" />
+    <!-- Subsystem 19 pure core (polar night blue / Chappuis ozone twilight). Reuses
+         SkyColorTemperature.Rgb as its colour struct, so the link above is a hard prerequisite —
+         but deliberately NOT its BlackbodyToRgb: §19 models an absorption notch, not a Planckian
+         locus, and OzoneTwilightMath's header records why the blackbody version was invisible.
+         OzoneTwilightMathTests also cross-checks against Formulas.SolarElevationDegrees when it
+         proves the reachability gate never skips a reachable day. -->
+    <Compile Include="../../Source/OzoneTwilightMath.cs" Link="OzoneTwilightMath.cs" />
     <Compile Include="../../Source/AuroraMath.cs" Link="AuroraMath.cs" />
     <!-- §11a's curtain generator. AuroraCurtain references AuroraMath.Rgb and its two oxygen-line
          colours, so the link above is a hard prerequisite for this pair. -->
