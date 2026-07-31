@@ -251,6 +251,46 @@ Draw-time candidates, none yet tested:
 - `subMesh.mesh.bounds` and `RefreshSubMeshBounds` — a skirt extends beyond its own section's rect
 - whether the section covering the roofline is drawn at all, versus drawing a stale mesh
 
+## Day 2: the defect at 1px, and the paradox
+
+Same-phase rooms, one column each, 1px steps (y increases southward, roof begins at y=530):
+
+                    y=  522 523 524 525 526 527 528 529 530
+    ENCLOSED  off       54  53  51  50  48  47  45  44  35
+              on        54 [42  41  40] 48  47  45  44  35    band stops; ramp resumes at 48
+    GAP       off       54  53  52  51  48  47  46  45  35
+              on        54 [42  41  40  39  38  37  35] 35    band runs into the roof
+
+The resuming 48 IS the seam. Band thickness measured across every column of each roofline:
+
+    ENCLOSED   3 px    (0.14 tile)
+    GAP        7 px    (0.34 tile)
+
+uniform along the whole roofline in both, starting at the same row.
+
+**And the vertex buffers are byte-identical.** `SeamDump.Mesh` over both rooms:
+
+    z=169 alpha=0 x72 / alpha=255 x72        identical
+    z=170 alpha=0 x112 / alpha=255 x24       identical
+    z=171 alpha=0 x72 / alpha=255 x72        identical
+    z=172 alpha=0 x32 / alpha=255 x32        identical
+
+Same positions, same displacement alphas, same counts, same frame, same `_CastVect` (a per-map
+shader global). The band's screen extent is `alpha x _CastVect` projected, so with every one of those
+equal the two bands cannot differ — and they differ by 2.3x.
+
+That paradox is where this stands. Something outside the sun-shadow mesh is shortening the band in
+the enclosed case, and it is not §15b, §7b, the lighting overlay, culling, mesh bounds or staleness —
+each measured out. The remaining candidates are all "another layer drawing into the same pixels":
+
+- `SectionLayer_EdgeShadows` (vanilla, `MatBases.EdgeShadow`, also at AltitudeLayer.Shadows) — an
+  enclosed room has more wall edges, and its quads land in the same rows
+- any layer whose output is identical with casters OFF but composes differently with them ON
+
+Note the casters-off frames are NOT quite identical at 1px (off differs by 1 in places: 51/50/48/47
+against 52/51/48/47), which the earlier 3px sampling reported as identical. Small, but it means
+"everything else is identical" was overstated.
+
 ## Where to look next
 
 `on` == `off` past the bounce says the defect is in what the mesh *covers*, not in what

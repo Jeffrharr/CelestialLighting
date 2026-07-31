@@ -96,6 +96,22 @@
       }
     },
     {
+      "type": "Probe",
+      "args": {
+        "probeName": "eave_cells",
+        "expectedValue": "0",
+        "tolerance": "9999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "roof_shadow_cells",
+        "expectedValue": "0",
+        "tolerance": "9999"
+      }
+    },
+    {
       "type": "Screenshot",
       "args": {
         "fileName": "phase_on.png"
