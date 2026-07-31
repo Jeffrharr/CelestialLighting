@@ -64,9 +64,12 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
     // of the last refresh sweep and once from the sweep before that, cross-faded. See Upload for why
     // that is what makes the aurora move smoothly, and why additive blending makes the cross-fade exact
     // rather than approximate.
-    private static readonly Material[] Sheets = BuildSheetMaterials();
+    //
+    // Wrapped in SheetMaterial rather than held as bare Materials, because every read and write of
+    // Material.color / mainTextureScale / mainTextureOffset is two native round trips. See that class.
+    private static readonly SheetMaterial[] Sheets = BuildSheetMaterials();
 
-    private static readonly Material[] PrevSheets = BuildSheetMaterials();
+    private static readonly SheetMaterial[] PrevSheets = BuildSheetMaterials();
 
     // One unit quad in the XZ plane, centred on the origin, scaled per sheet by the draw matrix.
     //
@@ -369,8 +372,8 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
     {
         for (int i = 0; i < Sheets.Length; i++)
         {
-            Sheets[i].mainTexture = _texNew;
-            PrevSheets[i].mainTexture = _texPrev;
+            Sheets[i].SetTexture(_texNew);
+            PrevSheets[i].SetTexture(_texPrev);
         }
     }
 
@@ -455,11 +458,14 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
         SetSheet(PrevSheets[slot], p, alpha * (1f - t));
     }
 
-    private static void SetSheet(Material mat, in AuroraSheetPlacement p, float alpha)
+    // Three writes, of which only the last one usually lands. A display's UV scale is fixed for its
+    // whole life and the bounded field's offset is permanently zero, so SheetMaterial elides both after
+    // the first frame of each display — see that class for why eliding is the safe form of this saving.
+    private static void SetSheet(SheetMaterial mat, in AuroraSheetPlacement p, float alpha)
     {
-        mat.mainTextureScale = new Vector2(p.UScale, p.VScale);
-        mat.mainTextureOffset = Vector2.zero;
-        mat.color = new Color(1f, 1f, 1f, alpha);
+        mat.SetScale(new Vector2(p.UScale, p.VScale));
+        mat.SetOffset(Vector2.zero);
+        mat.SetColour(new Color(1f, 1f, 1f, alpha));
     }
 
     // The spot a slot's current display stands on, placed once when the display spawned and reused for
@@ -519,8 +525,10 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
 
             SetSheet(Sheets[i], p, alpha * t);
             SetSheet(PrevSheets[i], p, alpha * (1f - t));
-            Sheets[i].mainTextureOffset = offset;
-            PrevSheets[i].mainTextureOffset = offset;
+            // Overrides the zero SetSheet just wrote: this field DOES pan its UVs. Kept in this order
+            // rather than folded into SetSheet so the bounded path stays the one that never pans.
+            Sheets[i].SetOffset(offset);
+            PrevSheets[i].SetOffset(offset);
 
             _placements[i] = p;
             _liveSlots[i] = i;
@@ -557,12 +565,12 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
             filterMode = FilterMode.Bilinear,
         };
 
-    private static Material[] BuildSheetMaterials()
+    private static SheetMaterial[] BuildSheetMaterials()
     {
-        Material[] mats = new Material[AuroraSheetLayout.MaxSheets];
+        SheetMaterial[] mats = new SheetMaterial[AuroraSheetLayout.MaxSheets];
 
         for (int i = 0; i < mats.Length; i++)
-            mats[i] = new Material(ShaderDatabase.MoteGlow);
+            mats[i] = new SheetMaterial(new Material(ShaderDatabase.MoteGlow));
 
         return mats;
     }
@@ -656,10 +664,13 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
         }
     }
 
-    private static void DrawSheet(Material mat, Matrix4x4 trs)
+    // Reads the alpha SheetMaterial recorded rather than Material.color, which is a native shader
+    // property fetch — six of them per frame purely to answer a question we already knew the answer to,
+    // having written the value ourselves moments earlier in SetSheet.
+    private static void DrawSheet(SheetMaterial mat, Matrix4x4 trs)
     {
-        if (mat.color.a > 0f)
-            Graphics.DrawMesh(SheetQuad, trs, mat, 0);
+        if (mat.Alpha > 0f)
+            Graphics.DrawMesh(SheetQuad, trs, mat.Mat, 0);
     }
 
     // Kept because SkyOverlay declares it abstract. Per-sheet alpha is set in PlaceSheets, which knows
@@ -672,8 +683,8 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
         // case Reset exists to prevent.
         for (int i = 0; i < Sheets.Length; i++)
         {
-            Sheets[i].color = color;
-            PrevSheets[i].color = color;
+            Sheets[i].SetColour(color);
+            PrevSheets[i].SetColour(color);
         }
     }
 

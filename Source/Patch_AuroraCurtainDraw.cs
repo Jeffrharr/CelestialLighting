@@ -44,18 +44,27 @@ public static class Patch_AuroraCurtainDraw
         if (map == null || map.gameConditionManager != __instance)
             return;
 
-        // Ordering with §11's flat tint does not matter: that one blends SkyTarget.colors inside
-        // WeatherWorker.CurSkyTarget, while this composites an additive layer at draw time. They meet on
-        // screen, not in a shared value.
-        float strength = AuroraConditions.CurrentCurtainStrength(map);
-        if (strength <= 0f)
-            return;
-
+        // THE DRIVER IS RESOLVED ONCE, then handed to the strength calculation. This used to read the
+        // other way round — CurrentCurtainStrength first, which resolves the driver internally, then
+        // ActiveTintDriver again for the colour — so every drawn frame walked the condition list twice
+        // to arrive at the same condition. The gates below are in the same order and short-circuit at
+        // the same points, so nothing about WHEN the curtain draws has changed; it only asks once.
+        //
         // Same driver and same colour source as §11, so the ribbons and the flat wash underneath cannot
         // disagree about tonight's hue. During a vanilla Aurora event that is the colour the event is
         // already cycling through; a solar flare gets AuroraMath's green/red emission-line shimmer.
+        if (!AuroraConditions.CurtainEnabled)
+            return;
+
         GameCondition driver = AuroraConditions.ActiveTintDriver(map);
         if (driver == null)
+            return;
+
+        // Ordering with §11's flat tint does not matter: that one blends SkyTarget.colors inside
+        // WeatherWorker.CurSkyTarget, while this composites an additive layer at draw time. They meet on
+        // screen, not in a shared value.
+        float strength = AuroraConditions.CurtainStrengthFor(map, driver);
+        if (strength <= 0f)
             return;
 
         Color tint = AuroraConditions.TintColorFor(driver, Find.TickManager.TicksGame);

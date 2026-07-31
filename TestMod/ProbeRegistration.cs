@@ -513,6 +513,7 @@ public static class ProbeRegistration
         Register("aurora_path_setsheet_us", AuroraPathTimingProbe.Metric.SetSheetUsPerFrame);
         Register("aurora_path_drawsheet_us", AuroraPathTimingProbe.Metric.DrawSheetUsPerFrame);
 
+        Register("aurora_path_driver_per_frame", AuroraPathTimingProbe.Metric.DriverCallsPerFrame);
         Register("aurora_path_bake_per_frame", AuroraPathTimingProbe.Metric.BakeCallsPerFrame);
         Register("aurora_path_upload_per_frame", AuroraPathTimingProbe.Metric.UploadCallsPerFrame);
         Register("aurora_path_setsheet_per_frame", AuroraPathTimingProbe.Metric.SetSheetCallsPerFrame);

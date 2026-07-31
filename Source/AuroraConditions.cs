@@ -158,6 +158,21 @@ public static class AuroraConditions
         if (driver == null)
             return 0f;
 
+        return CurtainStrengthFor(map, driver);
+    }
+
+    // The same value, for a driver the caller has ALREADY resolved.
+    //
+    // Split out for Patch_AuroraCurtainDraw, which needs the driver anyway — it is where tonight's hue
+    // comes from — and was therefore walking the condition list twice per drawn frame: once inside
+    // CurrentCurtainStrength above, and once more for itself immediately afterwards. Measured at ~8 of
+    // the ~90 microseconds the fixed per-frame path costs (issue #60).
+    //
+    // Deliberately NOT CurrentCurtainStrength with an argument bolted on. The gates that belong to the
+    // LOOKUP — the curtain feature flag and the null driver — stay above, so a caller holding a
+    // non-null driver has already passed them and what remains here is only ever the arithmetic.
+    public static float CurtainStrengthFor(Map map, GameCondition driver)
+    {
         float sunGlow = GenCelestial.CurCelestialSunGlow(map);
         return AuroraMath.CurtainStrength(sunGlow, RampFor(driver));
     }

@@ -50,7 +50,10 @@ public static class AuroraPathTimers
     // MethodBase identity avoids depending on reflection handing back the same MethodInfo instance
     // the patch was installed against.
     public const string Total = "Postfix";
-    public const string Strength = "CurrentCurtainStrength";
+    // The arithmetic half of the strength calculation. Was CurrentCurtainStrength, which the draw
+    // path no longer calls: it resolves the driver itself now and hands it down, so the lookup and
+    // the arithmetic are separately timed rather than nested.
+    public const string Strength = "CurtainStrengthFor";
     public const string Driver = "ActiveTintDriver";
     public const string Advance = "Advance";
     public const string Bake = "Regenerate";
@@ -99,7 +102,7 @@ public static class AuroraPathTimers
         Type draw = AccessTools.TypeByName("CelestialLighting.Patch_AuroraCurtainDraw");
 
         Time(harmony, Total, AccessTools.Method(draw, "Postfix"));
-        Time(harmony, Strength, AccessTools.Method(conditions, "CurrentCurtainStrength"));
+        Time(harmony, Strength, AccessTools.Method(conditions, "CurtainStrengthFor"));
         Time(harmony, Driver, AccessTools.Method(conditions, "ActiveTintDriver"));
         Time(harmony, Advance, AccessTools.Method(overlay, "Advance"));
         Time(harmony, Bake, AccessTools.Method(overlay, "Regenerate"));
@@ -235,6 +238,7 @@ public sealed class AuroraPathTimingProbe : IProbe
 
         // How often each stage is entered per drawn frame. This is the half aurora_curtain_cost
         // structurally cannot see, and the half issue #60 says decides everything.
+        DriverCallsPerFrame,
         BakeCallsPerFrame,
         UploadCallsPerFrame,
         SetSheetCallsPerFrame,
@@ -331,6 +335,7 @@ public sealed class AuroraPathTimingProbe : IProbe
             case Metric.DrawUsPerFrame: return PerFrame(AuroraPathTimers.Draw, frames);
             case Metric.SetSheetUsPerFrame: return PerFrame(AuroraPathTimers.SetSheet, frames);
             case Metric.DrawSheetUsPerFrame: return PerFrame(AuroraPathTimers.DrawSheet, frames);
+            case Metric.DriverCallsPerFrame: return CallsPerFrame(AuroraPathTimers.Driver, frames);
             case Metric.BakeCallsPerFrame: return CallsPerFrame(AuroraPathTimers.Bake, frames);
             case Metric.UploadCallsPerFrame: return CallsPerFrame(AuroraPathTimers.Upload, frames);
             case Metric.SetSheetCallsPerFrame: return CallsPerFrame(AuroraPathTimers.SetSheet, frames);
