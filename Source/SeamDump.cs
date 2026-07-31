@@ -21,7 +21,27 @@ public static class SeamDump
 
     public static bool Covers(int x, int z) =>
         Enabled && z >= MinZ && z <= MaxZ
-        && ((x >= 83 && x <= 98) || (x >= 146 && x <= 162));
+        && ((x >= 83 && x <= 98) || (x >= 147 && x <= 162));
+
+    // Dumps the finished submesh: every vertex whose z sits near a roofline in the window, with the
+    // alpha the shader will displace it by. This is the geometry itself rather than the decisions
+    // that produced it — the decisions have already been shown identical between a clean roofline
+    // and a seaming one.
+    public static void Mesh(string tag, System.Collections.Generic.List<UnityEngine.Vector3> verts,
+        System.Collections.Generic.List<UnityEngine.Color32> colors)
+    {
+        if (!Enabled)
+            return;
+
+        for (int i = 0; i < verts.Count; i++)
+        {
+            UnityEngine.Vector3 v = verts[i];
+            if (!Covers((int)v.x, (int)v.z) || v.z < 169f || v.z > 172f)
+                continue;
+
+            Log.Message($"SEAMVERT {tag} #{i} pos=({v.x:F2},{v.z:F2}) a={colors[i].a}");
+        }
+    }
 
     public static void Cell(int i, int j, float height, EaveShadowGrid casters, Map map)
     {

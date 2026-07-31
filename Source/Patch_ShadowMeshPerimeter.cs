@@ -83,6 +83,8 @@ public static class Patch_ShadowMeshPerimeter
                 EmitCell(subMesh, casters, map, i, j, y);
         }
 
+        SeamDump.Mesh($"sect{cellRect.minX},{cellRect.minZ}", subMesh.verts, subMesh.colors);
+
         if (subMesh.verts.Count > 0)
         {
             subMesh.FinalizeMesh(MeshParts.Verts | MeshParts.Tris | MeshParts.Colors);

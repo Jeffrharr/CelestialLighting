@@ -180,6 +180,49 @@ darkens it further to 36. In the walled case it stays at 45. The roof itself is 
 So: same roofline geometry, same heights, same skirts — and one case's boundary cell receives the
 band while the other's does not. The only mesh difference anywhere in the window is the wall column.
 
+## Day 2: the user's in-game finding, reproduced exactly
+
+`Tests/Scenarios/eave_seam_remove_one_wall.json` — five identical walled rooms with a full-width
+2-cell roof strip, differing only in which wall is missing:
+
+    all four walls      … 53 | 40 [45] 35    +5   seam
+    no north wall       … 53 | 40  36  35    +0   clean
+    no south wall       … 53 | 40  36  35    +0   clean
+    no west end         … 53 | 40  36  35    +0   clean
+    ONE-CELL gap in N   … 53 | 40  36  35    +0   clean
+
+Removing ANY wall cures it and a single cell is enough — exactly what was reported from play. So the
+trigger is enclosure itself, not a particular wall.
+
+The casters-off frames are identical across all five, and the band alone (on minus off) is:
+
+    all four walls   -9 at ONE sample
+    one-cell gap     -9 at TWO samples
+
+Same darkening per covered sample; the enclosed case simply covers one sample less (0.14 tile against
+0.29). §15b and §7b are therefore not involved at all.
+
+## Day 2: the vertex buffers, diffed
+
+`SeamDump.Mesh` logs the finished submesh — every vertex near a roofline with the alpha the shader
+will displace it by. Diffing the seaming room against the clean one, position-aligned:
+
+    present in the CLEAN mesh but not the seaming one:
+       x=85 z=169/170/171  (alpha 0 and 255)   <- the WEST WALL junction column
+       x=86 z=169/170/171
+       x=96/97 …                               <- the EAST WALL junction column
+
+    present in the seaming mesh but not the clean one:
+       x=96 z=170, x=97 z=170 …
+
+Every difference is at the room's EDGE COLUMNS, where the roof strip meets the side walls. Nothing
+differs along the middle of the roofline, even though the seam runs its full length. So the missing
+geometry is at the wall/roof junction and its absence is felt all the way along — consistent with a
+skirt that sweeps sideways along `_CastVect`.
+
+That is what the "roof steps down to a wall" attempt aimed at. It fired (verified in the dump) and
+did not move the render, so the specific skirts it restored were not the ones that matter.
+
 ## Where to look next
 
 `on` == `off` past the bounce says the defect is in what the mesh *covers*, not in what
