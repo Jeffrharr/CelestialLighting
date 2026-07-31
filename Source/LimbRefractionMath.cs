@@ -312,6 +312,28 @@ public static class LimbRefractionMath
     // and the sea-level branch is the inert one. The convention still holds exactly as written, and
     // for the same reason: a call site cannot silently opt out, and every test pins the pair.
 
+    // Does this subsystem have anything at all to say about the sky over a map with this gate value?
+    //
+    // The same answer the four entry points below already reach on their own — each returns its
+    // identity value when !inVacuum — hoisted into a question a caller can ask BEFORE it has gathered
+    // the arguments to ask the real ones (issue #64). The adapter was reading the shared night floor
+    // and the solar elevation on every WeatherWorker.CurSkyTarget call on every map, then handing both
+    // to functions that discard them on a surface map: two reads per postfix, per map, per frame,
+    // twice over while a weather transition blends.
+    //
+    // Crucially this is NOT the gate moving out of the pure core. It is a fifth gated entry point,
+    // pinned by the same paired [TestCase]s as the other four, and it decides nothing the others do
+    // not already decide — if it ever disagreed with them, the tests that assert "false here implies
+    // identity there" would fail. What the caller gets is permission to skip the gathering, not a
+    // second opinion about orbital sunsets.
+    //
+    // Deliberately takes only the gate. Adding an elevation parameter so it could also answer "and the
+    // sun is above the band, so there is nothing to do this frame either" would be a real further
+    // saving, but it would make this a summary of the band geometry — a thing that could drift from
+    // BandTopElevationDegrees — rather than a restatement of the gate. The elevation read is the cheap,
+    // memoized one anyway; the floor read is the one worth skipping.
+    public static bool AffectsSky(bool inVacuum) => inVacuum;
+
     // How much of the sun's light is reaching the platform: 1 in full sun, 0 once the disc is gone.
     //
     // Two independent factors, because they are two different physical things — how much of the sun
