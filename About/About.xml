@@ -73,9 +73,14 @@ Q. Does it work with Planetsmith?
 
   Yes, and it now follows it. Planetsmith lets you pick a planet's axial tilt when you generate a
   world, and Celestial Lighting lights that world on the tilt it was actually generated with - so a
-  steeply tilted planet gets the harsh seasons and polar nights its biomes were laid out for, and an
-  upright one gets a sun that barely moves all year. Turn "Planetsmith axial tilt" off if you would
-  rather keep an Earth-like sky over an extreme world.
+  steeply tilted planet gets a sun that climbs higher in summer and stays lower in winter, with the
+  shadows to match, and an upright one gets a sun that barely moves all year. The sky agrees with the
+  biomes instead of ignoring them.
+
+  Day length is not affected, because Planetsmith does not set one - it decides which biomes go where,
+  not how long the day is. If you want the long polar summers and dark winters a steep tilt implies,
+  turn on "Realistic day length" as well. Turn "Planetsmith axial tilt" off if you would rather keep
+  an Earth-like sky over an extreme world.
 
 Q. Does it work with Biomes! Caverns?
 

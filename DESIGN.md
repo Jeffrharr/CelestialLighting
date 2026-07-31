@@ -3909,12 +3909,41 @@ into the loaded world and restores the original on the way out, which is also th
 tilts against one world. 60 rather than 90 deliberately: 90 is the end of the slider, so a clamp bug
 that pinned every tilt to the maximum would pass.
 
-**How much of it reaches the screen, measured.** The declination handover is total — the scenario
-reads 23.4° at Planetsmith's default, 60° with the override on, 23.44° with the feature off, and
-−60° at midwinter, each within 0.05°. What arrives at a given clock hour is smaller, because §14's
-default `LockedToVanilla` sun clock warps the day percent so our sun still crosses the horizon when
-vanilla's sky does, and that re-anchoring absorbs part of the change. Measured at 15:00 on day 30 at
-45°N: sun elevation 54.39° on the 60° world against 52.69° on the 23.4° one, and a rendered shadow of
-1.003 cells against 1.067 — real, and about a 6% change in shadow length rather than the dramatic one
-the raw declinations suggest. Both are pinned. The interop's full effect is visible in the opt-in
-realistic sun-clock mode, which is the mode `Patch_SunGlow`'s fix above makes coherent.
+**Their tilt, our clock — and why that split is forced rather than chosen.** Planetsmith publishes no
+day length. It patches no day-length member (its only Harmony targets are `Page_CreateWorldParams`
+and `WorldGenStep_Terrain`) and its assembly contains no reference to `CelestialSunGlowPercent`,
+`SunPosition`, `DayPercent`, `GenCelestial`, `TwelfthOfYear` or `SeasonalShiftAmplitude` at all. So
+there is no day length of theirs to adopt even if we wanted one.
+
+This is the sharp asymmetry with RAT, and it is worth holding next to the section above. RAT patches
+`GenCelestial.CelestialSunGlowPercent` (`GlowCurvePatch`) along with `SunPosition`,
+`CurSunPositionInWorldSpace` and `GenTemperature.SeasonalShiftAmplitudeAt` — it re-tilts *vanilla's
+own* glow curve, so when §14's default `LockedToVanilla` mode snaps our sun to vanilla's clock, it is
+snapping to a clock that already carries the planet's obliquity. Locked mode is not a compromise
+there; it is exactly right. With Planetsmith nothing re-tilts that curve, so the same snap lands on
+Earth's day length over a planet built for another tilt.
+
+We take the tilt and keep the clock anyway, deliberately. Locked mode's standing bargain is already
+"faithful sun altitude, vanilla day length" — that is what the warp *is*, and §14 documents the trade.
+Planetsmith's obliquity lands squarely on the axis locked mode reproduces honestly and does not touch
+the one it was always going to fake, so it makes the sky agree with the biomes where the sky is most
+visible without introducing a new kind of error. Gating the interop on the realistic sun clock was
+considered and rejected: it would make the setting silently inert for everyone who never leaves the
+default, which is worse than a partial effect that is real.
+
+**How much reaches the screen, measured.** The declination handover is total — 23.4° at Planetsmith's
+default, 60° with the override on, 23.44° with the feature off, −60° at midwinter, each within 0.05°.
+On screen the effect is FULL AT NOON and tapers toward sunrise and sunset, because `WarpDayPercent`
+works in offset-from-noon space (`d = dayPercent - 0.5`) and therefore maps noon to noon exactly,
+rescaling only the distance either side of it. At 45°N on day 30:
+
+| clock hour | 23.4° world | 60° world | shadow change |
+|---|---|---|---|
+| 12:00 | 68.40°, 0.554 cells | 75.00°, 0.375 cells | −32% |
+| 15:00 | 52.69°, 1.067 cells | 54.39°, 1.003 cells | −6% |
+
+Both elevations at noon are the analytic `90 - |lat - decl|` to the pin's tolerance, and the measured
+shadow ratio 0.6767 matches the cotangent ratio 0.6768 to four places — the geometry arrives intact,
+it is only the day's *pacing* that vanilla still owns. All four rows are pinned; an earlier draft of
+this section quoted the 15:00 figure alone and understated the effect fivefold, which is why the noon
+row is now the one the scenario leads with.

@@ -32,6 +32,27 @@ namespace CelestialLighting;
 // generation. Scaling OUR curve by THEIR obliquity is therefore the whole of the correct answer
 // here, not a shortcut around a missing API.
 //
+// THEIR TILT, OUR CLOCK. Planetsmith publishes no day length: it patches no day-length member and
+// its assembly contains no reference to CelestialSunGlowPercent, SunPosition, DayPercent,
+// GenCelestial, TwelfthOfYear or SeasonalShiftAmplitude at all. So we take the obliquity and leave
+// §14's default LockedToVanilla clock alone, and that is forced rather than chosen — there is no day
+// length of theirs to adopt.
+//
+// It is also where Planetsmith and RAT differ most, which matters when reading this next to
+// AxialTiltCompat. RAT patches GenCelestial.CelestialSunGlowPercent, so it re-tilts VANILLA'S OWN
+// glow curve; when our locked clock snaps to vanilla it is snapping to a clock that already carries
+// the planet's obliquity, and locked mode is exactly right there. Nothing re-tilts that curve for
+// Planetsmith, so the same snap lands on Earth's day length over a planet built for another tilt.
+//
+// We do it anyway, deliberately. Locked mode's standing bargain is already "faithful sun altitude,
+// vanilla day length" — that is what the warp IS — so the obliquity lands on the axis locked mode
+// reproduces honestly and never touches the one it was always going to fake. Measured at 45 degrees
+// latitude on day 30, the altitude axis arrives in full at noon (68.4 -> 75.0 degrees, shadows 32%
+// shorter) and tapers toward sunrise and sunset, because WarpDayPercent works in offset-from-noon
+// space and so maps noon to noon exactly. Gating the whole interop on the realistic sun clock was
+// considered and rejected: it would leave the setting silently inert for everyone who never changes
+// the default, which is worse than a partial effect that is real.
+//
 // PRECEDENCE. If both mods are installed, RAT wins outright and this is not consulted — see the
 // chain in AxialTiltCompat.SolarDeclinationDegrees. RAT owns the live planet's geometry (phase,
 // tilt and moon) and drives the running game's seasons; Planetsmith's tilt was spent at world

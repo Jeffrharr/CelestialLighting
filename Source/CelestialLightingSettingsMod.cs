@@ -118,7 +118,7 @@ public class CelestialLightingSettingsMod : Mod
         if (PlanetsmithCompat.ModIsInstalled)
         {
             listing.CheckboxLabeled("Planetsmith axial tilt", ref Settings.planetsmithGeometry,
-                "Light each world on the axial tilt Planetsmith generated it with, instead of Earth's 23.4°. A steeply tilted planet then gets the harsh seasons and polar nights its biomes were laid out for. Off keeps an Earth-like sky over any world.");
+                "Light each world on the axial tilt Planetsmith generated it with, instead of Earth's 23.4°. A steeply tilted planet then gets a sun that climbs higher in summer and stays lower in winter, with the shadows to match, so the sky agrees with the biomes Planetsmith laid out. Day length is unchanged — Planetsmith does not set one — unless you also turn on realistic day length. Off keeps an Earth-like sky over any world.");
         }
 
         listing.CheckboxLabeled("Night-sky radiance", ref Settings.nightRadiance,

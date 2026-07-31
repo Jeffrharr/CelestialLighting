@@ -19,6 +19,10 @@
 
     { "type": "Probe", "args": { "probeName": "axial_tilt_declination", "expectedValue": "23.4", "tolerance": "0.05" } },
 
+    { "type": "Probe", "args": { "probeName": "sun_elevation", "expectedValue": "68.40", "tolerance": "0.35" } },
+
+    { "type": "Probe", "args": { "probeName": "shadow_extrude_far_cells", "expectedValue": "0.554", "tolerance": "0.02" } },
+
     { "type": "Screenshot", "args": { "fileName": "planetsmith_default_tilt_noon.png" } },
 
     { "type": "SetFeature", "args": { "featureName": "planetsmith_steep_tilt", "enabled": "true" } },
@@ -27,6 +31,10 @@
     { "type": "Probe", "args": { "probeName": "planetsmith_tilt", "expectedValue": "60", "tolerance": "0.05" } },
 
     { "type": "Probe", "args": { "probeName": "axial_tilt_declination", "expectedValue": "60", "tolerance": "0.05" } },
+
+    { "type": "Probe", "args": { "probeName": "sun_elevation", "expectedValue": "75.00", "tolerance": "0.35" } },
+
+    { "type": "Probe", "args": { "probeName": "shadow_extrude_far_cells", "expectedValue": "0.375", "tolerance": "0.02" } },
 
     { "type": "Screenshot", "args": { "fileName": "planetsmith_steep_tilt_noon.png" } },
 
