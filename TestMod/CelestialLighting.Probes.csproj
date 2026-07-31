@@ -58,6 +58,9 @@
     <Compile Include="../Source/Probes/AuroraTintProbe.cs" Link="AuroraTintProbe.cs" />
     <Compile Include="../Source/Probes/AuroraCurtainProbe.cs" Link="AuroraCurtainProbe.cs" />
     <Compile Include="../Source/Probes/AuroraCurtainCostProbe.cs" Link="AuroraCurtainCostProbe.cs" />
+    <!-- Issue #60's measurement pass: times the shipped draw path in place, from out here, so the
+         shipped assembly never carries the stopwatches. Same arrangement as GeometryEvalCountProbe. -->
+    <Compile Include="../Source/Probes/AuroraPathTimingProbe.cs" Link="AuroraPathTimingProbe.cs" />
     <Compile Include="../Source/Probes/EclipseCoverageProbe.cs" Link="EclipseCoverageProbe.cs" />
     <Compile Include="../Source/Probes/EclipseUmbraProbe.cs" Link="EclipseUmbraProbe.cs" />
     <Compile Include="../Source/Probes/BloodMoonProbe.cs" Link="BloodMoonProbe.cs" />

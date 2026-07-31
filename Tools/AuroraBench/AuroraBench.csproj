@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <AssemblyName>AuroraBench</AssemblyName>
+    <RootNamespace>CelestialLighting.Tools</RootNamespace>
+    <Optimize>true</Optimize>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Same discipline as AuroraPreview: the benchmark times the SHIPPED pure core, linked as
+         source, so a number here cannot describe a copy that has drifted from the game's. -->
+    <Compile Include="../../Source/AuroraMath.cs" Link="AuroraMath.cs" />
+    <Compile Include="../../Source/AuroraNoise.cs" Link="AuroraNoise.cs" />
+    <Compile Include="../../Source/AuroraCurtain.cs" Link="AuroraCurtain.cs" />
+    <Compile Include="../../Source/AuroraCurtainHemRays.cs" Link="AuroraCurtainHemRays.cs" />
+    <Compile Include="../../Source/AuroraFieldSpec.cs" Link="AuroraFieldSpec.cs" />
+    <Compile Include="../../Source/AuroraSheetLayout.cs" Link="AuroraSheetLayout.cs" />
+    <Compile Include="../../Source/AuroraDisplays.cs" Link="AuroraDisplays.cs" />
+  </ItemGroup>
+</Project>
