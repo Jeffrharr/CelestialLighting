@@ -3596,7 +3596,32 @@ the API is treated as absent (`ApiVersion >= 1` gate) and declared in `<incompat
 than half-supported. Upstream has since merged the API and the lighting gate (`08f5b49`; all seven
 of their lighting patches consult `LightingSuppressed`), so that tag becomes a `loadAfter` the day a
 RAT *release* carries it — it is keyed to the published Workshop build, which still does not, and
-not to their main branch, because the published build is the one in players' mod lists. `GeometryReady` is checked on every read because RAT's `cosTilt` defaults to
+not to their main branch, because the published build is the one in players' mod lists.
+
+`GeometryReady` is checked on every read because RAT's `cosTilt` defaults to
 `0f`, not `1f` — calling before their world comp seeds it returns a degenerate planet, not
 Earth-like defaults. `GeometryGeneration` is exposed for cache invalidation across saves with
 different tilts.
+
+**Drift is a runtime failure, so it degrades rather than throws.** Late binding means every member
+is a string: a rename or a signature change upstream cannot fail at compile time, and `ApiVersion`
+is no defence because it moves only when *they* judge a change breaking — a rename they consider a
+tidy-up is exactly the case they would not flag. So each resolve is null-checked and each
+`CreateDelegate` is guarded, and any failure logs one warning naming the member and treats RAT as
+absent. Before this, a rename propagated an exception out of a `StaticConstructorOnStartup` and took
+the whole mod with it.
+
+Two details are deliberate. The warning states the *consequence* rather than the fault, and it
+differs per arm — losing a required member costs the planet's obliquity (our tilt, so seasons may
+read out of step with RAT's own temperature and growing periods), losing `LunarDeclinationDegrees`
+costs only an inclination. And `TryClaimLighting` is bound first, so if the geometry is unreadable
+we still claim the lighting: declining would not hand the sky back to RAT, it would put both mods on
+`SectionLayer_SunShadows.Regenerate` with a `return false` prefix each, where the loser silently
+never builds a mesh and Harmony registration order picks it. One renderer with a mis-phased sun
+beats two renderers and a coin flip.
+
+Verified live against a RAT built with `SolarDeclinationDegrees` deliberately renamed:
+`axial_tilt_absent`'s pins pass unchanged with RAT installed and active (declination 0, moon 4.87°),
+RAT logs `Lighting claimed by joof.celestiallighting`, and the run carries exactly one warning and
+zero exceptions — a drifted API is indistinguishable from RAT not being installed, which is the
+goal.
