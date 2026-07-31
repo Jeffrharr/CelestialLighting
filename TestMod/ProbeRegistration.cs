@@ -163,6 +163,27 @@ public static class ProbeRegistration
         ProbeRegistry.Register(new GeometryEvalCountProbe(
             "geom_maps_loaded", GeometryEvalCountProbe.Metric.MapsLoaded));
 
+        // How many section-layer meshes §9's night wash and §15b's eave shade actually submit per
+        // frame. Both carry their map-wide strength in a material alpha rather than in the mesh, so
+        // each is fully transparent for half of every day — the wash through daylight, the shade
+        // through night — and vanilla's MapDrawLayer.DrawLayer cannot tell. These count the
+        // submissions that survive the layers' own DrawLayer overrides. sections_drawn_mean is the
+        // guard reading: a zero wash count only means anything while the map is demonstrably still
+        // drawing something.
+        SectionLayerDrawCounters.Install();
+        ProbeRegistry.Register(new SectionLayerDrawCountProbe(
+            "wash_draws_mean", SectionLayerDrawCountProbe.Metric.WashDrawsMean));
+        ProbeRegistry.Register(new SectionLayerDrawCountProbe(
+            "wash_draws_max", SectionLayerDrawCountProbe.Metric.WashDrawsMax));
+        ProbeRegistry.Register(new SectionLayerDrawCountProbe(
+            "shade_draws_mean", SectionLayerDrawCountProbe.Metric.ShadeDrawsMean));
+        ProbeRegistry.Register(new SectionLayerDrawCountProbe(
+            "shade_draws_max", SectionLayerDrawCountProbe.Metric.ShadeDrawsMax));
+        ProbeRegistry.Register(new SectionLayerDrawCountProbe(
+            "sections_drawn_mean", SectionLayerDrawCountProbe.Metric.SectionsDrawnMean));
+        ProbeRegistry.Register(new SectionLayerDrawCountProbe(
+            "draw_frames_counted", SectionLayerDrawCountProbe.Metric.FramesCounted));
+
         // Expose CelestialLighting's runtime feature flags to the harness's SetFeature step so a
         // scenario can screenshot an effect off then on. The setter just writes the shipped mod's
         // static flag; in production nothing calls it and the flag stays at its default (on).
@@ -420,6 +441,12 @@ public static class ProbeRegistration
         FeatureRegistry.Register(
             "geometry_count_reset",
             _ => GeometryEvalCounters.Reset());
+        // Same contract, for the section-layer draw counters: a scenario resets the window right after
+        // a SetTime and before the Wait, so the reading characterizes the new time of day rather than
+        // averaging across the clock change that produced it. Both arms reset, for the same reason.
+        FeatureRegistry.Register(
+            "draw_count_reset",
+            _ => SectionLayerDrawCounters.Reset());
         // The off arm restores the floor the SETTINGS carry, not NightRadianceMath's compile-time
         // default. Those are not the same number and the difference is the whole bug: the math default
         // is 0f, so both arms used to write 0f and turning this feature "off" restored nothing. That

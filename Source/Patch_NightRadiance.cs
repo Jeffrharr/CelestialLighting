@@ -31,6 +31,28 @@ public static class Patch_NightRadiance
         if (!CelestialLightingFeatures.NightRadiance)
             return;
 
+        // Same shared solar-position simulator every other subsystem uses (Patch_ShadowDirection,
+        // Patch_ShadowStrength), so night timing can never disagree with the shadow/twilight patches
+        // about where the sun actually is.
+        //
+        // Above the night-floor band entirely (day / high twilight): nothing to do. This early-out is
+        // also the guarantee that daytime glow is never touched — the blend weight would be 0 here
+        // anyway, but returning makes that explicit and skips the moon lookup.
+        //
+        // FIRST rather than last, and the ordering is the point. Every gate in this postfix is a
+        // side-effect-free return, so any order returns the same answer — but this is the one that is
+        // true for the whole of daylight and it is by far the cheapest of them.
+        // SolarPosition.ElevationForMap is memoized per map per frame (GeometryMemo) and five other
+        // patches ask for it on the same frame, so by the time this runs it is a dictionary hit. The
+        // two MapSky gates below are deliberately NOT cached (see MapSky's header for why): one walks
+        // the biome's weather-commonality list, the other the GameConditionManager chain with a
+        // CanApplyOnMap per match. Running them ahead of this paid for both, on both of the
+        // CurSkyTarget calls SkyManager makes per map per frame, every daylight frame, only to
+        // discover there was nothing to do.
+        float sunElevation = SolarPosition.ElevationForMap(map);
+        if (sunElevation > NightRadianceMath.NightFloorStartElevation)
+            return;
+
         // Enclosed map (a Biomes! Caverns cavern, vanilla's undercave). This is the gate that
         // matters most of the nine: the night floor this patch raises is starlight, airglow and
         // MOONLIGHT, none of which reach through a rock ceiling, and this is also the only patch in
@@ -50,17 +72,6 @@ public static class Patch_NightRadiance
         // mod asserting moonlight it cannot see, plus the partial lerp during a sun blocker's 200-tick
         // fade-in, where the floor was briefly real.
         if (MapSky.SkyBlackedOut(map))
-            return;
-
-        // Same shared solar-position simulator every other subsystem uses (Patch_ShadowDirection,
-        // Patch_ShadowStrength), so night timing can never disagree with the shadow/twilight patches
-        // about where the sun actually is.
-        float sunElevation = SolarPosition.ElevationForMap(map);
-
-        // Above the night-floor band entirely (day / high twilight): nothing to do. This early-out
-        // is also the guarantee that daytime glow is never touched — the blend weight would be 0
-        // here anyway, but returning makes that explicit and skips the moon lookup.
-        if (sunElevation > NightRadianceMath.NightFloorStartElevation)
             return;
 
         // §18d owns .glow outright on a vacuum map, so this patch stands down there. One owner per

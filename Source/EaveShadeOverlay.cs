@@ -43,6 +43,15 @@ public static class EaveShadeOverlay
 
     public static Material Material => ShadeMaterial;
 
+    // Whether the shade would put anything on screen right now. False all night, and false by day on
+    // any map whose cast shadows have been zeroed (a blacked-out sky, heavy overcast, the feature
+    // off) — SetShadowTint derives this alpha from the finished MatBases.SunShadow tint, so it goes
+    // to zero on exactly the frames the cast shadow it matches does.
+    //
+    // Read by SectionLayer_EaveShade.DrawLayer to skip the submission entirely; the night twin of
+    // NightDesaturationOverlay.Drawing, and there for the same reason.
+    public static bool Drawing => ShadeMaterial.color.a > 0f;
+
     private static Material BuildShadeMaterial()
     {
         Material material = new Material(ShaderDatabase.Transparent)
