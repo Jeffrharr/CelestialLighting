@@ -27,17 +27,27 @@ public static class MoonPosition
         public readonly float AzimuthDegrees;
         public readonly float IlluminatedFraction;
 
-        public Sky(float elevationDegrees, float azimuthDegrees, float illuminatedFraction)
+        // Carried alongside the two angles it produced, purely so the moon's declination is
+        // observable where the sun's already is (SolarPosition.Inputs.Declination). Nothing in the
+        // render path reads it. It exists because the declination is the one number the Realistic
+        // Axial Tilt seam actually changes, and a probe that recomputed it instead of reading what
+        // this struct was built from could report our model while the game drew theirs — the exact
+        // blindness AxialTiltDeclinationProbe's header describes for the sun.
+        public readonly float DeclinationDegrees;
+
+        public Sky(
+            float elevationDegrees, float azimuthDegrees, float illuminatedFraction, float declinationDegrees)
         {
             ElevationDegrees = elevationDegrees;
             AzimuthDegrees = azimuthDegrees;
             IlluminatedFraction = illuminatedFraction;
+            DeclinationDegrees = declinationDegrees;
         }
     }
 
     // A far-below-horizon, unilluminated moon used when there is no live moon component to read.
     // Every downstream helper treats this as "no moon up", so callers need no separate null path.
-    private static readonly Sky NoMoon = new Sky(-90f, 0f, 0f);
+    private static readonly Sky NoMoon = new Sky(-90f, 0f, 0f, 0f);
 
     // Dev-only escape hatch, always true in a real game — exactly the SunClockAdapter.WarpEnabled
     // pattern and there for the same reason. Setting it false leaves the moon on the raw day percent
@@ -121,20 +131,30 @@ public static class MoonPosition
         Vector2 longLat = Find.WorldGrid.LongLatOf(map.Tile);
         int dayOfYear = GenDate.DayOfYear(Find.TickManager.TicksAbs, longLat.x);
 
-        // Evaluated through the SUN's declination model at the moon's equivalent day, rather than
-        // through MoonMath's own -cos, so the moon tracks whatever seasonal model the sun is on.
-        // With Realistic Axial Tilt that model is theirs and a quarter-year out of phase with ours;
-        // rebuilding the moon independently would leave it a season adrift of the sun. Identical to
-        // MoonMath.MoonDeclinationDegrees when RAT is absent — see MoonEquivalentSunDayOfYear.
-        float declination = AxialTiltCompat.SolarDeclinationDegrees(
-            MoonMath.MoonEquivalentSunDayOfYear(dayOfYear, cyclePosition));
+        // Resolved through the same interop seam as the sun's declination, so the two bodies can
+        // never end up on different models of the year. With Realistic Axial Tilt installed this is
+        // their moon, inclined orbit and all, evaluated at OUR cycle position; without it (or against
+        // a RAT predating their lunar geometry) it degrades to our own model at the moon's equivalent
+        // sun-day, which is that same moon with the inclination set to zero. See
+        // AxialTiltCompat.MoonDeclinationDegrees for why the phase stays ours while the orbit is
+        // theirs, and MoonMath.MoonEquivalentSunDayOfYear for the fallback.
+        float declination = AxialTiltCompat.MoonDeclinationDegrees(dayOfYear, cyclePosition);
         float moonDayPercent = MoonMath.MoonDayPercent(dayPercent, cyclePosition);
 
         // Reuse Formulas' own solar-position equations for the moon, feeding the moon's declination
         // and lagged day-percent — the moon is just another body on the ecliptic.
+        //
+        // We take only the declination from RAT and not their LunarElevationDegrees/LunarAzimuthDegrees,
+        // even though those exist, and the reason is not distrust: their hour angle is (dayPercent -
+        // cyclePosition), the same lag MoonMath.MoonDayPercent produces, so with the same declination
+        // the two agree. What differs is what feeds them. Our day percent is §14-warped onto vanilla's
+        // day (see above), theirs is not; and their azimuth returns 0 where azimuth is undefined,
+        // which our shadow vector would silently read as "due north" rather than "no direction".
+        // Keeping both bodies on one trig path is also what makes the sun/moon invariants above
+        // testable offline, where no RAT exists.
         float elevation = Formulas.SolarElevationDegrees(sun.Latitude, declination, moonDayPercent);
         float azimuth = Formulas.SolarAzimuthDegrees(sun.Latitude, declination, elevation, moonDayPercent);
-        return new Sky(elevation, azimuth, MoonMath.IlluminatedFraction(cyclePosition));
+        return new Sky(elevation, azimuth, MoonMath.IlluminatedFraction(cyclePosition), declination);
     }
 
     // Moon-cast shadow for this map, or null when the moon is down / new (so no shadow should render).

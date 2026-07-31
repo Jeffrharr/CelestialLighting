@@ -10,7 +10,11 @@
 
     { "type": "Probe", "args": { "probeName": "axial_tilt_active", "expectedValue": "0", "tolerance": "0.01" } },
 
+    { "type": "Probe", "args": { "probeName": "axial_tilt_lunar", "expectedValue": "0", "tolerance": "0.01" } },
+
     { "type": "Probe", "args": { "probeName": "axial_tilt_declination", "expectedValue": "0", "tolerance": "0.35" } },
+
+    { "type": "Probe", "args": { "probeName": "moon_declination", "expectedValue": "4.88", "tolerance": "0.35" } },
 
     { "type": "Probe", "args": { "probeName": "shadow_lean", "expectedValue": "0", "tolerance": "0.35" } },
 

@@ -176,6 +176,30 @@ public class MoonMathTests
             Is.EqualTo(dayOfYear + Formulas.DaysPerYear / 2f).Within(Tolerance));
     }
 
+    [TestCase(0f, 0f)]
+    [TestCase(0f, 0.25f)]
+    [TestCase(15f, 0.13f)]
+    [TestCase(42f, 0.87f)]
+    [TestCase(59f, 0.31f)]
+    public void MoonEquivalentSunDayOfYear_MatchesRatEclipticLongitudeConstruction(
+        float dayOfYear, float cyclePosition)
+    {
+        // Cross-model pin, and the reason AxialTiltCompat can hand the moon to Realistic Axial Tilt
+        // without re-basing anything. RAT places the moon at ecliptic longitude
+        // (dayOfYear/60 + cyclePosition)·2π — the sun's longitude advanced by the elongation — and
+        // their moon is that longitude plus an orbital inclination. Our fallback evaluates the sun at
+        // this day, so at inclination 0 the two constructions are the same body, and switching a
+        // player onto RAT's moon can only add the inclination term. It cannot move a season.
+        //
+        // Written as their expression rather than ours on purpose: it fails if we change
+        // DaysPerYear or the elongation sweep and quietly stop agreeing with upstream.
+        float ratEquivalentDay = dayOfYear + cyclePosition * 60f;
+
+        Assert.That(
+            MoonMath.MoonEquivalentSunDayOfYear(dayOfYear, cyclePosition),
+            Is.EqualTo(ratEquivalentDay).Within(Tolerance));
+    }
+
     // --- MoonDayPercent ---
 
     [TestCase(0.5f, 0f, 0.5f)] // new moon: moon tracks the sun (meridian at noon)

@@ -239,6 +239,24 @@ public static class CelestialLightingFeatures
     // question on the epic.
     public static bool VacuumShadowContrast = true;
 
+    // Feature key for AxialTiltLunarGeometry (see CivilTwilightPersistenceKey for why it lives here).
+    public const string AxialTiltLunarGeometryKey = "axial_tilt_lunar_geometry";
+
+    // Realistic Axial Tilt's lunar geometry: with RAT installed, take the moon's declination from
+    // their inclined-orbit model (inclination + node regression, both player-tunable on their
+    // settings screen) instead of placing the moon on the ecliptic ourselves.
+    //
+    // Gated for a reason the other flags here don't have: this one depends on code that is not ours
+    // and not required to exist. RAT's lunar block arrived additively, without an ApiVersion bump, so
+    // the only runtime test for it is "did the method resolve" — and the answer differs between two
+    // RAT builds a player might have. AxialTiltCompat.LunarGeometryActive is therefore this flag AND
+    // the binding, and neither alone. Turning it off does not disable the interop: the moon falls
+    // back to the sun's declination at MoonMath.MoonEquivalentSunDayOfYear, which under RAT is still
+    // THEIR seasonal model, just their moon without its orbital inclination — the pre-feature
+    // baseline, and exactly what a RAT too old to have a moon gives. That makes "off" both the
+    // harness A/B baseline and a real escape hatch if an upstream lunar change ever misbehaves.
+    public static bool AxialTiltLunarGeometry = true;
+
     // §14 sun-clock reconciliation. An enum rather than two bools because the modes are mutually
     // exclusive by construction: locked warps OUR sun onto vanilla's clock, realistic makes VANILLA's
     // glow follow ours. Running both would mean each defining itself in terms of the other.
