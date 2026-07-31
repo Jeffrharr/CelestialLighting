@@ -141,9 +141,20 @@ public static class Patch_WeatherShadowColor
 
         // §18b's published night floor, read through the shared adapter rather than reassembled here:
         // in vacuum a shadow bottoms out at exactly the value §7 uses for how dark the sky can get.
-        // Costs one field read and a moon lookup on non-vacuum maps too — cheap enough not to be
-        // worth a branch, and branching would put the gate in two places.
-        float nightFloor = NightRadiance.FloorGlowFor(map);
+        //
+        // GATED ON inVacuum, and the gate is not a micro-optimization. DaytimeUmbraFill consumes
+        // nightFloorGlow only in its `inVacuum` arm and returns the plain sky fill otherwise, so on a
+        // surface map this value was computed and discarded — and the discard happened on the DAYLIGHT
+        // side of the elevation check above, which is the half of the day nothing else asks the moon
+        // anything. §7's Patch_NightRadiance returns before its own FloorGlowFor above
+        // NightFloorStartElevation, and §6a's Patch_MoonShadowColor returns as soon as the sun is up,
+        // so this line alone was keeping the lunar simulation alive through every daylight frame.
+        //
+        // An earlier comment here argued the branch was not worth it because the lookup is cheap. The
+        // memo collapses the two CALLS per frame to one EVALUATION; it cannot collapse that remaining
+        // evaluation to none. Same distinction issue #64 drew for Patch_LimbRefraction, applied to the
+        // last daylight caller left on this path.
+        float nightFloor = inVacuum ? NightRadiance.FloorGlowFor(map) : 0f;
 
         // __result.glow is the lit ground this umbra is a multiply against, and it is vanilla's own
         // daylight here: the only patch of ours that writes .glow is §7's Patch_NightRadiance, which

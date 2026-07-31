@@ -3537,6 +3537,44 @@ Verse/Unity half that reads the frame, tick and flags — the same split as `Sun
 `SunClockAdapter`. `GeometryMemoTests.cs` covers hits, per-map isolation, invalidation on each key
 field, and that a compute which throws caches nothing.
 
+### What the memo cannot do: one evaluation is not the same as none
+
+The table above is a fan-out count, and reading it as a cost table is the trap. The memo collapses
+*calls* into *evaluations*; it has nothing to say about whether that one surviving evaluation should
+have happened at all. For the moon in daylight, it should not — nothing on screen between sunrise
+and sunset consults lunar geometry. §7's `Patch_NightRadiance` returns above
+`NightFloorStartElevation`, and §6a's `Patch_MoonShadowColor` returns as soon as the sun clears the
+refraction horizon.
+
+One caller did not, and it sat on the daylight side of its own elevation gate:
+`Patch_WeatherShadowColor` read `NightRadiance.FloorGlowFor(map)` unconditionally and fed it to
+`ShadowFillMath.DaytimeUmbraFill`, which consumes it only in its `inVacuum` arm and returns the
+plain sky fill otherwise. On every surface map — every ordinary colony — that value was computed and
+discarded, and computing it ran the whole lunar simulation. So the mod carried a full moon
+evaluation per map per frame across the entire lit half of the day to produce a number no branch
+read.
+
+Measured with `geometry_eval_count.json` (`GeometryEvalCountProbe`), surface map, latitude 45:
+
+| | moon calls/frame | moon evals/frame |
+|---|---|---|
+| noon, before the gate | 2 | **1** |
+| noon, after the gate | 0 | **0** |
+| 01:00 (control), either build | 10 | 1 |
+
+The night row is the control and does not move: this changes *when* the moon is asked, never what it
+answers. Solar stays at 1 evaluation throughout, as the table above promises.
+
+The fix is `inVacuum ? NightRadiance.FloorGlowFor(map) : 0f` — the same shape issue #64 applied to
+`Patch_LimbRefraction`, whose own follow-up list named `Patch_WeatherShadowColor` as the remaining
+instance. The scenario's three daylight blocks were reporting-only (`tolerance: 1000000`) and are
+now pinned at `0 ± 0.5`, so a future daylight consumer of lunar geometry has to be a deliberate
+decision rather than a silent one.
+
+The general lesson, and the reason this sits next to the memo rather than in §16: a memo makes the
+*repeat* cost of a question free and thereby hides the question. Rank callers by whether they need
+the answer, not by how often they ask.
+
 ## Pure-function core (`Source/Formulas.cs`)
 
 Every formula above — latitude strength, the solar-position simulator (declination/elevation/
