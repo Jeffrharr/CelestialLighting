@@ -786,6 +786,126 @@ public class LimbRefractionMathTests
             "the band no longer moves the glow, so this pin has stopped proving the gate matters");
     }
 
+    // Issue #64, second half. The shipped patch no longer calls the (elevation, gate) entry points at
+    // all — it takes one BandSample and asks the overloads. Every other pin in this file exercises the
+    // plain forms, so without this the code that actually runs in game would be untested. The claim is
+    // equivalence, so it is asserted as equivalence rather than against fresh literals: whatever the
+    // pinned forms say, the sample forms must say exactly the same thing.
+    //
+    // Bit-exact (Is.EqualTo with no tolerance) on purpose. This refactor only moves WHERE the two
+    // expensive functions are called, never their arguments, so every shared subexpression should
+    // reduce to the identical float. A tolerance here would hide precisely the kind of drift — a
+    // reordered multiply, a band edge landing on the other side — that the change could plausibly
+    // introduce.
+    [TestCase(45f)]
+    [TestCase(0f)]
+    [TestCase(-0.4f)]     // just above the band's top edge
+    [TestCase(-0.6f)]
+    [TestCase(-5f)]
+    [TestCase(-13.95f)]   // the tint-strength peak
+    [TestCase(-18f)]
+    [TestCase(-21.5f)]    // just below the band's bottom edge
+    [TestCase(-40f)]
+    public void TheSampleFormsAgreeWithThePinnedFormsExactly(float elevation)
+    {
+        AssertSampleAgreesWithPlainForm(elevation, inVacuum: true);
+        AssertSampleAgreesWithPlainForm(elevation, inVacuum: false);
+    }
+
+    // The band edges themselves, called out separately because they are where a `<` that should have
+    // stayed a `<=` would show up: SampleBand re-expressed three scattered boundary tests as one, and
+    // an elevation sitting exactly ON an edge has to land on the side it always did.
+    [Test]
+    public void TheSampleFormsAgreeWithThePinnedFormsOnTheBandEdges()
+    {
+        AssertSampleAgreesWithPlainForm(LimbRefractionMath.BandTopElevationDegrees, inVacuum: true);
+        AssertSampleAgreesWithPlainForm(LimbRefractionMath.BandBottomElevationDegrees, inVacuum: true);
+    }
+
+    private static void AssertSampleAgreesWithPlainForm(float elevation, bool inVacuum)
+    {
+        LimbRefractionMath.BandSample sample = LimbRefractionMath.SampleBand(elevation, inVacuum);
+        string where = $"at {elevation} degrees, inVacuum={inVacuum}";
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(
+                LimbRefractionMath.SunlightFraction(sample),
+                Is.EqualTo(LimbRefractionMath.SunlightFraction(elevation, inVacuum)),
+                $"SunlightFraction disagrees {where}");
+
+            Assert.That(
+                LimbRefractionMath.TintStrength(sample),
+                Is.EqualTo(LimbRefractionMath.TintStrength(elevation, inVacuum)),
+                $"TintStrength disagrees {where}");
+
+            // Including outside the band, where the sample has no transmission stored and the overload
+            // has to fall back to computing one — the path that keeps LimbTint defined everywhere in
+            // vacuum instead of snapping to white at the band edge.
+            LimbRefractionMath.Rgb sampled = LimbRefractionMath.LimbTint(sample);
+            LimbRefractionMath.Rgb plain = LimbRefractionMath.LimbTint(elevation, inVacuum);
+            Assert.That(sampled.R, Is.EqualTo(plain.R), $"LimbTint red disagrees {where}");
+            Assert.That(sampled.G, Is.EqualTo(plain.G), $"LimbTint green disagrees {where}");
+            Assert.That(sampled.B, Is.EqualTo(plain.B), $"LimbTint blue disagrees {where}");
+
+            // Two glow inputs, so a sample form that ignored one of them cannot pass by coincidence.
+            Assert.That(
+                LimbRefractionMath.VacuumSkyGlow(sample, seaLevelGlow: 0.5f, planetshineFloor: 0.0317f),
+                Is.EqualTo(LimbRefractionMath.VacuumSkyGlow(elevation, 0.5f, 0.0317f, inVacuum)),
+                $"VacuumSkyGlow disagrees {where}");
+
+            Assert.That(
+                LimbRefractionMath.VacuumSkyGlow(sample, seaLevelGlow: 0f, planetshineFloor: 0f),
+                Is.EqualTo(LimbRefractionMath.VacuumSkyGlow(elevation, 0f, 0f, inVacuum)),
+                $"VacuumSkyGlow with no floor disagrees {where}");
+        });
+    }
+
+    // The point of the exercise. A sample taken inside the band must carry BOTH expensive results, so
+    // that the four overloads above can answer from it without reaching for MathF again — that is the
+    // whole saving, and it is invisible to the equivalence pins (which would still pass if every
+    // overload recomputed everything). Asserted through the observable consequence: the stored
+    // transmission is the one LimbTransmission returns, and the stored disc fraction is
+    // SolarDiscVisibleFraction's.
+    [Test]
+    public void ASampleInsideTheBandCarriesBothExpensiveResults()
+    {
+        const float elevation = -13.95f;
+        LimbRefractionMath.BandSample sample = LimbRefractionMath.SampleBand(elevation, inVacuum: true);
+        LimbRefractionMath.Rgb expected = LimbRefractionMath.LimbTransmission(elevation);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(sample.InBand, Is.True);
+            Assert.That(sample.Transmission.R, Is.EqualTo(expected.R));
+            Assert.That(sample.Transmission.G, Is.EqualTo(expected.G));
+            Assert.That(sample.Transmission.B, Is.EqualTo(expected.B));
+            Assert.That(
+                sample.DiscVisibleFraction,
+                Is.EqualTo(LimbRefractionMath.SolarDiscVisibleFraction(elevation)));
+        });
+    }
+
+    // The other half of that: a sample the subsystem has no use for must not have paid for anything.
+    // On a surface map — every frame of a normal colony — SampleBand has to be arithmetic only, which
+    // is what makes it safe to put on the path AffectsSky already guards.
+    [TestCase(-13.95f, false)]  // sea level, inside what would be the band
+    [TestCase(45f, true)]       // vacuum, but broad daylight above the band
+    [TestCase(-40f, true)]      // vacuum, but deep night below it
+    public void ASampleWithNothingToSayIsNotComputed(float elevation, bool inVacuum)
+    {
+        LimbRefractionMath.BandSample sample = LimbRefractionMath.SampleBand(elevation, inVacuum);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(sample.InBand, Is.False);
+            Assert.That(sample.DiscVisibleFraction, Is.EqualTo(0f));
+            Assert.That(sample.Transmission.R, Is.EqualTo(0f));
+            Assert.That(sample.Transmission.G, Is.EqualTo(0f));
+            Assert.That(sample.Transmission.B, Is.EqualTo(0f));
+        });
+    }
+
     private static float Lerp(float a, float b, float t) => a + (b - a) * t;
     private static float Clamp01(float v) => v < 0f ? 0f : (v > 1f ? 1f : v);
 }

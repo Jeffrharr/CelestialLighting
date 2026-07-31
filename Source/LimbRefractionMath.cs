@@ -303,8 +303,84 @@ public static class LimbRefractionMath
     }
 
     // ------------------------------------------------------------------
+    // The shared sample — one evaluation of the band per elevation
+    // ------------------------------------------------------------------
+    //
+    // Everything below is a function of the same two expensive quantities at the same elevation:
+    // LimbTransmission (a Cos and three Exps) and SolarDiscVisibleFraction (an Acos and a Sqrt).
+    // Evaluated independently by each entry point, one CurSkyTarget postfix on a vacuum map inside the
+    // band paid for the transmission THREE times — SunlightFraction, TintStrength via LimbTint, and
+    // the patch's own LimbTint call — and the disc fraction twice, all with identical arguments
+    // (issue #64). This is that work, done once, in a value the caller carries between the entry
+    // points.
+    //
+    // WHY A SAMPLE AND NOT A MEMO. A cache keyed on elevation would need mutable static state in a file
+    // whose entire contract is that it is pure and offline-testable, and it would answer a question
+    // nobody is really asking — the repeats are not spread across time, they are three calls deep in
+    // one postfix. Threading a value through the call that already exists costs no state, no key, and
+    // no staleness, and it makes the sharing visible at the call site instead of hidden in a field.
+    //
+    // WHY IT CARRIES THE GATE AND THE BAND. So the sample is the whole "where are we" answer and the
+    // overloads below have nothing left to re-derive. It is also what keeps this from making daytime
+    // worse: above the band the entry points return their constants without touching the transmission,
+    // so the sample must not eagerly compute one either. InBand is false there and both fields stay at
+    // their defaults, unread.
+    public readonly struct BandSample
+    {
+        public readonly float ElevationDegrees;
+        public readonly bool InVacuum;
+
+        // Gate AND band membership, resolved once. False either on a surface map or with the sun
+        // outside [BandBottom, BandTop] — the two cases where nothing below needs a transmission.
+        public readonly bool InBand;
+
+        // Only meaningful when InBand. Left at default otherwise, which is safe precisely because
+        // every reader below checks InBand first.
+        public readonly Rgb Transmission;
+        public readonly float DiscVisibleFraction;
+
+        public BandSample(
+            float elevationDegrees, bool inVacuum, bool inBand, Rgb transmission, float discVisibleFraction)
+        {
+            ElevationDegrees = elevationDegrees;
+            InVacuum = inVacuum;
+            InBand = inBand;
+            Transmission = transmission;
+            DiscVisibleFraction = discVisibleFraction;
+        }
+    }
+
+    // Take one sample for an elevation. This is the only place the two expensive functions are called
+    // on the hot path; every entry point below reads the result rather than recomputing it.
+    //
+    // The band test uses the same >= / <= comparisons the entry points used when they each owned a
+    // copy, so an elevation exactly ON either edge lands on the same side it always did.
+    public static BandSample SampleBand(float sunElevationDegrees, bool inVacuum)
+    {
+        bool inBand = inVacuum
+            && sunElevationDegrees < BandTopElevationDegrees
+            && sunElevationDegrees > BandBottomElevationDegrees;
+
+        if (!inBand)
+            return new BandSample(sunElevationDegrees, inVacuum, false, default, 0f);
+
+        return new BandSample(
+            sunElevationDegrees,
+            inVacuum,
+            true,
+            LimbTransmission(sunElevationDegrees),
+            SolarDiscVisibleFraction(sunElevationDegrees));
+    }
+
+    // ------------------------------------------------------------------
     // Effect-level entry points — all four carry the §18 gate
     // ------------------------------------------------------------------
+    //
+    // Each comes as a pair: the original (elevation, gate) signature, kept verbatim as the thing the
+    // unit tests pin and any caller with a single question can go on using, and a BandSample overload
+    // carrying the real body. The plain form is a wrapper that takes its own sample — so it is exactly
+    // as expensive as it always was and answers exactly what it always did — while a caller with
+    // several questions about one elevation (the patch) samples once and asks all of them.
     //
     // THE GATE, per Vacuum.cs's convention: `bool inVacuum` last, required, never defaulted, branched
     // on before any of the model runs. Note this subsystem inverts §18a's polarity — there the vacuum
@@ -350,19 +426,22 @@ public static class LimbRefractionMath
     // In vacuum, above the band this is exactly 1: nothing dims an orbital sun, so the platform runs
     // full daylight right up to the moment the planet starts to get in the way. Consequence 1 needs
     // no code beyond that early return.
-    public static float SunlightFraction(float sunElevationDegrees, bool inVacuum)
+    public static float SunlightFraction(float sunElevationDegrees, bool inVacuum) =>
+        SunlightFraction(SampleBand(sunElevationDegrees, inVacuum));
+
+    public static float SunlightFraction(in BandSample sample)
     {
-        if (!inVacuum)
+        if (!sample.InVacuum)
             return 1f;
 
-        if (sunElevationDegrees >= BandTopElevationDegrees)
-            return 1f;
-        if (sunElevationDegrees <= BandBottomElevationDegrees)
-            return 0f;
+        // Outside the band there are only two possibilities and the sample already knows which side we
+        // are on: full sun above it, nothing below it.
+        if (!sample.InBand)
+            return sample.ElevationDegrees >= BandTopElevationDegrees ? 1f : 0f;
 
-        Rgb transmission = LimbTransmission(sunElevationDegrees);
-        float luminous = BloodMoonMath.Luma(transmission.R, transmission.G, transmission.B);
-        return luminous * SolarDiscVisibleFraction(sunElevationDegrees);
+        float luminous = BloodMoonMath.Luma(
+            sample.Transmission.R, sample.Transmission.G, sample.Transmission.B);
+        return luminous * sample.DiscVisibleFraction;
     }
 
     // The band's colour as a DIRECTION in colour space — the transmission triple renormalised so its
@@ -380,12 +459,40 @@ public static class LimbRefractionMath
     // this is doubly inert, which is deliberate — either one alone already reduces to a no-op, so a
     // future caller reaching for only one of them still cannot leak an orbital colour onto the
     // ground.
+    //
+    // The plain form deliberately does NOT route through SampleBand. This is the one entry point with
+    // no band test — it is defined at every elevation in vacuum, approaching white above the band
+    // rather than snapping to it — so a sample would make it pay for a SolarDiscVisibleFraction it has
+    // no use for. It goes straight to the transmission it needs, exactly as it always did.
     public static Rgb LimbTint(float sunElevationDegrees, bool inVacuum)
     {
         if (!inVacuum)
             return new Rgb(1f, 1f, 1f);
 
-        Rgb transmission = LimbTransmission(sunElevationDegrees);
+        return NormaliseToBrightest(LimbTransmission(sunElevationDegrees));
+    }
+
+    // Sample form. Reuses the sampled transmission when there is one, and falls back to computing it
+    // when the sun is outside the band — preserving the "defined everywhere in vacuum" property above
+    // rather than quietly returning white there. The fallback is unreachable from the shipped patch,
+    // which only asks for a tint once TintStrength has told it there is one.
+    public static Rgb LimbTint(in BandSample sample)
+    {
+        if (!sample.InVacuum)
+            return new Rgb(1f, 1f, 1f);
+
+        Rgb transmission = sample.InBand
+            ? sample.Transmission
+            : LimbTransmission(sample.ElevationDegrees);
+
+        return NormaliseToBrightest(transmission);
+    }
+
+    // The normalisation both forms share: rotate the triple onto its brightest channel so what comes
+    // back is a hue with no brightness in it (brightness is SunlightFraction's job, and multiplying the
+    // two would darken the sky twice for one cause).
+    private static Rgb NormaliseToBrightest(Rgb transmission)
+    {
         float brightest = Max(transmission.R, Max(transmission.G, transmission.B));
 
         // Defensive, and unreachable with the shipped anchors: red transmission bottoms out at 0.024
@@ -426,18 +533,21 @@ public static class LimbRefractionMath
     // replace.
     //
     // Sea level: 0. Ground dusk is §2's, and it is a different colour arriving by a different path.
-    public static float TintStrength(float sunElevationDegrees, bool inVacuum)
+    public static float TintStrength(float sunElevationDegrees, bool inVacuum) =>
+        TintStrength(SampleBand(sunElevationDegrees, inVacuum));
+
+    public static float TintStrength(in BandSample sample)
     {
-        if (!inVacuum)
+        // One test where there were three: outside the band, on either side, there is no spectrum
+        // shift to report, and a surface map never has one at all.
+        if (!sample.InBand)
             return 0f;
 
-        if (sunElevationDegrees >= BandTopElevationDegrees)
-            return 0f;
-        if (sunElevationDegrees <= BandBottomElevationDegrees)
-            return 0f;
-
-        float spectralShift = Clamp01(1f - LimbTint(sunElevationDegrees, inVacuum).G);
-        return spectralShift * SolarDiscVisibleFraction(sunElevationDegrees);
+        // Reads the sampled transmission through the sample form of LimbTint, so the green channel
+        // this keys on and the tint the patch goes on to apply come from the same evaluation of the
+        // band rather than from two identical ones.
+        float spectralShift = Clamp01(1f - LimbTint(sample).G);
+        return spectralShift * sample.DiscVisibleFraction;
     }
 
     // The composed sky glow for a vacuum map: consequence 1 (a sun that stays up ~14 degrees longer)
@@ -476,14 +586,17 @@ public static class LimbRefractionMath
     // Sea level: seaLevelGlow, untouched. Vanilla plus §7's night floor own the surface sky and this
     // must not add a second opinion on top of them.
     public static float VacuumSkyGlow(
-        float sunElevationDegrees, float seaLevelGlow, float planetshineFloor, bool inVacuum)
+        float sunElevationDegrees, float seaLevelGlow, float planetshineFloor, bool inVacuum) =>
+        VacuumSkyGlow(SampleBand(sunElevationDegrees, inVacuum), seaLevelGlow, planetshineFloor);
+
+    public static float VacuumSkyGlow(in BandSample sample, float seaLevelGlow, float planetshineFloor)
     {
-        if (!inVacuum)
+        if (!sample.InVacuum)
             return seaLevelGlow;
 
-        float platformElevation = sunElevationDegrees + HorizonDipDegrees;
+        float platformElevation = sample.ElevationDegrees + HorizonDipDegrees;
         float unobstructed = SunClockMath.GlowFromElevation(platformElevation);
-        return Max(unobstructed * SunlightFraction(sunElevationDegrees, inVacuum), planetshineFloor);
+        return Max(unobstructed * SunlightFraction(sample), planetshineFloor);
     }
 
     private static float ToRadians(float degrees) => degrees * MathF.PI / 180f;
