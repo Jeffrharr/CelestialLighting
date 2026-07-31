@@ -291,7 +291,24 @@ Note the casters-off frames are NOT quite identical at 1px (off differs by 1 in 
 against 52/51/48/47), which the earlier 3px sampling reported as identical. Small, but it means
 "everything else is identical" was overstated.
 
-## Day 2, the sharpest lead: ONE missing cell emission
+## RETRACTED: "one missing cell emission" was an analysis bug
+
+The section below was wrong and is kept only so it is not re-derived. The vertex analysis keyed on
+(section, vertex index) and took the last value seen. When a later bake produces a SHORTER mesh, the
+stale high-index entries from an earlier, longer bake survive in that map and invent differences that
+are not in the final mesh.
+
+Re-run with a bake id logged per call and only the highest bake per section compared:
+
+    FINAL-bake-only, position-aligned vertex diff:
+    differing positions: 0
+    total verts compared: 180 vs 180
+
+The meshes are IDENTICAL. This agrees with the per-cell decision diff, which had said identical all
+along; the vertex diff was the one that was wrong. Any future instrumentation of this mesh must tag
+each bake and compare only the last one per section.
+
+## SUPERSEDED (kept for the record): "one missing cell emission"
 
 Position-aligned vertex diff of the same-phase pair (enclosed vs one-cell-gap, offset 34) — the
 comparison that finally controls for section phase:

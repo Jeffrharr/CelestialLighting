@@ -27,11 +27,19 @@ public static class SeamDump
     // alpha the shader will displace it by. This is the geometry itself rather than the decisions
     // that produced it — the decisions have already been shown identical between a clean roofline
     // and a seaming one.
+    private static int bake;
+
     public static void Mesh(string tag, System.Collections.Generic.List<UnityEngine.Vector3> verts,
         System.Collections.Generic.List<UnityEngine.Color32> colors)
     {
         if (!Enabled)
             return;
+
+        // A bake id per call. Keying an analysis by (section, vertex index) and taking the last value
+        // is WRONG when a later bake produces a shorter mesh: stale high-index entries survive and
+        // inflate the counts. The consumer must take only the highest bake id per section.
+        int id = ++bake;
+        Log.Message($"SEAMBAKE {id} {tag} verts={verts.Count}");
 
         for (int i = 0; i < verts.Count; i++)
         {
@@ -39,7 +47,7 @@ public static class SeamDump
             if (!Covers((int)v.x, (int)v.z) || v.z < 169f || v.z > 172f)
                 continue;
 
-            Log.Message($"SEAMVERT {tag} #{i} pos=({v.x:F2},{v.z:F2}) a={colors[i].a}");
+            Log.Message($"SEAMVERT b{id} {tag} #{i} pos=({v.x:F2},{v.z:F2}) a={colors[i].a}");
         }
     }
 
