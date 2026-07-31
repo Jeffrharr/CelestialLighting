@@ -128,13 +128,14 @@ public static class AuroraSheetLayout
 
     // ---- Per-display size and position ---------------------------------------------------------
     //
-    // A display is now placed ONCE PER AURORA, at a random spot, at a random size. Fixed placement made
+    // A display is placed ONCE PER DISPLAY, at a random spot, at a random size. Fixed placement made
     // every aurora identical, which is the one thing a rare event cannot afford: the second one a
     // player sees should not be a copy of the first.
     //
-    // The randomness is seeded from the tick the aurora began, so it is stable for the whole event —
-    // the patch does not jitter frame to frame — and reproducible, which is what lets a harness
-    // scenario screenshot it at all.
+    // The randomness is seeded from (event, slot, generation) — see AuroraDisplays — so it is stable
+    // for the whole of that display's life (the patch does not jitter frame to frame), different for
+    // every display in the sequence, and reproducible, which is what lets a harness scenario
+    // screenshot it at all.
 
     // Largest a display may be, in map cells. Deliberately smaller than the view: at 70 x 37 against a
     // ~131 x 74 view the patch occupies rather over half of each axis, leaving room for it to sit
@@ -156,7 +157,28 @@ public static class AuroraSheetLayout
     // where the player happens to be looking. A display now happens over a piece of ground, and you see
     // it if you are looking that way, which also means the overlay no longer touches CameraDriver at
     // all.
-    public static AuroraSheetPlacement RandomPlacement(int seed, int mapX, int mapZ)
+    public static AuroraSheetPlacement RandomPlacement(int seed, int mapX, int mapZ) =>
+        RandomPlacement(seed, mapX, mapZ, band: 0, bandCount: 1);
+
+    // The same, restricted to one horizontal BAND of the map.
+    //
+    // Bands are how several displays share a sky without landing on top of each other. Band b of n
+    // owns the z range [b/n, (b+1)/n] of the map, a display's centre is drawn inside its own band, and
+    // two displays in different bands therefore cannot overlap in z whatever their x or their size.
+    // That is a guarantee rather than a probability, which matters because the alternative — reject
+    // and resample until nothing collides — is a loop whose cost depends on luck, inside a per-frame
+    // path.
+    //
+    // The obvious objection is that fixed bands are periodicity, the exact defect the rest of this file
+    // exists to remove, and it would be right if bands were all a display had. They are not: within its
+    // band a display picks its own z, its own x across the whole map, its own width and height, its own
+    // mirroring and its own peak alpha, and AuroraDisplays relights it as a completely new display
+    // every few in-game hours. What the band fixes is only "not on top of the last one".
+    //
+    // It has to be paired with EQUAL DUTY CYCLES per slot (see AuroraDisplays) or it becomes a real
+    // artifact: a slot lit more of the time than its neighbours would make its band permanently the
+    // brightest strip of the map, which is a north-south gradient with no physical cause at all.
+    public static AuroraSheetPlacement RandomPlacement(int seed, int mapX, int mapZ, int band, int bandCount)
     {
         // Clamped to what the map can actually hold, wander included. A pocket or quest map can be 75
         // cells against a display up to 70 wide, and an oversized patch would hang off the edge where
@@ -173,7 +195,14 @@ public static class AuroraSheetLayout
         // Inset so the whole display — including the far end of its wander — is on the map, because a
         // patch overhanging the edge would have its taper clipped by geometry rather than fading out.
         float centreX = PlaceWithin(seed, 3, 0f, mapX, width * 0.5f + PatchDriftCells);
-        float centreZ = PlaceWithin(seed, 4, 0f, mapZ, height * 0.5f);
+
+        // PlaceWithin falls back to centring when the window cannot hold the patch, so a band narrower
+        // than the display it holds — four bands of 18 cells on a 75-cell pocket map, against a display
+        // up to 37 tall — degrades to "centred on its band" rather than to a nonsense coordinate. The
+        // bands then overlap, which on a map that small is unavoidable and is the lesser problem.
+        float bandLow = mapZ * ((float)band / bandCount);
+        float bandHigh = mapZ * ((float)(band + 1) / bandCount);
+        float centreZ = PlaceWithin(seed, 4, bandLow, bandHigh, height * 0.5f);
 
         return new AuroraSheetPlacement(
             centreX,
@@ -183,7 +212,10 @@ public static class AuroraSheetLayout
             Hash01(seed, 5) < 0.5f ? -1f : 1f,
             vScale: 1f,
             uPhase: 0f,
-            alpha: 1f);
+            // Peak alpha, seeded per display rather than per slot. See AuroraDisplays.MinPeakAlpha for
+            // why per-slot ranking is the wrong axis to vary brightness on once slots own bands.
+            alpha: AuroraDisplays.MinPeakAlpha
+                + (1f - AuroraDisplays.MinPeakAlpha) * Hash01(seed, 6));
     }
 
     // Applies this frame's east-west wander to a placement already fixed in MAP coordinates.

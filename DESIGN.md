@@ -1476,6 +1476,50 @@ band of sky, not all of it, and the effect must not obscure the game underneath.
 colours the whole sky faintly, so the gaps are not black. It also makes "one giant aurora" a layout
 value rather than a code path — a giant is a single sheet with a large `CellsPerRepeatY`.
 
+**Display lifecycle — an aurora is a sequence, not a patch** (`AuroraDisplays`). The first bounded
+build placed *one* display when the aurora began and held it, unchanged, until the condition ended.
+On a solar flare that is a single static patch of sky lit for a game day, and if it landed somewhere
+the player never pans to, they never learn there was an aurora at all. A real display is a sequence:
+arcs gather, hang for a while, dim, and are replaced by others elsewhere.
+
+So there are four **slots**, and a slot is not a display — it is a channel that repeatedly spawns one.
+Slot *s* cycles with period `CycleTicks[s]`, lit for `LifeTicks[s]` at the start of each cycle and dark
+for the rest, offset by `PhaseTicks[s]`. Each pass is a **generation**, and the generation goes into
+the seed, so a slot relighting is a genuinely new display — new size, position, mirroring, peak alpha —
+rather than the same patch blinking. That is why the seed is `(event, slot, generation)`.
+
+Three constants carry the argument, and each has a test rather than a preference behind it:
+
+- **The periods are 100× four primes** (9700 / 11300 / 12700 / 16300). Round periods resynchronise
+  every few in-game hours and the sky visibly pulses; pairwise-coprime ones cannot, and the pattern's
+  true repeat is ~400 in-game years.
+- **The duty cycles are all ~0.65 while the periods are not.** Each slot owns a fixed horizontal band
+  of the map, so a slot lit more of the time than its neighbours would paint a permanent north–south
+  brightness gradient across the colony for no physical reason. Equal duty, unequal period: the bands
+  are equally busy and never busy together in a repeating way.
+- **Lifetimes land at 2.5–4.2 in-game hours**, from those two. Long enough to be a display you watch,
+  varied enough that two spawning together do not die together.
+
+Bands are also how concurrent displays avoid landing on top of each other, and the guarantee is
+arithmetic rather than probabilistic — two displays in different z bands cannot overlap whatever their
+x or size, where the alternative (resample until nothing collides) is a loop whose cost depends on
+luck inside a per-frame path. Fixed bands are periodicity, which is what the rest of the layout exists
+to remove, and that objection would hold if a band were all a display had; within its band a display
+still picks its own z, its own x across the whole map, its own size, mirroring and peak alpha, and is
+replaced entirely every few hours. The band fixes only "not on top of the last one".
+
+The sky is completely empty about **2% of the time, in stretches of at most ~1.2 in-game hours**, and
+two or more displays share it ~87% of the time. The lull is deliberate: a display that never pauses is
+a colour filter rather than an event, and §11's flat tint still colours the sky underneath one.
+`AuroraDisplaysTests` pins both ends of that trade, plus the coprimality, the equal duty, and the
+monotonicity of the per-display fade — properties of a whole night, which is exactly the class of thing
+watching a live aurora for five minutes cannot check.
+
+Per-display alpha is **seeded per display, not ranked per slot**. The pre-band layout gave slot 0 alpha
+1.0 down to slot 3 at 0.35, which was right when slots were arbitrary; once a slot owns a band it makes
+the southernmost strip permanently the brightest. Seeded, the bright one is somewhere different every
+time.
+
 `wholeMapPlane` is a **shared static mesh** used by every vanilla weather overlay, so adjusting its UVs
 was never an option; it would have altered rain and snow for every mod in the load order. The quad's
 vertex order, UVs and winding are copied verbatim from decompiled `MeshMakerPlanes.NewPlaneMesh` rather

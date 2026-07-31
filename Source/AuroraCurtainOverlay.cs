@@ -95,34 +95,61 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
     // into "19 samples per column".
     private AuroraCurtainHemRays.ColumnTable _columnTable;
 
-    // How many quads to draw this frame, decided in Advance where the map is in hand.
-    private int _liveSheets;
+    // How many quads to draw this frame, and which slot each one belongs to. Decided in Advance where
+    // the map is in hand. Slots are not consecutive — slot 2 can be lit while 0, 1 and 3 are dark — so
+    // the draw loop walks this list rather than counting up to a total.
+    private int _liveCount;
+
+    private readonly int[] _liveSlots = new int[AuroraSheetLayout.MaxSheets];
+
+    // Scratch for AuroraDisplays.Resolve, allocated once and refilled every frame. The schedule fills a
+    // caller-owned buffer precisely so this per-frame path allocates nothing.
+    private readonly AuroraDisplay[] _live = new AuroraDisplay[AuroraDisplays.MaxLive];
 
     // The drift phase PlaceSheets resolved this frame, so DrawOverlay puts each quad where its material
     // state was prepared for. Recomputing it there would work but would silently desynchronise the
     // moment either call site changed.
     private float _driftPhase;
 
-    // The tick this aurora began, used to seed its size and position. Captured on the 0 -> lit
-    // transition rather than read from the condition, because the overlay is driven through Advance and
-    // has no handle on the driver; and held for the whole event so the patch does not jitter frame to
-    // frame. Reset when the aurora ends, so the NEXT one lands somewhere else — which is the point.
+    // The tick this aurora began. Seeds the whole SEQUENCE of displays (AuroraDisplays salts it with
+    // the slot and the generation), and doubles as the clock that sequence is measured from, so slot 0
+    // spawns the moment the aurora lights rather than wherever a global tick count happens to fall.
+    //
+    // Captured on the 0 -> lit transition rather than read from the condition, because the overlay is
+    // driven through Advance and has no handle on the driver. Reset when the aurora ends, so the NEXT
+    // one runs a different sequence — which is the point.
     private int _eventSeed;
 
     private bool _eventLit;
 
-    // The placement resolved this frame. One display per aurora now, so this is a single value rather
-    // than a table: fixed placement made every aurora identical, and the second one a player sees
-    // should not be a copy of the first.
-    private AuroraSheetPlacement _placement;
+    // This frame's placement per slot, indexed BY SLOT rather than packed, so DrawOverlay can look one
+    // up straight from _liveSlots.
+    private readonly AuroraSheetPlacement[] _placements =
+        new AuroraSheetPlacement[AuroraSheetLayout.MaxSheets];
 
-    // Where this aurora sits, in MAP coordinates, chosen once when it began. The camera rectangle picks
-    // the spot and is then never consulted again — reading it per frame made the patch a fraction OF THE
-    // VIEW, so it slid along with the camera and read as glued to the screen rather than hanging over a
-    // piece of ground.
-    private AuroraSheetPlacement _placementBase;
+    // Where each slot's CURRENT display sits, in MAP coordinates, chosen once when that display spawned
+    // and held for its whole life. Only the drift moves after that.
+    //
+    // The camera is never consulted. Reading it per frame made the patch a fraction OF THE VIEW, so it
+    // slid along with the camera and read as glued to the screen rather than hanging over a piece of
+    // ground.
+    private readonly AuroraSheetPlacement[] _homes = new AuroraSheetPlacement[AuroraSheetLayout.MaxSheets];
 
-    private bool _placed;
+    // The seed each cached home was placed for. A slot's display is replaced every few in-game hours,
+    // and comparing seeds is how the overlay notices: same seed, reuse the home; different seed, the
+    // slot has relit as a new display and needs a new spot. Less state than having the schedule
+    // announce transitions, and it cannot drift out of step with the schedule because it IS the
+    // schedule's own output.
+    private readonly int[] _homeSeeds = new int[AuroraSheetLayout.MaxSheets];
+
+    private readonly bool[] _homePlaced = new bool[AuroraSheetLayout.MaxSheets];
+
+    // Map size the cached homes were placed against. Homes are in map cells, so a colony on a
+    // differently sized map must not inherit them — the same reason the UV scales are set per frame
+    // rather than once at allocation.
+    private int _homeMapX;
+
+    private int _homeMapZ;
 
     // The tick the field was last baked at. Sentinel is int.MinValue rather than 0, because tick 0 is a
     // real tick a scenario can genuinely sit on.
@@ -147,7 +174,8 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
         if (strength <= 0f || map == null)
         {
             _eventLit = false;
-            _placed = false;
+            _liveCount = 0;
+            ForgetHomes();
             return false;
         }
 
@@ -186,7 +214,7 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
             Regenerate(spec, wrapped, tint, tintWeight);
         }
 
-        PlaceSheets(spec, map, wrapped, strength);
+        PlaceSheets(spec, map, ticksGame, wrapped, strength);
         return true;
     }
 
@@ -282,7 +310,7 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
     // drift out of step with the field's own clock, and reproducible — the same tick always yields the
     // same pan, which is what lets a harness scenario screenshot this at all. The modulo keeps the
     // offset inside one texture repeat; wrapping there is exactly seamless because the field tiles.
-    private void PlaceSheets(AuroraFieldSpec spec, Map map, int wrapped, float strength)
+    private void PlaceSheets(AuroraFieldSpec spec, Map map, int ticksGame, int wrapped, float strength)
     {
         _driftPhase = AuroraCurtainHemRays.Oscillate(wrapped * AuroraCurtainHemRays.DriftRate);
 
@@ -292,30 +320,84 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
             return;
         }
 
-        // Chosen ONCE per aurora, from the event seed, in map coordinates. Nothing here reads the
-        // camera: a display hangs over a piece of ground, and whether it is on screen is the player's
-        // business, not the layout's.
-        if (!_placed)
+        ForgetHomesIfMapChanged(map);
+
+        // The sequence, not a single display. Each lit slot carries its own seed and its own fade
+        // envelope, so one patch dims out over here while another gathers over there — see
+        // AuroraDisplays for why an aurora is a sequence rather than one patch lit for a day.
+        _liveCount = AuroraDisplays.Resolve(_eventSeed, ticksGame - _eventSeed, _live);
+
+        for (int i = 0; i < _liveCount; i++)
         {
-            _placementBase = AuroraSheetLayout.RandomPlacement(_eventSeed, map.Size.x, map.Size.z);
-            _placed = true;
+            PlaceDisplay(_live[i], map, strength);
+            _liveSlots[i] = _live[i].Slot;
         }
-
-        _placement = AuroraSheetLayout.WithDrift(_placementBase, _driftPhase);
-        _liveSheets = 1;
-
-        Material mat = Sheets[0];
-        mat.mainTextureScale = new Vector2(_placement.UScale, _placement.VScale);
-        mat.mainTextureOffset = Vector2.zero;
-        mat.color = new Color(1f, 1f, 1f, strength * _placement.Alpha);
     }
 
-    // The contour field's path, unchanged: whole-map planes that tile and pan their UVs.
+    private void PlaceDisplay(AuroraDisplay display, Map map, float strength)
+    {
+        int slot = display.Slot;
+        AuroraSheetPlacement home = HomeFor(display, map);
+
+        // Mirrored displays drift the other way, so two patches on screen never move as one rigid
+        // picture. UScale is already ±1 straight from the display's seed, so reusing it as the drift
+        // sign costs nothing and cannot disagree with the mirroring it is derived from.
+        AuroraSheetPlacement p = AuroraSheetLayout.WithDrift(home, _driftPhase * home.UScale);
+        _placements[slot] = p;
+
+        Material mat = Sheets[slot];
+        mat.mainTextureScale = new Vector2(p.UScale, p.VScale);
+        mat.mainTextureOffset = Vector2.zero;
+
+        // Three factors, and all three have to be here rather than folded into one. `strength` is the
+        // whole effect (night visibility and the condition's own hour-long ramp), `p.Alpha` is this
+        // display's peak brightness, and `display.Alpha` is where it is in its own few-hour life.
+        mat.color = new Color(1f, 1f, 1f, strength * p.Alpha * display.Alpha);
+    }
+
+    // The spot a slot's current display stands on, placed once when the display spawned and reused for
+    // its whole life. A new seed means the slot has relit as a different display, which is the one
+    // event that earns a fresh RandomPlacement.
+    private AuroraSheetPlacement HomeFor(AuroraDisplay display, Map map)
+    {
+        int slot = display.Slot;
+
+        if (_homePlaced[slot] && _homeSeeds[slot] == display.Seed)
+            return _homes[slot];
+
+        // Each slot draws inside its own horizontal band, which is what keeps concurrent displays from
+        // landing on top of each other. Everything else about the placement is still free.
+        _homes[slot] = AuroraSheetLayout.RandomPlacement(
+            display.Seed, map.Size.x, map.Size.z, slot, AuroraDisplays.MaxLive);
+        _homeSeeds[slot] = display.Seed;
+        _homePlaced[slot] = true;
+        return _homes[slot];
+    }
+
+    private void ForgetHomesIfMapChanged(Map map)
+    {
+        if (_homeMapX == map.Size.x && _homeMapZ == map.Size.z)
+            return;
+
+        _homeMapX = map.Size.x;
+        _homeMapZ = map.Size.z;
+        ForgetHomes();
+    }
+
+    private void ForgetHomes()
+    {
+        for (int i = 0; i < _homePlaced.Length; i++)
+            _homePlaced[i] = false;
+    }
+
+    // The contour field's path, unchanged: whole-map planes that tile and pan their UVs. It has no
+    // per-display lifecycle because its sheets are the sky rather than patches in it — every sheet is
+    // always live, and slot i is placement i.
     private void PlaceSpanningSheets(AuroraFieldSpec spec, Map map, int wrapped, float strength)
     {
-        _liveSheets = AuroraSheetLayout.PlacementCount(spec, map.Size.z);
+        _liveCount = AuroraSheetLayout.PlacementCount(spec, map.Size.z);
 
-        for (int i = 0; i < _liveSheets; i++)
+        for (int i = 0; i < _liveCount; i++)
         {
             AuroraSheetPlacement p = AuroraSheetLayout.Placement(spec, i, map.Size.x, map.Size.z);
             AuroraSheetSpec sheet = spec.Sheets[i];
@@ -326,8 +408,8 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
                 (wrapped * sheet.PanU + p.UPhase) % 1f, wrapped * sheet.PanV % 1f);
             mat.color = new Color(1f, 1f, 1f, strength * p.Alpha);
 
-            if (i == 0)
-                _placement = p;
+            _placements[i] = p;
+            _liveSlots[i] = i;
         }
     }
 
@@ -434,19 +516,24 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
         // edge. The whole change is a Y coordinate in the draw matrix; it costs nothing.
         float altitude = AltitudeLayer.FogOfWar.AltitudeFor() + Altitudes.AltInc;
 
-        for (int i = 0; i < _liveSheets; i++)
+        // Straight from what PlaceSheets resolved this frame. It used to re-derive the placement here
+        // for every sheet but the first, which was both wasted work in a per-frame path and a second
+        // copy of the layout call that could disagree with the material state already set against it.
+        for (int i = 0; i < _liveCount; i++)
         {
-            AuroraSheetPlacement p = _liveSheets == 1
-                ? _placement
-                : AuroraSheetLayout.Placement(Spec, i, map.Size.x, map.Size.z);
+            int slot = _liveSlots[i];
+            AuroraSheetPlacement p = _placements[slot];
 
+            // Separated by slot rather than by draw order, so two displays keep a stable front-to-back
+            // relationship as others light and go dark around them. Under additive blending the order
+            // does not change the result; it only has to be deterministic so nothing z-fights.
             Graphics.DrawMesh(
                 SheetQuad,
                 Matrix4x4.TRS(
-                    new Vector3(p.CenterX, altitude + i * 0.0015f, p.CenterZ),
+                    new Vector3(p.CenterX, altitude + slot * 0.0015f, p.CenterZ),
                     Quaternion.identity,
                     new Vector3(p.Width, 1f, p.Height)),
-                Sheets[i],
+                Sheets[slot],
                 0);
         }
     }
@@ -470,7 +557,12 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
     public override void Reset()
     {
         _rowCursor = 0;
-        _liveSheets = 0;
+        _liveCount = 0;
+
+        // Homes are map coordinates, so they mean nothing once the map they were chosen on is gone.
+        // Dropping them here is what stops a display reappearing at the same spot on a different
+        // colony's map that happens to be the same size.
+        ForgetHomes();
         SetOverlayColor(Color.clear);
     }
 
