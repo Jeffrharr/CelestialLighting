@@ -63,6 +63,10 @@
     <Compile Include="../../Source/AuroraCurtainHemRays.cs" Link="AuroraCurtainHemRays.cs" />
     <Compile Include="../../Source/AuroraFieldSpec.cs" Link="AuroraFieldSpec.cs" />
     <Compile Include="../../Source/AuroraSheetLayout.cs" Link="AuroraSheetLayout.cs" />
+    <!-- §11a's display schedule. Mutually dependent with AuroraSheetLayout above — the layout reads
+         AuroraDisplays.MinPeakAlpha, the schedule sizes itself off AuroraSheetLayout.MaxSheets — and it
+         reuses AuroraMath.ConditionRampFactor for the per-display fade, so all three link together. -->
+    <Compile Include="../../Source/AuroraDisplays.cs" Link="AuroraDisplays.cs" />
     <Compile Include="../../Source/EclipseMath.cs" Link="EclipseMath.cs" />
     <!-- §18e's vacuum eclipse response. Depends on EclipseMath above (it samples the same
          disc-overlap coverage ramp the shipped patch drives) and on NightRadianceMath, whose §7a
