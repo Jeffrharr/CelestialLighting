@@ -1,5 +1,39 @@
 # The eave seam — investigation log
 
+**Status: NOT FIXED.** Diagnostics only on branch `eave-seam`; no shipped behaviour has changed.
+Everything below is measured, not argued. Read "Handoff" first.
+
+---
+
+## Handoff: what to do next
+
+**Do not** diff the sun-shadow mesh again, and do not try another variant of "extend §15b's shade
+over the boundary". Both are exhausted — see "Dead ends" below, which lists five failed fixes and the
+measurement that killed each.
+
+The one contradiction that has to be resolved first:
+
+> Two rooms differing by ONE wall cell render bands of 3 px and 6 px. Their sun-shadow meshes are
+> byte-identical. Editing the skirt triangles changes those pixels not at all.
+
+So **the geometry we build is not what covers the seam pixels.** Until that is explained, no fix can
+be aimed. The cheapest way to settle it, and the recommended next step:
+
+1. **Tint each layer's material a distinct colour** (sun shadow, `SectionLayer_EdgeShadows`,
+   `SectionLayer_EaveShade`, the lighting overlay) and shoot one frame. Whichever colour lands on the
+   seam rows names the layer that owns them. One boot, no theory required.
+2. If it is the sun-shadow material after all, the submesh being rendered is not the one our Prefix
+   builds — check for a second `LayerSubMesh` on the same material, and check whether the section
+   drawing those pixels is the one we think.
+3. Only once the owning layer is known should a fix be attempted.
+
+A fix must satisfy: **it may not double-darken the case that is already correct.** Every failure
+below is that same error. Any per-cell layer needs to know whether the cast band already reaches a
+cell, and that is direction-dependent, so it cannot be baked the way §15b is. That constraint is
+probably the real design problem.
+
+---
+
 A lighter line between a roofline's cast shadow and the roof's own shade, at the roof's
 edge, inside a walled room. Reported from play; annotated by the user on the north
 boundary of a roof strip. **Not yet fixed.** This file exists so the dead ends are not
@@ -31,6 +65,17 @@ Three things this pins:
 
 Reproduces on `main` at 5979435 with no mod changes, so it is not a regression from any
 recent work.
+
+## Dead ends — five failed fixes
+
+| Attempt | Killed by |
+|---|---|
+| Shade the casting edge only (issue #63's proposal) | Produced a dark 1-cell outline: `36 \| 28 \| 38`. §7b already darkens the thick-roof interior. |
+| Eave-shade lattice, OR at corners | Clean rooflines went +0 → +6, dipping to 29. Double-multiply. |
+| Eave-shade lattice, MEAN at corners | Roof's own edge row lightened 35 → 39; lip back to +7. |
+| Draw §15b's shade after the sun shadow (`renderQueue`) | No change — the seam pixel is on the UNROOFED boundary cell, which §15b never touches. |
+| A roof steps down to a wall of equal height | Verified firing in the dump; render unchanged at every column. Tried twice, on two different scenarios. |
+| Author each skirt's near edge one cell back | Byte-identical frame. DLL verified fresh. **This is the result that retires the mesh entirely.** |
 
 ## Ruled out — do not re-test these
 
@@ -362,6 +407,33 @@ Do not spend more time diffing the mesh we build. The next instrumentation has t
 actually covers those pixels — e.g. by disabling layers one at a time at the DrawLayer level rather
 than through feature flags, or by tinting each layer's material a distinct colour and reading which
 one lands on the seam.
+
+## Reproducers, in the order to use them
+
+| Scenario | Use |
+|---|---|
+| `eave_seam_solo_enclosed` / `eave_seam_solo_gap` | **Start here.** One room, fixed coordinates, nothing else on the map, differing by one wall cell. Zoom 27 = exactly 20 px/cell so a 34-cell offset is exactly 680 px. Enclosed band 3 px, gapped 6 px. |
+| `eave_seam_remove_one_wall` | Five rooms: all four walls / no N / no S / no W end / one-cell N gap. Only "all four" seams. |
+| `eave_seam_layer_isolation` | Four arms toggling §15b and §7b with the roof casting. Seam survives all four. |
+| `eave_seam_hours` | 09/12/15/18h. Constant 4 px shortfall at every angle. |
+| `eave_seam_same_phase` | Two rooms 34 cells apart — identical section phase. Use when comparing two configs in one frame. |
+
+`SeamDump` (feature flag `seam_dump`) logs per-cell EmitCell decisions and the finished vertex
+buffer. It is diagnostic only and must be deleted before anything ships.
+
+## Traps that have already cost time
+
+- **`ls -td /tmp/rwth-run-*` returns a STALE directory** unless the run used `--no-teardown`. A
+  teardown run deletes its own dir, so you get an earlier build's log and conclude the fix did not fire.
+- **A diagnostic that restates a predicate instead of calling it** will report the OLD rule after you
+  change the rule. `SeamDump` originally duplicated `casters.At(n) < height`.
+- **Keying vertices by `(section, index)` and taking the last value is wrong.** A later, shorter bake
+  leaves stale high-index entries behind and invents differences. Use the `SEAMBAKE` id and compare
+  only the highest bake per section. This produced one entirely fictitious "finding" (retracted in
+  65fe4ce).
+- **Sample at 1 px, not on a 3 px grid.** The 3 px grid made a failed fix look like a partial success.
+- **Rooms must be an exact pixel multiple apart** or sub-pixel offsets contaminate the comparison.
+  At zoom 27 a cell is exactly 20 px.
 
 ## Where to look next
 
