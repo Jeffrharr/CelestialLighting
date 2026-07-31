@@ -223,6 +223,34 @@ skirt that sweeps sideways along `_CastVect`.
 That is what the "roof steps down to a wall" attempt aimed at. It fired (verified in the dump) and
 did not move the render, so the specific skirts it restored were not the ones that matter.
 
+## Day 2, decisive: identical mesh, different render
+
+`Tests/Scenarios/eave_seam_same_phase.json`. The earlier per-cell diff compared rooms at x=85 and
+x=149 — one exactly on a 17-cell section boundary, the other straddling one — so section phase was
+confounded with the wall config. This places two rooms exactly 34 cells (two sections) apart, giving
+identical section and sub-cell alignment, differing only by one wall cell:
+
+    ENCLOSED      band covers 1 sample   (-10)
+    ONE-CELL GAP  band covers 2 samples  (-11, -9)
+
+    per-cell mesh diff: ONE differing cell, (147,174) — the cell directly under the gap,
+                        which emits nothing (h=0.00)
+
+Every EMITTING cell is identical. Same heights, same neighbour heights, same skirt flags, same
+alphas. Combined with the casters-off frames being identical, that means:
+
+**The shadow mesh is not the difference.** Identical geometry renders a shorter band when the room
+is enclosed. The defect is at draw time, not build time.
+
+This retires the whole build-side search, including the vertex-position diff in the previous commit
+(its apparent differences were an artifact of counting verts by position, where many cells author a
+vertex at the same coordinate, and of the section-phase confound).
+
+Draw-time candidates, none yet tested:
+- `SectionLayer_SunShadows.ShouldDrawDynamic` / `GetSunShadowsViewRect` culling per section
+- `subMesh.mesh.bounds` and `RefreshSubMeshBounds` — a skirt extends beyond its own section's rect
+- whether the section covering the roofline is drawn at all, versus drawing a stale mesh
+
 ## Where to look next
 
 `on` == `off` past the bounce says the defect is in what the mesh *covers*, not in what

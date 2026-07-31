@@ -21,7 +21,7 @@ public static class SeamDump
 
     public static bool Covers(int x, int z) =>
         Enabled && z >= MinZ && z <= MaxZ
-        && ((x >= 83 && x <= 98) || (x >= 147 && x <= 162));
+        && ((x >= 104 && x <= 122) || (x >= 138 && x <= 156));
 
     // Dumps the finished submesh: every vertex whose z sits near a roofline in the window, with the
     // alpha the shader will displace it by. This is the geometry itself rather than the decisions
