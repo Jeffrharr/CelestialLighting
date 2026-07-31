@@ -185,7 +185,15 @@ public static class AuroraSheetLayout
         // its taper is clipped by geometry rather than fading — the exact hard edge the taper exists to
         // remove. Shrinking it simply draws a smaller display, which is the right answer on a small map.
         float width = Math.Min(PatchMaxWidth * ScaleFrom(seed, 1), mapX - 2f * PatchDriftCells);
-        float height = Math.Min(PatchMaxHeight * ScaleFrom(seed, 2), mapZ);
+        float bandHeight = (float)mapZ / bandCount;
+        float gap = BandGap(bandHeight, bandCount);
+
+        // Clamped to the BAND, gap included, not just to the map. A display taller than its band would
+        // be centred on it by the fallback below and would then reach into its neighbours' sky, which is
+        // the overlap the bands exist to make impossible. Shrinking it draws the same display smaller,
+        // which is the right answer — and on a stock map it never binds, because a band is 62 cells
+        // against a display of at most 37.
+        float height = Math.Min(PatchMaxHeight * ScaleFrom(seed, 2), bandHeight - gap);
 
         width = Math.Max(width, 1f);
         height = Math.Max(height, 1f);
@@ -196,12 +204,13 @@ public static class AuroraSheetLayout
         // patch overhanging the edge would have its taper clipped by geometry rather than fading out.
         float centreX = PlaceWithin(seed, 3, 0f, mapX, width * 0.5f + PatchDriftCells);
 
-        // PlaceWithin falls back to centring when the window cannot hold the patch, so a band narrower
-        // than the display it holds — four bands of 18 cells on a 75-cell pocket map, against a display
-        // up to 37 tall — degrades to "centred on its band" rather than to a nonsense coordinate. The
-        // bands then overlap, which on a map that small is unavoidable and is the lesser problem.
-        float bandLow = mapZ * ((float)band / bandCount);
-        float bandHigh = mapZ * ((float)(band + 1) / bandCount);
+        // Half the gap is held back at each end of the band, so a display's z extent stays inside
+        // [bandLow + gap/2, bandHigh - gap/2]. Two displays in adjacent bands are therefore at least a
+        // whole `gap` of clear sky apart, whatever their sizes — which is what turns "they do not
+        // overlap" into "they do not look cramped". Bands alone only ever guaranteed the first: two
+        // maximal displays in adjacent bands could sit edge to edge with zero sky between them.
+        float bandLow = mapZ * ((float)band / bandCount) + gap * 0.5f;
+        float bandHigh = mapZ * ((float)(band + 1) / bandCount) - gap * 0.5f;
         float centreZ = PlaceWithin(seed, 4, bandLow, bandHigh, height * 0.5f);
 
         return new AuroraSheetPlacement(
@@ -236,6 +245,24 @@ public static class AuroraSheetLayout
             placed.UPhase,
             placed.Alpha);
     }
+
+    // Least clear sky, in map cells, that two displays in adjacent bands may leave between them.
+    //
+    // A colony camera shows roughly 74 cells of height, so 12 is about a sixth of the view — enough
+    // that two displays read as two things happening in the sky rather than as one broken up. Below
+    // about 8 they start to look like a single display with a seam in it, which is worse than either
+    // one display or two clearly separate ones.
+    public const float MinBandGapCells = 12f;
+
+    // ...but never more than this share of the band, so a small map degrades by shrinking its displays
+    // rather than by having no room to place them at all. A 75-cell pocket map has 18-cell bands, where
+    // a flat 12-cell gap would leave 6 cells of display.
+    public const float MaxBandGapFraction = 0.25f;
+
+    // Zero for a single band: the ungrouped RandomPlacement overload has no neighbour to keep away from,
+    // and inventing a gap there would shrink displays on the one path where nothing needs the room.
+    private static float BandGap(float bandHeight, int bandCount) =>
+        bandCount <= 1 ? 0f : Math.Min(MinBandGapCells, bandHeight * MaxBandGapFraction);
 
     private static float ScaleFrom(int seed, int salt) =>
         PatchMinScale + (1f - PatchMinScale) * Hash01(seed, salt);

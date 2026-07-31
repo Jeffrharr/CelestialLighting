@@ -138,6 +138,71 @@ public class AuroraDisplaysTests
             "two or more displays share the sky less than half the time");
     }
 
+    // Every stock RimWorld map size, plus a non-square quest map and a pocket map. Non-square matters
+    // because bands are fractions of Map.Size.z and only the world-generation UI forces square maps.
+    private static readonly int[][] MapSizes =
+    {
+        new[] { 200, 200 }, new[] { 250, 250 }, new[] { 300, 300 }, new[] { 400, 400 },
+        new[] { 250, 150 }, new[] { 75, 75 },
+    };
+
+    [Test]
+    public void ConcurrentDisplays_NeverOverlap()
+    {
+        // The guarantee bands exist for, stated as the thing a player would actually see: at no instant
+        // of any aurora on any map do two lit displays share a cell of sky.
+        ForEveryLiveSetOfDisplays((a, b, mapX, mapZ, where) =>
+            Assert.That(
+                Overlaps(a, b), Is.False,
+                $"two displays overlap on {mapX}x{mapZ} {where}"));
+    }
+
+    [Test]
+    public void ConcurrentDisplays_LeaveClearSkyBetweenThem()
+    {
+        // Not overlapping is not enough, and this is the case bands alone missed: two maximal displays
+        // in adjacent bands could sit edge to edge with zero sky between them, which reads as one
+        // display with a seam rather than as two. The half-gap held back at each end of every band is
+        // what turns "they do not overlap" into "they do not look cramped".
+        ForEveryLiveSetOfDisplays((a, b, mapX, mapZ, where) =>
+        {
+            float expected = ExpectedGap(mapZ);
+
+            Assert.That(
+                VerticalGap(a, b), Is.GreaterThanOrEqualTo(expected - 1e-3f),
+                $"displays are only {VerticalGap(a, b):F1} cells apart on {mapX}x{mapZ} {where}");
+
+            // ...and an ABSOLUTE floor on a stock map, spelled out rather than derived. The assertion
+            // above reads the same constants the layout does, so it guards the band arithmetic but
+            // would follow MinBandGapCells anywhere someone moved it — including to zero. This is the
+            // player-visible claim: on a normal map two displays are always at least ten cells of sky
+            // apart, whatever the constants are called next month.
+            if (mapZ >= 200)
+                Assert.That(
+                    VerticalGap(a, b), Is.GreaterThanOrEqualTo(10f),
+                    $"displays are cramped on a stock {mapX}x{mapZ} map {where}");
+        });
+    }
+
+    [Test]
+    public void EveryDisplay_StaysOnTheMap()
+    {
+        // A patch overhanging the map edge has its taper clipped by geometry rather than fading, which
+        // is the exact hard edge the feather exists to remove. The band arithmetic is a second chance
+        // to get this wrong, so it is pinned here as well as in AuroraSheetLayoutTests.
+        ForEveryLivePlacement((p, mapX, mapZ, where) =>
+        {
+            Assert.That(p.Width, Is.GreaterThan(0f), $"degenerate width on {mapX}x{mapZ} {where}");
+            Assert.That(p.Height, Is.GreaterThan(0f), $"degenerate height on {mapX}x{mapZ} {where}");
+            Assert.That(
+                p.CenterZ - p.Height * 0.5f, Is.GreaterThanOrEqualTo(-1e-3f),
+                $"hangs off the south edge on {mapX}x{mapZ} {where}");
+            Assert.That(
+                p.CenterZ + p.Height * 0.5f, Is.LessThanOrEqualTo(mapZ + 1e-3f),
+                $"hangs off the north edge on {mapX}x{mapZ} {where}");
+        });
+    }
+
     [Test]
     public void ResolveNeverOverrunsTheMaterialsAllocatedAtStartup()
     {
@@ -318,6 +383,78 @@ public class AuroraDisplaysTests
         }
 
         return longest;
+    }
+
+    // Walks every map size, several auroras and a whole night of each, handing the callback the
+    // placements of every display lit at that instant. The drift is included, because a patch that
+    // separates at rest and collides at the end of its wander is still a patch that collides.
+    private static void ForEveryLivePlacement(
+        Action<AuroraSheetPlacement, int, int, string> check)
+    {
+        ForEveryLiveInstant((placed, mapX, mapZ, where) =>
+        {
+            for (int i = 0; i < placed.Length; i++)
+                check(placed[i], mapX, mapZ, where);
+        });
+    }
+
+    private static void ForEveryLiveSetOfDisplays(
+        Action<AuroraSheetPlacement, AuroraSheetPlacement, int, int, string> check)
+    {
+        ForEveryLiveInstant((placed, mapX, mapZ, where) =>
+        {
+            for (int i = 0; i < placed.Length; i++)
+                for (int j = i + 1; j < placed.Length; j++)
+                    check(placed[i], placed[j], mapX, mapZ, where);
+        });
+    }
+
+    private static void ForEveryLiveInstant(Action<AuroraSheetPlacement[], int, int, string> check)
+    {
+        var buffer = new AuroraDisplay[AuroraDisplays.MaxLive];
+
+        foreach (int[] size in MapSizes)
+            foreach (int seed in EventSeeds)
+                for (int t = 0; t < TicksPerDay; t += 211)
+                {
+                    int count = AuroraDisplays.Resolve(seed, t, buffer);
+                    var placed = new AuroraSheetPlacement[count];
+
+                    for (int i = 0; i < count; i++)
+                        placed[i] = WorstCaseDrift(buffer[i], size[0], size[1]);
+
+                    check(placed, size[0], size[1], $"(event {seed}, tick {t})");
+                }
+    }
+
+    // A display at the far end of its wander. Drift is east-west only, so it cannot change the vertical
+    // gap — but taking it into account here is what stops a later change to WithDrift from silently
+    // invalidating these assertions.
+    private static AuroraSheetPlacement WorstCaseDrift(AuroraDisplay display, int mapX, int mapZ)
+    {
+        AuroraSheetPlacement home = AuroraSheetLayout.RandomPlacement(
+            display.Seed, mapX, mapZ, display.Slot, AuroraDisplays.MaxLive);
+
+        return AuroraSheetLayout.WithDrift(home, home.UScale);
+    }
+
+    private static bool Overlaps(in AuroraSheetPlacement a, in AuroraSheetPlacement b) =>
+        VerticalGap(a, b) < 0f && HorizontalGap(a, b) < 0f;
+
+    private static float VerticalGap(in AuroraSheetPlacement a, in AuroraSheetPlacement b) =>
+        Math.Abs(a.CenterZ - b.CenterZ) - (a.Height + b.Height) * 0.5f;
+
+    private static float HorizontalGap(in AuroraSheetPlacement a, in AuroraSheetPlacement b) =>
+        Math.Abs(a.CenterX - b.CenterX) - (a.Width + b.Width) * 0.5f;
+
+    // The gap the layout promises on a map of this height: the flat minimum, unless a band is too short
+    // to give it up, in which case a fixed share of the band.
+    private static float ExpectedGap(int mapZ)
+    {
+        float bandHeight = (float)mapZ / AuroraDisplays.MaxLive;
+
+        return Math.Min(
+            AuroraSheetLayout.MinBandGapCells, bandHeight * AuroraSheetLayout.MaxBandGapFraction);
     }
 
     private static long Lcm(long a, long b) => a / Gcd(a, b) * b;
