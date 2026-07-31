@@ -1,0 +1,102 @@
+{
+  "name": "eave_seam_solo_enclosed",
+  "saveFile": "minimal_colony.rws",
+  "description": "ONE room only, at fixed map coordinates, so nothing else on the map can cast onto it. Fully enclosed. Its twin scenario places the same room at the same coordinates with the opposite wall state, so the two frames are directly comparable pixel for pixel.",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Concrete",
+        "width": "60",
+        "height": "32",
+        "offset": "0,45",
+        "clear": "true"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "0,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "-6,5; -5,5; -4,5; -3,5; -2,5; -1,5; 0,5; 1,5; 2,5; 3,5; 4,5; 5,5; -6,-6; -5,-6; -4,-6; -3,-6; -2,-6; -1,-6; 0,-6; 1,-6; 2,-6; 3,-6; 4,-6; 5,-6; -6,-5; -6,-4; -6,-3; -6,-2; -6,-1; -6,0; -6,1; -6,2; -6,3; -6,4; 5,-5; 5,-4; 5,-3; 5,-2; 5,-1; 5,0; 5,1; 5,2; 5,3; 5,4"
+      }
+    },
+    {
+      "type": "SetRoof",
+      "args": {
+        "def": "RoofConstructed",
+        "width": "12",
+        "height": "2",
+        "offset": "0,45"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "seam_dump",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "18"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "0,45",
+        "zoom": "27"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "solo_enclosed_on.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "eave_shadows",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "solo_enclosed_off.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "eave_shadows",
+        "enabled": "true"
+      }
+    }
+  ]
+}

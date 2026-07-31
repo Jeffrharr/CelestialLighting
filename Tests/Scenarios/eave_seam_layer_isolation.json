@@ -1,7 +1,7 @@
 {
-  "name": "eave_seam_same_phase",
+  "name": "eave_seam_layer_isolation",
   "saveFile": "minimal_colony.rws",
-  "description": "Controls for section phase, which the earlier comparison did not. Two identical walled rooms with a full-width 2-cell roof strip, placed exactly 34 cells (two sections) apart so their section and sub-cell alignment are identical; the right-hand one has a single cell missing from its north wall. Any per-cell mesh difference between them is then attributable to the enclosure alone.",
+  "description": "With the roof casting in every arm, switch \u00a715b's eave shade and \u00a77b's occlusion on and off and compare the enclosed room against the one-cell-gap room in each. The sun-shadow mesh is provably identical between the two rooms, so whichever arm makes their profiles agree names the layer that is actually producing the seam.",
   "steps": [
     {
       "type": "SetTile",
@@ -64,13 +64,6 @@
     {
       "type": "SetFeature",
       "args": {
-        "featureName": "seam_dump",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
         "featureName": "eave_shadows",
         "enabled": "false"
       }
@@ -96,28 +89,6 @@
       }
     },
     {
-      "type": "Probe",
-      "args": {
-        "probeName": "eave_cells",
-        "expectedValue": "0",
-        "tolerance": "9999"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "roof_shadow_cells",
-        "expectedValue": "0",
-        "tolerance": "9999"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "phase_on.png"
-      }
-    },
-    {
       "type": "SetFeature",
       "args": {
         "featureName": "eave_shadows",
@@ -125,15 +96,103 @@
       }
     },
     {
-      "type": "Screenshot",
+      "type": "SetFeature",
       "args": {
-        "fileName": "phase_off.png"
+        "featureName": "eave_shadows",
+        "enabled": "true"
       }
     },
     {
       "type": "SetFeature",
       "args": {
-        "featureName": "eave_shadows",
+        "featureName": "eave_shade",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "indoor_sky_occlusion",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "iso_all_on.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "eave_shade",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "indoor_sky_occlusion",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "iso_no_shade.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "eave_shade",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "indoor_sky_occlusion",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "iso_no_occl.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "eave_shade",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "indoor_sky_occlusion",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "iso_neither.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "eave_shade",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "indoor_sky_occlusion",
         "enabled": "true"
       }
     }

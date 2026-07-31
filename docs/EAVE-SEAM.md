@@ -338,6 +338,31 @@ Retested on this scenario and still does nothing: the "roof steps down to a wall
 rule. It fires (verified in the dump) and the band stays 3 px against 7 px, so the skirts it restores
 are not these.
 
+## Day 2 close: what is now impossible to explain, stated plainly
+
+Established beyond doubt, all by measurement:
+
+- ONE room alone, at fixed coordinates, nothing else on the map: enclosed band 3 px, one-cell-gap
+  band 6 px, same starting row (`eave_seam_solo_enclosed` / `eave_seam_solo_gap`).
+- The run is DETERMINISTIC — the same scenario twice gives byte-identical frames.
+- The two rooms' sun-shadow meshes are IDENTICAL: final-bake, position-aligned, over a +-25 cell
+  window and z 166..175. 256 verts each, zero differing positions.
+- The seam survives with §15b's shade AND §7b's occlusion both switched off
+  (`eave_seam_layer_isolation`, arm `neither`), so neither of our layers makes it.
+- The shortfall is a constant 4 px at 09/12/15/18h, always at the end adjacent to the roof.
+- Editing the skirt triangles has NO effect on those pixels. Authoring each skirt's near edge one
+  cell back inside the caster — which should move the alpha ramp under the roof — produced a
+  byte-identical frame (verified the DLL was fresh: built 14:21:52, run 14:21:53).
+
+That last point is the important one and it contradicts the obvious model. The vertices our builder
+emits are demonstrably not what covers the seam pixels. Either something else draws there, or the
+sun-shadow submesh we build is not the one being rendered at that location.
+
+Do not spend more time diffing the mesh we build. The next instrumentation has to identify what
+actually covers those pixels — e.g. by disabling layers one at a time at the DrawLayer level rather
+than through feature flags, or by tinting each layer's material a distinct colour and reading which
+one lands on the seam.
+
 ## Where to look next
 
 `on` == `off` past the bounce says the defect is in what the mesh *covers*, not in what

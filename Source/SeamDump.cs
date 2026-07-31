@@ -21,7 +21,7 @@ public static class SeamDump
 
     public static bool Covers(int x, int z) =>
         Enabled && z >= MinZ && z <= MaxZ
-        && ((x >= 104 && x <= 122) || (x >= 138 && x <= 156));
+        && x >= 100 && x <= 150;
 
     // Dumps the finished submesh: every vertex whose z sits near a roofline in the window, with the
     // alpha the shader will displace it by. This is the geometry itself rather than the decisions
@@ -29,6 +29,9 @@ public static class SeamDump
     // and a seaming one.
     private static int bake;
 
+    // NOTE: Mesh() is called from the Prefix but the vertices it reports have proven NOT to be what
+    // draws the band at a roofline — editing those triangles changes nothing on screen. Treat its
+    // output as "what our builder produced", not "what covers this pixel".
     public static void Mesh(string tag, System.Collections.Generic.List<UnityEngine.Vector3> verts,
         System.Collections.Generic.List<UnityEngine.Color32> colors)
     {
@@ -44,7 +47,7 @@ public static class SeamDump
         for (int i = 0; i < verts.Count; i++)
         {
             UnityEngine.Vector3 v = verts[i];
-            if (!Covers((int)v.x, (int)v.z) || v.z < 169f || v.z > 172f)
+            if (!Covers((int)v.x, (int)v.z) || v.z < 166f || v.z > 175f)
                 continue;
 
             Log.Message($"SEAMVERT b{id} {tag} #{i} pos=({v.x:F2},{v.z:F2}) a={colors[i].a}");
