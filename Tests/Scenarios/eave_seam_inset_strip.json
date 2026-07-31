@@ -62,6 +62,27 @@
       }
     },
     {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "seam_dump",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "eave_shadows",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "eave_shadows",
+        "enabled": "true"
+      }
+    },
+    {
       "type": "SetTime",
       "args": {
         "hour": "18"

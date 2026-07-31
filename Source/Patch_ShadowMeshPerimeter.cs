@@ -100,6 +100,11 @@ public static class Patch_ShadowMeshPerimeter
         LayerSubMesh subMesh, EaveShadowGrid casters, Map map, int i, int j, float y)
     {
         float staticSunShadowHeight = casters.At(i, j);
+
+        // TEMPORARY DIAGNOSTIC (docs/EAVE-SEAM.md) — removed once the eave seam is understood.
+        if (SeamDump.Covers(i, j))
+            SeamDump.Cell(i, j, staticSunShadowHeight, casters, map);
+
         if (!(staticSunShadowHeight > 0f))
             return;
 

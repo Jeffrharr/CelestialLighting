@@ -101,6 +101,7 @@ public static class ProbeRegistration
             new EaveCellProbe("roof_shadow_cells", EaveCellProbe.Metric.ShadowCasters));
         // DIAGNOSTIC ONLY (docs/EAVE-SEAM.md): reads the caster grid the mesh builder reads, because
         // the seam investigation ran out of things it could infer from pixels alone.
+        FeatureRegistry.Register("seam_dump", on => CelestialLighting.SeamDump.Enabled = on);
         ProbeRegistry.Register(new CelestialLighting.Probes.SkirtProbe("caster_cells", CelestialLighting.Probes.SkirtProbe.Metric.Casters));
         ProbeRegistry.Register(new CelestialLighting.Probes.SkirtProbe("north_skirt_cells", CelestialLighting.Probes.SkirtProbe.Metric.NorthSkirts));
         ProbeRegistry.Register(new CelestialLighting.Probes.SkirtProbe("caster_height_sum", CelestialLighting.Probes.SkirtProbe.Metric.HeightSum));

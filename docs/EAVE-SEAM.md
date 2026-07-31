@@ -139,6 +139,47 @@ tested:
 - `SectionLayer_SunShadows.ShouldDrawDynamic` / `GetSunShadowsViewRect` culling
 - overlap and blend order among the extra wall-cast quads an enclosed room adds
 
+## Day 2, the mesh read directly (`SeamDump`)
+
+`SeamDump` logs, per cell, exactly what `EmitCell` decides — heights, the four neighbour heights,
+which skirts fire, and the packed alpha. Run `eave_seam_inset_strip.json` with `--no-teardown` and
+the `seam_dump` feature on, then grep `SEAMDUMP` out of the run's `Player.log`.
+
+Two traps it caught, both of which produced confident wrong conclusions first:
+
+- **The dump must call the shipped predicate, not restate it.** It originally duplicated
+  `casters.At(n) < height`; after the rule under test changed, the dump kept reporting the OLD rule
+  and the fix looked like it had not fired when it had.
+- **`ls -td /tmp/rwth-run-*` gives a STALE run** unless the run used `--no-teardown`. A teardown run
+  deletes its own directory, so the newest surviving one is an earlier build's.
+
+What the dump established, diffing the clean strip against the seaming one cell for cell:
+
+    the two strips' own cells are IDENTICAL in the mesh
+    the ONLY difference in the whole window is the wall column beside the walled strip
+
+and the strip's north row emits N=1 at alpha 255 in both. So the roofline's own geometry is not
+the difference; the wall's extra quads are.
+
+## Day 2 attempts — all three failed
+
+| Attempt | Result |
+|---|---|
+| **Extend the shade to the overlay's cover edge (OR corners).** | Broke the working cases: every clean roofline went +0 → +6, dipping to 29, because the shade then lands on the band where the band already reaches. Walled case unchanged at +5. |
+| **A roof steps down to a wall of equal height** — so a roof abutting a wall emits the skirt it currently suppresses, restoring the sideways sweep the clean case gets. Verified firing via the dump (`W0` → `W1`, meshes then identical for those cells). | No change to the render at all, at any column. The restored skirt does not reach the sampled columns: a skirt sweeps ~3 cells along `_CastVect`, and the seam is uniform across a 12-cell roofline. |
+| **Draw §15b's shade after the sun shadow** (`renderQueue = SunShadowQueue + 25`), on the theory that a cast shadow blending TOWARD the tint was lightening an already-shaded eave. | No change. The seam pixel is on the UNROOFED boundary cell, which §15b never shades, so ordering the shade cannot reach it. |
+
+The second and third are reverted. The first was reverted on day 1 and re-confirmed here.
+
+## What the seam actually is, most precisely
+
+The seam pixel is the **unroofed boundary cell** immediately outside the roofline — the one vanilla's
+corner-OR cover has already darkened to 45 against 73 for open floor. In the clean case the cast band
+darkens it further to 36. In the walled case it stays at 45. The roof itself is 35 in both.
+
+So: same roofline geometry, same heights, same skirts — and one case's boundary cell receives the
+band while the other's does not. The only mesh difference anywhere in the window is the wall column.
+
 ## Where to look next
 
 `on` == `off` past the bounce says the defect is in what the mesh *covers*, not in what
