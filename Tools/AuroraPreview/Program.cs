@@ -94,6 +94,12 @@ public static class Program
         Console.WriteLine();
         Console.WriteLine("sidebyside.png            contour on top, hem-rays below, same instant and ground");
 
+        WriteSequence(outDir, hemRays, tint, strength);
+        Console.WriteLine($"sequence_map.png          {SequencePanels} whole-map panels, three in-game hours" +
+                          " apart, showing displays spawn, drift, fade and be replaced");
+        Console.WriteLine("frames_sequence/          the same panels as separate PNGs");
+        Console.WriteLine();
+
         WriteSideBySideFrames(outDir, contour, hemRays, tint, strength);
         Console.WriteLine($"frames_sidebyside/        {FrameCount} frames of the same stacked layout, both" +
                           " fields on the same tick");
@@ -251,6 +257,141 @@ public static class Program
     // have to spend it on a divider nobody is looking at, which is how a transparent gutter turns into
     // a flickering one.
     private const int DividerRows = 3;
+
+    // ---- The display sequence, at map scale ------------------------------------------------------
+    //
+    // Everything above renders ONE patch, framed, at a fixed instant — the right view for "does this
+    // field look like an aurora" and the wrong one for every question the display schedule raises.
+    // Whether displays overlap awkwardly, whether the sky ever empties, whether one band ends up
+    // systematically brighter, whether a slot relights somewhere obviously different: none of those are
+    // visible in a 120-cell view of a single patch, and all of them are properties of a whole map over
+    // a whole night.
+    //
+    // AuroraDisplaysTests asserts those properties numerically. This renders them, which is a different
+    // and complementary thing: an assertion tells you the sky is empty 2% of the time, a contact sheet
+    // tells you whether 2% looks like a lull or like a bug.
+    //
+    // Drives the SHIPPED AuroraDisplays.Resolve and AuroraSheetLayout.RandomPlacement, for the same
+    // reason the rest of the tool links the shipped generators: a previewer that restated the schedule
+    // would drift from the thing it previews.
+
+    // A stock RimWorld map. Map size genuinely matters here in a way it does not for a single framed
+    // patch — bands are fractions of map height and placements clamp against map extent.
+    private const int SequenceMapCells = 250;
+
+    // A whole map per panel, so 2 px/cell keeps a contact sheet of eight to 2000x1000.
+    private const int SequencePixelsPerCell = 2;
+
+    // Eight panels three in-game hours apart: 24 in-game hours, i.e. a full aurora event, over which
+    // the shortest slot cycles nearly four times and the longest just over one.
+    private const int SequencePanels = 8;
+    private const int SequenceTicksPerPanel = 7500;
+
+    // An arbitrary event seed, fixed so two runs of this tool are comparable. Changing it renders a
+    // different aurora, which is exactly what the schedule promises and worth doing by hand once.
+    private const int SequenceEventSeed = 20260730;
+
+    private static void WriteSequence(string outDir, FieldSpec spec, float[] tint, float strength)
+    {
+        const int cols = 4;
+        int panel = SequenceMapCells * SequencePixelsPerCell;
+        int rows = SequencePanels / cols;
+        int width = panel * cols + DividerRows * (cols - 1);
+        int height = panel * rows + DividerRows * (rows - 1);
+        byte[] sheet = new byte[width * height * 4];
+
+        string dir = Path.Combine(outDir, "frames_sequence");
+        Directory.CreateDirectory(dir);
+
+        for (int f = 0; f < SequencePanels; f++)
+        {
+            int ticks = f * SequenceTicksPerPanel;
+            byte[] frame = CompositeMap(spec, BakeField(spec, ticks, tint), ticks, strength);
+
+            Png.Write(Path.Combine(dir, $"frame_{f:D3}.png"), panel, panel, frame);
+            BlitPanel(sheet, width, frame, panel, f % cols * (panel + DividerRows),
+                f / cols * (panel + DividerRows));
+        }
+
+        Png.Write(Path.Combine(outDir, "sequence_map.png"), width, height, sheet);
+    }
+
+    // One whole map at one instant, with every display the schedule says is lit drawn where the layout
+    // says it stands. This is AuroraCurtainOverlay.PlaceSheets and DrawOverlay expressed as pixels.
+    private static byte[] CompositeMap(FieldSpec spec, byte[] field, int ticks, float strength)
+    {
+        int side = SequenceMapCells * SequencePixelsPerCell;
+        byte[] image = new byte[side * side * 4];
+
+        AuroraDisplay[] live = new AuroraDisplay[AuroraDisplays.MaxLive];
+        int count = AuroraDisplays.Resolve(SequenceEventSeed, ticks, live);
+
+        float driftPhase = AuroraCurtainHemRays.Oscillate(ticks * AuroraCurtainHemRays.DriftRate);
+        AuroraSheetPlacement[] placed = new AuroraSheetPlacement[count];
+
+        for (int i = 0; i < count; i++)
+        {
+            AuroraSheetPlacement home = AuroraSheetLayout.RandomPlacement(
+                live[i].Seed, SequenceMapCells, SequenceMapCells, live[i].Slot, AuroraDisplays.MaxLive);
+            placed[i] = AuroraSheetLayout.WithDrift(home, driftPhase * home.UScale);
+        }
+
+        for (int py = 0; py < side; py++)
+        {
+            // Counted downward, so +v in the texture is up on screen. Load-bearing for the hem-rays
+            // field, whose entire premise is that rays point up.
+            float cellY = (float)(side - 1 - py) / SequencePixelsPerCell;
+
+            for (int px = 0; px < side; px++)
+            {
+                float cellX = (float)px / SequencePixelsPerCell;
+
+                float r = NightGround[0];
+                float g = NightGround[1];
+                float b = NightGround[2];
+
+                for (int i = 0; i < count; i++)
+                    AddDisplay(
+                        spec, field, placed[i], strength * live[i].Alpha, cellX, cellY,
+                        ref r, ref g, ref b);
+
+                int dst = (py * side + px) * 4;
+                image[dst] = ToByte(r);
+                image[dst + 1] = ToByte(g);
+                image[dst + 2] = ToByte(b);
+                image[dst + 3] = 255;
+            }
+        }
+
+        return image;
+    }
+
+    // One display's contribution at one cell. Outside its quad it contributes nothing at all — the sky
+    // between displays is genuinely empty, which is the intent rather than a limitation.
+    //
+    // The negative-UScale case is the mirroring: the game gets it from Unity's texture scale, and here
+    // it is a flip of u about the quad's centre, which is the same thing done by hand.
+    private static void AddDisplay(
+        FieldSpec spec, byte[] field, in AuroraSheetPlacement p, float alpha,
+        float cellX, float cellY, ref float r, ref float g, ref float b)
+    {
+        float u = (cellX - (p.CenterX - p.Width * 0.5f)) / p.Width;
+        float v = (cellY - (p.CenterZ - p.Height * 0.5f)) / p.Height;
+
+        if (u < 0f || u >= 1f || v < 0f || v >= 1f)
+            return;
+
+        if (p.UScale < 0f)
+            u = 1f - u;
+
+        Add(spec, field, u, v, alpha * p.Alpha, ref r, ref g, ref b);
+    }
+
+    private static void BlitPanel(byte[] sheet, int sheetWidth, byte[] panel, int panelSide, int x0, int y0)
+    {
+        for (int y = 0; y < panelSide; y++)
+            Array.Copy(panel, y * panelSide * 4, sheet, ((y0 + y) * sheetWidth + x0) * 4, panelSide * 4);
+    }
 
     private static void FillDivider(byte[] image, int width, int panel)
     {

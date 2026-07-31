@@ -19,5 +19,9 @@
     <Compile Include="../../Source/AuroraCurtainHemRays.cs" Link="AuroraCurtainHemRays.cs" />
     <Compile Include="../../Source/AuroraFieldSpec.cs" Link="AuroraFieldSpec.cs" />
     <Compile Include="../../Source/AuroraSheetLayout.cs" Link="AuroraSheetLayout.cs" />
+    <!-- The display schedule, so the map-scale sequence render drives the SHIPPED slots, periods and
+         per-display fades rather than a plausible-looking imitation of them. Mutually dependent with
+         AuroraSheetLayout above. -->
+    <Compile Include="../../Source/AuroraDisplays.cs" Link="AuroraDisplays.cs" />
   </ItemGroup>
 </Project>
