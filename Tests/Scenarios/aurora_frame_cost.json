@@ -1,0 +1,4756 @@
+{
+  "name": "aurora_frame_cost",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "20"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "1"
+      }
+    },
+    {
+      "type": "StartCondition",
+      "args": {
+        "conditionDef": "Aurora",
+        "durationHours": "24",
+        "agedHours": "2"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "120"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_missing_stages",
+        "expectedValue": "0",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_reset",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "300"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_frames",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_total_us",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_strength_us",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_driver_us",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_advance_us",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_bake_us",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_upload_us",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_place_us",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_draw_us",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_setsheet_us",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_drawsheet_us",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_bake_per_frame",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_upload_per_frame",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_setsheet_per_frame",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_drawsheet_per_frame",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_bake_us_per_call",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_table_us_per_call",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_table_per_frame",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_fillrows_us_per_call",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_upload_us_per_call",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_total_us_max",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_bake_us_max",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_table_us_max",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_upload_us_max",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_overhead_us",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_reset",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_frames",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_total_us",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_strength_us",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_driver_us",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_advance_us",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_bake_us",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_upload_us",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_place_us",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_draw_us",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_setsheet_us",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_drawsheet_us",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_bake_per_frame",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_upload_per_frame",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_setsheet_per_frame",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_drawsheet_per_frame",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_bake_us_per_call",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_table_us_per_call",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_table_per_frame",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_fillrows_us_per_call",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_upload_us_per_call",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_total_us_max",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_bake_us_max",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_table_us_max",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_upload_us_max",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_overhead_us",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_reset",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_frames",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_total_us",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_strength_us",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_driver_us",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_advance_us",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_bake_us",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_upload_us",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_place_us",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_draw_us",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_setsheet_us",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_drawsheet_us",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_bake_per_frame",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_upload_per_frame",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_setsheet_per_frame",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_drawsheet_per_frame",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_bake_us_per_call",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_table_us_per_call",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_table_per_frame",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_fillrows_us_per_call",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_upload_us_per_call",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_total_us_max",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_bake_us_max",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_table_us_max",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_upload_us_max",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aurora_path_overhead_us",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    }
+  ]
+}

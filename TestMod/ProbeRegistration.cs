@@ -57,6 +57,12 @@ public static class ProbeRegistration
         // cannot supply — what a frame of field regeneration costs under RimWorld's own Mono runtime.
         ProbeRegistry.Register(new AuroraCurtainProbe());
         ProbeRegistry.Register(new AuroraCurtainCostProbe());
+        // Issue #60. aurora_curtain_cost above answers "what does one bake slice cost"; this family
+        // answers the question that one structurally cannot — how often each stage of the draw path
+        // is entered per FRAME, and what the postfix costs on a frame that bakes nothing at all.
+        // Registered as a family off one class because the Probe step reads a single float, and the
+        // whole point here is to see the stages side by side.
+        RegisterAuroraPathTiming();
         ProbeRegistry.Register(new EclipseCoverageProbe());
         // §18e: what the coverage ramp is aimed AT, as opposed to how far along it is.
         // Paired with night_radiance it is the whole vacuum-eclipse claim in two numbers —
@@ -482,4 +488,47 @@ public static class ProbeRegistration
         // nothing fires the hook and the cache behaves exactly as it does today.
         WorldOverrideHookRegistry.Register(SunClock.Clear);
     }
+
+    // Installed here rather than at the first probe read for the same reason
+    // GeometryEvalCounters.Install is: the patches must be in place before the aurora path is first
+    // walked, or the first frames of a scenario would be timed by a different code path than the
+    // rest.
+    private static void RegisterAuroraPathTiming()
+    {
+        AuroraPathTimers.Install();
+
+        Register("aurora_path_reset", AuroraPathTimingProbe.Metric.Reset);
+        Register("aurora_path_frames", AuroraPathTimingProbe.Metric.Frames);
+        Register("aurora_path_overhead_us", AuroraPathTimingProbe.Metric.OverheadUs);
+        Register("aurora_path_missing_stages", AuroraPathTimingProbe.Metric.MissingStages);
+
+        Register("aurora_path_total_us", AuroraPathTimingProbe.Metric.TotalUsPerFrame);
+        Register("aurora_path_strength_us", AuroraPathTimingProbe.Metric.StrengthUsPerFrame);
+        Register("aurora_path_driver_us", AuroraPathTimingProbe.Metric.DriverUsPerFrame);
+        Register("aurora_path_advance_us", AuroraPathTimingProbe.Metric.AdvanceUsPerFrame);
+        Register("aurora_path_bake_us", AuroraPathTimingProbe.Metric.BakeUsPerFrame);
+        Register("aurora_path_upload_us", AuroraPathTimingProbe.Metric.UploadUsPerFrame);
+        Register("aurora_path_place_us", AuroraPathTimingProbe.Metric.PlaceUsPerFrame);
+        Register("aurora_path_draw_us", AuroraPathTimingProbe.Metric.DrawUsPerFrame);
+        Register("aurora_path_setsheet_us", AuroraPathTimingProbe.Metric.SetSheetUsPerFrame);
+        Register("aurora_path_drawsheet_us", AuroraPathTimingProbe.Metric.DrawSheetUsPerFrame);
+
+        Register("aurora_path_bake_per_frame", AuroraPathTimingProbe.Metric.BakeCallsPerFrame);
+        Register("aurora_path_upload_per_frame", AuroraPathTimingProbe.Metric.UploadCallsPerFrame);
+        Register("aurora_path_setsheet_per_frame", AuroraPathTimingProbe.Metric.SetSheetCallsPerFrame);
+        Register("aurora_path_drawsheet_per_frame", AuroraPathTimingProbe.Metric.DrawSheetCallsPerFrame);
+        Register("aurora_path_bake_us_per_call", AuroraPathTimingProbe.Metric.BakeUsPerCall);
+        Register("aurora_path_table_us_per_call", AuroraPathTimingProbe.Metric.TableUsPerCall);
+        Register("aurora_path_table_per_frame", AuroraPathTimingProbe.Metric.TableCallsPerFrame);
+        Register("aurora_path_fillrows_us_per_call", AuroraPathTimingProbe.Metric.FillRowsUsPerCall);
+        Register("aurora_path_upload_us_per_call", AuroraPathTimingProbe.Metric.UploadUsPerCall);
+
+        Register("aurora_path_total_us_max", AuroraPathTimingProbe.Metric.TotalUsMax);
+        Register("aurora_path_bake_us_max", AuroraPathTimingProbe.Metric.BakeUsMax);
+        Register("aurora_path_table_us_max", AuroraPathTimingProbe.Metric.TableUsMax);
+        Register("aurora_path_upload_us_max", AuroraPathTimingProbe.Metric.UploadUsMax);
+    }
+
+    private static void Register(string name, AuroraPathTimingProbe.Metric metric) =>
+        ProbeRegistry.Register(new AuroraPathTimingProbe(name, metric));
 }
