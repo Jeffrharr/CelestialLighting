@@ -291,6 +291,36 @@ Note the casters-off frames are NOT quite identical at 1px (off differs by 1 in 
 against 52/51/48/47), which the earlier 3px sampling reported as identical. Small, but it means
 "everything else is identical" was overstated.
 
+## Day 2, the sharpest lead: ONE missing cell emission
+
+Position-aligned vertex diff of the same-phase pair (enclosed vs one-cell-gap, offset 34) — the
+comparison that finally controls for section phase:
+
+    x=108 z=170 a=255   enclosed 0   gap 1
+    x=108 z=171 a=255   enclosed 2   gap 3
+    x=109 z=170 a=  0   enclosed 2   gap 3
+    x=109 z=170 a=255   enclosed 0   gap 1
+    x=109 z=171 a=  0   enclosed 2   gap 3
+    x=109 z=171 a=255   enclosed 2   gap 3
+
+Decoded: the GAP case emits, from cell (109,170), a FOOTPRINT QUAD (4 verts at alpha 0) plus a WEST
+SKIRT (2 verts at alpha 255) that the ENCLOSED case does not emit at all. One extra cell emission,
+at the strip's west end. Everything else in both meshes is identical.
+
+A cell emits nothing only when EmitCell's "buried inside a caster blob" check fires — every neighbour
+at least as tall. So in the enclosed room that cell is buried and in the gapped one it is not, which
+means one of its four neighbours differs in height. The diff also shows an extra emission at x=108,
+the wall column itself.
+
+Why a wall cell five cells south and five cells west of the removed cell changes at all is not yet
+explained, and that is the open question. It is a ROOM-scoped effect reaching cells nowhere near the
+wall that changed — which is exactly the known limitation DESIGN.md §15b already records for the
+eave shade ("enclosing a room flips cells nowhere near the wall that closed it").
+
+Retested on this scenario and still does nothing: the "roof steps down to a wall of equal height"
+rule. It fires (verified in the dump) and the band stays 3 px against 7 px, so the skirts it restores
+are not these.
+
 ## Where to look next
 
 `on` == `off` past the bounce says the defect is in what the mesh *covers*, not in what
