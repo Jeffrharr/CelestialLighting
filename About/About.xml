@@ -69,6 +69,14 @@ Q. Known conflicts?
   Perspective: Eaves - Celestial Lighting re-implements the functionality in a compatible way.
   Tilt the Earth! - Celestial Lighting hits the same systems. The inspiration for this mod.
 
+Q. Does it work with Planetsmith?
+
+  Yes, and it now follows it. Planetsmith lets you pick a planet's axial tilt when you generate a
+  world, and Celestial Lighting lights that world on the tilt it was actually generated with - so a
+  steeply tilted planet gets the harsh seasons and polar nights its biomes were laid out for, and an
+  upright one gets a sun that barely moves all year. Turn "Planetsmith axial tilt" off if you would
+  rather keep an Earth-like sky over an extreme world.
+
 Q. Does it work with Biomes! Caverns?
 
   Yes. An underground map has no sky, so sunrise and sunset colour, sky colour temperature,
@@ -167,6 +175,12 @@ Requires Harmony.</description>
          rock ceiling), and MapSky.DrawsShadows honours the disableShadows flag Caverns sets on all
          three cavern biomes. See DESIGN.md §17. -->
     <li>BiomesTeam.BiomesCaverns</li>
+    <!-- Planetsmith owns the per-world axial tilt we now light each planet on (see DESIGN.md's
+         Planetsmith interop). NOT a shared patch target — its three Harmony patches are on
+         Page_CreateWorldParams and WorldGenStep_Terrain, none of which we touch, and it renders no
+         sky — but we read a field off its world component, so load after it and let that component
+         exist before anything of ours asks for it. -->
+    <li>aspctt.planetsmith</li>
     <!-- Biomes! Core owns the BMT_RockRoofStable RoofDef that Caverns stamps, and Geological
          Landforms owns the BiomeVariantDefs behind its partly-open "shallow cave" maps. We read
          neither directly — both reach us through vanilla BiomeDef/RoofDef fields — but our

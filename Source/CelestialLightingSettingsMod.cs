@@ -112,6 +112,15 @@ public class CelestialLightingSettingsMod : Mod
             "A faint, phase- and altitude-scaled shadow cast by the moon at night.");
         listing.CheckboxLabeled("Eave shadows", ref Settings.eaveShadows,
             "Let roofs cast shadows where they are not enclosing anything — porches, overhangs and the eaves that oversail a wall. Vanilla only ever casts shadows from buildings, so a porch roof throws nothing. Replaces the Perspective: Eaves mod, which is incompatible with this one.");
+        // Shown only with Planetsmith installed. Every other switch on this screen turns off
+        // something the mod does on its own; this one turns off deference to a mod most players do
+        // not have, and a permanent dead toggle reads as a broken feature rather than an absent one.
+        if (PlanetsmithCompat.ModIsInstalled)
+        {
+            listing.CheckboxLabeled("Planetsmith axial tilt", ref Settings.planetsmithGeometry,
+                "Light each world on the axial tilt Planetsmith generated it with, instead of Earth's 23.4°. A steeply tilted planet then gets the harsh seasons and polar nights its biomes were laid out for. Off keeps an Earth-like sky over any world.");
+        }
+
         listing.CheckboxLabeled("Night-sky radiance", ref Settings.nightRadiance,
             "Replace vanilla's flat night glow with a starlight + airglow + moonlight floor.");
         listing.CheckboxLabeled("Pitch-black nights", ref Settings.pitchBlackNights,

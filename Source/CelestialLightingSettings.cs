@@ -34,6 +34,10 @@ public class CelestialLightingSettings : ModSettings
     public bool skyColorTemperature = true;
     public bool aurora = true;
 
+    // Planetsmith's per-world axial tilt. Unlike its neighbours here this one does nothing at all
+    // unless a second mod is installed, so it is shown conditionally — see the settings screen.
+    public bool planetsmithGeometry = true;
+
     // §11a's ribbon curtain, a sub-toggle of `aurora` above. Separate because it is the one part of the
     // aurora with a per-frame render cost, so a player on a weak machine (or one who simply prefers the
     // plain tint) can drop it without losing auroras entirely — and because turning it off restores
@@ -114,6 +118,7 @@ public class CelestialLightingSettings : ModSettings
         CelestialLightingFeatures.NightRadiance = nightRadiance;
         CelestialLightingFeatures.LowLightDesaturation = lowLightDesaturation;
         CelestialLightingFeatures.SkyColorTemperature = skyColorTemperature;
+        CelestialLightingFeatures.PlanetsmithGeometry = planetsmithGeometry;
         CelestialLightingFeatures.Aurora = aurora;
         CelestialLightingFeatures.AuroraCurtain = auroraCurtain;
         CelestialLightingFeatures.EclipseDarkening = eclipseDarkening;
@@ -176,6 +181,7 @@ public class CelestialLightingSettings : ModSettings
         Scribe_Values.Look(ref civilTwilightPersistence, "civilTwilightPersistence", true);
         Scribe_Values.Look(ref penumbraContrast, "penumbraContrast", true);
         Scribe_Values.Look(ref moonShadows, "moonShadows", true);
+        Scribe_Values.Look(ref planetsmithGeometry, "planetsmithGeometry", true);
         Scribe_Values.Look(ref nightRadiance, "nightRadiance", true);
         Scribe_Values.Look(ref lowLightDesaturation, "lowLightDesaturation", true);
         Scribe_Values.Look(ref weatherDimming, "weatherDimming", true);
