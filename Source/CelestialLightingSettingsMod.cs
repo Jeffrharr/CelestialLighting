@@ -139,6 +139,11 @@ public class CelestialLightingSettingsMod : Mod
             "Let clouds, rain and storms darken the sky and soften shadows, scaled by how hard it is coming down. Vanilla changes the sky's colour with the weather but never its brightness. Visual only — plant growth and solar panel output are unaffected.");
         listing.CheckboxLabeled("Sky colour-temperature", ref Settings.skyColorTemperature,
             "Warm the sky toward the horizon on a continuous, altitude-keyed curve.");
+        listing.CheckboxLabeled("Polar night blue", ref Settings.polarNightBlue,
+            "Tint the sky deep blue while the sun sits just below the horizon, the way real polar twilight reads. Sunlight arriving at that angle has crossed a long path through the ozone layer, which absorbs the orange and green out of it. Keyed on sun height alone, so high latitudes get it for hours or for whole winter days while the equator gets a brief blue hour after dusk. It also stops the deepest twilight crushing to black so the colour is actually visible — visual only, gameplay brightness is unaffected.");
+        // LabeledSlider, not AestheticSlider: this is a per-effect intensity, not one of the taste
+        // axes the preset bundle owns, so moving it must NOT flip the preset radio to Custom.
+        Settings.polarNightBlueStrength = LabeledSlider(listing, "  Polar blue strength", Settings.polarNightBlueStrength, 0f, 1f);
         listing.CheckboxLabeled("Auroral sky tint", ref Settings.aurora,
             "Shift the night sky toward auroral colours during a solar flare or an aurora event, and at no other time. A flare gets a slow green/red shimmer; an aurora event borrows the colour vanilla is already cycling through, which its own sky render is too bright to show.");
         // The cost is in the LABEL, not only the tooltip. This is the one setting in the mod with a
