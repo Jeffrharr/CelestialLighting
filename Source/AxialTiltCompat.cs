@@ -28,9 +28,21 @@ namespace CelestialLighting;
 // NO HARD REFERENCE. Everything is late-bound by reflection through their public Api type, the same
 // way their own Compat/ classes bind to the mods they support. We never reference their assembly,
 // so a user without RAT loads a CelestialLighting that has simply never heard of it.
+//
+// AND SO EVERY MEMBER IS A STRING, which is the price of that. A rename or a signature change
+// upstream cannot fail at compile time here; it fails at Bind(), and it must fail SOFTLY. Every
+// resolve below is null-checked and every CreateDelegate is guarded, so drift degrades to "RAT
+// treated as absent, our own geometry, one warning naming the member" instead of throwing out of a
+// StaticConstructorOnStartup — which is what it did before, and which takes the whole mod down over
+// one renamed method in someone else's assembly. ApiVersion is not a substitute for this: it moves
+// only when THEY decide a change is breaking, and a rename they consider a tidy-up is exactly the
+// case where they would not think to bump it.
 public static class AxialTiltCompat
 {
     private const string PackageId = "dsweber.RealisticAxialTilt";
+
+    // Ours, as RAT records it in LightingOwner and shows on their settings screen.
+    private const string OurPackageId = "joof.celestiallighting";
     private const string ApiTypeName = "RealisticAxialTilt.Api.RealisticAxialTiltApi";
 
     // We bind against ApiVersion 1. Their contract is that additive changes leave this alone and
@@ -127,7 +139,7 @@ public static class AxialTiltCompat
         if (!Bind())
             return;
 
-        ratTryClaimLighting("joof.celestiallighting");
+        ratTryClaimLighting(OurPackageId);
     }
 
     // Reflection binding, done once and cached. Failures here are silent-by-design for the common
@@ -153,7 +165,9 @@ public static class AxialTiltCompat
             return false;
         }
 
-        int version = (int)AccessTools.Field(api, "ApiVersion").GetValue(null);
+        if (!TryReadApiVersion(api, out int version))
+            return false;
+
         if (version < RequiredApiVersion)
         {
             Log.Warning(
@@ -162,13 +176,9 @@ public static class AxialTiltCompat
             return false;
         }
 
-        ratGeometryReady = Getter<bool>(api, "GeometryReady");
-        ratAxialTiltDegrees = Getter<float>(api, "AxialTiltDegrees");
-        ratGeometryGeneration = Getter<int>(api, "GeometryGeneration");
-        ratDeclinationDegrees = (Func<float, float>)Delegate.CreateDelegate(
-            typeof(Func<float, float>), AccessTools.Method(api, "SolarDeclinationDegrees"));
-        ratTryClaimLighting = (Func<string, bool>)Delegate.CreateDelegate(
-            typeof(Func<string, bool>), AccessTools.Method(api, "TryClaimLighting"));
+        if (!TryBindRequiredMembers(api))
+            return false;
+
         BindLunarGeometry(api);
 
         Log.Message(
@@ -191,16 +201,151 @@ public static class AxialTiltCompat
         if (lunarDeclination == null)
             return;
 
-        ratLunarDeclinationDegrees = (Func<float, float, float>)Delegate.CreateDelegate(
-            typeof(Func<float, float, float>), lunarDeclination);
+        // Present but unusable is worth a warning where absent is not: absent means an older RAT,
+        // reshaped means the contract moved under us.
+        TryCreateDelegate(
+            "LunarDeclinationDegrees", lunarDeclination, LunarMemberConsequence,
+            out ratLunarDeclinationDegrees);
+    }
+
+    // Every member the interop cannot work without, resolved one at a time so a failure can say
+    // WHICH one. `&&` short-circuits, so the first missing member is the one reported and the rest
+    // are not chased — a renamed API would otherwise log five warnings for one upstream edit.
+    //
+    // TryClaimLighting is bound FIRST on purpose, so the salvage path below has it even when the
+    // geometry is unreadable.
+    private static bool TryBindRequiredMembers(Type api)
+    {
+        bool complete =
+            TryBindMethod(api, "TryClaimLighting", out ratTryClaimLighting)
+            && TryBindGetter(api, "GeometryReady", out ratGeometryReady)
+            && TryBindGetter(api, "AxialTiltDegrees", out ratAxialTiltDegrees)
+            && TryBindGetter(api, "GeometryGeneration", out ratGeometryGeneration)
+            && TryBindMethod(api, "SolarDeclinationDegrees", out ratDeclinationDegrees);
+
+        if (complete)
+            return true;
+
+        SalvageLightingClaim();
+        return false;
+    }
+
+    // The one thing still worth doing when the geometry is unreadable: take the lighting anyway.
+    //
+    // The alternative is worse, not safer. Our patches are registered either way, and so are theirs;
+    // declining to claim doesn't hand the sky back to RAT, it puts both mods on
+    // SectionLayer_SunShadows.Regenerate with a `return false` prefix each, where the loser silently
+    // never builds a shadow mesh and which one loses is Harmony registration order. Claiming leaves
+    // exactly one renderer. The cost is that our sky then runs on OUR obliquity while their tilt
+    // still drives temperature and growing seasons, so a high-tilt world looks a season off — bad,
+    // visible, and reported in the warning, which is the whole difference from silent.
+    private static void SalvageLightingClaim()
+    {
+        ratTryClaimLighting?.Invoke(OurPackageId);
+        ClearBindings();
+    }
+
+    // Left in the state a never-bound CelestialLighting is in, so a half-resolved API cannot leave a
+    // live delegate behind a `bound == false` gate. Nothing reads these while bound is false; this is
+    // belt and braces against a future reader who assumes non-null means usable.
+    private static void ClearBindings()
+    {
+        ratTryClaimLighting = null;
+        ratGeometryReady = null;
+        ratAxialTiltDegrees = null;
+        ratGeometryGeneration = null;
+        ratDeclinationDegrees = null;
+        ratLunarDeclinationDegrees = null;
+    }
+
+    // ApiVersion is read reflectively too, and it is the member most likely to move if they ever
+    // restructure the type — so it gets the same treatment as the rest rather than the
+    // `AccessTools.Field(...).GetValue(null)` that used to throw a NullReferenceException here.
+    private static bool TryReadApiVersion(Type api, out int version)
+    {
+        version = 0;
+        FieldInfo field = AccessTools.Field(api, "ApiVersion");
+        if (field == null)
+        {
+            WarnMemberUnusable("ApiVersion", "is gone", RequiredMemberConsequence);
+            return false;
+        }
+
+        object value = field.GetValue(null);
+        if (value is int parsed)
+        {
+            version = parsed;
+            return true;
+        }
+
+        WarnMemberUnusable(
+            "ApiVersion", $"is a {value?.GetType().Name ?? "null"} rather than an int", RequiredMemberConsequence);
+        return false;
     }
 
     // Bound as delegates rather than called through PropertyInfo.GetValue every time: Active is read
     // on the per-frame geometry path (SolarPosition.ComputeInputsForMap), and reflective property
     // access there would show up in a profile.
-    private static Func<T> Getter<T>(Type api, string propertyName) =>
-        (Func<T>)Delegate.CreateDelegate(
-            typeof(Func<T>), AccessTools.PropertyGetter(api, propertyName));
+    private static bool TryBindGetter<T>(Type api, string propertyName, out Func<T> binding) =>
+        TryCreateDelegate(
+            propertyName, AccessTools.PropertyGetter(api, propertyName), RequiredMemberConsequence, out binding);
+
+    private static bool TryBindMethod<TDelegate>(Type api, string methodName, out TDelegate binding)
+        where TDelegate : Delegate =>
+        TryCreateDelegate(methodName, AccessTools.Method(api, methodName), RequiredMemberConsequence, out binding);
+
+    // The single place a name or a signature from their assembly turns into one of our delegates,
+    // and so the single place upstream drift can be caught.
+    //
+    // Both failures it handles are the same event seen from two sides: they renamed or reshaped a
+    // member of a type we bind by string. A rename leaves AccessTools returning null; a signature
+    // change (an added parameter, float to double, an instance method) leaves the name resolving and
+    // CreateDelegate throwing ArgumentException. Neither is exceptional enough to take the mod down
+    // with it — before this, both propagated out of a StaticConstructorOnStartup — and neither is
+    // silent, because "your sun is subtly wrong" is not something a player can debug unaided.
+    private static bool TryCreateDelegate<TDelegate>(
+        string memberName, MethodInfo method, string consequence, out TDelegate binding)
+        where TDelegate : Delegate
+    {
+        binding = null;
+
+        if (method == null)
+        {
+            WarnMemberUnusable(memberName, "is not there", consequence);
+            return false;
+        }
+
+        try
+        {
+            binding = (TDelegate)Delegate.CreateDelegate(typeof(TDelegate), method);
+            return true;
+        }
+        catch (Exception e)
+        {
+            WarnMemberUnusable(
+                memberName, $"has an unexpected signature ({e.GetType().Name}: {e.Message})", consequence);
+            return false;
+        }
+    }
+
+    // Split from the message so each arm states the consequence it actually has. A missing required
+    // member costs us the whole planet; a missing lunar one costs an inclination.
+    private const string RequiredMemberConsequence =
+        "Falling back to our own solar geometry: the sky still renders, but on OUR axial tilt rather "
+        + "than this world's, so seasons may look out of step with RAT's temperature and growing "
+        + "periods.";
+
+    private const string LunarMemberConsequence =
+        "Falling back to the moon we place on the ecliptic ourselves — still RAT's seasonal model, "
+        + "just without their orbital inclination. The sun is unaffected.";
+
+    private static void WarnMemberUnusable(string memberName, string problem, string consequence)
+    {
+        Log.Warning(
+            $"[CelestialLighting] Realistic Axial Tilt's interop API declares ApiVersion "
+            + $"{RequiredApiVersion} or newer, but its {memberName} {problem}. {consequence} This is an "
+            + "upstream API change rather than a mod-list mistake — please report it.");
+    }
 
     private static bool ModIsActive()
     {
