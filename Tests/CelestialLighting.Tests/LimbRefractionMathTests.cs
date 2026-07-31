@@ -730,6 +730,62 @@ public class LimbRefractionMathTests
         });
     }
 
+    // Issue #64. AffectsSky exists so the live adapter can skip gathering arguments it is about to
+    // throw away on a surface map. That makes it a performance claim, and the only way it can be wrong
+    // is by disagreeing with the entry points it is standing in for — so it is pinned against them
+    // rather than against a literal, at elevations spanning full sun, the middle of the band and deep
+    // night. A `false` here has to mean all four entry points are inert; if one ever grew a sea-level
+    // opinion, this fails and the early-out has to go.
+    [TestCase(30f)]
+    [TestCase(0f)]
+    [TestCase(-0.5f)]
+    [TestCase(-1.5f)]
+    [TestCase(-8f)]
+    public void AffectsSky_IsFalseExactlyWhereEveryEntryPointIsInert(float elevation)
+    {
+        Assert.That(LimbRefractionMath.AffectsSky(inVacuum: false), Is.False);
+
+        Assert.Multiple(() =>
+        {
+            // The glow entry point returns its input unchanged...
+            Assert.That(
+                LimbRefractionMath.VacuumSkyGlow(elevation, seaLevelGlow: 0.5f, planetshineFloor: 0.2f, inVacuum: false),
+                Is.EqualTo(0.5f).Within(Tolerance),
+                "VacuumSkyGlow is not inert at sea level, so skipping the gather would change the sky");
+
+            // ...the colour entry points contribute nothing (strength 0 means the patch never even
+            // reaches LimbTint, but pin the tint as white too so a future caller cannot be surprised).
+            Assert.That(
+                LimbRefractionMath.TintStrength(elevation, inVacuum: false),
+                Is.EqualTo(0f).Within(Tolerance),
+                "TintStrength is not inert at sea level, so skipping the gather would change the sky");
+
+            LimbRefractionMath.Rgb tint = LimbRefractionMath.LimbTint(elevation, inVacuum: false);
+            Assert.That(tint.R, Is.EqualTo(1f).Within(Tolerance));
+            Assert.That(tint.G, Is.EqualTo(1f).Within(Tolerance));
+            Assert.That(tint.B, Is.EqualTo(1f).Within(Tolerance));
+
+            Assert.That(
+                LimbRefractionMath.SunlightFraction(elevation, inVacuum: false),
+                Is.EqualTo(1f).Within(Tolerance),
+                "SunlightFraction is not inert at sea level, so skipping the gather would change the sky");
+        });
+    }
+
+    // The other half of the claim, and the one that actually protects the feature: in vacuum the
+    // adapter must NOT skip. Pinned as "true wherever the subsystem has any effect at all" by finding
+    // an elevation inside the band where the glow entry point demonstrably moves.
+    [Test]
+    public void AffectsSky_IsTrueInVacuum_WhereTheSubsystemDoesMoveTheSky()
+    {
+        Assert.That(LimbRefractionMath.AffectsSky(inVacuum: true), Is.True);
+
+        Assert.That(
+            LimbRefractionMath.VacuumSkyGlow(-1f, seaLevelGlow: 0.5f, planetshineFloor: 0f, inVacuum: true),
+            Is.Not.EqualTo(0.5f).Within(Tolerance),
+            "the band no longer moves the glow, so this pin has stopped proving the gate matters");
+    }
+
     private static float Lerp(float a, float b, float t) => a + (b - a) * t;
     private static float Clamp01(float v) => v < 0f ? 0f : (v > 1f ? 1f : v);
 }

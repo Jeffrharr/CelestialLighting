@@ -33,11 +33,23 @@ public static class Patch_LimbRefraction
     static void Postfix(Map map, ref SkyTarget __result)
     {
         // One read of map.Biome.inVacuum for the whole subsystem, per Vacuum.cs's convention, handed
-        // down as a primitive. Deliberately NOT an early-out: the "what does an orbital sunset look
-        // like" decision belongs next to the limb math and its unit tests, so the shipped behaviour
-        // and the pinned behaviour are literally the same code. Same shape §18a's Patch_TwilightColor
-        // uses.
+        // down as a primitive. The "what does an orbital sunset look like" decision still belongs next
+        // to the limb math and its unit tests, so the shipped behaviour and the pinned behaviour stay
+        // literally the same code — which is why the early-out below asks the math rather than testing
+        // this bool itself. Same shape §18a's Patch_TwilightColor uses.
         bool inVacuum = Vacuum.InVacuumForMap(map);
+
+        // Issue #64. Ask before gathering. This postfix runs on every map on every frame — twice over
+        // while a weather transition blends — and on a surface map every input collected below is
+        // thrown away unread: VacuumSkyGlow hands back the glow it was given and TintStrength returns
+        // 0. The read that motivated this is NightRadiance.FloorGlowFor, which, unlike the elevation
+        // read under it, has no per-frame memo of its own.
+        //
+        // The predicate is still LimbRefractionMath's and is pinned by the same tests as everything
+        // else here, so this is a cheaper route to the answer the math already gives, not a local copy
+        // of the answer.
+        if (!LimbRefractionMath.AffectsSky(inVacuum))
+            return;
 
         // The shared solar-position simulator every other subsystem reads (§2 twilight, §7 night
         // radiance, the shadow patches), so the terminator can never disagree with them about where
