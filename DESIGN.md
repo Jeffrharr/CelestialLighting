@@ -3758,11 +3758,21 @@ shadows, twilight, penumbra, night radiance and moon shadows together. Without R
 **Conflict risk.** No hard assembly reference — everything is late-bound via `AccessTools`, the
 same idiom RAT's own `Compat/` classes use, so a user without RAT loads a build that has never
 heard of it. There is deliberately **no** fallback path into RAT's internals: an older RAT without
-the API is treated as absent (`ApiVersion >= 1` gate) and declared in `<incompatibleWith>`, rather
-than half-supported. Upstream has since merged the API and the lighting gate (`08f5b49`; all seven
-of their lighting patches consult `LightingSuppressed`), so that tag becomes a `loadAfter` the day a
-RAT *release* carries it — it is keyed to the published Workshop build, which still does not, and
-not to their main branch, because the published build is the one in players' mod lists.
+the API is treated as absent (`ApiVersion >= 1` gate), rather than half-supported. Upstream merged
+the API and the lighting gate (`08f5b49`; all seven of their lighting patches consult
+`LightingSuppressed`) and has now published it, so RAT sits in `<loadAfter>` rather than
+`<incompatibleWith>`: loading after them means their world comp has seeded its geometry before we
+bind, and `ClaimLighting()` stands their rendering patches down at init.
+
+What that tag used to guard against still describes a mod list running a **pre-API RAT build**: both
+mods postfix `GenCelestial.GetLightSourceInfo` and `CurShadowStrength` overwriting `__result`, and
+both prefix `SectionLayer_SunShadows.Regenerate` with `return false`, so whichever registers second
+never builds its shadow mesh at all — silently, decided by Harmony registration order rather than by
+anything the player can see. The `ApiVersion >= 1` gate is what still covers that case, and it
+covers it in the only way that degrades safely: we treat that RAT as absent and render from our own
+geometry, one renderer on a possibly mis-phased sun rather than two renderers on a coin flip. The
+tag was the user-facing half of the same rule and is no longer the right instrument, because it
+would now also reject the builds that compose correctly.
 
 `GeometryReady` is checked on every read because RAT's `cosTilt` defaults to
 `0f`, not `1f` — calling before their world comp seeds it returns a degenerate planet, not

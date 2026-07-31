@@ -67,7 +67,9 @@ Q. Does it work with Dub's Skylights?
 Q. Known conflicts?
 
   Perspective: Eaves - Celestial Lighting re-implements the functionality in a compatible way.
-  Tilt the Earth! - Celestial Lighting hits the same systems. The inspiration for this mod.
+  Tilt the Planet! - Incompatible. It renders the same sun, shadows and sky from its own tilt model, so the two fight over every frame. The inspiration for this mod - run one or the other.
+
+  Realistic Axial Tilt is supported, not conflicting: it owns the planet's tilt and seasons, Celestial Lighting renders the sky from the geometry it publishes.
 
 Q. Does it work with Biomes! Caverns?
 
@@ -111,28 +113,14 @@ Requires Harmony.</description>
     <!-- Owlchemist's original, superseded but still installed in plenty of mod lists. Same
          transpiler, same collision. -->
     <li>Owlchemist.PerspectiveEaves</li>
-    <!-- "Realistic Axial Tilt". TEMPORARY — remove once a RAT release carries the interop API
-         (RealisticAxialTilt.Api.RealisticAxialTiltApi, version 1) we contributed upstream; at that
-         point this becomes a loadAfter entry instead, because the two mods are designed to compose:
-         RAT owns the planet's solar geometry, we own the lighting.
-
-         Upstream has merged it (dsweber2/realisticAxialTilt 08f5b49) and all seven of their lighting
-         patches now consult LightingSuppressed, so the flip is waiting on a RELEASE, not on code.
-         Deliberately keyed to the published build rather than to their main branch: the Workshop
-         copy players actually have (3768758984) still carries no Api type, and it is that build,
-         not the repository, that decides whether a mod list conflicts. -->
-
-    <!-- Below is what happens on that published build, and why the tag is not merely cautious.
-
-         They genuinely conflict there. Both postfix GenCelestial.GetLightSourceInfo and
-         CurShadowStrength and both overwrite __result, and — the one that actually breaks things —
-         both prefix SectionLayer_SunShadows.Regenerate with `return false`, so whichever registers
-         second never builds its shadow mesh at all, silently, with the outcome decided by Harmony
-         registration order rather than by anything the player can see or set.
-
-         AxialTiltCompat enforces the same rule at runtime via an ApiVersion >= 1 gate, so an older
-         RAT is treated as absent rather than half-supported; this tag is the user-facing half. -->
-    <li>dsweber.RealisticAxialTilt</li>
+    <!-- "Tilt the Planet! - Realism Overhaul" (Sjaandi, Workshop 3520836521) — the mod this one was
+         written to replace. It reimplements the same systems from the other end: it drives sun and
+         moon position, shadows and sky glow off its own tilt model, so both mods are writing the
+         same pixels every frame with no arbitration between them. There is no API to defer through
+         and no load order that makes one of them stop, so this is a genuine either/or rather than a
+         patch-order nuisance. Packaged as sjaandi.realtiltmod (the packageId, not the Workshop ID —
+         ModLister.GetModWithIdentifier resolves these against packageIds only). -->
+    <li>sjaandi.realtiltmod</li>
   </incompatibleWith>
   <loadAfter>
     <li>Ludeon.RimWorld</li>
@@ -142,6 +130,12 @@ Requires Harmony.</description>
     <li>Ludeon.RimWorld.Anomaly</li>
     <li>Ludeon.RimWorld.Odyssey</li>
     <li>brrainz.harmony</li>
+    <!-- Realistic Axial Tilt: they own the planet's solar geometry, we own the lighting, and their
+         Api (RealisticAxialTilt.Api.RealisticAxialTiltApi) is what arbitrates it — AxialTiltCompat
+         claims lighting through it so their rendering patches stand down, then reads their
+         declination so our sun and moon sit where their planet says. Load after them so their
+         world comp has seeded its geometry before we bind. See DESIGN.md §18. -->
+    <li>dsweber.RealisticAxialTilt</li>
     <!-- Two separate interops with Dub's Skylights, one of them a genuine shared patch target:
          (a) it reads SkyManager.CurSkyGlow, which only our opt-in accessibility minimum-brightness
          floor writes (via the canonical ForceSetCurSkyGlow setter), so it sees the same lifted glow

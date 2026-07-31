@@ -51,9 +51,12 @@ public static class AxialTiltCompat
     private const int RequiredApiVersion = 1;
 
     // Deliberately NOT a fallback-to-reflection-into-internals path. An older RAT without the Api
-    // type is treated as absent, and About.xml declares it incompatible. Reaching into their
-    // internals is what this whole arrangement exists to avoid: it re-creates the unbounded
-    // maintenance (chasing their patch list release by release) that the upstream flag removed.
+    // type is treated as absent — this gate is now the ONLY thing standing between a pre-API RAT
+    // and the double-render (About.xml used to declare that mod incompatible outright; it no longer
+    // can, because the published build composes correctly and the tag cannot tell the two apart).
+    // Reaching into their internals is what this whole arrangement exists to avoid: it re-creates
+    // the unbounded maintenance (chasing their patch list release by release) the upstream flag
+    // removed.
     private static bool bound;
     private static bool triedBind;
 
