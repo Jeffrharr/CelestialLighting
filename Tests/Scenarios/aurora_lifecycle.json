@@ -1,0 +1,96 @@
+{
+  "name": "aurora_lifecycle",
+  "saveFile": "minimal_colony.rws",
+
+  "//": [
+    "§11a's display lifecycle and the cross-fade, both of which are TEMPORAL and neither of which",
+    "a still can show. Two clips at two completely different time bases, which is the whole point:",
+    "",
+    "  aurora_lifecycle_glide   TickLapse, 10 ticks/frame — 20 in-game minutes with the sun, the",
+    "                           weather and the shadows held still. This is the ONLY instrument that",
+    "                           can show the stepping fix. The bug was the field advancing once per",
+    "                           32-tick refresh sweep instead of once per tick, and an hour-based",
+    "                           Timelapse steps 2500 ticks a frame — 78 sweeps — so it cannot",
+    "                           distinguish the two behaviours at all.",
+    "",
+    "  aurora_lifecycle_night   Timelapse, 0.25 h/frame across a whole night — displays spawning,",
+    "                           drifting, fading and being replaced elsewhere, plus the clear sky",
+    "                           the bands guarantee between concurrent ones. This is the opposite",
+    "                           framing and needs it: one display lives 2.5-4.2 in-game hours, which",
+    "                           at 10 ticks a frame would be 60,000 frames.",
+    "",
+    "aurora_lifecycle_bakein is a deliberate throwaway that is still worth keeping: it films the",
+    "field filling itself in from zero over the first ~32 tick-changes. §11a ships no priming pass on",
+    "purpose (a full bake is a dropped frame at exactly the moment a player looks up) and relies on an",
+    "unbaked row being RGBA(0,0,0,0), i.e. invisible under additive blending. This is that claim on",
+    "film, and it also guarantees the glide clip that follows starts from a fully formed field rather",
+    "than filming the fill-in and calling it motion.",
+    "",
+    "Latitude 20 / day 40 / hour 21 is deep night well clear of both twilights, so NightVisibility",
+    "sits at 1 and the curtain runs at its full 0.55 rather than somewhere on the ramp. The night",
+    "sweep then runs forward through 05:00, crossing midnight, which AdvanceTime rolls over correctly",
+    "where a sequence of absolute SetTimes would rewind a day mid-clip.",
+    "",
+    "Shot on the SHIPPED preset, not Realistic. The aurora is additive and Cinematic's brighter night",
+    "floor is the harder background to read against, so this is the honest view rather than the",
+    "flattering one — the opposite of the night-floor scenarios, which need Realistic because a floor",
+    "cannot be seen through an accessibility clamp at all.",
+    "",
+    "RUN STANDALONE. It starts a GameCondition, and the harness only reloads between suite scenarios",
+    "for MAP residue, so a live Aurora leaks into whatever runs next."
+  ],
+
+  "steps": [
+    { "//": [
+        "Pinned rather than assumed. run_test.sh does not reset PERSISTED mod settings between runs,",
+        "and realistic_preset writes straight through to them, so a preceding night-floor scenario can",
+        "leave Realistic latched and this clip would be shot against a black night nobody ships.",
+        "Setting it false re-applies Cinematic, which is the shipped default — the harder and honest",
+        "background for an additive effect." ],
+      "type": "SetFeature", "args": { "featureName": "realistic_preset", "enabled": "false" } },
+
+    { "type": "SetTile", "args": { "latitude": "20" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "40" } },
+    { "type": "SetTime", "args": { "hour": "21" } },
+
+    { "type": "LookAt", "args": { "anchor": "125,125", "offset": "0,0", "zoom": "60" } },
+
+    { "type": "StartCondition",
+      "args": { "conditionDef": "Aurora", "durationHours": "240", "agedHours": "2" } },
+    { "type": "Wait", "args": { "frames": "60" } },
+
+    { "//": "Peak: past the condition's hour-long fade-in, deep night, curtain enabled.",
+      "type": "Probe",
+      "args": { "probeName": "aurora_curtain", "expectedValue": "0.55", "tolerance": "0.02" } },
+    { "//": "And §11's flat wash stepped back to vanilla's peak because the curtain is carrying it.",
+      "type": "Probe",
+      "args": { "probeName": "aurora_tint", "expectedValue": "0.075", "tolerance": "0.005" } },
+
+    { "type": "TickLapse",
+      "args": { "ticks": "10", "steps": "40", "fileNamePrefix": "aurora_lifecycle_bakein",
+                "settleFrames": "2", "fps": "20" } },
+
+    { "type": "TickLapse",
+      "args": { "ticks": "10", "steps": "120", "fileNamePrefix": "aurora_lifecycle_glide",
+                "settleFrames": "2", "fps": "20" } },
+
+    { "//": "A still of the fully formed field, for an inline A/B against the pre-change build.",
+      "type": "Screenshot", "args": { "fileName": "aurora_lifecycle_still.png" } },
+
+    { "//": [
+        "fromHour IS PINNED EXPLICITLY, and must be. Timelapse always desugars its first frame to a",
+        "SetTime, including in the steps/stepHours form, where fromHour simply defaults to 0 — which",
+        "here would rewind the clock from ~21:38 back to midnight of the SAME day. SetTime is",
+        "absolute and pins the day, so that is a ~21-hour rewind: the Aurora condition un-ages back",
+        "through its own fade-in, and the display schedule's age goes negative and clamps, restarting",
+        "the sequence at slot 0. The clip would open on a display that had already been on screen.",
+        "",
+        "22 is just ahead of where the two tick lapses leave the clock (21:00 + 1600 ticks), so the",
+        "pin is a ~15-minute step FORWARD rather than a jump back. 22 -> 5 wraps past midnight, which",
+        "AdvanceTime rolls over correctly; seven in-game hours is two to three generations of the",
+        "shorter slots, so displays are seen being replaced rather than merely fading." ],
+      "type": "Timelapse",
+      "args": { "fromHour": "22", "toHour": "5", "stepHours": "0.25",
+                "fileNamePrefix": "aurora_lifecycle_night", "settleFrames": "2", "fps": "6" } }
+  ]
+}
