@@ -71,22 +71,32 @@ public static class Patch_LimbRefraction
         // spectacle. The same way §7's floor swallows the tail of ground twilight on a surface map.
         float planetshineFloor = NightRadiance.FloorGlowFor(map);
 
-        __result.glow = LimbRefractionMath.VacuumSkyGlow(
-            sunElevation, __result.glow, planetshineFloor, inVacuum);
+        // One evaluation of the band for this elevation, shared by the glow write and the tint write
+        // below (issue #64). Both questions are functions of the same limb transmission and the same
+        // fraction of the solar disc still clear of the planet; asking them separately meant computing
+        // the transmission three times and the disc fraction twice per postfix, per map, per frame,
+        // with identical arguments. The sample is a plain struct of five fields — no cache, no key,
+        // nothing to go stale — so the sharing lasts exactly as long as it is provably valid: this
+        // call.
+        LimbRefractionMath.BandSample band = LimbRefractionMath.SampleBand(sunElevation, inVacuum);
 
-        ApplyLimbTint(ref __result, sunElevation, inVacuum);
+        __result.glow = LimbRefractionMath.VacuumSkyGlow(band, __result.glow, planetshineFloor);
+
+        ApplyLimbTint(ref __result, band);
     }
 
     // The colour half. Split out so the glow write above reads as one statement and so the "is there
     // anything to tint" question is answered by one named predicate rather than a branch buried in
     // the middle of the postfix.
-    private static void ApplyLimbTint(ref SkyTarget target, float sunElevation, bool inVacuum)
+    private static void ApplyLimbTint(ref SkyTarget target, in LimbRefractionMath.BandSample band)
     {
-        float strength = LimbRefractionMath.TintStrength(sunElevation, inVacuum);
+        float strength = LimbRefractionMath.TintStrength(band);
         if (strength <= 0f)
             return;
 
-        LimbRefractionMath.Rgb tint = LimbRefractionMath.LimbTint(sunElevation, inVacuum);
+        // Reads the same sampled transmission TintStrength just keyed its green channel on, so the
+        // strength and the hue can never describe two different moments of the band.
+        LimbRefractionMath.Rgb tint = LimbRefractionMath.LimbTint(band);
         Color limb = new Color(tint.R, tint.G, tint.B);
 
         // Lerped at full strength rather than §2's damped 0.35/0.25, because the two are saying
