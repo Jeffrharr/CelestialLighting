@@ -26,7 +26,7 @@ VDF=dist/workshop.vdf
 # Deliberately absent:
 #   1.6/Assemblies/CelestialLighting.pdb — a portable PDB embeds source file *paths* (not source),
 #       so shipping it publishes /home/deck/Developer/... to subscribers for no user benefit.
-#   About/PreviewBig.png — 2.1MB, and RimWorld only ever reads About/Preview.png. It's the source
+#   About/PreviewBig.png — 1.2MB, and RimWorld only ever reads About/Preview.png. It's the source
 #       art for the Steam page, uploaded through the browser, not mod content.
 #   0Harmony.dll — never built (the csproj sets ExcludeAssets="runtime"); we hard-depend on the
 #       standalone brrainz.harmony mod rather than bundling a second copy into the AppDomain.

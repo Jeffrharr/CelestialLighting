@@ -3514,7 +3514,7 @@ loading the game after any RimWorld update — it runs both `ApiCompatibilityTes
 `SteamUGC.SetItemContent(handle, hook.Directory.FullName)` — the mod directory root, recursively,
 no filter and no opt-out. This repo *is* that directory (the `Mods` entry is a symlink to it), so
 an in-game upload publishes `Source/`, `Tests/`, `Tools/`, `TestMod/`, the ~150KB `DESIGN.md`, the
-2.1MB `PreviewBig.png` (kept locally, never committed), `.git/`, and a `.pdb` whose portable-PDB
+1.2MB `PreviewBig.png` (kept locally, never committed), `.git/`, and a `.pdb` whose portable-PDB
 metadata carries absolute `/home/deck/Developer/...` build paths. Roughly 600KB of mod inside tens
 of MB of scaffolding.
 
