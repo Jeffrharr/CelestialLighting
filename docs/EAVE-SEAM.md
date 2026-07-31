@@ -113,6 +113,32 @@ every previously clean roofline went +0 -> +6, dipping to 29 before recovering, 
 then lands on top of the band where the band already reaches (0.8 x 0.8). The walled case stayed at
 +5. Strictly worse; reverted.
 
+## Day 2, second negative result — the strip's end cells are not it
+
+`Tests/Scenarios/eave_seam_inset_strip.json`. The obvious remaining suspect was the roof
+running into the side walls, which turns the strip's two end cells into wall cells that stop
+emitting north skirts. So: two identical 8x2 strips, one bare, one inside a walled room but
+INSET so it touches no wall. Every cell of the inset strip is an eave and emits, exactly as
+the bare one does.
+
+    P  bare inset strip     on … 53 | 40  36  35 35    +0   clean
+    Q  walled inset strip   on … 53 | 40 [45] 35 35    +5   still seams
+
+So it is not the end cells. The seam survives when the strip's emitters are provably identical
+to the clean case's. Enclosure alone does it.
+
+## Remaining hypothesis space
+
+Everything on the build side is eliminated by measurement: caster heights (all 1.0), emitter
+counts (accounted to the cell), the eave predicate, §15b's shade, §7b, and the lighting overlay
+(byte-identical casters-off frames). The strip's emitters are identical between a clean case and
+a seaming one. What is left is how the submesh DRAWS, not how it is built — candidates not yet
+tested:
+
+- section boundaries and `subMesh.mesh.bounds` / `RefreshSubMeshBounds`
+- `SectionLayer_SunShadows.ShouldDrawDynamic` / `GetSunShadowsViewRect` culling
+- overlap and blend order among the extra wall-cast quads an enclosed room adds
+
 ## Where to look next
 
 `on` == `off` past the bounce says the defect is in what the mesh *covers*, not in what

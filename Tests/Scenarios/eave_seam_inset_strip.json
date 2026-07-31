@@ -1,0 +1,112 @@
+{
+  "name": "eave_seam_inset_strip",
+  "saveFile": "minimal_colony.rws",
+  "description": "Tests whether the seam is caused by the roof strip running INTO the side walls. Two identical 8x2 strips: one bare, one inside a walled room but inset so it touches no wall. In the inset case every strip cell is an eave and emits its own north skirt, exactly as the bare one does \u2014 so if the seam survives, the strip's end cells were never the cause and enclosure affects the draw rather than the build.",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Concrete",
+        "width": "92",
+        "height": "32",
+        "offset": "-2,45",
+        "clear": "true"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "0,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "24,5; 25,5; 26,5; 27,5; 28,5; 29,5; 30,5; 31,5; 32,5; 33,5; 34,5; 35,5; 24,-6; 25,-6; 26,-6; 27,-6; 28,-6; 29,-6; 30,-6; 31,-6; 32,-6; 33,-6; 34,-6; 35,-6; 24,-5; 24,-4; 24,-3; 24,-2; 24,-1; 24,0; 24,1; 24,2; 24,3; 24,4; 35,-5; 35,-4; 35,-3; 35,-2; 35,-1; 35,0; 35,1; 35,2; 35,3; 35,4"
+      }
+    },
+    {
+      "type": "SetRoof",
+      "args": {
+        "def": "RoofConstructed",
+        "width": "8",
+        "height": "2",
+        "offset": "-34,45"
+      }
+    },
+    {
+      "type": "SetRoof",
+      "args": {
+        "def": "RoofConstructed",
+        "width": "8",
+        "height": "2",
+        "offset": "29,45"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "18"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "-2,45",
+        "zoom": "26"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "north_skirt_cells",
+        "expectedValue": "0",
+        "tolerance": "999999"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "inset_18h_on.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "eave_shadows",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "inset_18h_off.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "eave_shadows",
+        "enabled": "true"
+      }
+    }
+  ]
+}
