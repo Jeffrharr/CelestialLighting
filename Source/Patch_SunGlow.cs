@@ -33,7 +33,13 @@ public static class Patch_SunGlow
         reentering = true;
         try
         {
-            float declination = Formulas.SolarDeclinationDegrees(dayOfYear);
+            // Through the seam rather than straight to Formulas. This patch decides how BRIGHT the
+            // sky is while SolarPosition decides where the sun IS, and the two reading different
+            // obliquities would light a Planetsmith or RAT world's daylight hours on Earth's tilt
+            // while its shadows ran on the planet's. That is not a subtle mismatch in this mode
+            // specifically: its whole premise is that vanilla's glow follows our physical sun, which
+            // it cannot do from a declination our physical sun is not using.
+            float declination = AxialTiltCompat.SolarDeclinationDegrees(dayOfYear);
             float elevation = Formulas.SolarElevationDegrees(latitude, declination, dayPercent);
             __result = SunClockMath.GlowFromElevation(elevation);
         }
