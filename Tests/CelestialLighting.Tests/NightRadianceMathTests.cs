@@ -245,4 +245,63 @@ public class NightRadianceMathTests
         Assert.That(NightRadianceMath.OverlayBrightnessFactor(0f, 0f), Is.EqualTo(0f).Within(Tolerance));
     }
 
+    // --- RawOverlayBrightnessFactor / EffectiveMinNightBrightness: UnnaturalDarkness carve-out ---
+
+    [Test]
+    public void RawOverlayBrightnessFactor_MatchesOverlayBrightnessFactor_AtZeroFloor()
+    {
+        // The whole point of splitting the ramp out: RawOverlayBrightnessFactor is
+        // OverlayBrightnessFactor with no floor applied, so the two must agree wherever the floor
+        // itself is 0.
+        Assert.That(
+            NightRadianceMath.RawOverlayBrightnessFactor(0.1f),
+            Is.EqualTo(NightRadianceMath.OverlayBrightnessFactor(0.1f, 0f)).Within(Tolerance));
+    }
+
+    [Test]
+    public void EffectiveMinNightBrightness_InactiveUnnaturalDarkness_ReturnsConfiguredFloorUnchanged()
+    {
+        // Every ordinary reason the sky is dark (a real moonless night, DarkenedSkies, weather) keeps
+        // the player's own floor untouched, however it compares to raw.
+        Assert.That(
+            NightRadianceMath.EffectiveMinNightBrightness(
+                unnaturalDarknessActive: false, configuredMinBrightness: 0.50f, rawBrightnessFactor: 0f),
+            Is.EqualTo(0.50f).Within(Tolerance));
+    }
+
+    [Test]
+    public void EffectiveMinNightBrightness_UnnaturalDarkness_FloorDarkerThanEvent_FloorApplies()
+    {
+        // Early in the 300-tick fade-in, the event's own unfloored glow is still close to the
+        // pre-event sky (raw is high) — a moderate floor like Cinematic's 0.50 is the darker of the
+        // two here, so it applies exactly as it would on an ordinary night.
+        Assert.That(
+            NightRadianceMath.EffectiveMinNightBrightness(
+                unnaturalDarknessActive: true, configuredMinBrightness: 0.50f, rawBrightnessFactor: 0.9f),
+            Is.EqualTo(0.50f).Within(Tolerance));
+    }
+
+    [Test]
+    public void EffectiveMinNightBrightness_UnnaturalDarkness_FloorBrighterThanEvent_EventWins()
+    {
+        // Once the fade-in completes, raw collapses toward 0 — a configured floor above that would
+        // LIFT the screen back above the event's own darkness, which is exactly what must not happen.
+        // The min() clamps to raw instead.
+        Assert.That(
+            NightRadianceMath.EffectiveMinNightBrightness(
+                unnaturalDarknessActive: true, configuredMinBrightness: 0.50f, rawBrightnessFactor: 0.1f),
+            Is.EqualTo(0.1f).Within(Tolerance));
+    }
+
+    [Test]
+    public void EffectiveMinNightBrightness_UnnaturalDarkness_FloorEqualsEvent_EitherValue()
+    {
+        // The boundary: min() of two equal values is that value either way, so this is really just
+        // pinning that the comparison is <=/>= inclusive rather than landing on some other constant.
+        Assert.That(
+            NightRadianceMath.EffectiveMinNightBrightness(
+                unnaturalDarknessActive: true, configuredMinBrightness: 0.3f, rawBrightnessFactor: 0.3f),
+            Is.EqualTo(0.3f).Within(Tolerance));
+    }
+
 }

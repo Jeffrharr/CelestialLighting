@@ -176,6 +176,12 @@ public static class NightRadianceMath
     // light source (moon, starlight/airglow, aurora, eclipse) is in and the night's overall floor is final.
     public const float DefaultMinNightBrightness = 0f;
 
+    // The unfloored brightness fraction, in [0,1] — how bright the overlay would render with no
+    // playability floor at all. Split out from OverlayBrightnessFactor below so EffectiveMinNightBrightness
+    // can compare a candidate floor against it without duplicating the ramp.
+    public static float RawOverlayBrightnessFactor(float glow) =>
+        InverseLerpClamped(OverlayDarkGlow, OverlayFullBrightGlow, glow);
+
     // Fraction of vanilla overlay brightness to keep, in [minBrightness, 1]. Linear between the two
     // anchors above — fully black at/below OverlayDarkGlow, untouched at/above OverlayFullBrightGlow.
     // minBrightness is the user's playability clamp (the "minimum-brightness floor"): 0 lets a
@@ -184,9 +190,32 @@ public static class NightRadianceMath
     // darkening entirely (always keeps full vanilla brightness).
     public static float OverlayBrightnessFactor(float glow, float minBrightness)
     {
-        float raw = InverseLerpClamped(OverlayDarkGlow, OverlayFullBrightGlow, glow);
+        float raw = RawOverlayBrightnessFactor(glow);
         return raw < minBrightness ? Clamp01(minBrightness) : raw;
     }
+
+    // The floor OverlayBrightnessFactor should actually use, given whether Anomaly's UnnaturalDarkness
+    // is the reason the sky is dark right now, and how dark UnnaturalDarkness's own (unfloored) glow
+    // already is. Pulled out of Patch_PitchBlackOverlay so the decision is unit-testable without a
+    // live Map.
+    //
+    // NOT a blanket "floor off" during UnnaturalDarkness — the floor still applies whenever it is
+    // already darker than (or equal to) what the event's own glow would render, since then it is not
+    // doing anything the event didn't already ask for. What it must not do is LIFT brightness above
+    // UnnaturalDarkness's own darkness: min()ing the configured floor against the raw factor means the
+    // floor can only ever pull the result down toward `raw`, never up past it, which is exactly
+    // OverlayBrightnessFactor's own `raw < minBrightness` branch made a no-op. Concretely: early in the
+    // condition's 5-second fade-in `raw` is still close to the pre-event sky, so a moderate floor (the
+    // Cinematic preset's 0.50) is already the darker of the two and applies exactly as it would on an
+    // ordinary night; once `raw` collapses toward 0 as the fade-in completes, the floor stops being the
+    // darker option and the event is allowed to reach its own darkness instead of being held up at the
+    // player's "readable at night" brightness. UnnaturalDarkness is vanilla's own horror set-piece, not
+    // an ordinary moonless night — see MapSky.UnnaturalDarknessActive for the full reasoning. Every
+    // other reason the sky might be dark (a real moonless night, DarkenedSkies, weather) keeps using
+    // the player's own floor unchanged.
+    public static float EffectiveMinNightBrightness(
+        bool unnaturalDarknessActive, float configuredMinBrightness, float rawBrightnessFactor) =>
+        unnaturalDarknessActive ? MathF.Min(configuredMinBrightness, rawBrightnessFactor) : configuredMinBrightness;
 
     private static float ToRadians(float degrees) => degrees * MathF.PI / 180f;
 
