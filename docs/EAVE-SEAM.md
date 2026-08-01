@@ -1,5 +1,34 @@
 # The eave seam — investigation log
 
+## Day 3: the tint pass — seam rows belong to MatBases.SunShadow
+
+`Tests/Scenarios/eave_seam_tint.json` + `SeamTint` (flag `seam_tint`): every candidate layer's
+material forced to a distinct colour each frame — sun shadow RED, SunShadowFade (printed thing
+shadows) YELLOW, vanilla edge shadows GREEN, §15b eave shade BLUE — via a Priority.Last postfix on
+SkyManagerUpdate so it wins over every per-frame tint writer. One boot, columns read at 1 px
+(enclosed x=640, gap x=1320, 1920×1080 frame):
+
+    ENCLOSED  y524-526 RED   y527-529 UNTINTED floor ramp   y530+ BLUE roof shade
+    GAP       y524-529 RED   (runs straight into the BLUE)  y530+ BLUE
+
+Three answers this settles:
+
+- **The band is drawn with `MatBases.SunShadow`** — the material our Regenerate Prefix authors
+  into. Not SunShadowFade, not EdgeShadows, not §15b: zero yellow/green anywhere near the seam.
+- **The seam rows are drawn by NOTHING.** With every layer screaming a primary colour, the seam
+  rows show the plain lighting-overlay floor ramp. "Failing to draw" is now proven at the material
+  level, not inferred.
+- **Both bands start at the same row (524)** and differ only at the roof-adjacent end — matches the
+  constant-4px-shortfall measurement from day 2.
+
+The contradiction this sharpens: the fixed (alpha-0) edge of a north skirt sits ON the roofline and
+is not displaced by the shader, so a drawn skirt cannot detach from the roofline — yet the enclosed
+band is detached by 3 px. Combined with byte-identical authored lists, the remaining suspect is the
+BAKED Mesh at draw time (or which submeshes get submitted at all). `DrawDump` (flag `draw_dump`)
+logs exactly that from inside SectionLayer_SunShadows.DrawLayer: content hash + roofline verts of
+`mesh.vertices`/`mesh.colors32` per submesh per section, on the screenshot frame.
+`Tests/Scenarios/eave_seam_drawdump.json` runs it on the same-phase twin rooms.
+
 **Status: NOT FIXED.** Diagnostics only on branch `eave-seam`; no shipped behaviour has changed.
 Everything below is measured, not argued. Read "Handoff" first.
 

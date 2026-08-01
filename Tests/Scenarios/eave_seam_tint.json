@@ -1,0 +1,118 @@
+{
+  "name": "eave_seam_tint",
+  "saveFile": "minimal_colony.rws",
+  "description": "Layer-ownership diagnostic (docs/EAVE-SEAM.md). Same twin rooms as eave_seam_same_phase — enclosed vs one-cell-gap, 34 cells apart so section phase is identical — but with the seam_tint feature on, which forces each candidate layer's material to a distinct colour: sun-shadow submesh RED, printed thing shadows (SunShadowFade) YELLOW, vanilla edge shadows GREEN, eave shade BLUE. Whichever colour covers the seam rows names the layer that draws them. No pins; screenshots only.",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Concrete",
+        "width": "80",
+        "height": "32",
+        "offset": "5,45",
+        "clear": "true"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "0,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "-17,5; -16,5; -15,5; -14,5; -13,5; -12,5; -11,5; -10,5; -9,5; -8,5; -7,5; -6,5; -17,-6; -16,-6; -15,-6; -14,-6; -13,-6; -12,-6; -11,-6; -10,-6; -9,-6; -8,-6; -7,-6; -6,-6; -17,-5; -17,-4; -17,-3; -17,-2; -17,-1; -17,0; -17,1; -17,2; -17,3; -17,4; -6,-5; -6,-4; -6,-3; -6,-2; -6,-1; -6,0; -6,1; -6,2; -6,3; -6,4; 17,5; 18,5; 19,5; 20,5; 21,5; 23,5; 24,5; 25,5; 26,5; 27,5; 28,5; 17,-6; 18,-6; 19,-6; 20,-6; 21,-6; 22,-6; 23,-6; 24,-6; 25,-6; 26,-6; 27,-6; 28,-6; 17,-5; 17,-4; 17,-3; 17,-2; 17,-1; 17,0; 17,1; 17,2; 17,3; 17,4; 28,-5; 28,-4; 28,-3; 28,-2; 28,-1; 28,0; 28,1; 28,2; 28,3; 28,4"
+      }
+    },
+    {
+      "type": "SetRoof",
+      "args": {
+        "def": "RoofConstructed",
+        "width": "12",
+        "height": "2",
+        "offset": "-12,45"
+      }
+    },
+    {
+      "type": "SetRoof",
+      "args": {
+        "def": "RoofConstructed",
+        "width": "12",
+        "height": "2",
+        "offset": "22,45"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "seam_tint",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "18"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "5,45",
+        "zoom": "27"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "tint_on.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "eave_shadows",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "tint_noeaves.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "eave_shadows",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "seam_tint",
+        "enabled": "false"
+      }
+    }
+  ]
+}
