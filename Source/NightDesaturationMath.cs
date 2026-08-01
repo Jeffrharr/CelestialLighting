@@ -29,6 +29,16 @@ namespace CelestialLighting;
 // Desaturating is lerp(colour, grey, t), and the only channel that can express a lerp per cell is a
 // mesh drawn with an ALPHA-BLENDED material: alpha compositing IS that lerp, and the alpha can vary
 // per vertex. Hence SectionLayer_NightDesaturation, and hence this file computing its alphas.
+//
+// THE COMPLEMENT, for anyone reading this as "colors.sky is a dead end": §19 (polar night blue) is
+// the case where a colors.sky tint DOES work, and for exactly the reason dead end 2 gives. A
+// multiply cannot pull channels toward each other, but attenuating one relative to the others is
+// precisely what it CAN express — and that is what an ozone absorption notch is. The trap §19 had to
+// avoid was the second half of dead end 2: its first design lerped toward a 20,000 K blackbody,
+// which sits within a few percent of vanilla's night sky in ratio terms and attenuated ground red by
+// 5.3%, i.e. the same invisible non-effect measured above. Modelling the absorption directly instead
+// gets 24%. The lesson generalises: what matters is not which field you write, it is how far the
+// target sits from vanilla's palette in CHANNEL RATIO, since ratio is all a multiply can move.
 public static class NightDesaturationMath
 {
     // Local glow at or above which a cell keeps its full daytime colour — no wash at all.

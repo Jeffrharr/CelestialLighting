@@ -679,6 +679,15 @@ only active while `NightRadiance` is (the darkening is defined relative to §7's
 it shares the `MatBases.LightOverlay`/`FogOfWar` globals RimWorld itself rewrites every frame, and only
 reads them after vanilla sets them, so it composes rather than races; visual-only, no gameplay math.
 
+**`minBrightness` is no longer read straight from settings.** §19 may raise it while the sun sits in
+the ozone twilight band, because polar twilight is dim but emphatically not black and the blue would
+otherwise be multiplied into darkness right here. This is **the mod's only sanctioned visual-only
+brightness floor**, and it is visual-only by construction rather than by care:
+`OverlayBrightnessFactor` feeds nothing but the two material colours above, so `GlowGrid`, plant
+growth, solar output and Dub's Skylights never see it. Note this patch's existing gate is already
+correct for that purpose — if either feature is off nothing darkens the overlay, so there is nothing
+to floor. Do not "fix" it by hoisting the floor out of the gate. See §19.
+
 ### 7b. Indoor sky occlusion — black unlit interiors (`Patch_IndoorSkyOcclusion`)
 
 **Problem.** §7a can darken the sky arbitrarily and a sealed cave still renders visibly lit. On-screen
@@ -932,6 +941,13 @@ On an Odyssey space map the curve pins flat to `ZenithKelvin` and `TintStrength`
 shared `inVacuum` gate — the whole ramp is a Rayleigh reddening model and there is no air path to
 redden through. See §18 for why both halves are needed.
 
+This subsystem's `NightFadeFloorDegrees` (−6°) is also where **§19 takes over**: below the horizon
+the warm tint hands off to ozone (Chappuis) twilight blue, which ramps in from −4°. The two overlap
+deliberately across that 2° window, because real dusk has a warm band low in the west under an
+already-blue vault. §19 is emphatically *not* an extension of this curve — it models an absorption
+notch rather than Rayleigh reddening, and it inverts both of this file's tested invariants
+(monotonicity, and R ≥ G ≥ B). See §19.
+
 ## 9. Low-light desaturation / Purkinje shift (`Patch_LowLightDesaturation`)
 
 As scene brightness falls, human vision loses colour discrimination and everything drifts toward a
@@ -984,6 +1000,13 @@ A second Harmony Postfix on `WeatherWorker.CurSkyTarget` (alongside §2's) that:
 
   This is a *secondary* cue and cannot be more than one. The desaturation itself is a separate draw
   layer, below.
+
+**§19 stacks with this deliberately**, with no cross-subsystem suppression. They model different
+things — §9 is the *eye* losing colour discrimination as rods take over, §19 is the *sky* genuinely
+being blue from ozone absorption — and a real polar twilight is both at once, a saturated blue over
+a scene whose own colours have drained. On a high-latitude winter day both fire together; the
+ordering error between their two lerps is bounded at ~0.063 (≈16/255), which is a subtle hue
+difference rather than an on/off one, so neither carries a `HarmonyPriority`. See §19.
 
 ### Why the desaturation needs its own draw layer
 
@@ -3392,6 +3415,209 @@ has been validated in a running game. When the block lifts, the eclipse scenario
 **standalone**: eclipse scenarios are `GameCondition`-driven and the harness only reloads between
 suites for MAP residue, so a lingering `Eclipse` condition contaminates whatever runs next.
 
+## 19. Polar night blue — ozone (Chappuis) twilight (`OzoneTwilightMath` / `Patch_PolarNightBlue`)
+
+The mod renders warm twilight (§2, §8) and a cool grey Purkinje shift (§9), but nothing reproduced
+the most recognisable feature of high-latitude winter: the **deep blue cast** that sits over the
+landscape for hours or whole days.
+
+**Why it is blue — not Rayleigh.** Rayleigh scattering is daytime blue, and it is §8's model. With
+the sun below the horizon the only light reaching the ground has crossed a near-horizontal path of
+tens to hundreds of km through the stratospheric ozone layer. Ozone's **Chappuis absorption band**
+eats 450–780 nm, peaking at 603 nm — the orange/green middle of the visible spectrum — and what
+survives is the short-wavelength tail. The effect is strong enough to have driven a real
+evolutionary adaptation: Arctic reindeer seasonally tune a photonic tapetum for it.
+
+### Why there is no latitude term
+
+This is the first question any reader asks, so it is the first thing the file's header answers.
+
+The absorbing column is set by the sun's altitude relative to the ozone layer, not by where the
+observer stands: a sun at −7.2° presents the same slant path at Svalbard and at Quito. What latitude
+changes is **dwell time**. Keying on elevation alone is therefore not a simplification but the
+correct model, and it is strictly better than a latitude term:
+
+- Polar night emerges with no polar special case anywhere in the code.
+- The equator keeps its real, brief blue hour instead of being artificially zeroed.
+- It tracks §14's sun clock and Realistic Axial Tilt for free, because dwell is a property of
+  `SolarPosition.ElevationForMap` rather than a constant we wrote down.
+- A `Formulas.LatitudeStrength` factor would double-count — latitude already enters via elevation.
+
+**What actually governs dwell is the daily elevation swing**, and it is worth writing down because
+the intuition is misleading. The swing is closed-form:
+
+```
+swing = maxElevation - minElevation = 180 - |lat - decl| - |lat + decl|
+```
+
+At the equator that is 180° — the sun rips through the band. At latitude 78 in midwinter it is still
+24°, so the band is occupied around midday and empty at midnight: latitude 78 does **not** hold the
+blue all day, despite being deep inside the polar-night latitudes. The swing collapses to 0 only at
+the pole itself, where elevation simply *equals* declination and the sun can sit at −9° for days. So
+the true "blue for the entire day" case is very high latitude with a declination that parks the
+whole range inside the band — e.g. latitude 88 at day 11, whose range is [−11.5°, −7.5°] and sits
+entirely within the plateau. That tile is what the live scenario probes.
+
+### The correction that the subsystem turns on: model the notch, not a colour temperature
+
+The obvious design is `SkyColorTemperature.BlackbodyToRgb(20000)` from the published ~20,000 K CCT
+measured at −7.2°, reusing §8's tested code. **It does not work, and the arithmetic says so before
+any code runs.**
+
+`MatBases.LightOverlay.color` **multiplies** the scene — `NightDesaturationMath`'s header records
+this as a measured dead end for §9, where a tint close to vanilla's night sky moved ground
+saturation by 0.001 and "the effect was, measurably, not there". A multiply shifts hue only by
+*attenuating* channels, and vanilla's night sky is already almost exactly as blue as that blackbody:
+
+| | R/B | G/B |
+|---|---|---|
+| vanilla Clear night sky (0.482, 0.603, 0.682) | 0.707 | 0.884 |
+| Planckian 20,000 K (0.669, 0.778, 1.000) | 0.669 | 0.778 |
+
+There is nothing to move toward. Lerping the sky colour **fully** to that target attenuates red by
+**5.3%** — invisible, and §9's dead end repeating a third time.
+
+The reason is physical: polar twilight is not a blackbody. It is sunlight with a broad absorption
+notch cut out of it, and a CCT is a poor single-number summary of a notched spectrum. So we model
+the notch directly, Beer–Lambert per channel (`T = exp(−σ·N·m)`) using published Chappuis
+cross-sections sampled at the sRGB channel centres — R on the 603 nm peak, G on the 575 nm flank,
+B inside the Huggins–Chappuis minimum where ozone is effectively transparent:
+
+| airmass | transmission RGB | R/B | red attenuated on ground @ blend 0.45 |
+|---|---|---|---|
+| 15 (≈ −4°, onset) | 0.537, 0.639, 1.000 | 0.537 | 18.3% |
+| 27 (≈ −7.2°, peak) | 0.327, 0.447, 1.000 | 0.327 | **24.2%** |
+| 45 (≈ −12°, plateau) | 0.155, 0.261, 1.000 | 0.155 | 35.1% |
+
+Five times the blackbody's effect at *half* the blend, and it **deepens with elevation for free**
+because the notch cuts deeper as the slant path lengthens — a progression a fixed colour cannot
+express. `GroundRedAttenuation_ExceedsVisibleThreshold` is the standing guard: it reproduces the
+multiply against vanilla's night sky and fails below 20%.
+
+**On the 20,000 K figure**, since a reader will try to check us against it: our model is deliberately
+*more* saturated, giving R/B 0.33 at −7.2° where the blackbody gives 0.67. That is not a discrepancy
+to fix. CCT is found by projecting onto the nearest point of the Planckian locus, and a notched
+spectrum sits well off the locus toward higher saturation, so its CCT necessarily understates how
+coloured it looks. Reproducing it exactly would mean reproducing the very desaturation that made the
+blackbody version invisible. `MaxSlantAirmass` is the honest calibration knob.
+
+**Why not extend §8.** Beyond being a different model, §8 has two load-bearing invariants under test
+that Chappuis inverts: `ColorTemperatureKelvin_IsMonotonicNonDecreasing_AsSunClimbs` (a 20,000 K
+spike below a 2,000 K horizon fails it) and `BlackbodyToRgb_StaysWarm_AcrossOurWholeRange`, which
+asserts R ≥ G ≥ B where Chappuis is B > G > R. Different vacuum semantics too: §8 still has an
+honest unreddened colour to pin, whereas ozone twilight has no vacuum analogue at all.
+
+### The reachability gate
+
+A cheap correctness-preserving early-out, so the adapter skips the three `exp()` calls on any day
+the band cannot open. **Not a latitude threshold** — every latitude crosses −4°..−18° twice a day,
+so gating on latitude alone would delete the equator's blue hour, the exact outcome the
+elevation-only model exists to avoid. It gates on latitude *and* season, via the day's closed-form
+elevation extremes (`90 − |lat − decl|` and `|lat + decl| − 90`), catching only the two genuinely
+unreachable states: **polar day** (the sun never dips to −4°) and **true polar night** above ~84.5°
+(never climbs to −18°, so there is no sunlight in the ozone path at all and §7 owns the sky).
+
+Because `SolarPosition.InputsForMap` is memoised per (map, frame) and already carries latitude and
+declination, the gate costs nothing to feed. `CanReachBandToday_NeverSkipsAReachableDay` sweeps
+181 × 47 (latitude, declination) pairs and, for every one the gate rejects, samples the whole day
+through `Formulas.SolarElevationDegrees` asserting the band never opens — with a non-vacuity check,
+because a sign error that degenerated the gate to "always run" would otherwise pass green.
+
+### The brightness floor, and why it lives in §7a
+
+Real polar twilight is dim but emphatically not black — snow reads blue because scattered skylight
+still lands on it. Without a floor the blue is multiplied straight into darkness on any preset with
+a low `minNightBrightness`.
+
+The floor is expressed by raising the `minBrightness` that `Patch_PitchBlackOverlay` already feeds
+to `NightRadianceMath.OverlayBrightnessFactor`. That is **visual-only by construction**, not by
+care: `OverlayBrightnessFactor` feeds nothing but `MatBases.LightOverlay.color` and
+`FogOfWar.color`, so `GlowGrid`, plant growth, solar output and Dub's Skylights never see it. This
+was the explicit constraint — a parallel floor that touches no gameplay value.
+
+Placing it there is forced rather than stylistic. Three alternatives, each rejected on its own
+ground:
+
+- **Writing `.glow` / `ForceSetCurSkyGlow`** — drives every gameplay consumer above. Ruled out.
+- **A second `SkyManagerUpdate` postfix lightening the overlay** — two of our own patches then
+  fight over one global material with order-dependent results; lerping toward *white* would also
+  desaturate the blue we just added; and it risks re-enabling the overlay on `disableSkyLighting`
+  biomes §7a deliberately skips.
+- **Brightening the target colour upstream** — §7a runs later on the composed material and lerps
+  toward opaque black, so upstream brightness is multiplied away. **§7a's darkening is the last
+  word on screen brightness, so any floor must be expressed in §7a's terms.**
+
+`DefaultOverlayFloor = 0.30` is derived: at −7.2° with §7 running, composed glow is ≈0.014 and
+`OverlayBrightnessFactor` returns ≈0.076 — 7% of vanilla overlay brightness is functionally black.
+0.30 keeps the band readable, sits under a full moon's 1.0, and sits under Cinematic's 0.50, so that
+preset is unaffected by construction. §7a's existing `NightRadiance && PitchBlackNights` gate is
+already correct: if either is off nothing darkens, so there is nothing to floor.
+
+The same normalisation logic explains why the colour arm must **not** brighten: `ChappuisTransmission`
+is normalised to a maximum channel of 1 and the adapter rescales it to the source colour's own
+brightest channel, so only channel *ratios* move. Skipping that rescale would drag everything toward
+white, smuggling a brightness rise into a patch documented as colour-only — and §7a would multiply
+it away anyway.
+
+### Composition and ordering
+
+With §19 there are now several postfixes on `WeatherWorker.CurSkyTarget`. §7 writes only `.glow`;
+the rest read and write only `.colors`.
+
+- **vs §8 and §2 (warm).** §8 dies at `NightFadeFloorDegrees` (−6) and §2's civil-twilight
+  persistence dies at the same −6, while our blue starts at −4. The 2° overlap is deliberate: real
+  dusk has a warm band low in the west under an already-blue vault.
+- **vs §9 (Purkinje).** §19 stacks with the cool-grey tint deliberately, with no cross-subsystem
+  suppression. They model different things — §9 is the eye losing colour discrimination as rods take
+  over, §19 is the sky genuinely being blue — and real polar twilight is both at once.
+
+**No `HarmonyPriority`.** Successive `Color.Lerp`s are not commutative; the error is
+`a·b·(B − A)` per channel. `WarmAndBlue_AreNeverBothAtFullStrength` holds the warm×blue product
+under 0.10 across the whole overlap, and against §9 at peak strengths the bound is ~0.063 (≈16/255)
+— a subtle hue difference, not an on/off one. This matches the precedent `Patch_WeatherDimming`'s
+header sets, and intra-assembly order cannot be expressed anyway: all our patches share one Harmony
+owner ID, so `[HarmonyAfter]` does not apply. If it ever *does* matter, the escape hatch is
+composing §9's and §19's targets into a single blended target before one lerp — not a priority
+attribute, which would only pick a winner rather than remove the ambiguity.
+
+### Vanilla's ≥75° slew limit, and the trap it exposes
+
+`WeatherWorker.CurSkyTarget` slew-rate-limits its threshold lerp to 0.002/frame at
+`LongLatOf(map.Tile).y >= 75f` via `ClampLerpDelta`. It does not affect us: it rate-limits only the
+base colour we lerp *from*, never our blend fraction, which we recompute from elevation. Our blue
+arrives on schedule and the base merely crossfades more smoothly underneath.
+
+**The trap:** `ClampLerpDelta` *mutates* `WeatherManager.prevSkyTargetLerp`/`currSkyTargetLerp` on
+every call, at exactly the latitudes this subsystem targets, and vanilla already calls it twice per
+update against one shared pair of fields. **A §19 probe must never call `CurSkyTarget`** — it would
+advance vanilla's slew state as a side effect of being measured. `PolarNightBlueProbe` reads the
+shared adapter and `OverlayBrightnessProbe` reads the finished material; neither goes near it.
+
+### Vacuum
+
+`inVacuum` is threaded into the pure layer as a parameter rather than early-returned in the adapter,
+per §18a's rule, so no caller can extract a nonzero shape out of a vacuum. Unlike §8 — which still
+pins an honest unreddened `ZenithKelvin` — ozone twilight has **no vacuum analogue whatsoever**: no
+ozone, no slant path, no phenomenon. There is simply nothing to report, so the whole effect is zero.
+
+### Verification
+
+Offline: `OzoneTwilightMathTests` covers the trapezoid anchors, the plateau (the dwell-time
+property — if someone simplifies the trapezoid back to a triangle, that test fails), continuity, the
+vacuum gate, hue ordering and normalisation, the reachability gate with its non-vacuity check, the
+floor table, its composition with `OverlayBrightnessFactor`, and the two visibility guards.
+
+Live: `Tests/Scenarios/polar_night_blue.json` probes latitude 88 / day 11 at four widely separated
+hours expecting ~1.0 at each — the dwell thesis in numeric form — then A/Bs `overlay_brightness` and
+`sky_overlay_warmth` across the feature toggle with screenshots, checks the gate fires at the same
+latitude in the opposite season (midnight sun), and sweeps equatorial dusk to show the same
+latitude-free curve producing a window under an hour wide. Run it **standalone**: `SetTile` at
+another latitude poisons the `SunClock` cache for whatever runs next.
+
+`ApiCompatibilityTests` needs no new assertions — `WeatherWorker.CurSkyTarget`, `SkyTarget.colors`,
+`SkyColorSet.sky`/`.overlay`, `SkyManager.SkyManagerUpdate` and `MatBases.LightOverlay`/`FogOfWar`
+are all already pinned by §2, §8 and §7a.
+
 ## Settings and presets
 
 Two cross-cutting settings ideas that span the subsystems above:
@@ -3401,6 +3627,15 @@ Two cross-cutting settings ideas that span the subsystems above:
   desaturation strength (§9), weather dimming (§13), and the two minimum-brightness floors (outdoor
   §7, indoor §7b) — so most players pick one preset and never open a slider. Individual sliders
   remain for anyone who wants them.
+
+  **§19's "Polar blue strength" is deliberately NOT in the bundle.** It is a per-effect intensity
+  like `doorSkyLeak`, not one of the taste axes the six bundled knobs correlate along, and adding a
+  seventh field would touch `PresetKnobs`, its constructor, both preset literals, `ApplyPreset` and
+  `CelestialSettingsMathTests` for no gain. Promoting it later is mechanical if eye-tuning shows it
+  correlates. It uses `LabeledSlider` rather than `AestheticSlider`, so moving it does not flip the
+  preset radio to Custom. Note §19's *floor* interacts with presets anyway, in the good direction:
+  inert under Cinematic's `0.50` (0.30 < 0.50) and load-bearing under Realistic's `0`, which is
+  exactly the preset where the blue would otherwise crush to black.
 
   A bundle only carries knobs something actually reads. An earlier "night radiance floor" knob was
   persisted, given a slider, and never consumed by anything: §7's night brightness comes from the
