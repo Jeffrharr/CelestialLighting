@@ -575,6 +575,25 @@ public class ApiCompatibilityTests
     }
 
     [Test]
+    public void GameConditionUnnaturalDarkness_StillAForceWeatherCondition()
+    {
+        // Anomaly's UnnaturalDarkness is the fifth blackout source (§17 / MapSkyMath.
+        // ConditionBlacksOutSky), and deliberately caught by its OWN class check rather than by
+        // widening the GameCondition_NoSunlight test above — it derives from GameCondition_ForceWeather,
+        // not GameCondition_NoSunlight, so the two `is` tests in MapSky.BlacksOutSky are independent and
+        // both need pinning. It is also MapSky.UnnaturalDarknessActive's own type test, which decides
+        // whether §7a's MinNightBrightness floor is allowed to lift the screen above the event's own
+        // darkness — see NightRadianceMath.EffectiveMinNightBrightness.
+        var type = GetType("RimWorld.GameCondition_UnnaturalDarkness");
+        Assert.That(type, Is.Not.Null, "RimWorld.GameCondition_UnnaturalDarkness no longer exists");
+        Assert.That(type!.BaseType?.FullName, Is.EqualTo("RimWorld.GameCondition_ForceWeather"),
+            "GameCondition_UnnaturalDarkness no longer derives from GameCondition_ForceWeather — "
+            + "confirm it hasn't been folded into GameCondition_NoSunlight instead, which would make "
+            + "the separate `is GameCondition_UnnaturalDarkness` checks in MapSky redundant (harmless) "
+            + "or, if the rename dropped the old name, silently miss the class entirely (not harmless)");
+    }
+
+    [Test]
     public void GameConditionManager_ActiveConditionsAndParent_Exist()
     {
         // MapSky.SkyBlackedOut walks the manager chain itself (map's own conditions, then the world's)

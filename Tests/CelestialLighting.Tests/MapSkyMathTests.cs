@@ -113,7 +113,9 @@ public class MapSkyMathTests
         // biomeMapConditions, and timed on any map with an AncientSmokeVent (~3 days on / 4 off).
         // Same def, same class, so one test covers both — which is the point of keying on the class.
         Assert.That(
-            MapSkyMath.ConditionBlacksOutSky(isNoSunlightCondition: true, isEclipse: false), Is.True);
+            MapSkyMath.ConditionBlacksOutSky(
+                isNoSunlightCondition: true, isUnnaturalDarkness: false, isEclipse: false),
+            Is.True);
     }
 
     [Test]
@@ -124,7 +126,23 @@ public class MapSkyMathTests
         // alone would switch our own eclipse handling off while every effect probe still read zero,
         // because an eclipse sky is near black either way.
         Assert.That(
-            MapSkyMath.ConditionBlacksOutSky(isNoSunlightCondition: true, isEclipse: true), Is.False);
+            MapSkyMath.ConditionBlacksOutSky(
+                isNoSunlightCondition: true, isUnnaturalDarkness: false, isEclipse: true),
+            Is.False);
+    }
+
+    [Test]
+    public void ConditionBlacksOutSky_UnnaturalDarkness_BlacksOut()
+    {
+        // Anomaly's UnnaturalDarkness is GameCondition_ForceWeather, not GameCondition_NoSunlight —
+        // isNoSunlightCondition is false here — yet its own SkyTarget returns the identical
+        // GameCondition_NoSunlight.EclipseSkyColors at glow 0, composed through the same LerpDarken as
+        // every other condition. Missing this term means the gate silently misses a fifth blackout
+        // source: §17's design doc originally enumerated only four.
+        Assert.That(
+            MapSkyMath.ConditionBlacksOutSky(
+                isNoSunlightCondition: false, isUnnaturalDarkness: true, isEclipse: false),
+            Is.True);
     }
 
     [TestCase(false)]
@@ -135,7 +153,9 @@ public class MapSkyMathTests
         // The class term is necessary, not just sufficient: a def-name check that forgot it would let
         // any non-eclipse condition suppress the whole mod.
         Assert.That(
-            MapSkyMath.ConditionBlacksOutSky(isNoSunlightCondition: false, isEclipse), Is.False);
+            MapSkyMath.ConditionBlacksOutSky(
+                isNoSunlightCondition: false, isUnnaturalDarkness: false, isEclipse),
+            Is.False);
     }
 
     // --- AmbientGlow: a cave has no day ---
