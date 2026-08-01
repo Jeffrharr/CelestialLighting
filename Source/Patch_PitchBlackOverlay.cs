@@ -55,9 +55,27 @@ public static class Patch_PitchBlackOverlay
         if (current.Biome != null && current.Biome.disableSkyLighting)
             return;
 
-        // §7a's own clamp is the only floor on the night screen. OverlayBrightnessFactor clamps it
-        // into [0,1] itself, so there is nothing to reconcile before handing it over.
-        float minBrightness = NightRadianceSettings.Current.MinNightBrightness;
+        // The floor on the night screen. OverlayBrightnessFactor clamps it into [0,1] itself, so
+        // there is nothing to reconcile before handing it over.
+        //
+        // No longer read straight from settings: §19 may RAISE it while the sun sits in the ozone
+        // band, because real polar twilight is dim but emphatically not black — snow reads blue
+        // because scattered skylight still lands on it, and without this the blue §19 just painted
+        // would be multiplied into darkness right here. OverlayFloorFor only ever raises, and
+        // returns this value untouched whenever §19 is inactive, so this stays a pure addition.
+        //
+        // THIS IS THE MOD'S ONLY SANCTIONED VISUAL-ONLY BRIGHTNESS FLOOR, and it is visual-only by
+        // construction rather than by care: OverlayBrightnessFactor feeds nothing but
+        // MatBases.LightOverlay.color and FogOfWar.color below, so GlowGrid, plant growth, solar
+        // output and Dub's Skylights never see it. That is exactly why §19 expresses its floor here
+        // instead of writing .glow or brightening its own target colour — this postfix runs last on
+        // the composed material and lerps toward opaque black, so it has the final word on screen
+        // brightness and anything added upstream would be multiplied away.
+        //
+        // Note also that the feature gate above (NightRadiance && PitchBlackNights) is already
+        // correct for §19's purposes: if either is off nothing darkens the overlay at all, so there
+        // is nothing to floor. Do not "fix" this by hoisting the floor out of the gate.
+        float minBrightness = OzoneTwilight.OverlayFloorFor(current, NightRadianceSettings.Current.MinNightBrightness);
 
         float keep = NightRadianceMath.OverlayBrightnessFactor(__instance.CurSkyGlow, minBrightness);
 

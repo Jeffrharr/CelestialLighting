@@ -32,6 +32,7 @@ public class CelestialLightingSettings : ModSettings
     public bool nightRadiance = true;
     public bool lowLightDesaturation = true;
     public bool skyColorTemperature = true;
+    public bool polarNightBlue = true;
     public bool aurora = true;
 
     // §11a's ribbon curtain, a sub-toggle of `aurora` above. Separate because it is the one part of the
@@ -56,6 +57,14 @@ public class CelestialLightingSettings : ModSettings
     // subsystem's own neutral value, it is just no longer what we ship.
     public bool atmosphericGlow = true;
     public float minNightBrightness = Presets.Cinematic.MinNightBrightness;
+
+    // How strong §19's polar-night blue is. Scales BOTH arms — the colour nudge and the visual
+    // brightness floor — so 0 is a true no-op rather than "no tint but the nights are still lifted".
+    // Deliberately NOT in PresetKnobs: this is a per-effect intensity like doorSkyLeak, not one of
+    // the taste axes the Realistic/Cinematic bundle correlates along. (The FLOOR does interact with
+    // presets, in the good direction: inert under Cinematic's 0.50 minNightBrightness, load-bearing
+    // under Realistic's 0.)
+    public float polarNightBlueStrength = 1f;
 
     // --- Indoor sky-occlusion tunables (drive IndoorOcclusionSettings.Current) ---
     // How much sky a doorway lets past once roofed cells are fully occluded; see
@@ -114,6 +123,8 @@ public class CelestialLightingSettings : ModSettings
         CelestialLightingFeatures.NightRadiance = nightRadiance;
         CelestialLightingFeatures.LowLightDesaturation = lowLightDesaturation;
         CelestialLightingFeatures.SkyColorTemperature = skyColorTemperature;
+        CelestialLightingFeatures.PolarNightBlue = polarNightBlue;
+        OzoneTwilightSettings.TintStrength = polarNightBlueStrength;
         CelestialLightingFeatures.Aurora = aurora;
         CelestialLightingFeatures.AuroraCurtain = auroraCurtain;
         CelestialLightingFeatures.EclipseDarkening = eclipseDarkening;
@@ -180,6 +191,8 @@ public class CelestialLightingSettings : ModSettings
         Scribe_Values.Look(ref lowLightDesaturation, "lowLightDesaturation", true);
         Scribe_Values.Look(ref weatherDimming, "weatherDimming", true);
         Scribe_Values.Look(ref skyColorTemperature, "skyColorTemperature", true);
+        Scribe_Values.Look(ref polarNightBlue, "polarNightBlue", true);
+        Scribe_Values.Look(ref polarNightBlueStrength, "polarNightBlueStrength", 1f);
         Scribe_Values.Look(ref aurora, "aurora", true);
         Scribe_Values.Look(ref auroraCurtain, "auroraCurtain", true);
         Scribe_Values.Look(ref eclipseDarkening, "eclipseDarkening", true);

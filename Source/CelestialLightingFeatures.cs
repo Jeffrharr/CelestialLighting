@@ -65,6 +65,18 @@ public static class CelestialLightingFeatures
     // vanilla/§2 renders it — the faithful pre-feature baseline for the harness A/B.
     public static bool SkyColorTemperature = true;
 
+    // Feature key for PolarNightBlue (see CivilTwilightPersistenceKey for why it lives here).
+    public const string PolarNightBlueKey = "polar_night_blue";
+
+    // §19 polar night blue: Patch_PolarNightBlue nudges colors.sky/overlay toward the transmitted
+    // spectrum of sunlight that has crossed a long slant path through the ozone layer (Chappuis
+    // band), keyed on sun elevation alone — colour-only, never glow. Its second arm raises the
+    // minimum overlay brightness §7a honours, which is visual-only and touches no gameplay value.
+    // When off, the patch early-returns AND OzoneTwilight.OverlayFloorFor collapses to the caller's
+    // own minBrightness, so both arms vanish together and the sky is exactly what vanilla/§2/§8/§9
+    // renders — the faithful pre-feature baseline for the harness A/B.
+    public static bool PolarNightBlue = true;
+
     // Feature key for Aurora (see CivilTwilightPersistenceKey for why it lives here).
     public const string AuroraKey = "aurora";
 

@@ -1,0 +1,194 @@
+{
+  "name": "polar_night_blue_equator",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "0"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "15"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "90.0",
+        "tolerance": "0.05"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "polar_night_blue",
+        "expectedValue": "0.0",
+        "tolerance": "0.02"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "20"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "3.4975",
+        "tolerance": "0.05"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "polar_night_blue",
+        "expectedValue": "0.0",
+        "tolerance": "0.02"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "20.4"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "-0.8277",
+        "tolerance": "0.05"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "polar_night_blue",
+        "expectedValue": "0.0",
+        "tolerance": "0.02"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "20.6"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "-5.7789",
+        "tolerance": "0.05"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "polar_night_blue",
+        "expectedValue": "0.5559",
+        "tolerance": "0.02"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "20.8"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "-10.7330",
+        "tolerance": "0.05"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "polar_night_blue",
+        "expectedValue": "1.0",
+        "tolerance": "0.02"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "21"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "-15.6872",
+        "tolerance": "0.05"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "polar_night_blue",
+        "expectedValue": "0.3855",
+        "tolerance": "0.02"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "21.2"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "-20.6414",
+        "tolerance": "0.05"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "polar_night_blue",
+        "expectedValue": "0.0",
+        "tolerance": "0.02"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "23"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "-55.0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "polar_night_blue",
+        "expectedValue": "0.0",
+        "tolerance": "0.02"
+      }
+    }
+  ]
+}

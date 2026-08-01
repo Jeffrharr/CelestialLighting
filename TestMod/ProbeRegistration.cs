@@ -43,6 +43,14 @@ public static class ProbeRegistration
         ProbeRegistry.Register(new NightDesaturationProbe());
         ProbeRegistry.Register(new SkyColorTemperatureProbe());
 
+        // §19. The band strength is the subsystem's thesis in one number: hold latitude 78 in
+        // midwinter and it reads ~1.0 at every hour of the day, while latitude 0 gets a ~25-minute
+        // window at dusk out of the same latitude-free curve. overlay_brightness is what proves the
+        // floor arm does anything — it is the only probe that measures what the screen renders, as
+        // opposed to sky_glow, which is the gameplay brightness the floor deliberately never touches.
+        ProbeRegistry.Register(new PolarNightBlueProbe());
+        ProbeRegistry.Register(new OverlayBrightnessProbe());
+
         // §18d's limb-refraction ramp. Four series rather than one because this is a temporal
         // effect: the claim is that the platform holds full sun ~14 degrees past the ground's
         // sunset and then loses it over ~2.4 degrees, and no single scalar can show a band's width
@@ -316,6 +324,16 @@ public static class ProbeRegistration
         FeatureRegistry.Register(
             CelestialLightingFeatures.SkyColorTemperatureKey,
             enabled => CelestialLightingFeatures.SkyColorTemperature = enabled);
+        // §19. Flipping this off kills BOTH arms together — the sky tint and §7a's raised brightness
+        // floor — because OzoneTwilight.OverlayFloorFor collapses to the caller's own minBrightness
+        // when the feature is off. That is what makes "off" a faithful pre-feature baseline rather
+        // than "no blue but the nights are still lifted". Left at the default enabled state, which
+        // matches the shipped default: a registered arm disagreeing with what the mod ships is what
+        // silently corrupted later scenarios in the realistic_preset and pitch_black_true
+        // post-mortems, via ResetAll().
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.PolarNightBlueKey,
+            enabled => CelestialLightingFeatures.PolarNightBlue = enabled);
         FeatureRegistry.Register(
             CelestialLightingFeatures.AuroraKey,
             enabled => CelestialLightingFeatures.Aurora = enabled);
