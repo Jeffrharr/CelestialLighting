@@ -1,5 +1,15 @@
 # The eave seam — investigation log
 
+**Status: FIXED and live-verified.** `Patch_IndoorMaskOverage` clamps the mask overage to 0.
+Verified at 0 px shortfall, band running into the roofline with no holes, on: the same-phase twins
+(10 columns), both solo rooms (bare map), all five wall arms of `eave_seam_remove_one_wall`
+(including the previously-seaming all-four-walls arm), and all four hours of `eave_seam_hours`.
+Strongest check: the solo enclosed and solo gap rooms' casters-ON frames are **pixel-identical**
+in the sampled window — enclosure no longer affects the render at all. Offline units: 1210 pass.
+The remaining columns that report "no band" in measurements are band-tip ramp positions (the band
+is sheared along the cast vector, so its western tip covers only part of the strip) — present in
+both rooms alike. All Seam* / DrawDump diagnostics must still be deleted before ship.
+
 ## SOLVED: vanilla's SectionLayer_IndoorMask clips the band
 
 The layer-skip bisect (`eave_seam_layer_skip.json` + `SeamSkip`, flags `seam_skip_*`) ended it in
