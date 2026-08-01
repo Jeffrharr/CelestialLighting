@@ -1,0 +1,104 @@
+{
+  "name": "roof_shadow_walled_vs_open",
+  "saveFile": "minimal_colony.rws",
+  "description": "The comparison the report is actually about, in one frame at one sun angle so neither case can be read at a different scale or edge than the other. LEFT is an unwalled 12x12 open-air porch on bare concrete \u2014 the case reported as correct. RIGHT is a walled 12x12 room roofed only across a 2-cell strip \u2014 the case reported as wrong. Both are eaves by classification; the only difference is the walls around the right one.",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Concrete",
+        "width": "56",
+        "height": "36",
+        "offset": "0,45",
+        "clear": "true"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "0,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "4,-6; 4,5; 5,-6; 5,5; 6,-6; 6,5; 7,-6; 7,5; 8,-6; 8,5; 9,-6; 9,5; 10,-6; 10,5; 11,-6; 11,5; 12,-6; 12,5; 13,-6; 13,5; 14,-6; 14,5; 15,-6; 15,5; 4,-5; 15,-5; 4,-4; 15,-4; 4,-3; 15,-3; 4,-2; 15,-2; 4,-1; 15,-1; 4,0; 15,0; 4,1; 15,1; 4,2; 15,2; 4,3; 15,3; 4,4; 15,4"
+      }
+    },
+    {
+      "type": "SetRoof",
+      "args": {
+        "def": "RoofConstructed",
+        "width": "12",
+        "height": "12",
+        "offset": "-14,45"
+      }
+    },
+    {
+      "type": "SetRoof",
+      "args": {
+        "def": "RoofConstructed",
+        "width": "12",
+        "height": "2",
+        "offset": "10,45"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "18"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "-2,45",
+        "zoom": "18"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cmp_18h_all_on.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "eave_shadows",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cmp_18h_no_casters.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "eave_shadows",
+        "enabled": "true"
+      }
+    }
+  ]
+}
