@@ -1,0 +1,47 @@
+{
+  "name": "polar_night_blue",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    {"type": "SetTile", "args": {"latitude": "88"}},
+    {"type": "SetSeason", "args": {"dayOfYear": "11"}},
+
+    {"type": "SetTime", "args": {"hour": "0"}},
+    {"type": "Probe", "args": {"probeName": "polar_night_blue", "expectedValue": "1.0", "tolerance": "0.02"}},
+    {"type": "SetTime", "args": {"hour": "6"}},
+    {"type": "Probe", "args": {"probeName": "polar_night_blue", "expectedValue": "1.0", "tolerance": "0.02"}},
+    {"type": "SetTime", "args": {"hour": "12"}},
+    {"type": "Probe", "args": {"probeName": "polar_night_blue", "expectedValue": "1.0", "tolerance": "0.02"}},
+    {"type": "SetTime", "args": {"hour": "18"}},
+    {"type": "Probe", "args": {"probeName": "polar_night_blue", "expectedValue": "1.0", "tolerance": "0.02"}},
+
+    {"type": "SetTime", "args": {"hour": "12"}},
+    {"type": "SetFeature", "args": {"featureName": "polar_night_blue", "enabled": "false"}},
+    {"type": "Probe", "args": {"probeName": "polar_night_blue", "expectedValue": "0.0", "tolerance": "0.001"}},
+    {"type": "Probe", "args": {"probeName": "overlay_brightness", "expectedValue": "0.0", "tolerance": "1.0"}},
+    {"type": "Probe", "args": {"probeName": "sky_overlay_warmth", "expectedValue": "0.0", "tolerance": "1.0"}},
+    {"type": "Screenshot", "args": {"fileName": "pnb_polar_off.png"}},
+    {"type": "SetFeature", "args": {"featureName": "polar_night_blue", "enabled": "true"}},
+    {"type": "Probe", "args": {"probeName": "overlay_brightness", "expectedValue": "0.0", "tolerance": "1.0"}},
+    {"type": "Probe", "args": {"probeName": "sky_overlay_warmth", "expectedValue": "0.0", "tolerance": "1.0"}},
+    {"type": "Screenshot", "args": {"fileName": "pnb_polar_on.png"}},
+
+    {"type": "SetSeason", "args": {"dayOfYear": "41"}},
+    {"type": "SetTime", "args": {"hour": "12"}},
+    {"type": "Probe", "args": {"probeName": "polar_night_blue", "expectedValue": "0.0", "tolerance": "0.001"}},
+    {"type": "SetTime", "args": {"hour": "0"}},
+    {"type": "Probe", "args": {"probeName": "polar_night_blue", "expectedValue": "0.0", "tolerance": "0.001"}},
+
+    {"type": "SetTile", "args": {"latitude": "0"}},
+    {"type": "SetSeason", "args": {"dayOfYear": "15"}},
+    {"type": "SetTime", "args": {"hour": "12"}},
+    {"type": "Probe", "args": {"probeName": "polar_night_blue", "expectedValue": "0.0", "tolerance": "0.001"}},
+    {"type": "SetTime", "args": {"hour": "18"}},
+    {"type": "Probe", "args": {"probeName": "polar_night_blue", "expectedValue": "0.0", "tolerance": "1.0"}},
+    {"type": "SetTime", "args": {"hour": "19"}},
+    {"type": "Probe", "args": {"probeName": "polar_night_blue", "expectedValue": "0.0", "tolerance": "1.0"}},
+    {"type": "SetTime", "args": {"hour": "20"}},
+    {"type": "Probe", "args": {"probeName": "polar_night_blue", "expectedValue": "0.0", "tolerance": "1.0"}},
+    {"type": "SetTime", "args": {"hour": "23"}},
+    {"type": "Probe", "args": {"probeName": "polar_night_blue", "expectedValue": "0.0", "tolerance": "0.001"}}
+  ]
+}

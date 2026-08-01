@@ -60,6 +60,12 @@
     <Compile Include="../Source/Probes/PurkinjeProbe.cs" Link="PurkinjeProbe.cs" />
     <Compile Include="../Source/Probes/NightDesaturationProbe.cs" Link="NightDesaturationProbe.cs" />
     <Compile Include="../Source/Probes/SkyColorTemperatureProbe.cs" Link="SkyColorTemperatureProbe.cs" />
+    <!-- §19. polar_night_blue reads the shared adapter (never CurSkyTarget, which mutates vanilla's
+         >=75-degree slew state as a side effect); overlay_brightness reads the finished material,
+         and is the first probe to measure on-screen darkness at all — sky_glow is the GAMEPLAY
+         brightness and the two deliberately diverge. -->
+    <Compile Include="../Source/Probes/PolarNightBlueProbe.cs" Link="PolarNightBlueProbe.cs" />
+    <Compile Include="../Source/Probes/OverlayBrightnessProbe.cs" Link="OverlayBrightnessProbe.cs" />
     <!-- §18d's limb-refraction ramp. Four metrics off one class, because a temporal effect
          needs its own sun-elevation x-axis probed alongside the values plotted on it. -->
     <Compile Include="../Source/Probes/LimbRefractionProbe.cs" Link="LimbRefractionProbe.cs" />
