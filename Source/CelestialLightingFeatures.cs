@@ -265,12 +265,16 @@ public static class CelestialLightingFeatures
     // obliquity the CURRENT world was generated with instead of Earth's 23.44, so the sky matches the
     // planet whose biomes are on the map. See PlanetsmithCompat.
     //
-    // Gated for the same reason AxialTiltLunarGeometry is — it depends on a third mod's code, so a
-    // scenario cannot reach both arms without a switch — plus one that flag doesn't have: "off" here
-    // is not only a baseline, it is a setting someone might actually want. A player who generated a
-    // 70-degree world for its biomes has not necessarily signed up for the four-month polar night
-    // that honestly lighting it implies. Off is exactly the pre-feature behaviour — our own tilt,
-    // Planetsmith or not — so it is a faithful A/B baseline either way.
+    // HARNESS-ONLY, and the only flag on this class with no settings-screen counterpart. Nothing in a
+    // shipped game ever writes it. When a world-geometry mod is installed, that planet's obliquity is
+    // ITS setting, and a switch of ours beside it would be a second source of truth for one number --
+    // which is exactly the biome/sky disagreement this interop exists to remove. Realistic Axial Tilt
+    // has never had an opt-out for the same reason; this is what makes Planetsmith match it rather
+    // than being the one geometry source we let the player second-guess. The settings screen reports
+    // the tilt and who set it instead of offering a choice.
+    //
+    // The flag survives because a scenario still needs both arms reachable inside a single run, and
+    // "off" is a faithful pre-feature baseline -- our own tilt, Planetsmith installed or not.
     public static bool PlanetsmithGeometry = true;
 
     // §14 sun-clock reconciliation. An enum rather than two bools because the modes are mutually

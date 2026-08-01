@@ -3889,10 +3889,24 @@ symptom indistinguishable from the interop simply not working. The cache key is 
 `System.WeakReference<World>` so it cannot keep a discarded
 world's map graph alive after the player returns to the main menu.
 
-**Behind a flag** (`planetsmith_geometry`, default on), for the reason `axial_tilt_lunar_geometry` is
-plus one it does not have: off here is not only an A/B baseline, it is a setting someone may want. A
-player who generated a 70° world for its biomes has not necessarily signed up for the four-month
-polar night that honestly lighting it implies.
+**No opt-out, and that is the point.** `planetsmith_geometry` exists as a harness flag so a scenario
+can reach both arms in one run, but nothing in a shipped game writes it and the settings screen offers
+no switch. When a world-geometry mod is installed, the planet's obliquity is ITS setting; a control of
+ours beside it would be a second source of truth for a single number, which is precisely the
+biome/sky disagreement this interop exists to remove. A player who wants a different tilt changes it
+where it is defined.
+
+This is also what makes Planetsmith consistent with RAT rather than the exception. RAT's solar
+declination has never had an opt-out — `AxialTiltCompat.SolarDeclinationDegrees` consults it whenever
+`Active`, with no flag in the path — and an earlier draft of this interop gave Planetsmith one, which
+would have left it as the single geometry source the player was invited to second-guess.
+(`axial_tilt_lunar_geometry` is not a counterexample: it selects between two of RAT's own models for
+the MOON, both of them theirs, rather than offering to overrule their planet.)
+
+What the settings screen does instead is report: with either mod installed it shows one read-only
+line naming the obliquity in force and which mod set it. It reads `AxialTiltCompat.ObliquityDegrees`
+rather than either mod's field, so it displays the value actually in use and therefore *shows* the
+RAT-wins precedence instead of restating it — with both installed the line names RAT.
 
 **Testing.** The pure half is `FormulasObliquityTests` — 25 offline cases covering the scale/phase
 split, the fixed equinoxes and solstices, periodicity and boundedness at every tilt, the sanitizer's

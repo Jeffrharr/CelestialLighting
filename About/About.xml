@@ -79,8 +79,12 @@ Q. Does it work with Planetsmith?
 
   Day length is not affected, because Planetsmith does not set one - it decides which biomes go where,
   not how long the day is. If you want the long polar summers and dark winters a steep tilt implies,
-  turn on "Realistic day length" as well. Turn "Planetsmith axial tilt" off if you would rather keep
-  an Earth-like sky over an extreme world.
+  turn on "Realistic day length" as well.
+
+  There is no switch for this and that is deliberate: the tilt is Planetsmith's setting, so change it
+  in Planetsmith. A second control here would only let the sky and the biomes disagree again, which is
+  the whole thing this fixes. The settings screen shows you which mod is setting the tilt and what it
+  is. The same is true of Realistic Axial Tilt, which has always owned the tilt outright.
 
 Q. Does it work with Biomes! Caverns?
 
