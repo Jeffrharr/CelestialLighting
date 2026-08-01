@@ -142,6 +142,53 @@ public static class DrawDump
         Log.Message(
             $"SEAMDRAWGLOBAL f{Time.frameCount} castVect=({cast.x:F4},{cast.y:F4},{cast.z:F4},{cast.w:F4}) "
             + $"color=({c.r:F3},{c.g:F3},{c.b:F3},{c.a:F3}) queue={MatBases.SunShadow.renderQueue}");
+
+        if (masksDumped)
+            return;
+
+        masksDumped = true;
+        DumpMaterial("SunShadow", MatBases.SunShadow);
+        DumpMaterial("IndoorMask", MatBases.IndoorMask);
+        DumpMaterial("RoofedOutdoorMask", MatBases.RoofedOutdoorMask);
+        DumpMaterial("FilledMask", MatBases.FilledMask);
+        DumpMaterial("EdgeShadow", MatBases.EdgeShadow);
+        DumpMaterial("LightOverlay", MatBases.LightOverlay);
+        DumpMaterial("EaveShade", EaveShadeOverlay.Material);
+    }
+
+    private static bool masksDumped;
+
+    // Full render-state readout for a material: shader, queue, and every property the shader
+    // declares (Unity 2022 shader reflection). If a mask shader exposes _ZTest/_ZWrite as
+    // properties, the whole fix can be a material-level override instead of a geometry change.
+    private static void DumpMaterial(string label, Material m)
+    {
+        if (m == null)
+        {
+            Log.Message($"SEAMMAT {label} null");
+            return;
+        }
+
+        Shader s = m.shader;
+        var props = new System.Text.StringBuilder();
+        int n = s.GetPropertyCount();
+        for (int i = 0; i < n; i++)
+        {
+            string pn = s.GetPropertyName(i);
+            var pt = s.GetPropertyType(i);
+            string val = "";
+            if (pt == UnityEngine.Rendering.ShaderPropertyType.Float
+                || pt == UnityEngine.Rendering.ShaderPropertyType.Range)
+                val = "=" + m.GetFloat(pn).ToString("F2");
+            if (pt == UnityEngine.Rendering.ShaderPropertyType.Int)
+                val = "=" + m.GetInteger(pn);
+            props.Append($" {pn}:{pt}{val}");
+        }
+
+        Log.Message(
+            $"SEAMMAT {label} shader={s.name} queue={m.renderQueue} passes={m.passCount}"
+            + $" tag_rendertype={m.GetTag("RenderType", false, "?")}"
+            + $" tag_queue={m.GetTag("Queue", false, "?")} props:{props}");
     }
 }
 

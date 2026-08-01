@@ -1,5 +1,36 @@
 # The eave seam — investigation log
 
+## SOLVED: vanilla's SectionLayer_IndoorMask clips the band
+
+The layer-skip bisect (`eave_seam_layer_skip.json` + `SeamSkip`, flags `seam_skip_*`) ended it in
+one boot: suppressing **`SectionLayer_IndoorMask`** makes the enclosed room's band run all the way
+into the roofline (0 px shortfall); suppressing `SectionLayer_SunShadows` (positive control)
+erases the band; suppressing fog / edge shadows / lighting overlay / things / §15b shade / night
+desat changes nothing.
+
+Mechanism, from the decompile (`Verse.SectionLayer_IndoorMask`):
+
+- `HideCommon` matches roofed cells with no edifice — the roof strip.
+- A cell in a **`ProperRoom`** goes to the `MatBases.IndoorMask` submesh with **`overage = 0.16f`**
+  (`building == null` → 0.16); `AppendQuadToMesh` inflates the quad by `overage` on ALL sides, at
+  `AltitudeLayer.MetaOverlays`. The strip's mask therefore reaches **z = roofline + 0.16**.
+- A roofed cell NOT in a proper room — the one-cell-gap room, a porch — goes to
+  `MatBases.RoofedOutdoorMask` with **`overage = 0`**: flush with the roofline.
+- The mask is colour-invisible in the main view but occludes (depth) later draws below its
+  altitude; the sun-shadow band (queue 3170, Shadows altitude) loses exactly the fragments under
+  the 0.16-cell bleed. 0.16 cells at 20 px/cell = 3.2 px — the measured seam.
+
+Every stuck observation reconciles: constant ~3-4 px at every sun angle (the bleed is geometry,
+not shadow math); any missing wall cell cures it (`ProperRoom` flips, the quads move to the
+overage-0 submesh); the room-scoped action at a distance; byte-identical authored meshes and inert
+skirt edits (the clip lives in another layer entirely); untinted seam rows (nothing *draws* there —
+fragments are z-rejected); the unwalled porch being clean.
+
+The day-2 "byte-identical meshes" claims were also *independently* wrong-footed: `SeamDump`'s
+window ended at z=174, filtering out the north wall row (z=175) where the rooms' meshes genuinely
+differ (gap-flank skirts) — none of which turned out to matter, but it is why every build-side diff
+kept reporting identity.
+
 ## Day 3: the tint pass — seam rows belong to MatBases.SunShadow
 
 `Tests/Scenarios/eave_seam_tint.json` + `SeamTint` (flag `seam_tint`): every candidate layer's
