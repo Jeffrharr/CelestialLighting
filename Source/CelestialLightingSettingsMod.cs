@@ -112,6 +112,16 @@ public class CelestialLightingSettingsMod : Mod
             "A faint, phase- and altitude-scaled shadow cast by the moon at night.");
         listing.CheckboxLabeled("Eave shadows", ref Settings.eaveShadows,
             "Let roofs cast shadows where they are not enclosing anything — porches, overhangs and the eaves that oversail a wall. Vanilla only ever casts shadows from buildings, so a porch roof throws nothing. Replaces the Perspective: Eaves mod, which is incompatible with this one.");
+        // Read-only, deliberately. When a world-geometry mod is installed the planet's obliquity is
+        // ITS setting, not ours, and offering a switch here would create a second source of truth for
+        // one number — which is precisely the biome/sky disagreement these interops exist to remove.
+        // A player who wants a different tilt changes it where it is defined. So this reports rather
+        // than asks, and it is the only line on this screen that does.
+        //
+        // The same rule already governed Realistic Axial Tilt, which never had an opt-out; this is
+        // what makes Planetsmith match it instead of being the one geometry source we second-guess.
+        ShowObliquitySource(listing);
+
         listing.CheckboxLabeled("Night-sky radiance", ref Settings.nightRadiance,
             "Replace vanilla's flat night glow with a starlight + airglow + moonlight floor.");
         listing.CheckboxLabeled("Pitch-black nights", ref Settings.pitchBlackNights,
@@ -147,6 +157,39 @@ public class CelestialLightingSettingsMod : Mod
     // The three eclipse flavours (DESIGN.md §10). Only meaningful while "Eclipse effects" above is on
     // (the master); each option's tooltip spells out what fires and how it renders. Mirrors the preset
     // radio pattern below — RadioButton returns true only on the click that selects an option.
+    // Reports which mod owns this planet's obliquity, and what it says, when one of them does.
+    //
+    // Silent otherwise: with neither installed the number is our own constant, there is nothing to
+    // defer to and nothing a player could act on, so a line saying "23.44° (Celestial Lighting)"
+    // would be noise on a screen that is otherwise all decisions.
+    //
+    // Reads AxialTiltCompat.ObliquityDegrees rather than either mod's field, so it reports the value
+    // actually in force and therefore shows the RAT-wins precedence rather than restating it — with
+    // both installed this reads RAT's tilt, which is the honest answer to "what is my sky using".
+    private void ShowObliquitySource(Listing_Standard listing)
+    {
+        string source = ObliquitySourceName();
+        if (source == null)
+            return;
+
+        listing.Label(
+            $"Axial tilt: {AxialTiltCompat.ObliquityDegrees:0.#}°  (set by {source})",
+            tooltip: $"This world's obliquity comes from {source}, so the sky matches the planet it "
+                + "generated rather than Earth's 23.4°. Change it there — a second switch here would "
+                + "just let the sky and the biomes disagree again.\n\nDay length is unaffected unless "
+                + "you also pick realistic day length below.");
+    }
+
+    // RAT first, matching the precedence in AxialTiltCompat.SolarDeclinationDegrees: it owns the
+    // running year's phase, tilt and moon together, so with both installed it is the one answering.
+    private string ObliquitySourceName()
+    {
+        if (AxialTiltCompat.Active)
+            return "Realistic Axial Tilt";
+
+        return PlanetsmithCompat.Active ? "Planetsmith" : null;
+    }
+
     // §14. Phrased around the consequence rather than the mechanism: "day length" is what a player
     // actually notices, and the realistic option's tooltip leads with the fact that it moves growing
     // hours, because that is the part that can surprise someone mid-colony.

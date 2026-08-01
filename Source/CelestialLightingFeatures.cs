@@ -257,6 +257,26 @@ public static class CelestialLightingFeatures
     // harness A/B baseline and a real escape hatch if an upstream lunar change ever misbehaves.
     public static bool AxialTiltLunarGeometry = true;
 
+    // Feature key for PlanetsmithGeometry (see CivilTwilightPersistenceKey for why the const lives
+    // here).
+    public const string PlanetsmithGeometryKey = "planetsmith_geometry";
+
+    // Planetsmith's per-world axial tilt: with Planetsmith installed, scale our seasonal swing by the
+    // obliquity the CURRENT world was generated with instead of Earth's 23.44, so the sky matches the
+    // planet whose biomes are on the map. See PlanetsmithCompat.
+    //
+    // HARNESS-ONLY, and the only flag on this class with no settings-screen counterpart. Nothing in a
+    // shipped game ever writes it. When a world-geometry mod is installed, that planet's obliquity is
+    // ITS setting, and a switch of ours beside it would be a second source of truth for one number --
+    // which is exactly the biome/sky disagreement this interop exists to remove. Realistic Axial Tilt
+    // has never had an opt-out for the same reason; this is what makes Planetsmith match it rather
+    // than being the one geometry source we let the player second-guess. The settings screen reports
+    // the tilt and who set it instead of offering a choice.
+    //
+    // The flag survives because a scenario still needs both arms reachable inside a single run, and
+    // "off" is a faithful pre-feature baseline -- our own tilt, Planetsmith installed or not.
+    public static bool PlanetsmithGeometry = true;
+
     // §14 sun-clock reconciliation. An enum rather than two bools because the modes are mutually
     // exclusive by construction: locked warps OUR sun onto vanilla's clock, realistic makes VANILLA's
     // glow follow ours. Running both would mean each defining itself in terms of the other.

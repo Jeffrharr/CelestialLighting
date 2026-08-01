@@ -75,10 +75,11 @@ public static class AxialTiltCompat
     // degenerate planet. Every read below goes through this.
     public static bool Active => Bind() && ratGeometryReady();
 
-    // Their obliquity in degrees when active, else our own constant. Used for the moon, which needs
-    // the tilt magnitude rather than a single day's declination, and for the settings screen.
+    // Their obliquity in degrees when active, else whatever the next provider down offers. Used for
+    // the moon, which needs the tilt magnitude rather than a single day's declination, and for the
+    // settings screen.
     public static float ObliquityDegrees =>
-        Active ? ratAxialTiltDegrees() : Formulas.AxialTiltDegrees;
+        Active ? ratAxialTiltDegrees() : PlanetsmithCompat.ObliquityDegrees;
 
     // Bumped by RAT every time a world is generated or loaded. Anything of ours that caches a
     // derived solar quantity across days must drop that cache when this changes, or a save with a
@@ -88,8 +89,16 @@ public static class AxialTiltCompat
     // THE seam. Every sun-derived effect in this mod resolves its declination here, and the moon
     // resolves its own through the same call at a shifted day-of-year (see MoonPosition), so the
     // two can never end up on different models of the year.
+    //
+    // The `else` arm is a chain rather than a constant, and the order in it is a precedence ruling:
+    // RAT first because it is simulating the running year and owns phase, tilt and moon together;
+    // Planetsmith next because it owns only an obliquity, spent at world generation, which our own
+    // phase curve can carry (PlanetsmithCompat has the argument for why that is correct there and
+    // wrong for RAT); our own constant last, when nothing on the mod list has an opinion. Each link
+    // falls through to the next on its own terms, so the chain never has to ask "which mods are
+    // installed" in one place.
     public static float SolarDeclinationDegrees(float dayOfYear) =>
-        Active ? ratDeclinationDegrees(dayOfYear) : Formulas.SolarDeclinationDegrees(dayOfYear);
+        Active ? ratDeclinationDegrees(dayOfYear) : PlanetsmithCompat.SolarDeclinationDegrees(dayOfYear);
 
     // True only when the feature is on, RAT is active, AND their build carries lunar geometry. All
     // three, because all three vary independently: the flag is the player's (and the harness's)

@@ -20,6 +20,12 @@ public static class ProbeRegistration
         ProbeRegistry.Register(new AxialTiltDeclinationProbe());
         ProbeRegistry.Register(new AxialTiltActiveProbe());
         ProbeRegistry.Register(new AxialTiltLunarProbe());
+        ProbeRegistry.Register(new PlanetsmithActiveProbe());
+        // Reports the obliquity actually in force rather than Planetsmith's stored field, so it
+        // follows the whole precedence chain: with RAT installed too this reads RAT's tilt while
+        // planetsmith_active still reads 1, which is the intended outcome and the only way a scenario
+        // can catch that precedence silently inverting.
+        ProbeRegistry.Register(new PlanetsmithTiltProbe());
         ProbeRegistry.Register(new MoonDeclinationProbe());
         ProbeRegistry.Register(new ShadowVectorXProbe());
         ProbeRegistry.Register(new CivilTwilightProbe());
@@ -209,6 +215,21 @@ public static class ProbeRegistration
         FeatureRegistry.Register(
             CelestialLightingFeatures.AxialTiltLunarGeometryKey,
             enabled => CelestialLightingFeatures.AxialTiltLunarGeometry = enabled);
+        // Like the RAT flag above, both arms need a third mod present — off is our own tilt, on is
+        // the tilt the loaded world was generated with. Flipping it inside one run is the only way to
+        // compare them against the same world and day-of-year; generating two worlds instead would
+        // vary the biomes and the latitude along with the tilt.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.PlanetsmithGeometryKey,
+            enabled => CelestialLightingFeatures.PlanetsmithGeometry = enabled);
+        // Not a feature flag either, and it WRITES to Planetsmith's world: it puts a steep tilt on
+        // the loaded save so the interop has something visible to carry. Registered with
+        // defaultEnabled FALSE for the same reason realistic_preset is — the resting state is "leave
+        // the world alone", so ResetAll() between scenarios must restore, not apply.
+        FeatureRegistry.Register(
+            PlanetsmithTiltOverride.FeatureKey,
+            enabled => PlanetsmithTiltOverride.Set(enabled),
+            defaultEnabled: false);
         FeatureRegistry.Register(
             CelestialLightingFeatures.NightRadianceKey,
             enabled => CelestialLightingFeatures.NightRadiance = enabled);

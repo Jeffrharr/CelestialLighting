@@ -146,7 +146,16 @@ public static class Formulas
 
     // Earth's real axial tilt, not vanilla's fudge — reused everywhere so the "north pole in
     // summer" case is a real geometric consequence, not a curve that only kicks in past 70 degrees.
+    // This is the obliquity we assume when nothing else on the mod list has an opinion; a world-gen
+    // mod that lets the player pick one feeds it in through SolarDeclinationDegrees' overload below.
     public const float AxialTiltDegrees = 23.44f;
+
+    // An obliquity of 90 degrees lies the planet on its side: the sun passes overhead at the pole at
+    // the solstice and the whole hemisphere is in day or night for half the year. Past that the
+    // geometry is not "more extreme", it is a planet spinning retrograde, which the -cos phase term
+    // below cannot express — so this is the ceiling rather than a taste limit, and it happens to be
+    // the top of Planetsmith's own 0-90 slider too.
+    public const float MaxObliquityDegrees = 90f;
 
     // Below this, cot(elevation) blows up toward infinity — clamp the input angle before dividing,
     // not the output length, so the clamp reads as "treat near-zero elevation as this floor" rather
@@ -183,7 +192,33 @@ public static class Formulas
         }
     }
 
-    public static float SolarDeclinationDegrees(float dayOfYear) => AxialTiltDegrees * DeclinationSign(dayOfYear);
+    public static float SolarDeclinationDegrees(float dayOfYear) =>
+        SolarDeclinationDegrees(dayOfYear, AxialTiltDegrees);
+
+    // The same declination, on a planet whose obliquity someone else chose.
+    //
+    // Note what this overload does NOT take: a seasonal phase. The tilt scales the swing, while
+    // DeclinationSign decides which pole the sun favours on a given day, and only the tilt is a
+    // property of the planet — the phase is a property of where the year is reckoned from, which
+    // stays ours. That split is exactly why Planetsmith can be consumed through this overload and
+    // Realistic Axial Tilt cannot: RAT reckons the year from a different point (sin where we use
+    // -cos, a quarter-year apart) and so has to supply the whole declination, not just its scale.
+    // See PlanetsmithCompat for the long version.
+    public static float SolarDeclinationDegrees(float dayOfYear, float obliquityDegrees) =>
+        SanitizeObliquityDegrees(obliquityDegrees) * DeclinationSign(dayOfYear);
+
+    // Bound-check an obliquity that came from another mod's settings before we build a sky out of it.
+    //
+    // Not defensive habit: the value arrives from a slider we do not own, through reflection that
+    // cannot type-check it, out of a save file a player may have hand-edited or that an older
+    // version of that mod wrote. A NaN here does not throw — it propagates silently through every
+    // trig call downstream and lands as an invisible sun and shadowless noon, which reads to a
+    // player as our bug. Falling back to Earth's tilt costs one wrong-looking planet; NaN costs the
+    // whole sky.
+    public static float SanitizeObliquityDegrees(float obliquityDegrees) =>
+        float.IsNaN(obliquityDegrees)
+            ? AxialTiltDegrees
+            : Clamp(obliquityDegrees, 0f, MaxObliquityDegrees);
 
     // 0 at solar noon (dayPercent == 0.5), negative in the morning, positive in the afternoon —
     // same convention vanilla's own SunPositionUnmodified uses for its day/night rotation.

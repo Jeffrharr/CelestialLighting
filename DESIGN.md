@@ -3791,3 +3791,173 @@ Verified live against a RAT built with `SolarDeclinationDegrees` deliberately re
 RAT logs `Lighting claimed by joof.celestiallighting`, and the run carries exactly one warning and
 zero exceptions — a drifted API is indistinguishable from RAT not being installed, which is the
 goal.
+
+## Interop: Planetsmith (`Source/PlanetsmithCompat.cs`)
+
+**Problem — a disagreement, not a conflict.** Planetsmith (`aspctt.planetsmith`) is a
+world-generation overhaul: a climate simulation and a competitive biome-scoring pass that replace
+vanilla's biome placement. One of its world parameters is an axial tilt, a 0–90° slider defaulting to
+23.4, which it spends deciding how hard the seasons shape the planet it is about to build — pole
+temperatures, seasonality, where tundra gives way to boreal forest. It is not RAT: it patches nothing
+we patch (its three Harmony targets are `Page_CreateWorldParams.DoWindowContents`/`PreOpen` and
+`WorldGenStep_Terrain.GenerateFresh`), it renders no sun, and its assembly contains no reference to
+any celestial or sky type. Nothing breaks with both installed.
+
+What was wrong was quieter. A player who generates a world at 60° gets biomes laid out for a planet
+with savage seasons, and then we light it with Earth's 23.44° — because that was the only number we
+had. The map says one planet and the sky says another, and nothing anywhere reports it.
+
+**Approach — take their obliquity, keep our phase.** `PlanetsmithCompat` reads
+`PlanetsmithWorldComponent.Settings.axialTilt` off the loaded world by reflection and feeds it to
+`Formulas.SolarDeclinationDegrees(dayOfYear, obliquityDegrees)`, a new overload that scales our
+existing `-cos` phase term by a tilt someone else chose. Because every sun-derived effect already
+resolves through `SolarPosition.Inputs`, one number re-bases shadows, twilight, penumbra, night
+radiance and the moon together.
+
+**Why this reads the tilt angle where the RAT interop deliberately does not.** The section above
+argues at length that consuming RAT's obliquity and re-applying our own curve would be wrong, and it
+would — for RAT. RAT reckons the year from a different point than we do (`sin` where we use `-cos`, a
+quarter-year apart), so their tilt without their phase agrees at the equinoxes and is a season out in
+between. Planetsmith has no phase to disagree about, and this is worth stating from their code rather
+than from their description, because "does it have a seasonal curve we should be using instead?" is
+the first question this design has to answer. It does not. Their tilt does exactly three things:
+
+    TiltFactor    = AxialTilt / 23.4f                                  // a scalar ratio
+    PoleMeanTemp += (AxialTilt - 23.4f) * 0.6f                         // a constant offset
+    swing[i]      = Lerp(3, 22, |lat|/90) * max(0.12f, TiltFactor)
+                      * seasonIntensity * (1 + 0.6f * continentality)  // an amplitude
+
+`SeasonalityPass` writes that swing out as `WinterMinTemp[i]` / `SummerMaxTemp[i]` — two *bounds*,
+not a curve — and those arrays are read only by `BiomePass.SelectBiome`, `MonsoonPass`, and their
+world-map overlay. There is no day-of-year term anywhere in the assembly, and nothing they compute
+reaches the running game's temperature, let alone a sun position. Their own world-params dialog says
+the same thing in prose, warning that this tilt "decides how the seasons shape the planet's biomes
+while it is generated" and is separate from the one Worldbuilder uses for in-game swings. So scaling
+our curve by their obliquity is the whole of the correct answer here, not a shortcut around a
+missing API — there is no curve of theirs being ignored.
+
+**The units agree by construction.** Their tilt enters linearly (`TiltFactor = tilt / 23.4`) and so
+does ours (`declination = tilt × -cos(...)`), so a 60° world is 2.56× the seasonal temperature swing
+for them and 2.56× the declination amplitude for us. The sky's seasons stay in proportion to the
+biomes' without any tuning constant of ours to keep in step with theirs.
+`FormulasObliquityTests.Obliquity_EntersLinearly` pins our half of that.
+
+**One deliberate divergence,** at the upright end of the slider. Their `MinTiltFactor = 0.12` floor
+keeps 12% of a baseline swing even at tilt 0, while our declination there is exactly zero — a
+genuinely seasonless sky over biomes that still carry a slight seasonal spread. The floor exists so
+their biome scoring does not degenerate into a single band, not because an upright planet has
+seasons, and mimicking it would mean tilting our sun on a world the player asked to stand upright.
+Pinned and named in the tests so it reads as a decision rather than an oversight. `FormulasObliquityTests.Obliquity_ScalesTheSwingWithoutMovingThePhase`
+pins the property that makes it true — solstices and equinoxes land on the same days at every tilt.
+
+**Precedence.** With both third-party mods installed RAT wins and Planetsmith is not consulted;
+`AxialTiltCompat.SolarDeclinationDegrees`' else-arm is the chain, RAT → Planetsmith → our constant.
+The ruling is that RAT is simulating the running year and owns phase, tilt and moon together, while
+Planetsmith's tilt was spent at generation and is by then a record of how the map was built rather
+than a claim about the sky. Two mods cannot both define the obliquity; believe the one still
+simulating. `planetsmith_active` still reads 1 in that case — the interop is live, it just lost — and
+`planetsmith_tilt` reports RAT's number, which is how a scenario would catch that precedence
+silently inverting.
+
+**Which tilt, exactly.** The world component's copy, not `PlanetsmithMod.Settings.axialTilt`. The
+latter is what the NEXT world will be generated with and moves whenever the player opens the settings
+screen; the former is what THIS planet was built for, saved beside it, and the only one that
+describes the biomes now on the map.
+
+**One seam that had been leaking.** `Patch_SunGlow` (§14's opt-in realistic sun-clock mode) called
+`Formulas.SolarDeclinationDegrees` directly rather than the seam, so with any geometry provider
+installed it lit the sky on Earth's tilt while the shadows ran on the planet's. Routed through
+`AxialTiltCompat.SolarDeclinationDegrees` here. That was a live inconsistency for RAT too, not
+something this interop introduced — it just made it reachable a second way.
+
+**Conflict risk.** No hard assembly reference; every member is a string resolved at runtime, so a
+player without Planetsmith loads a build that has never heard of it. Unlike RAT there is no
+negotiated API — these are their internal field and property names, a weaker contract, treated as
+one: every resolve is null-checked, a miss logs once naming the consequence rather than the fault,
+and the read is wrapped because it walks two hops into another assembly's object graph on the
+per-frame geometry path, where a throw would be one error per frame forever. NaN is rejected twice
+over (at the read, and again in `Formulas.SanitizeObliquityDegrees`) because a NaN tilt does not
+throw — it propagates through every trig call downstream and lands as an invisible sun and a
+shadowless noon, which reads to a player as our bug.
+
+What is cached is the component lookup, not the tilt: the lookup is the expensive part (a walk of
+`World.components`) and the part that genuinely cannot change while one world is loaded, while the
+field is re-read every call so a mid-run change is seen and no second copy of the number can go stale
+against a reload. That is not a theoretical preference: two live runs failed against a build that
+still cached the value, with the override writing 60 and the probe reading back the cached 23.4 — a
+symptom indistinguishable from the interop simply not working. The cache key is a
+`System.WeakReference<World>` so it cannot keep a discarded
+world's map graph alive after the player returns to the main menu.
+
+**No opt-out, and that is the point.** `planetsmith_geometry` exists as a harness flag so a scenario
+can reach both arms in one run, but nothing in a shipped game writes it and the settings screen offers
+no switch. When a world-geometry mod is installed, the planet's obliquity is ITS setting; a control of
+ours beside it would be a second source of truth for a single number, which is precisely the
+biome/sky disagreement this interop exists to remove. A player who wants a different tilt changes it
+where it is defined.
+
+This is also what makes Planetsmith consistent with RAT rather than the exception. RAT's solar
+declination has never had an opt-out — `AxialTiltCompat.SolarDeclinationDegrees` consults it whenever
+`Active`, with no flag in the path — and an earlier draft of this interop gave Planetsmith one, which
+would have left it as the single geometry source the player was invited to second-guess.
+(`axial_tilt_lunar_geometry` is not a counterexample: it selects between two of RAT's own models for
+the MOON, both of them theirs, rather than offering to overrule their planet.)
+
+What the settings screen does instead is report: with either mod installed it shows one read-only
+line naming the obliquity in force and which mod set it. It reads `AxialTiltCompat.ObliquityDegrees`
+rather than either mod's field, so it displays the value actually in use and therefore *shows* the
+RAT-wins precedence instead of restating it — with both installed the line names RAT.
+
+**Testing.** The pure half is `FormulasObliquityTests` — 25 offline cases covering the scale/phase
+split, the fixed equinoxes and solstices, periodicity and boundedness at every tilt, the sanitizer's
+clamp and its NaN fallback, and four hand-computed noon elevations that state what a steep world
+costs (at 45°N, midwinter noon goes from a sun 21.6° up on our tilt to one 15° *below* the horizon at
+60°). The live half is `Tests/Scenarios/planetsmith_tilt.json`.
+
+That scenario needs a world with a non-default tilt, and no save fixture can supply one: the tilt is
+chosen in Planetsmith's world-gen UI and frozen into the save, and `minimal_colony.rws` predates
+Planetsmith, so its component is constructed at load from their 23.4 default — 0.04° from our own
+23.44, a world where the interop is live and completely invisible. `PlanetsmithTiltOverride`
+(dev-only, under `Source/Probes/`) bridges a `planetsmith_steep_tilt` feature flag that writes 60°
+into the loaded world and restores the original on the way out, which is also the only way to A/B two
+tilts against one world. 60 rather than 90 deliberately: 90 is the end of the slider, so a clamp bug
+that pinned every tilt to the maximum would pass.
+
+**Their tilt, our clock — and why that split is forced rather than chosen.** Planetsmith publishes no
+day length. It patches no day-length member (its only Harmony targets are `Page_CreateWorldParams`
+and `WorldGenStep_Terrain`) and its assembly contains no reference to `CelestialSunGlowPercent`,
+`SunPosition`, `DayPercent`, `GenCelestial`, `TwelfthOfYear` or `SeasonalShiftAmplitude` at all. So
+there is no day length of theirs to adopt even if we wanted one.
+
+This is the sharp asymmetry with RAT, and it is worth holding next to the section above. RAT patches
+`GenCelestial.CelestialSunGlowPercent` (`GlowCurvePatch`) along with `SunPosition`,
+`CurSunPositionInWorldSpace` and `GenTemperature.SeasonalShiftAmplitudeAt` — it re-tilts *vanilla's
+own* glow curve, so when §14's default `LockedToVanilla` mode snaps our sun to vanilla's clock, it is
+snapping to a clock that already carries the planet's obliquity. Locked mode is not a compromise
+there; it is exactly right. With Planetsmith nothing re-tilts that curve, so the same snap lands on
+Earth's day length over a planet built for another tilt.
+
+We take the tilt and keep the clock anyway, deliberately. Locked mode's standing bargain is already
+"faithful sun altitude, vanilla day length" — that is what the warp *is*, and §14 documents the trade.
+Planetsmith's obliquity lands squarely on the axis locked mode reproduces honestly and does not touch
+the one it was always going to fake, so it makes the sky agree with the biomes where the sky is most
+visible without introducing a new kind of error. Gating the interop on the realistic sun clock was
+considered and rejected: it would make the setting silently inert for everyone who never leaves the
+default, which is worse than a partial effect that is real.
+
+**How much reaches the screen, measured.** The declination handover is total — 23.4° at Planetsmith's
+default, 60° with the override on, 23.44° with the feature off, −60° at midwinter, each within 0.05°.
+On screen the effect is FULL AT NOON and tapers toward sunrise and sunset, because `WarpDayPercent`
+works in offset-from-noon space (`d = dayPercent - 0.5`) and therefore maps noon to noon exactly,
+rescaling only the distance either side of it. At 45°N on day 30:
+
+| clock hour | 23.4° world | 60° world | shadow change |
+|---|---|---|---|
+| 12:00 | 68.40°, 0.554 cells | 75.00°, 0.375 cells | −32% |
+| 15:00 | 52.69°, 1.067 cells | 54.39°, 1.003 cells | −6% |
+
+Both elevations at noon are the analytic `90 - |lat - decl|` to the pin's tolerance, and the measured
+shadow ratio 0.6767 matches the cotangent ratio 0.6768 to four places — the geometry arrives intact,
+it is only the day's *pacing* that vanilla still owns. All four rows are pinned; an earlier draft of
+this section quoted the 15:00 figure alone and understated the effect fivefold, which is why the noon
+row is now the one the scenario leads with.
