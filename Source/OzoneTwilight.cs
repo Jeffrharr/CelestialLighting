@@ -1,3 +1,4 @@
+using System;
 using Verse;
 
 namespace CelestialLighting;
@@ -20,9 +21,23 @@ namespace CelestialLighting;
 // exists to explain a zero reading.
 public static class OzoneTwilight
 {
+    // Per-frame memo (same rationale as SolarPosition.InputsForMap — see GeometryMemo.cs). §19 has
+    // two independent consumers of this value (Patch_PolarNightBlue and Patch_PitchBlackOverlay,
+    // both on the CurSkyTarget/overlay-floor path), and without this memo each one separately paid
+    // for CanReachBandToday and BandStrength's three exp() calls every frame the band is active —
+    // identical inputs, computed twice. A miss recomputes the exact same gated pipeline this method
+    // always ran, so behaviour is unchanged; only the second caller's cost disappears.
+    private static readonly GeometryMemo<float> BandMemo = new GeometryMemo<float>();
+
+    // Held as a static delegate so the memo hit path allocates nothing per frame.
+    private static readonly Func<Map, float> ComputeBand = ComputeBandStrengthFor;
+
     // The exact band strength both arms of §19 use, in [0, 1]. 0 means no blue is applied at all —
     // feature off, sun outside the -4..-18 band, no sky overhead, or in vacuum.
-    public static float BandStrengthFor(Map map)
+    public static float BandStrengthFor(Map map) =>
+        BandMemo.Get(map.uniqueID, FrameStamp.Current(), map, ComputeBand);
+
+    private static float ComputeBandStrengthFor(Map map)
     {
         // When off, this is the faithful pre-feature baseline: the colour patch early-outs and the
         // overlay floor collapses to the caller's own minBrightness, so the sky is exactly what
