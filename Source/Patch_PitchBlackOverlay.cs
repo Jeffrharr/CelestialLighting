@@ -55,14 +55,15 @@ public static class Patch_PitchBlackOverlay
         if (current.Biome != null && current.Biome.disableSkyLighting)
             return;
 
-        // The floor on the night screen. OverlayBrightnessFactor clamps it into [0,1] itself, so
-        // there is nothing to reconcile before handing it over.
+        // The floor on the night screen, built up in two passes before it reaches
+        // OverlayBrightnessFactor (which clamps it into [0,1] itself, so there is nothing left to
+        // reconcile once both passes are done).
         //
-        // No longer read straight from settings: §19 may RAISE it while the sun sits in the ozone
-        // band, because real polar twilight is dim but emphatically not black — snow reads blue
-        // because scattered skylight still lands on it, and without this the blue §19 just painted
-        // would be multiplied into darkness right here. OverlayFloorFor only ever raises, and
-        // returns this value untouched whenever §19 is inactive, so this stays a pure addition.
+        // Pass 1: §19 may RAISE it while the sun sits in the ozone band, because real polar twilight
+        // is dim but emphatically not black — snow reads blue because scattered skylight still lands
+        // on it, and without this the blue §19 just painted would be multiplied into darkness right
+        // here. OverlayFloorFor only ever raises, and returns this value untouched whenever §19 is
+        // inactive, so this stays a pure addition.
         //
         // THIS IS THE MOD'S ONLY SANCTIONED VISUAL-ONLY BRIGHTNESS FLOOR, and it is visual-only by
         // construction rather than by care: OverlayBrightnessFactor feeds nothing but
@@ -75,7 +76,17 @@ public static class Patch_PitchBlackOverlay
         // Note also that the feature gate above (NightRadiance && PitchBlackNights) is already
         // correct for §19's purposes: if either is off nothing darkens the overlay at all, so there
         // is nothing to floor. Do not "fix" this by hoisting the floor out of the gate.
-        float minBrightness = OzoneTwilight.OverlayFloorFor(current, NightRadianceSettings.Current.MinNightBrightness);
+        float configuredMinBrightness = OzoneTwilight.OverlayFloorFor(current, NightRadianceSettings.Current.MinNightBrightness);
+
+        // Pass 2: whatever pass 1 landed on, during Anomaly's UnnaturalDarkness it may only ever be
+        // pulled DARKER, never lifted above what the event's own (unfloored) glow already renders —
+        // see NightRadianceMath.EffectiveMinNightBrightness and MapSky.UnnaturalDarknessActive for
+        // why. This runs even on top of §19's raise: a polar-latitude UnnaturalDarkness event still
+        // must not be washed back out. Every other reason the sky is dark keeps pass 1's value
+        // unchanged.
+        float rawBrightness = NightRadianceMath.RawOverlayBrightnessFactor(__instance.CurSkyGlow);
+        float minBrightness = NightRadianceMath.EffectiveMinNightBrightness(
+            MapSky.UnnaturalDarknessActive(current), configuredMinBrightness, rawBrightness);
 
         float keep = NightRadianceMath.OverlayBrightnessFactor(__instance.CurSkyGlow, minBrightness);
 

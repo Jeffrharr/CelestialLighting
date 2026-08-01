@@ -99,18 +99,36 @@ public static class MapSky
     //
     // FALSE for a null map, matching DrawsShadows' direction rather than HasSky's: an unknown map should
     // keep rendering what it renders today, and for a gate that SUPPRESSES our effect that means false.
-    public static bool SkyBlackedOut(Map map)
+    public static bool SkyBlackedOut(Map map) => AnyCondition(map, condition => BlacksOutSky(condition, map));
+
+    // Whether Anomaly's `UnnaturalDarkness` specifically is live over this map right now — a narrower
+    // question than SkyBlackedOut above, which also fires for Odyssey's DarkenedSkies/SunBlocker.
+    //
+    // §7a's own MinNightBrightness floor (Patch_PitchBlackOverlay) is the one caller: that floor exists
+    // to keep an ordinary moonless night navigable, and UnnaturalDarkness is not an ordinary night — it
+    // is Anomaly's own gameplay-critical horror event (the flavour text is literally "stay in the
+    // light"; GameCondition_UnnaturalDarkness.AffectedByDarkness spawns DarknessExposure hediffs off
+    // the same darkness). Composing our accessibility floor with vanilla's own dread mechanic would
+    // wash the event out to whatever brightness the player picked for an ordinary Tuesday night, which
+    // is not a call this mod should make for them. DarkenedSkies and SunBlocker get no such carve-out —
+    // those are aesthetic, not a DLC's own set-piece, so the player's chosen floor is left to mean what
+    // they set it to mean.
+    public static bool UnnaturalDarknessActive(Map map) =>
+        AnyCondition(map, condition => condition is GameCondition_UnnaturalDarkness && condition.CanApplyOnMap(map));
+
+    // Shared walk of the manager chain the same way vanilla's own GameConditionManager.
+    // ElectricityDisabled does: a map's own conditions, then the world's, which is where quest- and
+    // planet-scale conditions live. Reading map.gameConditionManager.ActiveConditions alone would miss
+    // those.
+    private static bool AnyCondition(Map map, System.Predicate<GameCondition> test)
     {
         if (map == null)
             return false;
 
-        // Walk the manager chain the same way vanilla's own GameConditionManager.ElectricityDisabled
-        // does: a map's own conditions, then the world's, which is where quest- and planet-scale
-        // conditions live. Reading map.gameConditionManager.ActiveConditions alone would miss those.
         GameConditionManager manager = map.gameConditionManager;
         while (manager != null)
         {
-            if (AnyConditionBlacksOutSky(manager.ActiveConditions, map))
+            if (AnyConditionMatches(manager.ActiveConditions, test))
                 return true;
 
             manager = manager.Parent;
@@ -119,14 +137,14 @@ public static class MapSky
         return false;
     }
 
-    private static bool AnyConditionBlacksOutSky(List<GameCondition> conditions, Map map)
+    private static bool AnyConditionMatches(List<GameCondition> conditions, System.Predicate<GameCondition> test)
     {
         if (conditions == null)
             return false;
 
         for (int i = 0; i < conditions.Count; i++)
         {
-            if (BlacksOutSky(conditions[i], map))
+            if (conditions[i] != null && test(conditions[i]))
                 return true;
         }
 
@@ -135,11 +153,8 @@ public static class MapSky
 
     private static bool BlacksOutSky(GameCondition condition, Map map)
     {
-        if (condition == null)
-            return false;
-
-        // Class test first, because it is one type check and rejects almost every condition a real
-        // colony ever carries, whereas CanApplyOnMap below is several branches and a possible
+        // Class test first, because it is one or two type checks and rejects almost every condition a
+        // real colony ever carries, whereas CanApplyOnMap below is several branches and a possible
         // waterBodyTracker walk.
         //
         // A null GameConditionDefOf.Eclipse (defs not loaded yet) compares equal to a null condition
@@ -147,6 +162,7 @@ public static class MapSky
         // rendering alone.
         bool blacksOut = MapSkyMath.ConditionBlacksOutSky(
             condition is GameCondition_NoSunlight,
+            condition is GameCondition_UnnaturalDarkness,
             condition.def == GameConditionDefOf.Eclipse);
         if (!blacksOut)
             return false;
@@ -154,8 +170,8 @@ public static class MapSky
         // CanApplyOnMap and nothing else, deliberately: this is exactly the filter
         // SkyManager.CurrentSkyTarget applies when it decides whether a condition's SkyTarget composes
         // into the sky, so our gate opens and closes on precisely the frames vanilla's own darkening
-        // does. It also gets the underground exclusion for free — both DarkenedSkies and Eclipse set
-        // allowUnderground false, so neither is ever reported on a cave map.
+        // does. It also gets the underground exclusion for free — DarkenedSkies, Eclipse AND
+        // UnnaturalDarkness all set allowUnderground false, so none is ever reported on a cave map.
         //
         // NOT HiddenByOtherCondition, even though vanilla's ElectricityDisabled pairs the two. That one
         // reports `silencedByConditions` (DarkenedSkies is silenced by Anomaly's UnnaturalDarkness) and

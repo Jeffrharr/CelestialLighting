@@ -93,8 +93,8 @@ public static class MapSkyMath
     // several times a game year on the same map, which is exactly why it could not be answered by
     // adding a clause to IsEnclosed.
     //
-    // WHY A CONDITION CLASS RATHER THAN A DEF LIST. Everything that blacks out a RimWorld sky is a
-    // GameCondition_NoSunlight, and there are four sources across vanilla and the DLCs:
+    // WHY A CONDITION CLASS RATHER THAN A DEF LIST. Most things that black out a RimWorld sky are a
+    // GameCondition_NoSunlight, and there are four such sources across vanilla and the DLCs:
     //
     //   - Odyssey's `DarkenedSkies` (GameCondition_NoSunlight_Instant) as a PERMANENT biome condition.
     //     `Glowforest` declares it in `biomeMapConditions` and says so in its own description —
@@ -106,6 +106,15 @@ public static class MapSkyMath
     //     proves the question is per-map runtime state rather than biome data.
     //   - Royalty's `SunBlocker` machine.
     //   - Vanilla's `Eclipse` — which is why the carve-out below exists.
+    //
+    // A FIFTH source is a different class entirely: Anomaly's `UnnaturalDarkness`
+    // (`GameCondition_UnnaturalDarkness`) derives from `GameCondition_ForceWeather`, not
+    // `GameCondition_NoSunlight`, so the `is GameCondition_NoSunlight` test alone misses it — even
+    // though its own `SkyTarget` override returns the identical `GameCondition_NoSunlight.
+    // EclipseSkyColors` at glow 0, and `SkyManager.CurrentSkyTarget` composes ANY condition's
+    // `SkyTarget`/`SkyTargetLerpFactor` through the same `LerpDarken`, regardless of class. It needs no
+    // eclipse-style carve-out of its own: unlike DarkenedSkies, nothing in this mod reshapes it, so
+    // there is no second meaning of "UnnaturalDarkness" to protect from the gate.
     //
     // Keying on the class means a modded blackout condition is caught for free, exactly as IsEnclosed
     // catches every modded cave biome through vanilla biome data rather than a def-name list.
@@ -119,8 +128,8 @@ public static class MapSkyMath
     // It is also a genuinely different fact about the world, not just an implementation carve-out: an
     // eclipse covers the SUN while leaving the sky transparent, which is why stars come out during a
     // total one. Nothing comes out under a sulfur overcast.
-    public static bool ConditionBlacksOutSky(bool isNoSunlightCondition, bool isEclipse) =>
-        isNoSunlightCondition && !isEclipse;
+    public static bool ConditionBlacksOutSky(bool isNoSunlightCondition, bool isUnnaturalDarkness, bool isEclipse) =>
+        (isNoSunlightCondition && !isEclipse) || isUnnaturalDarkness;
 
     // The ambient level an enclosed map sits at, all day, every day.
     //

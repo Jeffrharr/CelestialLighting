@@ -1,0 +1,153 @@
+{
+  "name": "unnatural_darkness_gate",
+  "saveFile": "minimal_colony.rws",
+  "description": "Anomaly's UnnaturalDarkness (GameCondition_UnnaturalDarkness) is a FIFTH blackout source, and a different C# class (GameCondition_ForceWeather) from the other four §17 already knew about — so MapSky.SkyBlackedOut used to miss it entirely, even though its SkyTarget composes into the sky through the identical LerpDarken path. Two things are on trial here: (1) the §17 gate now fires for it (shadows suppressed, night floor stands down), and (2) §7a's MinNightBrightness floor no longer washes the event's own darkness back out under the shipped Cinematic preset (0.50) — it may only ever pull the screen DARKER than the event's own unfloored brightness, never brighter. Same tile/season/weather/biome/hour as sky_blackout_gate.json's shadow lane, so the baseline readings are directly comparable to that file. MUST RUN STANDALONE: GameConditions survive the harness's soft reset (see core_design_suite.txt).",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "20"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "_comment": "Glowforest, same as sky_blackout_gate.json — NOT because its permanent DarkenedSkies matters here (SetBiome does not run biomeMapConditions, so a bare Glowforest carries no condition), but so this scenario's baseline numbers are directly comparable to that file's.",
+      "type": "SetBiome",
+      "args": {
+        "biomeDef": "Glowforest"
+      }
+    },
+    {
+      "_comment": "Low-sun baseline, same hour as sky_blackout_gate.json's shadow lane: the sun is low enough to throw a long, unmistakable cast shadow, which is what makes the post-condition frame's absence of one legible on screen rather than just in a probe.",
+      "type": "SetTime",
+      "args": {
+        "hour": "17"
+      }
+    },
+    {
+      "_comment": "Bare Glowforest carries no condition of its own — confirms the gate is condition-driven, not a hidden biome special-case.",
+      "type": "Probe",
+      "args": {
+        "probeName": "map_sky_blacked_out",
+        "expectedValue": "0",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "_comment": "Open-sky baseline for the shadow claim, identical setup to sky_blackout_gate.json's own low-sun baseline.",
+      "type": "Probe",
+      "args": {
+        "probeName": "moon_shadow_render",
+        "expectedValue": "0.7782",
+        "tolerance": "0.02"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "unnatural_darkness_a_baseline_open.png"
+      }
+    },
+    {
+      "_comment": "THE CONDITION UNDER TEST. agedHours 1 (2500 ticks) is comfortably past TransitionTicks' 300-tick fade-in, so the event is at full coverage rather than mid-ramp — the fine-grained mid-fade clamp behaviour (floor still applies while it's the darker of the two options) is covered directly by NightRadianceMathTests.EffectiveMinNightBrightness_UnnaturalDarkness_FloorDarkerThanEvent_FloorApplies, which does not need a live tick offset to pin. durationHours 24 is comfortably longer than the scenario needs to run.",
+      "type": "StartCondition",
+      "args": {
+        "conditionDef": "UnnaturalDarkness",
+        "durationHours": "24",
+        "agedHours": "1"
+      }
+    },
+    {
+      "_comment": "THE GATE FIX. Pre-fix this read 0: MapSky.SkyBlackedOut only checked `is GameCondition_NoSunlight`, and GameCondition_UnnaturalDarkness derives from GameCondition_ForceWeather.",
+      "type": "Probe",
+      "args": {
+        "probeName": "map_sky_blacked_out",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "_comment": "Shadows suppressed, same mechanism and same target value as sky_blackout_gate.json's DarkenedSkies case: SkyManager composes conditions with SkyColorSet.LerpDarken (per-channel MIN), so Patch_ShadowStrength writing 0 is what actually whitens the shadow material — the condition's own EclipseSkyColors.shadow == Color.white was always a LerpDarken no-op.",
+      "type": "Probe",
+      "args": {
+        "probeName": "moon_shadow_render",
+        "expectedValue": "1.0",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "_comment": "GAMEPLAY-CRITICAL, not merely cosmetic: this is the value Anomaly's own AffectedByDarkness/DarknessExposure hediff mechanic keys off, plant growth and solar panels too. §5's night floor stands DOWN under SkyBlackedOut (Patch_NightRadiance), so nothing in this mod may lift it back up — the same 'gameplay-inert' invariant sky_blackout_gate.json pins for DarkenedSkies.",
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_glow",
+        "expectedValue": "0.0",
+        "tolerance": "0.02"
+      }
+    },
+    {
+      "_comment": "THE FLOOR FIX, under the shipped Cinematic preset (MinNightBrightness 0.50 — see harness-preset-must-be-shipped-default). Composed glow is 0, so §7a's overlay-darkening t is exactly 1 regardless of any floor: Color.Lerp(previous, opaqueBlack, 1) == opaqueBlack, independent of what 'previous' was. If MinNightBrightness's unconditional override ever regressed back to lifting brightness during UnnaturalDarkness, this is where it would show: something well above 0.",
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_overlay_luminance",
+        "expectedValue": "0.0",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "unnatural_darkness_b_event_cinematic_floor.png"
+      }
+    },
+    {
+      "_comment": "THE EQUIVALENCE CHECK. Forcing MinNightBrightness to a literal 0 (true pitch-black, no accessibility floor at all) must read IDENTICAL to the Cinematic 0.50 floor above — proving the event has already reached its own full darkness and the floor was never the thing standing between the player and it. If the two frames differed, the Cinematic preset would still be washing the event out by some amount, just not all the way back to the ordinary-night floor.",
+      "type": "SetFeature",
+      "args": {
+        "featureName": "pitch_black_true",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_overlay_luminance",
+        "expectedValue": "0.0",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "unnatural_darkness_c_event_true_black.png"
+      }
+    },
+    {
+      "_comment": "Restore the shipped preset before the run ends — pitch_black_true has no per-scenario reset.",
+      "type": "SetFeature",
+      "args": {
+        "featureName": "pitch_black_true",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Assert",
+      "args": {
+        "kind": "vision",
+        "images": "unnatural_darkness_a_baseline_open.png, unnatural_darkness_b_event_cinematic_floor.png",
+        "prompt": "Two frames of the same colony at the same late-afternoon hour, on the same biome and tile. In the second, Anomaly's Unnatural Darkness event is active. Look at the walled structure near the centre of each frame. PASS if the first image shows visible daylight with a clear sun-angled cast shadow beside that structure, AND the second image is essentially pitch black with no visible cast shadow and no legible daylight colour. FAIL if the second image still shows a sun-angled shadow beside the structure, or still looks like a normal dim evening rather than a near-total blackout. Ignore pawn positions and plant glow; only overall darkness and the presence/absence of a directional cast shadow matter."
+      }
+    }
+  ]
+}

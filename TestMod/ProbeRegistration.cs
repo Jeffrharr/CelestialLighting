@@ -107,6 +107,10 @@ public static class ProbeRegistration
         // through. The only sky probe downstream of the map-kind gates — the other two recompute their
         // patch's input and so cannot see a gate fire at all (issue #35).
         ProbeRegistry.Register(new SkyOverlayWarmthProbe());
+        // The same material's magnitude axis — how bright the composed overlay is, downstream of
+        // BOTH the §17 blackout gate and §7a's MinNightBrightness floor. Anomaly's UnnaturalDarkness
+        // scenario reads this under different presets to prove the floor no longer washes the event out.
+        ProbeRegistry.Register(new SkyOverlayLuminanceProbe());
         // §14: one number that says whether vanilla's sky and our sun agree about day/night.
         ProbeRegistry.Register(new SunClockDisagreementProbe());
         ProbeRegistry.Register(new SunElevationProbe());
