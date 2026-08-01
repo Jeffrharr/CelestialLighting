@@ -3607,12 +3607,50 @@ property — if someone simplifies the trapezoid back to a triangle, that test f
 vacuum gate, hue ordering and normalisation, the reachability gate with its non-vacuity check, the
 floor table, its composition with `OverlayBrightnessFactor`, and the two visibility guards.
 
-Live: `Tests/Scenarios/polar_night_blue.json` probes latitude 88 / day 11 at four widely separated
-hours expecting ~1.0 at each — the dwell thesis in numeric form — then A/Bs `overlay_brightness` and
-`sky_overlay_warmth` across the feature toggle with screenshots, checks the gate fires at the same
-latitude in the opposite season (midnight sun), and sweeps equatorial dusk to show the same
-latitude-free curve producing a window under an hour wide. Run it **standalone**: `SetTile` at
-another latitude poisons the `SunClock` cache for whatever runs next.
+Live, and **measured** — these are the pinned values, not predictions:
+
+`Tests/Scenarios/polar_night_blue.json` (latitude 88, day 11) reads band strength **1.0 at hours 0,
+6, 12 and 18** — the sun never leaves the plateau, which is the dwell thesis in numeric form. The
+gate then returns exactly 0 at the same latitude in the opposite season (day 41, midnight sun). The
+A/B across the feature toggle, on the Realistic preset:
+
+| probe | §19 off | §19 on | |
+|---|---|---|---|
+| `overlay_brightness` | 0.0481 | **0.1399** | the floor arm: 2.9× brighter screen |
+| `sky_overlay_warmth` | −0.0154 | **−0.0959** | the colour arm: 6.2× more blue (more negative == bluer) |
+
+**The A/B only shows up on Realistic.** Cinematic's `minNightBrightness` of 0.50 dwarfs the 0.30
+floor, so on the shipped default preset the two frames are near-identical — the scenario flips
+`realistic_preset` on and back off around the comparison.
+
+`Tests/Scenarios/polar_night_blue_equator.json` (latitude 0, day 15) pins the same latitude-free
+curve producing a *brief* window, and `sun_elevation` is pinned alongside each band value so that a
+future §14 clock change reads as a clock change rather than a §19 regression:
+
+| hour | elevation | band |
+|---|---|---|
+| 20.0 | +3.50° | 0 |
+| 20.4 | −0.83° | 0 |
+| 20.6 | −5.78° | 0.556 |
+| 20.8 | −10.73° | **1.0** |
+| 21.0 | −15.69° | 0.385 |
+| 21.2 | −20.64° | 0 |
+
+That is a window of roughly **34 minutes** (elevation −4° at ~20.53, −18° at ~21.09) against
+latitude 88's full 24 hours — a ~42× dwell ratio out of a function with no latitude term, which is
+the entire claim. The measured values match the offline math exactly (−5.78° → 0.556, −10.73° → 1.0,
+−15.69° → 0.385).
+
+**A note for whoever writes the next scenario here:** the first draft of the equatorial block probed
+hours 18–20 and read 0 everywhere, which looked like a bug. It was not — RimWorld's clock does not
+put sunset at 18:00, and at the equator the sun is still **+3.5° at hour 20**. Survey elevations with
+the `sun_elevation` probe before choosing hours; a scenario sampled where the effect is defined to be
+zero passes vacuously and proves nothing.
+
+Both scenarios are deliberately **out of `core_design_suite.txt`** and verified standalone, matching
+`sky_color_temperature.json`'s precedent. They set different latitudes, and the `SunClock` cache is
+latitude-blind, so batching them behind another latitude-setting scenario is an unverified risk for
+no benefit.
 
 `ApiCompatibilityTests` needs no new assertions — `WeatherWorker.CurSkyTarget`, `SkyTarget.colors`,
 `SkyColorSet.sky`/`.overlay`, `SkyManager.SkyManagerUpdate` and `MatBases.LightOverlay`/`FogOfWar`
