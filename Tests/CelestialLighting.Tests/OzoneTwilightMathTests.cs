@@ -22,6 +22,17 @@ public class OzoneTwilightMathTests
     // because the adapter needs UnityEngine and cannot be linked into this project.
     private const float SkyBlend = 0.45f;
 
+    // The latitude every pre-issue-#82 assertion below is expressed at, so the numbers those tests
+    // pin are still exactly the numbers they pinned when the column was one global constant. Using
+    // the named pivot rather than a literal 45 means that if the pivot ever moves, these read as a
+    // deliberate recalibration rather than silently drifting off their measured anchors.
+    private const float PivotLatitude = OzoneTwilightMath.ColumnPivotLatitudeDegrees;
+
+    // A high-latitude tile inside civil polar night — the same latitude Tests/Scenarios/
+    // polar_night_blue.json holds, so the offline column assertions and the live A/B describe the
+    // same place.
+    private const float PolarLatitude = 88f;
+
     // --- BandStrength: the trapezoid envelope ---
 
     [TestCase(45f, 0f)] // broad daylight
@@ -118,14 +129,22 @@ public class OzoneTwilightMathTests
     /// The whole hue rests on the cross-section ordering R > G >> B. This is the exact inverse of
     /// §8's BlackbodyToRgb_StaysWarm_AcrossOurWholeRange (which asserts R >= G >= B), and that
     /// inversion is precisely why the two subsystems cannot share a file.
+    ///
+    /// Swept across latitude as well as elevation since issue #82: the column now varies, and the
+    /// hue ordering is the one property that must survive at every column depth — a tropical map
+    /// gets a shallower notch, never a differently-signed one.
     /// </summary>
-    [TestCase(-4f)]
-    [TestCase(-7.2f)]
-    [TestCase(-12f)]
-    [TestCase(-18f)]
-    public void ChappuisTransmission_IsBlue(float elevation)
+    [TestCase(-4f, 0f)]
+    [TestCase(-7.2f, 0f)]
+    [TestCase(-4f, PivotLatitude)]
+    [TestCase(-7.2f, PivotLatitude)]
+    [TestCase(-12f, PivotLatitude)]
+    [TestCase(-18f, PivotLatitude)]
+    [TestCase(-7.2f, PolarLatitude)]
+    [TestCase(-12f, PolarLatitude)]
+    public void ChappuisTransmission_IsBlue(float elevation, float latitude)
     {
-        SkyColorTemperature.Rgb rgb = OzoneTwilightMath.ChappuisTransmission(elevation);
+        SkyColorTemperature.Rgb rgb = OzoneTwilightMath.ChappuisTransmission(elevation, latitude);
         Assert.That(rgb.B, Is.GreaterThan(rgb.G), "blue must survive the notch better than green");
         Assert.That(rgb.G, Is.GreaterThan(rgb.R), "green must survive better than red (603 nm is the band peak)");
     }
@@ -134,14 +153,22 @@ public class OzoneTwilightMathTests
     /// Pins the multiply-channel correction: the transmission must carry HUE ONLY. If the maximum
     /// channel ever drifts below 1 the adapter would be smuggling a brightness change into a patch
     /// documented as colour-only, and §7a would multiply it away anyway.
+    ///
+    /// Latitude matters here too (issue #82): a deeper polar column attenuates every channel harder,
+    /// so if the normalisation were ever dropped the polar case is where the smuggled brightness
+    /// loss would be largest.
     /// </summary>
-    [TestCase(-4f)]
-    [TestCase(-7.2f)]
-    [TestCase(-12f)]
-    [TestCase(-18f)]
-    public void ChappuisTransmission_IsLuminanceNormalised(float elevation)
+    [TestCase(-4f, 0f)]
+    [TestCase(-12f, 0f)]
+    [TestCase(-4f, PivotLatitude)]
+    [TestCase(-7.2f, PivotLatitude)]
+    [TestCase(-12f, PivotLatitude)]
+    [TestCase(-18f, PivotLatitude)]
+    [TestCase(-12f, PolarLatitude)]
+    [TestCase(-18f, PolarLatitude)]
+    public void ChappuisTransmission_IsLuminanceNormalised(float elevation, float latitude)
     {
-        SkyColorTemperature.Rgb rgb = OzoneTwilightMath.ChappuisTransmission(elevation);
+        SkyColorTemperature.Rgb rgb = OzoneTwilightMath.ChappuisTransmission(elevation, latitude);
         float brightest = System.MathF.Max(rgb.R, System.MathF.Max(rgb.G, rgb.B));
         Assert.That(brightest, Is.EqualTo(1f).Within(Tolerance));
     }
@@ -157,7 +184,7 @@ public class OzoneTwilightMathTests
         float previousRedOverBlue = 2f;
         for (float elevation = 0f; elevation >= OzoneTwilightMath.BluePlateauEndDegrees; elevation -= 0.25f)
         {
-            SkyColorTemperature.Rgb rgb = OzoneTwilightMath.ChappuisTransmission(elevation);
+            SkyColorTemperature.Rgb rgb = OzoneTwilightMath.ChappuisTransmission(elevation, PivotLatitude);
             float redOverBlue = rgb.R / rgb.B;
             Assert.That(redOverBlue, Is.LessThan(previousRedOverBlue),
                 $"hue stopped deepening at elevation {elevation}");
@@ -179,7 +206,7 @@ public class OzoneTwilightMathTests
     [Test]
     public void GroundRedAttenuation_ExceedsVisibleThreshold()
     {
-        float attenuation = 1f - GroundChannelFactor(OzoneTwilightMath.BluePeakDegrees, VanillaNightR, 0);
+        float attenuation = 1f - GroundChannelFactor(OzoneTwilightMath.BluePeakDegrees, PivotLatitude, VanillaNightR, 0);
         Assert.That(attenuation, Is.GreaterThan(0.20f),
             "the blue must be visible through the multiply overlay, not another §9-style dead end");
     }
@@ -190,9 +217,9 @@ public class OzoneTwilightMathTests
     [Test]
     public void GroundRedAttenuation_GrowsAsTheSunSinks()
     {
-        float atOnset = 1f - GroundChannelFactor(-5f, VanillaNightR, 0);
-        float atPeak = 1f - GroundChannelFactor(OzoneTwilightMath.BluePeakDegrees, VanillaNightR, 0);
-        float atPlateau = 1f - GroundChannelFactor(OzoneTwilightMath.BluePlateauEndDegrees, VanillaNightR, 0);
+        float atOnset = 1f - GroundChannelFactor(-5f, PivotLatitude, VanillaNightR, 0);
+        float atPeak = 1f - GroundChannelFactor(OzoneTwilightMath.BluePeakDegrees, PivotLatitude, VanillaNightR, 0);
+        float atPlateau = 1f - GroundChannelFactor(OzoneTwilightMath.BluePlateauEndDegrees, PivotLatitude, VanillaNightR, 0);
 
         Assert.That(atPeak, Is.GreaterThan(atOnset));
         Assert.That(atPlateau, Is.GreaterThan(atPeak));
@@ -202,9 +229,9 @@ public class OzoneTwilightMathTests
     /// Reproduces what the adapter does to one channel of vanilla's night sky, then expresses it as
     /// the factor the multiply overlay applies to the ground. channel: 0 = R, 1 = G, 2 = B.
     /// </summary>
-    private static float GroundChannelFactor(float elevation, float vanillaChannel, int channel)
+    private static float GroundChannelFactor(float elevation, float latitude, float vanillaChannel, int channel)
     {
-        SkyColorTemperature.Rgb hue = OzoneTwilightMath.ChappuisTransmission(elevation);
+        SkyColorTemperature.Rgb hue = OzoneTwilightMath.ChappuisTransmission(elevation, latitude);
         float hueChannel = channel == 0 ? hue.R : (channel == 1 ? hue.G : hue.B);
 
         // The adapter scales the pure hue against the colour it blends from, so the tint stays
@@ -212,6 +239,214 @@ public class OzoneTwilightMathTests
         float target = hueChannel * VanillaNightB;
         float blended = vanillaChannel + (target - vanillaChannel) * SkyBlend;
         return blended / vanillaChannel;
+    }
+
+    // --- OzoneColumnForLatitude: the absorber abundance (issue #82) ---
+    //
+    // Read the two latitude paragraphs in OzoneTwilightMath's header before touching anything here.
+    // These tests are about N_column, the number of molecules along the path. They are NOT the
+    // latitude term §19 rejected, which was about the path's GEOMETRY and is still rejected — none
+    // of the BandStrength or SlantAirmass tests above gained a latitude argument, and that is the
+    // whole point.
+
+    /// <summary>
+    /// THE regression pin for issue #82: at the pivot the curve must return the single constant the
+    /// subsystem was calibrated against, so the entire pre-#82 measured record — the transmission
+    /// table in DESIGN.md §19, the 24.2% red attenuation, the ~20,000 K CCT cross-check — still
+    /// describes a mid-latitude map exactly. A latitude curve that moved the midpoint would have
+    /// invalidated all of it silently.
+    ///
+    /// Asserted as a RELATIVE tolerance rather than Tolerance's absolute 0.0005 because these are
+    /// 1e18-scale floats where an absolute epsilon is meaningless: float carries ~7 significant
+    /// digits, and the curve reaches the pivot through a sine, so "exactly" here means "to the
+    /// precision the type has", not "bit-identical".
+    /// </summary>
+    [Test]
+    public void OzoneColumnForLatitude_ReproducesTheGlobalMeanAtThePivot()
+    {
+        float atPivot = OzoneTwilightMath.OzoneColumnForLatitude(PivotLatitude);
+        Assert.That(atPivot, Is.EqualTo(OzoneTwilightMath.OzoneColumn).Within(0.001f).Percent);
+    }
+
+    /// <summary>
+    /// The climatology the curve is fitted to, in Dobson Units so the numbers are checkable against
+    /// published zonal means rather than against our own molecules/cm² scaling: ~260 DU over the
+    /// tropics, 300 DU at mid-latitudes, 380-420 DU at high latitudes. Tolerances are wide on
+    /// purpose — this pins the SHAPE, not a fit to three decimal places, and a reader retuning the
+    /// shape function should be able to do so without repainting this table.
+    /// </summary>
+    [TestCase(0f, 260f)] // Brewer-Dobson's rising branch: young, ozone-poor tropical air
+    [TestCase(15f, 261f)] // still flat — the tropical column barely moves out to ~20 degrees
+    [TestCase(30f, 270f)] // the subtropical gradient starting to bite
+    [TestCase(PivotLatitude, 300f)] // the global mean, and today's constant
+    [TestCase(60f, 350f)]
+    [TestCase(70f, 385f)] // where polar night actually happens
+    [TestCase(80f, 410f)]
+    [TestCase(90f, 420f)] // forced by the other anchors, not chosen; lands in the Arctic-spring range
+    public void OzoneColumnForLatitude_MatchesTheClimatology(float latitude, float expectedDobsonUnits)
+    {
+        float dobsonUnits = OzoneTwilightMath.OzoneColumnForLatitude(latitude) / OzoneTwilightMath.OzoneColumn * 300f;
+        Assert.That(dobsonUnits, Is.EqualTo(expectedDobsonUnits).Within(2f));
+    }
+
+    /// <summary>
+    /// Poleward transport only ever piles ozone UP, so the column must never thin as |latitude|
+    /// grows. The failure this guards is a shape function that folds back over — sin⁴ does exactly
+    /// that past 90 degrees, which is why PolewardColumnShape clamps before the sine.
+    /// </summary>
+    [Test]
+    public void OzoneColumnForLatitude_IsMonotonicNonDecreasing_InAbsoluteLatitude()
+    {
+        float previous = OzoneTwilightMath.OzoneColumnForLatitude(0f);
+        for (float latitude = 0f; latitude <= 120f; latitude += 0.5f)
+        {
+            float current = OzoneTwilightMath.OzoneColumnForLatitude(latitude);
+            Assert.That(current, Is.GreaterThanOrEqualTo(previous), $"column thinned going poleward at latitude {latitude}");
+            previous = current;
+        }
+    }
+
+    /// <summary>
+    /// Hemispheric symmetry, which is the constraint that ruled out a straight |latitude| ramp: the
+    /// column is an even function of latitude, so a southern tile must read exactly as its northern
+    /// mirror. (The real ANNUAL cycle is antisymmetric between hemispheres, but §82 ships the
+    /// latitude half only — see DESIGN.md §19b on why the seasonal term was deferred.)
+    /// </summary>
+    [TestCase(0f)]
+    [TestCase(23.44f)]
+    [TestCase(PivotLatitude)]
+    [TestCase(PolarLatitude)]
+    public void OzoneColumnForLatitude_IsSymmetricAcrossTheEquator(float latitude)
+    {
+        float north = OzoneTwilightMath.OzoneColumnForLatitude(latitude);
+        float south = OzoneTwilightMath.OzoneColumnForLatitude(-latitude);
+        Assert.That(south, Is.EqualTo(north).Within(0.001f).Percent);
+    }
+
+    /// <summary>
+    /// The notch must deepen with latitude at a FIXED elevation — same slant path, more absorber
+    /// along it. This is the property that distinguishes issue #82's change from the geometry term
+    /// §19 rejected: the airmass argument is held constant throughout and only the column moves.
+    /// </summary>
+    [TestCase(-5f)]
+    [TestCase(-7.2f)]
+    [TestCase(-12f)]
+    public void ChappuisTransmission_DeepensWithLatitude_AtFixedElevation(float elevation)
+    {
+        float previousRedOverBlue = float.MaxValue;
+        for (float latitude = 0f; latitude <= 90f; latitude += 5f)
+        {
+            SkyColorTemperature.Rgb rgb = OzoneTwilightMath.ChappuisTransmission(elevation, latitude);
+            float redOverBlue = rgb.R / rgb.B;
+            Assert.That(redOverBlue, Is.LessThanOrEqualTo(previousRedOverBlue),
+                $"the notch got shallower going poleward at latitude {latitude}");
+            previousRedOverBlue = redOverBlue;
+        }
+
+        // Non-vacuity: the sweep above is satisfied by a flat curve, so pin that the two ends
+        // genuinely differ. Blue is 1 after normalisation, so R/B is just R — spelled out as the
+        // ratio anyway to stay in the same units the sweep uses.
+        SkyColorTemperature.Rgb equator = OzoneTwilightMath.ChappuisTransmission(elevation, 0f);
+        Assert.That(previousRedOverBlue, Is.LessThan(equator.R / equator.B * 0.95f),
+            "the pole must be measurably deeper than the equator, not merely non-worse");
+    }
+
+    /// <summary>
+    /// Issue #82's payoff, and the guard the ticket asked for: the existing 20% visibility threshold
+    /// must still be cleared at high latitude, and cleared by MORE than the old global-mean column
+    /// managed. That "by more" half is the part that matters — a change that only preserved the
+    /// threshold would have delivered nothing where the complaint (#78) originates.
+    /// </summary>
+    [Test]
+    public void GroundRedAttenuation_AtPolarLatitude_ClearsTheThresholdByMoreThanThePivot()
+    {
+        float atPivot = 1f - GroundChannelFactor(OzoneTwilightMath.BluePeakDegrees, PivotLatitude, VanillaNightR, 0);
+        float atPole = 1f - GroundChannelFactor(OzoneTwilightMath.BluePeakDegrees, PolarLatitude, VanillaNightR, 0);
+
+        Assert.That(atPole, Is.GreaterThan(0.20f), "polar night must still clear the visibility threshold");
+        Assert.That(atPole, Is.GreaterThan(atPivot), "the poleward column must deepen the blue, not merely preserve it");
+    }
+
+    /// <summary>
+    /// §19's standing requirement that the equator is not artificially zeroed, restated for the
+    /// column: the tropical map gets a THINNER absorber, never an absent one. A curve that ran the
+    /// tropics down toward zero would delete the brief equatorial blue hour by the back door — the
+    /// exact outcome the elevation-only geometry was chosen to avoid — while looking like a
+    /// physical refinement.
+    ///
+    /// Held against the 20% threshold rather than merely against zero because "non-zero" is a
+    /// uselessly weak bar next to §9's measured 0.001 dead ends: the equatorial blue must still be
+    /// something a player could see during its ~34-minute window.
+    /// </summary>
+    [Test]
+    public void EquatorialBlueHour_StaysVisible()
+    {
+        float atEquator = 1f - GroundChannelFactor(OzoneTwilightMath.BluePeakDegrees, 0f, VanillaNightR, 0);
+        float atPivot = 1f - GroundChannelFactor(OzoneTwilightMath.BluePeakDegrees, PivotLatitude, VanillaNightR, 0);
+
+        Assert.That(atEquator, Is.GreaterThan(0.20f), "the equatorial blue hour must stay visible, not just non-zero");
+        Assert.That(atEquator, Is.LessThan(atPivot), "the tropics must be the shallow end of the gradient");
+        Assert.That(OzoneTwilightMath.BandStrength(OzoneTwilightMath.BluePeakDegrees, inVacuum: false),
+            Is.EqualTo(1f).Within(Tolerance),
+            "the band envelope itself must still be latitude-blind — the geometry argument is unchanged");
+    }
+
+    /// <summary>
+    /// The cross-subsystem invariant, expressed purely within §19's own inputs: the ozone layer sits
+    /// at 20-30 km, above the bulk atmosphere and far above the boundary layer, so a mountain map
+    /// and a polluted map cross the same ozone column as a sea-level clean one. §8 is where site
+    /// altitude and aerosol loading belong (issues #81 and #83); §19 must never grow a second copy
+    /// of them.
+    ///
+    /// Enforced as a SIGNATURE guard rather than a value comparison, because the invariant is about
+    /// what the function is allowed to depend on and there is deliberately no altitude input here to
+    /// vary. If someone later threads one in, this fails and sends them to the paragraph above
+    /// rather than letting the two subsystems' location terms quietly bleed together.
+    /// </summary>
+    [Test]
+    public void OzoneTwilightMath_TakesNoSiteAltitudeOrAerosolInput()
+    {
+        string[] banned = { "altitude", "aerosol", "pollution", "haze", "smog", "turbidity", "boundarylayer" };
+
+        foreach (System.Reflection.MemberInfo member in typeof(OzoneTwilightMath).GetMembers())
+        {
+            AssertNameIsClean(member.Name, banned, "member");
+        }
+
+        foreach (System.Reflection.MethodInfo method in typeof(OzoneTwilightMath).GetMethods())
+        {
+            foreach (System.Reflection.ParameterInfo parameter in method.GetParameters())
+            {
+                AssertNameIsClean(parameter.Name!, banned, $"parameter of {method.Name}");
+            }
+        }
+    }
+
+    private static void AssertNameIsClean(string name, string[] banned, string what)
+    {
+        string lowered = name.ToLowerInvariant();
+        foreach (string term in banned)
+        {
+            Assert.That(lowered.Contains(term), Is.False,
+                $"§19 grew a '{term}' {what} ('{name}') — site altitude and air quality belong to §8, not to a 20-30 km layer");
+        }
+    }
+
+    /// <summary>
+    /// Pins the exact shape of the impure boundary the adapter has to satisfy: the hue is a function
+    /// of sun elevation and latitude, in that order, and of nothing else. Guards the ordering as much
+    /// as the arity — both arguments are floats in degrees, so a transposed call site would compile
+    /// silently and produce a plausible-looking wrong colour.
+    /// </summary>
+    [Test]
+    public void ChappuisTransmission_TakesElevationThenLatitude()
+    {
+        System.Reflection.ParameterInfo[] parameters =
+            typeof(OzoneTwilightMath).GetMethod(nameof(OzoneTwilightMath.ChappuisTransmission))!.GetParameters();
+
+        Assert.That(parameters.Length, Is.EqualTo(2));
+        Assert.That(parameters[0].Name, Is.EqualTo("elevationDegrees"));
+        Assert.That(parameters[1].Name, Is.EqualTo("latitudeDegrees"));
     }
 
     // --- CanReachBandToday: the gate ---

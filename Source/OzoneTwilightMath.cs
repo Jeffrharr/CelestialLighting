@@ -29,6 +29,26 @@ namespace CelestialLighting;
 // than a constant we wrote down. Adding Formulas.LatitudeStrength here would double-count, since
 // latitude already enters through elevation.
 //
+// WHY THERE IS NEVERTHELESS A LATITUDE-KEYED OZONE COLUMN, AND WHY THAT IS NOT THE PARAGRAPH ABOVE
+// QUIETLY REVERSED (issue #82). Beer-Lambert is tau = sigma * N_column * airmass, three independent
+// factors. The paragraph above is entirely an argument about AIRMASS — the GEOMETRY of the slant
+// path — and it stands unchanged: the path length is set by the sun's altitude relative to the
+// layer, so it is elevation-keyed and nothing else. N_column is a different factor. It is not a
+// path length, it is HOW MUCH ABSORBER SITS ALONG THAT PATH, and on Earth that is emphatically not
+// globally uniform: the Brewer-Dobson circulation lifts ozone in the tropics and transports it
+// poleward, piling it up at high latitudes. Real total columns run ~260 DU over the tropics against
+// ~380-420 DU at high latitudes in spring. Same slant path, more molecules per unit length.
+//
+// The distinction that keeps the two from colliding: scaling the AIRMASS by latitude would be
+// double-counting, because latitude already reaches the airmass through elevation. Scaling the
+// COLUMN by latitude is not, because nothing else in the file expresses it — before this it was one
+// hardcoded number. sigma comes from published tables and airmass comes from the sun; N_column was
+// the only one of the three still pinned to a constant, and this makes it as honest as the other
+// two. Note what is deliberately NOT done here: no latitude threshold, no polar special case, and
+// no change to BandStrength. The band still opens and closes on elevation alone at every latitude,
+// so polar night still emerges from dwell time and the equator keeps its brief blue hour — it is
+// simply a slightly shallower blue there, which is what the measurements say.
+//
 // WHY THIS IS NOT A COLOUR TEMPERATURE, and this is the decision the whole subsystem turns on. The
 // obvious design is SkyColorTemperature.BlackbodyToRgb(20000) from the published ~20,000 K CCT
 // measured at -7.2 degrees. It does not work, and the arithmetic says so before any code runs.
@@ -86,11 +106,68 @@ public static class OzoneTwilightMath
     public const float CrossSectionGreen = 3.80e-21f;
     public const float CrossSectionBlue = 0.10e-21f;
 
-    // Vertical ozone column, molecules/cm^2 — 300 Dobson Units, the standard global mean. At the
-    // Chappuis peak this is a vertical optical depth of only 0.042 (about 4% absorbed straight
-    // overhead), which is exactly why the effect is invisible by day and dominant at twilight: the
-    // slant path below multiplies it by tens.
+    // --- The absorber: how much ozone is actually up there (issue #82) ---
+    //
+    // Vertical ozone column at the PIVOT LATITUDE, molecules/cm^2 — 300 Dobson Units, the standard
+    // global mean. At the Chappuis peak this is a vertical optical depth of only 0.042 (about 4%
+    // absorbed straight overhead), which is exactly why the effect is invisible by day and dominant
+    // at twilight: the slant path below multiplies it by tens.
+    //
+    // This stays the name and the number it always was, and OzoneColumnForLatitude reproduces it
+    // exactly at the pivot, so the whole existing calibration survives as the MIDPOINT of the new
+    // curve rather than being replaced by it. Everything below only moves away from this value.
     public const float OzoneColumn = 8.07e18f;
+
+    // Where the global mean actually sits on the poleward gradient. 300 DU is the global mean AND
+    // roughly the mid-latitude value, which is the happy accident that lets the curve be added
+    // without recalibrating anything: at 45 degrees OzoneColumnForLatitude returns OzoneColumn
+    // unchanged, so every number in DESIGN.md §19's transmission table still describes a
+    // mid-latitude map exactly as measured.
+    public const float ColumnPivotLatitudeDegrees = 45f;
+
+    // The two ends of the gradient, as fractions of the 300 DU pivot so the pin above is structural
+    // rather than a coincidence of three independently-rounded constants.
+    //
+    // 260 DU is the tropical value: the Brewer-Dobson circulation's rising branch is over the
+    // tropics, so tropical air is young, ozone-poor and continually exported poleward.
+    public const float TropicalColumnFraction = 260f / 300f;
+
+    // 420 DU at the pole is NOT a third free parameter — it is FORCED by the other two plus the
+    // shape function, and is worth reading as a prediction rather than a setting: with a sin^4
+    // profile, 260 DU at the equator and 300 DU at 45 degrees (where sin^4 = 1/4) leaves
+    // 260 + 4*(300-260) = 420 and no freedom at all. That it lands squarely inside the observed
+    // Arctic-spring range (380-420 DU) is the check on the shape, not an input to it.
+    public const float PolarColumnFraction = 420f / 300f;
+
+    // Vertical ozone column over a given latitude, molecules/cm^2. Monotonically non-decreasing in
+    // |latitude| by construction, which is the property the hue tests pin.
+    //
+    // WHY sin^4 RATHER THAN A RAMP IN |latitude|. Two things constrain the shape and between them
+    // they leave little room. First, hemispheric symmetry: the column must be an EVEN function of
+    // latitude, and smooth across the equator — a straight |latitude| ramp puts a cusp there, which
+    // would read in game as the gradient reversing direction at a hard line no physical process
+    // draws. Second, both ends are observationally flat: the tropical column barely moves between
+    // 0 and 20 degrees, and the poleward pile-up saturates rather than spiking at the pole. sin^4
+    // has zero derivative at both ends and puts its steepest gradient near 55 degrees, which is
+    // where the real subtropical-to-midlatitude gradient actually lives. It is a fit to the shape
+    // of the climatology, not a derivation from the circulation, and it is deliberately kept to one
+    // line for that reason.
+    public static float OzoneColumnForLatitude(float latitudeDegrees)
+    {
+        float poleward = PolewardColumnShape(latitudeDegrees);
+        float fraction = TropicalColumnFraction + (PolarColumnFraction - TropicalColumnFraction) * poleward;
+        return OzoneColumn * fraction;
+    }
+
+    // 0 at the equator rising to 1 at the pole. |latitude| is clamped to 90 before the sine so a
+    // caller handing in an out-of-range or wrapped latitude gets the polar value rather than sin^4
+    // folding back DOWN past 90 degrees and silently thinning the column at the pole.
+    private static float PolewardColumnShape(float latitudeDegrees)
+    {
+        float sine = MathF.Sin(Min(Abs(latitudeDegrees), 90f) * RadiansPerDegree);
+        float sineSquared = sine * sine;
+        return sineSquared * sineSquared;
+    }
 
     // --- The elevation band ---
     //
@@ -186,8 +263,21 @@ public static class OzoneTwilightMath
         return depthBelowHorizon * MaxSlantAirmass;
     }
 
-    // Beer-Lambert transmission through the Chappuis band at this sun elevation, normalised to a
-    // pure hue.
+    // Beer-Lambert transmission through the Chappuis band at this sun elevation and latitude,
+    // normalised to a pure hue.
+    //
+    // The two arguments are the two independent halves of tau: elevation sets the PATH LENGTH
+    // through the layer (SlantAirmass) and latitude sets the ABSORBER DENSITY along it
+    // (OzoneColumnForLatitude). They are not interchangeable and neither substitutes for the other
+    // — see the header's two latitude paragraphs, which exist so this signature does not read as a
+    // reversal of a settled decision.
+    //
+    // NOTE WHAT IS NOT AN ARGUMENT HERE, because it is a standing invariant rather than an
+    // oversight: site altitude and local air quality. The ozone layer sits at 20-30 km, above the
+    // bulk of the atmosphere and far above the boundary layer where terrain height and aerosol
+    // loading live, so a mountain map and a polluted map cross the SAME ozone column as a sea-level
+    // clean one. §8's location terms and §19's must not bleed into each other, and the tests hold
+    // that as a signature-level guard.
     //
     // NORMALISATION MATTERS. We divide by the maximum channel (always blue, since its cross section
     // is ~50x smaller than red's) so the result carries hue and nothing else. Without it the
@@ -195,13 +285,14 @@ public static class OzoneTwilightMath
     // calling colour-only — and brightness belongs to OverlayFloor alone, because §7a runs later on
     // the composed material and lerps toward opaque black, so any brightness added here would be
     // multiplied away regardless. See DESIGN.md §19.
-    public static SkyColorTemperature.Rgb ChappuisTransmission(float elevationDegrees)
+    public static SkyColorTemperature.Rgb ChappuisTransmission(float elevationDegrees, float latitudeDegrees)
     {
         float airmass = SlantAirmass(elevationDegrees);
+        float column = OzoneColumnForLatitude(latitudeDegrees);
 
-        float red = Transmission(CrossSectionRed, airmass);
-        float green = Transmission(CrossSectionGreen, airmass);
-        float blue = Transmission(CrossSectionBlue, airmass);
+        float red = Transmission(CrossSectionRed, column, airmass);
+        float green = Transmission(CrossSectionGreen, column, airmass);
+        float blue = Transmission(CrossSectionBlue, column, airmass);
 
         // Blue is always the largest by construction (smallest cross section), but take the real max
         // rather than assuming it, so a future edit to the constants cannot silently produce a
@@ -210,8 +301,11 @@ public static class OzoneTwilightMath
         return new SkyColorTemperature.Rgb(red / brightest, green / brightest, blue / brightest);
     }
 
-    private static float Transmission(float crossSection, float airmass) =>
-        MathF.Exp(-crossSection * OzoneColumn * airmass);
+    // The whole of Beer-Lambert, and the reason the three factors are three separate arguments: each
+    // one is owned by a different part of the model (published tables, latitude, sun elevation) and
+    // keeping them separate is what stopped N_column being invisible when it was a constant.
+    private static float Transmission(float crossSection, float column, float airmass) =>
+        MathF.Exp(-crossSection * column * airmass);
 
     // How much of the Chappuis hue applies right now, in [0, 1] — a trapezoid on elevation: 0 above
     // BlueOnsetDegrees, rising to 1 at BluePeakDegrees, HELD FLAT to BluePlateauEndDegrees, falling
@@ -264,6 +358,8 @@ public static class OzoneTwilightMath
         float polarFloor = DefaultOverlayFloor * bandStrength * tintStrength;
         return Max(baseMinBrightness, polarFloor);
     }
+
+    private const float RadiansPerDegree = MathF.PI / 180f;
 
     private static float Abs(float v) => v < 0f ? -v : v;
     private static float Min(float a, float b) => a < b ? a : b;

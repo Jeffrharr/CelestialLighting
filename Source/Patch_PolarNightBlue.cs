@@ -51,7 +51,21 @@ public static class Patch_PolarNightBlue
         if (tint <= 0f)
             return;
 
-        SkyColorTemperature.Rgb hue = OzoneTwilightMath.ChappuisTransmission(SolarPosition.ElevationForMap(map));
+        // The two impure reads §19's hue needs, both off the SAME memoised (map, frame) struct that
+        // every other sun-reading patch funnels through (SolarPosition.InputsForMap — GeometryMemo.cs).
+        // Latitude deliberately does NOT come from Find.WorldGrid.LongLatOf here the way
+        // LatitudeEffect's does: InputsForMap already carries it, that read is the expensive
+        // managed->native step, and a second independent read is exactly the sort of thing that
+        // drifts from the elevation it is supposed to pair with. ElevationForMap is a second memo hit
+        // on the same struct, not a second recompute.
+        SolarPosition.Inputs sun = SolarPosition.InputsForMap(map);
+        float elevation = SolarPosition.ElevationForMap(map);
+
+        // Elevation sets the slant path, latitude sets the ozone column along it (issue #82). Both
+        // are needed and neither is the "latitude term" DESIGN.md §19 rejected — that argument is
+        // about the geometry, and this is the absorber abundance. OzoneTwilightMath's header carries
+        // the full distinction.
+        SkyColorTemperature.Rgb hue = OzoneTwilightMath.ChappuisTransmission(elevation, sun.Latitude);
 
         // Scale the pure hue against the colour we are blending FROM, so the nudge stays
         // luminance-neutral. ChappuisTransmission is normalised to a maximum channel of 1, which
