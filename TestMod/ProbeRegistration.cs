@@ -50,6 +50,11 @@ public static class ProbeRegistration
         // and still show an unshifted sky, and only reading both numbers together can show that.
         ProbeRegistry.Register(new AerosolAngstromProbe());
         ProbeRegistry.Register(new SkyRedBlueRatioProbe());
+        // §20e (issue #92). The raw column both probes above are downstream of — pollution and the
+        // rainfall-keyed background, already summed and already drifted. Before §20e this read exactly
+        // 0 on any pollution-0 tile; pairing it with sky_red_blue_ratio on a clean tile is what proves
+        // the headline fix landed rather than only the colour it happens to produce this frame.
+        ProbeRegistry.Register(new AerosolLoadProbe());
 
         // §19. The band strength is the subsystem's thesis in one number: hold latitude 78 in
         // midwinter and it reads ~1.0 at every hour of the day, while latitude 0 gets a ~25-minute

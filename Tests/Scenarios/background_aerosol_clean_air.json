@@ -1,0 +1,25 @@
+{
+  "name": "background_aerosol_clean_air",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "45" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "30" } },
+    { "type": "SetTime", "args": { "hour": "19" } },
+
+    { "type": "SetTileProperties", "args": { "elevation": "0", "pollution": "0", "rainfall": "1170" } },
+    { "type": "Probe", "args": { "probeName": "aerosol_load_fraction", "expectedValue": "0", "tolerance": "0.001" } },
+    { "type": "Screenshot", "args": { "fileName": "background_clean_midpoint_rainfall.png" } },
+
+    { "type": "SetTileProperties", "args": { "elevation": "0", "pollution": "0", "rainfall": "340" } },
+    { "type": "Probe", "args": { "probeName": "aerosol_load_fraction", "expectedValue": "0", "tolerance": "0.001" } },
+    { "type": "Screenshot", "args": { "fileName": "background_clean_arid_breakpoint.png" } },
+
+    { "type": "SetTileProperties", "args": { "elevation": "0", "pollution": "0", "rainfall": "2000" } },
+    { "type": "Probe", "args": { "probeName": "aerosol_load_fraction", "expectedValue": "0", "tolerance": "0.001" } },
+    { "type": "Screenshot", "args": { "fileName": "background_clean_wet_breakpoint.png" } },
+
+    { "type": "SetTileProperties", "args": { "elevation": "4000", "pollution": "0", "rainfall": "340" } },
+    { "type": "Probe", "args": { "probeName": "aerosol_load_fraction", "expectedValue": "0", "tolerance": "0.001" } },
+    { "type": "Screenshot", "args": { "fileName": "background_clean_mountain_4000m.png" } }
+  ]
+}
