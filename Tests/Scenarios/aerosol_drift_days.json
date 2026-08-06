@@ -1,0 +1,23 @@
+{
+  "name": "aerosol_drift_days",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "45" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "30" } },
+    { "type": "SetTime", "args": { "hour": "19" } },
+    { "type": "SetTileProperties", "args": { "elevation": "0", "pollution": "1" } },
+
+    { "type": "Screenshot", "args": { "fileName": "drift_day0.png" } },
+    { "type": "AdvanceTicks", "args": { "ticks": "60000" } },
+    { "type": "Screenshot", "args": { "fileName": "drift_day1.png" } },
+    { "type": "AdvanceTicks", "args": { "ticks": "60000" } },
+    { "type": "Screenshot", "args": { "fileName": "drift_day2.png" } },
+    { "type": "AdvanceTicks", "args": { "ticks": "60000" } },
+    { "type": "Screenshot", "args": { "fileName": "drift_day3.png" } },
+    { "type": "AdvanceTicks", "args": { "ticks": "60000" } },
+    { "type": "Screenshot", "args": { "fileName": "drift_day4.png" } },
+
+    { "type": "AdvanceTicks", "args": { "ticks": "2500" } },
+    { "type": "Screenshot", "args": { "fileName": "drift_day4_plus1h.png" } }
+  ]
+}
