@@ -103,7 +103,11 @@ public static class SkyColorTemperature
     // Below this the sun is far enough down that there is no direct sunlight left to colour, so the
     // tint fades out entirely and night (subsystem 7's domain) takes over. -6° is the end of civil
     // twilight — a standard, physically-meaningful choice, not a tuned magic number.
-    private const float NightFadeFloorDegrees = -6f;
+    //
+    // Public because §19c (PurpleLightMath) is DEFINED as the window between this and §19's
+    // BlueOnsetDegrees, so it reads the boundary from here rather than writing -6 down a second
+    // time. Nothing outside this file may treat it as a knob: it is the end of civil twilight.
+    public const float NightFadeFloorDegrees = -6f;
 
     public readonly struct Rgb
     {
