@@ -1,0 +1,63 @@
+{
+  "name": "purple_light",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "45" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "11" } },
+
+    { "type": "SetTime", "args": { "hour": "20.05" } },
+    { "type": "Probe", "args": { "probeName": "sun_elevation", "expectedValue": "-3.213", "tolerance": "0.05" } },
+    { "type": "Probe", "args": { "probeName": "purple_light", "expectedValue": "0.0", "tolerance": "0.001" } },
+    { "type": "Probe", "args": { "probeName": "purple_hue_green", "expectedValue": "1.0", "tolerance": "0.001" } },
+
+    { "type": "SetTime", "args": { "hour": "20.10" } },
+    { "type": "Probe", "args": { "probeName": "sun_elevation", "expectedValue": "-4.051", "tolerance": "0.05" } },
+    { "type": "Probe", "args": { "probeName": "purple_light", "expectedValue": "0.0998", "tolerance": "0.02" } },
+
+    { "type": "SetTime", "args": { "hour": "20.15" } },
+    { "type": "Probe", "args": { "probeName": "sun_elevation", "expectedValue": "-4.891", "tolerance": "0.05" } },
+    { "type": "Probe", "args": { "probeName": "purple_light", "expectedValue": "0.988", "tolerance": "0.02" } },
+    { "type": "Probe", "args": { "probeName": "purple_hue_green", "expectedValue": "0.854", "tolerance": "0.01" } },
+
+    { "type": "SetTime", "args": { "hour": "20.20" } },
+    { "type": "Probe", "args": { "probeName": "sun_elevation", "expectedValue": "-5.733", "tolerance": "0.05" } },
+    { "type": "Probe", "args": { "probeName": "purple_light", "expectedValue": "0.463", "tolerance": "0.02" } },
+    { "type": "Probe", "args": { "probeName": "purple_hue_green", "expectedValue": "0.833", "tolerance": "0.01" } },
+
+    { "type": "SetTime", "args": { "hour": "20.25" } },
+    { "type": "Probe", "args": { "probeName": "sun_elevation", "expectedValue": "-6.577", "tolerance": "0.05" } },
+    { "type": "Probe", "args": { "probeName": "purple_light", "expectedValue": "0.0", "tolerance": "0.001" } },
+    { "type": "Probe", "args": { "probeName": "purple_hue_green", "expectedValue": "1.0", "tolerance": "0.001" } },
+
+    { "type": "SetTime", "args": { "hour": "20.15" } },
+    { "type": "SetFeature", "args": { "featureName": "purple_light", "enabled": "false" } },
+    { "type": "Probe", "args": { "probeName": "purple_light", "expectedValue": "0.0", "tolerance": "0.001" } },
+    { "type": "Probe", "args": { "probeName": "purple_sky_red", "expectedValue": "0.2662", "tolerance": "0.01" } },
+    { "type": "Probe", "args": { "probeName": "purple_sky_green", "expectedValue": "0.2848", "tolerance": "0.01" } },
+    { "type": "Probe", "args": { "probeName": "purple_sky_blue", "expectedValue": "0.0", "tolerance": "999" } },
+    { "type": "Screenshot", "args": { "fileName": "purple_off.png" } },
+    { "type": "SetFeature", "args": { "featureName": "purple_light", "enabled": "true" } },
+    { "type": "Probe", "args": { "probeName": "purple_sky_red", "expectedValue": "0.3271", "tolerance": "0.01" } },
+    { "type": "Probe", "args": { "probeName": "purple_sky_green", "expectedValue": "0.2884", "tolerance": "0.01" } },
+    { "type": "Probe", "args": { "probeName": "purple_sky_blue", "expectedValue": "0.0", "tolerance": "999" } },
+    { "type": "Screenshot", "args": { "fileName": "purple_on.png" } },
+
+    { "type": "SetTime", "args": { "hour": "20.20" } },
+    { "type": "Probe", "args": { "probeName": "purple_sky_red", "expectedValue": "0", "tolerance": "999" } },
+    { "type": "Probe", "args": { "probeName": "purple_sky_green", "expectedValue": "0", "tolerance": "999" } },
+    { "type": "Probe", "args": { "probeName": "purple_sky_blue", "expectedValue": "0", "tolerance": "999" } },
+    { "type": "Screenshot", "args": { "fileName": "purple_shoulder_on.png" } },
+    { "type": "SetFeature", "args": { "featureName": "purple_light", "enabled": "false" } },
+    { "type": "Probe", "args": { "probeName": "purple_sky_red", "expectedValue": "0", "tolerance": "999" } },
+    { "type": "Probe", "args": { "probeName": "purple_sky_green", "expectedValue": "0", "tolerance": "999" } },
+    { "type": "Probe", "args": { "probeName": "purple_sky_blue", "expectedValue": "0", "tolerance": "999" } },
+    { "type": "Screenshot", "args": { "fileName": "purple_shoulder_off.png" } },
+    { "type": "SetFeature", "args": { "featureName": "purple_light", "enabled": "true" } },
+
+    { "type": "SetTime", "args": { "hour": "20.35" } },
+    { "type": "SetFeature", "args": { "featureName": "purple_light", "enabled": "false" } },
+    { "type": "Screenshot", "args": { "fileName": "purple_outside_off.png" } },
+    { "type": "SetFeature", "args": { "featureName": "purple_light", "enabled": "true" } },
+    { "type": "Screenshot", "args": { "fileName": "purple_outside_on.png" } }
+  ]
+}
