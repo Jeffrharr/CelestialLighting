@@ -109,6 +109,12 @@ public static class Patch_SkyColorTemperature
         // than something that needs a ModsConfig gate around it.
         float aerosolFraction = SiteAltitude.AerosolFractionForMap(map);
 
+        // And what SIZE that aerosol's particles are (DESIGN.md §20c). Held at the reference
+        // exponent for now, which is the value §20b's single shipped colour was implicitly
+        // calibrated at, so this commit changes the representation without changing any sky. Keying
+        // it to the map is the next commit.
+        float angstromExponent = AerosolSpectrum.ReferenceAngstromExponent;
+
         // Note aerosolFraction is deliberately not passed to TintStrength — see the long note there.
         // §8's lane is colour-only, and aerosol's real non-colour effect is to MUTE a sunset, which
         // is §9's saturation lane and blocked behind #78. Strengthening the tint here would model it
@@ -118,7 +124,7 @@ public static class Patch_SkyColorTemperature
             return;
 
         SkyColorTemperature.Rgb rgb = SkyColorTemperature.SkyColorForElevation(
-            elevation, pressureFraction, aerosolFraction, inVacuum);
+            elevation, pressureFraction, aerosolFraction, angstromExponent, inVacuum);
         Color target = new Color(rgb.R, rgb.G, rgb.B);
 
         // Aerosol opens the blend up (see AerosolBlendBoost). At aerosolFraction 0 — every tile

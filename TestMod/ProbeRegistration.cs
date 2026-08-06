@@ -42,6 +42,13 @@ public static class ProbeRegistration
         // much desaturation that actually turned into.
         ProbeRegistry.Register(new NightDesaturationProbe());
         ProbeRegistry.Register(new SkyColorTemperatureProbe());
+        // §20c. sky_color_temperature above reports the CLEAN-AIR half of the curve and, since the
+        // aerosol's colour left the Planckian locus, no longer moves with pollution at all. These two
+        // are the aerosol half stated honestly: the exponent the tile's rainfall resolves to, and the
+        // red/blue ratio of the colour actually being blended in. The pairing is the point — the
+        // headline claim of the subsystem is that a low-exponent tile can carry a full aerosol load
+        // and still show an unshifted sky, and only reading both numbers together can show that.
+        ProbeRegistry.Register(new SkyRedBlueRatioProbe());
 
         // §19. The band strength is the subsystem's thesis in one number: hold latitude 78 in
         // midwinter and it reads ~1.0 at every hour of the day, while latitude 0 gets a ~25-minute
