@@ -4284,9 +4284,12 @@ So the physical quantity that varies between evenings is the aerosol **loading**
 ### The model: one multiplier, mean 1
 
 ```
-aerosolFraction = AtmosphericColumn.AerosolLoadFraction(h, pollution)   // §20b, unchanged
-                × (1 + amplitude · (2·fbm(t) − 1))                       // §20c
+aerosolFraction = AtmosphericColumn.AerosolLoadFraction(h, pollution, background)  // §20b + §20e
+                × (1 + amplitude · (2·fbm(t) − 1))                                  // §20c
 ```
+
+`background` is §20e's addition, landed after this section — see below and §20e for why the third
+argument exists and what it changed about the paragraph that follows.
 
 `fbm` is `AuroraNoise`'s existing layered value noise, sampled on a time axis. Three properties fall
 out of that shape rather than being tuned in:
@@ -4299,21 +4302,37 @@ out of that shape rather than being tuned in:
 - **Strictly positive by construction.** `1 + a·u` with `u ∈ [−1, 1]` is positive for any `a < 1`,
   and `MaxDriftAmplitude = 0.9` is a hard ceiling on whatever a caller passes. Positivity is
   therefore a consequence of the arithmetic, not of a clamp somebody could remove.
-- **Inert where §20b was inert.** Multiplying is what makes a zero-pollution tile stay exactly zero.
-  Every tile in a game without Biotech takes that path, so §20c needs no gate for the same reason
-  §20b needed no `ModsConfig.BiotechActive` check.
+- **Inert where the load is inert.** Multiplying is what makes a zero-load tile stay exactly zero, so
+  §20c needs no gate of its own — whatever `AerosolLoadFraction` hands it, multiplying by 1 ± amplitude
+  cannot manufacture a nonzero drift out of nothing. At the time this bullet was written that load was
+  zero on every tile in a game without Biotech, which made "no Biotech" and "no drift" the same
+  statement; §20e (below) gave every tile a small nonzero load instead, so the *gate-free* claim still
+  holds exactly but the *no-Biotech-tiles-see-nothing* claim it used to imply no longer does — see the
+  flip side immediately below, now updated for that.
 
 That last property has a flip side worth stating plainly, because it bounds what this section can
-achieve: **§20c is proportional to the tile's pollution, so it does nothing at all without Biotech
-and very little on a lightly polluted tile.** On a `pollution = 0.5` sea-level tile the ±35% moves
-§20b's horizon endpoint across roughly 1837–1662 K, which is a clear difference between two evenings;
-on a `pollution = 0.05` tile it is about ±9 K, which is nothing. That is the correct *physics* — an
-air mass carries more or less of what the local sources emit, it does not manufacture haze over a
-pristine tile — but it means "two evenings differ" is delivered only where there is something to vary.
-A drift keyed on something every tile has (a base continental aerosol background independent of
-Biotech pollution, say) would be a different and larger design, and it would move §20b's clean-air
-baseline, which is a change to a shipped curve rather than an addition on top of it. Recorded here as
-a known limit rather than smuggled past.
+achieve: **§20c is proportional to the tile's aerosol load, so at the time this section shipped it did
+nothing at all without Biotech and very little on a lightly polluted tile.** On a `pollution = 0.5`
+sea-level tile the ±35% moves §20b's horizon endpoint across roughly 1837–1662 K, which is a clear
+difference between two evenings; on a `pollution = 0.05` tile it is about ±9 K, which is nothing. That
+is the correct *physics* — an air mass carries more or less of what the local sources emit, it does
+not manufacture haze over a pristine tile — but it meant "two evenings differ" was delivered only
+where there was something to vary.
+
+**Landed as §20e**, which gives every tile a rainfall-keyed background load independent of
+`pollution`, summed into the same `AerosolLoadFraction` this section's multiplier already applies to —
+so a non-Biotech tile now has *something* for the ±35% to act on, rather than 0 × anything. It is a
+smaller something than the sea-level pollution example above, though: §20e's background sits well
+under a full pollution column (see that section's own numbers), so `amplitude = 0.35`'s ±35% is ±35%
+of a small number on a non-Biotech tile, not the wide swing shown above. Whether that reads as "a
+little weather" or "nothing" in play is unmeasured — §20e's own live verification could not run in this
+environment — and is recorded as that section's open follow-up (retune `DriftAmplitude` once it can be
+measured) rather than answered by guessing at a bigger amplitude here. What did **not** happen is
+§20b's clean-air baseline moving: §20e's background is additive on top of pollution inside
+`AerosolLoadFraction`, not a replacement of the zero-pollution case, so this section's own "inert where
+§20b was inert" property above is now stated too strongly by one word — multiplying by zero *pollution*
+no longer means multiplying by zero *aerosol* — but the drift itself still needs no gate, since it
+multiplies whatever load `AerosolLoadFraction` hands it regardless of source.
 
 `amplitude = 0.35`. Sized against what it does to the thing a player sees rather than against
 anything measured: larger values start producing evenings that look like a wildfire moved in, on a
@@ -4470,9 +4489,12 @@ evening from the one it just had).
 
 - **Widening the palette.** §20c makes a map walk around inside its range; it does not make the range
   bigger. That is a separate axis and a separate ticket.
-- **A background aerosol term independent of Biotech pollution**, which is what it would take for
-  §20c to do anything on an unpolluted tile — see the limit recorded above. It would move §20b's
-  clean-air baseline, so it is a change to a shipped curve rather than an addition on top of one.
+- **A background aerosol term independent of Biotech pollution.** **Landed as §20e**, additively rather
+  than by moving §20b's clean-air baseline (the risk this bullet originally flagged never
+  materialised — see the flip-side paragraph above). What §20e did *not* do, and what remains open: a
+  `DriftAmplitude` retune to size §20c against the smaller background load rather than only against a
+  full pollution column. Filed as follow-up work rather than done inside §20e's own PR, since it needs
+  the same live A/B measurement §20e's own verification could not get in this environment.
 - **Driving anything else with the same clock.** Cloud cover, §7's starlight extinction and §19's
   ozone column all have day-to-day variability with the same shape. `AerosolDrift` is deliberately
   named for its one consumer rather than generalised up front; the second consumer is what should
@@ -4825,6 +4847,173 @@ as doing something — is the exact error `TintStrength` exists to refuse.
 - **The §9 muting ticket** from §20b is unchanged and still keyed on the same `aerosolFraction`.
 - **Pollution's effect on §7's night sky** and the **latitude-keyed ozone column for §19** are both
   unaffected by this section.
+
+## 20e. Background aerosol — clean air is not aerosol-free (`AtmosphericColumn` / `SiteAltitude`, issue #92)
+
+§20b keyed the whole aerosol column on `Tile.pollution`, and §20b, §20c and §20d all built on that one
+fraction without questioning where it came from. `pollution = 0` is not a corner case: it is every
+tile in a game without Biotech, and most tiles even with it installed, since worldgen only writes
+pollution near industrial sites. On those tiles `aerosolFraction` was **exactly** 0 — not low, zero —
+which made §20b's warming invisible (nothing to warm), §20c's drift invisible (`x × multiplier = 0` for
+any multiplier), and §20d's hue shaping invisible (`τ · 0 = 0`, so every Ångström exponent produces an
+identical, empty transmission). Three sections' worth of work sat behind a gate that was closed on
+almost every map anyone actually plays.
+
+**It is also physically wrong on its own terms.** Real clean air is never aerosol-free. Sea salt off
+any body of water, wind-lofted dust, and biogenic organics from vegetation itself all contribute a
+background aerosol optical depth (AOD) even over pristine wilderness — measured background values run
+roughly 0.02–0.05 AOD at 550 nm for genuinely remote sites, rising to roughly 0.1 for an average
+continental background away from any specific pollution source. §20b's own text already states a
+heavy-urban AOD of "~0.3" when arguing for its calibration; those same published background ranges are
+a fraction of that same anchor, not a new, unrelated scale to invent.
+
+### Adding, not replacing
+
+The fix sums a new background term with `pollution` **inside** `AerosolLoadFraction`, before either the
+[0, 1] ceiling clamp or the altitude falloff:
+
+```csharp
+float seaLevelLoad = Clamp01(tilePollution) + Clamp01(backgroundLoadFraction);
+return AerosolColumnFraction(siteAltitudeMetres) * Clamp01(seaLevelLoad);
+```
+
+This is the same choice §20b made when it decided pollution's colour effect enters the curve once
+rather than twice (see §20b, "where it enters the curve"), generalised to a second source of the same
+species. Pollution and background are not two different kinds of haze needing two different scale
+heights or two different colour paths — they are both boundary-layer aerosol, indistinguishable to
+Mie scattering, so they belong in one sum before either of the things that already act on the total
+(the ceiling, the altitude column) rather than as a second parallel pipeline. That is also why this is
+additive rather than a replacement of the zero-pollution case: `pollution` still means exactly what it
+meant in §20b, a *human* contribution on top of the *natural* one, not a value that has to be
+reinterpreted now that a second source exists.
+
+Composing it this way for free inherits every property §20b already built and pinned: the same 1500 m
+scale height, so a mountain sits above natural haze exactly as it sits above smog (`BackgroundIsSuppressedByAltitude_TheSameWayPollutionIs`,
+mirroring §20b's own altitude table); the same ceiling clamp, so a tile that is both heavily polluted
+and naturally hazy cannot exceed a full column; and the same drift multiplier from §20c, which is what
+turns "every non-Biotech tile now has *something*" into "every non-Biotech tile now has something that
+*varies*" — see §20c's updated text above for the honest limit on how much.
+
+### Keying the background on rainfall — the "one lookup, two outputs" the issue asked for
+
+The issue suggested a biome-keyed background. §20d had already solved the equivalent problem for the
+Ångström exponent by keying on `Tile.rainfall` instead of a biome `defName` table, for a reason that
+applies here without modification: vanilla's own `BiomeWorker`s score aridity from rainfall
+(`BiomeWorker_ExtremeDesert` at the 340 mm cutoff, `BiomeWorker_TropicalRainforest` at the 2000 mm
+cutoff), so rainfall *is* the axis a biome label is derived from, keyed continuously and with no table
+for a modded biome to fall off the end of. Reusing `AerosolSpectrum`'s existing breakpoint constants
+(`DriestRainfallMillimetres`, `WettestRainfallMillimetres`) rather than duplicating them means the same
+rainfall read now drives both the aerosol *amount* (this section) and the aerosol *shape* (§20d) — one
+live read off `Tile.rainfall`, two independent pure functions of it, which is what the issue's "share
+one lookup" request actually wanted rather than a literal single accessor. `SiteAltitude`'s own header
+comment states this explicitly (see the file's "three fields off one tile" note).
+
+**Why a valley, not a straight line.** Both ends of the rainfall axis have a natural aerosol source,
+just different ones: dry ground lofts mineral dust (α ≈ 0.2's own justification in §20d), while wet
+ground supplies biogenic and sea-salt aerosol from denser vegetation and standing water. The rainfall
+*midpoint*, not either extreme, is where neither source dominates:
+
+```csharp
+public static float BackgroundAerosolFraction(float rainfallMillimetres)
+{
+    float wetness = InverseLerpClamped(
+        AerosolSpectrum.DriestRainfallMillimetres, AerosolSpectrum.WettestRainfallMillimetres,
+        rainfallMillimetres);
+    float distanceFromMidpoint = MathF.Abs(2f * wetness - 1f);
+    return Lerp(PristineBackgroundFraction, ContinentalBackgroundFraction, distanceFromMidpoint);
+}
+```
+
+`distanceFromMidpoint` is 0 at the rainfall midpoint and 1 at either breakpoint, clamped flat beyond
+them the same way `InverseLerpClamped` already clamps §20d's exponent ramp — a tile drier than the
+`ExtremeDesert` cutoff or wetter than the `TropicalRainforest` cutoff reads the same background as the
+breakpoint itself, rather than extrapolating past where the physical reasoning still applies.
+
+**Deriving the two endpoints rather than picking them.** `BackgroundAerosolAodAnchor = 0.3f` is §20b's
+own stated heavy-urban AOD, reused rather than restated as a fresh constant. `PristineBackgroundAod =
+0.035f` and `ContinentalBackgroundAod = 0.10f` are the midpoints of the two published ranges cited
+above. Dividing each by the shared anchor gives the fractions the model actually uses:
+
+| constant | AOD | ÷ 0.3 anchor | fraction |
+|---|---|---|---|
+| `PristineBackgroundFraction` | 0.035 | 0.035 / 0.3 | **0.1167** |
+| `ContinentalBackgroundFraction` | 0.10 | 0.10 / 0.3 | **0.3333** |
+
+This is the same move §20b made for its own constants throughout — a published or stated physical
+figure divided by an existing in-codebase anchor, not a number chosen to make a screenshot look right.
+It is honest about its own precision: "the midpoint of a cited range" is not a measurement, and the
+comment on each constant says so rather than implying more confidence than a midpoint has.
+
+### What is pinned offline
+
+- **Never zero, for any rainfall.** The headline fix, asserted as a sweep of `BackgroundAerosolFraction`
+  over 0–5000 mm (`BackgroundAerosolFraction_IsNeverZero`) and restated one level up as
+  `AerosolLoadFraction(0, 0, background) > 0` for the same sweep at sea level
+  (`EvenAtZeroPollution_TheSeaLevelColumnIsNeverAerosolFree`) — the second because that is the value
+  every real consumer of this file actually reads, and a pin only on the private helper would not catch
+  a regression introduced at the composition site.
+- **The valley shape at its named points**, `[TestCase]`-pinned at the rainfall midpoint (lowest,
+  `PristineBackgroundFraction`) and at both vanilla breakpoints plus 0 mm and 5000 mm (all four read
+  `ContinentalBackgroundFraction`, the flat-clamped ceiling) — `BackgroundAerosolFraction_IsAValleyBetweenTheVanillaRainfallBreakpoints`.
+- **Altitude suppression parity with pollution**, using the valley-rim (largest) background as the
+  harder case: a 4000 m tile's background load is asserted under 10% of the sea-level value, the same
+  order of magnitude §20b's own mountain-above-the-smog table shows
+  (`BackgroundIsSuppressedByAltitude_TheSameWayPollutionIs`).
+- **Additive composition and the shared ceiling**, asserted directly rather than inferred: pollution
+  alone, background alone, and both together sum before the [0, 1] clamp, and a saturated case (both at
+  their maximum) still clamps to exactly 1 rather than exceeding it
+  (`CombinesPollutionAndBackground_SummedBeforeTheCeilingClamp`).
+- **§20b's pollution-only claims survive with `background` pinned at 0.** The existing
+  `AerosolLoadFraction_ScalesTheColumnByPollutionAndClampsIt` `[TestCase]`s were not retuned — they now
+  pass `0f` explicitly for the new parameter, isolating the pollution half of the sum so a regression
+  there cannot hide behind background covering for it.
+- **§20b's monotonicity invariants, re-asserted under the shipped composition.** Both sweeps
+  (`Warmth_IsMonotonicallyNonDecreasing_InPollution`,
+  `Warmth_IsStillMonotonicallyNonIncreasing_InSiteAltitude_AtEveryPollutionLevel`) and the vacuum
+  agreement (`BothColumnsReachZeroTogether_SoTheVacuumAgreementSurvivesTheSecondSpecies`) now run with a
+  nonzero background (the valley-rim maximum) rather than 0 — proving the invariants against the case
+  that actually ships, not just the pollution-only case §20b already covered.
+
+### Compat
+
+`Tile.rainfall` is the only new live read, and it is not actually new: §20d already reads it, and
+`ApiCompatibilityTests.Tile_HasRainfall` already pins it. No new Harmony patch, no new vanilla member,
+no DLC gate — the whole point of this section is that it must not need one.
+
+`SiteAltitude.AerosolFractionForMap` grows the extra read and the extra call argument internally; its
+signature and every caller are unchanged, which is what let this land without touching
+`Patch_SkyColorTemperature` or either probe file's existing wiring at all.
+
+### Live verification: not run
+
+The task's verification bar for this section is a live before/after RimWorld screenshot comparison via
+`RimWorldTestHarness/Runner/run_test.sh`, judged by median per-pixel CIELAB ΔE, with and without
+Biotech installed. That harness repository does not exist in this development environment — it is
+referenced throughout this mod's tooling but was never checked out here, and no amount of code review
+substitutes for it. **No ΔE measurement was taken, and none is claimed.** The offline pins above show
+the *pure* math is never exactly zero and behaves the way §20b's own invariants require, which is a
+real but strictly weaker claim than "this is visible in play at a threshold worth shipping" — the
+`ContinentalBackgroundFraction` valley-rim value of 0.333 is well under half of §20b's own full-pollution
+value of 1.0, and §20b's own measurement found that its *maximum* endpoint (1500 K) needed deepening to
+1000 K before it cleared the ΔE ≈ 2 "visible at a glance" threshold. There is no basis here for assuming
+a background roughly a third the size of that already-marginal case clears it, and it would be dishonest
+to report a number that was never measured. This section is offline-correct and **not yet shippable** by
+this mod's own bar; treat it as such until a live A/B is actually run.
+
+### Out of scope, filed separately
+
+- **The live A/B measurement itself**, immediately above — this is the actual next step, not a nice-to-have.
+- **§20c's `DriftAmplitude` retune**, filed in §20c's own "out of scope" list above: `amplitude = 0.35`
+  was sized against a full pollution column, and the background load this section adds is smaller than
+  that column everywhere on the valley-shaped curve, so the same amplitude produces a proportionally
+  smaller swing on a non-Biotech tile. Whether that reads as "a little weather" or "nothing" needs the
+  same live A/B this section itself could not run, so it is not retuned blind here.
+- **A settings slider**, declined for the reason every prior aerosol section declined one: this is a
+  question for a live A/B, and a knob added before that answer exists bakes in a guess.
+- **A live probe for the raw background/load input.** §20d's precedent
+  (`aerosol_angstrom_exponent`/`sky_red_blue_ratio`, input/output pair) is the right shape for one, but
+  adding it and a `Tests/Scenarios/*.json` case without a working harness to run either against would be
+  unverified surface area rather than a real capability. Filed rather than stubbed in.
 
 ## 21. Snow albedo: the surface-cloud light cavity (`AlbedoCavityMath` / `SurfaceBuildup`)
 
