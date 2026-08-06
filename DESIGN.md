@@ -4516,14 +4516,14 @@ being right in its own private units.
 ### The decision this section turns on: subsumption, not composition
 
 §20b already expressed the aerosol's colour, as a second lerp along the locus down to
-`AerosolHorizonKelvin = 1500 K`. `AerosolSpectrum` expresses the **same physical effect** as
+`AerosolHorizonKelvin = 1000 K`. `AerosolSpectrum` expresses the **same physical effect** as
 per-channel transmission. They are two representations of one thing, so applying both would
 double-count the reddening and leave two uncoordinated aerosol colour paths in the subsystem. Exactly
 one of them can be live.
 
 **The direction is forced rather than chosen.** The locus representation is lossy in precisely the
 direction this section needs. The Helland fit pins its blue channel at 0 below 1900 K, so §20b's
-1500 K endpoint has blue **exactly zero** — and any α-dependent correction applied downstream of it is
+1000 K endpoint has blue **exactly zero** — and any α-dependent correction applied downstream of it is
 multiplying zero. Composed in that order, the pale blue-retaining sun that a large-particle aerosol
 actually gives would be structurally unreachable, i.e. the headline case would be unreachable.
 Composed the other way, on the *clean-air* colour, the spectral model expresses every case including
@@ -4546,28 +4546,39 @@ endpoint faded at, since that endpoint was consumed by the same lerp.
 
 ### Calibration: this is a generalisation of §20b, not a retune
 
-`HorizonOpticalDepth = 2.1931` is **fitted, not measured**. It is the τ for which the model at
+`HorizonOpticalDepth = 6.5514` is **fitted, not measured**. It is the τ for which the model at
 α = 1.3 reproduces the green channel of the colour §20b shipped:
 
 ```
-exp(-τ · [(550/550)^-1.3 - (600/550)^-1.3]) = G(1500 K) / G(2000 K)   →   τ = 2.19308
+exp(-τ · [(550/550)^-1.3 - (600/550)^-1.3]) = G(1000 K) / G(2000 K)   →   τ = 6.55138
 ```
 
 α = 1.3 is the right reference because **§20b was already implicitly calibrated there** — its own text
-names the value when it justifies 1500 K ("Ångström exponent ~1.3 against Rayleigh's 4, so roughly a
-third of the reddening per unit depth"). §20b had already chosen an α; it just baked it into a
-constant instead of exposing it.
+names the value when it justifies its endpoint ("Ångström exponent ~1.3 against Rayleigh's 4, so
+roughly a third of the reddening per unit depth"). §20b had already chosen an α; it just baked it into
+a constant instead of exposing it.
+
+**The fit moves with the anchor.** This constant was originally 2.1931, fitted against §20b's first
+endpoint of 1500 K. §20b then moved that endpoint to 1000 K, because at 1500 K a maximally polluted
+sky measured a median CIELAB ΔE of only 1.31 against clean air on rendered frames — below the ~2.0
+"visible at a glance" threshold. The green ratio the fit has to reproduce fell from 0.7909 to 0.4962,
+which triples the required depth. Carrying 2.1931 across that move would have silently reverted two
+thirds of §20b's deepening while still claiming to reproduce it, so the constant is **refitted**
+rather than merged.
 
 At that exponent the reproduction is: red exact (the fit saturates it), green exact by construction,
-blue 0.0224 against §20b's hard 0. The residual is the fit's blue cliff, not a disagreement, and
-behind a ≤0.35 blend it is under 0.008 of final sky colour.
+blue 0.0038 against §20b's hard 0. The residual is the fit's blue cliff, not a disagreement — and it
+is six times *smaller* than the 0.0224 the 1500 K fit left, because a deeper column attenuates the
+short wavelength harder. Behind a ≤0.60 blend it is under 0.003 of final sky colour.
 
 A **literal** slant-path optical depth would be ~11 (a heavy urban vertical AOD near 0.3 across a
-horizon airmass near 38), five times this. That is the right number for a radiative-transfer renderer
-and the wrong one here, because the thing being reproduced is §8's 2000 K sea-level endpoint, which is
-itself a first-order artistic anchor rather than a computed radiance. Calibrating against the shipped
-look keeps the two consistent; calibrating against the literal physics would silently move every
-existing sunset.
+horizon airmass near 38), still not quite twice this. That is the right number for a
+radiative-transfer renderer and the wrong one here, because the thing being reproduced is §8's 2000 K
+sea-level endpoint, which is itself a first-order artistic anchor rather than a computed radiance.
+Calibrating against the shipped look keeps the two consistent; calibrating against the literal physics
+would silently move every existing sunset. Worth noting the refit moved this number *toward* the
+literal figure rather than away from it: the deeper §20b endpoint is the more physically plausible of
+the two, not merely the more visible one.
 
 ### Normalisation, and the muting half that is still §9's
 
@@ -4626,12 +4637,17 @@ down rather than rediscovering.
 hue shift whatsoever, which the locus model was structurally incapable of. That is the headline, and
 it is pinned as exact equality against the clean-air colour.
 
-**It leaves the locus itself — but modestly.** A monotone power-law filter applied to a blackbody lands
-*near* another blackbody, because both are smooth and monotone in wavelength. Measured against the
-best-fitting Planckian point, the composed colours sit a few hundredths of one channel off it, not in
-a different family of colours. What genuinely widens is the **range of effective endpoints**: at a full
-sea-level load and a 20° sun the best-fit temperature runs from 3257 K at α = 0 (the aerosol did
-nothing) down to ~1900 K at α = 4, where §20b had one fixed endpoint for every map on every world.
+**It leaves the locus itself — and by more than the first draft of this section claimed.** A monotone
+power-law filter applied to a blackbody lands *near* another blackbody, because both are smooth and
+monotone in wavelength, and against the original 1500 K calibration the composed colours sat only a
+thousandth of a channel off the best-fitting Planckian point. After the refit to the 1000 K anchor the
+column is three times deeper and the departure is 0.068 of a channel at the reference exponent — still
+not a different family of colours, but no longer a rounding error either. What genuinely widens is the
+**range of effective endpoints**: at a full sea-level load and a 20° sun the best-fit temperature runs
+from 3257 K at α = 0 (the aerosol did nothing) down through 1188 K at the wettest tile's α = 2, where
+§20b had one fixed endpoint for every map on every world. At α = 4 the composed colour is colder than
+1000 K, i.e. colder than any temperature the Helland fit is valid for — that reference row now pins
+against the search floor rather than against a fit, which is a stronger statement of the same claim.
 
 **It cannot produce magenta, and no amount of α will change that.** `τ(λ) ∝ λ^-α` is *monotone* in
 wavelength, so the three channels are always ordered by wavelength and green can never be attenuated
