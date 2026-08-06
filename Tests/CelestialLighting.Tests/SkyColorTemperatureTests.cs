@@ -154,12 +154,16 @@ public class SkyColorTemperatureTests
     [Test]
     public void ColumnFraction_FallsOffFasterForAShallowerScaleHeight()
     {
-        // The reason the scale height is a parameter rather than baked in (issue #83 adds an aerosol
-        // species at 1500 m to this same file): at 3000 m a near-surface aerosol layer has almost
-        // entirely dropped below the observer while two thirds of the bulk air is still overhead.
-        // If these two ever came out equal, the shared model has collapsed into a Rayleigh-only one.
+        // The reason the scale height is a parameter rather than baked in: at 3000 m a near-surface
+        // aerosol layer has almost entirely dropped below the observer while two thirds of the bulk
+        // air is still overhead. If these two ever came out equal, the shared model has collapsed
+        // into a Rayleigh-only one.
+        //
+        // §20b has since landed the second species, so the shallow height is now read off
+        // AerosolScaleHeightMetres rather than written as a literal — which turns this from a
+        // hypothetical about a future caller into a pin on the actual shipped pair.
         float bulkAir = AtmosphericColumn.ColumnFraction(3000f, AtmosphericColumn.RayleighScaleHeightMetres);
-        float nearSurface = AtmosphericColumn.ColumnFraction(3000f, 1500f);
+        float nearSurface = AtmosphericColumn.ColumnFraction(3000f, AtmosphericColumn.AerosolScaleHeightMetres);
         Assert.That(bulkAir, Is.EqualTo(0.7020f).Within(0.001f));
         Assert.That(nearSurface, Is.EqualTo(0.1353f).Within(0.001f));
     }
@@ -283,5 +287,76 @@ public class SkyColorTemperatureTests
         Assert.That(offending, Is.Empty,
             "OzoneTwilightMath grew a site-altitude/pressure parameter — Chappuis absorption is at "
             + "20-30 km, above every mountain, so §19 must not scale with where the map sits");
+    }
+    // --- §20b's second species: the boundary-layer aerosol column ---
+    //
+    // Aerosol is injected at the surface and settles out, so it hugs the ground with a ~1500 m scale
+    // height against bulk air's 8500 m. Nothing consumes these yet — the colour curve gains the term
+    // in the next commit — but the column model is the half that owns the 5.7x divergence, and it is
+    // testable entirely on its own.
+
+    [TestCase(0f, 1f)] // sea level: the full boundary-layer column is overhead
+    [TestCase(100f, 0.9355f)] // vanilla Tile.elevation default: essentially all of it
+    [TestCase(1039.7f, 0.5f)] // 1500 * ln 2 — the half-column height, and the reason for the note in
+                              // TintStrength that aerosol only exists where the tint has saturated
+    [TestCase(1500f, 0.3679f)] // one scale height: 1/e, by definition
+    [TestCase(4000f, 0.0695f)] // the headline number: a mountain base sits above the smog
+    [TestCase(8850f, 0.0027f)] // Everest summit: aerosol has effectively ceased to exist
+    public void AerosolColumnFraction_MatchesTheBoundaryLayerTable(float siteAltitudeMetres, float expected)
+    {
+        Assert.That(AtmosphericColumn.AerosolColumnFraction(siteAltitudeMetres),
+            Is.EqualTo(expected).Within(0.001f));
+    }
+
+    [TestCase(0f, 0f, 0f)] // unpolluted sea level: the identity case, and every tile without Biotech
+    [TestCase(0f, 1f, 1f)] // fully polluted sea level: the model's maximum
+    [TestCase(0f, 0.5f, 0.5f)] // loading scales the column's magnitude linearly
+    [TestCase(4000f, 1f, 0.0695f)] // full pollution on a 4000 m tile is still almost no aerosol
+    [TestCase(4000f, 0.5f, 0.0347f)] // ...and the two factors compose multiplicatively
+    [TestCase(0f, -1f, 0f)] // clamped: pollution is a saved float and worldgen mods write it
+    [TestCase(0f, 2f, 1f)] // clamped the other way, for the same reason
+    public void AerosolLoadFraction_ScalesTheColumnByPollutionAndClampsIt(
+        float siteAltitudeMetres, float tilePollution, float expected)
+    {
+        Assert.That(AtmosphericColumn.AerosolLoadFraction(siteAltitudeMetres, tilePollution),
+            Is.EqualTo(expected).Within(0.001f));
+    }
+
+    [Test]
+    public void AerosolColumn_DecaysAboutFiveTimesFasterWithAltitudeThanTheRayleighColumn()
+    {
+        // THE HEADLINE INVARIANT. The ratio is not a side effect of the two constants — it IS the
+        // feature, and it is the only reason §20b is a separate species rather than "turn §8's warm
+        // knob up on polluted tiles". Both columns are exp(-h/H), so the ratio of their decay rates
+        // is exactly the inverse ratio of their scale heights, at every altitude:
+        //
+        //     ln(aerosol) / ln(rayleigh) = (h / 1500) / (h / 8500) = 8500 / 1500 = 5.667
+        //
+        // Pinned as a sweep rather than at one altitude precisely because it is altitude-independent:
+        // if someone retunes either constant, or replaces either accessor with something that is not
+        // a pure exponential of the same height, the sweep diverges rather than one number moving.
+        float expectedRatio = AtmosphericColumn.RayleighScaleHeightMetres
+            / AtmosphericColumn.AerosolScaleHeightMetres;
+        Assert.That(expectedRatio, Is.EqualTo(5.6667f).Within(0.001f),
+            "the two scale heights no longer stand in the ~5.7x relationship §20b is built on");
+
+        for (float siteAltitudeMetres = 250f; siteAltitudeMetres <= 9000f; siteAltitudeMetres += 250f)
+        {
+            float aerosol = AtmosphericColumn.AerosolColumnFraction(siteAltitudeMetres);
+            float rayleigh = AtmosphericColumn.RayleighPressureFraction(siteAltitudeMetres);
+            double ratio = Math.Log(aerosol) / Math.Log(rayleigh);
+            Assert.That(ratio, Is.EqualTo(expectedRatio).Within(0.01),
+                $"aerosol/Rayleigh decay-rate ratio drifted at {siteAltitudeMetres} m");
+        }
+    }
+
+    [Test]
+    public void AtFourThousandMetres_TheMountainIsAboveTheSmogButStillUnderMostOfTheAir()
+    {
+        // The same claim stated the way a player would experience it, so the ratio test above cannot
+        // pass while the absolute levels have gone somewhere useless. A 4000 m plateau keeps roughly
+        // five eighths of its air (a subdued but real sunset, §20) and almost none of its haze.
+        Assert.That(AtmosphericColumn.RayleighPressureFraction(4000f), Is.GreaterThan(0.6f));
+        Assert.That(AtmosphericColumn.AerosolColumnFraction(4000f), Is.LessThan(0.1f));
     }
 }
