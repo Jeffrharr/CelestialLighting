@@ -30,6 +30,29 @@ public static class Patch_SkyColorTemperature
     private const float SkyBlend = 0.35f;
     private const float OverlayBlend = 0.25f;
 
+    // How much further the blend opens up under a FULL sea-level aerosol column (§20b). At
+    // aerosolFraction 1 the sky blend runs to 0.35 * 1.7 = 0.60 and the overlay to 0.43.
+    //
+    // This is an OPTICAL-THICKNESS argument, and it is a different claim from the one
+    // SkyColorTemperature.TintStrength deliberately refuses to make. TintStrength is the geometric
+    // factor — how low the sun is — and letting aerosol push THAT up would say haze makes a sunset
+    // more vivid, which is backwards for Mie scattering. This instead says that as the haze layer
+    // thickens, a larger FRACTION of the light reaching the ground has been scattered by that layer
+    // rather than arriving unscattered, so the sky colour approaches the layer's own colour more
+    // completely. That fraction genuinely does climb toward 1 with optical depth.
+    //
+    // It does not re-vivify anything, because of where it is pointed: the §20b target at full
+    // pollution is 1000 K, whose Helland colour is dark and brown (green 0.266, blue 0). Blending
+    // MORE completely toward a dark brown makes the sky duller and browner — which is exactly what
+    // Mie scattering does. The direction the structural test protects is preserved; only the
+    // magnitude changes.
+    //
+    // Why it was needed: at the original 1500 K endpoint and a fixed 0.35 blend, pollution 1.0
+    // measured a median CIELAB deltaE of 1.31 against clean air on rendered frames — below the ~2.0
+    // "visible at a glance" threshold. A maximally poisoned sky is not supposed to be something you
+    // have to A/B two screenshots to notice.
+    private const float AerosolBlendBoost = 0.7f;
+
     static void Postfix(Map map, ref SkyTarget __result)
     {
         // Feature gate (default on): when off, leave each WeatherDef's palette untouched — the
@@ -98,8 +121,13 @@ public static class Patch_SkyColorTemperature
             elevation, pressureFraction, aerosolFraction, inVacuum);
         Color target = new Color(rgb.R, rgb.G, rgb.B);
 
-        __result.colors.sky = Color.Lerp(__result.colors.sky, target, tint * SkyBlend);
-        __result.colors.overlay = Color.Lerp(__result.colors.overlay, target, tint * OverlayBlend);
+        // Aerosol opens the blend up (see AerosolBlendBoost). At aerosolFraction 0 — every tile
+        // without Biotech, and every clean tile with it — this is exactly 1.0, so the pre-§20b
+        // behaviour is reproduced bit-for-bit rather than approximately.
+        float aerosolBlend = 1f + AerosolBlendBoost * aerosolFraction;
+
+        __result.colors.sky = Color.Lerp(__result.colors.sky, target, tint * SkyBlend * aerosolBlend);
+        __result.colors.overlay = Color.Lerp(__result.colors.overlay, target, tint * OverlayBlend * aerosolBlend);
         // Deliberately leave __result.colors.saturation and __result.glow untouched: saturation
         // shaping is Patch_TwilightColor's job, and glow is off-limits for the whole colour-only lane.
     }

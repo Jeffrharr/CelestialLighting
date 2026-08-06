@@ -371,10 +371,10 @@ public class SkyColorTemperatureTests
 
     [TestCase(1f, 0f, SkyColorTemperature.HorizonKelvin)] // clean sea level: unchanged from §20
     [TestCase(1f, 1f, SkyColorTemperature.AerosolHorizonKelvin)] // fully polluted sea level: the new endpoint
-    [TestCase(1f, 0.5f, 1714.3f)] // half a column of haze: linear in MIREDS between them
+    [TestCase(1f, 0.5f, 1333.3f)] // half a column of haze: linear in MIREDS between them
     [TestCase(0.6246f, 0f, 2650.1f)] // clean 4000 m: §20's value, pinned again as a regression guard
-    [TestCase(0.6246f, 0.0695f, 2516.1f)] // 4000 m at pollution 1.0 — only ~134 K of warming left
-    [TestCase(0.8382f, 0.3679f, 1894.3f)] // 1500 m at pollution 1.0
+    [TestCase(0.6246f, 0.0695f, 2377.5f)] // 4000 m at pollution 1.0 — only ~134 K of warming left
+    [TestCase(0.8382f, 0.3679f, 1537.2f)] // 1500 m at pollution 1.0
     public void HorizonKelvinForColumns_CarriesTheWarmEndpointPastSeaLevelWhenTheAirIsDirty(
         float pressureFraction, float aerosolFraction, float expected)
     {
@@ -505,7 +505,7 @@ public class SkyColorTemperatureTests
 
         Assert.That(seaLevelMired / mountainMired, Is.GreaterThan(5.67f),
             "pollution must still collapse faster with altitude than the scale-height ratio alone");
-        Assert.That(seaLevelMired / mountainMired, Is.EqualTo(8.29f).Within(0.1f));
+        Assert.That(seaLevelMired / mountainMired, Is.EqualTo(11.55f).Within(0.15f));
     }
 
     private static float MiredShiftFromPollution(float pressureFraction, float aerosolFraction)

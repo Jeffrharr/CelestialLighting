@@ -62,13 +62,32 @@ public static class SkyColorTemperature
     // that way either — past a point more haze mostly dims and greys rather than reddening further.
     // So the model saturates at a separately anchored endpoint instead.
     //
-    // 1500 K is anchored on the Helland fit this file already uses rather than on taste: its blue
-    // channel is pinned at 0 below 1900 K, so essentially all of the travel from 2000 K down to here
-    // happens in green (0.537 -> 0.425) with red already saturated. That is precisely "browner", the
-    // word the physics description reaches for when describing a polluted sunset — a duller, deeper,
-    // lower-contrast orange, not a more vivid one. It also keeps the whole curve comfortably inside
-    // the fit's stated ~1000 K validity floor.
-    public const float AerosolHorizonKelvin = 1500f;
+    // 1000 K is anchored on the Helland fit this file already uses rather than on taste. The fit's
+    // blue channel is pinned at 0 below 1900 K, so ALL of the travel from 2000 K down to here happens
+    // in green, with red already saturated:
+    //
+    //     2000 K  green 0.537     the clean sea-level endpoint
+    //     1500 K  green 0.425
+    //     1000 K  green 0.266     this endpoint
+    //
+    // Losing half the green against a saturated red is precisely "browner" — the duller, deeper,
+    // lower-contrast sky of a heavy smog sunset, not a more vivid orange. 1000 K is the fit's stated
+    // validity floor, so this rides the edge rather than sitting comfortably inside it; going lower
+    // would be extrapolating a curve fit outside its published range, which is where this stops.
+    //
+    // WHY IT MOVED FROM 1500 K. At 1500 K the effect was measured, on rendered frames, at a median
+    // CIELAB deltaE of 1.31 between clean and polluted at pollution 1.0 — below the ~2.0 threshold
+    // for "visible at a glance", i.e. a maximally poisoned sky looked almost exactly like a clean
+    // one. That is not a defensible place for the MAXIMUM of a subsystem to sit. In mireds the
+    // sea-level shift triples (10^6/1000 - 10^6/2000 = 500 mired, against 166.7 before), because
+    // mired distance is what the interpolation actually walks.
+    //
+    // Note what is deliberately NOT done to get here: TintStrength still takes no aerosol term. That
+    // would strengthen the tint, and strengthening a REDDENING tint models Mie scattering backwards —
+    // heavy aerosol greys and mutes rather than intensifying (see TintStrength's own note and the
+    // structural test pinning it). Deepening the endpoint colour makes a polluted sky obviously
+    // different WITHOUT claiming haze makes sunsets more vivid.
+    public const float AerosolHorizonKelvin = 1000f;
 
     // At/above this solar elevation the sky has reached full daylight temperature and no further
     // warming is applied. 60° is high enough that only tropical/summer midday sun exceeds it, so

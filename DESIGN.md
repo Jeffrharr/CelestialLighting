@@ -3892,11 +3892,11 @@ into something neither could produce alone:
 | tile | `pressureFraction` | `aerosolFraction` | effective horizon Kelvin |
 |---|---|---|---|
 | sea level, pollution 0 | 1.000 | 0.000 | 2000 K — the original curve, untouched |
-| sea level, pollution 0.5 | 1.000 | 0.500 | 1714 K |
-| sea level, pollution 1.0 | 1.000 | 1.000 | 1500 K — the new warm endpoint |
-| 100 m (vanilla default), pollution 1.0 | 0.988 | 0.936 | 1525 K |
-| 1500 m, pollution 1.0 | 0.838 | 0.368 | 1894 K |
-| 4000 m, pollution 1.0 | 0.625 | 0.069 | 2516 K |
+| sea level, pollution 0.5 | 1.000 | 0.500 | 1333 K |
+| sea level, pollution 1.0 | 1.000 | 1.000 | 1000 K — the new warm endpoint |
+| 100 m (vanilla default), pollution 1.0 | 0.988 | 0.936 | 1033 K |
+| 1500 m, pollution 1.0 | 0.838 | 0.368 | 1537 K |
+| 4000 m, pollution 1.0 | 0.625 | 0.069 | 2379 K |
 | 4000 m, pollution 0 | 0.625 | 0.000 | 2649 K |
 
 Read the last two rows together: full pollution on a 4000 m tile moves the horizon endpoint by 133 K,
@@ -3951,11 +3951,19 @@ exponent ~1.3 against Rayleigh's 4, so roughly a third of the reddening per unit
 form lands below absolute zero. Real extinction does not behave that way either: past a point, more
 haze mostly dims and greys rather than reddening further.
 
-**Why 1500 K specifically**, anchored on the Helland fit this subsystem already uses rather than on
-taste: the fit's blue channel is pinned at 0 below 1900 K, so essentially all of the travel from
-2000 K down to 1500 K happens in green (0.537 → 0.425) with red already saturated. That is precisely
-*browner* — the word the physics reaches for when describing a polluted sunset. It also keeps the
-whole curve comfortably inside the fit's stated ~1000 K validity floor rather than riding its edge.
+**Why 1000 K specifically**, anchored on the Helland fit this subsystem already uses rather than on
+taste: the fit's blue channel is pinned at 0 below 1900 K, so *all* of the travel from 2000 K down to
+here happens in green — 0.537 at 2000 K, 0.425 at 1500 K, 0.266 at 1000 K — with red already
+saturated. Losing half the green against a saturated red is precisely *browner*, the word the physics
+reaches for when describing a polluted sunset. 1000 K is the fit's stated validity floor, so this
+rides the edge rather than sitting comfortably inside it; lower would be extrapolating a curve fit
+outside its published range, which is where this stops.
+
+**It moved from 1500 K because 1500 K was invisible.** Measured on rendered frames, pollution 1.0
+against clean air came out at a median CIELAB ΔE of **1.31** — below the ~2.0 threshold for "visible
+at a glance". A maximally poisoned sky looked almost exactly like a clean one, which is not a
+defensible place for a subsystem's *maximum* to sit. Deepening the endpoint took that to 2.60, and
+the blend boost below took it to **6.79**.
 
 ### Why the suppression is 8×, not the 14× the fractions alone predict
 
@@ -3968,15 +3976,15 @@ shift is that fraction times the distance from the clean-air endpoint down to `A
 and altitude has already moved that endpoint *up* — so there is more room to redden into at altitude
 than at sea level:
 
-| | headroom to 1500 K |
+| | headroom to 1000 K |
 |---|---|
-| sea level | `10⁶/1500 − 10⁶/2000` = 666.7 − 500.0 = **166.7 mired** |
-| 4000 m | `10⁶/1500 − 10⁶/2649` = 666.7 − 377.3 = **289.3 mired** |
+| sea level | `10⁶/1000 − 10⁶/2000` = 1000.0 − 500.0 = **500.0 mired** |
+| 4000 m | `10⁶/1000 − 10⁶/2649` = 1000.0 − 377.3 = **622.7 mired** |
 
-so the net suppression is `14.388 × (166.7 / 289.3)` = **8.29×**. Thinner air gives back a little of
+so the net suppression is `14.388 × (500.0 / 622.7)` = **11.55×**. Thinner air gives back a little of
 what the missing haze took away.
 
-That is the claim holding rather than failing. 8.29× still sits far above the **5.67×** ratio of the
+That is the claim holding rather than failing. 11.55× still sits far above the **5.67×** ratio of the
 two scale heights, and lands close to the **8.99×** ratio of the two columns — so *a mountain base is
 above the smog* survives the endpoint geometry; it is simply worth 8× rather than 14×. Pinned by
 `PollutionsWarmingCollapsesWithAltitude_ButLessThanTheColumnAlone`, so a future retune of either
