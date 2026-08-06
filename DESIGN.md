@@ -922,7 +922,13 @@ test project like `Formulas.cs`):
 - `ColorTemperatureKelvin(elevation, pressureFraction)` — a monotonic linear ramp from `HorizonKelvin`
   (2000 K, at/below the horizon) to `ZenithKelvin` (5772 K, at/above `DaylightAltitudeDegrees` = 60°).
   The warm endpoint is a *sea-level* endpoint: §20 slides it toward neutral by how much air the map's
-  own tile actually has overhead.
+  own tile actually has overhead. Since §20c this is honestly the **clean-air** curve: aerosol's
+  colour is a spectral shape no colour temperature can carry, so it is applied per channel afterwards
+  and the composed sky colour is deliberately not a blackbody at any temperature.
+- `SkyColorForElevation(elevation, pressureFraction, aerosolFraction, angstromExponent, inVacuum)` —
+  the composition the adapter and the probes both call: the clean-air blackbody above, multiplied by
+  §20c's per-channel aerosol transmission. Anything that needs the sky's *colour* rather than its
+  temperature goes through this rather than calling `BlackbodyToRgb` directly.
 - `BlackbodyToRgb(kelvin)` — the widely published, public-domain Tanner Helland approximation of the
   Planckian locus (a standard tabulated/curve-fit conversion, textbook not mod-specific — see
   "Clean-room provenance"). Split into three small per-channel functions so the piecewise structure
@@ -4035,6 +4041,15 @@ design, and adding a knob before that is answered would bake in a guess.
 
 ## 20b. Pollution aerosol loading — a boundary-layer species with its own scale height (`AtmosphericColumn` / `SiteAltitude`)
 
+> **Superseded in part by §20c.** Everything below about the aerosol *column* — the 1500 m scale
+> height, the 5.7× decay ratio, `Tile.pollution` as loading, the mountain sitting above the smog —
+> is current and unchanged. What §20c replaced is the last step, where that column became a
+> **colour**: the `AerosolHorizonKelvin = 1500 K` endpoint and the second Kelvin lerp described under
+> "Why a third Kelvin constant here" no longer exist. Aerosol's colour is now per-channel
+> transmission in `AerosolSpectrum`, because a point on the Planckian locus cannot carry a spectral
+> shape. The section is kept as written because the reasoning that produced 1500 K is what calibrated
+> the optical depth that replaced it. Read it, then read §20c.
+
 §20 gave §8's sunset a second input: how much *air* the observer has overhead. It left the obvious
 companion question unasked — what is *in* that air. Biotech writes a per-tile `pollution` value in
 0–1 that, until now, had no effect on this mod's sky at all. Physically it is aerosol loading, and
@@ -4246,6 +4261,10 @@ play is a question for a live A/B, and adding a knob before that is answered bak
 - **The column being a *fixed* function of the tile.** Everything above describes one number per
   tile, so two consecutive evenings on one map are identical. **Landed as §20c**, which drives this
   same `aerosolFraction` with a slow noise instead of replacing any of the model above.
+- **Aerosol particle size.** This section models the aerosol's *amount* and gives it one fixed colour.
+  Real aerosol's wavelength selectivity varies by an order of magnitude with particle size, which is
+  what actually produces sunset variety. **Landed as §20d** — and it turned out not to be a term
+  alongside `AerosolHorizonKelvin` but a replacement for it, for the reason recorded there.
 
 ## 20c. Day-to-day aerosol drift — why two evenings differ (`AerosolDrift` / `AerosolDriftClock`)
 
@@ -4461,6 +4480,244 @@ evening from the one it just had).
 - **A settings slider**, declined for the reason §20 and §20b both declined one: whether the honest
   range reads right in play is a question for a live A/B, and adding a knob before that is answered
   bakes in a guess.
+
+## 20d. Aerosol particle size — taking §8 off the Planckian locus (`AerosolSpectrum`)
+
+Everything §8 had before this section was a **one-parameter family**. The curve ramps along the
+Planckian locus from ~5772 K to a warm endpoint, and §20 (site altitude) and §20b (pollution) each
+added an input — but both of them only change **how far along that single curve** the sky travels.
+The hue *path* never changes. Every sunset on every map was the same march toward the same orange,
+with more or less of it. Real sunsets are yellow, ochre, brick, brown and crimson, and reaching any
+of those means leaving the locus, which cannot be said in Kelvin at all.
+
+**The mechanism.** Rayleigh scattering has one fixed spectral shape, λ⁻⁴, which is precisely why a
+single colour temperature can summarise it. Aerosol has no fixed shape. Its wavelength dependence is
+the **Ångström exponent** α in `τ(λ) ∝ λ^-α`, and α varies enormously with particle size, because the
+size parameter `2πr/λ` is what decides whether a particle scatters selectively at all:
+
+| α | particle regime | what the sun does |
+|---|---|---|
+| ~0 | fog droplets, sea spray, thick blowing dust | **grey** extinction — a white sun that merely dims |
+| 0.5–1.0 | coarse mineral dust | brown/ochre, the Saharan-dust sunset |
+| 1.2–1.7 | urban/industrial haze | the classic deep orange-red |
+| 2.0+ | fine smoke, secondary sulfate | a deep, saturated red |
+| 4 | (Rayleigh, the clean-air limit) | the reference case, not an aerosol |
+
+The α ≈ 0 row is the one worth building for: on the locus it is **unsayable**, because there aerosol
+*amount* and aerosol *colour* are the same knob and a full column always means a fixed amount of
+reddening. Decoupling them is the new capability.
+
+**The file precedent is `OzoneTwilightMath`**, this codebase's existing case of modelling a species by
+per-channel transmission rather than by a colour temperature, reached for there because ozone cuts a
+notch and here because aerosol's slope varies. The two files deliberately sample the **same three
+wavelengths** (600 / 550 / 450 nm), so the two species are described in one basis rather than each
+being right in its own private units.
+
+### The decision this section turns on: subsumption, not composition
+
+§20b already expressed the aerosol's colour, as a second lerp along the locus down to
+`AerosolHorizonKelvin = 1500 K`. `AerosolSpectrum` expresses the **same physical effect** as
+per-channel transmission. They are two representations of one thing, so applying both would
+double-count the reddening and leave two uncoordinated aerosol colour paths in the subsystem. Exactly
+one of them can be live.
+
+**The direction is forced rather than chosen.** The locus representation is lossy in precisely the
+direction this section needs. The Helland fit pins its blue channel at 0 below 1900 K, so §20b's
+1500 K endpoint has blue **exactly zero** — and any α-dependent correction applied downstream of it is
+multiplying zero. Composed in that order, the pale blue-retaining sun that a large-particle aerosol
+actually gives would be structurally unreachable, i.e. the headline case would be unreachable.
+Composed the other way, on the *clean-air* colour, the spectral model expresses every case including
+§20b's own. So the per-channel model takes the aerosol's colour outright:
+
+```
+cleanAir = BlackbodyToRgb(ColorTemperatureKelvin(elevation, pressureFraction, inVacuum))
+sky      = cleanAir * normalise(exp(-τ(λ) · aerosolFraction · lowSunFraction))
+```
+
+`AerosolHorizonKelvin` is retired to `AerosolSpectrum.CalibrationAnchorKelvin`, where it is no longer
+a live endpoint but is still the number `HorizonOpticalDepth` was fitted to — a calibration whose
+anchor has been deleted is a magic number one commit later.
+
+Two stages, and **the order is a physical claim**: sunlight really does cross the bulk atmosphere
+before it reaches the boundary layer the observer is standing in. The aerosol load is scaled by
+`LowSunFraction` (this subsystem's existing ramp, not a new one) because optical depth is a path
+length — which also makes the aerosol fade with sun altitude at *exactly* the rate §20b's Kelvin
+endpoint faded at, since that endpoint was consumed by the same lerp.
+
+### Calibration: this is a generalisation of §20b, not a retune
+
+`HorizonOpticalDepth = 2.1931` is **fitted, not measured**. It is the τ for which the model at
+α = 1.3 reproduces the green channel of the colour §20b shipped:
+
+```
+exp(-τ · [(550/550)^-1.3 - (600/550)^-1.3]) = G(1500 K) / G(2000 K)   →   τ = 2.19308
+```
+
+α = 1.3 is the right reference because **§20b was already implicitly calibrated there** — its own text
+names the value when it justifies 1500 K ("Ångström exponent ~1.3 against Rayleigh's 4, so roughly a
+third of the reddening per unit depth"). §20b had already chosen an α; it just baked it into a
+constant instead of exposing it.
+
+At that exponent the reproduction is: red exact (the fit saturates it), green exact by construction,
+blue 0.0224 against §20b's hard 0. The residual is the fit's blue cliff, not a disagreement, and
+behind a ≤0.35 blend it is under 0.008 of final sky colour.
+
+A **literal** slant-path optical depth would be ~11 (a heavy urban vertical AOD near 0.3 across a
+horizon airmass near 38), five times this. That is the right number for a radiative-transfer renderer
+and the wrong one here, because the thing being reproduced is §8's 2000 K sea-level endpoint, which is
+itself a first-order artistic anchor rather than a computed radiance. Calibrating against the shipped
+look keeps the two consistent; calibrating against the literal physics would silently move every
+existing sunset.
+
+### Normalisation, and the muting half that is still §9's
+
+The transmission is normalised to its largest channel before use, so it carries hue and not
+brightness. This is `OzoneTwilightMath`'s argument repeated for its reason: §8 is a **colour-only**
+lane, a sky colour carries brightness of its own, and an un-normalised transmission would darken it —
+smuggling a brightness change into a patch that promises not to make one.
+
+It also lands exactly on the split §20b already recorded. §20b shipped the wavelength-*selective* half
+of aerosol extinction and skipped the wavelength-*flat* half (the muting and greying), because
+desaturation is §9's lane and §9 is mid-repair under #78. §20d changes the **shape** of the selective
+half and leaves that split precisely where it found it. So at α = 0 the aerosol correctly does nothing
+to the colour; the dimming it would really cause is still #78's to deliver.
+
+### Keying α to the map, and why on rainfall rather than on biome
+
+The ticket recommended a biome-keyed lookup. `Tile.rainfall` is a better version of the same idea
+rather than a departure from it: **vanilla assigns biomes by scoring rainfall and temperature.**
+Decompiling 1.6 shows `BiomeWorker_Desert` gating on `tile.rainfall >= 600f`,
+`BiomeWorker_ExtremeDesert` on `>= 340f`, and `BiomeWorker_TropicalRainforest` on `< 2000f`. Rainfall
+*is* the axis the biome label is derived from, so keying on it keys on the same thing continuously,
+with no `defName` table for a Biomes! or Alpha Biomes tile to fall off the end of. The ramp's two
+breakpoints are vanilla's own.
+
+The direction is the physically defensible part — arid ground lofts coarse mineral dust, which is
+near-grey, while wet ground supplies the fine secondary and biogenic particles that strip blue hard:
+
+| tile rainfall | α | the sunset |
+|---|---|---|
+| ≤ 340 mm (vanilla `ExtremeDesert` cutoff) | 0.20 | pale, dimmed, nearly colourless |
+| 600 mm (vanilla `Desert`/`AridShrubland` cutoff) | 0.48 | ochre |
+| 1000 mm | 0.92 | brown-orange |
+| ~1354 mm | 1.30 | **exactly what §20b shipped** |
+| ≥ 2000 mm (vanilla `TropicalRainforest` cutoff) | 2.00 | deep saturated red |
+
+Note where 1.3 lands: inside the temperate/boreal band most colonies are founded in, so the sunset
+most players already have does not move, and the new colours appear at the extremes. That is the
+correct place for a variety feature to spend its budget.
+
+Two robustness properties fall out. **α only matters where there is aerosol** — on a pollution-0 tile
+the §20b column is zero and every α produces an identical (empty) transmission — so a snow-covered
+cold desert being scored as "dust" costs nothing. And the `SiteAltitude` guard falls back to the
+*reference* exponent rather than to 0, because unlike the two fractions beside it there is no identity
+value here: α = 0 is not "no effect", it is a specific physical claim.
+
+`Tile.rainfall` is a plain public float on **base** `RimWorld.Planet.Tile` in mm/year, exactly like
+`elevation` and `pollution`, so it needs no DLC gate. `ApiCompatibilityTests.Tile_HasRainfall` pins
+existence, base-type location and `System.Single`, the same three things its two siblings pin.
+
+### What this honestly buys, and what it provably cannot
+
+Stated carefully, because the ticket's own framing overreaches in one place and it is worth writing
+down rather than rediscovering.
+
+**It leaves the one-parameter family — unambiguously.** At α = 0 a *full* aerosol column produces no
+hue shift whatsoever, which the locus model was structurally incapable of. That is the headline, and
+it is pinned as exact equality against the clean-air colour.
+
+**It leaves the locus itself — but modestly.** A monotone power-law filter applied to a blackbody lands
+*near* another blackbody, because both are smooth and monotone in wavelength. Measured against the
+best-fitting Planckian point, the composed colours sit a few hundredths of one channel off it, not in
+a different family of colours. What genuinely widens is the **range of effective endpoints**: at a full
+sea-level load and a 20° sun the best-fit temperature runs from 3257 K at α = 0 (the aerosol did
+nothing) down to ~1900 K at α = 4, where §20b had one fixed endpoint for every map on every world.
+
+**It cannot produce magenta, and no amount of α will change that.** `τ(λ) ∝ λ^-α` is *monotone* in
+wavelength, so the three channels are always ordered by wavelength and green can never be attenuated
+more than both of its neighbours. Magenta needs exactly that — blue lifted relative to green — which
+requires a spectral **notch** rather than a slope. Magenta and purple twilights are real, but they are
+**ozone**-driven: the Chappuis band absorbs 450–780 nm peaking at 603 nm, i.e. in the *middle*, which
+is already modelled in §19. The ticket's "α ~2.0+ → salmon → magenta" row is wrong in that respect,
+and the correction is pinned as a test (`NoExponentCanProduceMagenta_...`) rather than left as prose,
+because the claim is plausible enough to be made again. Anyone chasing magenta should be reading
+`OzoneTwilightMath`, not raising α here.
+
+### What is pinned offline
+
+- **α = 0 gives grey extinction.** The headline. Asserted on the *raw* transmission first (all three
+  channels equal), because that is where the claim lives — asserting only the normalised form would be
+  unfalsifiable. Then that the hue multiplier is exactly `(1, 1, 1)` and the composed sky colour is
+  bit-identical to the clean-air colour, with a counterpart assertion that the reference exponent moves
+  the same load a long way, so this cannot pass by the aerosol term being broken.
+- **α = 4 reproduces Rayleigh's spectral shape**, twice over. Definitionally, as the per-channel
+  optical depths standing in exact λ⁻⁴ ratios. And empirically, as the cross-check against §8's own
+  curve the ticket asks for: fit the depth of a λ⁻⁴ filter to reproduce the *green* travel §8's Kelvin
+  ramp performs from `ZenithKelvin` to `HorizonKelvin`, then check the *blue* travel it predicts with
+  nothing tuned to it. It agrees to ~15%. The two models share no code and no constants, so that is
+  real evidence rather than bookkeeping — and exact agreement would be suspicious, since they are
+  different approximations of the same physics.
+- **R/B transmission ratio rises monotonically with α**, swept in 0.05 steps across the whole band. If
+  this failed the rainfall ramp would be mapping wetter tiles to arbitrary hues rather than to
+  consistently redder ones.
+- **Aerosol load 0 is bit-identical to §20's altitude-only curve**, as *exact* equality over a sweep of
+  altitude × sun elevation × every named exponent. It holds by construction — at load 0 every optical
+  depth is 0, every transmission is exactly `1.0f`, the normalising max is exactly `1.0f` — and
+  asserting it exactly is what would catch someone adding an epsilon anywhere along that chain. Every
+  tile in a game without Biotech takes this path.
+- **The reference exponent reproduces §20b's shipped colour**, which is the subsumption pin: it says
+  the retirement was a change of representation, not a retune. The blue residual is pinned too, since
+  it is the one channel the calibration does not fix and therefore the one that reports a change in
+  the model's shape.
+- **§20b's own invariants, restated on colour rather than Kelvin** — the mountain-above-the-smog table,
+  monotone in pollution at fixed altitude, monotone in altitude at fixed pollution, now additionally
+  swept over exponent. One of them gets *sharper*: §20b needed a mired argument to show pollution's
+  effect collapses ~14× with altitude rather than the ~3.8× its stacked Kelvin lerps suggested.
+  Beer-Lambert composes additively in log space — the same property mireds have — so the 14.4× now
+  falls out as arithmetic. Two models built for different reasons agreeing to two significant figures
+  on a quantity neither was fitted to is the best evidence available offline that this is the same
+  physics in a new representation.
+- **§19 is invariant to everything aerosol**, asserted structurally the same way its altitude- and
+  pollution-invariance are, with the filter extended to §20d's vocabulary. This guards a subtler
+  mistake than the earlier versions did: §19 samples the *same three wavelengths* §20d does, and that
+  shared basis is exactly what would make handing §19 an exponent look reasonable. `OzoneTwilightMath`
+  is unmodified.
+- **The exponent is clamped to [0, 4]**, with the floor mattering more than the ceiling: a negative α
+  would attenuate blue *less* than red, silently reversing the sign of the whole effect.
+
+### Compat and live verification
+
+No new Harmony patch and no new vanilla member beyond `Tile.rainfall`, so the patch-order surface is
+unchanged from §20b.
+
+Two probes, because the halves fail independently: `aerosol_angstrom_exponent` (the input — what the
+tile's rainfall resolved to) and `sky_red_blue_ratio` (the output — where the composed colour landed).
+A desert tile reading 0.2 with an unchanged sky says the keying works and the spectrum is not being
+applied; reading 1.3 says worldgen handed us a rainfall we did not expect. Deliberately **no** probe
+reports the aerosol colour as a Kelvin: once the shape is applied the colour is not on the locus, so
+any Kelvin would be a fiction. `sky_color_temperature` still reports the clean-air ramp and therefore
+no longer moves with pollution at all — which reads like a probe regression and is the opposite, per
+§18's rule that a probe must report the value its patch actually uses.
+
+What cannot be checked offline: whether the α range reads as variety or as noise in play, and whether
+the near-grey desert end reads as "dusty" or merely as "the effect stopped working". No slider ships,
+for the reason §20 and §20b both declined one — that is a question for a live A/B, and adding a knob
+before it is answered bakes in a guess.
+
+### Out of scope, filed separately
+
+- **A weather-keyed exponent.** Fog and dust storms are the *literal* α ≈ 0 cases, and a `WeatherDef`
+  read would reach them directly rather than through a tile's long-run rainfall. It is deliberately not
+  done here: it would put a per-frame condition read in the hot path and it overlaps `WeatherDimming`'s
+  lane, which this section does not touch.
+- **A coastal sea-spray term.** Physically the cleanest route to α ≈ 0.2 on a wet map, and `Tile.IsCoastal`
+  exists — but it calls `World.CoastDirectionAt`, which walks the tile's neighbours *and* pushes/pops
+  global `Rand` state. Doing that inside `CurSkyTarget` would perturb the shared RNG every frame, which
+  is not a cost worth a hue.
+- **The §9 muting ticket** from §20b is unchanged and still keyed on the same `aerosolFraction`.
+- **Pollution's effect on §7's night sky** and the **latitude-keyed ozone column for §19** are both
+  unaffected by this section.
+
 ## 21. Snow albedo: the surface-cloud light cavity (`AlbedoCavityMath` / `SurfaceBuildup`)
 
 **Problem.** Fresh snow under a thick overcast is far brighter than the same overcast over bare
@@ -4783,6 +5040,7 @@ so there is no number here a player would sensibly dial. It exists as a harness 
   drawn there at all. An additive pass is the only way to express it; whether that is worth the
   complexity is a live-A/B question, not a desk one.
 - Nothing here has been seen in-game. Every number above is offline.
+
 
 ## Settings and presets
 
