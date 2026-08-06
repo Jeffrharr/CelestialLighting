@@ -4597,15 +4597,37 @@ the haze layer is, the boost decides **how completely** the sky takes that colou
 the first, and the refit above is precisely what keeps the reference-exponent target identical to the
 colour the boost was measured against. Folding the boost into the depth instead would redden twice.
 
-One interaction is worth stating rather than discovering: the boost is keyed on aerosol **amount**,
-not particle size, so at α ≈ 0 it opens the blend toward the *clean-air* colour. A thick grey-dust
-column therefore gives a **more saturated** §8 sunset than clean air rather than an identical one.
-That follows from the boost's own argument rather than contradicting it — "the sky approaches the
-layer's own colour more completely" is an optical-thickness claim, and a grey layer's own colour is
-the clean-air colour. The offline grey-extinction invariant is a statement about `AerosolSpectrum`'s
-transmission, which is exactly `(1, 1, 1)` at α = 0; a live frame at pollution 1.0 shows that
-invariant composed with the amount-keyed blend, which is why the live measurement is reported
-separately from the offline pin.
+**The boost also has to be keyed on particle size**, and it was not. As §20b shipped it the boost was
+keyed on aerosol *amount* alone, which is right for the half of the question §20b could see and wrong
+for the half §20d introduced. The boost's argument has an unstated premise — that the layer *has* a
+colour of its own to be approached. At α ≈ 0 it does not: grey extinction's transmission is exactly
+`(1, 1, 1)`, so "the layer's own colour" is the clean-air colour, and opening the blend toward it only
+amplifies §8's Rayleigh tint. Measured on rendered frames, a full grey-dust column came out with mean
+red **rising** 103.6 → 109.1 against the clean control: visibly *warmer*, when the whole claim about
+large particles is that they dim without colouring. That is the same "haze makes sunsets more vivid"
+error `TintStrength` refuses to commit, arriving through the blend instead.
+
+So the amount term is multiplied by `AerosolSpectrum.ChromaticFraction(α)`:
+
+```
+aerosolBlend = 1 + AerosolBlendBoost · aerosolFraction · ChromaticFraction(α)
+
+ChromaticFraction(α) = clamp01( (τ_B(α) − τ_R(α)) / (τ_B(1.3) − τ_R(1.3)) )
+```
+
+The chromatic part of a Beer–Lambert column is the **spread** between its per-channel optical depths,
+which is what a filter contributes to hue as opposed to brightness. It is exactly 0 at α = 0 by
+construction rather than by tuning, and clamps to exactly 1 at and above the reference exponent.
+
+Two properties make it safe to multiply into a constant someone else already measured:
+
+- **The load cancels.** Both depths scale linearly with `aerosolFraction`, so the ratio does not depend
+  on it. The boost is *already* keyed on load; a second load term would square the amount and quietly
+  retune §20b. `ChromaticFraction` takes no load argument at all, and a test pins that signature.
+- **It is exactly 1 from α = 1.3 up.** Every tile at temperate rainfall or wetter gets the boost §20b
+  measured, bit-for-bit — verified live, not argued: the temperate and rainforest frames measure ΔE
+  11.51 and 14.23 both before and after the taper. Only the dry half tapers, and the dry half is a
+  range §20b had no way to express in the first place.
 
 ### Normalisation, and the muting half that is still §9's
 
@@ -4753,27 +4775,42 @@ distance from the no-aerosol control, in CIELAB ΔE (CIE76) over every pixel of 
 Median is the honest figure; the mean is dragged by a long outlier tail from UI text that does not
 change between frames. Thresholds: <1 imperceptible, 1–2 close inspection, 2+ visible at a glance.
 
-| tile | α | ΔE median, spectrum alone | ΔE median, as shipped | R/B as shipped |
-|---|---|---|---|---|
-| arid 200 mm | 0.2 | **1.34** | 4.65 | 5.32 |
-| temperate 1354 mm | 1.30 | 6.18 | 11.51 | 10.94 |
-| rainforest 2500 mm | 2.00 | 7.29 | 14.23 | 12.35 |
-| no aerosol (control) | — | — | — | 4.21 |
+| tile | α | ΔE median, spectrum alone | ΔE median, amount-keyed boost | **ΔE median, as shipped** | R/B |
+|---|---|---|---|---|---|
+| arid 200 mm | 0.2 | 1.34 | 4.65 | **1.74** | 4.59 |
+| temperate 1354 mm | 1.30 | 6.18 | 11.51 | **11.51** | 10.94 |
+| rainforest 2500 mm | 2.00 | 7.29 | 14.23 | **14.23** | 12.35 |
+| no aerosol (control) | — | — | — | — | 4.21 |
 
-The two ΔE columns are the composition described above, measured rather than argued: the first is the
-spectral model with `AerosolBlendBoost` disabled, the second is what ships. **The grey-extinction
-headline survives the refit in the spectrum and does not survive it on screen**, and the difference is
-entirely the amount-keyed blend. With the boost off, the driest tile sits at ΔE 1.34 with R/B moving
-4.21 → 4.50: a full aerosol column that dims without meaningfully colouring, which is the case the
-locus model could not express. With the boost on it reads at 4.65 and mean red rises 103.6 → 109.1,
-i.e. visibly warmer than the control rather than merely dimmer.
+The three ΔE columns are one A/B/C, measured rather than argued. **Spectrum alone** is the model with
+`AerosolBlendBoost` disabled — the floor, what the aerosol's own colour does on its own. **Amount-keyed
+boost** is what §20b's boost produced before it learned about particle size. **As shipped** is with
+`ChromaticFraction` applied.
 
-That is not a bug in either half. The boost is §20b's answer to a maximally polluted sky being
-invisible, it is keyed on how much haze there is, and at α ≈ 0 the haze's own colour is the clean-air
-colour — so blending harder toward it strengthens §8's own tint. It does mean the headline claim has
-to be stated at the level it is true: `AerosolSpectrum.HueMultiplier` is exactly `(1, 1, 1)` at α = 0
-and that is pinned as exact equality, while a live frame at pollution 1.0 is that invariant composed
-with a blend the aerosol's particle size has no say in.
+Read the arid row. The grey case is this section's headline, and the amount-keyed boost was breaking it
+on screen while the offline pin still passed: mean red *rose* 103.6 → 109.1 against the control, a full
+grey column reading as warmer rather than dimmer. With the taper it reads ΔE 1.74 against a floor of
+1.34, and mean red rises 0.42 instead of 5.51 — a thirteenfold reduction, and back below the ~2.0
+"visible at a glance" threshold where a grey aerosol belongs.
+
+The residual 0.42 is not a miss. α at the driest tile is `ThickDustExponent` = 0.2, not 0, and a 0.2
+exponent genuinely is 14% as chromatic as urban haze — so a small warming is the honest answer rather
+than an artefact. Driving it to exactly zero would mean moving the driest endpoint to the true grey
+limit α = 0, which is inside the published 0.0–0.5 band for freshly lofted dust but is a separate
+decision about what a desert sunset should look like, not about whether this composition is right.
+
+Read the other two rows for the other half. **Identical to three decimal places**, because
+`ChromaticFraction` clamps to exactly 1 from the reference exponent up. §20b's live result is not
+re-litigated by this change; it is left alone everywhere §20b could actually see.
+
+One consequence to state plainly, because it is a real cost and not a rounding error. §20b's motivation
+was that a maximally polluted sky must be *visible at a glance*. On an **arid** tile it now is not —
+ΔE 1.74, below that threshold. That is not this taper failing; it is §20d's own claim, applied
+honestly. A large-particle aerosol does not redden a sky, so a colour-only lane has nothing to show for
+it. The dimming it genuinely causes is the wavelength-flat half, which §8 deliberately does not write
+and which is #78's to deliver through §9's saturation lane. Until then, maximum pollution on a desert
+tile is close to invisible **by design**, and the alternative — warming a grey sky so the setting reads
+as doing something — is the exact error `TintStrength` exists to refuse.
 
 ### Out of scope, filed separately
 
