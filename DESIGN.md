@@ -3462,6 +3462,87 @@ the true "blue for the entire day" case is very high latitude with a declination
 whole range inside the band — e.g. latitude 88 at day 11, whose range is [−11.5°, −7.5°] and sits
 entirely within the plateau. That tile is what the live scenario probes.
 
+### …and why the ozone *column* is nevertheless latitude-keyed (issue #82)
+
+**This is a different factor, not the section above reversed.** Read the two together or the code
+will look like it quietly overturned a settled decision.
+
+Beer–Lambert is `τ = σ · N_column · airmass`, three independent factors:
+
+| factor | what it is | varies with | how it is modelled |
+|---|---|---|---|
+| `σ` | how strongly one molecule absorbs | wavelength | published Chappuis cross-sections |
+| `airmass` | how LONG the path through the layer is | sun elevation | `SlantAirmass` — **the geometry the section above is about** |
+| `N_column` | how MUCH absorber sits along that path | latitude (and season) | `OzoneColumnForLatitude` |
+
+The section above is an argument about the middle row and it stands untouched: path length is set by
+the sun's altitude relative to the layer, so it is elevation-keyed and nothing else, and putting
+`Formulas.LatitudeStrength` on it would double-count because latitude already reaches it through
+elevation. `N_column` is the third row. It is not a path length — it is the *density of absorber
+along* that path — and on Earth it is not globally uniform: the **Brewer–Dobson circulation** lifts
+ozone over the tropics and transports it poleward, so real total columns run ~260 DU over the tropics
+against ~380–420 DU at high latitudes in spring. **Same slant path, more molecules per unit length.**
+
+Scaling the column by latitude cannot double-count, because before #82 nothing in the file expressed
+it at all: `σ` came from published tables and `airmass` came from the sun, while `N_column` sat as a
+single hardcoded 300 DU. This makes the third factor as honest as the other two.
+
+**The existing calibration is preserved as the curve's midpoint.** 300 DU is the global mean *and*
+roughly the mid-latitude value, which is the accident that lets the curve be added without
+recalibrating anything — `OzoneColumnForLatitude(45°)` returns `OzoneColumn` exactly, so every
+measured number above still describes a mid-latitude map:
+
+| latitude | column | red attenuated on ground @ −7.2°, blend 0.45 | vs before |
+|---|---|---|---|
+| 0° | 260 DU | 20.8% | shallower — the brief equatorial blue hour, kept and still visible |
+| 45° (pivot) | **300 DU** | **24.2%** | **unchanged** |
+| 70° | 385 DU | 29.8% | where polar night actually happens |
+| 88° | 420 DU | 31.7% | the live scenario's tile |
+
+`MaxSlantAirmass` is untouched — it remains the honest calibration knob this section already
+documents, and the column is deliberately *not* a second one.
+
+**Why sin⁴|latitude| for the shape.** Two constraints leave little room. Hemispheric symmetry says
+the column must be an **even** function of latitude and smooth across the equator, which rules out a
+straight `|latitude|` ramp — that puts a cusp at the equator, and the gradient reversing direction
+at a hard line is not something any physical process draws. Both ends are also observationally flat:
+the tropical column barely moves out to ~20°, and the poleward pile-up saturates rather than spiking
+at the pole. sin⁴ has zero derivative at both ends and its steepest gradient near 55°, which is where
+the real subtropical-to-midlatitude gradient lives. It is a fit to the *shape* of the climatology,
+not a derivation from the circulation.
+
+The polar value is **not a third free parameter**: with a sin⁴ profile, 260 DU at the equator and
+300 DU at 45° (where sin⁴ = ¼) force `260 + 4·(300 − 260) = 420` DU at the pole. That it lands inside
+the observed Arctic-spring range is a check on the shape, not an input to it.
+
+**What is deliberately not done.** No latitude threshold, no polar special case, and **no change to
+`BandStrength` or `SlantAirmass`** — neither gained a latitude argument, which is the mechanical
+statement of the distinction above. The band still opens and closes on elevation alone at every
+latitude, so polar night still emerges from dwell time and the equator keeps its blue hour, just a
+shallower one.
+
+**Independent of site altitude and air quality, permanently.** The ozone layer sits at 20–30 km,
+above the bulk atmosphere and far above the boundary layer, so a mountain map and a polluted map
+cross the *same* ozone column as a sea-level clean one. Site altitude and aerosol loading belong to
+§8; §19 must never grow a second copy of them, and the invariant is enforced within §19's own inputs
+as a signature guard (`OzoneTwilightMath_TakesNoSiteAltitudeOrAerosolInput`) rather than as a value
+comparison, since there is deliberately no altitude input here to vary.
+
+**The seasonal half is deferred, not forgotten.** The high-latitude column peaks in *spring*, not
+midwinter, and `SolarPosition` already carries declination so it is available. It is not shipped
+because polar night is exactly when the sun is lowest and spring is when it returns — a seasonal term
+would move the extra depth *out* of the window this subsystem exists to serve. Revisit it from the
+live scenario, not from the formula.
+
+**Bearing on #78** (polar night blue reads too weak in play). This delivers ~30% more optical depth
+at the latitudes the complaint comes from and *less* in the tropics, from a cited mechanism rather
+than a tuned multiplier — which is strictly better-behaved than the global strength bump #78
+contemplates, since a global bump would also over-blue the equator where this section explicitly
+wants restraint. It is unlikely to close #78 by itself: on screen the polar peak's red attenuation
+moves 24.2% → 31.7%, a real but not dramatic step, and the blend strength and the §7a floor remain
+the larger levers on *perceived* strength. Treat it as shrinking the gap #78 has to close, and A/B
+the two before #78 picks its fix.
+
 ### The correction that the subsystem turns on: model the notch, not a colour temperature
 
 The obvious design is `SkyColorTemperature.BlackbodyToRgb(20000)` from the published ~20,000 K CCT
@@ -3486,6 +3567,10 @@ notch cut out of it, and a CCT is a poor single-number summary of a notched spec
 the notch directly, Beer–Lambert per channel (`T = exp(−σ·N·m)`) using published Chappuis
 cross-sections sampled at the sRGB channel centres — R on the 603 nm peak, G on the 575 nm flank,
 B inside the Huggins–Chappuis minimum where ozone is effectively transparent:
+
+At the pivot latitude (45°), which since issue #82 is where `OzoneColumnForLatitude` reproduces the
+300 DU constant these numbers were measured against — see the column subsection above for the same
+table swept across latitude instead of elevation:
 
 | airmass | transmission RGB | R/B | red attenuated on ground @ blend 0.45 |
 |---|---|---|---|
@@ -3610,6 +3695,24 @@ Offline: `OzoneTwilightMathTests` covers the trapezoid anchors, the plateau (the
 property — if someone simplifies the trapezoid back to a triangle, that test fails), continuity, the
 vacuum gate, hue ordering and normalisation, the reachability gate with its non-vacuity check, the
 floor table, its composition with `OverlayBrightnessFactor`, and the two visibility guards.
+
+Issue #82 adds, all against `N_column` and none against the geometry: the pivot regression pin
+(`OzoneColumnForLatitude(45°)` reproduces `OzoneColumn` to float precision, so the whole measured
+record above still stands), the DU climatology table, monotonicity in `|latitude|` swept past 90° to
+catch sin⁴ folding back, hemispheric symmetry, the notch deepening with latitude at *fixed*
+elevation (the airmass held constant is what makes it a column test rather than a geometry one, with
+a non-vacuity check that the two ends differ), the polar case clearing the 20% threshold **by more
+than the pivot does**, the equatorial blue hour staying above that same threshold rather than merely
+non-zero, and the two signature guards — no altitude/aerosol vocabulary anywhere in §19's inputs, and
+`ChappuisTransmission(elevationDegrees, latitudeDegrees)` in that order, since two same-typed
+degree arguments would transpose silently.
+
+**Not yet re-measured live.** `polar_night_blue.json`'s `sky_overlay_warmth` pins were taken with the
+uniform column; at latitude 88 the column is now 1.40× deeper, which works out to roughly −0.101
+against the pinned −0.0959 — inside the scenario's existing ±0.01 tolerance, so the pins are left as
+*measured* values rather than replaced by a prediction. Re-run the scenario and re-pin from the
+reading. `overlay_brightness` (0.1399) and every `polar_night_blue` band-strength pin are unaffected
+by construction: neither the floor nor the envelope touches the column.
 
 Live, and **measured** — these are the pinned values, not predictions:
 
