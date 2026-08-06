@@ -62,6 +62,13 @@
          own (MathF only), so it can sit anywhere in this list; it is here for readability.
          Issue #83 adds an aerosol scale height to the same file, which needs no new link entry. -->
     <Compile Include="../../Source/AtmosphericColumn.cs" Link="AtmosphericColumn.cs" />
+    <!-- §20c's day-to-day air-mass drift: the multiplier that stops two consecutive evenings on one
+         map being pixel-identical. Sits next to AtmosphericColumn because it drives that file's
+         aerosol column, and it depends on AuroraNoise (linked further down — order does not matter
+         to the compiler) for the value-noise field itself rather than carrying a second copy. The
+         live half that reads the tick and the tile id is AerosolDriftClock.cs and is NOT linked:
+         it is Verse-bound by design, which is the whole point of the split. -->
+    <Compile Include="../../Source/AerosolDrift.cs" Link="AerosolDrift.cs" />
     <!-- Subsystem 19 pure core (polar night blue / Chappuis ozone twilight). Reuses
          SkyColorTemperature.Rgb as its colour struct, so the link above is a hard prerequisite —
          but deliberately NOT its BlackbodyToRgb: §19 models an absorption notch, not a Planckian
