@@ -960,6 +960,15 @@ already-blue vault. §19 is emphatically *not* an extension of this curve — it
 notch rather than Rayleigh reddening, and it inverts both of this file's tested invariants
 (monotonicity, and R ≥ G ≥ B). See §19.
 
+That 2° window is also **§19c's entire domain** — the twilight purple light. The handoff above turns
+out to model the two sources as *substituting* for one another when in reality both are fully present
+at once, which is why the window read as a muddy neutral rather than as the lavender a real dusk
+shows. `NightFadeFloorDegrees` is `public` for exactly that reason: §19c reads the boundary from here
+rather than writing −6 down a second time. Note also that §19c refutes, with arithmetic, the natural
+idea that §8's blackbody and §19's notch should compose *multiplicatively* — §8's blackbody is a
+source colour, and read as a transmission it eats blue about five times harder than green, which is
+one of the two reasons that construction can never produce a green minimum. See §19c.
+
 ## 9. Low-light desaturation / Purkinje shift (`Patch_LowLightDesaturation`)
 
 As scene brightness falls, human vision loses colour discrimination and everything drifts toward a
@@ -3687,6 +3696,14 @@ the rest read and write only `.colors`.
 - **vs §8 and §2 (warm).** §8 dies at `NightFadeFloorDegrees` (−6) and §2's civil-twilight
   persistence dies at the same −6, while our blue starts at −4. The 2° overlap is deliberate: real
   dusk has a warm band low in the west under an already-blue vault.
+- **vs §19c (purple).** That same 2° overlap is §19c's whole domain, and §19c's finding is that the
+  cross-fade described above is the wrong *model* of it: the warm band and the blue vault coexist
+  rather than substituting, so superposing them at full strength produces the green minimum neither
+  subsystem can reach alone. §19c reads `BlueOnsetDegrees` from this file as its upper boundary and
+  changes nothing here — below −6 and above −4 it is exactly zero. It also consumes
+  `ChappuisTransmission`, `OzoneColumnForLatitude` and the cross sections unchanged; the standing
+  ban on site-altitude and aerosol inputs to §19 is untouched, since §19c takes those on §8's side of
+  the composition only. See §19c.
 - **vs §9 (Purkinje).** §19 stacks with the cool-grey tint deliberately, with no cross-subsystem
   suppression. They model different things — §9 is the eye losing colour discrimination as rods take
   over, §19 is the sky genuinely being blue — and real polar twilight is both at once.
@@ -3828,6 +3845,272 @@ no benefit.
 `ApiCompatibilityTests` needs no new assertions — `WeatherWorker.CurSkyTarget`, `SkyTarget.colors`,
 `SkyColorSet.sky`/`.overlay`, `SkyManager.SkyManagerUpdate` and `MatBases.LightOverlay`/`FogOfWar`
 are all already pinned by §2, §8 and §7a.
+
+## 19c. Twilight purple light (`PurpleLightMath` / `Patch_PurpleLight`)
+
+Fifteen to twenty-five minutes after sunset a clear sky can turn lavender. It is the most striking
+thing an ordinary sky does, it is common enough to be familiar, and before this the mod could not
+produce it under any conditions at any latitude.
+
+**Purple is not a colour temperature.** No point on the Planckian locus is purple, which is why §8's
+ramp can never reach it however it is tuned. In channel terms purple is a **green minimum**: red and
+blue both high, green pushed below both. Everything below exists to produce that one ordering, and
+the tests pin the ordering rather than any particular colour.
+
+### Why the obvious construction cannot work, and why that is worth writing down
+
+Issue #85 proposed composing §8's reddening with §19's ozone notch **multiplicatively**: sunlight
+takes a long low path through the troposphere (reddened, §8), the already-reddened light crosses the
+stratospheric ozone layer (green notched out, §19), and red-rich-minus-green is purple. It is a good
+story. It is wrong twice over, and both refutations are kept executable (`SeriesGreenNotchIsReachable`,
+`ShadowHeightKm`) rather than left as prose, precisely so nobody re-derives the idea in a year.
+
+**First, the geometry — and this is the deeper one.** At solar depression `θ` the Earth's shadow
+stands at `h = R⊕ · (sec θ − 1)`:
+
+| solar elevation | shadow height |
+|---|---|
+| −4° | 15.6 km |
+| −5° | 24.3 km |
+| −6° | 35.1 km |
+
+The troposphere tops out near 10–12 km. **Across the whole window it is already dark.** So light
+that crosses the ozone layer does not afterwards cross a long tropospheric slant path — it drops
+near-vertically through about one airmass — and the reddened light that makes the warm band low in
+the west arrives along a completely different, near-horizontal sightline hundreds of km toward the
+still-lit sunset point, which never enters the ozone slant path. **The two media are not in series
+along one ray. They are two different rays into two different parts of the sky.** Sources in series
+multiply; sources in parallel add. The correct composition is a sum, and the ticket's central
+premise is a geometry error rather than a tuning one.
+
+**Second, the colorimetry, which holds even if you grant the series reading.** Composing filters
+adds optical depths, so the composed depth is `s · tropo + m · ozone` for some pair of weights. A
+green minimum in transmission is a green *maximum* in depth, needing both `D_G > D_R` and
+`D_G > D_B`. Ozone attenuates red harder than green — its cross section peaks at 603 nm, essentially
+on the red channel centre — so it pushes the wrong way on the first. §8's blackbody attenuates blue
+about five times harder than green in log terms, so it pushes the wrong way on the second. Each
+needs the other to rescue it, and neither can:
+
+| | R | G | B |
+|---|---|---|---|
+| ozone depth per airmass (45°) | 0.04221 | 0.03067 | 0.00081 |
+| §8's 2000 K blackbody as a transmission | 1.000 | 0.565 | 0.060 |
+| …as optical depth per unit §8 strength | 0 | 0.5711 | 2.8075 |
+
+The pair of inequalities collapses to a band on the single ratio `s/m`, and at sea level that band is
+**(0.0202, 0.0134)** — lower bound above upper bound, **empty**. Note what dropped out: the absolute
+strengths. The condition is purely one of *shape*, so no amount of turning either subsystem up or
+down can change the answer. This is the same family of result PR #98 established for a monotone
+`λ^-α` filter — a monotone filter cannot cut a mid-band notch — extended to the composition of two
+monotone filters of opposite slope, which can only do it when their slope ratios bracket. These miss
+by a factor of about 1.5.
+
+**The one hole, and why it closes.** The band *does* open above a horizon endpoint of ~2181 K, which
+§20's site-altitude term reaches above roughly 1150 m. That is a real gap in the refutation and it is
+kept under test rather than hidden. It closes on its own: the required `s` is then 0.35–0.71, against
+a §8 `TintStrength` that never exceeds 0.32 anywhere in the window **and that §20 scales down by the
+very `pressureFraction` that opened the band**. The two conditions pull in opposite directions, so
+there is no map anywhere on which the series construction produces purple. §20b's pollution makes it
+strictly worse, widening the gap rather than closing it — so the one case a reader might expect to
+rescue it is where it fails hardest.
+
+### A third diagnosis in the issue that also turned out to be false
+
+Issue #85 described the current behaviour as "two independent additive tints toward the same sky"
+that "blend the purple away into a muddy neutral", with a single composed lerp as the fix.
+Successive `Color.Lerp`s toward **fixed** targets are algebraically **one** lerp toward the
+weight-averaged target: with `W = 1 − (1 − t₈)(1 − t₁₉)` and
+
+```
+S = [ t₈(1 − t₁₉)·warm + t₁₉·blue ] / W
+```
+
+the two forms agree to float precision, which `SequentialLerps_AreOneCompositeLerp` pins. Nothing is
+lost to sequencing that a composed lerp would have kept. The structure was never the problem. (The
+one genuine non-commutativity, §19's rescale reading the intermediate colour, is a second-order
+effect on the brightest channel, not on hue ordering.)
+
+### What the problem actually is: amplitude, and a handoff that models the wrong thing
+
+The window is precisely where **both** subsystems are weakest. §8 fades out by −6 while §19 fades in
+from −4, so their strength product peaks at **0.048** at −5°. The cross-fade models the two sources
+as *substituting* for one another — and physically they do not. At −5° the reddened horizon band and
+the ozone-crossed vault are both fully present in the sky at once. **Cross-fading them is the error.**
+
+Against vanilla's real palette the consequence is stark. Vanilla's Clear `skyColorsNightMid` and
+`skyColorsNightEdge` carry the *same* triple `(0.482, 0.603, 0.682)`, and glow is
+`clamp01(sin(elevation)/0.7)`, so below +4.01° vanilla's sky colour is that **constant** at every
+elevation. Put through §8 and §19 alone, the whole window comes out green-above-red — plain blue,
+with no green deficit anywhere:
+
+| elevation | §8 + §19 only | ordering |
+|---|---|---|
+| −4.4° | (0.525, 0.583, 0.614) | B > G > R |
+| −5.0° | (0.486, 0.566, 0.640) | B > G > R |
+| −5.6° | (0.447, 0.546, 0.665) | B > G > R |
+
+### The fix: a third superposition term
+
+`PurpleLightMath` composes the two source spectra and the adapter applies the result as one further
+luminance-neutral nudge. Three parts, none of them tuned:
+
+**The window** is exactly `SkyColorTemperature.NightFadeFloorDegrees` to
+`OzoneTwilightMath.BlueOnsetDegrees`, read from those two constants rather than written down again —
+this subsystem is *defined* as their overlap, so if either boundary moves it must move too. Real
+purple light peaks around −4 to −6, so the boundaries §8 and §19 already agreed on turn out to be the
+physically right ones. Issue #85 explicitly allowed widening the window if a live A/B wanted it; it
+did not.
+
+**The envelope** is `4r(1−r)` — the simplest function that is zero at both ends, peaks at 1 in the
+middle, and has no free parameter. Both zeros are load-bearing. Zero *outside* is what makes every
+sunset the mod already shipped bit-identical. Zero *at the edges* removes the seam: §8 is still at
+~0.39 at −4 and §19 at ~0.63 at −6, so an abrupt switch-on would put a visible step in the middle of
+a live dusk. A trapezoid with a plateau was rejected — §19's plateau expresses dwell time at polar
+latitudes and there is no equivalent argument here; the purple light is genuinely transient, and a
+hump says so.
+
+**The mix weight is solved, not chosen.** The warm source is red-dominant and the blue source is
+blue-dominant, so mixing at weight `w` gives peaks `(1−w) + w·blue.R` and `(1−w)·warm.B + w`. Setting
+those equal — *neither source dominates* — has one solution:
+
+```
+w = (1 − warm.B) / ((1 − warm.B) + (1 − blue.R))
+```
+
+and that solution is also, to a rounding, the mix that **maximises the green trough**. That is not
+luck. Green is the one channel neither source carries — the warm source is green-poor because
+reddening walked it down the blackbody curve, the blue source is green-poor because Chappuis eats
+500–700 nm — so red and blue each arrive from one source only, and any mix favouring one dims the
+other's peak toward green's level and fills the trough in. The physical reading is the honest one:
+**the purple light is the moment neither the reddened band nor the blue vault dominates the western
+sky**, which is exactly why it is a narrow window rather than a phase of dusk.
+
+The composed target is normalised to a peak of 1, so it carries hue and nothing else, and the
+adapter rescales it to the colour it is blending *from* — §19's convention, for §19's reason. The
+sanity bound issue #85 asked for (never more selective than the more selective input) is structural:
+a normalised convex combination cannot leave the hull of its endpoints. `w` runs 0.671 at −4 to 0.609
+at −6, and the trough runs 31/255 to 44/255.
+
+| elevation | composed target hue | green trough |
+|---|---|---|
+| −4.0° | (1.000, 0.878, 1.000) | 31/255 |
+| −5.0° | (1.000, 0.851, 1.000) | 38/255 |
+| −6.0° | (1.000, 0.826, 1.000) | 44/255 |
+
+**The blend strengths are derived too.** If both sources are fully present, the composed
+displacement from the vanilla palette is the union two full-strength sequential lerps would produce:
+
+```
+SkyBlend     = 1 − (1 − 0.35)(1 − 0.45) = 0.6425
+OverlayBlend = 1 − (1 − 0.25)(1 − 0.30) = 0.4750
+```
+
+§8's and §19's constants became `internal` so this *reads* them rather than copying them, and a
+retune of either carries here automatically.
+
+### Lane, ordering and vacuum
+
+Colour-only, never `.glow`, never `.saturation` — the same lane as §2, §8 and §19. Unlike §19 there
+is **no brightness arm at all**: §19 needed an overlay floor because polar twilight is nearly black,
+and civil twilight is not. Purple is a hue claim and nothing else; turning saturation up to sell it
+would be a different subsystem making a different claim.
+
+**No `HarmonyPriority`**, which cannot be expressed intra-assembly anyway (all our patches share one
+owner ID). Ordering is secured *structurally* instead: the envelope is exactly zero at both
+boundaries and the nudge targets a hue rescaled to whatever colour it finds, so running before §8/§19
+would only let them blend it back down — weaker, never wrong or discontinuous. That is a far weaker
+dependency than a priority attribute would be papering over.
+
+**Vacuum**: `inVacuum` is threaded into the pure layer as a parameter per §18a, not early-returned in
+the adapter. The purple light superposes two atmospheric scattering sources, neither of which exists
+on an airless world, so like §19 — and unlike §8, which still pins an honest unreddened
+`ZenithKelvin` — the whole effect is simply zero.
+
+### Verification
+
+Offline: `PurpleLightMathTests`, 70 cases. The envelope swept at 0.01° across the whole sky for
+exact zero outside the window, a continuity sweep across both boundaries, symmetry about the
+midpoint, the structural pin that the bounds *are* §8's and §19's, the green minimum and its depth,
+the red/blue balance with a non-vacuity companion showing `w` really is a solve, the selectivity
+bound, the latitude deepening at fixed elevation, the vacuum gate — and the refutation: the empty
+band at sea level, pollution widening it, the ~2181 K opening kept honest, and the strength wall
+that closes it swept across the whole window at three thin-air pressures.
+
+**Live, and the timing is the trap.** At latitude 45 on day 11 the window is about **0.13 hours
+wide** — hours 20.10 to 20.24, roughly eight game-minutes. §19's own post-mortem already warned that
+an hourly grid straddles a 0.6–0.8 h band completely; this is five times narrower again, and an
+hourly scenario would read "the effect is absent" everywhere. `Tests/Scenarios/purple_light.json`
+was written only after a 31-sample survey at **0.05 h resolution**, and it pins `sun_elevation`
+beside every effect probe so a future §14 clock change fails loudly rather than silently re-emptying
+the capture.
+
+| hour | elevation | window strength | composed hue green |
+|---|---|---|---|
+| 20.05 | −3.21° | 0 | 1.0 (outside) |
+| 20.10 | −4.05° | 0.0998 | — |
+| 20.15 | −4.89° | **0.988** | 0.8548 |
+| 20.20 | −5.73° | 0.4625 | 0.8339 |
+| 20.25 | −6.58° | 0 | 1.0 (outside) |
+
+The A/B across the feature toggle at hour 20.15, on the shipped default preset — these are the
+**measured** material readings, not predictions, and they read lower than `colors.sky` itself because
+§7a darkens the composed material afterwards:
+
+| probe | §19c off | §19c on | |
+|---|---|---|---|
+| `purple_sky_red` | 0.2662 | **0.3271** | red climbs |
+| `purple_sky_green` | 0.2848 | 0.2884 | green essentially still |
+| `purple_sky_blue` | 0.3130 | 0.3130 | **exactly unchanged** |
+| ordering | B > G > R | **R > B > G** | green becomes the minimum |
+
+**Blue does not move at all, and that falls out of the construction rather than being arranged.**
+The composed hue's blue channel is pinned at 1 by the balance solve, and the adapter rescales the hue
+to the source colour's brightest channel — which, on vanilla's night palette, *is* blue. So the
+target's blue equals the source's blue and the lerp has nothing to do. §19c moves red and green only.
+
+At the window peak the ordering is R > B > G (magenta-leaning); at the shoulder, where the envelope
+is weaker, red has not yet overtaken blue and the ordering is the lavender B > R > G issue #85 asked
+for. Both have green as the minimum, which is the definition that matters.
+
+Rendered frames, measured with `Tools/FrameDelta/frame_delta.py` (new — the harness has no
+comparison tier, `delta` asserts are still unimplemented, and every ΔE quoted elsewhere in this
+document was computed by hand and thrown away):
+
+| pair | median CIELAB ΔE | |
+|---|---|---|
+| `purple_off.png` vs `purple_on.png` | **4.32** | "visible at a glance"; mean 4.63, p90 5.54 |
+| `purple_outside_off.png` vs `purple_outside_on.png` | **0.00** | **0 of 2,073,600 pixels differ** |
+
+That second row is the invariant, not a formality: outside the window the two frames are
+byte-identical at full resolution, so every already-measured scenario pin in this document is
+untouched by construction rather than by tolerance.
+
+**And the hue verdict, which for this subsystem matters more than the magnitude.** A large ΔE that
+stayed on the Planckian locus would mean the sky merely got warmer — a failure wearing a good number.
+Mean frame chromaticity moved from **Duv +0.00168** (above the locus, green side) to **Duv −0.01062**
+(below it, purple/magenta side): a sign flip, which is exactly the thing §8's blackbody ramp is
+incapable of doing. For scale, neutral grey is +0.0032, vanilla's night sky +0.0125, and reference
+lavender −0.046.
+
+`ApiCompatibilityTests` needs no new assertions — `WeatherWorker.CurSkyTarget`, `SkyTarget.colors`,
+`SkyColorSet.sky`/`.overlay` and `MatBases.LightOverlay` are all already pinned by §2, §8, §7a and
+§19.
+
+### What is deliberately not done
+
+- **No stratospheric aerosol term.** Real purple light is strongly aerosol-dependent and spectacular
+  after a major eruption (post-Pinatubo 1991 is the canonical case). §20b's aerosol is a
+  *boundary-layer* species and correctly does nothing here — haze at 1500 m scale height mutes the
+  purple rather than driving it. The volcanic case needs a *stratospheric* species with a low
+  Ångström exponent, which is #83's territory and a separate ticket.
+- **No widening of the window**, per the paragraph above: the live A/B did not ask for it, and issue
+  #85 was explicit that the boundaries are physically chosen rather than arbitrary.
+- **No change to §19's cross sections.** Sampling red at 600 nm, on the Chappuis peak, is what makes
+  ozone attenuate red hardest, and a properly band-averaged red cross section — the sRGB red primary
+  integrates out to 700 nm, where Chappuis is transparent again — would be materially lower and would
+  change the shape arithmetic above. It would also change §19 everywhere, breaking the bit-identical
+  invariant this ticket was pinned on. Worth a ticket of its own; not worth smuggling in here.
+
 
 ## 20. Site altitude — scaling §8's reddening by the observer's air column (`AtmosphericColumn` / `SiteAltitude`)
 

@@ -57,6 +57,7 @@ public static class ProbeRegistration
         ProbeRegistry.Register(new PurpleLightProbe("purple_hue_green", PurpleLightProbe.Metric.HueGreen));
         ProbeRegistry.Register(new PurpleLightProbe("purple_sky_red", PurpleLightProbe.Metric.SkyRed));
         ProbeRegistry.Register(new PurpleLightProbe("purple_sky_green", PurpleLightProbe.Metric.SkyGreen));
+        ProbeRegistry.Register(new PurpleLightProbe("purple_sky_blue", PurpleLightProbe.Metric.SkyBlue));
         ProbeRegistry.Register(new OverlayBrightnessProbe());
 
         // §18d's limb-refraction ramp. Four series rather than one because this is a temporal
