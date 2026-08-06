@@ -314,6 +314,143 @@ public class ApiCompatibilityTests
             "BiomeDef.inVacuum changed shape — Vacuum.InVacuumForMap returns it directly as a bool");
     }
 
+    // --- Verse.SnowGrid and Map.Area (§21, SurfaceBuildup) ---
+
+    [Test]
+    public void SnowGrid_HasTotalDepth_AsAMaintainedRunningTotal()
+    {
+        // §21's whole-map ambient term reads map.snowGrid.TotalDepth once per sky update, and the
+        // justification for doing that per frame is that TotalDepth is a PROPERTY over a maintained
+        // `totalDepth` accumulator (incremented inside AddDepth/SetDepth), not a grid scan. Two
+        // things are pinned here and they are pinned separately on purpose.
+        //
+        // First that the member exists at all: SurfaceBuildup would not compile without it, so a
+        // rename is caught by the build — but this test names the reason, which the build does not.
+        //
+        // Second, and the one the build CANNOT catch: that it is still cheap. If Ludeon ever
+        // reimplements TotalDepth as a loop over the depth grid, nothing breaks, nothing errors, and
+        // §21 quietly starts scanning the whole map twice per frame on every map with weather. The
+        // backing-field assertion is the cheapest available proxy for "this is still an accumulator";
+        // if it fails, re-decompile Verse.SnowGrid before assuming the read is still free.
+        var type = GetType("Verse.SnowGrid");
+        Assert.That(type, Is.Not.Null, "Verse.SnowGrid no longer exists");
+
+        var totalDepth = type!.Properties.SingleOrDefault(p => p.Name == "TotalDepth");
+        Assert.That(totalDepth, Is.Not.Null,
+            "SnowGrid.TotalDepth no longer exists — §21's whole-map buildup average reads it");
+        Assert.That(totalDepth!.PropertyType.FullName, Is.EqualTo("System.Single"),
+            "SnowGrid.TotalDepth changed shape — SurfaceBuildup divides it by Map.Area as a float");
+
+        Assert.That(
+            type.Fields.Any(f => f.Name == "totalDepth" && !f.IsPublic),
+            Is.True,
+            "SnowGrid no longer keeps a private totalDepth accumulator — TotalDepth may now be a "
+            + "per-call grid scan, which would make §21's per-frame read expensive with no visible "
+            + "symptom. Re-decompile Verse.SnowGrid before trusting SurfaceBuildup's cost claim.");
+    }
+
+    [Test]
+    public void SnowGrid_HasMaxDepthOfOne()
+    {
+        // §21 treats the buildup depth as ALREADY NORMALIZED — BuildupSurfaceAlbedo clamps its input
+        // to [0,1] and ramps across that range with no scaling constant of its own. That is only
+        // correct while SnowGrid.MaxDepth is 1. If it ever changes, the ramp silently compresses into
+        // a fraction of its range (or saturates), and a snowed-in map stops reaching fresh-snow
+        // albedo without anything failing.
+        var type = GetType("Verse.SnowGrid");
+        Assert.That(type, Is.Not.Null, "Verse.SnowGrid no longer exists");
+
+        var maxDepth = type!.Fields.SingleOrDefault(f => f.Name == "MaxDepth" && f.HasConstant);
+        Assert.That(maxDepth, Is.Not.Null, "SnowGrid.MaxDepth is no longer a compile-time constant");
+        Assert.That(maxDepth!.Constant, Is.EqualTo(1f),
+            "SnowGrid.MaxDepth is no longer 1 — §21 assumes buildup depth is already normalized");
+    }
+
+    [Test]
+    public void SnowGrid_HasGetDepth_ForTheDeferredPerCellHalf()
+    {
+        // NOT called by anything today, and pinned anyway. §21 shipped the whole-map ambient half and
+        // deliberately deferred the per-cell shadow-fill half (DESIGN.md §21, on §16's
+        // section-invalidation cost ledger); GetDepth(IntVec3) is the read that half would need, so
+        // this test is the standing check that the deferred option is still available before someone
+        // plans against it. A failure here is a design signal, not a bug — it means the per-cell
+        // route would have to be re-costed rather than picked up where it was left.
+        var type = GetType("Verse.SnowGrid");
+        Assert.That(type, Is.Not.Null, "Verse.SnowGrid no longer exists");
+
+        var getDepth = type!.Methods.SingleOrDefault(
+            m => m.Name == "GetDepth" && m.Parameters.Count == 1);
+        Assert.That(getDepth, Is.Not.Null, "SnowGrid.GetDepth(IntVec3) no longer exists");
+        Assert.That(getDepth!.Parameters[0].ParameterType.FullName, Is.EqualTo("Verse.IntVec3"));
+        Assert.That(getDepth.ReturnType.FullName, Is.EqualTo("System.Single"));
+    }
+
+    [Test]
+    public void Map_HasSnowGridAndArea()
+    {
+        // The two live reads SurfaceBuildup makes. Area is the divisor that turns TotalDepth into a
+        // mean depth, and it must stay a cell COUNT (Size.x * Size.z) rather than becoming something
+        // scaled, or the mean silently changes units and every gain moves with it.
+        var type = GetType("Verse.Map");
+        Assert.That(type, Is.Not.Null, "Verse.Map no longer exists");
+
+        var snowGrid = type!.Fields.SingleOrDefault(f => f.Name == "snowGrid" && f.IsPublic);
+        Assert.That(snowGrid, Is.Not.Null, "Map.snowGrid no longer exists or is no longer public");
+        Assert.That(snowGrid!.FieldType.FullName, Is.EqualTo("Verse.SnowGrid"));
+
+        var area = type.Properties.SingleOrDefault(p => p.Name == "Area");
+        Assert.That(area, Is.Not.Null, "Map.Area no longer exists");
+        Assert.That(area!.PropertyType.FullName, Is.EqualTo("System.Int32"),
+            "Map.Area is no longer an integer cell count — §21 divides TotalDepth by it");
+    }
+
+    [Test]
+    public void Map_HasSandGrid_ShapedLikeSnowGrid()
+    {
+        // §21's generalization claim, pinned rather than merely asserted in a comment. RimWorld 1.6
+        // generalized snow into "weather buildup" and Odyssey's sand rides the same shape — a
+        // separate grid on Map, with the same TotalDepth accumulator. That is what makes
+        // AlbedoCavityMath keying on ALBEDO rather than on snow depth pay off: the sand arm is one
+        // adapter read plus AlbedoCavityMath.SandAlbedo, with no new maths.
+        //
+        // Note the correction this test records. Sand is NOT the same grid as snow reached through
+        // WeatherBuildupUtility — SnowGrid.GetCategory and SandGrid both route through
+        // WeatherBuildupUtility.GetBuildupCategory, but the DEPTHS live in two separate grids. A
+        // future sand arm therefore reads map.sandGrid, not a category off the snow grid.
+        var map = GetType("Verse.Map");
+        Assert.That(map, Is.Not.Null, "Verse.Map no longer exists");
+        Assert.That(map!.Fields.Any(f => f.Name == "sandGrid" && f.IsPublic), Is.True,
+            "Map.sandGrid no longer exists — §21's deferred sand arm would need re-planning");
+
+        var sandGrid = GetType("Verse.SandGrid");
+        Assert.That(sandGrid, Is.Not.Null, "Verse.SandGrid no longer exists");
+        Assert.That(sandGrid!.Properties.Any(p => p.Name == "TotalDepth"), Is.True,
+            "SandGrid.TotalDepth no longer exists — the sand arm assumed SnowGrid's shape");
+    }
+
+    [Test]
+    public void WeatherBuildupUtility_StillDrawsTheDustingBoundaryWhereAlbedoCavityMathDoes()
+    {
+        // AlbedoCavityMath.ShallowBuildupDepth (0.25) is the knee between its optical-cover segment
+        // and its fresh-versus-settled segment, and it is deliberately vanilla's own Dusting/Thin
+        // boundary rather than a number of ours — "you can no longer see the dirt" is the same
+        // threshold in both models, so the two agree by construction.
+        //
+        // Reading the IL for the literal is the only way to pin a value buried in a chain of
+        // comparisons, and it is worth pinning: if Ludeon retunes the boundary, our knee should move
+        // with it rather than drift into disagreeing about what a dusting is.
+        var type = GetType("Verse.WeatherBuildupUtility");
+        Assert.That(type, Is.Not.Null, "Verse.WeatherBuildupUtility no longer exists");
+
+        var getCategory = type!.Methods.SingleOrDefault(m => m.Name == "GetBuildupCategory");
+        Assert.That(getCategory, Is.Not.Null, "WeatherBuildupUtility.GetBuildupCategory no longer exists");
+        Assert.That(
+            getCategory!.Body.Instructions.Any(i => i.Operand is float f && f == 0.25f),
+            Is.True,
+            "WeatherBuildupUtility.GetBuildupCategory no longer draws a boundary at 0.25 — "
+            + "AlbedoCavityMath.ShallowBuildupDepth was chosen to match vanilla's Dusting/Thin knee");
+    }
+
     // --- §18d's two anchor-provenance guards (issue #32) ---
     //
     // These do not pin anything the mod CALLS. They pin the two facts that justify §18d picking its
