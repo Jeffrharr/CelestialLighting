@@ -76,11 +76,26 @@ public static class Patch_SkyColorTemperature
         // of it ambiguous.
         float pressureFraction = SiteAltitude.PressureFractionForMap(map);
 
+        // And what else is in that air (DESIGN.md §20b): the tile's Biotech pollution as a
+        // boundary-layer aerosol column. Read through the same boundary helper and pointing the
+        // opposite way — pollution warms the horizon endpoint where altitude cools it — but with a
+        // 1500 m scale height against Rayleigh's 8500 m, so it fades out with altitude nearly six
+        // times faster. A high enough map is simply above the haze, with no threshold anywhere.
+        //
+        // Zero on every tile in a game without Biotech, which makes this line a no-op there rather
+        // than something that needs a ModsConfig gate around it.
+        float aerosolFraction = SiteAltitude.AerosolFractionForMap(map);
+
+        // Note aerosolFraction is deliberately not passed to TintStrength — see the long note there.
+        // §8's lane is colour-only, and aerosol's real non-colour effect is to MUTE a sunset, which
+        // is §9's saturation lane and blocked behind #78. Strengthening the tint here would model it
+        // backwards.
         float tint = SkyColorTemperature.TintStrength(elevation, pressureFraction, inVacuum);
         if (tint <= 0f)
             return;
 
-        SkyColorTemperature.Rgb rgb = SkyColorTemperature.SkyColorForElevation(elevation, pressureFraction, inVacuum);
+        SkyColorTemperature.Rgb rgb = SkyColorTemperature.SkyColorForElevation(
+            elevation, pressureFraction, aerosolFraction, inVacuum);
         Color target = new Color(rgb.R, rgb.G, rgb.B);
 
         __result.colors.sky = Color.Lerp(__result.colors.sky, target, tint * SkyBlend);
