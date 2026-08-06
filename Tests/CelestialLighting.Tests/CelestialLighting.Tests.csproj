@@ -117,6 +117,14 @@
          pinned to the night budget it consumes rather than to a second copy of it. Both already
          linked above. -->
     <Compile Include="../../Source/ShadowFillMath.cs" Link="ShadowFillMath.cs" />
+    <!-- Subsystem 21 pure core (the surface-cloud light cavity: how much brighter weather buildup
+         plus a cloud deck make a map than the bare ground the mod's brightness anchors were
+         calibrated on). Verse-free and dependency-free — it does not even read Formulas — but its
+         tests deliberately compose it with WeatherDimmingMath.SkyTintFactor above, because the
+         headline inversion (snowy overcast brighter than snowy CLEAR sky) is a claim about the two
+         channels together: §21 lifts .glow, §13 dims the colour, and only their product is what the
+         screen shows. -->
+    <Compile Include="../../Source/AlbedoCavityMath.cs" Link="AlbedoCavityMath.cs" />
     <!-- Issue #12's per-frame geometry memo. Verse-free by design (the live half that reads
          Time.frameCount / the tick / the mode flags lives in Source/FrameStamp.cs), so its
          hit/miss/invalidation rules are unit tested offline instead of inferred from in-game
