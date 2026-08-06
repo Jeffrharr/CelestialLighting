@@ -1,0 +1,96 @@
+{
+  "name": "site_altitude_column",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "30"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "19"
+      }
+    },
+    {
+      "type": "SetTileProperties",
+      "args": {
+        "elevation": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_color_temperature",
+        "expectedValue": "3126.8",
+        "tolerance": "40"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "altitude_sealevel.png"
+      }
+    },
+    {
+      "type": "SetTileProperties",
+      "args": {
+        "elevation": "4000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_color_temperature",
+        "expectedValue": "4119.7",
+        "tolerance": "40"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "altitude_4000m.png"
+      }
+    },
+    {
+      "type": "SetTileProperties",
+      "args": {
+        "elevation": "0"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "sky_color_temperature",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "altitude_feature_off.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "sky_color_temperature",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "altitude_feature_on.png"
+      }
+    }
+  ]
+}
