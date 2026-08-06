@@ -395,6 +395,133 @@ public class AlbedoCavityMathTests
         Assert.That(AlbedoCavityMath.AmplifiedGlow(floor, gain), Is.LessThan(0.51f));
     }
 
+    // --- The daytime consumer: giving §13's dimming back over snow ---
+
+    [Test]
+    public void RecoveredDimming_LeavesBareGroundUntouched_UnderEveryWeather()
+    {
+        // The daytime regression pin, and the counterpart to the night-floor one above. §21's
+        // daytime arm runs inside WeatherDimming.DimmingFor, which every non-snowy map on every save
+        // goes through — so "bare ground is bit-identical" has to hold for the dimming itself, not
+        // just for the gain that feeds it. A gain of exactly 1 makes the composition the identity
+        // algebraically: (1 - d) * 1 = (1 - d).
+        foreach (float rate in new[] { 0f, 0.5f, 1f, 1.6f })
+        {
+            float dimming = WeatherDimmingMath.DimmingFraction(
+                1f, 0f, rate, 0f, WeatherDimmingMath.DefaultMaxDimming);
+
+            Assert.That(
+                AlbedoCavityMath.RecoveredDimming(dimming, 1f),
+                Is.EqualTo(dimming),
+                $"bare ground must not change §13's dimming at snowRate {rate}");
+        }
+    }
+
+    [TestCase(0.18f, 1.000000f, 0.180000f)]   // bare ground, dry overcast: §13 unopposed
+    [TestCase(0.18f, 1.152542f, 0.054915f)]   // sand: a real but partial recovery
+    [TestCase(0.18f, 1.360000f, 0.000000f)]   // settled snow: fully recovered, clamped at the ceiling
+    [TestCase(0.18f, 2.344828f, 0.000000f)]   // fresh snow, dry overcast
+    [TestCase(0.255f, 2.344828f, 0.000000f)]  // fresh snow, full blizzard: still fully recovered
+    [TestCase(0.00f, 2.344828f, 0.000000f)]   // clear sky: nothing to recover, and none is invented
+    public void RecoveredDimming_ComposesExactly_AndNeverGoesNegative(
+        float dimming, float cavityGain, float expected)
+    {
+        Assert.That(
+            AlbedoCavityMath.RecoveredDimming(dimming, cavityGain),
+            Is.EqualTo(expected).Within(Tolerance));
+    }
+
+    [Test]
+    public void RecoveredDimming_NeverAsksTheOverlayToBrighten()
+    {
+        // The clamp is the RENDERER's ceiling, not a taste call: SkyColorSet.sky is assigned straight
+        // to MatBases.LightOverlay.color, a multiply whose brightest vanilla value is Clear's (1,1,1)
+        // == "do not darken at all". A negative dimming would ask that material to brighten, which it
+        // cannot express — SkyTintFactor would return a value above 1 and Patch_WeatherDimming would
+        // scale the palette past its own maximum.
+        //
+        // Swept across the whole reachable space rather than spot-checked, because the failure mode
+        // is an overbright sky at one corner of it rather than a wrong number everywhere.
+        for (int d = 0; d <= 20; d++)
+        {
+            for (int g = 0; g <= 20; g++)
+            {
+                float recovered = AlbedoCavityMath.RecoveredDimming(d / 20f, 1f + g * 0.15f);
+
+                Assert.That(recovered, Is.InRange(0f, 1f));
+                Assert.That(WeatherDimmingMath.SkyTintFactor(recovered), Is.LessThanOrEqualTo(1f),
+                    "a recovered dimming must never scale the sky palette above vanilla's maximum");
+            }
+        }
+    }
+
+    [Test]
+    public void RecoveredDimming_IsMonotonicallyNonIncreasing_InCavityGain()
+    {
+        // More snow can only ever give more light back, never less. A sign error inside the
+        // composition would show up here as a ramp running the wrong way while every endpoint above
+        // still passed, because both endpoints happen to sit on clamps.
+        float dimming = WeatherDimmingMath.DimmingFraction(
+            1f, 0f, 0f, 0f, WeatherDimmingMath.DefaultMaxDimming);
+        float previous = 1f;
+
+        for (int step = 0; step <= 100; step++)
+        {
+            float recovered = AlbedoCavityMath.RecoveredDimming(dimming, 1f + step / 100f);
+
+            Assert.That(recovered, Is.LessThanOrEqualTo(previous));
+            previous = recovered;
+        }
+    }
+
+    [Test]
+    public void SnowyOvercastDaylight_RendersAsBrightAsAClearDay()
+    {
+        // What the DAYTIME half actually delivers on screen, stated as the player experiences it:
+        // an overcast that refuses to feel dim. This is the reported phenomenon — "brighter with snow
+        // on the ground" — and before §21 a snowy overcast rendered at §13's full 18% darkening,
+        // indistinguishable from the same overcast over mud.
+        //
+        // Equality with a clear day rather than excess over it is the renderer's ceiling, not a
+        // modelling choice: see RecoveredDimming_NeverAsksTheOverlayToBrighten. The physically larger
+        // claim — snowy overcast brighter than snowy CLEAR sky — is expressible only in the unclamped
+        // diffuse model (SnowyOvercast_IsBrighterThanSnowyClearSky_InDiffuseLight above) and on §7's
+        // night floor, which has headroom where the daytime colour channel does not.
+        float snowyOvercastTint = WeatherDimmingMath.SkyTintFactor(
+            AlbedoCavityMath.RecoveredDimming(
+                WeatherDimmingMath.DimmingFraction(1f, 0f, 0f, 0f, WeatherDimmingMath.DefaultMaxDimming),
+                2.344828f));
+
+        float clearDayTint = WeatherDimmingMath.SkyTintFactor(
+            WeatherDimmingMath.DimmingFraction(0f, 0f, 0f, 0f, WeatherDimmingMath.DefaultMaxDimming));
+
+        Assert.That(snowyOvercastTint, Is.EqualTo(clearDayTint).Within(Tolerance));
+
+        // And the control: the same overcast over bare ground still darkens by §13's full amount.
+        float bareOvercastTint = WeatherDimmingMath.SkyTintFactor(
+            AlbedoCavityMath.RecoveredDimming(
+                WeatherDimmingMath.DimmingFraction(1f, 0f, 0f, 0f, WeatherDimmingMath.DefaultMaxDimming),
+                1f));
+
+        Assert.That(bareOvercastTint, Is.EqualTo(0.82f).Within(Tolerance));
+        Assert.That(bareOvercastTint, Is.LessThan(snowyOvercastTint));
+    }
+
+    [Test]
+    public void SnowDoesNotRestoreShadowContrast_OnlyBrightness()
+    {
+        // The asymmetry, pinned so it reads as intent rather than as a missed call site. §13's
+        // shadow softening is driven by CloudOpacityFor, NOT by the recovered dimming — so a snowy
+        // overcast is bright AND flat, which together are the whiteout that makes terrain hard to
+        // read in snow. If someone later routes ShadowContrastFactor through the recovered value,
+        // this fails and tells them why it was not.
+        float softening = WeatherDimmingMath.ShadowContrastFactor(1f, WeatherDimmingMath.DefaultMaxDimming);
+
+        Assert.That(softening, Is.EqualTo(1f - WeatherDimmingMath.MaxShadowSoftening).Within(Tolerance));
+        Assert.That(softening, Is.LessThan(0.2f),
+            "a full deck must keep flattening shadows however much light the cavity gives back");
+    }
+
     // --- helpers ---
 
     // What the screen actually shows for the diffuse half: §21's gain on the glow channel times

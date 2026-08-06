@@ -217,6 +217,55 @@ public static class AlbedoCavityMath
     public static float AmplifiedGlow(float glow, float cavityGain) =>
         Clamp01(Clamp01(glow) * cavityGain);
 
+    // --- The DAYTIME consumer: how much of §13's dimming the cavity gives back ---
+    //
+    // §13 darkens the rendered sky by a fraction `dimming` because a cloud deck blocks the sun. §21
+    // says that same deck ALSO bounces the ground's light back down. Those are not contradictory and
+    // neither is a sign error: the cloud does both things, for the same reason it is a cloud. Over
+    // bare ground the blocking wins outright (gain is exactly 1, so this returns `dimming` unchanged
+    // and §13 is untouched); over fresh snow the cavity hands most of it back.
+    //
+    // The composition is EXACT and introduces no constant of its own. §13's surviving light fraction
+    // is (1 - dimming); the cavity multiplies diffuse light by `cavityGain`; so the composed
+    // surviving fraction is (1 - dimming) * cavityGain and the effective dimming is one minus that.
+    // Nothing is tuned, nothing is blended, and the bare-ground case falls out algebraically rather
+    // than being special-cased.
+    //
+    // THE CLAMP AT ZERO IS THE RENDERER'S OWN CEILING, not a taste call. SkyColorSet.sky is a
+    // MULTIPLY — SkyManager assigns it straight to MatBases.LightOverlay.color — and vanilla's
+    // brightest palette is Clear's (1,1,1), which already means "do not darken this scene at all".
+    // There is no headroom above it: a negative dimming would ask the overlay to brighten, which
+    // that material cannot express (it would need an additive pass, i.e. a real glare/bloom feature).
+    // So the honest ceiling for the daytime half is "a snowy overcast renders as bright as a clear
+    // day" — which IS the reported phenomenon, an overcast that refuses to feel dim — and the
+    // physically larger claim (snowy overcast brighter than snowy clear sky) is expressible only in
+    // the unclamped diffuse model and at night, where §7's floor has headroom. DESIGN.md §21 records
+    // that boundary rather than leaving the clamp to look like an arbitrary min().
+    //
+    // WHAT THIS DELIBERATELY DOES NOT REACH: shadow softening. §13's ShadowContrastFactor is driven
+    // by CloudOpacityFor, not by this, so the deck still kills the direct beam and still flattens
+    // shadows no matter how much diffuse light is bouncing around. That asymmetry is the physics,
+    // not an oversight — the cavity restores BRIGHTNESS and destroys CONTRAST, which together are
+    // exactly the whiteout that makes terrain hard to read in snow.
+    public static float RecoveredDimming(float dimming, float cavityGain)
+    {
+        // THE NO-CAVITY FAST PATH, AND IT IS NOT AN OPTIMISATION. Returning the input unchanged is
+        // the only way "bare ground is bit-identical to pre-§21" is literally true: the algebra says
+        // 1 - (1 - d) * 1 == d, but IEEE 754 single precision disagrees — d = 0.2175 round-trips to
+        // 0.21749997. A test caught that, and it is worth a branch rather than a tolerance, because
+        // this value reaches EVERY map on every save through WeatherDimming.DimmingFor. A claim that
+        // the overwhelmingly common path is untouched should be exact or should not be made.
+        //
+        // The comparison is <= rather than == because CavityGain can never be below 1 (its numerator
+        // is monotone above its denominator), so this reads as "no cavity worth the arithmetic"
+        // rather than as a float equality test on a computed quantity.
+        if (cavityGain <= 1f)
+            return dimming;
+
+        float surviving = (1f - Clamp01(dimming)) * cavityGain;
+        return Clamp01(1f - surviving);
+    }
+
     private static float Clamp01(float v) => v < 0f ? 0f : (v > 1f ? 1f : v);
     private static float Lerp(float a, float b, float t) => a + (b - a) * t;
 }
