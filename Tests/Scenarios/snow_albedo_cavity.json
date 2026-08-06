@@ -1,0 +1,134 @@
+{
+  "name": "snow_albedo_cavity",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "55"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "5"
+      }
+    },
+    {
+      "type": "SetSnow",
+      "args": {
+        "depth": "1",
+        "width": "128",
+        "height": "128"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Fog"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "1"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "snow_albedo",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "snow_overcast_night_off.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "snow_albedo",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "snow_overcast_night_on.png"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "snow_albedo",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "snow_clear_night_off.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "snow_albedo",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "snow_clear_night_on.png"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Fog"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "snow_albedo",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "snow_overcast_noon_off.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "snow_albedo",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "snow_overcast_noon_on.png"
+      }
+    }
+  ]
+}
