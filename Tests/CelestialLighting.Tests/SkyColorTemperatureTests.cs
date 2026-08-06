@@ -175,10 +175,21 @@ public class SkyColorTemperatureTests
             Is.EqualTo(1f).Within(Tolerance));
     }
 
+    // Interpolation is LINEAR IN MIREDS (10^6/K), not in Kelvin, because a mired shift is
+    // approximately linear in optical depth and optical depth is what pressureFraction scales. Each
+    // expectation below is derived rather than recorded — the sea-level shift is
+    // 10^6/2000 - 10^6/5772 = 326.75 mired, and a column fraction p walks that fraction of it:
+    //
+    //     K(p) = 10^6 / (173.25 + p * 326.75)
+    //
+    // Both endpoints are identical to a Kelvin-space lerp, which is why every invariant that lives
+    // at an endpoint (notably §18's p -> 0 == vacuum) is unaffected by the choice. Only the interior
+    // moves, and it moves a lot: 4000 m sits at 2650 K here against 3416 K in Kelvin-space, i.e. the
+    // Kelvin version walked the warm end back nearly twice as far for no derivable reason.
     [TestCase(1f, SkyColorTemperature.HorizonKelvin)] // sea level: unchanged from before §20
-    [TestCase(0.9883f, 2044.1f)] // 100 m
-    [TestCase(0.8382f, 2610.2f)] // 1500 m
-    [TestCase(0.6246f, 3415.9f)] // 4000 m: a markedly whiter horizon sun
+    [TestCase(0.9883f, 2015.4f)] // 100 m
+    [TestCase(0.8382f, 2236.5f)] // 1500 m
+    [TestCase(0.6246f, 2650.1f)] // 4000 m: a whiter horizon sun, but less so than Kelvin-space said
     [TestCase(0f, SkyColorTemperature.ZenithKelvin)] // the h -> infinity limit
     public void HorizonKelvinForPressure_WalksTheWarmEndpointTowardTheUnreddenedAnchor(
         float pressureFraction, float expected)
