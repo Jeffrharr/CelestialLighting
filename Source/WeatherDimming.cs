@@ -64,12 +64,33 @@ public static class WeatherDimming
         // them again here — only the palette-derived opacity needs our own blend. SandRate returns 0
         // without Odyssey, so reading it unconditionally is safe.
         WeatherManager weather = map.weatherManager;
-        return WeatherDimmingMath.DimmingFraction(
+        float dimming = WeatherDimmingMath.DimmingFraction(
             opacity,
             weather.RainRate,
             weather.SnowRate,
             weather.SandRate,
             WeatherDimmingSettings.MaxDimming);
+
+        // §21: the DAYTIME half of the surface-cloud cavity. The same deck this function is dimming
+        // for also bounces the ground's light back down, and over snow it hands most of the dimming
+        // back. Not a contradiction and not a sign error — a cloud blocks the sun AND reflects from
+        // its base, for the same reason it is a cloud. Over bare ground the gain is exactly 1 and
+        // this line returns `dimming` unchanged, so every non-snowy map is bit-identical to pre-§21.
+        //
+        // WHY HERE RATHER THAN IN Patch_WeatherDimming. DimmingFor is the shared read, and all three
+        // of its consumers want the recovered value: the sky tint (§13), §9's ApparentGlow and §9's
+        // per-cell night-wash strength. A snowy overcast that renders brighter must also desaturate
+        // less, and it does so here for free — which is exactly why §21 writes no saturation term of
+        // its own (DESIGN.md §21, §9).
+        //
+        // WHAT IS DELIBERATELY LEFT ALONE: Patch_ShadowStrength, which reads CloudOpacityFor rather
+        // than this, so the deck still softens shadows by the full amount. Brightness comes back,
+        // contrast does not. That asymmetry is the whiteout.
+        //
+        // The opacity is passed rather than re-read: CavityGainFor would otherwise walk MapSky's
+        // uncached biome/condition gates a second time on a path SkyManager runs twice per map per
+        // frame.
+        return AlbedoCavityMath.RecoveredDimming(dimming, SurfaceBuildup.CavityGainFor(map, opacity));
     }
 
     // §13's STRUCTURAL GUARD, and the half of the problem the pure classifier cannot reach. "Is this

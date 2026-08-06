@@ -4346,10 +4346,76 @@ ramp on apparent brightness, and snow is achromatic — it shifts no hue while i
 therefore writes **no saturation term of its own**. A second desaturation input would have been a
 second source of truth for a number §9 already owns.
 
-### Composition with §13, and what is deliberately not modelled
+### The daytime half: giving §13's dimming back over snow
 
-§21 lifts `SkyTarget.glow`; §13 dims `colors.sky`/`.overlay`. Two channels, and their **product** is
-what reaches the screen:
+The reported effect is a **daytime** one — "brighter with snow on the ground", i.e. snow glare under
+an overcast. The night floor above does not deliver it, so §21 has a second consumer:
+`WeatherDimming.DimmingFor` composes the cavity gain into §13's dimming before anyone reads it.
+
+**Why this is not a sign error, which is the first thing a reader will suspect.** §13 darkens for
+cloud; §21 brightens for the same cloud. Both are correct and they are not the same effect:
+
+| | what the deck does | who models it |
+|---|---|---|
+| blocks the incoming direct beam | ground gets less light | §13's dimming |
+| reflects from its own base | the light already down there comes back | §21's cavity |
+
+A cloud does both, for the same reason it is a cloud. Over **bare ground** the blocking wins outright
+— the gain is exactly 1, the composition is the identity, and §13 is untouched. Over **fresh snow**
+there is so much light going back up that the deck returns more than it withheld.
+
+The composition is exact and introduces no constant:
+
+```
+surviving = (1 - dimming) * cavityGain
+dimming'  = max(0, 1 - surviving)
+```
+
+| surface, weather | §13 dimming | gain | recovered dimming | rendered tint |
+|---|---|---|---|---|
+| bare ground, dry overcast | 0.180 | 1.000 | 0.180 | 0.820 |
+| sand, dry overcast | 0.180 | 1.153 | 0.055 | 0.945 |
+| settled snow, dry overcast | 0.180 | 1.360 | 0.000 | 1.000 |
+| fresh snow, dry overcast | 0.180 | 2.344 | 0.000 | 1.000 |
+| fresh snow, blizzard | 0.255 | 2.344 | 0.000 | 1.000 |
+| fresh snow, clear sky | 0.000 | 1.071 | 0.000 | 1.000 |
+
+**The clamp at zero is the renderer's ceiling, not a taste call.** `SkyColorSet.sky` is assigned
+straight to `MatBases.LightOverlay.color`, a **multiply**, and vanilla's brightest palette is Clear's
+`(1,1,1)` — which already means "do not darken this scene at all". There is no headroom above it. A
+negative dimming would ask that material to brighten, which it cannot express; that would need an
+additive pass, i.e. a real glare/bloom feature. So the honest ceiling for the daytime half is *a
+snowy overcast renders as bright as a clear day*, which is exactly the reported phenomenon — an
+overcast that refuses to feel dim. Before §21 it rendered at §13's full 18% darkening, visually
+indistinguishable from the same overcast over mud.
+
+The physically larger claim — snowy overcast *brighter* than snowy clear sky — is therefore
+expressible only in the unclamped diffuse model (pinned in the tests) and on §7's night floor, which
+has headroom where the daytime colour channel does not. Snow-glare bloom is the follow-up that would
+close that gap and is not attempted here.
+
+**Which consumers it reaches, and which it deliberately does not.** `DimmingFor` is the shared read,
+and all three of its consumers want the recovered value: §13's sky tint, §9's `ApparentGlow`, and
+§9's per-cell night-wash strength. A snowy overcast that renders brighter must also desaturate less,
+and it does so here for free — which is why §21 writes no saturation term of its own.
+
+`Patch_ShadowStrength` is **not** reached, because it reads `CloudOpacityFor` rather than
+`DimmingFor`. The deck still softens shadows by the full amount however much diffuse light is
+bouncing around. That asymmetry is the physics rather than a missed call site: the cavity restores
+**brightness** and destroys **contrast**, and together those are the whiteout that makes terrain hard
+to read in snow. A test pins it so it reads as intent.
+
+**One implementation note that cost a test failure and is worth keeping.** `RecoveredDimming`
+early-returns the input when the gain is 1, rather than letting the algebra do it. `1 - (1 - d) * 1`
+is `d` in real arithmetic and *not* in IEEE 754 single precision — `d = 0.2175` round-trips to
+`0.21749997`. This value reaches every map on every save, so "bare ground is bit-identical" should be
+exact or should not be claimed. The offline test asserted exact equality, caught it, and the fix is a
+branch rather than a tolerance.
+
+### Composition with §13 on the night channel, and what is deliberately not modelled
+
+At night the two subsystems stay on separate channels: §21 lifts `SkyTarget.glow`, §13 dims
+`colors.sky`/`.overlay`, and their **product** is what reaches the screen.
 
 | | gain (§21) | tint (§13) | composed |
 |---|---|---|---|
@@ -4359,12 +4425,12 @@ what reaches the screen:
 | bare ground, dry overcast | 1.000 | 0.820 | 0.820 |
 | bare ground, clear sky | 1.000 | 1.000 | 1.000 |
 
-The headline test is stated in those composed terms, not in raw gain, because a test on gain alone
-would assert something the player never sees and would pass even if §13's dimming ate the whole
-effect. The bare-ground row is the control: with no buildup the cavity gain is exactly 1, the dimming
-is unopposed, and an overcast is simply darker than a clear sky — which is what the mod did before
-§21 and must keep doing. Without that case the inversion test would pass just as well from a bug that
-brightened every overcast map.
+The headline inversion test is stated in those composed terms, not in raw gain, because a test on
+gain alone would assert something the player never sees and would pass even if §13's dimming ate the
+whole effect. The bare-ground row is the control: with no buildup the cavity gain is exactly 1, the
+dimming is unopposed, and an overcast is simply darker than a clear sky — which is what the mod did
+before §21 and must keep doing. Without that case the inversion test would pass just as well from a
+bug that brightened every overcast map.
 
 **What is deliberately NOT modelled: cloud extinction of the night sources.** A thick deck both
 closes the cavity (modelled) and attenuates the starlight and moonlight arriving through it (modelled
@@ -4385,6 +4451,45 @@ That is a bound the shipped *constants* give us, not one the code enforces — r
 would be crops growing in the dark rather than anything that looks like a lighting bug. So it is
 pinned (`AmplifiedGlow_StaysBelowThePlantGrowthThreshold_OnTheDefaultFloor`) rather than left to be
 noticed.
+
+#### Scoped out: amplifying daylight `.glow`
+
+The obvious way to build the daytime half would have been to amplify `.glow` in daylight the way §21
+amplifies it at night. It was analysed and rejected, and the analysis is worth keeping because the
+conclusion is not obvious from either end.
+
+Vanilla's glow is `GenCelestial.CelestialSunGlowPercent`, which returns
+
+```csharp
+Mathf.Clamp01(Mathf.InverseLerp(0f, 0.7f, Vector3.Dot(surfaceNormal, sunPosition)))
+```
+
+— a **clamped 0..1 quantity that peaks at exactly 1.0**. That single fact splits the day in two, and
+both halves are bad:
+
+- **At noon, where the effect should be strongest, it is a no-op.** Glow is already 1.0. `1.0 × 2.344`
+  clamps straight back to 1.0. A player standing on fresh snow at midday would see nothing.
+- **At the shoulders, where it is not a no-op, it is a gameplay change.** At glow 0.25 (mid-morning),
+  `× 2.344` is 0.586. That crosses `PlantProperties.growMinGlow` (0.51), lengthening the outdoor
+  growing window on every snowy map. It also lands in vanilla's `0.6` band, which is not merely a
+  plant threshold — `GenCelestial.CurShadowStrength` is `Abs(glow - 0.6) / 0.15`, `IsDaytime` keys on
+  it, and `GetLightSourceInfo` uses it to hand over between `LightingSun` and `LightingMoon`. Raising
+  glow across it would shift the sun/moon light-source switchover and the shadow-strength curve on
+  every snowed-in map.
+
+So the glow lane offers *no effect where the phenomenon lives* and *a real, uninvited gameplay change
+where it does not* — precisely the trade §13's design section refused in the opposite direction. The
+colour lane has the inverse profile: it is where the darkening the player currently sees is applied,
+it is bounded by vanilla's own palette maximum, and it costs nothing gameplay-visible. That is why
+the daytime half went there.
+
+Two consequences to state plainly rather than leave implied. **`.glow` in daylight is bit-for-bit
+vanilla under §21** — plant growth, solar output and pawn vision are untouched by the daytime arm, and
+`AmplifiedGlow` is reached only from `NightRadiance.FloorGlowFor`. And **the daytime effect is
+therefore purely visual**, which is the correct scope for this mod but does mean a snowy overcast is
+brighter to look at without being brighter to a solar panel. Anyone who later decides the physical
+claim should reach gameplay is opening a different ticket with a different risk profile, and this
+section is the starting point for it.
 
 ### Cost: whole-map, and why the per-cell half is deferred
 
@@ -4451,6 +4556,14 @@ so there is no number here a player would sensibly dial. It exists as a harness 
   discovered in play.
 - **The overcast night upper bound.** See the extinction note above — a snowy overcast night is
   currently amplified without the deck attenuating the moonlight it is amplifying.
+- **Whether full recovery is too much.** A snowy overcast now renders with §13's dimming entirely
+  cancelled, i.e. identical to a clear day. That is what the model says and the clamp is the
+  renderer's, but "identical to clear" is a large visual step from "18% darker" and it is the kind of
+  thing that reads differently in motion than in a table.
+- **Whether snow-glare bloom is worth a ticket.** The daytime colour channel has no headroom above
+  vanilla's palette, so the physical claim (snowy overcast brighter than snowy *clear* sky) cannot be
+  drawn there at all. An additive pass is the only way to express it; whether that is worth the
+  complexity is a live-A/B question, not a desk one.
 - Nothing here has been seen in-game. Every number above is offline.
 
 ## Settings and presets

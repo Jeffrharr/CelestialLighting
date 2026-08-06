@@ -34,7 +34,16 @@ public static class SurfaceBuildup
     // mod's existing bare-ground brightness. Exactly 1 — a true no-op — when the feature is off,
     // when there is no map or no snow grid yet (map generation), when nothing is lying on the
     // ground, and on a vacuum map.
-    public static float CavityGainFor(Map map)
+    public static float CavityGainFor(Map map) =>
+        CavityGainFor(map, CloudOpacityOrClear(map));
+
+    // Overload for callers that have ALREADY read §13's cloud opacity, which the daytime consumer
+    // has: WeatherDimming.DimmingFor computes the opacity, derives the dimming from it, and then
+    // needs the gain for the same opacity. Threading it through rather than letting this re-read it
+    // is not micro-optimisation — CloudOpacityFor walks MapSky's biome weather-commonality list and
+    // the GameConditionManager chain, both of which MapSky's header records as deliberately NOT
+    // memoized, and CurSkyTarget is called twice per map per frame by SkyManager.
+    public static float CavityGainFor(Map map, float cloudOpacity)
     {
         // Feature gate (default on): when off, every consumer sees a gain of exactly 1 and the mod
         // renders precisely what it did before §21 — the faithful pre-feature baseline the harness
@@ -73,11 +82,17 @@ public static class SurfaceBuildup
         // the mod has no model of a cloud deck at all, and inventing a second one for §21 alone would
         // be exactly the "two sources of truth for how overcast it is" that sharing the classifier
         // exists to prevent.
-        float cloudAlbedo = AlbedoCavityMath.CloudBaseAlbedo(WeatherDimming.CloudOpacityFor(map));
+        float cloudAlbedo = AlbedoCavityMath.CloudBaseAlbedo(cloudOpacity);
 
         return AlbedoCavityMath.CavityGain(
             surfaceAlbedo, AlbedoCavityMath.BareGroundAlbedo, cloudAlbedo, inVacuum);
     }
+
+    // §13's blended cloud opacity, or a clear sky when there is no map to ask. Split out only so the
+    // one-argument entry point above can share the body below without reading the opacity inside the
+    // feature gate — a null map must not reach WeatherDimming.CloudOpacityFor.
+    private static float CloudOpacityOrClear(Map map) =>
+        map == null ? 0f : WeatherDimming.CloudOpacityFor(map);
 
     // Mean weather-buildup depth across the whole map, in [0,1]. 0 before the grid exists (a map
     // still being generated asks for sky targets) or if Area is somehow zero, which is the same
