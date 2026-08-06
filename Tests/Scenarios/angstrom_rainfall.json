@@ -1,0 +1,21 @@
+{
+  "name": "angstrom_rainfall",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "45" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "30" } },
+    { "type": "SetTime", "args": { "hour": "19" } },
+
+    { "type": "SetTileProperties", "args": { "elevation": "0", "pollution": "1", "rainfall": "200" } },
+    { "type": "Screenshot", "args": { "fileName": "angstrom_arid_200mm.png" } },
+
+    { "type": "SetTileProperties", "args": { "rainfall": "1354" } },
+    { "type": "Screenshot", "args": { "fileName": "angstrom_temperate_1354mm.png" } },
+
+    { "type": "SetTileProperties", "args": { "rainfall": "2500" } },
+    { "type": "Screenshot", "args": { "fileName": "angstrom_rainforest_2500mm.png" } },
+
+    { "type": "SetTileProperties", "args": { "pollution": "0", "rainfall": "1354" } },
+    { "type": "Screenshot", "args": { "fileName": "angstrom_no_aerosol.png" } }
+  ]
+}
