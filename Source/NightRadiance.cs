@@ -47,7 +47,20 @@ public static class NightRadiance
         float moonlight = NightRadianceMath.MoonlightGlow(
             moon.IlluminatedFraction, moon.ElevationDegrees, settings.MaxMoonlightGlow);
 
-        return NightRadianceMath.NightFloorGlow(
+        float floor = NightRadianceMath.NightFloorGlow(
             starlight, airglow, moonlight, settings.MaxMoonlightGlow, Vacuum.InVacuumForMap(map));
+
+        // §21: the surface-cloud light cavity. Snow on the ground and a cloud base overhead trap
+        // light between them, and the same geometric series that makes a snowy overcast DAY dazzling
+        // amplifies starlight and moonlight at night — a full moon on fresh snow under cloud is
+        // famously bright enough to read by. Applied here rather than in Patch_NightRadiance for the
+        // reason this whole file exists: it belongs to "how dark can the sky over this map get", and
+        // all three consumers of that answer should see the same one.
+        //
+        // Costs the two vacuum consumers nothing to have it here. SurfaceBuildup.CavityGainFor
+        // returns exactly 1 on a vacuum map (no atmosphere, no cloud base, no cavity), so #31's umbra
+        // floor and #33's eclipse minimum read the same value they always did — and they read it
+        // through one function rather than through a branch each.
+        return AlbedoCavityMath.AmplifiedGlow(floor, SurfaceBuildup.CavityGainFor(map));
     }
 }

@@ -463,6 +463,15 @@ public static class ProbeRegistration
         FeatureRegistry.Register(
             CelestialLightingFeatures.VacuumShadowContrastKey,
             enabled => CelestialLightingFeatures.VacuumShadowContrast = enabled);
+        // §21 the surface-cloud light cavity. Nothing baked to rebuild — SurfaceBuildup.CavityGainFor
+        // is read fresh inside NightRadiance.FloorGlowFor on every sky update, so the next frame shows
+        // the flip. The A/B this exists for is a snowed-in map at night under an overcast, off vs on;
+        // the note on the flag itself (CelestialLightingFeatures.SnowAlbedo) records that the ice
+        // sheet and sea ice biomes are the case that specifically wants a human look, since they sit
+        // at full buildup year-round and so become permanently brighter.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.SnowAlbedoKey,
+            enabled => CelestialLightingFeatures.SnowAlbedo = enabled);
         // Not a CelestialLightingFeatures flag: bridges §7b's minimum-indoor-brightness slider so a
         // visual scenario can A/B a sealed room at full black against one held above it. "enabled" ==
         // true means raise the floor to a clearly-visible 0.25; false restores the shipped 0 (black).
