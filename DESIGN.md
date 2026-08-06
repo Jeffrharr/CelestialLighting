@@ -3825,9 +3825,9 @@ pressureFraction = exp(-siteAltitudeMetres / 8500)
 
 | tile elevation | `pressureFraction` | effective horizon Kelvin |
 |---|---|---|
-| 100 m (vanilla `Tile.elevation` default) | 0.988 | 2044 K — imperceptible |
-| 1500 m | 0.838 | 2610 K |
-| 4000 m | 0.625 | 3416 K |
+| 100 m (vanilla `Tile.elevation` default) | 0.988 | 2016 K — imperceptible |
+| 1500 m | 0.838 | 2237 K |
+| 4000 m | 0.625 | 2649 K |
 | ∞ | 0 | 5772 K — the vacuum endpoint |
 
 Most maps are therefore unchanged, and the effect appears only where the terrain justifies it — the
@@ -3839,7 +3839,8 @@ threshold, the curve simply reaches somewhere different when the tile does.
 `pressureFraction` enters `SkyColorTemperature` twice, and the reason is the same one §18a spells
 out for vacuum.
 
-1. **`HorizonKelvinForPressure`** slides the *warm* endpoint from `HorizonKelvin` toward
+1. **`HorizonKelvinForColumns`** (named `HorizonKelvinForPressure` until §20b gave it a second
+   species to compose) slides the *warm* endpoint from `HorizonKelvin` toward
    `ZenithKelvin`. Only the warm endpoint moves: 2000 K is what a full sea-level column *does to*
    sunlight, while 5772 K is the unreddened photospheric anchor — sunlight before the atmosphere
    touched it — so there is nothing for thinner air to move the neutral end toward. Thinning the air
@@ -3922,8 +3923,8 @@ scaleHeight)` with `RayleighScaleHeightMetres = 8500` as one named caller, becau
 scatterers have very different scale heights and the next one is already specified: aerosols (dust,
 smoke, haze) are injected near the ground and settle out, so they hug the surface with H ≈ 1500 m and
 fall away nearly six times faster with altitude — which is exactly why mountain air looks *clean*
-rather than merely thin. Issue #83 adds that species as a second constant plus a second accessor in
-this same file, with no new exponential and no new `<Compile Include>` entry.
+rather than merely thin. §20b below is that species, added exactly as predicted — a second constant
+plus two accessors in this same file, with no new exponential and no new `<Compile Include>` entry.
 
 8500 m is Earth's textbook value (kT/mg for dry air near 250 K) and is used without apology: RimWorld
 planets are Earth-analogues down to the biome list, and there is nothing in worldgen a per-world
@@ -3959,7 +3960,7 @@ handed to a pure model that owns the math. `Tile.elevation` is a plain public fl
 It is its own file rather than a private method on the patch because the live probe has to read the
 *same* value the patch does — §18's rule that a probe reads the same gate as its patch, for the same
 reason: a probe reporting a colour temperature the sky is not being tinted toward is worse than no
-probe. `sky_color_temperature` therefore now reports the tile's own horizon endpoint (~3416 K on a
+probe. `sky_color_temperature` therefore now reports the tile's own horizon endpoint (~2649 K on a
 4000 m tile), so a mountain scenario can pin the whole chain end-to-end.
 
 Two guards, both returning 0 m — sea level, `pressureFraction` 1, bit-identical to the pre-§20 curve,
@@ -3991,7 +3992,8 @@ design, and adding a knob before that is answered would bake in a guess.
 
 - **Biotech `Tile.pollution` as aerosol loading.** Opposite sign to altitude (more reddening), but
   Mie scattering greys rather than reddens, so it collides with §9's desaturation and needs its own
-  design rather than a second multiplier here.
+  design rather than a second multiplier here. **Landed as §20b** — and the collision was real: the
+  reddening half shipped, the greying half did not.
 - **Latitude-keyed ozone column for §19.** ~260 DU in the tropics vs ~400 DU at high latitudes in
   spring, so Chappuis blue should strengthen toward the poles. A genuine colour-by-location effect,
   but it belongs to §19's absorption-notch model, not §8's Rayleigh one — and note it is a *latitude*
@@ -3999,6 +4001,209 @@ design, and adding a knob before that is answered would bake in a guess.
 - **§7 starlight extinction.** `k = 0.28` mag/airmass is a documented **sea-level** constant
   (§18b) with exactly the same site-altitude problem — nearer 0.12–0.15 at 4000 m — and it would use
   this same `AtmosphericColumn` model.
+
+## 20b. Pollution aerosol loading — a boundary-layer species with its own scale height (`AtmosphericColumn` / `SiteAltitude`)
+
+§20 gave §8's sunset a second input: how much *air* the observer has overhead. It left the obvious
+companion question unasked — what is *in* that air. Biotech writes a per-tile `pollution` value in
+0–1 that, until now, had no effect on this mod's sky at all. Physically it is aerosol loading, and
+aerosol is the third absorbing species over a map, after Rayleigh (§8/§20) and stratospheric ozone
+(§19).
+
+**The physics, and why this is not simply "turn §8's warm knob up on polluted tiles".** Aerosol
+differs from Rayleigh in two ways, and both of them matter.
+
+1. **Its scale height is ~1.5 km, not 8.5 km.** Aerosol is not a component of the air the way
+   nitrogen is. It is *injected* at the surface — fires, dust, sea spray, industry — and continuously
+   removed by settling and rain-out, so its vertical profile is set by that source/sink balance in
+   the boundary layer rather than by the hydrostatic balance that gives bulk air its 8500 m. Measured
+   continental values cluster around 1–2 km; 1500 m is the middle of that band.
+2. **Mie scattering is far less wavelength-selective than Rayleigh.** Rayleigh goes as λ⁻⁴; aerosol
+   is closer to λ⁻¹ or λ⁰ depending on particle size. Heavy aerosol therefore does **not** simply
+   push the sky further down the Planckian locus — it *greys and mutes* it. A polluted sunset is a
+   dimmer, browner, lower-contrast orange, not a more vivid one.
+
+**Point 1 is the whole reason this is worth building.** 8500 / 1500 = 5.67, so the aerosol column
+decays with altitude nearly six times faster than the air column does. The two terms then compose
+into something neither could produce alone:
+
+| tile | `pressureFraction` | `aerosolFraction` | effective horizon Kelvin |
+|---|---|---|---|
+| sea level, pollution 0 | 1.000 | 0.000 | 2000 K — the original curve, untouched |
+| sea level, pollution 0.5 | 1.000 | 0.500 | 1714 K |
+| sea level, pollution 1.0 | 1.000 | 1.000 | 1500 K — the new warm endpoint |
+| 100 m (vanilla default), pollution 1.0 | 0.988 | 0.936 | 1525 K |
+| 1500 m, pollution 1.0 | 0.838 | 0.368 | 1894 K |
+| 4000 m, pollution 1.0 | 0.625 | 0.069 | 2516 K |
+| 4000 m, pollution 0 | 0.625 | 0.000 | 2649 K |
+
+Read the last two rows together: full pollution on a 4000 m tile moves the horizon endpoint by 133 K,
+against 500 K at sea level. **A mountain base is above the smog.** And because pollution warms while
+altitude cools, a polluted lowland and a clean plateau sit at opposite ends of one continuous curve
+with no threshold and no special case anywhere — the same shape §19's polar night and §20's mountain
+sunset already have.
+
+### Where it enters the curve — one place, not two
+
+§18a and §20 both needed *both* halves of §8 (the Kelvin endpoint and the tint strength), and both
+recorded why at length. §20b needs only one, and the asymmetry is the design rather than an
+oversight.
+
+`HorizonKelvinForColumns(pressureFraction, aerosolFraction)` replaces §20's
+`HorizonKelvinForPressure` and stacks two lerps rather than widening one. The clean-air endpoint is
+settled first — "how reddened is an unpolluted column at this altitude" — and the haze the observer
+is standing in is then laid on top of whatever that came out as. The order is the physical claim, and
+it has a useful structural consequence: the aerosol term vanishes on a mountain **without any
+altitude logic living in the colour curve**, because `aerosolFraction` is itself an `exp(-h/1500)`
+column that has already collapsed to 0.069 by 4000 m. The pure layer never learns what an altitude
+is; it just receives a fraction that has already gone away.
+
+`TintStrength` is deliberately **not** given the term, and the absence is asserted structurally
+(`TintStrength_HasNoAerosolTerm_BecauseMieMutesRatherThanIntensifies`) so no future call site can
+quietly start feeding one. Two independent reasons:
+
+- **Where aerosol exists, the strength factor is already saturated.** The aerosol column is above
+  half only below ~1040 m (1500 · ln 2), where `pressureFraction` is ≥ 0.88 and the horizon-time tint
+  is already at or near its 1.0 ceiling. An additive strength term would be clamped away across most
+  of the band it was added for — a knob that mostly does nothing.
+- **Where it would *not* be clamped, it would be backwards.** Point 2 of the physics above: Mie
+  scattering is nearly wavelength-flat, so heavy aerosol mutes a sunset rather than intensifying it.
+  Pushing the tint stronger would model the effect with the wrong sign.
+
+### Why a third Kelvin constant here, when §20 introduced none
+
+§20 made a point of adding no new constant, and the argument was specific: thinning the air can only
+ever walk the reddened end back *up* toward the unreddened photospheric anchor, so `HorizonKelvin`
+and `ZenithKelvin` already bracketed everything the altitude term could reach. Aerosol moves the
+other way — it adds optical depth, pushing the endpoint *past* the sea-level 2000 K into territory
+neither existing constant describes. `AerosolHorizonKelvin = 1500` is that argument's mirror image
+rather than a violation of it.
+
+**Why it saturates instead of extrapolating.** The tempting move is to treat pollution as extra
+optical depth and keep extending §20's linear Kelvin ramp. But that ramp is *calibrated* on [0, 1] —
+one full sea-level air column is worth exactly 3772 K of reddening — and extrapolating a calibration
+is not the same as using it. Taken literally it runs off the end of the world: a heavy urban aerosol
+optical depth is several times the sea-level Rayleigh depth (τ_R ≈ 0.098 at 550 nm against an AOD
+that can exceed 0.3), and even after discounting it for Mie's much weaker selectivity — Ångström
+exponent ~1.3 against Rayleigh's 4, so roughly a third of the reddening per unit depth — the linear
+form lands below absolute zero. Real extinction does not behave that way either: past a point, more
+haze mostly dims and greys rather than reddening further.
+
+**Why 1500 K specifically**, anchored on the Helland fit this subsystem already uses rather than on
+taste: the fit's blue channel is pinned at 0 below 1900 K, so essentially all of the travel from
+2000 K down to 1500 K happens in green (0.537 → 0.425) with red already saturated. That is precisely
+*browner* — the word the physics reaches for when describing a polluted sunset. It also keeps the
+whole curve comfortably inside the fit's stated ~1000 K validity floor rather than riding its edge.
+
+### Why the suppression is 8×, not the 14× the fractions alone predict
+
+Both stages interpolate in **mireds** (see §20 for why: a mired shift is approximately linear in
+optical depth, and both fractions *are* optical depths). Stacking them has a consequence worth
+stating outright, because deriving it from the aerosol fractions alone gives the wrong answer.
+
+The aerosol fraction itself collapses **14.4×** between sea level and 4000 m (1.000 → 0.069). But the
+shift is that fraction times the distance from the clean-air endpoint down to `AerosolHorizonKelvin`,
+and altitude has already moved that endpoint *up* — so there is more room to redden into at altitude
+than at sea level:
+
+| | headroom to 1500 K |
+|---|---|
+| sea level | `10⁶/1500 − 10⁶/2000` = 666.7 − 500.0 = **166.7 mired** |
+| 4000 m | `10⁶/1500 − 10⁶/2649` = 666.7 − 377.3 = **289.3 mired** |
+
+so the net suppression is `14.388 × (166.7 / 289.3)` = **8.29×**. Thinner air gives back a little of
+what the missing haze took away.
+
+That is the claim holding rather than failing. 8.29× still sits far above the **5.67×** ratio of the
+two scale heights, and lands close to the **8.99×** ratio of the two columns — so *a mountain base is
+above the smog* survives the endpoint geometry; it is simply worth 8× rather than 14×. Pinned by
+`PollutionsWarmingCollapsesWithAltitude_ButLessThanTheColumnAlone`, so a future retune of either
+endpoint cannot move it silently, and so the next reader who derives 14× from the fractions finds out
+here rather than from a screenshot.
+
+### The greying half, deliberately not built
+
+Point 2 of the physics says the dominant real effect of heavy aerosol is muting, not reddening. We
+shipped the reddening and left the muting alone, on purpose.
+
+Desaturation is §9's lane (`Patch_LowLightDesaturation` / `PurkinjeMath`), and §9 is already being
+restacked under #78. Two subsystems independently pulling saturation down is *precisely* the failure
+#78 exists to fix, so adding a second one while the first is mid-repair would be building the bug on
+purpose. §8's lane stays colour-only for the same reason it always has: it writes `.colors.sky` and
+`.colors.overlay` and touches neither `.saturation` (§2's) nor `.glow` (off-limits to the whole
+lane).
+
+So the honest statement of what shipped is: **§20b models the wavelength-selective part of aerosol
+extinction and skips the wavelength-flat part.** If the mute reads as missing in a live A/B, that is
+a §9 ticket keyed on this same `aerosolFraction` — the fraction is already computed and already
+available at the boundary — to be filed once #78 settles. It is not a change to this section.
+
+### Vacuum, and the consistency of the fraction pair
+
+§18's convention is untouched: `inVacuum` is still the last parameter, still required and never
+defaulted, still early-returning before any atmospheric math runs. `aerosolFraction` is threaded in
+*ahead* of it, exactly where §20 put `pressureFraction`, so the vacuum parameter stays where every
+other subsystem's is.
+
+`HorizonKelvinForColumns` cannot enforce that its two fractions are a consistent pair, and there is
+exactly one place that would matter: the `h → ∞` limit that §20 cashes in as the vacuum agreement. An
+aerosol column that outlived the air column would drag the airless endpoint away from `ZenithKelvin`
+and break `ZeroPressure_ReproducesTheVacuumValuesExactly`. It cannot, because aerosol is the
+faster-decaying of the two — but "obviously" is not a test, and the guarantee lives in
+`AtmosphericColumn` rather than in the curve, so it is asserted where the pair is actually produced
+(`BothColumnsReachZeroTogether_SoTheVacuumAgreementSurvivesTheSecondSpecies`).
+
+### Compat: a Biotech mechanic with no Biotech gate
+
+`Tile.pollution` is a plain public `float` on **base** `RimWorld.Planet.Tile`, not on anything
+Biotech adds — verified by decompiling 1.6 `Assembly-CSharp`. This is the identical situation to
+§18's `BiomeDef.inVacuum`: all DLC code ships in the base assembly, so the field compiles and
+evaluates with Biotech uninstalled and simply reads 0 on every tile. §18's rule therefore applies for
+§18's reason — **no `ModsConfig.BiotechActive` plumbing**, because a DLC branch could only ever agree
+with the field and would be a second thing to keep in sync.
+`ApiCompatibilityTests.Tile_HasPollution` pins existence, base-type location and `System.Single`, the
+same three things `Tile_HasElevation` pins for §20.
+
+`SiteAltitude` grows a second accessor (`AerosolFractionForMap`) alongside `PressureFractionForMap`,
+sharing one guarded `TileForMap` helper so the non-root-surface and null-tile guards exist once. Both
+guards now mean "sea level, unpolluted" — `pressureFraction` 1 and `aerosolFraction` 0, still
+bit-identical to the pre-§20 curve. The two accessors read the tile independently rather than
+returning a struct: the read is a bounds-checked list index, so the duplication costs nothing
+measurable, and one primitive out per question is the shape §20 deliberately gave the file.
+
+No settings slider ships, for the reason §20 declined one: whether the honest range reads right in
+play is a question for a live A/B, and adding a knob before that is answered bakes in a guess.
+
+### What is pinned offline
+
+- **`pollution = 0` is bit-identical to §20's behaviour**, asserted as *exact* equality over a
+  sweep of altitude × sun elevation, with §20's one-line formula restated in the test rather than
+  called — which makes it a pin on the behaviour rather than a tautology about the current code.
+  Every tile in a game without Biotech takes this path, so "almost unchanged" would mean the mod's
+  default behaviour had silently moved for every existing colony.
+- **Monotonicity both ways**: warmth non-decreasing in pollution at fixed altitude, and — separately
+  re-asserted with the new term switched on — non-increasing in altitude at fixed pollution. The
+  second is not free: climbing raises the clean-air endpoint *and* thins the aerosol column, and the
+  test is what says the two effects agree rather than a comment claiming they do.
+- **The 5.7× ratio itself**, as `ln(aerosol) / ln(rayleigh) = 8500 / 1500` swept over altitude.
+  Pinned as a sweep precisely because it is altitude-independent: a retune of either constant, or a
+  replacement of either accessor with something that is not a pure exponential of the same height,
+  diverges rather than moving one number.
+- **§19 is pollution-invariant at every elevation**, asserted structurally the same way its
+  altitude-invariance is. The ozone layer sits at 20–30 km — roughly fifteen aerosol scale heights up
+  — so no boundary-layer haze is between the observer and the Chappuis absorption at all. This is the
+  *stronger* of the two §19 invariants and deliberately does not catch a latitude term, which is a
+  different axis (see below).
+
+### Out of scope, filed separately
+
+- **The §9 muting ticket**, described above: keyed on the same `aerosolFraction`, to be filed once
+  #78 settles.
+- **Pollution's effect on §7's night sky.** Urban haze is what actually kills starlight, and §18b's
+  `k = 0.28` mag/airmass sea-level extinction constant has the same shape of problem §20 already
+  flagged for altitude. Same `AtmosphericColumn` model, different subsystem.
+- **Latitude-keyed ozone column for §19** remains §20's open item and is unaffected by this section —
+  it is a latitude term in the stratosphere, where §20b is a pollution term in the lowest 1.5 km.
 
 ## Settings and presets
 
