@@ -28,7 +28,7 @@ namespace CelestialLighting;
 // lowland and a clean mountain base end up at opposite ends of one continuous curve, and a high
 // enough map is simply above the haze.
 //
-// The curve's fourth input is the SHAPE of that aerosol's extinction (DESIGN.md §20c), and it is the
+// The curve's fourth input is the SHAPE of that aerosol's extinction (DESIGN.md §20d), and it is the
 // one input that does not live on this curve at all. Everything above is a one-parameter family — a
 // ramp along the Planckian locus — so altitude and pollution only ever change how far along ONE hue
 // path the sky travels. Aerosol's Angstrom exponent changes the path itself, which cannot be said in
@@ -66,7 +66,7 @@ public static class SkyColorTemperature
     // aerosol term, because strengthening a reddening tint models Mie scattering backwards (see
     // TintStrength's own note and the structural test pinning it). §20b's answer to "a maximally
     // polluted sky must be visibly different" was to deepen the endpoint COLOUR and to open the
-    // adapter's per-channel blend, never to make the tint stronger. §20c changes only how that
+    // adapter's per-channel blend, never to make the tint stronger. §20d changes only how that
     // colour is represented, so both halves of that answer survive unchanged.
 
     // At/above this solar elevation the sky has reached full daylight temperature and no further
@@ -135,7 +135,7 @@ public static class SkyColorTemperature
     // one interpolation space to serve both.
     //
     // §20b stacked a SECOND mired lerp on the end of this one, carrying the endpoint on past the
-    // sea-level 2000 K toward an AerosolHorizonKelvin. §20c removed that stage outright: aerosol's
+    // sea-level 2000 K toward an AerosolHorizonKelvin. §20d removed that stage outright: aerosol's
     // colour effect is a spectral SHAPE, and a point on the Planckian locus cannot carry one. What
     // is left is exactly what §20 introduced — the endpoint an UNPOLLUTED column of this thickness
     // reaches — and AerosolSpectrum then multiplies its per-channel transmission into the colour
@@ -146,7 +146,7 @@ public static class SkyColorTemperature
     // property that made mireds the right space for the clean-air stage; §20b's mired reading of how
     // fast pollution's effect collapses with altitude therefore survives the move exactly, and the
     // test that pinned it still holds. The one thing that does NOT survive is treating the aerosol
-    // stage as a lerp toward a fixed endpoint colour, which is the lossy step §20c exists to undo.
+    // stage as a lerp toward a fixed endpoint colour, which is the lossy step §20d exists to undo.
     public static float HorizonKelvinForPressure(float pressureFraction)
     {
         float mired = Lerp(
@@ -173,7 +173,7 @@ public static class SkyColorTemperature
     // everything (air, haze, ozone) than a high sun's does.
     //
     // Extracted because THREE things now need the same ramp and they must not drift apart: the
-    // Kelvin ramp (as 1 - t), TintStrength's lowSunRamp, and §20c's aerosol optical depth. The last
+    // Kelvin ramp (as 1 - t), TintStrength's lowSunRamp, and §20d's aerosol optical depth. The last
     // is the new one, and using this rather than a fresh ramp is what makes the aerosol's colour
     // fade out with sun altitude at exactly the rate §20b's Kelvin endpoint did — the spectral model
     // is a change of representation, not a change of when the effect applies.
@@ -192,7 +192,7 @@ public static class SkyColorTemperature
     //
     // This is the CLEAN-AIR colour temperature. It is still the honest answer to "what colour
     // temperature is the sunlight reaching this map", and it is still what the sky_color_temperature
-    // probe reports — but since §20c it is no longer the whole of the sky colour, because a notched
+    // probe reports — but since §20d it is no longer the whole of the sky colour, because a notched
     // or sloped aerosol spectrum is not a blackbody at any temperature. SkyColorForElevation below is
     // the composition that is; anything that needs the colour rather than the temperature must go
     // through that rather than calling BlackbodyToRgb on this directly.
@@ -267,7 +267,7 @@ public static class SkyColorTemperature
     // is about. If the mute reads as missing in a live A/B, it is a §9 ticket keyed on this same
     // aerosol fraction, filed once #78 settles.
     //
-    // §20c's angstromExponent is absent for the SAME reason, and it is worth saying explicitly
+    // §20d's angstromExponent is absent for the SAME reason, and it is worth saying explicitly
     // because the temptation there is different and more plausible: low alpha does mean weaker
     // colour, so scaling strength by alpha would look like the obvious way to express "grey aerosol
     // barely tints". It would be wrong twice over. The spectral model already delivers that — at
@@ -290,7 +290,7 @@ public static class SkyColorTemperature
     // particle size → RGB. Carries inVacuum straight through, so in vacuum this is the constant
     // unreddened anchor colour at every elevation.
     //
-    // TWO STAGES, AND THE ORDER IS THE PHYSICAL CLAIM (DESIGN.md §20c). First the clean-air colour:
+    // TWO STAGES, AND THE ORDER IS THE PHYSICAL CLAIM (DESIGN.md §20d). First the clean-air colour:
     // what the Rayleigh column at this altitude does to sunlight at this sun angle, which a single
     // colour temperature genuinely can describe because Rayleigh has one fixed spectral shape. Then
     // the aerosol, applied as a per-channel multiplication on top of that, because its shape varies
@@ -328,7 +328,7 @@ public static class SkyColorTemperature
     // Blackbody colour temperature → linear-ish sRGB in [0, 1] per channel, via the widely published
     // (public-domain) Tanner Helland approximation of the Planckian locus. This is a standard
     // tabulated/curve-fit conversion used across countless colour tools — textbook, not mod-specific
-    // (see DESIGN.md "Clean-room provenance"). Valid roughly 1000–40000 K; since §20c retired §20b's
+    // (see DESIGN.md "Clean-room provenance"). Valid roughly 1000–40000 K; since §20d retired §20b's
     // 1500 K endpoint, our curve only ever feeds it HorizonKelvin..ZenithKelvin — a narrower band
     // sitting further inside the fit's validity range than before, because the aerosol's extra
     // reddening is now applied per channel afterwards rather than by asking the fit for a colder

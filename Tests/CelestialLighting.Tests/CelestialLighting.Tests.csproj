@@ -69,7 +69,7 @@
          live half that reads the tick and the tile id is AerosolDriftClock.cs and is NOT linked:
          it is Verse-bound by design, which is the whole point of the split. -->
     <Compile Include="../../Source/AerosolDrift.cs" Link="AerosolDrift.cs" />
-    <!-- Subsystem 20c pure core (aerosol spectral shape / Angstrom exponent). Like OzoneTwilightMath
+    <!-- Subsystem 20d pure core (aerosol spectral shape / Angstrom exponent). Like OzoneTwilightMath
          below it reuses SkyColorTemperature.Rgb as its colour struct, so the SkyColorTemperature
          link above is a hard prerequisite. Its tests live in SkyColorTemperatureTests.cs rather than
          a file of their own: every invariant worth pinning is about how this model composes with §8's

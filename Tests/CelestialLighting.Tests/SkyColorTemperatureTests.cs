@@ -372,8 +372,8 @@ public class SkyColorTemperatureTests
     // --- §20b, restated in colour rather than in Kelvin ---
     //
     // §20b originally expressed the aerosol's effect as a SECOND lerp along the Planckian locus, from
-    // the clean-air endpoint down to a 1500 K AerosolHorizonKelvin. §20c retired that, because a point
-    // on the locus cannot carry a spectral SHAPE and shape is the whole subject of §20c. So the
+    // the clean-air endpoint down to a 1500 K AerosolHorizonKelvin. §20d retired that, because a point
+    // on the locus cannot carry a spectral SHAPE and shape is the whole subject of §20d. So the
     // aerosol's colour now comes out of AerosolSpectrum as a per-channel multiplier instead.
     //
     // Everything §20b actually claimed survives that move — pollution warms, altitude cools, the two
@@ -383,7 +383,7 @@ public class SkyColorTemperatureTests
     // the warm axis is this" question a colour temperature was answering, asked in a way that does not
     // presuppose the answer lies on the locus.
 
-    // The composed horizon colour, which is where every §20b/§20c invariant is measured. Elevation 0
+    // The composed horizon colour, which is where every §20b/§20d invariant is measured. Elevation 0
     // because that is where the aerosol path is longest and the effect largest — a test that passed
     // only at high sun would be pinning almost nothing.
     private static SkyColorTemperature.Rgb HorizonColour(
@@ -397,7 +397,7 @@ public class SkyColorTemperatureTests
     // quantity the live sky_red_blue_ratio probe reports so offline and in-game pins agree.
     private static float RedBlueRatio(SkyColorTemperature.Rgb rgb) => rgb.R / rgb.B;
 
-    [TestCase(1f, 0f, 18.340f)] // clean sea level: §8's own 2000 K anchor, untouched by §20b/§20c
+    [TestCase(1f, 0f, 18.340f)] // clean sea level: §8's own 2000 K anchor, untouched by §20b/§20d
     [TestCase(1f, 0.5f, 28.594f)] // half a sea-level aerosol load
     [TestCase(1f, 1f, 44.581f)] // fully polluted sea level: the warmest the model reaches
     [TestCase(0.9883f, 0.9355f, 29.435f)] // 100 m (vanilla default) at pollution 1.0
@@ -456,7 +456,7 @@ public class SkyColorTemperatureTests
                     Is.EqualTo(preAerosolKelvin),
                     $"the unpolluted curve moved at {siteAltitudeMetres} m, elevation {elevation}");
 
-                // And the same claim on the COLOUR, which is what §20c actually changed. Swept over
+                // And the same claim on the COLOUR, which is what §20d actually changed. Swept over
                 // every named exponent, because an unpolluted tile must be untouched no matter what
                 // particle size its rainfall would have implied — there is no aerosol there for the
                 // shape to shape.
@@ -481,7 +481,7 @@ public class SkyColorTemperatureTests
     {
         // Pollution may only ever make the sky warmer (a HIGHER red/blue ratio), never cooler and
         // never non-monotonically — the mirror of the site-altitude invariant below. Swept over sun
-        // elevation, site altitude AND exponent, because since §20c the effect is a function of all
+        // elevation, site altitude AND exponent, because since §20d the effect is a function of all
         // four and a monotonicity that only held at one particle size would be worth very little.
         foreach (float alpha in AllNamedExponents)
         {
@@ -509,7 +509,7 @@ public class SkyColorTemperatureTests
     [Test]
     public void Warmth_IsStillMonotonicallyNonIncreasing_InSiteAltitude_AtEveryPollutionLevel()
     {
-        // §20's altitude invariant, re-asserted with §20c's term switched on. It is not obvious for
+        // §20's altitude invariant, re-asserted with §20d's term switched on. It is not obvious for
         // free: climbing raises the clean-air endpoint (cooler) AND thins the aerosol column (cooler
         // again), so the two effects happen to agree — and this is the test that says so rather than
         // leaving it as an argument in a comment. Swept over exponent for the same reason as above.
@@ -545,7 +545,7 @@ public class SkyColorTemperatureTests
         // stacking two Kelvin lerps made the collapse look weaker than the column ratio (133 K against
         // 500 K, an apparent ~3.8x, where the columns differ by ~14x). The mired analysis showed the
         // perceptual collapse really was ~14x, and that number is what this test now reproduces —
-        // exactly, and without any analysis, because §20c changed the representation to one where the
+        // exactly, and without any analysis, because §20d changed the representation to one where the
         // claim is arithmetic rather than an argument.
         //
         // Beer-Lambert transmission composes ADDITIVELY IN LOG SPACE, which is the same property
@@ -555,7 +555,7 @@ public class SkyColorTemperatureTests
         // therefore identically the column ratio, 1 / 0.0695 = 14.4 — the number §20b's mired
         // calculation arrived at, now falling out of the model rather than being derived alongside it.
         //
-        // That agreement is the best evidence available offline that §20c is a change of
+        // That agreement is the best evidence available offline that §20d is a change of
         // representation rather than a retune: two different models, built for different reasons,
         // agreeing to two significant figures on a quantity neither was fitted to.
         float seaLevelShift = LogRedBlueShiftFromAerosol(SeaLevel, 1f);
@@ -607,7 +607,7 @@ public class SkyColorTemperatureTests
         // .saturation nor .glow, and two subsystems independently pulling saturation down is exactly
         // the failure #78 exists to fix.
         //
-        // §20c extends the filter to the Angstrom exponent, and that addition is worth having because
+        // §20d extends the filter to the Angstrom exponent, and that addition is worth having because
         // the temptation is more plausible there: low alpha does mean a weaker colour shift, so
         // scaling strength by alpha looks like the obvious way to say "grey aerosol barely tints". It
         // would double-count what the spectral model already delivers (at alpha 0 its hue multiplier
@@ -638,8 +638,8 @@ public class SkyColorTemperatureTests
         //
         // Asserted structurally for the same reason §20's version is: OzoneTwilightMath expresses the
         // invariance by having nowhere to put such a term, so the only mechanical way to state it is
-        // that no such parameter has appeared. The filter covers §20c's vocabulary as well as §20b's,
-        // which also guards the subtler mistake: §19 samples the SAME three wavelengths §20c does, and
+        // that no such parameter has appeared. The filter covers §20d's vocabulary as well as §20b's,
+        // which also guards the subtler mistake: §19 samples the SAME three wavelengths §20d does, and
         // that shared basis is exactly what would make it look reasonable to hand §19 an exponent.
         // Issue #82's latitude-keyed ozone column is an entirely different axis and is deliberately
         // not caught by this filter.
@@ -666,10 +666,10 @@ public class SkyColorTemperatureTests
             "§8's warm colour no longer responds to pollution at all");
     }
 
-    // --- §20c: the aerosol's spectral SHAPE (the Angstrom exponent) ---
+    // --- §20d: the aerosol's spectral SHAPE (the Angstrom exponent) ---
     //
     // Everything above this line is a ONE-PARAMETER FAMILY: a ramp along the Planckian locus, with
-    // altitude and pollution deciding only how far along it the sky travels. §20c adds the exponent
+    // altitude and pollution deciding only how far along it the sky travels. §20d adds the exponent
     // alpha in tau(lambda) ∝ lambda^-alpha, which decides the SHAPE of the extinction rather than its
     // depth, and so decides which hue path the sky is on at all.
     //
@@ -867,7 +867,7 @@ public class SkyColorTemperatureTests
     {
         // THE SUBSUMPTION PIN. §20b's AerosolHorizonKelvin and this file's per-channel transmission are
         // two representations of one physical effect, so exactly one of them can be live — applying
-        // both would double-count the reddening. §20c makes the spectral model the live one, and this
+        // both would double-count the reddening. §20d makes the spectral model the live one, and this
         // is the test that says the retirement was a change of REPRESENTATION and not a retune: at the
         // exponent §20b was implicitly calibrated at, the new model lands on the colour §20b shipped.
         //
@@ -988,7 +988,7 @@ public class SkyColorTemperatureTests
         // this "biome-derived" rather than a table of magic numbers next to a table of biome names.
         //
         // The 1354 mm row is the one worth watching: it is where the reference exponent lands, it sits
-        // inside the temperate/boreal band most colonies are founded in, and it is why §20c ships
+        // inside the temperate/boreal band most colonies are founded in, and it is why §20d ships
         // without moving the sunset most players already have.
         Assert.That(AerosolSpectrum.AngstromExponentForRainfall(rainfallMillimetres),
             Is.EqualTo(expected).Within(0.005f));
@@ -1055,7 +1055,7 @@ public class SkyColorTemperatureTests
     {
         // Optical depth is a path length, so a high sun barely looks through the boundary layer at all.
         // §20b got that behaviour for free, because its aerosol endpoint was consumed by the same
-        // elevation lerp everything else was; §20c has to reproduce it deliberately, by scaling the
+        // elevation lerp everything else was; §20d has to reproduce it deliberately, by scaling the
         // load with LowSunFraction rather than inventing a second ramp.
         //
         // At and above DaylightAltitudeDegrees the aerosol term must be gone ENTIRELY — exact

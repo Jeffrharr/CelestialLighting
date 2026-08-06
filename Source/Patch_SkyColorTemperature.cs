@@ -109,7 +109,7 @@ public static class Patch_SkyColorTemperature
         // than something that needs a ModsConfig gate around it.
         float aerosolFraction = SiteAltitude.AerosolFractionForMap(map);
 
-        // And what SIZE that aerosol's particles are (DESIGN.md §20c): the tile's Angstrom exponent,
+        // And what SIZE that aerosol's particles are (DESIGN.md §20d): the tile's Angstrom exponent,
         // keyed on its rainfall. This is the input that takes the subsystem off the Planckian locus —
         // everything above it only moves the sky further along one fixed hue path, while this changes
         // which path it is on. A dry tile's coarse dust extinguishes all three channels nearly alike

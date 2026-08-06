@@ -60,7 +60,7 @@
     <Compile Include="../Source/Probes/PurkinjeProbe.cs" Link="PurkinjeProbe.cs" />
     <Compile Include="../Source/Probes/NightDesaturationProbe.cs" Link="NightDesaturationProbe.cs" />
     <Compile Include="../Source/Probes/SkyColorTemperatureProbe.cs" Link="SkyColorTemperatureProbe.cs" />
-    <!-- §20c's two halves. The Angstrom exponent is the INPUT (what size the tile's aerosol
+    <!-- §20d's two halves. The Angstrom exponent is the INPUT (what size the tile's aerosol
          particles are), the red/blue ratio is the OUTPUT (where the composed sky colour landed).
          Both are needed because they fail independently: a desert tile can read the right exponent
          and still show an unchanged sky if the spectrum is not being applied, and vice versa.

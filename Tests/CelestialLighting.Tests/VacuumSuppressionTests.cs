@@ -115,7 +115,7 @@ public class VacuumSuppressionTests
         // input is held at its sea-level identity value and the sea-level column keeps meaning
         // exactly what it meant before §20 existed. The separate claim — that pressureFraction 0
         // reaches the same place the gate does — is pinned in SkyColorTemperatureTests. Note the ramp
-        // itself no longer takes an aerosol input at all: since §20c the aerosol's colour is applied
+        // itself no longer takes an aerosol input at all: since §20d the aerosol's colour is applied
         // per channel outside this function, so this is the clean-air curve by construction.
         Assert.That(SkyColorTemperature.ColorTemperatureKelvin(elevation, pressureFraction: 1f, inVacuum: true),
             Is.EqualTo(SkyColorTemperature.ZenithKelvin).Within(0.5f),
