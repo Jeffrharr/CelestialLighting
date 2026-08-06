@@ -41,16 +41,33 @@ public static class Patch_SkyColorTemperature
     // rather than arriving unscattered, so the sky colour approaches the layer's own colour more
     // completely. That fraction genuinely does climb toward 1 with optical depth.
     //
-    // It does not re-vivify anything, because of where it is pointed: the §20b target at full
-    // pollution is 1000 K, whose Helland colour is dark and brown (green 0.266, blue 0). Blending
-    // MORE completely toward a dark brown makes the sky duller and browner — which is exactly what
-    // Mie scattering does. The direction the structural test protects is preserved; only the
-    // magnitude changes.
+    // It does not re-vivify anything, because of where it is pointed: at the reference exponent the
+    // target at full pollution is the colour §20b's 1000 K endpoint shipped, which is dark and brown
+    // (green 0.266, blue ~0). Blending MORE completely toward a dark brown makes the sky duller and
+    // browner — which is exactly what Mie scattering does. The direction the structural test protects
+    // is preserved; only the magnitude changes.
     //
-    // Why it was needed: at the original 1500 K endpoint and a fixed 0.35 blend, pollution 1.0
+    // Why it was needed: at §20b's original 1500 K endpoint and a fixed 0.35 blend, pollution 1.0
     // measured a median CIELAB deltaE of 1.31 against clean air on rendered frames — below the ~2.0
     // "visible at a glance" threshold. A maximally poisoned sky is not supposed to be something you
     // have to A/B two screenshots to notice.
+    //
+    // §20d SURVIVES THIS UNTOUCHED AND DOES NOT DOUBLE-COUNT IT, which is worth stating because the
+    // two constants look like they are doing the same job. They are not the same quantity:
+    // AerosolSpectrum.HorizonOpticalDepth decides WHAT COLOUR the haze layer is, and this decides HOW
+    // COMPLETELY the sky takes that colour. §20d changed only the first, and it changed it by exactly
+    // the amount that keeps the reference-exponent target identical to the colour this constant was
+    // measured against — that is what the refit to CalibrationAnchorKelvin buys. If the boost were
+    // instead folded into the optical depth, the aerosol would redden twice.
+    //
+    // The one interaction worth knowing about: this is keyed on aerosol AMOUNT, not on particle SIZE,
+    // so at alpha ~0 it opens the blend toward the CLEAN-air colour. A thick grey-dust column
+    // therefore gives a more saturated §8 sunset than clean air rather than an identical one. That is
+    // consistent with the argument above rather than an escape from it — "the sky approaches the
+    // layer's own colour more completely" is a statement about optical thickness, and a grey layer's
+    // own colour just happens to BE the clean-air colour. The offline grey-extinction invariant is a
+    // claim about AerosolSpectrum's transmission, which stays exactly (1, 1, 1) at alpha 0; what a
+    // live frame shows at pollution 1.0 is that invariant composed with this amount-keyed blend.
     private const float AerosolBlendBoost = 0.7f;
 
     static void Postfix(Map map, ref SkyTarget __result)
