@@ -8,7 +8,7 @@ namespace CelestialLighting;
 // test. The live read that turns a map into an Angstrom exponent lives in SiteAltitude.cs; nothing
 // here knows what a Map or a Tile is.
 //
-// WHAT THIS MODELS (DESIGN.md §20c, issue #86). The SHAPE of aerosol extinction, as opposed to its
+// WHAT THIS MODELS (DESIGN.md §20d, issue #86). The SHAPE of aerosol extinction, as opposed to its
 // magnitude (§20b's aerosol column) or its altitude falloff (§20's scale-height model).
 //
 // THE PROBLEM IT EXISTS TO SOLVE. Everything §8 had before this file was a ONE-PARAMETER FAMILY: a

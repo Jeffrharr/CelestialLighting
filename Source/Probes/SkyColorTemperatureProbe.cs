@@ -14,8 +14,8 @@ namespace CelestialLighting.Probes;
 // (warm ~2000 K near the horizon, neutral ~5772 K with the sun high) rather than only via the offline
 // SkyColorTemperatureTests.
 //
-// WHY THIS NO LONGER SEES POLLUTION, which reads like a regression and is not. Until §20c the aerosol
-// load moved this ramp's warm endpoint, so a Kelvin reading carried it. §20c retired that endpoint:
+// WHY THIS NO LONGER SEES POLLUTION, which reads like a regression and is not. Until §20d the aerosol
+// load moved this ramp's warm endpoint, so a Kelvin reading carried it. §20d retired that endpoint:
 // aerosol's colour effect is a spectral SHAPE and no single colour temperature can carry one, so it
 // is now applied per channel afterwards. A probe that folded it back into a Kelvin would be inventing
 // a number the sky is not being tinted toward, which is the exact failure §18's "a probe reads the

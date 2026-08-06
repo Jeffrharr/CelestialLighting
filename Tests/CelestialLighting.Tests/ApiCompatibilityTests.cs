@@ -1000,7 +1000,7 @@ public class ApiCompatibilityTests
     [Test]
     public void Tile_HasRainfall()
     {
-        // §20c's live read (Source/SiteAltitude.AngstromExponentForMap), pinned for the same reasons
+        // §20d's live read (Source/SiteAltitude.AngstromExponentForMap), pinned for the same reasons
         // Tile_HasElevation and Tile_HasPollution pin theirs.
         //
         // Existence, because losing it fails silently in the worst possible way: every tile would fall
@@ -1017,10 +1017,10 @@ public class ApiCompatibilityTests
         Assert.That(type, Is.Not.Null, "RimWorld.Planet.Tile no longer exists");
         var field = type!.Fields.SingleOrDefault(f => f.Name == "rainfall" && f.IsPublic);
         Assert.That(field, Is.Not.Null,
-            "Tile.rainfall no longer exists or is no longer public on base Tile — §20c keys the "
+            "Tile.rainfall no longer exists or is no longer public on base Tile — §20d keys the "
             + "aerosol's Angstrom exponent off it, and would silently flatten to one exponent everywhere");
         Assert.That(field!.FieldType.FullName, Is.EqualTo("System.Single"),
-            "Tile.rainfall changed shape — §20c interpolates it against vanilla's own millimetre "
+            "Tile.rainfall changed shape — §20d interpolates it against vanilla's own millimetre "
             + "biome breakpoints, which only means anything while it is a float in mm/year");
     }
 

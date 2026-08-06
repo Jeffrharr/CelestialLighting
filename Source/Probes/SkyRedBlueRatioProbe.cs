@@ -7,12 +7,12 @@ namespace CelestialLighting.Probes;
 // CelestialLighting.csproj) and instead compiled into TestMod/CelestialLighting.Probes.csproj —
 // the shipped mod must never take a hard reference to RimWorldTestHarness, a dev-only tool.
 //
-// The OUTPUT half of §20c: the red/blue ratio of the colour Patch_SkyColorTemperature is actually
+// The OUTPUT half of §20d: the red/blue ratio of the colour Patch_SkyColorTemperature is actually
 // tinting toward, from the same SkyColorForElevation composition the patch calls with the same four
 // inputs. One number, and it is the right one — R/B is what "how far along the warm axis is this
-// colour" means, and it is the quantity every §20c invariant is stated in offline.
+// colour" means, and it is the quantity every §20d invariant is stated in offline.
 //
-// WHY A RATIO AND NOT A KELVIN. Because the whole point of §20c is that the composed colour is NOT a
+// WHY A RATIO AND NOT A KELVIN. Because the whole point of §20d is that the composed colour is NOT a
 // blackbody at any temperature once the aerosol's spectral shape is applied, so projecting it back
 // onto the Planckian locus to report a Kelvin would throw away exactly the thing the scenario is
 // there to observe. sky_color_temperature still reports the clean-air Kelvin, honestly labelled as
@@ -20,7 +20,7 @@ namespace CelestialLighting.Probes;
 //
 // Reading it: ~18 on a clean sea-level horizon (§8's 2000 K anchor, 1.0 / 0.055), rising as aerosol
 // with a high Angstrom exponent strips blue, and holding flat at the clean value however much aerosol
-// arrives when the exponent is near 0 — that last case being the one the pre-§20c model could not
+// arrives when the exponent is near 0 — that last case being the one the pre-§20d model could not
 // produce at all, and therefore the one most worth watching in a live A/B.
 public sealed class SkyRedBlueRatioProbe : IProbe
 {

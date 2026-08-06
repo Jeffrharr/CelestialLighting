@@ -3,7 +3,7 @@ using Verse;
 
 namespace CelestialLighting;
 
-// The impure boundary for DESIGN.md §20, §20b and §20c, shaped exactly like LatitudeEffect.cs: it
+// The impure boundary for DESIGN.md §20, §20b, §20c and §20d, shaped exactly like LatitudeEffect.cs: it
 // pulls live values off the world grid and hands primitives to the pure models (AtmosphericColumn
 // for the columns themselves, AerosolDrift for their day-to-day variation), which do the actual math
 // and are fully covered by offline unit tests. Keep it that way — if you are tempted to add a
@@ -69,7 +69,7 @@ public static class SiteAltitude
     }
 
     // The Angstrom exponent for this map's tile — how wavelength-selective its aerosol is, i.e. what
-    // SIZE the particles are (DESIGN.md §20c). The two accessors above answer "how much aerosol";
+    // SIZE the particles are (DESIGN.md §20d). The two accessors above answer "how much aerosol";
     // this one answers "what kind", which is the input that takes §8 off the Planckian locus.
     //
     // Keyed on Tile.rainfall for the reason AerosolSpectrum.AngstromExponentForRainfall spells out:
