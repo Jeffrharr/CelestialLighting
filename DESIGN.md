@@ -4243,6 +4243,224 @@ play is a question for a live A/B, and adding a knob before that is answered bak
   flagged for altitude. Same `AtmosphericColumn` model, different subsystem.
 - **Latitude-keyed ozone column for §19** remains §20's open item and is unaffected by this section —
   it is a latitude term in the stratosphere, where §20b is a pollution term in the lowest 1.5 km.
+- **The column being a *fixed* function of the tile.** Everything above describes one number per
+  tile, so two consecutive evenings on one map are identical. **Landed as §20c**, which drives this
+  same `aerosolFraction` with a slow noise instead of replacing any of the model above.
+
+## 20c. Day-to-day aerosol drift — why two evenings differ (`AerosolDrift` / `AerosolDriftClock`)
+
+§20b left the aerosol column a **fixed function of the tile**: `pollution × exp(-h/1500)`, evaluated
+once and identical forever. Two consecutive evenings on one map therefore produce a pixel-identical
+sunset. That is exactly the monotony players notice even when any single sunset looks good in a
+screenshot — and it is a different complaint from "the palette is too narrow". This section addresses
+**repetition**; widening the range is a separate axis.
+
+**Why real sunsets differ night to night.** It is not geometry: the sun's path is nearly identical
+two evenings running, and §20/§20b's other inputs (site altitude, tile pollution) do not move at all.
+What changes is the **air mass overhead**. Maritime air arrives clean, continental air arrives loaded,
+a front brings a different particle size distribution, smoke drifts in from somewhere else entirely.
+So the physical quantity that varies between evenings is the aerosol **loading**, and that is what
+§20c varies.
+
+### The model: one multiplier, mean 1
+
+```
+aerosolFraction = AtmosphericColumn.AerosolLoadFraction(h, pollution)   // §20b, unchanged
+                × (1 + amplitude · (2·fbm(t) − 1))                       // §20c
+```
+
+`fbm` is `AuroraNoise`'s existing layered value noise, sampled on a time axis. Three properties fall
+out of that shape rather than being tuned in:
+
+- **Mean exactly 1.** `AuroraNoise.Fbm` is a convex combination of `Hash01` values and `Hash01` is
+  uniform on [0, 1), so the field's mean is 0.5 and `2u − 1` has mean 0. Retuning the amplitude, the
+  cell width or the octave count cannot move the baseline, because none of them touch that argument.
+  This matters more than it looks: a drift that averaged 1.05 would mean every polluted map in every
+  save was permanently hazier than §20b's physics says, with nothing to notice it by.
+- **Strictly positive by construction.** `1 + a·u` with `u ∈ [−1, 1]` is positive for any `a < 1`,
+  and `MaxDriftAmplitude = 0.9` is a hard ceiling on whatever a caller passes. Positivity is
+  therefore a consequence of the arithmetic, not of a clamp somebody could remove.
+- **Inert where §20b was inert.** Multiplying is what makes a zero-pollution tile stay exactly zero.
+  Every tile in a game without Biotech takes that path, so §20c needs no gate for the same reason
+  §20b needed no `ModsConfig.BiotechActive` check.
+
+That last property has a flip side worth stating plainly, because it bounds what this section can
+achieve: **§20c is proportional to the tile's pollution, so it does nothing at all without Biotech
+and very little on a lightly polluted tile.** On a `pollution = 0.5` sea-level tile the ±35% moves
+§20b's horizon endpoint across roughly 1837–1662 K, which is a clear difference between two evenings;
+on a `pollution = 0.05` tile it is about ±9 K, which is nothing. That is the correct *physics* — an
+air mass carries more or less of what the local sources emit, it does not manufacture haze over a
+pristine tile — but it means "two evenings differ" is delivered only where there is something to vary.
+A drift keyed on something every tile has (a base continental aerosol background independent of
+Biotech pollution, say) would be a different and larger design, and it would move §20b's clean-air
+baseline, which is a change to a shipped curve rather than an addition on top of it. Recorded here as
+a known limit rather than smuggled past.
+
+`amplitude = 0.35`. Sized against what it does to the thing a player sees rather than against
+anything measured: larger values start producing evenings that look like a wildfire moved in, on a
+tile with no wildfire.
+
+### Correlation time is the whole design, and flicker is the failure mode
+
+A column that wobbles inside a single evening does not read as weather. It reads as a bug, and it
+would fight §8's elevation ramp — the ramp would be smoothly warming while its own endpoint slid
+underneath it. Air masses persist for days, so the noise has to as well. Three constants carry that,
+and all three are pinned:
+
+| constant | value | why |
+|---|---|---|
+| `LatticeCellDays` | 3 | base correlation time; with the second octave the effective figure is ~2 days |
+| `Octaves` | 2 | a third would put a component on an **18-hour** cell — inside one evening |
+| `TicksPerSample` | 2500 (1 in-game hour) | sampling cadence, see the performance note below |
+
+The measured behaviour at those constants, over the full 294912-sample period across six seeds:
+
+| lag | mean \|Δ multiplier\| |
+|---|---|
+| 1 hour | 0.0033 |
+| 4 hours (an evening) | 0.0130 |
+| 1 day | 0.0724 |
+| 2 days | 0.1177 |
+
+A day moves the column **22×** further than an hour does, and the single **worst** hourly step
+anywhere in the sequence (0.018) is still smaller than an *average* day's change. That last one is
+the deterministic form of "weather, not flicker" and is the assertion that fails first if an octave
+is ever added.
+
+### Seeded off the tile, clocked off the absolute tick
+
+The sequence is a pure function of `(PlanetTile.tileId, TickManager.TicksAbs)`. Both are values
+RimWorld already persists, which is what makes save/load reproducibility structural rather than
+something we maintain: there is no drift state in the save because there is nothing to save. A colony
+reloaded gets the identical evening it had before the reload; two colonies on one planet get
+independent weather histories because they sit on different tiles. `AuroraNoise` avalanches its seed,
+so adjacent tile ids — which is what worldgen actually produces for neighbouring settlements — do not
+produce visibly related fields.
+
+The noise wraps at 4096 base cells (12288 days, ~205 in-game years). A period is not optional —
+`AuroraNoise` is a tiling generator built for a scrolling texture — so it is a number we choose, and
+choosing it also keeps the arithmetic exact: the sample index is wrapped in **integer** arithmetic
+before it is divided into a lattice coordinate, so a colony in year 5600 gets the same lattice
+resolution as one in year 5500 instead of slowly losing mantissa bits.
+
+### Where it is applied, and the clamp at 1
+
+At the **adapter boundary** (`SiteAltitude.AerosolFractionForMap`), not inside `AtmosphericColumn`
+and not inside `SkyColorTemperature`. Two reasons:
+
+- `AtmosphericColumn` answers "how much of species X is overhead given an altitude and a loading",
+  which is a **timeless** question. Threading a clock into it would make every one of its callers
+  pass a tick they do not have, for a term only one of them wants.
+- `SiteAltitude` already reads live state, and applying it there means the live probe
+  (`Probes/SkyColorTemperatureProbe.cs`) reports the **driven** fraction the sky is actually being
+  tinted toward. That is §18's rule that a probe reads the same value as its patch, for §18's reason.
+
+The driven fraction is clamped back into [0, 1], and that clamp is a real asymmetry rather than a
+formality. On a maximally polluted sea-level tile the baseline is already 1 — the most aerosol the
+model knows how to mean — so the *upward* half of the excursion has nowhere to go and is clipped,
+while the downward half is not. That is the correct trade: `HorizonKelvinForColumns` lerps toward
+`AerosolHorizonKelvin` on this fraction, and a fraction above 1 would **extrapolate** past 1500 K,
+which is precisely the "runs off the end of the world" failure §20b's own argument for saturating
+rather than extending is about. The baseline-preservation invariant is therefore pinned on the
+**multiplier**, where it is a property of the model, and not on the post-clamp fraction, where it is a
+property of how close one particular tile sits to the ceiling.
+
+### Performance: what this costs per frame
+
+`Patch_SkyColorTemperature` hangs off `WeatherWorker.CurSkyTarget`, which
+`SkyManager.CurrentSkyTarget` evaluates **twice** per `SkyManagerUpdate` per map, and this mod hangs
+several postfixes off it (§16 on what per-frame work costs in this codebase; issues #11, #12, #20,
+#23, #60). An unmemoised two-octave fbm on that path would recompute, several times a frame, a value
+that by construction has not changed since the last time it was computed.
+
+So `AerosolDriftClock` memoises on the model's own hourly cadence:
+
+- **Steady-state per-frame cost: one `Dictionary<int, …>` lookup on an int key plus one int compare,
+  per call.** No allocation, no trigonometry, no world-grid access.
+- **The noise itself runs once per tile per in-game hour** — at normal speed, once every ~42 real
+  seconds — and is eight integer hashes plus a handful of lerps.
+
+The hourly quantisation is the one visible cost, and it is not visible. The fastest hourly step is
+0.018 of the multiplier, which on the worst possible tile is ~9 K of horizon endpoint; over that same
+hour the sun moves ~15° and drags the endpoint by several *hundred* K continuously. The staircase is
+around one percent of a motion already happening.
+
+### Why the state is a static memo and not a `MapComponent`
+
+The obvious shape for "a smoothly varying per-map value" is a `MapComponent`, and this mod's original
+plan sketched exactly that for a cloud-cover subsystem that was never built. Two specific things argue
+against it here:
+
+1. **There is no state to persist.** The drift is a pure function of two values RimWorld already
+   saves, so a `MapComponent` would add a scribe node carrying nothing the save does not contain.
+2. **That node is permanent.** `Verse.Map.ExposeComponents` writes one `<li Class="…"/>` per component
+   into every save, and deleting the type later logs two red errors per map on the next load — the
+   exact trap `MapComponent_SunShadowAxis.cs` survives as a tombstone for. Taking on an unremovable
+   save-format entry to hold zero state is paying that price for nothing.
+
+The memo instead follows `SunClock.cs`, this mod's established pattern for "recompute on a slow
+game-time cadence rather than per frame". It is keyed on the **tile id**, and that choice is what makes
+it incapable of serving a wrong answer: the cached value is a pure function of exactly
+`(tileId, sampleIndex)`, so a hit requires both parts of the key to match, which means the inputs
+match, which means the value is right. Nothing a new game, a reload or a second colony can do changes
+that — which is why, unlike `SunClock`, it ships no `Clear()`. (`SunClock`'s own `Clear()` is in fact
+dead code: its header says it is called on load and nothing calls it. It is harmless for this same
+reason, and noting it here is cheaper than leaving the next reader to wonder why one cache has a
+teardown hook and the other does not.)
+
+### The pure/impure split
+
+`AerosolDrift.cs` is Verse-free and linked into the test project via `<Compile Include>`, so the
+shipped code is the tested code. `AerosolDriftClock.cs` reads `Find.TickManager.TicksAbs` and
+`map.Tile.tileId`, holds the memo, and contains no arithmetic. This is the same split as
+`FrameStamp.cs`/`GeometryMemo.cs` and for the same reason: from inside a running game a memo bug and a
+formula bug look identical, so the half that *can* be tested offline is kept where it can be.
+
+Two `ApiCompatibilityTests` assertions go with the live half: `PlanetTile_HasTileId` (public `int`
+field — also what `SunClock` keys on) and `TickManager_HasTicksAbs` (public `int` property; it must be
+the **absolute** tick, since a counter that reset on load would give a reloaded colony a different
+evening from the one it just had).
+
+### What is pinned offline
+
+- **Amplitude 0 is *exactly* 1**, asserted as exact equality over a sweep, plus `ApplyMultiplier(x, 1)
+  == x` — so §20b's shipped behaviour is reproducible bit for bit with the drift off. Negative and
+  NaN amplitudes collapse to the same disabled case; the NaN one matters most, since a NaN would
+  propagate into the sky colour and Unity renders that as black.
+- **Mean 1 over the full period**, pooled *and* per seed. Per seed as well as pooled because a single
+  map is what a player experiences, and pooling could mask one permanently-hazy tile against one
+  permanently-clean one.
+- **Strictly positive and bounded for every amplitude**, swept over values a slider or a dev override
+  could plausibly pass and values nothing should ever pass (5, 1e9, +∞). Plus the *structural* form:
+  `MaxDriftAmplitude < 1`, which is what makes positivity a consequence rather than a coincidence of
+  the samples the sweep happened to visit.
+- **Evening ≪ day**, in three forms — the mean-change ratio (>10×, measured 22×), the deterministic
+  worst-hour-vs-mean-day bound, and the *structural* cause: `LatticeCellDays / 2^(Octaves−1) ≥ 1`, so
+  no octave's cell can fall inside a single night.
+- **Determinism as order-independence.** "Same seed, same sequence across save/load" reduces offline
+  to "no hidden state", since both live inputs are persisted by the game; the test walks the sequence
+  backwards while interleaving a second seed and demands the identical values.
+- **The wrap**, in both directions, so the integer reduction in `Field` and the periods handed to the
+  octaves cannot drift apart — a mismatch would show as one discontinuity every 12288 days and never
+  in testing.
+- **The cadence**: one sample is exactly one in-game hour, a 60000-tick day is exactly
+  `SamplesPerDay` buckets, and the index *floors* rather than truncating toward zero (C#'s `/` would
+  otherwise fold the two buckets either side of tick 0 into one double-width bucket).
+
+### Out of scope, filed separately
+
+- **Widening the palette.** §20c makes a map walk around inside its range; it does not make the range
+  bigger. That is a separate axis and a separate ticket.
+- **A background aerosol term independent of Biotech pollution**, which is what it would take for
+  §20c to do anything on an unpolluted tile — see the limit recorded above. It would move §20b's
+  clean-air baseline, so it is a change to a shipped curve rather than an addition on top of one.
+- **Driving anything else with the same clock.** Cloud cover, §7's starlight extinction and §19's
+  ozone column all have day-to-day variability with the same shape. `AerosolDrift` is deliberately
+  named for its one consumer rather than generalised up front; the second consumer is what should
+  decide whether the seed/lag parameters become arguments.
+- **A settings slider**, declined for the reason §20 and §20b both declined one: whether the honest
+  range reads right in play is a question for a live A/B, and adding a knob before that is answered
+  bakes in a guess.
 ## 21. Snow albedo: the surface-cloud light cavity (`AlbedoCavityMath` / `SurfaceBuildup`)
 
 **Problem.** Fresh snow under a thick overcast is far brighter than the same overcast over bare
