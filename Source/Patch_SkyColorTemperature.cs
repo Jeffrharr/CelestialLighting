@@ -68,11 +68,19 @@ public static class Patch_SkyColorTemperature
         // actually turns the patch into a no-op there — one exit path, not two.
         bool inVacuum = Vacuum.InVacuumForMap(map);
 
-        float tint = SkyColorTemperature.TintStrength(elevation, inVacuum);
+        // How much air this map actually sits under (DESIGN.md §20). One live tile read, converted
+        // to a primitive here at the boundary exactly like LatitudeEffect does with latitude — the
+        // pure curve never learns what a Tile is. Note this is SITE altitude in metres, nothing to
+        // do with `elevation` above, which is the sun's angle: RimWorld calls its terrain-height
+        // field `elevation` too, and letting that name cross into this file would make every line
+        // of it ambiguous.
+        float pressureFraction = SiteAltitude.PressureFractionForMap(map);
+
+        float tint = SkyColorTemperature.TintStrength(elevation, pressureFraction, inVacuum);
         if (tint <= 0f)
             return;
 
-        SkyColorTemperature.Rgb rgb = SkyColorTemperature.SkyColorForElevation(elevation, inVacuum);
+        SkyColorTemperature.Rgb rgb = SkyColorTemperature.SkyColorForElevation(elevation, pressureFraction, inVacuum);
         Color target = new Color(rgb.R, rgb.G, rgb.B);
 
         __result.colors.sky = Color.Lerp(__result.colors.sky, target, tint * SkyBlend);

@@ -1,3 +1,5 @@
+using System.Reflection;
+
 namespace CelestialLighting.Tests;
 
 /// <summary>
@@ -11,6 +13,12 @@ public class SkyColorTemperatureTests
 {
     private const float Tolerance = 0.0005f;
 
+    // Sea level: the identity value of §20's site-altitude input (AtmosphericColumn's column
+    // fraction is 1 at 0 m). Every pre-§20 expectation below is passed this, so the whole block
+    // stays a regression pin on the original curve rather than being re-baselined against the new
+    // parameter — if threading pressureFraction through moved a sea-level number, these fail.
+    private const float SeaLevel = 1f;
+
     // --- ColorTemperatureKelvin: warm at the horizon, neutral at the zenith, monotonic between ---
 
     [TestCase(-5f, SkyColorTemperature.HorizonKelvin)] // below horizon clamps flat to warm
@@ -20,16 +28,17 @@ public class SkyColorTemperatureTests
     [TestCase(90f, SkyColorTemperature.ZenithKelvin)] // zenith clamps flat to neutral
     public void ColorTemperatureKelvin_MatchesExpected(float elevation, float expected)
     {
-        Assert.That(SkyColorTemperature.ColorTemperatureKelvin(elevation, inVacuum: false), Is.EqualTo(expected).Within(0.5f));
+        Assert.That(SkyColorTemperature.ColorTemperatureKelvin(elevation, SeaLevel, inVacuum: false),
+            Is.EqualTo(expected).Within(0.5f));
     }
 
     [Test]
     public void ColorTemperatureKelvin_IsMonotonicNonDecreasing_AsSunClimbs()
     {
-        float previous = SkyColorTemperature.ColorTemperatureKelvin(-10f, inVacuum: false);
+        float previous = SkyColorTemperature.ColorTemperatureKelvin(-10f, SeaLevel, inVacuum: false);
         for (float elevation = -10f; elevation <= 90f; elevation += 2.5f)
         {
-            float current = SkyColorTemperature.ColorTemperatureKelvin(elevation, inVacuum: false);
+            float current = SkyColorTemperature.ColorTemperatureKelvin(elevation, SeaLevel, inVacuum: false);
             Assert.That(current, Is.GreaterThanOrEqualTo(previous - Tolerance),
                 $"colour temperature dropped as the sun rose (at elevation {elevation})");
             previous = current;
@@ -48,14 +57,15 @@ public class SkyColorTemperatureTests
     [TestCase(-20f, 0f)] // deep night: no tint
     public void TintStrength_MatchesExpected(float elevation, float expected)
     {
-        Assert.That(SkyColorTemperature.TintStrength(elevation, inVacuum: false), Is.EqualTo(expected).Within(0.001f));
+        Assert.That(SkyColorTemperature.TintStrength(elevation, SeaLevel, inVacuum: false),
+            Is.EqualTo(expected).Within(0.001f));
     }
 
     [Test]
     public void TintStrength_FadesSmoothlyBelowHorizon()
     {
         // Midway through the civil-twilight fade band (-6 .. -0.83), the gate is ~0.5.
-        float mid = SkyColorTemperature.TintStrength(-3.415f, inVacuum: false);
+        float mid = SkyColorTemperature.TintStrength(-3.415f, SeaLevel, inVacuum: false);
         Assert.That(mid, Is.EqualTo(0.5f).Within(0.02f));
     }
 
@@ -111,11 +121,156 @@ public class SkyColorTemperatureTests
     [Test]
     public void SkyColorForElevation_MatchesManualComposition()
     {
-        SkyColorTemperature.Rgb direct = SkyColorTemperature.SkyColorForElevation(20f, inVacuum: false);
-        SkyColorTemperature.Rgb composed =
-            SkyColorTemperature.BlackbodyToRgb(SkyColorTemperature.ColorTemperatureKelvin(20f, inVacuum: false));
+        SkyColorTemperature.Rgb direct = SkyColorTemperature.SkyColorForElevation(20f, SeaLevel, inVacuum: false);
+        SkyColorTemperature.Rgb composed = SkyColorTemperature.BlackbodyToRgb(
+            SkyColorTemperature.ColorTemperatureKelvin(20f, SeaLevel, inVacuum: false));
         Assert.That(direct.R, Is.EqualTo(composed.R).Within(Tolerance));
         Assert.That(direct.G, Is.EqualTo(composed.G).Within(Tolerance));
         Assert.That(direct.B, Is.EqualTo(composed.B).Within(Tolerance));
+    }
+
+    // --- §20 site altitude: the observer's own air column ---
+    //
+    // Rayleigh optical depth scales with the surface pressure AT THE OBSERVER, because the slant
+    // path from a low sun descends out of space and TERMINATES there — it never re-enters the denser
+    // air below. So a mountain base genuinely skips the whole dense column beneath it and sees a
+    // whiter sun and a subdued sunset, and the sea-level 2000 K endpoint stops being every map's.
+
+    [TestCase(0f, 1f)] // sea level: the identity value the whole pre-§20 curve is pinned against
+    [TestCase(100f, 0.9883f)] // vanilla Tile.elevation default — documented as 0.988, imperceptible
+    [TestCase(1500f, 0.8382f)] // documented as 0.84
+    [TestCase(4000f, 0.6246f)] // documented as 0.62
+    // Real-world anchors named in AtmosphericColumn's header. They are what justify using one
+    // textbook constant instead of a hand-tuned ramp, so they are pinned rather than left as prose.
+    [TestCase(1600f, 0.8284f)] // Denver, measured ~0.83 atm
+    [TestCase(3650f, 0.6509f)] // Lhasa, measured ~0.65 atm
+    [TestCase(8850f, 0.3531f)] // Everest summit, measured ~0.35 atm
+    public void RayleighPressureFraction_MatchesTheBarometricTable(float siteAltitudeMetres, float expected)
+    {
+        Assert.That(AtmosphericColumn.RayleighPressureFraction(siteAltitudeMetres),
+            Is.EqualTo(expected).Within(0.001f));
+    }
+
+    [Test]
+    public void ColumnFraction_FallsOffFasterForAShallowerScaleHeight()
+    {
+        // The reason the scale height is a parameter rather than baked in (issue #83 adds an aerosol
+        // species at 1500 m to this same file): at 3000 m a near-surface aerosol layer has almost
+        // entirely dropped below the observer while two thirds of the bulk air is still overhead.
+        // If these two ever came out equal, the shared model has collapsed into a Rayleigh-only one.
+        float bulkAir = AtmosphericColumn.ColumnFraction(3000f, AtmosphericColumn.RayleighScaleHeightMetres);
+        float nearSurface = AtmosphericColumn.ColumnFraction(3000f, 1500f);
+        Assert.That(bulkAir, Is.EqualTo(0.7020f).Within(0.001f));
+        Assert.That(nearSurface, Is.EqualTo(0.1353f).Within(0.001f));
+    }
+
+    [TestCase(-430f)] // Dead Sea shore: genuinely ~1.05 atm, deliberately not modelled
+    [TestCase(-5000f)]
+    public void ColumnFraction_ClampsSubSeaLevelToOne(float siteAltitudeMetres)
+    {
+        // Every consumer treats 1 as "the full, unmodified sea-level effect" and is tuned against
+        // that ceiling — §8 multiplies it straight into per-channel blend maxima — so the [0, 1]
+        // contract is worth more than a 5% over-pressure no RimWorld worldgen produces.
+        Assert.That(AtmosphericColumn.RayleighPressureFraction(siteAltitudeMetres),
+            Is.EqualTo(1f).Within(Tolerance));
+    }
+
+    [TestCase(1f, SkyColorTemperature.HorizonKelvin)] // sea level: unchanged from before §20
+    [TestCase(0.9883f, 2044.1f)] // 100 m
+    [TestCase(0.8382f, 2610.2f)] // 1500 m
+    [TestCase(0.6246f, 3415.9f)] // 4000 m: a markedly whiter horizon sun
+    [TestCase(0f, SkyColorTemperature.ZenithKelvin)] // the h -> infinity limit
+    public void HorizonKelvinForPressure_WalksTheWarmEndpointTowardTheUnreddenedAnchor(
+        float pressureFraction, float expected)
+    {
+        Assert.That(SkyColorTemperature.HorizonKelvinForPressure(pressureFraction),
+            Is.EqualTo(expected).Within(0.5f));
+    }
+
+    [Test]
+    public void Warmth_IsMonotonicallyNonIncreasing_InSiteAltitude()
+    {
+        // The invariant the subsystem is allowed to be judged on at every sun angle: thinner air can
+        // only ever make the sky less warm — never more, and never non-monotonically. Warmth falls
+        // two ways at once (a higher colour temperature and a weaker tint), so both are swept.
+        for (float elevation = -10f; elevation <= 90f; elevation += 5f)
+        {
+            float previousKelvin = SkyColorTemperature.ColorTemperatureKelvin(elevation, SeaLevel, inVacuum: false);
+            float previousTint = SkyColorTemperature.TintStrength(elevation, SeaLevel, inVacuum: false);
+            for (float siteAltitudeMetres = 0f; siteAltitudeMetres <= 9000f; siteAltitudeMetres += 250f)
+            {
+                float pressureFraction = AtmosphericColumn.RayleighPressureFraction(siteAltitudeMetres);
+                float kelvin = SkyColorTemperature.ColorTemperatureKelvin(elevation, pressureFraction, inVacuum: false);
+                float tint = SkyColorTemperature.TintStrength(elevation, pressureFraction, inVacuum: false);
+                Assert.That(kelvin, Is.GreaterThanOrEqualTo(previousKelvin - Tolerance),
+                    $"sky got warmer with altitude at {siteAltitudeMetres} m, elevation {elevation}");
+                Assert.That(tint, Is.LessThanOrEqualTo(previousTint + Tolerance),
+                    $"tint got stronger with altitude at {siteAltitudeMetres} m, elevation {elevation}");
+                previousKelvin = kelvin;
+                previousTint = tint;
+            }
+        }
+    }
+
+    [Test]
+    public void ZeroPressure_ReproducesTheVacuumValuesExactly()
+    {
+        // §18's discrete gate and §20's continuous column model are independent code paths reading
+        // different data (BiomeDef.inVacuum vs Tile.elevation), and they agree at the endpoint
+        // because vacuum IS the h -> infinity limit of this curve. That agreement is a free test:
+        // it costs nothing and it fails loudly if either side is retuned on its own. Exact equality,
+        // not a tolerance — both paths land on the same constants by construction, and if they ever
+        // only nearly agree, one of them has grown arithmetic the other has not.
+        for (float elevation = -30f; elevation <= 90f; elevation += 2.5f)
+        {
+            Assert.That(SkyColorTemperature.ColorTemperatureKelvin(elevation, pressureFraction: 0f, inVacuum: false),
+                Is.EqualTo(SkyColorTemperature.ColorTemperatureKelvin(elevation, SeaLevel, inVacuum: true)),
+                $"airless-limit colour temperature diverged from the vacuum gate at elevation {elevation}");
+            Assert.That(SkyColorTemperature.TintStrength(elevation, pressureFraction: 0f, inVacuum: false),
+                Is.EqualTo(SkyColorTemperature.TintStrength(elevation, SeaLevel, inVacuum: true)),
+                $"airless-limit tint strength diverged from the vacuum gate at elevation {elevation}");
+        }
+    }
+
+    [Test]
+    public void PressureFraction_IsClampedAboveOne_SoTheTintCannotOvershoot()
+    {
+        // Defence in depth against a future caller that computes its own fraction rather than going
+        // through AtmosphericColumn: the adapter multiplies TintStrength straight into its 0.35/0.25
+        // per-channel maxima, so a fraction above 1 would blend past the strength those constants
+        // were chosen for. The curve clamps rather than trusting its input.
+        Assert.That(SkyColorTemperature.TintStrength(0f, pressureFraction: 1.5f, inVacuum: false),
+            Is.EqualTo(SkyColorTemperature.TintStrength(0f, SeaLevel, inVacuum: false)).Within(Tolerance));
+        Assert.That(SkyColorTemperature.ColorTemperatureKelvin(0f, pressureFraction: 1.5f, inVacuum: false),
+            Is.EqualTo(SkyColorTemperature.HorizonKelvin).Within(0.5f));
+    }
+
+    [Test]
+    public void OzoneTwilightBlue_IsAltitudeInvariant_WhileTheWarmTintIsNot()
+    {
+        // The asymmetry between §8 and §19, pinned in one place so the two subsystems cannot drift
+        // into each other. §8's reddening happens in the air the observer stands in, so a mountain
+        // skips most of it. §19's Chappuis absorption happens in the ozone layer at 20-30 km —
+        // entirely above any mountain — so the polar-night blue is the SAME on a 4000 m plateau as
+        // at sea level, and threading a site-altitude term into it would be a modelling error, not
+        // an improvement.
+        float seaLevelWarmth = SkyColorTemperature.TintStrength(-2f, SeaLevel, inVacuum: false);
+        float mountainWarmth = SkyColorTemperature.TintStrength(-2f, pressureFraction: 0.6246f, inVacuum: false);
+        Assert.That(mountainWarmth, Is.LessThan(seaLevelWarmth - 0.05f),
+            "§8's warm tint no longer responds to site altitude at all");
+
+        // §19 expresses its invariance structurally — by having nowhere to put such a term. Asserting
+        // it that way is the only mechanical form available, and it is exactly the form that fails
+        // when someone adds one.
+        string[] offending = typeof(OzoneTwilightMath)
+            .GetMethods(BindingFlags.Public | BindingFlags.Static)
+            .SelectMany(method => method.GetParameters())
+            .Where(parameter => parameter.Name!.Contains("pressure", StringComparison.OrdinalIgnoreCase)
+                || parameter.Name!.Contains("altitude", StringComparison.OrdinalIgnoreCase))
+            .Select(parameter => parameter.Name!)
+            .ToArray();
+        Assert.That(offending, Is.Empty,
+            "OzoneTwilightMath grew a site-altitude/pressure parameter — Chappuis absorption is at "
+            + "20-30 km, above every mountain, so §19 must not scale with where the map sits");
     }
 }

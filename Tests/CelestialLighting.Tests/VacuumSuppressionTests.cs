@@ -111,10 +111,14 @@ public class VacuumSuppressionTests
     public void ColorTemperature_PinsToUnreddenedAnchorInVacuum_AndRampsAtSeaLevel(
         float elevation, float seaLevelKelvin)
     {
-        Assert.That(SkyColorTemperature.ColorTemperatureKelvin(elevation, inVacuum: true),
+        // pressureFraction 1 throughout: this pair is about the §18 gate, so the §20 site-altitude
+        // input is held at its sea-level identity value and the sea-level column keeps meaning
+        // exactly what it meant before §20 existed. The separate claim — that pressureFraction 0
+        // reaches the same place the gate does — is pinned in SkyColorTemperatureTests.
+        Assert.That(SkyColorTemperature.ColorTemperatureKelvin(elevation, pressureFraction: 1f, inVacuum: true),
             Is.EqualTo(SkyColorTemperature.ZenithKelvin).Within(0.5f),
             $"vacuum colour temperature varied with sun altitude at elevation {elevation}");
-        Assert.That(SkyColorTemperature.ColorTemperatureKelvin(elevation, inVacuum: false),
+        Assert.That(SkyColorTemperature.ColorTemperatureKelvin(elevation, pressureFraction: 1f, inVacuum: false),
             Is.EqualTo(seaLevelKelvin).Within(0.5f),
             $"sea-level colour temperature moved at elevation {elevation}");
     }
@@ -129,10 +133,10 @@ public class VacuumSuppressionTests
     [TestCase(-30f, 0f)]
     public void SkyColorTintStrength_IsZeroInVacuum_AndPinnedAtSeaLevel(float elevation, float seaLevel)
     {
-        Assert.That(SkyColorTemperature.TintStrength(elevation, inVacuum: true),
+        Assert.That(SkyColorTemperature.TintStrength(elevation, pressureFraction: 1f, inVacuum: true),
             Is.EqualTo(0f).Within(Tolerance),
             $"vacuum sky tint was applied at elevation {elevation}");
-        Assert.That(SkyColorTemperature.TintStrength(elevation, inVacuum: false),
+        Assert.That(SkyColorTemperature.TintStrength(elevation, pressureFraction: 1f, inVacuum: false),
             Is.EqualTo(seaLevel).Within(Tolerance),
             $"sea-level sky tint moved at elevation {elevation}");
     }
@@ -145,18 +149,19 @@ public class VacuumSuppressionTests
     [Test]
     public void SkyColorForElevation_IsConstantInVacuum_ButVariesAtSeaLevel()
     {
-        SkyColorTemperature.Rgb anchor = SkyColorTemperature.SkyColorForElevation(0f, inVacuum: true);
+        SkyColorTemperature.Rgb anchor = SkyColorTemperature.SkyColorForElevation(0f, pressureFraction: 1f, inVacuum: true);
         for (float elevation = -30f; elevation <= 90f; elevation += 2.5f)
         {
-            SkyColorTemperature.Rgb vacuum = SkyColorTemperature.SkyColorForElevation(elevation, inVacuum: true);
+            SkyColorTemperature.Rgb vacuum =
+                SkyColorTemperature.SkyColorForElevation(elevation, pressureFraction: 1f, inVacuum: true);
             Assert.That(vacuum.R, Is.EqualTo(anchor.R).Within(Tolerance), $"R varied at {elevation}");
             Assert.That(vacuum.G, Is.EqualTo(anchor.G).Within(Tolerance), $"G varied at {elevation}");
             Assert.That(vacuum.B, Is.EqualTo(anchor.B).Within(Tolerance), $"B varied at {elevation}");
         }
 
         // The sea-level counterpart, so "constant" cannot pass by the whole curve having gone flat.
-        SkyColorTemperature.Rgb horizon = SkyColorTemperature.SkyColorForElevation(0f, inVacuum: false);
-        SkyColorTemperature.Rgb high = SkyColorTemperature.SkyColorForElevation(60f, inVacuum: false);
+        SkyColorTemperature.Rgb horizon = SkyColorTemperature.SkyColorForElevation(0f, pressureFraction: 1f, inVacuum: false);
+        SkyColorTemperature.Rgb high = SkyColorTemperature.SkyColorForElevation(60f, pressureFraction: 1f, inVacuum: false);
         Assert.That(horizon.B, Is.LessThan(high.B - 0.05f),
             "sea-level horizon sky is no longer measurably redder than the high-sun sky");
     }

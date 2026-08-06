@@ -16,6 +16,11 @@ namespace CelestialLighting;
 // day for free — the effect is a function of altitude alone, so low sun == warm sky wherever and
 // whenever that happens.
 //
+// The curve's second input is where the observer stands in the atmosphere (DESIGN.md §20): the warm
+// endpoint is a *sea-level* endpoint, and a map 4000 m up has ~38% less air overhead to redden
+// through, so it gets a whiter sun and a subdued sunset. That arrives as a pressureFraction
+// primitive from AtmosphericColumn, keeping this file free of any notion of where the map is.
+//
 // Critically this is a COLOUR-ONLY transform: the adapter blends WeatherWorker.CurSkyTarget's
 // colours and never its .glow, so it does not disturb the brightness value other mods read (see
 // DESIGN.md "Conflict risk"). Nothing in this file has any concept of brightness/glow at all.
@@ -59,9 +64,36 @@ public static class SkyColorTemperature
         }
     }
 
+    // The warm end of the ramp, slid toward neutral by how much air the observer actually has above
+    // them (DESIGN.md §20). pressureFraction comes from AtmosphericColumn.RayleighPressureFraction
+    // and is 1 at sea level, ~0.62 on a 4000 m mountain, 0 in the h -> infinity limit.
+    //
+    // WHY THE HORIZON ENDPOINT AND NOT THE WHOLE CURVE. HorizonKelvin is the *reddened* end: the
+    // 2000 K is what a full sea-level air column does to sunlight crossing tens of air masses.
+    // ZenithKelvin is the *unreddened* photospheric anchor — sunlight before the atmosphere touched
+    // it — so there is nothing for a thinner column to move it toward. Thinning the air can only
+    // ever walk the warm endpoint back up toward the anchor, which is why this interpolates between
+    // exactly those two constants and adds no third one.
+    //
+    // WHY IT IS LINEAR IN KELVIN. The honest alternative is linear in mireds (10^6/K), the space in
+    // which filter strengths compose additively, and which would arguably model "an extinction
+    // filter whose strength scales with optical depth" better: 4000 m would land at ~2660 K rather
+    // than ~3420 K. We keep Kelvin-space because the ramp this feeds is itself a linear Kelvin lerp,
+    // and mixing two interpolation spaces inside one four-line function buys a second-order
+    // correction on top of a first-order artistic approximation. Both spaces agree exactly at both
+    // endpoints (p = 1 -> HorizonKelvin, p = 0 -> ZenithKelvin), which is where the invariants live.
+    public static float HorizonKelvinForPressure(float pressureFraction) =>
+        Lerp(ZenithKelvin, HorizonKelvin, Clamp01(pressureFraction));
+
     // Linear ramp from HorizonKelvin (at/below the horizon) to ZenithKelvin (at/above
     // DaylightAltitudeDegrees), clamped flat past both ends. Monotonic in elevation, so a lower sun
     // is always at least as warm as a higher one — the property the whole subsystem depends on.
+    //
+    // pressureFraction (DESIGN.md §20) moves only the horizon endpoint, per HorizonKelvinForPressure
+    // above. Note that pressureFraction -> 0 reproduces the inVacuum return value exactly rather
+    // than approximately: vacuum is the h -> infinity limit of this same curve, so the discrete §18
+    // gate and the continuous atmospheric model agree at the endpoint by construction. They stay
+    // separate concepts anyway — see the inVacuum note below and §20.
     //
     // inVacuum (DESIGN.md §18, the shared gate in Vacuum.cs): the entire ramp is a Rayleigh
     // reddening model. Low sun looks warm on the ground because its light crosses tens of air masses
@@ -70,13 +102,13 @@ public static class SkyColorTemperature
     // pins flat to ZenithKelvin — the unreddened photospheric anchor the whole curve was built
     // around, and now the only value it can return. Flat, not merely shallower: this is what "the
     // spectrum does not vary with sun altitude" means as a function.
-    public static float ColorTemperatureKelvin(float elevationDegrees, bool inVacuum)
+    public static float ColorTemperatureKelvin(float elevationDegrees, float pressureFraction, bool inVacuum)
     {
         if (inVacuum)
             return ZenithKelvin;
 
         float t = InverseLerpClamped(0f, DaylightAltitudeDegrees, elevationDegrees);
-        return Lerp(HorizonKelvin, ZenithKelvin, t);
+        return Lerp(HorizonKelvinForPressure(pressureFraction), ZenithKelvin, t);
     }
 
     // How strongly the warm tint should be applied at a given sun altitude, in [0, 1]. It is the
@@ -102,22 +134,32 @@ public static class SkyColorTemperature
     // exact artefact §18a exists to remove. Zeroing the strength is what makes it flat; pinning the
     // Kelvin keeps every other consumer of the curve (the sky_color_temperature probe, and #32 when
     // it needs an unreddened reference to redden away from) reading the honest value.
-    public static float TintStrength(float elevationDegrees, bool inVacuum)
+    //
+    // pressureFraction (DESIGN.md §20) enters as a third multiplicative factor, and for the same
+    // reason that argument gives for needing both halves in vacuum: walking the Kelvin endpoint
+    // toward neutral does not by itself weaken the tint, because the Helland fit puts ZenithKelvin
+    // near (1.00, 0.95, 0.90) rather than at white, so a thin-air sky would still be blended toward
+    // a faintly amber target at full strength. Scaling the strength is what actually produces the
+    // famously *subdued* high-altitude sunset. Physically both factors are the same optical depth:
+    // there is less air to redden the beam AND less air to carry the reddened colour into the sky.
+    // The linear scaling is the small-tau reading of that — exact enough over the 0.6–1.0 band real
+    // tiles occupy, and it is what makes pressureFraction -> 0 reproduce the vacuum value exactly.
+    public static float TintStrength(float elevationDegrees, float pressureFraction, bool inVacuum)
     {
         if (inVacuum)
             return 0f;
 
         float lowSunRamp = InverseLerpClamped(DaylightAltitudeDegrees, 0f, elevationDegrees);
         float daylightGate = InverseLerpClamped(NightFadeFloorDegrees, HorizonElevationDegrees, elevationDegrees);
-        return lowSunRamp * daylightGate;
+        return lowSunRamp * daylightGate * Clamp01(pressureFraction);
     }
 
     // Convenience composition used by both the adapter and the live probe so they can never derive a
-    // different colour from the same elevation: elevation → colour temperature → RGB. Carries
-    // inVacuum straight through to the ramp, so in vacuum this is the constant unreddened anchor
-    // colour at every elevation.
-    public static Rgb SkyColorForElevation(float elevationDegrees, bool inVacuum) =>
-        BlackbodyToRgb(ColorTemperatureKelvin(elevationDegrees, inVacuum));
+    // different colour from the same inputs: elevation + site air column → colour temperature → RGB.
+    // Carries inVacuum straight through to the ramp, so in vacuum this is the constant unreddened
+    // anchor colour at every elevation.
+    public static Rgb SkyColorForElevation(float elevationDegrees, float pressureFraction, bool inVacuum) =>
+        BlackbodyToRgb(ColorTemperatureKelvin(elevationDegrees, pressureFraction, inVacuum));
 
     // Blackbody colour temperature → linear-ish sRGB in [0, 1] per channel, via the widely published
     // (public-domain) Tanner Helland approximation of the Planckian locus. This is a standard

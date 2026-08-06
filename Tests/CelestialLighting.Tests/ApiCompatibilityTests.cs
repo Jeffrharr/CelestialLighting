@@ -804,6 +804,49 @@ public class ApiCompatibilityTests
     }
 
     [Test]
+    public void Tile_HasElevation()
+    {
+        // §20's single live read (Source/SiteAltitude.cs). Three things matter and all three are
+        // asserted here.
+        //
+        // First, that it exists at all. If it is renamed or moved, every map silently falls back to
+        // the sea-level column and §8's sunsets go back to being identical everywhere — a failure
+        // with no exception, no log line, and nothing that looks wrong on any individual map.
+        //
+        // Second, that it lives on BASE RimWorld.Planet.Tile rather than on the Odyssey-era
+        // SurfaceTile subclass. That is what lets SiteAltitude read it with no DLC gate, exactly as
+        // §18 reads BiomeDef.inVacuum, and it is the assumption most likely to quietly stop holding
+        // as Ludeon moves fields down into the layer-specific tile types.
+        //
+        // Third, that it is a float. We divide it by a scale height in metres; an int or a curve
+        // would mean RimWorld had changed what the field means, not merely its type.
+        var type = GetType("RimWorld.Planet.Tile");
+        Assert.That(type, Is.Not.Null, "RimWorld.Planet.Tile no longer exists");
+        var field = type!.Fields.SingleOrDefault(f => f.Name == "elevation" && f.IsPublic);
+        Assert.That(field, Is.Not.Null,
+            "Tile.elevation no longer exists or is no longer public on base Tile — §20's site-altitude "
+            + "reddening reads it, and a SurfaceTile-only field would need a cast SiteAltitude does not make");
+        Assert.That(field!.FieldType.FullName, Is.EqualTo("System.Single"),
+            "Tile.elevation changed shape — SiteAltitude divides it by AtmosphericColumn's scale height in metres");
+    }
+
+    [Test]
+    public void PlanetLayer_HasIsRootSurface()
+    {
+        // The guard that goes with the read above. SiteAltitude only trusts `elevation` on the root
+        // surface layer, because an orbital-ring tile carries the same field (it is on base Tile)
+        // while it means nothing up there. If this property disappears the guard has to be rewritten
+        // rather than dropped — §18's vacuum gate covers the same maps today, but relying on that
+        // alone would make two independently-motivated gates silently load-bearing on each other.
+        var type = GetType("RimWorld.Planet.PlanetLayer");
+        Assert.That(type, Is.Not.Null, "RimWorld.Planet.PlanetLayer no longer exists");
+        var property = type!.Properties.SingleOrDefault(p => p.Name == "IsRootSurface");
+        Assert.That(property, Is.Not.Null,
+            "PlanetLayer.IsRootSurface no longer exists — SiteAltitude uses it to reject non-surface tiles");
+        Assert.That(property!.PropertyType.FullName, Is.EqualTo("System.Boolean"));
+    }
+
+    [Test]
     public void Map_Tile_Exists()
     {
         var type = GetType("Verse.Map");
