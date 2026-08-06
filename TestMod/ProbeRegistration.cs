@@ -48,6 +48,7 @@ public static class ProbeRegistration
         // red/blue ratio of the colour actually being blended in. The pairing is the point — the
         // headline claim of the subsystem is that a low-exponent tile can carry a full aerosol load
         // and still show an unshifted sky, and only reading both numbers together can show that.
+        ProbeRegistry.Register(new AerosolAngstromProbe());
         ProbeRegistry.Register(new SkyRedBlueRatioProbe());
 
         // §19. The band strength is the subsystem's thesis in one number: hold latitude 78 in

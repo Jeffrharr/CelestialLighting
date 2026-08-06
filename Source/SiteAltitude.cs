@@ -68,6 +68,31 @@ public static class SiteAltitude
         return AerosolDrift.ApplyMultiplier(baseline, AerosolDriftClock.MultiplierForMap(map));
     }
 
+    // The Angstrom exponent for this map's tile — how wavelength-selective its aerosol is, i.e. what
+    // SIZE the particles are (DESIGN.md §20c). The two accessors above answer "how much aerosol";
+    // this one answers "what kind", which is the input that takes §8 off the Planckian locus.
+    //
+    // Keyed on Tile.rainfall for the reason AerosolSpectrum.AngstromExponentForRainfall spells out:
+    // vanilla's own BiomeWorkers score biomes from rainfall and temperature, so this keys on the same
+    // axis the biome label is derived from, but continuously and without a defName table that modded
+    // biomes fall off the end of. Tile.rainfall is a plain public float on BASE RimWorld.Planet.Tile
+    // in millimetres per year, exactly like elevation and pollution, so it needs no DLC gate and is
+    // pinned by ApiCompatibilityTests.Tile_HasRainfall.
+    //
+    // The guard falls back to the reference exponent rather than to 0: unlike the two fractions
+    // above, there is no "identity" value here. An exponent of 0 is not "no effect", it is a specific
+    // physical claim (grey, large-particle extinction), so the honest default for "we could not
+    // answer this" is the urban-haze middle of the range — which is also the value §20b's single
+    // shipped colour was implicitly calibrated at, so an unanswerable tile keeps the shipped look.
+    public static float AngstromExponentForMap(Map map)
+    {
+        Tile tile = TileForMap(map);
+        if (tile == null)
+            return AerosolSpectrum.ReferenceAngstromExponent;
+
+        return AerosolSpectrum.AngstromExponentForRainfall(tile.rainfall);
+    }
+
     // Metres above sea level for the map's world tile. RimWorld.Planet.Tile.elevation is a plain
     // public float on the BASE Tile type (not a SurfaceTile/DLC addition — verified by decompiling
     // 1.6 Assembly-CSharp and pinned by ApiCompatibilityTests.Tile_HasElevation), and it is already
