@@ -136,44 +136,80 @@ public static class AerosolSpectrum
     // because it is the number HorizonOpticalDepth below was fitted to, and a calibration whose
     // anchor has been deleted is a magic number one commit later.
     //
+    // WHY 1000 K AND NOT SOME OTHER COLD ENDPOINT — §20b's argument, carried across intact because
+    // this file is now the only place it is recorded. The endpoint is anchored on the Helland fit
+    // this codebase already uses rather than on taste. That fit pins its blue channel at 0 below
+    // 1900 K, so ALL of the travel from the clean 2000 K endpoint down to here happens in green,
+    // against an already-saturated red:
+    //
+    //     2000 K  green 0.537     the clean sea-level endpoint
+    //     1500 K  green 0.425     §20b's original endpoint
+    //     1000 K  green 0.266     the endpoint this file is calibrated against
+    //
+    // Losing half the green against a saturated red is precisely "browner" — the duller, deeper,
+    // lower-contrast sky of a heavy smog sunset, not a more vivid orange. 1000 K is also the fit's
+    // stated validity floor, so it rides the edge rather than sitting comfortably inside it; going
+    // lower would be extrapolating a curve fit outside its published range.
+    //
+    // WHY IT MOVED FROM 1500 K, which is the reason HorizonOpticalDepth below is what it is. At
+    // 1500 K the whole aerosol effect measured, on rendered frames, at a median CIELAB deltaE of 1.31
+    // between clean and polluted at pollution 1.0 — below the ~2.0 "visible at a glance" threshold,
+    // i.e. a maximally poisoned sky looked almost exactly like a clean one. That is not a defensible
+    // place for the MAXIMUM of a subsystem to sit. §20b's fix was two-part and both parts survive
+    // §20d: deepen this endpoint colour, and open the adapter's per-channel blend under a full
+    // aerosol column (Patch_SkyColorTemperature.AerosolBlendBoost). What §20b deliberately did NOT
+    // do, and this file does not do either, is add an aerosol term to TintStrength — strengthening a
+    // reddening tint models Mie scattering backwards.
+    //
     // WHY IT IS NO LONGER LIVE — the decision this whole subsystem turns on. §20b expressed the
     // aerosol's colour effect as a second lerp along the Planckian locus, from the clean-air endpoint
-    // down to 1500 K. This file expresses the SAME physical effect as per-channel transmission. They
-    // are two representations of one thing, so applying both would double-count the reddening, and
-    // the ticket's warning about leaving two uncoordinated aerosol colour paths is exactly right.
+    // down to this number. This file expresses the SAME physical effect as per-channel transmission.
+    // They are two representations of one thing, so applying both would double-count the reddening,
+    // and the ticket's warning about leaving two uncoordinated aerosol colour paths is exactly right.
     //
     // One of them therefore had to subsume the other, and the direction is forced rather than chosen:
-    // THE LOCUS REPRESENTATION IS LOSSY IN PRECISELY THE DIRECTION #86 NEEDS. The Helland fit pins
-    // its blue channel at 0 below 1900 K, so §20b's 1500 K endpoint has blue EXACTLY zero. Any
+    // THE LOCUS REPRESENTATION IS LOSSY IN PRECISELY THE DIRECTION #86 NEEDS. Because the Helland fit
+    // pins blue at 0 below 1900 K, this endpoint has blue EXACTLY zero — and the move from 1500 K to
+    // 1000 K made that worse rather than better, since it walks further into the dead zone. Any
     // alpha-dependent correction applied downstream of that endpoint is multiplying zero, and can
     // never recover the pale, blue-retaining sun that alpha ~0 is supposed to produce. Composition in
     // that order cannot express the headline case at all; the per-channel model composed the other
     // way (applied to the CLEAN-air colour) can express every case including §20b's own. So the
     // per-channel model owns the aerosol's colour outright, and the locus endpoint is retired to
     // being the calibration anchor it is here.
-    public const float CalibrationAnchorKelvin = 1500f;
+    public const float CalibrationAnchorKelvin = 1000f;
 
     // Aerosol optical depth at ReferenceWavelengthNm, along the horizon slant path, at a full
     // sea-level aerosol load (§20b's aerosolFraction = 1).
     //
-    // WHERE 2.1931 COMES FROM. It is fitted, not measured: it is the tau for which the per-channel
+    // WHERE 6.5514 COMES FROM. It is fitted, not measured: it is the tau for which the per-channel
     // model at ReferenceAngstromExponent reproduces the GREEN channel of §20b's shipped horizon
     // colour exactly — i.e. the tau that makes this file a drop-in generalisation of the constant it
-    // replaces. Solving exp(-tau * [(550/550)^-1.3 - (600/550)^-1.3]) = G(1500 K) / G(2000 K) gives
-    // 2.19308, since red is the least-attenuated channel and therefore sets the normalisation.
+    // replaces. Solving exp(-tau * [(550/550)^-1.3 - (600/550)^-1.3]) = G(anchor) / G(2000 K) gives
+    // 6.55138, since red is the least-attenuated channel and therefore sets the normalisation.
+    //
+    // THE FIT MOVES WITH THE ANCHOR, WHICH IS WHY IT IS DERIVED HERE RATHER THAN PASTED. Against
+    // §20b's original 1500 K endpoint the same equation gave 2.19308. The anchor then moved to
+    // 1000 K (see CalibrationAnchorKelvin) and the green ratio it has to reproduce fell from 0.7909
+    // to 0.4962, roughly tripling the required depth. Keeping 2.1931 across that move would have
+    // silently reverted two thirds of §20b's deepening while claiming to reproduce it — a refit, not
+    // a merge conflict, which is why the two numbers are both written down.
     //
     // Red matches trivially (the Helland fit saturates it at 1.0 across this whole range) and blue
-    // lands at 0.0224 against §20b's 0.0 — the residual is the fit's blue cliff, not a disagreement,
-    // and 0.022 of one channel behind a <=0.35 blend strength is under 0.008 of final sky colour.
-    // AtTheReferenceExponent_ReproducesTheColourTwentyBShipped pins all three.
+    // lands at 0.0038 against §20b's 0.0 — the residual is the fit's blue cliff, not a disagreement,
+    // and it is six times SMALLER than the 0.0224 the 1500 K fit left, because a deeper column
+    // attenuates the short wavelength harder. AtTheReferenceExponent_ReproducesTheColourTwentyBShipped
+    // pins all three.
     //
     // WHY IT IS NOT A LITERAL SLANT-PATH OPTICAL DEPTH. A heavy urban vertical AOD near 0.3 crossed
-    // at a horizon airmass near 38 would give tau ~11, five times this. That is the right answer for
-    // a radiative-transfer renderer and the wrong one here, because the thing being reproduced is
-    // §8's 2000 K sea-level endpoint, which is itself a first-order artistic anchor rather than a
-    // computed radiance. Calibrating against the shipped look keeps the two consistent; calibrating
-    // against the literal physics would silently move every existing sunset.
-    public const float HorizonOpticalDepth = 2.1931f;
+    // at a horizon airmass near 38 would give tau ~11, still not quite twice this. That is the right
+    // answer for a radiative-transfer renderer and the wrong one here, because the thing being
+    // reproduced is §8's 2000 K sea-level endpoint, which is itself a first-order artistic anchor
+    // rather than a computed radiance. Calibrating against the shipped look keeps the two consistent;
+    // calibrating against the literal physics would silently move every existing sunset. Worth noting
+    // the refit moved this number TOWARD the literal figure rather than away from it — the deeper
+    // §20b endpoint is the more physically plausible of the two, not merely the more visible one.
+    public const float HorizonOpticalDepth = 6.5514f;
 
     // --- keying alpha to the map ---
     //

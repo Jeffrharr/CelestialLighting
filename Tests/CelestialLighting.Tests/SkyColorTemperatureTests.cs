@@ -398,18 +398,25 @@ public class SkyColorTemperatureTests
     private static float RedBlueRatio(SkyColorTemperature.Rgb rgb) => rgb.R / rgb.B;
 
     [TestCase(1f, 0f, 18.340f)] // clean sea level: §8's own 2000 K anchor, untouched by §20b/§20d
-    [TestCase(1f, 0.5f, 28.594f)] // half a sea-level aerosol load
-    [TestCase(1f, 1f, 44.581f)] // fully polluted sea level: the warmest the model reaches
-    [TestCase(0.9883f, 0.9355f, 29.435f)] // 100 m (vanilla default) at pollution 1.0
-    [TestCase(0.8382f, 0.3679f, 4.425f)] // 1500 m at pollution 1.0
-    [TestCase(0.6246f, 0.0695f, 1.993f)] // 4000 m at pollution 1.0 — barely moved
-    [TestCase(0.6246f, 0f, 1.874f)] // ...from the clean 4000 m value it started at
+    [TestCase(1f, 0.5f, 69.116f)] // half a sea-level aerosol load
+    [TestCase(1f, 1f, 260.470f)] // fully polluted sea level: the warmest the model reaches
+    [TestCase(0.9883f, 0.9355f, 190.478f)] // 100 m (vanilla default) at pollution 1.0
+    [TestCase(0.8382f, 0.3679f, 15.629f)] // 1500 m at pollution 1.0
+    [TestCase(0.6246f, 0.0695f, 3.682f)] // 4000 m at pollution 1.0 — barely moved
+    [TestCase(0.6246f, 0f, 3.062f)] // ...from the clean 4000 m value it started at
     public void AerosolColour_CarriesTheHorizonPastTheCleanAirEndpointWhenTheAirIsDirty(
         float pressureFraction, float aerosolFraction, float expectedRedBlueRatio)
     {
         // §20b's table, re-measured in the space the model now works in. Read the last two rows
-        // together: full pollution on a 4000 m tile moves the ratio by 0.12, against 26.2 at sea
+        // together: full pollution on a 4000 m tile moves the ratio by 0.62, against 242 at sea
         // level. A MOUNTAIN BASE IS ABOVE THE SMOG, which was §20b's headline and survives intact.
+        //
+        // Two things moved these numbers since they were first written, and both are upstream rather
+        // than §20d's own doing. The mired switch (§20, PR #94) moved the CLEAN endpoint at altitude —
+        // which is why even the aerosolFraction = 0 row changed, from 1.874 to 3.062, with no aerosol
+        // in it at all. And the anchor moved from 1500 K to 1000 K (§20b's "make maximum pollution
+        // actually look poisoned"), which is what HorizonOpticalDepth was refitted against and what
+        // drives the sea-level rows up by roughly six times.
         Assert.That(RedBlueRatio(HorizonColour(
                 pressureFraction, aerosolFraction, AerosolSpectrum.ReferenceAngstromExponent)),
             Is.EqualTo(expectedRedBlueRatio).Within(0.01f));
@@ -831,18 +838,32 @@ public class SkyColorTemperatureTests
     }
 
     [TestCase(AerosolSpectrum.GreyExtinctionExponent, 1f)] // no selectivity at all: R and B alike
-    [TestCase(AerosolSpectrum.ThickDustExponent, 1.136f)]
-    [TestCase(AerosolSpectrum.CoarseDustExponent, 1.585f)]
-    [TestCase(AerosolSpectrum.UrbanHazeExponent, 2.431f)]
-    [TestCase(AerosolSpectrum.FineSmokeExponent, 4.192f)]
-    [TestCase(AerosolSpectrum.RayleighExponent, 28.373f)]
+    [TestCase(AerosolSpectrum.ThickDustExponent, 1.464f)]
+    [TestCase(AerosolSpectrum.CoarseDustExponent, 3.956f)]
+    [TestCase(AerosolSpectrum.UrbanHazeExponent, 14.202f)]
+    [TestCase(AerosolSpectrum.FineSmokeExponent, 72.361f)]
+    [TestCase(AerosolSpectrum.RayleighExponent, 21891.5f)]
     public void RedBlueTransmissionRatio_MatchesTheParticleSizeTable(float alpha, float expectedRatio)
     {
         // The table in AerosolSpectrum's header, pinned as numbers. This is the quantity that IS the
         // hue: how much more of the red channel survives the aerosol than the blue channel. At alpha 0
-        // it is exactly 1 (grey) and it grows to nearly 30 at Rayleigh's own exponent.
+        // it is exactly 1 (grey) and it runs away exponentially from there.
+        //
+        // These are RAW transmission ratios at a full sea-level load, so they are far larger than the
+        // ratios the composed sky colour shows: the clean-air colour they multiply already has very
+        // little blue in it at the horizon, and the whole thing then goes in behind a <= 0.60 blend.
+        // They grew by roughly a factor of six when HorizonOpticalDepth was refitted from 2.1931 to
+        // 6.5514 (see AerosolSpectrum.CalibrationAnchorKelvin) — the shape is unchanged, the depth is
+        // three times greater, and a ratio is exponential in depth.
+        //
+        // The Rayleigh row is deliberately absurd and is a reference point rather than a reachable
+        // state: alpha 4 at this depth removes essentially all the blue (transmission 4.5e-7). The
+        // rainfall keying tops out at FineSmokeExponent, so nothing in a real game reaches it.
+        // Tolerance is relative rather than absolute because the rows now span four orders of
+        // magnitude: an absolute 0.01 is a 0.7% pin on the thick-dust row and tighter than single
+        // precision itself on the Rayleigh one.
         SkyColorTemperature.Rgb raw = AerosolSpectrum.SpectralTransmission(aerosolLoad: 1f, alpha);
-        Assert.That(raw.R / raw.B, Is.EqualTo(expectedRatio).Within(0.01f));
+        Assert.That(raw.R / raw.B, Is.EqualTo(expectedRatio).Within(0.1f).Percent);
     }
 
     [Test]
@@ -873,15 +894,21 @@ public class SkyColorTemperatureTests
         //
         // Green matches to within float noise because HorizonOpticalDepth was fitted to make it do so.
         // Red matches trivially — the Helland fit saturates it across this whole range. Blue is the
-        // free residual and the interesting one: §20b's 1500 K endpoint has blue EXACTLY zero, because
-        // the fit pins blue at 0 below 1900 K, while this model leaves 0.022 of it.
+        // free residual and the interesting one: §20b's 1000 K endpoint has blue EXACTLY zero, because
+        // the fit pins blue at 0 below 1900 K, while this model leaves 0.0038 of it.
         //
         // That residual is the entire reason the subsumption had to go in this direction rather than
         // the other. A zero blue channel is unrecoverable by any downstream multiplication, so a model
         // that composed a spectral correction ON TOP of §20b's endpoint could never produce the pale,
         // blue-retaining sun that a large-particle aerosol actually gives — the headline case above
-        // would have been structurally unreachable. Behind a 0.35 blend the 0.022 is under 0.008 of
-        // final sky colour, so nothing on screen moves.
+        // would have been structurally unreachable. Behind a <= 0.60 blend the 0.0038 is under 0.003
+        // of final sky colour, so nothing on screen moves.
+        //
+        // The residual SHRANK by six times when the anchor moved from 1500 K to 1000 K (it was 0.0224
+        // against the older, shallower fit). That is the expected direction: a deeper column attenuates
+        // the short wavelength harder, so the spectral model chases the locus model's dead blue channel
+        // further down. It does not weaken the subsumption argument — 0 is still unrecoverable no
+        // matter how close to it the other representation gets.
         SkyColorTemperature.Rgb shipped = SkyColorTemperature.BlackbodyToRgb(
             AerosolSpectrum.CalibrationAnchorKelvin);
         SkyColorTemperature.Rgb reproduced = HorizonColour(
@@ -893,9 +920,9 @@ public class SkyColorTemperatureTests
             "HorizonOpticalDepth is no longer the value that reproduces §20b's green channel — the "
             + "calibration and the constant it was fitted to have come apart");
         Assert.That(shipped.B, Is.EqualTo(0f),
-            "the Helland fit no longer crushes blue at 1500 K, which was the whole argument for "
-            + "subsuming the locus endpoint rather than composing with it");
-        Assert.That(reproduced.B, Is.EqualTo(0.0224f).Within(0.002f),
+            "the Helland fit no longer crushes blue at the calibration anchor, which was the whole "
+            + "argument for subsuming the locus endpoint rather than composing with it");
+        Assert.That(reproduced.B, Is.EqualTo(0.0038f).Within(0.0005f),
             "the blue residual moved — it is the one channel the calibration does not pin, so it is "
             + "the one that reports a change in the spectral model's shape");
     }
@@ -905,10 +932,10 @@ public class SkyColorTemperatureTests
     // the row is carrying the OTHER claim — that the effective endpoint is 3257 K, i.e. that a full
     // aerosol load moved the colour nowhere. That is the headline case, not a hole in the sweep.
     [TestCase(AerosolSpectrum.GreyExtinctionExponent, 3257f, 0f)]
-    [TestCase(AerosolSpectrum.CoarseDustExponent, 2778f, 0.001f)]
-    [TestCase(AerosolSpectrum.UrbanHazeExponent, 2496f, 0.001f)]
-    [TestCase(AerosolSpectrum.FineSmokeExponent, 2264f, 0.005f)]
-    [TestCase(AerosolSpectrum.RayleighExponent, 1916f, 0.02f)]
+    [TestCase(AerosolSpectrum.CoarseDustExponent, 2253f, 0.015f)]
+    [TestCase(AerosolSpectrum.UrbanHazeExponent, 1933f, 0.05f)]
+    [TestCase(AerosolSpectrum.FineSmokeExponent, 1188f, 0.02f)]
+    [TestCase(AerosolSpectrum.RayleighExponent, 1000f, 0.05f)]
     public void TheEffectiveEndpointIsNowKeyedToParticleSize_AndSitsSlightlyOffTheLocus(
         float alpha, float expectedBestFitKelvin, float minimumResidual)
     {
@@ -916,13 +943,20 @@ public class SkyColorTemperatureTests
         // horizon because that is where the clean-air colour still has blue to lose and the question
         // is therefore worth asking.
         //
-        // Two claims, and the first is much the stronger. (1) The effective endpoint is now a function
-        // of PARTICLE SIZE: the best-fitting colour temperature at a full sea-level aerosol load runs
-        // from 3257 K at alpha 0 (i.e. the aerosol did nothing) down to ~1900 K at Rayleigh's own
-        // exponent, where §20b had exactly one endpoint for every map. (2) The composed colour is
-        // genuinely not ON the locus — but only just, by a few hundredths of a channel, because a
-        // monotone power-law filter of a blackbody lands near another blackbody. Both are pinned, and
-        // the second is pinned with its real magnitude rather than an aspirational one.
+        // Two claims. (1) The effective endpoint is now a function of PARTICLE SIZE: the best-fitting
+        // colour temperature at a full sea-level aerosol load runs from 3257 K at alpha 0 (i.e. the
+        // aerosol did nothing) down past 1188 K at the wettest tile's exponent, where §20b had exactly
+        // one endpoint for every map. (2) The composed colour is genuinely not ON the locus, and after
+        // the refit to the 1000 K anchor that second claim is no longer marginal: the residual at the
+        // reference exponent is 0.068 of a channel, against 0.001 when the fit was calibrated against
+        // 1500 K. A three-times deeper column bends the spectrum three times further away from any
+        // blackbody, which is the feature's whole premise arriving with real magnitude.
+        //
+        // The Rayleigh row now pins at 1000 K, which is the SEARCH FLOOR rather than a fit — and the
+        // floor is deliberately the Helland fit's own stated validity floor, so it is not raised to
+        // chase the answer. What that row now says is stronger than what it used to say: a lambda^-4
+        // filter at this depth produces a colour colder than any temperature the Planckian fit can
+        // describe. Its residual assertion is what keeps the row honest about being a boundary hit.
         SkyColorTemperature.Rgb composed = SkyColorTemperature.SkyColorForElevation(
             20f, SeaLevel, aerosolFraction: 1f, alpha, inVacuum: false);
 
