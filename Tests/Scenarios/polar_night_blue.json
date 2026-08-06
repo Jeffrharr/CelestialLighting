@@ -22,8 +22,8 @@
     {"type": "Probe", "args": {"probeName": "sky_overlay_warmth", "expectedValue": "-0.0154", "tolerance": "0.01"}},
     {"type": "Screenshot", "args": {"fileName": "pnb_polar_off.png"}},
     {"type": "SetFeature", "args": {"featureName": "polar_night_blue", "enabled": "true"}},
-    {"type": "Probe", "args": {"probeName": "overlay_brightness", "expectedValue": "0.1399", "tolerance": "0.01"}},
-    {"type": "Probe", "args": {"probeName": "sky_overlay_warmth", "expectedValue": "-0.0959", "tolerance": "0.01"}},
+    {"type": "Probe", "args": {"probeName": "overlay_brightness", "expectedValue": "0.1299", "tolerance": "0.01"}},
+    {"type": "Probe", "args": {"probeName": "sky_overlay_warmth", "expectedValue": "-0.1068", "tolerance": "0.01"}},
     {"type": "Screenshot", "args": {"fileName": "pnb_polar_on.png"}},
     {"type": "SetFeature", "args": {"featureName": "realistic_preset", "enabled": "false"}},
 

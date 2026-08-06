@@ -3703,12 +3703,25 @@ non-zero, and the two signature guards — no altitude/aerosol vocabulary anywhe
 `ChappuisTransmission(elevationDegrees, latitudeDegrees)` in that order, since two same-typed
 degree arguments would transpose silently.
 
-**Not yet re-measured live.** `polar_night_blue.json`'s `sky_overlay_warmth` pins were taken with the
-uniform column; at latitude 88 the column is now 1.40× deeper, which works out to roughly −0.101
-against the pinned −0.0959 — inside the scenario's existing ±0.01 tolerance, so the pins are left as
-*measured* values rather than replaced by a prediction. Re-run the scenario and re-pin from the
-reading. `overlay_brightness` (0.1399) and every `polar_night_blue` band-strength pin are unaffected
-by construction: neither the floor nor the envelope touches the column.
+**Re-measured live, and the prediction was wrong in both directions.** `polar_night_blue.json`'s
+latitude-88 pins were taken with the uniform column, and the arithmetic said `sky_overlay_warmth`
+would land near −0.101 — inside the scenario's ±0.01 tolerance, so the old pins were left alone
+rather than replaced by a prediction. The actual reading is **−0.1068**, which is *outside* that
+tolerance: the closed-form estimate understated the shift by about half a tolerance because it
+reasoned about the transmission ratio alone and not about how the normalised hue then composes
+through §7a's overlay. Predict-then-check is the point; this is the check failing, and the pin now
+carries the measured number.
+
+`overlay_brightness` moved too, and the old claim that it could not was **wrong**: it read
+**0.1299** against a pinned 0.1399, also just outside ±0.01. The reasoning behind "unaffected by
+construction" was that neither `OverlayFloor` nor `BandStrength` mentions the column, which is true
+and is not the whole story — the floor is a *lower bound* on a brightness that is then multiplied by
+the normalised Chappuis hue, and a deeper notch pulls red and green further down while blue stays
+pinned at 1 by the normalisation. So the composed overlay does get dimmer even though nothing in the
+brightness path takes a column argument. This is not §19 smuggling in a brightness term — it is the
+unavoidable luminance consequence of a hue that is defined by attenuating two channels — but it does
+mean "colour-only" is a statement about which knobs exist, not a promise that measured luminance
+holds still. Band-strength pins are genuinely unaffected; those really are envelope-only.
 
 Live, and **measured** — these are the pinned values, not predictions:
 
@@ -3719,8 +3732,8 @@ A/B across the feature toggle, on the Realistic preset:
 
 | probe | §19 off | §19 on | |
 |---|---|---|---|
-| `overlay_brightness` | 0.0481 | **0.1399** | the floor arm: 2.9× brighter screen |
-| `sky_overlay_warmth` | −0.0154 | **−0.0959** | the colour arm: 6.2× more blue (more negative == bluer) |
+| `overlay_brightness` | 0.0481 | **0.1299** | the floor arm: 2.7× brighter screen |
+| `sky_overlay_warmth` | −0.0154 | **−0.1068** | the colour arm: 6.9× more blue (more negative == bluer) |
 
 **The A/B only shows up on Realistic.** Cinematic's `minNightBrightness` of 0.50 dwarfs the 0.30
 floor, so on the shipped default preset the two frames are near-identical — the scenario flips
