@@ -68,6 +68,9 @@
          applied the colour is not on the Planckian locus, so any Kelvin would be a fiction. -->
     <Compile Include="../Source/Probes/AerosolAngstromProbe.cs" Link="AerosolAngstromProbe.cs" />
     <Compile Include="../Source/Probes/SkyRedBlueRatioProbe.cs" Link="SkyRedBlueRatioProbe.cs" />
+    <!-- §20e (issue #92). The raw column both probes above are downstream of — see
+         AerosolLoadProbe.cs for why it is worth reading separately. -->
+    <Compile Include="../Source/Probes/AerosolLoadProbe.cs" Link="AerosolLoadProbe.cs" />
     <!-- §19. polar_night_blue reads the shared adapter (never CurSkyTarget, which mutates vanilla's
          >=75-degree slew state as a side effect); overlay_brightness reads the finished material,
          and is the first probe to measure on-screen darkness at all — sky_glow is the GAMEPLAY
