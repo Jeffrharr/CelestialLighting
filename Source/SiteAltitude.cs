@@ -3,10 +3,11 @@ using Verse;
 
 namespace CelestialLighting;
 
-// The impure boundary for DESIGN.md §20 and §20b, shaped exactly like LatitudeEffect.cs: it pulls
-// live values off the world grid and hands primitives to the pure model (AtmosphericColumn), which
-// does the actual math and is fully covered by offline unit tests. Keep it that way — if you are
-// tempted to add a formula here, it belongs in AtmosphericColumn.cs instead.
+// The impure boundary for DESIGN.md §20, §20b and §20c, shaped exactly like LatitudeEffect.cs: it
+// pulls live values off the world grid and hands primitives to the pure models (AtmosphericColumn
+// for the columns themselves, AerosolDrift for their day-to-day variation), which do the actual math
+// and are fully covered by offline unit tests. Keep it that way — if you are tempted to add a
+// formula here, it belongs in one of those two files instead.
 //
 // Two fields off one tile, two fractions out: `elevation` -> the Rayleigh air column §20 scales the
 // sunset by, and `pollution` -> the boundary-layer aerosol column §20b loads on top of it. They stay
@@ -32,7 +33,9 @@ public static class SiteAltitude
         AtmosphericColumn.RayleighPressureFraction(SiteAltitudeMetresForMap(map));
 
     // Fraction of a full sea-level aerosol load still overhead at this map's tile, in [0, 1]
-    // (DESIGN.md §20b). Zero on any unpolluted tile, which is every tile in a game without Biotech.
+    // (DESIGN.md §20b), driven by the slow day-to-day air-mass drift of §20c. Zero on any unpolluted
+    // tile, which is every tile in a game without Biotech — the drift is multiplicative, so it
+    // cannot manufacture haze over a tile that has none.
     //
     // Tile.pollution is read here rather than anywhere else for the same reason elevation is: it is
     // a live-game read, and everything downstream of it is pure. It is a plain public float on BASE
@@ -52,7 +55,17 @@ public static class SiteAltitude
         if (tile == null)
             return 0f;
 
-        return AtmosphericColumn.AerosolLoadFraction(tile.elevation, tile.pollution);
+        float baseline = AtmosphericColumn.AerosolLoadFraction(tile.elevation, tile.pollution);
+
+        // §20c. The tile's baseline is what the map's own sources put into the air; the multiplier is
+        // which air mass is currently sitting over it. Applied HERE, at the boundary, rather than
+        // inside AtmosphericColumn: the column model answers "how much of species X is overhead given
+        // an altitude and a loading", which is a timeless question, and threading a clock into it
+        // would make every one of its callers pass a tick they do not have. This file already reads
+        // live state, so one more live read belongs here — and applying it here means the live probe
+        // (Source/Probes/SkyColorTemperatureProbe.cs) reports the driven value the sky is actually
+        // being tinted toward, which is §18's rule about probes reading the same value as their patch.
+        return AerosolDrift.ApplyMultiplier(baseline, AerosolDriftClock.MultiplierForMap(map));
     }
 
     // Metres above sea level for the map's world tile. RimWorld.Planet.Tile.elevation is a plain

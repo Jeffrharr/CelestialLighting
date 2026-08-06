@@ -1014,6 +1014,41 @@ public class ApiCompatibilityTests
     }
 
     [Test]
+    public void PlanetTile_HasTileId()
+    {
+        // §20c's noise seed (Source/AerosolDriftClock.cs). The tile id is what makes a map's weather
+        // history stable across save/load and independent of every other map's, and it is chosen
+        // precisely because RimWorld already persists it — so if it stops being a plain int field the
+        // seed has to be re-sourced rather than patched around.
+        //
+        // Note this is the STRUCT PlanetTile's own field, not Tile's. SunClock reads it the same way
+        // for its per-tile day cache, so this pin covers both.
+        var type = GetType("RimWorld.Planet.PlanetTile");
+        Assert.That(type, Is.Not.Null, "RimWorld.Planet.PlanetTile no longer exists");
+        var field = type!.Fields.SingleOrDefault(f => f.Name == "tileId" && f.IsPublic);
+        Assert.That(field, Is.Not.Null,
+            "PlanetTile.tileId no longer exists or is no longer public — §20c seeds its aerosol drift "
+            + "with it and SunClock keys its per-day cache on it");
+        Assert.That(field!.FieldType.FullName, Is.EqualTo("System.Int32"));
+    }
+
+    [Test]
+    public void TickManager_HasTicksAbs()
+    {
+        // §20c's clock (Source/AerosolDriftClock.cs), and already the clock for the moon phase and the
+        // geometry memo's stamp. It has to be the ABSOLUTE tick rather than TicksGame: the drift
+        // sequence is defined against it, so a counter that reset on load would give a reloaded colony
+        // a different evening from the one it just had — the exact reproducibility property §20c pins.
+        var type = GetType("Verse.TickManager");
+        Assert.That(type, Is.Not.Null, "Verse.TickManager no longer exists");
+        var property = type!.Properties.SingleOrDefault(p => p.Name == "TicksAbs");
+        Assert.That(property, Is.Not.Null,
+            "TickManager.TicksAbs no longer exists — §20c's drift, §6's moon phase and FrameStamp all read it");
+        Assert.That(property!.PropertyType.FullName, Is.EqualTo("System.Int32"),
+            "TickManager.TicksAbs changed shape — AerosolDrift.SampleIndex takes an int tick");
+    }
+
+    [Test]
     public void Map_Tile_Exists()
     {
         var type = GetType("Verse.Map");
