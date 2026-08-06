@@ -49,6 +49,14 @@ public static class ProbeRegistration
         // floor arm does anything — it is the only probe that measures what the screen renders, as
         // opposed to sky_glow, which is the gameplay brightness the floor deliberately never touches.
         ProbeRegistry.Register(new PolarNightBlueProbe());
+        // §19c. Four metrics off one class (the LimbRefractionProbe pattern), because IProbe.Read
+        // returns a single float and "is the sky purple" is an ordering between channels, not a
+        // scalar. purple_hue_green is the primary signal: red and blue are pinned at 1 by the
+        // balanced mix, so green below 1 is the entire green deficit.
+        ProbeRegistry.Register(new PurpleLightProbe("purple_light", PurpleLightProbe.Metric.Window));
+        ProbeRegistry.Register(new PurpleLightProbe("purple_hue_green", PurpleLightProbe.Metric.HueGreen));
+        ProbeRegistry.Register(new PurpleLightProbe("purple_sky_red", PurpleLightProbe.Metric.SkyRed));
+        ProbeRegistry.Register(new PurpleLightProbe("purple_sky_green", PurpleLightProbe.Metric.SkyGreen));
         ProbeRegistry.Register(new OverlayBrightnessProbe());
 
         // §18d's limb-refraction ramp. Four series rather than one because this is a temporal
@@ -338,6 +346,13 @@ public static class ProbeRegistration
         FeatureRegistry.Register(
             CelestialLightingFeatures.PolarNightBlueKey,
             enabled => CelestialLightingFeatures.PolarNightBlue = enabled);
+        // §19c. Left at the default enabled state, which matches the shipped default. "Off" is a
+        // faithful pre-feature baseline everywhere, and outside the -6..-4 window "on" is too — the
+        // patch early-returns on the envelope — so this flag can only ever change two degrees of
+        // dusk, which is exactly the A/B the purple_light scenario films.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.PurpleLightKey,
+            enabled => CelestialLightingFeatures.PurpleLight = enabled);
         FeatureRegistry.Register(
             CelestialLightingFeatures.AuroraKey,
             enabled => CelestialLightingFeatures.Aurora = enabled);

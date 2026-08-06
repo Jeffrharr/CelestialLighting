@@ -65,6 +65,7 @@
          and is the first probe to measure on-screen darkness at all — sky_glow is the GAMEPLAY
          brightness and the two deliberately diverge. -->
     <Compile Include="../Source/Probes/PolarNightBlueProbe.cs" Link="PolarNightBlueProbe.cs" />
+    <Compile Include="../Source/Probes/PurpleLightProbe.cs" Link="PurpleLightProbe.cs" />
     <Compile Include="../Source/Probes/OverlayBrightnessProbe.cs" Link="OverlayBrightnessProbe.cs" />
     <!-- §18d's limb-refraction ramp. Four metrics off one class, because a temporal effect
          needs its own sun-elevation x-axis probed alongside the values plotted on it. -->
