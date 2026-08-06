@@ -3767,6 +3767,28 @@ put sunset at 18:00, and at the equator the sun is still **+3.5° at hour 20**. 
 the `sun_elevation` probe before choosing hours; a scenario sampled where the effect is defined to be
 zero passes vacuously and proves nothing.
 
+**The same trap caught the next scenario anyway, twice.** `Tests/Scenarios/ozone_column_latitude.json`
+first captured latitudes 45 and 5 at hour 18, where the band is empty, so its feature-off and
+feature-on frames were bit-identical and its "A/B" showed nothing. The re-survey that fixed it then
+sampled *hourly* and still read 0 at every hour of latitude 45's afternoon — because outside the
+poles the band is only about **0.8 h wide at latitude 45 and 0.6 h at latitude 5** (day 11), so a
+one-hour grid straddles it completely. Two rules follow, and they are cheap: survey at **≤0.25 h**
+resolution, and once the hour is chosen, **pin `sun_elevation` next to the effect probe in the
+scenario itself** so a future §14 clock change fails loudly instead of silently re-emptying the
+capture. The scenario now does both:
+
+| latitude | day | hour | elevation | band |
+|---|---|---|---|---|
+| 88 | 11 | 0 | −11.53° | 1.0 |
+| 45 | 11 | 20.55 | −11.67° | 1.0 |
+| 5 | 11 | 20.75 | −11.78° | 1.0 |
+
+Those three elevations were chosen to land within 0.25° of each other on purpose. `SlantAirmass` is
+then equal to within 2% across all three captures, so the airmass half of `τ` is effectively held
+constant and the only thing left varying between the frames is the column — which makes the
+screenshot set a controlled comparison of *this* subsection's change rather than a picture of three
+different geometries.
+
 Both scenarios are deliberately **out of `core_design_suite.txt`** and verified standalone, matching
 `sky_color_temperature.json`'s precedent. They set different latitudes, and the `SunClock` cache is
 latitude-blind, so batching them behind another latitude-setting scenario is an unverified risk for

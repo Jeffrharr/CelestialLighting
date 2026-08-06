@@ -3,9 +3,10 @@
   "saveFile": "minimal_colony.rws",
   "steps": [
     { "type": "SetSeason", "args": { "dayOfYear": "11" } },
-    { "type": "SetTime", "args": { "hour": "0" } },
 
     { "type": "SetTile", "args": { "latitude": "88" } },
+    { "type": "SetTime", "args": { "hour": "0" } },
+    { "type": "Probe", "args": { "probeName": "sun_elevation", "expectedValue": "-11.534", "tolerance": "0.05" } },
     { "type": "Probe", "args": { "probeName": "polar_night_blue", "expectedValue": "1.0", "tolerance": "0.02" } },
     { "type": "SetFeature", "args": { "featureName": "polar_night_blue", "enabled": "false" } },
     { "type": "Screenshot", "args": { "fileName": "ozone_lat88_off.png", "hideUi": "true" } },
@@ -13,13 +14,18 @@
     { "type": "Screenshot", "args": { "fileName": "ozone_lat88_on.png", "hideUi": "true" } },
 
     { "type": "SetTile", "args": { "latitude": "45" } },
-    { "type": "SetTime", "args": { "hour": "18" } },
+    { "type": "SetTime", "args": { "hour": "20.55" } },
+    { "type": "Probe", "args": { "probeName": "sun_elevation", "expectedValue": "-11.669", "tolerance": "0.05" } },
+    { "type": "Probe", "args": { "probeName": "polar_night_blue", "expectedValue": "1.0", "tolerance": "0.02" } },
     { "type": "SetFeature", "args": { "featureName": "polar_night_blue", "enabled": "false" } },
     { "type": "Screenshot", "args": { "fileName": "ozone_lat45_off.png", "hideUi": "true" } },
     { "type": "SetFeature", "args": { "featureName": "polar_night_blue", "enabled": "true" } },
     { "type": "Screenshot", "args": { "fileName": "ozone_lat45_on.png", "hideUi": "true" } },
 
     { "type": "SetTile", "args": { "latitude": "5" } },
+    { "type": "SetTime", "args": { "hour": "20.75" } },
+    { "type": "Probe", "args": { "probeName": "sun_elevation", "expectedValue": "-11.777", "tolerance": "0.05" } },
+    { "type": "Probe", "args": { "probeName": "polar_night_blue", "expectedValue": "1.0", "tolerance": "0.02" } },
     { "type": "SetFeature", "args": { "featureName": "polar_night_blue", "enabled": "false" } },
     { "type": "Screenshot", "args": { "fileName": "ozone_lat05_off.png", "hideUi": "true" } },
     { "type": "SetFeature", "args": { "featureName": "polar_night_blue", "enabled": "true" } },
