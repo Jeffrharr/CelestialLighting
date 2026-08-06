@@ -3611,9 +3611,34 @@ table swept across latitude instead of elevation:
 
 | airmass | transmission RGB | R/B | red attenuated on ground @ blend 0.45 |
 |---|---|---|---|
-| 15 (≈ −4°, onset) | 0.537, 0.639, 1.000 | 0.537 | 18.3% |
+| 15 (≈ −4°, onset) | 0.537, 0.639, 1.000 | 0.537 | 10.8% |
 | 27 (≈ −7.2°, peak) | 0.327, 0.447, 1.000 | 0.327 | **24.2%** |
 | 45 (≈ −12°, plateau) | 0.155, 0.261, 1.000 | 0.155 | 35.1% |
+
+**How the last column is derived** (issue #89 — the onset row read 18.3% from §19's first commit
+until it was recomputed; the other two rows were right all along, and nothing downstream ever quoted
+the bad one). It is not `1 − blend·(1 − R/B)`; that naive form ignores the adapter's rescale and
+gives 20.8% at airmass 15, which is why re-deriving it from the table alone fails. The actual chain
+is four steps, exactly what `Patch_PolarNightBlue.BlendTowardHue` does to vanilla's Clear night sky
+(0.482, 0.603, 0.682), read through the multiply overlay:
+
+```
+target  = (R/B) · vanillaB          rescale the normalised hue to the source's brightest channel
+blended = vanillaR + (target − vanillaR)·0.45
+ground  = 1 − blended / vanillaR    the overlay multiplies, so the player sees the RATIO
+```
+
+At airmass 15: `target = 0.5375·0.682 = 0.3666`, `blended = 0.482 − 0.1154·0.45 = 0.4301`,
+`ground = 1 − 0.4301/0.482 = 10.8%`. The same three lines give 24.2% at airmass 27 and 35.1% at 45,
+and 5.3% for the full lerp to the 20,000 K blackbody quoted above — one formula reproduces every
+attenuation figure in this section. `TransmissionTable_ReproducesTheDocumentedFigures` pins all
+three rows offline so the table cannot drift from the code again.
+
+Two things the onset row is *not* saying. The 10.8% is the hue's effect **at full band strength**,
+whereas `BandStrength(−4°)` is exactly 0 — the envelope opens at −4° and the transmission column
+describes the hue that is waiting there, not what is on screen at that instant. And 18.3% was not
+arbitrary: it is this same chain evaluated at airmass ≈21, i.e. −5.6°, the midpoint of the −4°→−7.2°
+fade-in. A row computed one step further down the ramp than its own label, most likely.
 
 Five times the blackbody's effect at *half* the blend, and it **deepens with elevation for free**
 because the notch cuts deeper as the slant path lengthens — a progression a fixed colour cannot

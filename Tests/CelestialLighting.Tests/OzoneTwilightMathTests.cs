@@ -226,6 +226,66 @@ public class OzoneTwilightMathTests
     }
 
     /// <summary>
+    /// Pins DESIGN.md §19's transmission table, every cell of every row, so the shipped document and
+    /// the shipped code cannot drift apart again.
+    ///
+    /// Issue #89 is why this exists. The onset row's attenuation figure read 18.3% from §19's first
+    /// commit onward while the other two rows were correct — a single stale cell, invisible because
+    /// nothing reproduced the table mechanically, and it survived two passes over the section before
+    /// anyone recomputed it. 18.3% is this same chain evaluated at airmass ≈21 (−5.6°, the midpoint
+    /// of the fade-in) rather than at the row's own airmass 15; the correct figure is 10.8%.
+    ///
+    /// Every number here is derived from Beer–Lambert with the shipped constants, not recorded from
+    /// a run: T = exp(−σ·N·m) normalised to blue, then run through GroundChannelFactor, which is
+    /// itself a transcription of Patch_PolarNightBlue.BlendTowardHue. Expectations are quoted at the
+    /// document's own precision so a reader can check the table against this test by eye.
+    ///
+    /// The onset row's 10.8% is deliberately a HYPOTHETICAL, and that is the one subtlety worth
+    /// holding onto: BandStrength(−4°) is exactly 0, so nothing is on screen at that instant. The
+    /// column reports the hue that is waiting at the top of the ramp, which is what makes the three
+    /// rows comparable — all three are quoted at full band strength, and only the airmass moves.
+    /// </summary>
+    [TestCase(-4f, 15f, 0.537f, 0.639f, 0.108f)]
+    [TestCase(-7.2f, 27f, 0.327f, 0.447f, 0.242f)]
+    [TestCase(-12f, 45f, 0.155f, 0.261f, 0.351f)]
+    public void TransmissionTable_ReproducesTheDocumentedFigures(
+        float elevation, float expectedAirmass, float expectedRed, float expectedGreen, float expectedAttenuation)
+    {
+        // The table's first column is an airmass, its row label an elevation. Pin the mapping too,
+        // or a change to MaxSlantAirmass would silently re-label every row.
+        Assert.That(OzoneTwilightMath.SlantAirmass(elevation), Is.EqualTo(expectedAirmass).Within(0.01f));
+
+        SkyColorTemperature.Rgb rgb = OzoneTwilightMath.ChappuisTransmission(elevation, PivotLatitude);
+        Assert.That(rgb.R, Is.EqualTo(expectedRed).Within(0.001f), "transmission R drifted from the documented table");
+        Assert.That(rgb.G, Is.EqualTo(expectedGreen).Within(0.001f), "transmission G drifted from the documented table");
+        Assert.That(rgb.B, Is.EqualTo(1f).Within(Tolerance), "blue is the normalisation channel and must stay 1");
+
+        float attenuation = 1f - GroundChannelFactor(elevation, PivotLatitude, VanillaNightR, 0);
+        Assert.That(attenuation, Is.EqualTo(expectedAttenuation).Within(0.0005f),
+            "the documented ground red attenuation no longer matches the model");
+    }
+
+    /// <summary>
+    /// The trap issue #89 fell into, pinned as an inequality so nobody re-derives the attenuation
+    /// column the wrong way a third time. `1 − blend·(1 − R/B)` looks like the obvious reading of
+    /// "red attenuated on ground @ blend 0.45" and is wrong at every row: it omits the adapter's
+    /// rescale of the normalised hue to the source colour's brightest channel, so it overstates the
+    /// onset row by nearly a factor of two (20.8% against the true 10.8%).
+    /// </summary>
+    [TestCase(-4f)]
+    [TestCase(-7.2f)]
+    [TestCase(-12f)]
+    public void NaiveBlendModel_DoesNotReproduceTheTable(float elevation)
+    {
+        SkyColorTemperature.Rgb rgb = OzoneTwilightMath.ChappuisTransmission(elevation, PivotLatitude);
+        float naive = SkyBlend * (1f - rgb.R / rgb.B);
+        float actual = 1f - GroundChannelFactor(elevation, PivotLatitude, VanillaNightR, 0);
+
+        Assert.That(naive, Is.Not.EqualTo(actual).Within(0.005f),
+            "if these have converged the rescale has been dropped from the adapter or from this file");
+    }
+
+    /// <summary>
     /// Reproduces what the adapter does to one channel of vanilla's night sky, then expresses it as
     /// the factor the multiply overlay applies to the ground. channel: 0 = R, 1 = G, 2 = B.
     /// </summary>
