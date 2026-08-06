@@ -114,12 +114,13 @@ public class VacuumSuppressionTests
         // pressureFraction 1 throughout: this pair is about the §18 gate, so the §20 site-altitude
         // input is held at its sea-level identity value and the sea-level column keeps meaning
         // exactly what it meant before §20 existed. The separate claim — that pressureFraction 0
-        // reaches the same place the gate does — is pinned in SkyColorTemperatureTests. aerosolFraction
-        // 0 for the same reason: §20b's clean-air identity value, so this stays a §18-only claim.
-        Assert.That(SkyColorTemperature.ColorTemperatureKelvin(elevation, pressureFraction: 1f, aerosolFraction: 0f, inVacuum: true),
+        // reaches the same place the gate does — is pinned in SkyColorTemperatureTests. Note the ramp
+        // itself no longer takes an aerosol input at all: since §20c the aerosol's colour is applied
+        // per channel outside this function, so this is the clean-air curve by construction.
+        Assert.That(SkyColorTemperature.ColorTemperatureKelvin(elevation, pressureFraction: 1f, inVacuum: true),
             Is.EqualTo(SkyColorTemperature.ZenithKelvin).Within(0.5f),
             $"vacuum colour temperature varied with sun altitude at elevation {elevation}");
-        Assert.That(SkyColorTemperature.ColorTemperatureKelvin(elevation, pressureFraction: 1f, aerosolFraction: 0f, inVacuum: false),
+        Assert.That(SkyColorTemperature.ColorTemperatureKelvin(elevation, pressureFraction: 1f, inVacuum: false),
             Is.EqualTo(seaLevelKelvin).Within(0.5f),
             $"sea-level colour temperature moved at elevation {elevation}");
     }
@@ -150,22 +151,26 @@ public class VacuumSuppressionTests
     [Test]
     public void SkyColorForElevation_IsConstantInVacuum_ButVariesAtSeaLevel()
     {
-        SkyColorTemperature.Rgb anchor =
-            SkyColorTemperature.SkyColorForElevation(0f, pressureFraction: 1f, aerosolFraction: 0f, inVacuum: true);
+        SkyColorTemperature.Rgb anchor = SkyColorTemperature.SkyColorForElevation(
+            0f, pressureFraction: 1f, aerosolFraction: 0f,
+            angstromExponent: AerosolSpectrum.ReferenceAngstromExponent, inVacuum: true);
         for (float elevation = -30f; elevation <= 90f; elevation += 2.5f)
         {
-            SkyColorTemperature.Rgb vacuum =
-                SkyColorTemperature.SkyColorForElevation(elevation, pressureFraction: 1f, aerosolFraction: 0f, inVacuum: true);
+            SkyColorTemperature.Rgb vacuum = SkyColorTemperature.SkyColorForElevation(
+                elevation, pressureFraction: 1f, aerosolFraction: 0f,
+                angstromExponent: AerosolSpectrum.ReferenceAngstromExponent, inVacuum: true);
             Assert.That(vacuum.R, Is.EqualTo(anchor.R).Within(Tolerance), $"R varied at {elevation}");
             Assert.That(vacuum.G, Is.EqualTo(anchor.G).Within(Tolerance), $"G varied at {elevation}");
             Assert.That(vacuum.B, Is.EqualTo(anchor.B).Within(Tolerance), $"B varied at {elevation}");
         }
 
         // The sea-level counterpart, so "constant" cannot pass by the whole curve having gone flat.
-        SkyColorTemperature.Rgb horizon =
-            SkyColorTemperature.SkyColorForElevation(0f, pressureFraction: 1f, aerosolFraction: 0f, inVacuum: false);
-        SkyColorTemperature.Rgb high =
-            SkyColorTemperature.SkyColorForElevation(60f, pressureFraction: 1f, aerosolFraction: 0f, inVacuum: false);
+        SkyColorTemperature.Rgb horizon = SkyColorTemperature.SkyColorForElevation(
+            0f, pressureFraction: 1f, aerosolFraction: 0f,
+            angstromExponent: AerosolSpectrum.ReferenceAngstromExponent, inVacuum: false);
+        SkyColorTemperature.Rgb high = SkyColorTemperature.SkyColorForElevation(
+            60f, pressureFraction: 1f, aerosolFraction: 0f,
+            angstromExponent: AerosolSpectrum.ReferenceAngstromExponent, inVacuum: false);
         Assert.That(horizon.B, Is.LessThan(high.B - 0.05f),
             "sea-level horizon sky is no longer measurably redder than the high-sun sky");
     }

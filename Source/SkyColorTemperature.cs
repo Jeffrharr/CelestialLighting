@@ -22,11 +22,22 @@ namespace CelestialLighting;
 // primitive from AtmosphericColumn, keeping this file free of any notion of where the map is.
 //
 // The curve's third input is what ELSE is in that air (DESIGN.md §20b): a boundary-layer aerosol
-// column, scaled by the tile's Biotech pollution, pushing the warm endpoint past sea-level 2000 K.
-// It arrives as a second fraction from the same AtmosphericColumn model at a much shorter scale
-// height (1500 m against 8500 m), which is why it points the opposite way to the altitude term and
-// dies off nearly six times faster: a polluted lowland and a clean mountain base end up at opposite
-// ends of one continuous curve, and a high enough map is simply above the haze.
+// column, scaled by the tile's Biotech pollution. It arrives as a second fraction from the same
+// AtmosphericColumn model at a much shorter scale height (1500 m against 8500 m), which is why it
+// points the opposite way to the altitude term and dies off nearly six times faster: a polluted
+// lowland and a clean mountain base end up at opposite ends of one continuous curve, and a high
+// enough map is simply above the haze.
+//
+// The curve's fourth input is the SHAPE of that aerosol's extinction (DESIGN.md §20c), and it is the
+// one input that does not live on this curve at all. Everything above is a one-parameter family — a
+// ramp along the Planckian locus — so altitude and pollution only ever change how far along ONE hue
+// path the sky travels. Aerosol's Angstrom exponent changes the path itself, which cannot be said in
+// Kelvin, so it is said per channel in AerosolSpectrum.cs instead and multiplied into the colour
+// this file produces. Note what that means for the division of labour here: the Kelvin ramp below is
+// now honestly the CLEAN-AIR curve, and the aerosol's colour effect lives entirely in the spectrum
+// file. §20b's second Kelvin endpoint is gone rather than composed with it — see AerosolSpectrum's
+// CalibrationAnchorKelvin for why applying both would have double-counted, and why the locus
+// representation had to be the one that gave way.
 //
 // Critically this is a COLOUR-ONLY transform: the adapter blends WeatherWorker.CurSkyTarget's
 // colours and never its .glow, so it does not disturb the brightness value other mods read (see
@@ -41,53 +52,22 @@ public static class SkyColorTemperature
     public const float HorizonKelvin = 2000f;
     public const float ZenithKelvin = 5772f;
 
-    // The third endpoint (DESIGN.md §20b): where the warm end lands when the observer is under a
-    // FULL sea-level aerosol column — Biotech pollution 1.0 on a sea-level tile. Aerosol adds
-    // optical depth on top of the air's own, so it pushes the horizon endpoint PAST the sea-level
-    // 2000 K rather than back toward the anchor, which is why it needs a constant of its own where
-    // §20's altitude term needed none. §20's argument for adding no third constant was specific:
-    // thinning air can only ever walk the reddened end back up toward the unreddened anchor, so the
-    // two existing constants already bracketed it. Aerosol moves the other way, into territory
-    // neither constant describes, so this is that same argument's mirror image rather than a
-    // violation of it.
+    // §20b's AerosolHorizonKelvin, the second Kelvin endpoint pollution used to drag the warm end
+    // down to, is GONE from this file rather than sitting alongside the spectral model. It has moved
+    // to AerosolSpectrum.CalibrationAnchorKelvin, which records both the number and the reason: two
+    // representations of one physical effect cannot both be applied without double-counting it, and
+    // the locus representation is the lossy one (the Helland fit pins blue at 0 below 1900 K, so
+    // anything downstream of §20b's endpoint is multiplying zero and can never produce the pale,
+    // blue-retaining sun that a large-particle aerosol actually gives). The full argument is written
+    // out there, next to the optical depth that was fitted to it, together with §20b's own reasons
+    // for putting the endpoint where it is.
     //
-    // WHY 1500 K, AND WHY IT SATURATES RATHER THAN EXTRAPOLATING. The tempting move is to treat
-    // pollution as extra optical depth and keep extending the existing linear Kelvin ramp — but that
-    // ramp is CALIBRATED on [0, 1] (one full sea-level air column is worth exactly 3772 K of
-    // reddening) and extrapolating a calibration is not the same as using it. Taken literally it
-    // runs off the end of the world: a heavy urban aerosol optical depth is several times the
-    // sea-level Rayleigh depth, and even after discounting it for Mie's much weaker wavelength
-    // selectivity (Angstrom exponent ~1.3 against Rayleigh's 4, so roughly a third of the reddening
-    // per unit depth) the linear form lands below absolute zero. Real extinction does not behave
-    // that way either — past a point more haze mostly dims and greys rather than reddening further.
-    // So the model saturates at a separately anchored endpoint instead.
-    //
-    // 1000 K is anchored on the Helland fit this file already uses rather than on taste. The fit's
-    // blue channel is pinned at 0 below 1900 K, so ALL of the travel from 2000 K down to here happens
-    // in green, with red already saturated:
-    //
-    //     2000 K  green 0.537     the clean sea-level endpoint
-    //     1500 K  green 0.425
-    //     1000 K  green 0.266     this endpoint
-    //
-    // Losing half the green against a saturated red is precisely "browner" — the duller, deeper,
-    // lower-contrast sky of a heavy smog sunset, not a more vivid orange. 1000 K is the fit's stated
-    // validity floor, so this rides the edge rather than sitting comfortably inside it; going lower
-    // would be extrapolating a curve fit outside its published range, which is where this stops.
-    //
-    // WHY IT MOVED FROM 1500 K. At 1500 K the effect was measured, on rendered frames, at a median
-    // CIELAB deltaE of 1.31 between clean and polluted at pollution 1.0 — below the ~2.0 threshold
-    // for "visible at a glance", i.e. a maximally poisoned sky looked almost exactly like a clean
-    // one. That is not a defensible place for the MAXIMUM of a subsystem to sit. In mireds the
-    // sea-level shift triples (10^6/1000 - 10^6/2000 = 500 mired, against 166.7 before), because
-    // mired distance is what the interpolation actually walks.
-    //
-    // Note what is deliberately NOT done to get here: TintStrength still takes no aerosol term. That
-    // would strengthen the tint, and strengthening a REDDENING tint models Mie scattering backwards —
-    // heavy aerosol greys and mutes rather than intensifying (see TintStrength's own note and the
-    // structural test pinning it). Deepening the endpoint colour makes a polluted sky obviously
-    // different WITHOUT claiming haze makes sunsets more vivid.
-    public const float AerosolHorizonKelvin = 1000f;
+    // What did NOT move with it is §20b's finding about tint STRENGTH: TintStrength still takes no
+    // aerosol term, because strengthening a reddening tint models Mie scattering backwards (see
+    // TintStrength's own note and the structural test pinning it). §20b's answer to "a maximally
+    // polluted sky must be visibly different" was to deepen the endpoint COLOUR and to open the
+    // adapter's per-channel blend, never to make the tint stronger. §20c changes only how that
+    // colour is represented, so both halves of that answer survive unchanged.
 
     // At/above this solar elevation the sky has reached full daylight temperature and no further
     // warming is applied. 60° is high enough that only tropical/summer midday sun exceeds it, so
@@ -153,6 +133,20 @@ public static class SkyColorTemperature
     // column, which is a geometric path-length effect with its own airmass curve, while this moves
     // the column's density. They are different physical quantities and there is no reason to expect
     // one interpolation space to serve both.
+    //
+    // §20b stacked a SECOND mired lerp on the end of this one, carrying the endpoint on past the
+    // sea-level 2000 K toward an AerosolHorizonKelvin. §20c removed that stage outright: aerosol's
+    // colour effect is a spectral SHAPE, and a point on the Planckian locus cannot carry one. What
+    // is left is exactly what §20 introduced — the endpoint an UNPOLLUTED column of this thickness
+    // reaches — and AerosolSpectrum then multiplies its per-channel transmission into the colour
+    // that comes out of it.
+    //
+    // The mired argument above is not lost in the handover, it is generalised. Beer-Lambert
+    // transmission composes additively in log space, which is the same "filter strengths add"
+    // property that made mireds the right space for the clean-air stage; §20b's mired reading of how
+    // fast pollution's effect collapses with altitude therefore survives the move exactly, and the
+    // test that pinned it still holds. The one thing that does NOT survive is treating the aerosol
+    // stage as a lerp toward a fixed endpoint colour, which is the lossy step §20c exists to undo.
     public static float HorizonKelvinForPressure(float pressureFraction)
     {
         float mired = Lerp(
@@ -173,50 +167,35 @@ public static class SkyColorTemperature
 
     private static float MiredToKelvin(float mired) => MiredScale / mired;
 
-    // aerosolFraction (DESIGN.md §20b) then carries the endpoint on PAST the sea-level 2000 K toward
-    // AerosolHorizonKelvin, in a second lerp rather than by widening the first. Two stages, because
-    // the two species answer different questions and the composition order is the physical claim:
-    // "how reddened is a clean column at this altitude" is settled first, and the boundary-layer haze
-    // the observer is standing in is then laid on top of whatever that came out as. Stacking them
-    // this way is also what makes the aerosol term automatically vanish on a mountain WITHOUT any
-    // altitude logic living here: aerosolFraction is itself an exp(-h/1500) column, so by 4000 m it
-    // has already fallen to 0.069 and there is nothing left to lay on. The pure layer never learns
-    // what an altitude is; it just receives a fraction that has already collapsed.
+    // How horizon-like the sun is, in [0, 1]: 1 at/below the horizon, falling linearly to 0 at
+    // DaylightAltitudeDegrees. It is the complement of the Kelvin ramp's own interpolant, and the
+    // stand-in this subsystem uses for slant path length — a low sun's light crosses far more of
+    // everything (air, haze, ozone) than a high sun's does.
     //
-    // The two fractions are expected to be a CONSISTENT PAIR, both derived from one site altitude
-    // via AtmosphericColumn. Nothing here can enforce that, and it matters at exactly one point: the
-    // h -> infinity limit, where both must reach 0 together for the §18 vacuum agreement to hold.
-    // They do, because both are decaying exponentials of the same height. A caller that synthesised
-    // pressureFraction = 0 alongside a nonzero aerosolFraction would be describing an airless planet
-    // with smog on it, and would get the nonsense it asked for.
-    // BOTH STAGES INTERPOLATE IN MIREDS, for the one reason given above HorizonKelvinForPressure: a
-    // mired shift is approximately linear in optical depth, and both fractions ARE optical depths —
-    // one Rayleigh, one aerosol. Using mireds for the clean-air stage and Kelvin for the haze stage
-    // would be claiming the two species redden by different rules, which is not a claim anyone has
-    // made. It also keeps the composition associative in the way the physics is: optical depths add,
-    // and mired shifts add with them.
-    public static float HorizonKelvinForColumns(float pressureFraction, float aerosolFraction)
-    {
-        float cleanAirEndpoint = HorizonKelvinForPressure(pressureFraction);
-
-        float mired = Lerp(
-            MiredOf(cleanAirEndpoint),
-            MiredOf(AerosolHorizonKelvin),
-            Clamp01(aerosolFraction));
-
-        return MiredToKelvin(mired);
-    }
+    // Extracted because THREE things now need the same ramp and they must not drift apart: the
+    // Kelvin ramp (as 1 - t), TintStrength's lowSunRamp, and §20c's aerosol optical depth. The last
+    // is the new one, and using this rather than a fresh ramp is what makes the aerosol's colour
+    // fade out with sun altitude at exactly the rate §20b's Kelvin endpoint did — the spectral model
+    // is a change of representation, not a change of when the effect applies.
+    public static float LowSunFraction(float elevationDegrees) =>
+        InverseLerpClamped(DaylightAltitudeDegrees, 0f, elevationDegrees);
 
     // Linear ramp from HorizonKelvin (at/below the horizon) to ZenithKelvin (at/above
     // DaylightAltitudeDegrees), clamped flat past both ends. Monotonic in elevation, so a lower sun
     // is always at least as warm as a higher one — the property the whole subsystem depends on.
     //
-    // pressureFraction (DESIGN.md §20) and aerosolFraction (§20b) move only the horizon endpoint, per
-    // HorizonKelvinForColumns above. Note that pressureFraction -> 0 reproduces the inVacuum return
-    // value exactly rather than approximately: vacuum is the h -> infinity limit of this same curve,
-    // so the discrete §18 gate and the continuous atmospheric model agree at the endpoint by
-    // construction (aerosolFraction reaches 0 far sooner, so it is already gone). They stay separate
+    // pressureFraction (DESIGN.md §20) moves only the horizon endpoint, per HorizonKelvinForPressure
+    // above. Note that pressureFraction -> 0 reproduces the inVacuum return value exactly rather than
+    // approximately: vacuum is the h -> infinity limit of this same curve, so the discrete §18 gate
+    // and the continuous atmospheric model agree at the endpoint by construction. They stay separate
     // concepts anyway — see the inVacuum note below and §20.
+    //
+    // This is the CLEAN-AIR colour temperature. It is still the honest answer to "what colour
+    // temperature is the sunlight reaching this map", and it is still what the sky_color_temperature
+    // probe reports — but since §20c it is no longer the whole of the sky colour, because a notched
+    // or sloped aerosol spectrum is not a blackbody at any temperature. SkyColorForElevation below is
+    // the composition that is; anything that needs the colour rather than the temperature must go
+    // through that rather than calling BlackbodyToRgb on this directly.
     //
     // inVacuum (DESIGN.md §18, the shared gate in Vacuum.cs): the entire ramp is a Rayleigh
     // reddening model. Low sun looks warm on the ground because its light crosses tens of air masses
@@ -226,13 +205,13 @@ public static class SkyColorTemperature
     // around, and now the only value it can return. Flat, not merely shallower: this is what "the
     // spectrum does not vary with sun altitude" means as a function.
     public static float ColorTemperatureKelvin(
-        float elevationDegrees, float pressureFraction, float aerosolFraction, bool inVacuum)
+        float elevationDegrees, float pressureFraction, bool inVacuum)
     {
         if (inVacuum)
             return ZenithKelvin;
 
         float t = InverseLerpClamped(0f, DaylightAltitudeDegrees, elevationDegrees);
-        return Lerp(HorizonKelvinForColumns(pressureFraction, aerosolFraction), ZenithKelvin, t);
+        return Lerp(HorizonKelvinForPressure(pressureFraction), ZenithKelvin, t);
     }
 
     // How strongly the warm tint should be applied at a given sun altitude, in [0, 1]. It is the
@@ -287,30 +266,73 @@ public static class SkyColorTemperature
     // or .glow, and two subsystems independently pulling saturation down is exactly the failure #78
     // is about. If the mute reads as missing in a live A/B, it is a §9 ticket keyed on this same
     // aerosol fraction, filed once #78 settles.
+    //
+    // §20c's angstromExponent is absent for the SAME reason, and it is worth saying explicitly
+    // because the temptation there is different and more plausible: low alpha does mean weaker
+    // colour, so scaling strength by alpha would look like the obvious way to express "grey aerosol
+    // barely tints". It would be wrong twice over. The spectral model already delivers that — at
+    // alpha 0 its hue multiplier is exactly (1, 1, 1), so the colour is untouched with no help from
+    // the strength factor — and doing it here as well would double-count it AND would weaken the
+    // clean-air Rayleigh tint that has nothing to do with aerosol particle size. Strength stays a
+    // function of sun geometry and air column alone; every aerosol question is answered in colour.
     public static float TintStrength(float elevationDegrees, float pressureFraction, bool inVacuum)
     {
         if (inVacuum)
             return 0f;
 
-        float lowSunRamp = InverseLerpClamped(DaylightAltitudeDegrees, 0f, elevationDegrees);
+        float lowSunRamp = LowSunFraction(elevationDegrees);
         float daylightGate = InverseLerpClamped(NightFadeFloorDegrees, HorizonElevationDegrees, elevationDegrees);
         return lowSunRamp * daylightGate * Clamp01(pressureFraction);
     }
 
     // Convenience composition used by both the adapter and the live probe so they can never derive a
-    // different colour from the same inputs: elevation + site air column + aerosol load → colour
-    // temperature → RGB. Carries inVacuum straight through to the ramp, so in vacuum this is the
-    // constant unreddened anchor colour at every elevation.
+    // different colour from the same inputs: elevation + site air column + aerosol load + aerosol
+    // particle size → RGB. Carries inVacuum straight through, so in vacuum this is the constant
+    // unreddened anchor colour at every elevation.
+    //
+    // TWO STAGES, AND THE ORDER IS THE PHYSICAL CLAIM (DESIGN.md §20c). First the clean-air colour:
+    // what the Rayleigh column at this altitude does to sunlight at this sun angle, which a single
+    // colour temperature genuinely can describe because Rayleigh has one fixed spectral shape. Then
+    // the aerosol, applied as a per-channel multiplication on top of that, because its shape varies
+    // and no colour temperature can carry a varying shape. Sunlight really does cross the bulk
+    // atmosphere before it reaches the boundary layer the observer is standing in, so the ordering
+    // is not merely convenient.
+    //
+    // WHY THE MULTIPLY IS ON THE CLEAN COLOUR AND NOT ON §20b's POLLUTED ONE. Because §20b's polluted
+    // endpoint has already thrown away the information the multiply needs — the Helland fit pins blue
+    // at 0 below 1900 K, so multiplying a 1500 K colour can never restore blue no matter what the
+    // aerosol's actual particle size is. The whole grey/large-particle half of the range would be
+    // unreachable. See AerosolSpectrum.CalibrationAnchorKelvin.
+    //
+    // The aerosol load is scaled by LowSunFraction because optical depth is a path length: a sun at
+    // 60° is barely looking through the boundary layer at all, while a sun on the horizon is looking
+    // along it. Using this subsystem's existing ramp rather than a new one is what makes the aerosol
+    // effect fade with sun altitude at exactly the rate §20b's Kelvin endpoint faded at.
     public static Rgb SkyColorForElevation(
-        float elevationDegrees, float pressureFraction, float aerosolFraction, bool inVacuum) =>
-        BlackbodyToRgb(ColorTemperatureKelvin(elevationDegrees, pressureFraction, aerosolFraction, inVacuum));
+        float elevationDegrees, float pressureFraction, float aerosolFraction,
+        float angstromExponent, bool inVacuum)
+    {
+        Rgb cleanAir = BlackbodyToRgb(
+            ColorTemperatureKelvin(elevationDegrees, pressureFraction, inVacuum));
+
+        // §18's gate, honoured here as well as inside the ramp: no air means no aerosol either, and
+        // the aerosolFraction a vacuum map's tile produces is not a number worth trusting. One early
+        // return rather than relying on the caller's fraction happening to be zero.
+        if (inVacuum)
+            return cleanAir;
+
+        float slantLoad = aerosolFraction * LowSunFraction(elevationDegrees);
+        return AerosolSpectrum.Apply(cleanAir, slantLoad, angstromExponent);
+    }
 
     // Blackbody colour temperature → linear-ish sRGB in [0, 1] per channel, via the widely published
     // (public-domain) Tanner Helland approximation of the Planckian locus. This is a standard
     // tabulated/curve-fit conversion used across countless colour tools — textbook, not mod-specific
-    // (see DESIGN.md "Clean-room provenance"). Valid roughly 1000–40000 K; our curve only ever feeds
-    // it AerosolHorizonKelvin..ZenithKelvin — the 1500 K floor was chosen partly to keep the fully
-    // polluted end of §20b comfortably inside that validity range rather than riding its edge.
+    // (see DESIGN.md "Clean-room provenance"). Valid roughly 1000–40000 K; since §20c retired §20b's
+    // 1500 K endpoint, our curve only ever feeds it HorizonKelvin..ZenithKelvin — a narrower band
+    // sitting further inside the fit's validity range than before, because the aerosol's extra
+    // reddening is now applied per channel afterwards rather than by asking the fit for a colder
+    // temperature than it was ever calibrated for.
     //
     // Each channel is its own small named function (below) rather than one deeply-nested branch, so
     // the piecewise structure reads top-to-bottom instead of forcing the reader to hold the other
