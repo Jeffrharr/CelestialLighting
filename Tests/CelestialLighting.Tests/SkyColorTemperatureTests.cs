@@ -19,6 +19,12 @@ public class SkyColorTemperatureTests
     // parameter — if threading pressureFraction through moved a sea-level number, these fail.
     private const float SeaLevel = 1f;
 
+    // Unpolluted: the identity value of §20b's aerosol input (AtmosphericColumn.AerosolLoadFraction
+    // is 0 at pollution 0, which is every tile in a game without Biotech). Every pre-§20b expectation
+    // below is passed this, so the whole block stays a regression pin on the §20 curve rather than
+    // being re-baselined against the new parameter.
+    private const float CleanAir = 0f;
+
     // --- ColorTemperatureKelvin: warm at the horizon, neutral at the zenith, monotonic between ---
 
     [TestCase(-5f, SkyColorTemperature.HorizonKelvin)] // below horizon clamps flat to warm
@@ -28,17 +34,17 @@ public class SkyColorTemperatureTests
     [TestCase(90f, SkyColorTemperature.ZenithKelvin)] // zenith clamps flat to neutral
     public void ColorTemperatureKelvin_MatchesExpected(float elevation, float expected)
     {
-        Assert.That(SkyColorTemperature.ColorTemperatureKelvin(elevation, SeaLevel, inVacuum: false),
+        Assert.That(SkyColorTemperature.ColorTemperatureKelvin(elevation, SeaLevel, CleanAir, inVacuum: false),
             Is.EqualTo(expected).Within(0.5f));
     }
 
     [Test]
     public void ColorTemperatureKelvin_IsMonotonicNonDecreasing_AsSunClimbs()
     {
-        float previous = SkyColorTemperature.ColorTemperatureKelvin(-10f, SeaLevel, inVacuum: false);
+        float previous = SkyColorTemperature.ColorTemperatureKelvin(-10f, SeaLevel, CleanAir, inVacuum: false);
         for (float elevation = -10f; elevation <= 90f; elevation += 2.5f)
         {
-            float current = SkyColorTemperature.ColorTemperatureKelvin(elevation, SeaLevel, inVacuum: false);
+            float current = SkyColorTemperature.ColorTemperatureKelvin(elevation, SeaLevel, CleanAir, inVacuum: false);
             Assert.That(current, Is.GreaterThanOrEqualTo(previous - Tolerance),
                 $"colour temperature dropped as the sun rose (at elevation {elevation})");
             previous = current;
@@ -121,9 +127,9 @@ public class SkyColorTemperatureTests
     [Test]
     public void SkyColorForElevation_MatchesManualComposition()
     {
-        SkyColorTemperature.Rgb direct = SkyColorTemperature.SkyColorForElevation(20f, SeaLevel, inVacuum: false);
+        SkyColorTemperature.Rgb direct = SkyColorTemperature.SkyColorForElevation(20f, SeaLevel, CleanAir, inVacuum: false);
         SkyColorTemperature.Rgb composed = SkyColorTemperature.BlackbodyToRgb(
-            SkyColorTemperature.ColorTemperatureKelvin(20f, SeaLevel, inVacuum: false));
+            SkyColorTemperature.ColorTemperatureKelvin(20f, SeaLevel, CleanAir, inVacuum: false));
         Assert.That(direct.R, Is.EqualTo(composed.R).Within(Tolerance));
         Assert.That(direct.G, Is.EqualTo(composed.G).Within(Tolerance));
         Assert.That(direct.B, Is.EqualTo(composed.B).Within(Tolerance));
@@ -195,10 +201,10 @@ public class SkyColorTemperatureTests
     [TestCase(0.8382f, 2236.5f)] // 1500 m
     [TestCase(0.6246f, 2650.1f)] // 4000 m: a whiter horizon sun, but less so than Kelvin-space said
     [TestCase(0f, SkyColorTemperature.ZenithKelvin)] // the h -> infinity limit
-    public void HorizonKelvinForPressure_WalksTheWarmEndpointTowardTheUnreddenedAnchor(
+    public void HorizonKelvinForColumns_WalksTheWarmEndpointTowardTheUnreddenedAnchor(
         float pressureFraction, float expected)
     {
-        Assert.That(SkyColorTemperature.HorizonKelvinForPressure(pressureFraction),
+        Assert.That(SkyColorTemperature.HorizonKelvinForColumns(pressureFraction, CleanAir),
             Is.EqualTo(expected).Within(0.5f));
     }
 
@@ -210,12 +216,12 @@ public class SkyColorTemperatureTests
         // two ways at once (a higher colour temperature and a weaker tint), so both are swept.
         for (float elevation = -10f; elevation <= 90f; elevation += 5f)
         {
-            float previousKelvin = SkyColorTemperature.ColorTemperatureKelvin(elevation, SeaLevel, inVacuum: false);
+            float previousKelvin = SkyColorTemperature.ColorTemperatureKelvin(elevation, SeaLevel, CleanAir, inVacuum: false);
             float previousTint = SkyColorTemperature.TintStrength(elevation, SeaLevel, inVacuum: false);
             for (float siteAltitudeMetres = 0f; siteAltitudeMetres <= 9000f; siteAltitudeMetres += 250f)
             {
                 float pressureFraction = AtmosphericColumn.RayleighPressureFraction(siteAltitudeMetres);
-                float kelvin = SkyColorTemperature.ColorTemperatureKelvin(elevation, pressureFraction, inVacuum: false);
+                float kelvin = SkyColorTemperature.ColorTemperatureKelvin(elevation, pressureFraction, CleanAir, inVacuum: false);
                 float tint = SkyColorTemperature.TintStrength(elevation, pressureFraction, inVacuum: false);
                 Assert.That(kelvin, Is.GreaterThanOrEqualTo(previousKelvin - Tolerance),
                     $"sky got warmer with altitude at {siteAltitudeMetres} m, elevation {elevation}");
@@ -238,8 +244,8 @@ public class SkyColorTemperatureTests
         // only nearly agree, one of them has grown arithmetic the other has not.
         for (float elevation = -30f; elevation <= 90f; elevation += 2.5f)
         {
-            Assert.That(SkyColorTemperature.ColorTemperatureKelvin(elevation, pressureFraction: 0f, inVacuum: false),
-                Is.EqualTo(SkyColorTemperature.ColorTemperatureKelvin(elevation, SeaLevel, inVacuum: true)),
+            Assert.That(SkyColorTemperature.ColorTemperatureKelvin(elevation, pressureFraction: 0f, aerosolFraction: CleanAir, inVacuum: false),
+                Is.EqualTo(SkyColorTemperature.ColorTemperatureKelvin(elevation, SeaLevel, CleanAir, inVacuum: true)),
                 $"airless-limit colour temperature diverged from the vacuum gate at elevation {elevation}");
             Assert.That(SkyColorTemperature.TintStrength(elevation, pressureFraction: 0f, inVacuum: false),
                 Is.EqualTo(SkyColorTemperature.TintStrength(elevation, SeaLevel, inVacuum: true)),
@@ -256,7 +262,7 @@ public class SkyColorTemperatureTests
         // were chosen for. The curve clamps rather than trusting its input.
         Assert.That(SkyColorTemperature.TintStrength(0f, pressureFraction: 1.5f, inVacuum: false),
             Is.EqualTo(SkyColorTemperature.TintStrength(0f, SeaLevel, inVacuum: false)).Within(Tolerance));
-        Assert.That(SkyColorTemperature.ColorTemperatureKelvin(0f, pressureFraction: 1.5f, inVacuum: false),
+        Assert.That(SkyColorTemperature.ColorTemperatureKelvin(0f, pressureFraction: 1.5f, aerosolFraction: CleanAir, inVacuum: false),
             Is.EqualTo(SkyColorTemperature.HorizonKelvin).Within(0.5f));
     }
 
@@ -285,15 +291,18 @@ public class SkyColorTemperatureTests
             .Select(parameter => parameter.Name!)
             .ToArray();
         Assert.That(offending, Is.Empty,
-            "OzoneTwilightMath grew a site-altitude/pressure parameter — Chappuis absorption is at "
-            + "20-30 km, above every mountain, so §19 must not scale with where the map sits");
+            "OzoneTwilightMath grew a site-altitude/pressure/aerosol parameter — Chappuis absorption "
+            + "is at 20-30 km, above every mountain and roughly fifteen boundary layers up, so §19 "
+            + "must scale with neither where the map sits nor what is in its lowest 1.5 km");
     }
-    // --- §20b's second species: the boundary-layer aerosol column ---
+
+    // --- §20b pollution aerosol: the boundary-layer species, and why it is not just a warm knob ---
     //
-    // Aerosol is injected at the surface and settles out, so it hugs the ground with a ~1500 m scale
-    // height against bulk air's 8500 m. Nothing consumes these yet — the colour curve gains the term
-    // in the next commit — but the column model is the half that owns the 5.7x divergence, and it is
-    // testable entirely on its own.
+    // Biotech's Tile.pollution is read as aerosol loading and enters the SAME column model §20 uses,
+    // at a much shorter scale height (1500 m against 8500 m). Two consequences carry the whole
+    // subsystem and are pinned separately below: it points the OPPOSITE way to altitude (warming the
+    // horizon endpoint past sea level rather than cooling it toward the anchor), and it falls away
+    // with altitude nearly six times faster, so a high enough map is simply above the haze.
 
     [TestCase(0f, 1f)] // sea level: the full boundary-layer column is overhead
     [TestCase(100f, 0.9355f)] // vanilla Tile.elevation default: essentially all of it
@@ -358,5 +367,229 @@ public class SkyColorTemperatureTests
         // five eighths of its air (a subdued but real sunset, §20) and almost none of its haze.
         Assert.That(AtmosphericColumn.RayleighPressureFraction(4000f), Is.GreaterThan(0.6f));
         Assert.That(AtmosphericColumn.AerosolColumnFraction(4000f), Is.LessThan(0.1f));
+    }
+
+    [TestCase(1f, 0f, SkyColorTemperature.HorizonKelvin)] // clean sea level: unchanged from §20
+    [TestCase(1f, 1f, SkyColorTemperature.AerosolHorizonKelvin)] // fully polluted sea level: the new endpoint
+    [TestCase(1f, 0.5f, 1714.3f)] // half a column of haze: linear in MIREDS between them
+    [TestCase(0.6246f, 0f, 2650.1f)] // clean 4000 m: §20's value, pinned again as a regression guard
+    [TestCase(0.6246f, 0.0695f, 2516.1f)] // 4000 m at pollution 1.0 — only ~134 K of warming left
+    [TestCase(0.8382f, 0.3679f, 1894.3f)] // 1500 m at pollution 1.0
+    public void HorizonKelvinForColumns_CarriesTheWarmEndpointPastSeaLevelWhenTheAirIsDirty(
+        float pressureFraction, float aerosolFraction, float expected)
+    {
+        Assert.That(SkyColorTemperature.HorizonKelvinForColumns(pressureFraction, aerosolFraction),
+            Is.EqualTo(expected).Within(0.5f));
+    }
+
+    [Test]
+    public void ZeroPollution_IsBitIdenticalToTheSiteAltitudeOnlyCurve()
+    {
+        // The regression pin, asserted as EXACT equality rather than within a tolerance, in the same
+        // spirit as ZeroPressure_ReproducesTheVacuumValuesExactly above: at pollution 0 the second
+        // lerp has to be a true no-op, not a nearly-no-op. Every tile in a game without Biotech takes
+        // this path, so "almost unchanged" would mean the mod's default behaviour had silently moved
+        // for every existing colony.
+        //
+        // §20's formula is restated here rather than called, precisely because the function that used
+        // to hold it no longer exists in that form. That is what makes this a pin on the BEHAVIOUR
+        // rather than a tautology about whatever the current code does.
+        //
+        // Restated in MIREDS, matching §20 after the Kelvin -> mired switch: the endpoint is
+        // 10^6 / (mired(Zenith) + p * (mired(Horizon) - mired(Zenith))). Getting this wrong is how
+        // the pin silently becomes a tautology, so it is written out longhand.
+        for (float siteAltitudeMetres = 0f; siteAltitudeMetres <= 9000f; siteAltitudeMetres += 500f)
+        {
+            float pressureFraction = AtmosphericColumn.RayleighPressureFraction(siteAltitudeMetres);
+            float zenithMired = 1e6f / SkyColorTemperature.ZenithKelvin;
+            float horizonMired = 1e6f / SkyColorTemperature.HorizonKelvin;
+            float preAerosolEndpoint =
+                1e6f / (zenithMired + (horizonMired - zenithMired) * pressureFraction);
+
+            Assert.That(SkyColorTemperature.HorizonKelvinForColumns(pressureFraction, CleanAir),
+                Is.EqualTo(preAerosolEndpoint),
+                $"the unpolluted horizon endpoint moved at {siteAltitudeMetres} m");
+
+            for (float elevation = -30f; elevation <= 90f; elevation += 7.5f)
+            {
+                float t = (elevation < 0f ? 0f : elevation > 60f ? 60f : elevation) / 60f;
+                float preAerosolKelvin = preAerosolEndpoint
+                    + (SkyColorTemperature.ZenithKelvin - preAerosolEndpoint) * t;
+                Assert.That(
+                    SkyColorTemperature.ColorTemperatureKelvin(elevation, pressureFraction, CleanAir, inVacuum: false),
+                    Is.EqualTo(preAerosolKelvin),
+                    $"the unpolluted curve moved at {siteAltitudeMetres} m, elevation {elevation}");
+            }
+        }
+    }
+
+    [Test]
+    public void Warmth_IsMonotonicallyNonDecreasing_InPollution()
+    {
+        // Pollution may only ever make the sky warmer (a LOWER colour temperature), never cooler and
+        // never non-monotonically — the mirror of the site-altitude invariant above. Swept over both
+        // sun elevation and site altitude, because the aerosol term's effect is a function of all
+        // three and a monotonicity that only held at sea level would be worth very little.
+        for (float siteAltitudeMetres = 0f; siteAltitudeMetres <= 6000f; siteAltitudeMetres += 500f)
+        {
+            float pressureFraction = AtmosphericColumn.RayleighPressureFraction(siteAltitudeMetres);
+            for (float elevation = -10f; elevation <= 90f; elevation += 10f)
+            {
+                float previous = float.MaxValue;
+                for (float pollution = 0f; pollution <= 1f; pollution += 0.05f)
+                {
+                    float aerosolFraction = AtmosphericColumn.AerosolLoadFraction(siteAltitudeMetres, pollution);
+                    float kelvin = SkyColorTemperature.ColorTemperatureKelvin(
+                        elevation, pressureFraction, aerosolFraction, inVacuum: false);
+                    Assert.That(kelvin, Is.LessThanOrEqualTo(previous + Tolerance),
+                        $"sky got cooler as pollution rose (pollution {pollution}, "
+                        + $"{siteAltitudeMetres} m, elevation {elevation})");
+                    previous = kelvin;
+                }
+            }
+        }
+    }
+
+    [Test]
+    public void Warmth_IsStillMonotonicallyNonIncreasing_InSiteAltitude_AtEveryPollutionLevel()
+    {
+        // §20's altitude invariant, re-asserted with the new term switched on. It is not obvious for
+        // free: climbing raises the clean-air endpoint (cooler) but ALSO thins the aerosol column
+        // (cooler again), so the two effects happen to agree — and this is the test that says so
+        // rather than leaving it as an argument in a comment.
+        for (float pollution = 0f; pollution <= 1f; pollution += 0.25f)
+        {
+            for (float elevation = -10f; elevation <= 90f; elevation += 10f)
+            {
+                float previous = float.MinValue;
+                for (float siteAltitudeMetres = 0f; siteAltitudeMetres <= 9000f; siteAltitudeMetres += 250f)
+                {
+                    float kelvin = SkyColorTemperature.ColorTemperatureKelvin(
+                        elevation,
+                        AtmosphericColumn.RayleighPressureFraction(siteAltitudeMetres),
+                        AtmosphericColumn.AerosolLoadFraction(siteAltitudeMetres, pollution),
+                        inVacuum: false);
+                    Assert.That(kelvin, Is.GreaterThanOrEqualTo(previous - Tolerance),
+                        $"sky got warmer with altitude at {siteAltitudeMetres} m "
+                        + $"(pollution {pollution}, elevation {elevation})");
+                    previous = kelvin;
+                }
+            }
+        }
+    }
+
+    [Test]
+    public void PollutionsWarmingCollapsesWithAltitude_ButLessThanTheColumnAlone()
+    {
+        // The endpoint geometry partially OFFSETS the aerosol column's collapse, and the size of that
+        // offset is worth pinning because it is the one place §20b's headline claim could quietly
+        // erode.
+        //
+        // The aerosol fraction itself falls 14.4x between sea level and 4000 m (1.0 -> 0.0695). But
+        // the shift is linear in that fraction times the distance from the clean-air endpoint down to
+        // AerosolHorizonKelvin, and altitude has MOVED that endpoint up — so the bracket is wider at
+        // altitude than at sea level:
+        //
+        //   sea level  10^6/1500 - 10^6/2000   = 666.67 - 500.00 = 166.67 mired of headroom
+        //   4000 m     10^6/1500 - 10^6/2650   = 666.67 - 377.34 = 289.33 mired of headroom
+        //
+        // so the net suppression is 14.388 * (166.667 / 289.329) = 8.29x, not 14.4x. Thinner air
+        // leaves more room to redden into, which gives back a little of what the missing haze took.
+        //
+        // 8.29x is still the claim holding, not failing: it sits far above the 5.67x ratio of the two
+        // scale heights, and close to the 8.99x ratio of the two columns. "A mountain base is above
+        // the smog" survives; it is simply worth 8x rather than 14x, and a reader who derived 14 from
+        // the fractions alone deserves to find out here rather than from a screenshot.
+        float seaLevelMired = MiredShiftFromPollution(SeaLevel, 1f);
+        float mountainMired = MiredShiftFromPollution(0.6246f, 0.0695f);
+
+        Assert.That(seaLevelMired / mountainMired, Is.GreaterThan(5.67f),
+            "pollution must still collapse faster with altitude than the scale-height ratio alone");
+        Assert.That(seaLevelMired / mountainMired, Is.EqualTo(8.29f).Within(0.1f));
+    }
+
+    private static float MiredShiftFromPollution(float pressureFraction, float aerosolFraction)
+    {
+        float clean = SkyColorTemperature.HorizonKelvinForColumns(pressureFraction, CleanAir);
+        float dirty = SkyColorTemperature.HorizonKelvinForColumns(pressureFraction, aerosolFraction);
+        return 1e6f / dirty - 1e6f / clean;
+    }
+
+    [Test]
+    public void BothColumnsReachZeroTogether_SoTheVacuumAgreementSurvivesTheSecondSpecies()
+    {
+        // HorizonKelvinForColumns cannot enforce that its two fractions are a consistent pair, and
+        // the one place it would matter is the h -> infinity limit that §20 cashes in as the vacuum
+        // agreement: an aerosol column that outlived the air column would drag the airless endpoint
+        // away from ZenithKelvin. It does not, because it is the FASTER-decaying of the two — but
+        // "obviously" is not a test, and the guarantee lives in AtmosphericColumn rather than in the
+        // curve, so it is asserted where the pair is actually produced.
+        for (float siteAltitudeMetres = 0f; siteAltitudeMetres <= 100000f; siteAltitudeMetres += 5000f)
+        {
+            float aerosol = AtmosphericColumn.AerosolLoadFraction(siteAltitudeMetres, 1f);
+            float rayleigh = AtmosphericColumn.RayleighPressureFraction(siteAltitudeMetres);
+            Assert.That(aerosol, Is.LessThanOrEqualTo(rayleigh + Tolerance),
+                $"the aerosol column outlived the air column at {siteAltitudeMetres} m");
+        }
+    }
+
+    [Test]
+    public void TintStrength_HasNoAerosolTerm_BecauseMieMutesRatherThanIntensifies()
+    {
+        // §20b is scoped to colour temperature ONLY, and this is that scope asserted structurally
+        // rather than left as prose — the same form §19's altitude-invariance test uses, and the same
+        // form that fails when someone adds the term back.
+        //
+        // Two reasons it must not be there, both in SkyColorTemperature's own long note: where
+        // aerosol actually exists the strength factor is already saturated at 1, so the term would be
+        // clamped away over most of its band; and where it would not be clamped it would push the
+        // tint STRONGER, which is backwards — Mie scattering is nearly wavelength-flat next to
+        // Rayleigh's λ^-4, so heavy aerosol greys and mutes a sunset rather than intensifying it.
+        // The muting belongs to §9's saturation lane and is blocked behind #78; §8 writes neither
+        // .saturation nor .glow, and two subsystems independently pulling saturation down is exactly
+        // the failure #78 exists to fix.
+        string[] offending = typeof(SkyColorTemperature)
+            .GetMethod(nameof(SkyColorTemperature.TintStrength))!
+            .GetParameters()
+            .Where(parameter => parameter.Name!.Contains("aerosol", StringComparison.OrdinalIgnoreCase)
+                || parameter.Name!.Contains("pollution", StringComparison.OrdinalIgnoreCase))
+            .Select(parameter => parameter.Name!)
+            .ToArray();
+        Assert.That(offending, Is.Empty,
+            "TintStrength grew an aerosol/pollution parameter — §20b is colour-temperature only, and "
+            + "strengthening the tint models Mie scattering backwards; the muting is a §9 ticket "
+            + "keyed on the same fraction, to be filed once #78 settles");
+    }
+
+    [Test]
+    public void OzoneTwilightBlue_IsPollutionInvariant_AtEveryElevation()
+    {
+        // §19's counterpart to the altitude-invariance test above, and it is the stronger of the two
+        // claims: the ozone layer sits at 20-30 km, roughly fifteen aerosol scale heights up, so no
+        // amount of boundary-layer haze is between the observer and the Chappuis absorption at all.
+        // Polar night blue must therefore not respond to pollution at any elevation.
+        //
+        // Asserted structurally for the same reason §20's version is: OzoneTwilightMath expresses the
+        // invariance by having nowhere to put such a term, so the only mechanical way to state it is
+        // that no such parameter has appeared. Stated here rather than in OzoneTwilightMathTests to
+        // keep §20b's whole scope story in one place; issue #82's latitude-keyed ozone column is an
+        // entirely different axis and is deliberately not caught by this filter.
+        string[] offending = typeof(OzoneTwilightMath)
+            .GetMethods(BindingFlags.Public | BindingFlags.Static)
+            .SelectMany(method => method.GetParameters())
+            .Where(parameter => parameter.Name!.Contains("pollution", StringComparison.OrdinalIgnoreCase)
+                || parameter.Name!.Contains("aerosol", StringComparison.OrdinalIgnoreCase))
+            .Select(parameter => parameter.Name!)
+            .ToArray();
+        Assert.That(offending, Is.Empty,
+            "OzoneTwilightMath grew a pollution/aerosol parameter — Chappuis absorption happens ~15 "
+            + "aerosol scale heights above the boundary layer, so §19 cannot respond to haze");
+
+        // The counterpart half, so "invariant" cannot pass by §19 having gone flat: §8's warm tint
+        // does respond, and the two subsystems must stay measurably different in this respect.
+        float cleanEndpoint = SkyColorTemperature.HorizonKelvinForColumns(SeaLevel, CleanAir);
+        float pollutedEndpoint = SkyColorTemperature.HorizonKelvinForColumns(SeaLevel, 1f);
+        Assert.That(pollutedEndpoint, Is.LessThan(cleanEndpoint - 100f),
+            "§8's warm endpoint no longer responds to pollution at all");
     }
 }

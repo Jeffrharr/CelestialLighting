@@ -831,6 +831,36 @@ public class ApiCompatibilityTests
     }
 
     [Test]
+    public void Tile_HasPollution()
+    {
+        // §20b's live read (Source/SiteAltitude.cs), pinned for the same three reasons Tile_HasElevation
+        // above pins its own field.
+        //
+        // Existence first: if it is renamed or moved, every polluted tile silently falls back to the
+        // clean-air column and §8's sunsets stop responding to pollution — again a failure with no
+        // exception, no log line, and nothing that looks wrong on any individual map.
+        //
+        // Then that it lives on BASE RimWorld.Planet.Tile. This one is the assertion most worth
+        // having, because pollution is a Biotech mechanic and the obvious assumption is that its
+        // field is DLC-side. It is not: all DLC code ships in the base assembly, exactly as with
+        // BiomeDef.inVacuum in §18, which is why SiteAltitude reads it with no ModsConfig.BiotechActive
+        // gate and simply sees 0 everywhere when Biotech is absent. If Ludeon ever moved it onto a
+        // DLC-specific tile subclass, that no-gate read is what would have to change.
+        //
+        // Then that it is a float in [0, 1]-ish units. We multiply it straight into an aerosol column
+        // fraction; an int or a percentage would mean the field had changed meaning, not merely type.
+        var type = GetType("RimWorld.Planet.Tile");
+        Assert.That(type, Is.Not.Null, "RimWorld.Planet.Tile no longer exists");
+        var field = type!.Fields.SingleOrDefault(f => f.Name == "pollution" && f.IsPublic);
+        Assert.That(field, Is.Not.Null,
+            "Tile.pollution no longer exists or is no longer public on base Tile — §20b's aerosol "
+            + "loading reads it, and a Biotech-only field would need a DLC gate SiteAltitude does not make");
+        Assert.That(field!.FieldType.FullName, Is.EqualTo("System.Single"),
+            "Tile.pollution changed shape — AtmosphericColumn.AerosolLoadFraction multiplies it into a "
+            + "column fraction and clamps it to [0, 1]");
+    }
+
+    [Test]
     public void PlanetLayer_HasIsRootSurface()
     {
         // The guard that goes with the read above. SiteAltitude only trusts `elevation` on the root
