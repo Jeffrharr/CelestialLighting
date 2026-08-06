@@ -1,0 +1,21 @@
+{
+  "name": "aerosol_pollution_column",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "45" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "30" } },
+    { "type": "SetTime", "args": { "hour": "19" } },
+
+    { "type": "SetTileProperties", "args": { "elevation": "0", "pollution": "0" } },
+    { "type": "Screenshot", "args": { "fileName": "aerosol_clean_sealevel.png" } },
+
+    { "type": "SetTileProperties", "args": { "elevation": "0", "pollution": "1" } },
+    { "type": "Screenshot", "args": { "fileName": "aerosol_polluted_sealevel.png" } },
+
+    { "type": "SetTileProperties", "args": { "elevation": "4000", "pollution": "1" } },
+    { "type": "Screenshot", "args": { "fileName": "aerosol_polluted_4000m.png" } },
+
+    { "type": "SetTileProperties", "args": { "elevation": "4000", "pollution": "0" } },
+    { "type": "Screenshot", "args": { "fileName": "aerosol_clean_4000m.png" } }
+  ]
+}
