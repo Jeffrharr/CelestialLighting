@@ -3,16 +3,19 @@ using Verse;
 
 namespace CelestialLighting;
 
-// The impure boundary for DESIGN.md §20, §20b, §20c and §20d, shaped exactly like LatitudeEffect.cs: it
-// pulls live values off the world grid and hands primitives to the pure models (AtmosphericColumn
-// for the columns themselves, AerosolDrift for their day-to-day variation), which do the actual math
-// and are fully covered by offline unit tests. Keep it that way — if you are tempted to add a
-// formula here, it belongs in one of those two files instead.
+// The impure boundary for DESIGN.md §20, §20b, §20c, §20d and §20e, shaped exactly like
+// LatitudeEffect.cs: it pulls live values off the world grid and hands primitives to the pure models
+// (AtmosphericColumn for the columns themselves, AerosolDrift for their day-to-day variation, which
+// do the actual math and are fully covered by offline unit tests. Keep it that way — if you are
+// tempted to add a formula here, it belongs in one of those files instead.
 //
-// Two fields off one tile, two fractions out: `elevation` -> the Rayleigh air column §20 scales the
-// sunset by, and `pollution` -> the boundary-layer aerosol column §20b loads on top of it. They stay
-// separate accessors because they are separate questions with separate scale heights, and the only
-// place they are ever combined is the colour curve that knows what it wants them for.
+// Three fields off one tile, three outputs: `elevation` -> the Rayleigh air column §20 scales the
+// sunset by; `pollution` and `rainfall` together -> the boundary-layer aerosol column §20b/§20e load
+// on top of it (pollution the Biotech contribution, rainfall the always-present natural background);
+// and `rainfall` again -> the Angstrom exponent §20d shapes that column with. They stay separate
+// accessors because they are separate questions — even the two that share `rainfall` answer different
+// ones, "how much" against "what kind" — and the only place they are ever combined is the colour curve
+// that knows what it wants them for.
 //
 // It is its own small file rather than a private method on Patch_SkyColorTemperature because the
 // live probe (Source/Probes/SkyColorTemperatureProbe.cs) has to read the *same* value the patch
@@ -33,9 +36,11 @@ public static class SiteAltitude
         AtmosphericColumn.RayleighPressureFraction(SiteAltitudeMetresForMap(map));
 
     // Fraction of a full sea-level aerosol load still overhead at this map's tile, in [0, 1]
-    // (DESIGN.md §20b), driven by the slow day-to-day air-mass drift of §20c. Zero on any unpolluted
-    // tile, which is every tile in a game without Biotech — the drift is multiplicative, so it
-    // cannot manufacture haze over a tile that has none.
+    // (DESIGN.md §20b/§20e), driven by the slow day-to-day air-mass drift of §20c. NOT zero on an
+    // unpolluted tile since §20e landed — a biome-keyed natural background (sea salt, dust, biogenic
+    // organics) is summed with pollution before the drift multiplies it, which is what makes §20c's
+    // and §20d's day-to-day/hue variety live on every tile rather than only on Biotech maps. It is
+    // still zero only where a null tile makes the whole question unanswerable (see TileForMap).
     //
     // Tile.pollution is read here rather than anywhere else for the same reason elevation is: it is
     // a live-game read, and everything downstream of it is pure. It is a plain public float on BASE
@@ -55,7 +60,14 @@ public static class SiteAltitude
         if (tile == null)
             return 0f;
 
-        float baseline = AtmosphericColumn.AerosolLoadFraction(tile.elevation, tile.pollution);
+        // DESIGN.md §20e (issue #92). The tile's natural background load, from the same rainfall read
+        // AngstromExponentForMap below already makes — "one lookup, two outputs", per the issue's own
+        // framing, now that both halves exist. This is what keeps a Biotech-free tile from reading as
+        // a literally aerosol-free atmosphere: AerosolLoadFraction sums it with pollution before
+        // either the ceiling clamp or the altitude falloff, so it shares pollution's "mountain is above
+        // it" behaviour rather than being a second, unrelated haze layer.
+        float background = AtmosphericColumn.BackgroundAerosolFraction(tile.rainfall);
+        float baseline = AtmosphericColumn.AerosolLoadFraction(tile.elevation, tile.pollution, background);
 
         // §20c. The tile's baseline is what the map's own sources put into the air; the multiplier is
         // which air mass is currently sitting over it. Applied HERE, at the boundary, rather than
@@ -79,8 +91,8 @@ public static class SiteAltitude
     // in millimetres per year, exactly like elevation and pollution, so it needs no DLC gate and is
     // pinned by ApiCompatibilityTests.Tile_HasRainfall.
     //
-    // The guard falls back to the reference exponent rather than to 0: unlike the two fractions
-    // above, there is no "identity" value here. An exponent of 0 is not "no effect", it is a specific
+    // The guard falls back to the reference exponent rather than to 0: unlike the fractions above,
+    // there is no "identity" value here. An exponent of 0 is not "no effect", it is a specific
     // physical claim (grey, large-particle extinction), so the honest default for "we could not
     // answer this" is the urban-haze middle of the range — which is also the value §20b's single
     // shipped colour was implicitly calibrated at, so an unanswerable tile keeps the shipped look.
@@ -109,10 +121,12 @@ public static class SiteAltitude
 
     // The map's world tile, or null when the question cannot be honestly answered.
     //
-    // Both guards below make their caller fall back to the sea-level, unpolluted answer —
-    // pressureFraction 1 and aerosolFraction 0, i.e. bit-identical to the pre-§20 curve. That is the
-    // right default for "we could not honestly answer this", because it is the behaviour the mod
-    // shipped with rather than a new invented one.
+    // Both guards below make their caller fall back to the sea-level, unpolluted, background-free
+    // answer — pressureFraction 1 and aerosolFraction 0, i.e. bit-identical to the pre-§20 curve. This
+    // is the ONE path that still produces exactly 0: every tile-bearing map picks up §20e's background
+    // (see AerosolFractionForMap), but a null tile means the question is unanswerable rather than
+    // answered-and-clean, so falling back to "no atmosphere modelled at all" is the honest default —
+    // it is the behaviour the mod shipped with rather than a new invented one.
     private static Tile TileForMap(Map map)
     {
         PlanetLayer layer = map.Tile.Layer;
