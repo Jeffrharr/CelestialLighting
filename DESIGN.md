@@ -4580,6 +4580,33 @@ would silently move every existing sunset. Worth noting the refit moved this num
 literal figure rather than away from it: the deeper §20b endpoint is the more physically plausible of
 the two, not merely the more visible one.
 
+### What composes around this, and what would double-count
+
+Two neighbours touch the same aerosol column and neither is folded into `HorizonOpticalDepth`.
+
+**§20c's day-to-day drift** multiplies `aerosolFraction` before it ever reaches this file. It changes
+the column's *amount*, hour to hour; §20d changes its *shape*, which is a fixed property of the tile.
+They compose without interacting: a drifting load walks along one hue path, and which path that is
+stays keyed on rainfall. The drift is already inside the fraction by the time `AerosolSpectrum` sees
+it, so this file needs no knowledge of it at all.
+
+**`Patch_SkyColorTemperature.AerosolBlendBoost`** (§20b) opens the adapter's per-channel blend from
+0.35/0.25 up to 0.60/0.43 under a full column. That is a different quantity from optical depth, and
+the distinction is what keeps them from double-counting: `HorizonOpticalDepth` decides **what colour**
+the haze layer is, the boost decides **how completely** the sky takes that colour. §20d changed only
+the first, and the refit above is precisely what keeps the reference-exponent target identical to the
+colour the boost was measured against. Folding the boost into the depth instead would redden twice.
+
+One interaction is worth stating rather than discovering: the boost is keyed on aerosol **amount**,
+not particle size, so at α ≈ 0 it opens the blend toward the *clean-air* colour. A thick grey-dust
+column therefore gives a **more saturated** §8 sunset than clean air rather than an identical one.
+That follows from the boost's own argument rather than contradicting it — "the sky approaches the
+layer's own colour more completely" is an optical-thickness claim, and a grey layer's own colour is
+the clean-air colour. The offline grey-extinction invariant is a statement about `AerosolSpectrum`'s
+transmission, which is exactly `(1, 1, 1)` at α = 0; a live frame at pollution 1.0 shows that
+invariant composed with the amount-keyed blend, which is why the live measurement is reported
+separately from the offline pin.
+
 ### Normalisation, and the muting half that is still §9's
 
 The transmission is normalised to its largest channel before use, so it carries hue and not
