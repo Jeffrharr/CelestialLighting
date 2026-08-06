@@ -4083,6 +4083,10 @@ the capture.
 | 20.20 | −5.73° | 0.4625 | 0.8339 |
 | 20.25 | −6.58° | 0 | 1.0 (outside) |
 
+Two rules from §19's post-mortem are followed rather than restated: survey at ≤0.25 h before
+choosing an hour, and pin `sun_elevation` beside every effect probe so a future §14 clock change
+fails loudly instead of silently re-emptying the capture.
+
 The A/B across the feature toggle at hour 20.15, on the shipped default preset — these are the
 **measured** material readings, not predictions, and they read lower than `colors.sky` itself because
 §7a darkens the composed material afterwards:
@@ -4097,11 +4101,31 @@ The A/B across the feature toggle at hour 20.15, on the shipped default preset �
 **Blue does not move at all, and that falls out of the construction rather than being arranged.**
 The composed hue's blue channel is pinned at 1 by the balance solve, and the adapter rescales the hue
 to the source colour's brightest channel — which, on vanilla's night palette, *is* blue. So the
-target's blue equals the source's blue and the lerp has nothing to do. §19c moves red and green only.
+target's blue equals the source's blue and the lerp has nothing to do. §19c moves red and green only,
+and the two feature-off/feature-on `purple_sky_blue` readings above are byte-identical for that
+reason rather than by luck.
 
-At the window peak the ordering is R > B > G (magenta-leaning); at the shoulder, where the envelope
-is weaker, red has not yet overtaken blue and the ordering is the lavender B > R > G issue #85 asked
-for. Both have green as the minimum, which is the definition that matters.
+**Where the lavender ordering actually lives, and it is not where the arithmetic first suggested.**
+Issue #85 asked specifically for `B > R > G`. At the window *peak* the effect is strong enough that
+red overshoots blue and the ordering is `R > B > G` — magenta-leaning rather than lavender. A first
+attempt to find `B > R > G` sampled the −5.73° shoulder on the reasoning that a weaker envelope would
+leave red under blue, and that was **wrong in play**: the underlying sky is bluer down there too, so
+red falls back under *green* as well and the ordering returns to `B > G > R` with no deficit at all.
+The lavender band is in between, and it is narrow:
+
+| hour | elevation | live `colors.sky` (R, G, B) | ordering | green minimum |
+|---|---|---|---|---|
+| 20.15 | −4.89° | 0.3271, 0.2884, 0.3130 | R > B > G | yes |
+| 20.16 | −5.06° | 0.3235, 0.2872, 0.3177 | R > B > G | yes |
+| **20.17** | **−5.23°** | **0.3161, 0.2856, 0.3225** | **B > R > G** | **yes** |
+| 20.18 | −5.40° | 0.3042, 0.2834, 0.3273 | B > R > G | yes |
+| 20.20 | −5.73° | 0.2650, 0.2761, 0.3370 | B > G > R | no |
+
+So `B > R > G` occupies roughly −5.2° to −5.5°, about **one game-minute** at this latitude, and the
+scenario pins hour 20.17 for it explicitly. The invariant that holds across the whole useful part of
+the window is the weaker and more meaningful one — **green is the minimum channel** — which is what
+purple means; whether red or blue is on top is the difference between magenta and lavender, and a
+real dusk walks through both.
 
 Rendered frames, measured with `Tools/FrameDelta/frame_delta.py` (new — the harness has no
 comparison tier, `delta` asserts are still unimplemented, and every ΔE quoted elsewhere in this
@@ -4109,19 +4133,25 @@ document was computed by hand and thrown away):
 
 | pair | median CIELAB ΔE | |
 |---|---|---|
-| `purple_off.png` vs `purple_on.png` | **4.32** | "visible at a glance"; mean 4.63, p90 5.54 |
+| `purple_off.png` vs `purple_on.png` | **4.14** | "visible at a glance"; mean 4.54, p90 5.54 |
 | `purple_outside_off.png` vs `purple_outside_on.png` | **0.00** | **0 of 2,073,600 pixels differ** |
 
 That second row is the invariant, not a formality: outside the window the two frames are
 byte-identical at full resolution, so every already-measured scenario pin in this document is
 untouched by construction rather than by tolerance.
 
+On the reference scale this document already keeps — §20c 0.36, §19b 1.48, §20 1.88, §21 6.06,
+§20b 6.79 — 4.14 sits between §20 and §21: comfortably past the ~2.0 "visible at a glance"
+threshold, and deliberately short of the two biggest, since this fires for eight minutes of every
+dusk rather than for a whole weather state.
+
 **And the hue verdict, which for this subsystem matters more than the magnitude.** A large ΔE that
-stayed on the Planckian locus would mean the sky merely got warmer — a failure wearing a good number.
-Mean frame chromaticity moved from **Duv +0.00168** (above the locus, green side) to **Duv −0.01062**
-(below it, purple/magenta side): a sign flip, which is exactly the thing §8's blackbody ramp is
-incapable of doing. For scale, neutral grey is +0.0032, vanilla's night sky +0.0125, and reference
-lavender −0.046.
+stayed on the Planckian locus would mean the sky merely got warmer — a failure wearing a good number,
+and the one failure mode a colour-temperature subsystem is most likely to hide behind. Mean frame
+chromaticity moved from **Duv +0.00168** (above the locus, green side) to **Duv −0.01226** (below it,
+purple/magenta side): a **sign flip**, which is exactly the thing §8's blackbody ramp is incapable of
+at any temperature, because every point it can reach is *on* the locus by construction. For scale,
+neutral grey is +0.0032, vanilla's night sky +0.0125, and reference lavender −0.046.
 
 `ApiCompatibilityTests` needs no new assertions — `WeatherWorker.CurSkyTarget`, `SkyTarget.colors`,
 `SkyColorSet.sky`/`.overlay` and `MatBases.LightOverlay` are all already pinned by §2, §8, §7a and
