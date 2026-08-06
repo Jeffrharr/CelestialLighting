@@ -251,6 +251,26 @@ public static class CelestialLightingFeatures
     // question on the epic.
     public static bool VacuumShadowContrast = true;
 
+    // Feature key for SnowAlbedo (see CivilTwilightPersistenceKey for why the const lives here).
+    public const string SnowAlbedoKey = "snow_albedo";
+
+    // §21 the surface-cloud light cavity: weather buildup on the ground (snow today, Odyssey's sand
+    // later) bounces light back up, the cloud base bounces it back down, and the map's diffuse light
+    // is amplified by the resulting geometric series. SurfaceBuildup.CavityGainFor multiplies §7's
+    // night floor by it, so a snowed-in map under an overcast no longer goes as black as a bare one
+    // — which is exactly the tension with the mod's pitch-black-nights premise that §21 exists to
+    // resolve in favour of the physics. When off, CavityGainFor returns exactly 1 and every consumer
+    // sees bit-identical pre-§21 behaviour — the faithful baseline for the harness A/B, and the same
+    // value a bare map produces anyway.
+    //
+    // NOT surfaced in the settings screen, for §18c's reason: the gain is DERIVED from published
+    // albedos and §13's own cloud opacity rather than tuned, so there is no number here a player
+    // would sensibly dial. It is a harness A/B axis and an escape hatch. The one thing that genuinely
+    // wants a human look before this is called settled is the permanently-white biomes — ice sheet
+    // and sea ice sit at full buildup year-round and become permanently brighter, which is physically
+    // right but is a persistent change to the game's darkest maps (DESIGN.md §21).
+    public static bool SnowAlbedo = true;
+
     // Feature key for AxialTiltLunarGeometry (see CivilTwilightPersistenceKey for why it lives here).
     public const string AxialTiltLunarGeometryKey = "axial_tilt_lunar_geometry";
 
