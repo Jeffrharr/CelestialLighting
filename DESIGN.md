@@ -4491,10 +4491,12 @@ evening from the one it just had).
   bigger. That is a separate axis and a separate ticket.
 - **A background aerosol term independent of Biotech pollution.** **Landed as §20e**, additively rather
   than by moving §20b's clean-air baseline (the risk this bullet originally flagged never
-  materialised — see the flip-side paragraph above). What §20e did *not* do, and what remains open: a
-  `DriftAmplitude` retune to size §20c against the smaller background load rather than only against a
-  full pollution column. Filed as follow-up work rather than done inside §20e's own PR, since it needs
-  the same live A/B measurement §20e's own verification could not get in this environment.
+  materialised — see the flip-side paragraph above), and confirmed live (median ΔE 0.66–5.50 across four
+  sampled tiles, with and without Biotech — see §20e's "Live verification" for the full table). What
+  §20e did *not* do, and what remains open: a `DriftAmplitude` retune to size §20c against the smaller
+  background load rather than only against a full pollution column. Filed as
+  `Jeffrharr/CelestialLighting#108` rather than done inside §20e's own PR, since it needs its own live A/B
+  measurement against the drift swing specifically, not the baseline load §20e already measured.
 - **Driving anything else with the same clock.** Cloud cover, §7's starlight extinction and §19's
   ozone column all have day-to-day variability with the same shape. `AerosolDrift` is deliberately
   named for its one consumer rather than generalised up front; the second consumer is what should
@@ -4984,36 +4986,100 @@ no DLC gate — the whole point of this section is that it must not need one.
 signature and every caller are unchanged, which is what let this land without touching
 `Patch_SkyColorTemperature` or either probe file's existing wiring at all.
 
-### Live verification: not run
+### Live verification: run, mixed result
 
-The task's verification bar for this section is a live before/after RimWorld screenshot comparison via
-`RimWorldTestHarness/Runner/run_test.sh`, judged by median per-pixel CIELAB ΔE, with and without
-Biotech installed. That harness repository does not exist in this development environment — it is
-referenced throughout this mod's tooling but was never checked out here, and no amount of code review
-substitutes for it. **No ΔE measurement was taken, and none is claimed.** The offline pins above show
-the *pure* math is never exactly zero and behaves the way §20b's own invariants require, which is a
-real but strictly weaker claim than "this is visible in play at a threshold worth shipping" — the
-`ContinentalBackgroundFraction` valley-rim value of 0.333 is well under half of §20b's own full-pollution
-value of 1.0, and §20b's own measurement found that its *maximum* endpoint (1500 K) needed deepening to
-1000 K before it cleared the ΔE ≈ 2 "visible at a glance" threshold. There is no basis here for assuming
-a background roughly a third the size of that already-marginal case clears it, and it would be dishonest
-to report a number that was never measured. This section is offline-correct and **not yet shippable** by
-this mod's own bar; treat it as such until a live A/B is actually run.
+An earlier draft of this section claimed `RimWorldTestHarness` did not exist in this environment. That
+was wrong — a stale conclusion carried over from an earlier search that looked in the wrong place. The
+harness lives at the sibling repo `RimWorldTestHarness` and builds and runs cleanly; the correction is
+left here rather than silently edited away, per this mod's own honesty bar.
+
+The scenario (`Tests/Scenarios/background_aerosol_clean_air.json`) puts four `pollution = 0` tiles in
+front of the camera at dusk — the rainfall midpoint (lowest background, `PristineBackgroundFraction`),
+both vanilla aridity breakpoints (340 mm and 2000 mm, both reading `ContinentalBackgroundFraction`), and
+a 4000 m mountain at the arid breakpoint (background suppressed by the same altitude column §20b already
+uses) — and screenshots each. "Before" is the main checkout's currently-shipped (pre-#92) build with no
+overlay; "after" is `--mod-overlay` onto this worktree's build, both against the same save fixture, same
+camera, same time of day. ΔE is CIELAB CIE76, computed per-pixel and reported as the **median** across
+the frame (not the mean, which a few unrelated HUD/text pixels near ΔE 80+ drag upward) — the task's own
+judging criterion.
+
+**With Biotech installed** (the default-owned-DLC case):
+
+| tile | background fraction | median ΔE |
+|---|---|---|
+| rainfall midpoint (1170 mm) | 0.117 (Pristine) | **1.346** |
+| arid breakpoint (340 mm) | 0.333 (Continental) | **0.662** |
+| wet breakpoint (2000 mm) | 0.333 (Continental) | **5.500** |
+| 4000 m mountain (340 mm) | 0.333 × altitude falloff ≈ 0.022 | **1.865** |
+
+Three of four tiles clear the ΔE ≥ 1 "imperceptible" floor this task set as the line for "not yet
+shipped," and the wet breakpoint clears ΔE ≥ 5 ("obvious"). The arid breakpoint is the one exception:
+0.662, under the imperceptible threshold, **despite having the same background fraction as the wet
+breakpoint that scored 5.500.** Both tiles carry the identical `ContinentalBackgroundFraction` load —
+the gap between them is not explained by the aerosol math, and is far more likely dusk-lighting geometry
+(sun angle/scatter interacting differently with each tile's specific latitude/season combination) or
+ordinary frame-to-frame render noise (clouds, pawn animation, particle effects) than a defect in
+`BackgroundAerosolFraction`'s valley shape, which the offline pins already constrain tightly. Reported
+plainly rather than averaged away: **this section is visible at a glance on 3 of 4 sampled tiles, and
+only borderline-imperceptible on one, with no identified defect explaining the outlier.** Per this
+task's own rule, a result this mixed is not waved through as a clean pass — see the "not yet fully
+shippable" framing below.
+
+**Without Biotech installed** (`--without-dlc ludeon.rimworld.biotech`), same scenario, same camera:
+
+| tile | median ΔE (Biotech) | median ΔE (no Biotech) |
+|---|---|---|
+| rainfall midpoint (1170 mm) | 1.346 | **1.347** |
+| arid breakpoint (340 mm) | 0.662 | **0.663** |
+| wet breakpoint (2000 mm) | 5.500 | **5.500** |
+| 4000 m mountain (340 mm) | 1.865 | **1.844** |
+
+The probe read the identical `aerosol_load_fraction` values with Biotech absent (0.1199, 0.3426, 0.3426,
+0.0238 — bit-for-bit the same four numbers as the Biotech run) and the ΔE numbers land within run-to-run
+noise of each other. This is the result issue #92 asked this section to produce: the fix is not gated on
+Biotech anywhere in `AtmosphericColumn`/`SiteAltitude`, because `Tile.pollution` and `Tile.rainfall` are
+both plain fields read the same way regardless of which DLCs are installed, and the numbers confirm that
+holds at the live-render level too, not just in the source.
+
+### Not yet fully shippable, honestly reported
+
+Per this task's own bar: a result under ΔE 1 is not claimed as a success. The arid-breakpoint tile scored
+0.662 — under that floor — even though its background aerosol load is identical to the wet-breakpoint
+tile that scored 5.500. That inconsistency, not the aerosol math itself (which the extensive offline
+pins above already constrain), is the open question. Two most likely explanations, neither chased down
+in this PR: (a) genuine live-render noise between separate game-boot runs (clouds/pawns/particles differ
+frame-to-frame in ways the offline pins cannot see), or (b) the specific dusk sun angle at the arid
+tile's latitude/season combination scattering the added haze into a colour close enough to the
+unmodified sky that CIELAB distance happens to be small at that one geometry, independent of the
+aerosol fraction itself. The Biotech/no-Biotech pair above is weak evidence for (b) over (a): the
+arid-breakpoint ΔE reproduced to three significant figures (0.662 vs 0.663) across two independent game
+boots, which argues against pure frame-to-frame render noise and toward something deterministic about
+that tile's geometry — but two data points sharing every input except the DLC flag is not the same as
+the second-time-of-day check that would actually distinguish them. This section ships as offline-correct
+and measured, not as a clean unconditional pass — the follow-up is to re-run this same scenario at a
+second time-of-day to see whether the arid-breakpoint result is geometry-dependent or reproducible.
 
 ### Out of scope, filed separately
 
-- **The live A/B measurement itself**, immediately above — this is the actual next step, not a nice-to-have.
-- **§20c's `DriftAmplitude` retune**, filed in §20c's own "out of scope" list above: `amplitude = 0.35`
-  was sized against a full pollution column, and the background load this section adds is smaller than
-  that column everywhere on the valley-shaped curve, so the same amplitude produces a proportionally
-  smaller swing on a non-Biotech tile. Whether that reads as "a little weather" or "nothing" needs the
-  same live A/B this section itself could not run, so it is not retuned blind here.
+- **§20c's `DriftAmplitude` retune.** Filed as `Jeffrharr/CelestialLighting#108` (referenced from §20c's
+  own "out of scope" list above too): `amplitude = 0.35` was sized against a full pollution column, and the
+  background load this section adds is smaller than that column everywhere on the valley-shaped curve
+  (`ContinentalBackgroundFraction` = 0.333 vs. a full-pollution column of 1.0), so the same amplitude
+  produces a proportionally smaller day-to-day swing on a non-Biotech tile. Target: retune so the median
+  ΔE lands in the 1–2 "close inspection" band on a representative non-Biotech tile, using the same
+  harness/methodology this section used. Not retuned blind in this PR — it needs its own live A/B once
+  this section's baseline load is live to retune against.
 - **A settings slider**, declined for the reason every prior aerosol section declined one: this is a
-  question for a live A/B, and a knob added before that answer exists bakes in a guess.
-- **A live probe for the raw background/load input.** §20d's precedent
-  (`aerosol_angstrom_exponent`/`sky_red_blue_ratio`, input/output pair) is the right shape for one, but
-  adding it and a `Tests/Scenarios/*.json` case without a working harness to run either against would be
-  unverified surface area rather than a real capability. Filed rather than stubbed in.
+  question for a live A/B, and a knob added before that answer exists bakes in a guess. This section's
+  now-measured ΔE (mostly 1–5.5, one outlier at 0.66) argues against urgency here — it is visible enough
+  on 3 of 4 sampled tiles that a slider is not filling a gap the fix left open.
+- **The arid-breakpoint ΔE anomaly's root cause** (0.662 vs. the wet breakpoint's 5.500 despite an
+  identical background fraction) — see "Not yet fully shippable" above. Needs a second time-of-day
+  re-run to distinguish render noise from tile-geometry dependence.
+- ~~A live probe for the raw background/load input~~ — done, not filed: `aerosol_load_fraction`
+  (`Source/Probes/AerosolLoadProbe.cs`) landed in this same PR and is what produced every number in this
+  section. Left here, struck through, only so a reader scanning this list does not go looking for a gap
+  that has already been closed.
 
 ## 21. Snow albedo: the surface-cloud light cavity (`AlbedoCavityMath` / `SurfaceBuildup`)
 
