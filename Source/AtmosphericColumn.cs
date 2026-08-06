@@ -30,9 +30,15 @@ namespace CelestialLighting;
 //
 // That second species has now landed (DESIGN.md §20b, issue #83): AerosolScaleHeightMetres plus two
 // accessors, no new exponential and no new <Compile Include> entry, exactly as the paragraph above
-// predicted. The two species are only ever combined by the consumer that knows what it wants them
-// for — §8's colour curve — never here, because "how much of species X is overhead" is a question
-// with an answer per species and no meaningful sum.
+// predicted. The two species (Rayleigh, aerosol) are only ever combined by the consumer that knows
+// what it wants them for — §8's colour curve — never here, because "how much of species X is
+// overhead" is a question with an answer per species and no meaningful sum ACROSS species.
+//
+// Aerosol itself later split into two SOURCES sharing one species (DESIGN.md §20e, issue #92):
+// Biotech pollution and a biome-keyed natural background (sea salt, dust, biogenic organics). Unlike
+// Rayleigh vs. aerosol, these two share both a scale height and a physical unit, so — unlike the
+// cross-species case above — they ARE summed here, inside AerosolLoadFraction, before the ceiling
+// clamp and the altitude falloff. See that method for why.
 public static class AtmosphericColumn
 {
     // Bulk-air (Rayleigh) scale height in metres: the altitude interval over which atmospheric
@@ -105,11 +111,115 @@ public static class AtmosphericColumn
     // column's magnitude and leaves its shape alone, which is also what keeps the altitude falloff
     // above independent of pollution and therefore separately testable.
     //
+    // BACKGROUND AEROSOL (DESIGN.md §20e, issue #92) IS ADDED HERE, NOT MULTIPLIED IN LATER. It is
+    // summed with pollution BEFORE the ceiling clamp and BEFORE the altitude falloff is applied, for
+    // two reasons that both follow from what background aerosol physically is:
+    //
+    //   1. It is measured in the SAME units as pollution loading — a sea-level optical-depth fraction
+    //      — because both are boundary-layer species being asked the same question ("how much of this
+    //      is in the air"), just from different sources (industrial haze vs. sea salt/dust/biogenic
+    //      particles). Optical depths from independent sources in the same layer add; that is Beer-
+    //      Lambert linearity, the same property the mired composition elsewhere in this subsystem
+    //      leans on.
+    //   2. It shares pollution's scale height. Natural background aerosol is exactly as much a
+    //      boundary-layer phenomenon as industrial haze — sea salt, lofted dust and biogenic organics
+    //      all settle out within a few kilometres of the surface — so it belongs inside the SAME
+    //      exp(-h/1500) falloff rather than a second one. A mountain base sits above natural haze for
+    //      the identical reason it sits above polluted haze.
+    //
     // Clamped rather than trusted: pollution is a saved float, and worldgen-overhaul mods write it.
-    // Everything downstream treats 1 as "the most aerosol this model knows how to mean" and is tuned
-    // against that ceiling, exactly as ColumnFraction's own [0, 1] contract is.
-    public static float AerosolLoadFraction(float siteAltitudeMetres, float tilePollution) =>
-        AerosolColumnFraction(siteAltitudeMetres) * Clamp01(tilePollution);
+    // Background is derived rather than saved, so it cannot itself go out of range, but it is clamped
+    // on the same footing for symmetry and because a future edit to BackgroundAerosolFraction should
+    // not have to remember this file's invariant. Everything downstream treats 1 as "the most aerosol
+    // this model knows how to mean" and is tuned against that ceiling, exactly as ColumnFraction's own
+    // [0, 1] contract is — so the SUM is what gets clamped to it, not each term separately, which is
+    // what lets a lightly polluted tile with a high natural background still read as more aerosol than
+    // either term alone.
+    //
+    // backgroundLoadFraction is REQUIRED rather than defaulted to 0, on the same reasoning §18's
+    // inVacuum parameter is never defaulted: a silent 0 here would quietly reintroduce the exact bug
+    // issue #92 exists to fix at the next call site someone adds, with nothing to catch it.
+    public static float AerosolLoadFraction(
+        float siteAltitudeMetres, float tilePollution, float backgroundLoadFraction)
+    {
+        float seaLevelLoad = Clamp01(tilePollution) + Clamp01(backgroundLoadFraction);
+        return AerosolColumnFraction(siteAltitudeMetres) * Clamp01(seaLevelLoad);
+    }
+
+    // --- background aerosol: natural sources with no Biotech gate (DESIGN.md §20e, issue #92) ---
+    //
+    // THE PROBLEM THIS SOLVES. AerosolLoadFraction above keyed the ENTIRE aerosol column on
+    // Tile.pollution, so pollution = 0 meant aerosolFraction = 0 — a completely aerosol-free
+    // atmosphere. That is every tile in a game without Biotech, and most tiles in a game with it.
+    // Physically wrong (background aerosol optical depth at 550 nm runs ~0.02-0.05 in genuinely
+    // pristine air and ~0.05-0.15 in ordinary continental air, from sea salt, mineral dust, biogenic
+    // organics and seasonal wildfire smoke — never zero over land), and it also meant every subsystem
+    // keyed off this same fraction (§20c's day-to-day drift, §20d's Angstrom hue shape) was multiplying
+    // by zero on the map most players actually have: a multiplier on nothing is nothing, however
+    // interesting the multiplier's own math is.
+    //
+    // WHY IT IS DERIVED FROM RAINFALL, REUSING §20D'S BREAKPOINTS RATHER THAN NAMING NEW ONES. The
+    // issue that motivated this asked for a biome-keyed background term that also supplies §20d's
+    // Angstrom exponent with its size classification — "one lookup, two outputs" — written when §20d
+    // had not yet shipped. §20d landed first (issue #86, as AerosolSpectrum.AngstromExponentForRainfall)
+    // and already made that lookup: Tile.rainfall against vanilla's own ExtremeDesert (340 mm) and
+    // TropicalRainforest (2000 mm) cutoffs, the same axis vanilla's own BiomeWorkers score biomes on.
+    // Reusing AerosolSpectrum.DriestRainfallMillimetres/WettestRainfallMillimetres here — rather than
+    // pasting a second copy of 340/2000 — is what makes this the "two outputs" half of that one lookup
+    // rather than a second, independently-tunable classification that could drift out of step with it.
+    //
+    // THE SHAPE: a shallow valley, lowest at the rainfall midpoint and rising toward both breakpoints.
+    // The direction is the physically defensible part, in the same spirit AerosolSpectrum states its
+    // own rainfall ramp's direction is: arid ground with nothing binding it is a natural dust SOURCE
+    // (the same Saharan/Arabian-belt dust that supplies real-world background AOD), and wet, densely
+    // vegetated ground is a natural biogenic-organic SOURCE (forest-emitted secondary organic aerosol
+    // is a measurable contributor to real background haze). Land in between, source of neither, carries
+    // the lower "ordinary continental" figure with no strong local source topping it up. The exact
+    // curve SHAPE is a first-order approximation, like every other ramp in this file family — nothing
+    // in RimWorld worldgen supplies the data a fitted curve would need — but the direction is the claim
+    // this section stands on, and it is what the tests pin.
+    //
+    // WHERE THE MAGNITUDES COME FROM. Both AOD figures are the issue's own cited ranges, converted to
+    // this model's [0, 1] scale by dividing by BackgroundAerosolAodAnchor — the same "~0.3" heavy-urban
+    // vertical AOD that §20b's own DESIGN.md text uses as its anchor for what aerosolFraction = 1
+    // physically means. That anchor was always approximate ("an AOD that can exceed 0.3") and this
+    // reuses it rather than inventing a second one, so background and pollution loading are read off
+    // the same physical yardstick even though neither is a literal radiative-transfer quantity.
+    public const float BackgroundAerosolAodAnchor = 0.3f;
+
+    // Midpoint of the issue's quoted 0.02-0.05 pristine-air range, at 550 nm.
+    private const float PristineBackgroundAod = 0.035f;
+
+    // Midpoint of the issue's quoted 0.05-0.15 ordinary-continental-air range, at 550 nm.
+    private const float ContinentalBackgroundAod = 0.10f;
+
+    // The valley floor: the rainfall midpoint between the two vanilla breakpoints, where neither a
+    // dust source nor a biogenic source dominates.
+    public const float PristineBackgroundFraction = PristineBackgroundAod / BackgroundAerosolAodAnchor;
+
+    // The valley rim: reached at EITHER vanilla breakpoint, where one source or the other dominates.
+    public const float ContinentalBackgroundFraction = ContinentalBackgroundAod / BackgroundAerosolAodAnchor;
+
+    // Sea-level background aerosol loading for a tile, from its annual rainfall in millimetres, before
+    // the altitude falloff AerosolLoadFraction applies. In [PristineBackgroundFraction,
+    // ContinentalBackgroundFraction] — never 0, which is the entire point: this is what makes
+    // "clean air" (pollution = 0) stop meaning "aerosol-free air".
+    public static float BackgroundAerosolFraction(float rainfallMillimetres)
+    {
+        float wetness = InverseLerpClamped(
+            AerosolSpectrum.DriestRainfallMillimetres, AerosolSpectrum.WettestRainfallMillimetres,
+            rainfallMillimetres);
+
+        // Distance from the rainfall midpoint, in [0, 1]: 0 exactly halfway between the two vanilla
+        // breakpoints, 1 at either breakpoint itself. This is what turns one monotonic ramp (wetness)
+        // into the valley shape described above, reusing the same two named endpoints §20d already
+        // reads rather than adding a third.
+        float distanceFromMidpoint = MathF.Abs(2f * wetness - 1f);
+
+        return Lerp(PristineBackgroundFraction, ContinentalBackgroundFraction, distanceFromMidpoint);
+    }
 
     private static float Clamp01(float v) => v < 0f ? 0f : (v > 1f ? 1f : v);
+    private static float Lerp(float a, float b, float t) => a + (b - a) * t;
+    private static float InverseLerpClamped(float a, float b, float v) => Clamp01((v - a) / (b - a));
 }

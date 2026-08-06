@@ -318,7 +318,11 @@ public class SkyColorTemperatureTests
             Is.EqualTo(expected).Within(0.001f));
     }
 
-    [TestCase(0f, 0f, 0f)] // unpolluted sea level: the identity case, and every tile without Biotech
+    // backgroundLoadFraction is pinned at 0 throughout this block, deliberately: this isolates the
+    // POLLUTION half of §20e's sum so a regression here cannot hide behind background covering for it.
+    // BackgroundAerosolFraction_ variants below pin the other half, and CombinesPollutionAndBackground
+    // pins the sum itself.
+    [TestCase(0f, 0f, 0f)] // unpolluted sea level, no background: the pre-§20e identity case
     [TestCase(0f, 1f, 1f)] // fully polluted sea level: the model's maximum
     [TestCase(0f, 0.5f, 0.5f)] // loading scales the column's magnitude linearly
     [TestCase(4000f, 1f, 0.0695f)] // full pollution on a 4000 m tile is still almost no aerosol
@@ -328,8 +332,94 @@ public class SkyColorTemperatureTests
     public void AerosolLoadFraction_ScalesTheColumnByPollutionAndClampsIt(
         float siteAltitudeMetres, float tilePollution, float expected)
     {
-        Assert.That(AtmosphericColumn.AerosolLoadFraction(siteAltitudeMetres, tilePollution),
+        Assert.That(AtmosphericColumn.AerosolLoadFraction(siteAltitudeMetres, tilePollution, 0f),
             Is.EqualTo(expected).Within(0.001f));
+    }
+
+    // --- §20e background aerosol: clean air is not aerosol-free (issue #92) ---
+    //
+    // AtmosphericColumn.BackgroundAerosolFraction gives every tile a rainfall-keyed natural aerosol
+    // floor, summed with pollution before the ceiling clamp and the altitude falloff (see the long
+    // note on AerosolLoadFraction). The two constants are the issue's own cited AOD ranges divided by
+    // the same ~0.3 heavy-urban anchor §20b's DESIGN.md text already uses.
+
+    [TestCase(340f, AtmosphericColumn.ContinentalBackgroundFraction)] // driest breakpoint: dust source
+    [TestCase(1170f, AtmosphericColumn.PristineBackgroundFraction)] // rainfall midpoint: the valley floor
+    [TestCase(2000f, AtmosphericColumn.ContinentalBackgroundFraction)] // wettest breakpoint: biogenic source
+    [TestCase(0f, AtmosphericColumn.ContinentalBackgroundFraction)] // clamped flat below the dry breakpoint
+    [TestCase(5000f, AtmosphericColumn.ContinentalBackgroundFraction)] // clamped flat above the wet breakpoint
+    public void BackgroundAerosolFraction_IsAValleyBetweenTheVanillaRainfallBreakpoints(
+        float rainfallMillimetres, float expected)
+    {
+        Assert.That(AtmosphericColumn.BackgroundAerosolFraction(rainfallMillimetres),
+            Is.EqualTo(expected).Within(0.001f));
+    }
+
+    [Test]
+    public void BackgroundAerosolFraction_IsNeverZero()
+    {
+        // THE HEADLINE FIX. Sweeping every rainfall a live tile could plausibly report: the valley
+        // floor at the midpoint is the lowest this can ever read, and it is still strictly positive —
+        // there is no rainfall value that reproduces the pre-§20e "aerosol-free clean air" behaviour.
+        for (float rainfall = 0f; rainfall <= 5000f; rainfall += 50f)
+        {
+            Assert.That(AtmosphericColumn.BackgroundAerosolFraction(rainfall), Is.GreaterThan(0f),
+                $"background aerosol vanished at {rainfall} mm — clean air would be aerosol-free again");
+        }
+    }
+
+    [Test]
+    public void EvenAtZeroPollution_TheSeaLevelColumnIsNeverAerosolFree()
+    {
+        // The claim restated at the AerosolLoadFraction level, which is the one every consumer
+        // actually calls: pollution 0 no longer means aerosolFraction 0 for any rainfall, at sea
+        // level. (At high enough altitude it still can — a mountain sits above natural haze for the
+        // same reason it sits above polluted haze, see BackgroundIsSuppressedByAltitude below — so
+        // this is deliberately checked at sea level, where the old exact-zero pin actually lived.)
+        for (float rainfall = 0f; rainfall <= 5000f; rainfall += 50f)
+        {
+            float background = AtmosphericColumn.BackgroundAerosolFraction(rainfall);
+            Assert.That(AtmosphericColumn.AerosolLoadFraction(0f, 0f, background), Is.GreaterThan(0f),
+                $"a pollution-0 sea-level tile at {rainfall} mm rainfall came back aerosol-free");
+        }
+    }
+
+    [Test]
+    public void BackgroundIsSuppressedByAltitude_TheSameWayPollutionIs()
+    {
+        // §20b's "a mountain base is above the smog" headline, re-asserted for the natural background:
+        // it shares pollution's scale height (see AerosolLoadFraction's note on why), so it must
+        // collapse with altitude the same way. Using the valley rim (the largest background this model
+        // produces) as the harder case.
+        float sunkenLoad = AtmosphericColumn.AerosolLoadFraction(
+            0f, 0f, AtmosphericColumn.ContinentalBackgroundFraction);
+        float mountainLoad = AtmosphericColumn.AerosolLoadFraction(
+            4000f, 0f, AtmosphericColumn.ContinentalBackgroundFraction);
+        Assert.That(mountainLoad, Is.LessThan(sunkenLoad * 0.1f),
+            "background aerosol did not collapse with altitude the way pollution does");
+    }
+
+    [Test]
+    public void CombinesPollutionAndBackground_SummedBeforeTheCeilingClamp()
+    {
+        // A lightly polluted tile with a high natural background reads as MORE aerosol than either
+        // term would alone — the sum, not a max or a replacement — right up until the shared [0, 1]
+        // ceiling both AtmosphericColumn.ColumnFraction and this sum are tuned against.
+        float pollutionOnly = AtmosphericColumn.AerosolLoadFraction(0f, 0.2f, 0f);
+        float backgroundOnly = AtmosphericColumn.AerosolLoadFraction(
+            0f, 0f, AtmosphericColumn.ContinentalBackgroundFraction);
+        float both = AtmosphericColumn.AerosolLoadFraction(
+            0f, 0.2f, AtmosphericColumn.ContinentalBackgroundFraction);
+
+        Assert.That(both, Is.EqualTo(0.2f + AtmosphericColumn.ContinentalBackgroundFraction).Within(0.001f));
+        Assert.That(both, Is.GreaterThan(pollutionOnly));
+        Assert.That(both, Is.GreaterThan(backgroundOnly));
+
+        // And the ceiling: heavy pollution plus a real background still cannot exceed "the most
+        // aerosol this model knows how to mean", the same ceiling a pollution value above 1 clamps to.
+        float saturated = AtmosphericColumn.AerosolLoadFraction(
+            0f, 0.9f, AtmosphericColumn.ContinentalBackgroundFraction);
+        Assert.That(saturated, Is.EqualTo(1f).Within(0.0001f));
     }
 
     [Test]
@@ -490,6 +580,11 @@ public class SkyColorTemperatureTests
         // never non-monotonically — the mirror of the site-altitude invariant below. Swept over sun
         // elevation, site altitude AND exponent, because since §20d the effect is a function of all
         // four and a monotonicity that only held at one particle size would be worth very little.
+        //
+        // backgroundLoadFraction is pinned at the valley-rim maximum (rather than 0) so this sweep
+        // exercises the SHIPPED composition — §20e's background is always present in play, and a
+        // monotonicity check that only held with it zeroed out would not be the guarantee a live
+        // game actually needs.
         foreach (float alpha in AllNamedExponents)
         {
             for (float siteAltitudeMetres = 0f; siteAltitudeMetres <= 6000f; siteAltitudeMetres += 1000f)
@@ -500,7 +595,8 @@ public class SkyColorTemperatureTests
                     float previous = 0f;
                     for (float pollution = 0f; pollution <= 1f; pollution += 0.05f)
                     {
-                        float aerosolFraction = AtmosphericColumn.AerosolLoadFraction(siteAltitudeMetres, pollution);
+                        float aerosolFraction = AtmosphericColumn.AerosolLoadFraction(
+                            siteAltitudeMetres, pollution, AtmosphericColumn.ContinentalBackgroundFraction);
                         float ratio = RedBlueRatio(SkyColorTemperature.SkyColorForElevation(
                             elevation, pressureFraction, aerosolFraction, alpha, inVacuum: false));
                         Assert.That(ratio, Is.GreaterThanOrEqualTo(previous - RatioTolerance),
@@ -520,6 +616,10 @@ public class SkyColorTemperatureTests
         // free: climbing raises the clean-air endpoint (cooler) AND thins the aerosol column (cooler
         // again), so the two effects happen to agree — and this is the test that says so rather than
         // leaving it as an argument in a comment. Swept over exponent for the same reason as above.
+        //
+        // As above, backgroundLoadFraction is pinned at the valley-rim maximum rather than 0: §20e
+        // means altitude now has to collapse TWO summed sources together, and that is the case worth
+        // re-proving rather than the pollution-only one §20 already covered.
         foreach (float alpha in AllNamedExponents)
         {
             for (float pollution = 0f; pollution <= 1f; pollution += 0.25f)
@@ -532,7 +632,8 @@ public class SkyColorTemperatureTests
                         float ratio = RedBlueRatio(SkyColorTemperature.SkyColorForElevation(
                             elevation,
                             AtmosphericColumn.RayleighPressureFraction(siteAltitudeMetres),
-                            AtmosphericColumn.AerosolLoadFraction(siteAltitudeMetres, pollution),
+                            AtmosphericColumn.AerosolLoadFraction(
+                                siteAltitudeMetres, pollution, AtmosphericColumn.ContinentalBackgroundFraction),
                             alpha,
                             inVacuum: false));
                         Assert.That(ratio, Is.LessThanOrEqualTo(previous + RatioTolerance),
@@ -590,9 +691,14 @@ public class SkyColorTemperatureTests
         // ZenithKelvin. It does not, because it is the FASTER-decaying of the two — but "obviously" is
         // not a test, and the guarantee lives in AtmosphericColumn rather than in the curve, so it is
         // asserted where the pair is actually produced.
+        //
+        // Pollution and background are both pinned at their maximum (1 and the valley-rim constant):
+        // the sum is what actually feeds the shared Clamp01 ceiling, so this is the hardest case §20e
+        // could have made harder, not just the pre-existing pollution-only one.
         for (float siteAltitudeMetres = 0f; siteAltitudeMetres <= 100000f; siteAltitudeMetres += 5000f)
         {
-            float aerosol = AtmosphericColumn.AerosolLoadFraction(siteAltitudeMetres, 1f);
+            float aerosol = AtmosphericColumn.AerosolLoadFraction(
+                siteAltitudeMetres, 1f, AtmosphericColumn.ContinentalBackgroundFraction);
             float rayleigh = AtmosphericColumn.RayleighPressureFraction(siteAltitudeMetres);
             Assert.That(aerosol, Is.LessThanOrEqualTo(rayleigh + Tolerance),
                 $"the aerosol column outlived the air column at {siteAltitudeMetres} m");
