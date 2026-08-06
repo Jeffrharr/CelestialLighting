@@ -66,6 +66,7 @@
          and still show an unchanged sky if the spectrum is not being applied, and vice versa.
          Deliberately no probe reports the aerosol colour as a Kelvin — once the spectral shape is
          applied the colour is not on the Planckian locus, so any Kelvin would be a fiction. -->
+    <Compile Include="../Source/Probes/AerosolAngstromProbe.cs" Link="AerosolAngstromProbe.cs" />
     <Compile Include="../Source/Probes/SkyRedBlueRatioProbe.cs" Link="SkyRedBlueRatioProbe.cs" />
     <!-- §19. polar_night_blue reads the shared adapter (never CurSkyTarget, which mutates vanilla's
          >=75-degree slew state as a side effect); overlay_brightness reads the finished material,

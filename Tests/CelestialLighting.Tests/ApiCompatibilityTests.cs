@@ -998,6 +998,33 @@ public class ApiCompatibilityTests
     }
 
     [Test]
+    public void Tile_HasRainfall()
+    {
+        // §20c's live read (Source/SiteAltitude.AngstromExponentForMap), pinned for the same reasons
+        // Tile_HasElevation and Tile_HasPollution pin theirs.
+        //
+        // Existence, because losing it fails silently in the worst possible way: every tile would fall
+        // back to the reference Angstrom exponent, the whole subsystem would quietly collapse back to
+        // the single §20b sunset it exists to generalise, and nothing anywhere would look broken.
+        //
+        // That it is on BASE Tile, because the guard in SiteAltitude is written for a base-Tile field
+        // and would need rethinking if rainfall ever moved onto SurfaceTile.
+        //
+        // And that it is a float. AerosolSpectrum.AngstromExponentForRainfall interpolates between
+        // vanilla's own 340 mm and 2000 m breakpoints, which is only meaningful while the units are
+        // millimetres per year — the same units BiomeWorker_Desert compares against 600f.
+        var type = GetType("RimWorld.Planet.Tile");
+        Assert.That(type, Is.Not.Null, "RimWorld.Planet.Tile no longer exists");
+        var field = type!.Fields.SingleOrDefault(f => f.Name == "rainfall" && f.IsPublic);
+        Assert.That(field, Is.Not.Null,
+            "Tile.rainfall no longer exists or is no longer public on base Tile — §20c keys the "
+            + "aerosol's Angstrom exponent off it, and would silently flatten to one exponent everywhere");
+        Assert.That(field!.FieldType.FullName, Is.EqualTo("System.Single"),
+            "Tile.rainfall changed shape — §20c interpolates it against vanilla's own millimetre "
+            + "biome breakpoints, which only means anything while it is a float in mm/year");
+    }
+
+    [Test]
     public void PlanetLayer_HasIsRootSurface()
     {
         // The guard that goes with the read above. SiteAltitude only trusts `elevation` on the root

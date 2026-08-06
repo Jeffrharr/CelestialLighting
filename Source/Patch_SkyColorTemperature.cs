@@ -109,11 +109,13 @@ public static class Patch_SkyColorTemperature
         // than something that needs a ModsConfig gate around it.
         float aerosolFraction = SiteAltitude.AerosolFractionForMap(map);
 
-        // And what SIZE that aerosol's particles are (DESIGN.md §20c). Held at the reference
-        // exponent for now, which is the value §20b's single shipped colour was implicitly
-        // calibrated at, so this commit changes the representation without changing any sky. Keying
-        // it to the map is the next commit.
-        float angstromExponent = AerosolSpectrum.ReferenceAngstromExponent;
+        // And what SIZE that aerosol's particles are (DESIGN.md §20c): the tile's Angstrom exponent,
+        // keyed on its rainfall. This is the input that takes the subsystem off the Planckian locus —
+        // everything above it only moves the sky further along one fixed hue path, while this changes
+        // which path it is on. A dry tile's coarse dust extinguishes all three channels nearly alike
+        // (a pale, dimmed sun), a wet tile's fine haze strips blue hard (a deep red one), and the
+        // temperate middle most colonies sit in lands on the orange §20b already shipped.
+        float angstromExponent = SiteAltitude.AngstromExponentForMap(map);
 
         // Note aerosolFraction is deliberately not passed to TintStrength — see the long note there.
         // §8's lane is colour-only, and aerosol's real non-colour effect is to MUTE a sunset, which
