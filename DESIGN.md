@@ -4747,6 +4747,34 @@ the near-grey desert end reads as "dusty" or merely as "the effect stopped worki
 for the reason §20 and §20b both declined one — that is a question for a live A/B, and adding a knob
 before it is answered bakes in a guess.
 
+**Measured.** `Tests/Scenarios/angstrom_rainfall.json` holds one sun, one full aerosol column and
+`pollution = 1`, moving only the tile's rainfall — which is the single input α is keyed on. Perceptual
+distance from the no-aerosol control, in CIELAB ΔE (CIE76) over every pixel of the rendered frame.
+Median is the honest figure; the mean is dragged by a long outlier tail from UI text that does not
+change between frames. Thresholds: <1 imperceptible, 1–2 close inspection, 2+ visible at a glance.
+
+| tile | α | ΔE median, spectrum alone | ΔE median, as shipped | R/B as shipped |
+|---|---|---|---|---|
+| arid 200 mm | 0.2 | **1.34** | 4.65 | 5.32 |
+| temperate 1354 mm | 1.30 | 6.18 | 11.51 | 10.94 |
+| rainforest 2500 mm | 2.00 | 7.29 | 14.23 | 12.35 |
+| no aerosol (control) | — | — | — | 4.21 |
+
+The two ΔE columns are the composition described above, measured rather than argued: the first is the
+spectral model with `AerosolBlendBoost` disabled, the second is what ships. **The grey-extinction
+headline survives the refit in the spectrum and does not survive it on screen**, and the difference is
+entirely the amount-keyed blend. With the boost off, the driest tile sits at ΔE 1.34 with R/B moving
+4.21 → 4.50: a full aerosol column that dims without meaningfully colouring, which is the case the
+locus model could not express. With the boost on it reads at 4.65 and mean red rises 103.6 → 109.1,
+i.e. visibly warmer than the control rather than merely dimmer.
+
+That is not a bug in either half. The boost is §20b's answer to a maximally polluted sky being
+invisible, it is keyed on how much haze there is, and at α ≈ 0 the haze's own colour is the clean-air
+colour — so blending harder toward it strengthens §8's own tint. It does mean the headline claim has
+to be stated at the level it is true: `AerosolSpectrum.HueMultiplier` is exactly `(1, 1, 1)` at α = 0
+and that is pinned as exact equality, while a live frame at pollution 1.0 is that invariant composed
+with a blend the aerosol's particle size has no say in.
+
 ### Out of scope, filed separately
 
 - **A weather-keyed exponent.** Fog and dust storms are the *literal* α ≈ 0 cases, and a `WeatherDef`
