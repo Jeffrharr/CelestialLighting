@@ -911,13 +911,15 @@ A Harmony Postfix on `WeatherWorker.CurSkyTarget` nudges (never replaces) `__res
 offline-tested in `Source/SkyColorTemperature.cs` (no `UnityEngine`/`Verse` deps, linked into the
 test project like `Formulas.cs`):
 
-- `ColorTemperatureKelvin(elevation)` — a monotonic linear ramp from `HorizonKelvin` (2000 K, at/below
-  the horizon) to `ZenithKelvin` (5772 K, at/above `DaylightAltitudeDegrees` = 60°).
+- `ColorTemperatureKelvin(elevation, pressureFraction)` — a monotonic linear ramp from `HorizonKelvin`
+  (2000 K, at/below the horizon) to `ZenithKelvin` (5772 K, at/above `DaylightAltitudeDegrees` = 60°).
+  The warm endpoint is a *sea-level* endpoint: §20 slides it toward neutral by how much air the map's
+  own tile actually has overhead.
 - `BlackbodyToRgb(kelvin)` — the widely published, public-domain Tanner Helland approximation of the
   Planckian locus (a standard tabulated/curve-fit conversion, textbook not mod-specific — see
   "Clean-room provenance"). Split into three small per-channel functions so the piecewise structure
   reads top-to-bottom.
-- `TintStrength(elevation)` — the geometric blend factor in `[0, 1]`: the product of a low-sun ramp
+- `TintStrength(elevation, pressureFraction)` — the geometric blend factor in `[0, 1]`: the product of a low-sun ramp
   (1 at the horizon → 0 by 60°, so high sun gets no tint) and a civil-twilight gate (fading out
   between the refraction-adjusted horizon and −6°, so night — subsystem 7's domain — isn't tinted
   warm). The adapter multiplies this by per-channel blend strengths (sky 0.35 / overlay 0.25),
@@ -939,7 +941,9 @@ already covered by `ApiCompatibilityTests` for §2 and §1, so no new API assert
 
 On an Odyssey space map the curve pins flat to `ZenithKelvin` and `TintStrength` goes to `0` via the
 shared `inVacuum` gate — the whole ramp is a Rayleigh reddening model and there is no air path to
-redden through. See §18 for why both halves are needed.
+redden through. See §18 for why both halves are needed, and §20 for the continuous version of the
+same argument: vacuum turns out to be the `pressureFraction → 0` endpoint of the site-altitude
+curve, which is why the two are pinned against each other rather than merged.
 
 This subsystem's `NightFadeFloorDegrees` (−6°) is also where **§19 takes over**: below the horizon
 the warm tint hands off to ozone (Chappuis) twilight blue, which ramps in from −4°. The two overlap
@@ -3655,6 +3659,189 @@ no benefit.
 `ApiCompatibilityTests` needs no new assertions — `WeatherWorker.CurSkyTarget`, `SkyTarget.colors`,
 `SkyColorSet.sky`/`.overlay`, `SkyManager.SkyManagerUpdate` and `MatBases.LightOverlay`/`FogOfWar`
 are all already pinned by §2, §8 and §7a.
+
+## 20. Site altitude — scaling §8's reddening by the observer's air column (`AtmosphericColumn` / `SiteAltitude`)
+
+§8 keys the sky's colour temperature on **sun altitude** and nothing else: a linear ramp from
+`HorizonKelvin` (2000 K) at/below the horizon to `ZenithKelvin` (5772 K) at 60°. Latitude and season
+already enter that curve correctly and implicitly, because they change where the sun goes. What the
+curve did not model is where the *observer* is. Every map got the same 2000 K sunset whether it sat
+on a sea-level swamp or on a 4000 m plateau.
+
+**The physics.** Rayleigh optical depth is proportional to the number of air molecules in the light
+path, and for the path that matters here that reduces to the surface pressure **at the observer**.
+The slant path from a low sun descends out of space and *terminates* at the observer's altitude — it
+never re-enters the denser air below. So the entire dense column beneath a mountain base is skipped
+rather than merely traversed at a shallower angle, and the mountain genuinely sees:
+
+- a whiter sun disk that stays white further down toward the horizon,
+- a **less** saturated sunset — high-altitude sunsets are famously subdued, not more vivid, which is
+  the one part of this that surprises people,
+- a deeper blue vault at midday (not modelled here; §8 is a warm-end curve).
+
+**The model** is the barometric/exponential atmosphere, one constant:
+
+```
+pressureFraction = exp(-siteAltitudeMetres / 8500)
+```
+
+| tile elevation | `pressureFraction` | effective horizon Kelvin |
+|---|---|---|
+| 100 m (vanilla `Tile.elevation` default) | 0.988 | 2044 K — imperceptible |
+| 1500 m | 0.838 | 2610 K |
+| 4000 m | 0.625 | 3416 K |
+| ∞ | 0 | 5772 K — the vacuum endpoint |
+
+Most maps are therefore unchanged, and the effect appears only where the terrain justifies it — the
+same shape as §19's "polar night emerges with no polar special case": nothing is switched on by a
+threshold, the curve simply reaches somewhere different when the tile does.
+
+### Where it enters the curve, and why both halves again
+
+`pressureFraction` enters `SkyColorTemperature` twice, and the reason is the same one §18a spells
+out for vacuum.
+
+1. **`HorizonKelvinForPressure`** slides the *warm* endpoint from `HorizonKelvin` toward
+   `ZenithKelvin`. Only the warm endpoint moves: 2000 K is what a full sea-level column *does to*
+   sunlight, while 5772 K is the unreddened photospheric anchor — sunlight before the atmosphere
+   touched it — so there is nothing for thinner air to move the neutral end toward. Thinning the air
+   can only ever walk the reddened end back up to the anchor, which is why this interpolates between
+   exactly those two existing constants and introduces no third one.
+2. **`TintStrength`** is multiplied by the same fraction. Pinning the Kelvin alone would not weaken
+   the effect, for precisely the reason §18a records: the Helland fit puts `ZenithKelvin` at roughly
+   `(1.00, 0.95, 0.90)` rather than at white, so a thin-air sky would still be blended toward a
+   faintly amber target at full strength. Scaling the strength is what produces the *subdued*
+   mountain sunset. Physically the two factors are the same optical depth seen twice: less air to
+   redden the beam, and less air to carry the reddened colour into the sky.
+
+**Linear in Kelvin, not in mireds.** The more defensible physics is arguably reciprocal: reddening is
+an extinction filter, filter strengths compose additively in mireds (10⁶/K), and a mired-space
+version would put 4000 m at ~2660 K instead of ~3416 K. We stayed in Kelvin space because the ramp
+this feeds is *itself* a linear Kelvin lerp — mixing two interpolation spaces inside one four-line
+function buys a second-order correction on top of a first-order artistic approximation. The choice
+is recorded rather than hidden because both spaces agree **exactly** at both endpoints
+(`p = 1 → 2000 K`, `p = 0 → 5772 K`), so it is only ever the shape in between that is at stake, and
+if the honest range ever reads wrong in play the swap is local to `HorizonKelvinForPressure`.
+
+### Why the vacuum gate stays separate
+
+At `pressureFraction = 0` the ramp pins flat to `ZenithKelvin` and the tint goes to zero — *exactly*
+the pair of values §18's discrete gate returns. Vacuum is the `h → ∞` limit of this same curve, so
+§18a's special case stops being unexplained and becomes an endpoint a continuous model independently
+agrees with.
+
+It does **not** follow that the gate should be replaced by `pressureFraction = 0`. Two reasons:
+
+- They read **different data for different questions**. `Vacuum` reads `BiomeDef.inVacuum` — "does
+  this map have an atmosphere at all" — while `SiteAltitude` reads `Tile.elevation` — "how much of
+  one is above this particular spot". An orbital platform's tile still carries an `elevation` field,
+  and deriving airlessness from it would mean trusting a number that means nothing up there.
+- §18's convention exists precisely so the gate **cannot be forgotten**: `inVacuum` stays the last
+  parameter, required and never defaulted, early-returning at the top before any atmospheric math
+  runs. Folding it into a float that has a perfectly ordinary default would give every future call
+  site a silent way to opt out of it. `pressureFraction` is therefore threaded in *ahead* of
+  `inVacuum`, leaving the vacuum parameter exactly where every other subsystem's is.
+
+The agreement is instead cashed in as a free offline test
+(`ZeroPressure_ReproducesTheVacuumValuesExactly`, asserted as exact equality rather than within a
+tolerance — both paths land on the same constants by construction, so if they ever only *nearly*
+agree, one side has grown arithmetic the other has not).
+
+### §19 is deliberately altitude-invariant
+
+§8 and §19 must diverge here, and the asymmetry is pinned in one test
+(`OzoneTwilightBlue_IsAltitudeInvariant_WhileTheWarmTintIsNot`) so they cannot drift into each other.
+§8's Rayleigh reddening happens in the air the observer is standing in, so a mountain skips most of
+it. §19's Chappuis absorption happens in the **ozone layer at 20–30 km**, entirely above any
+mountain: the absorbing column over a 4000 m plateau is the same column as over the beach next to it,
+so polar night blue must not scale with site altitude. Since `OzoneTwilightMath` expresses that
+invariance structurally — by having nowhere to put such a term — the test asserts it structurally,
+which is the form that fails when someone adds one.
+
+### The shared column model (`AtmosphericColumn.cs`)
+
+The file is deliberately *not* a Rayleigh-only helper. It exposes `ColumnFraction(altitude,
+scaleHeight)` with `RayleighScaleHeightMetres = 8500` as one named caller, because different
+scatterers have very different scale heights and the next one is already specified: aerosols (dust,
+smoke, haze) are injected near the ground and settle out, so they hug the surface with H ≈ 1500 m and
+fall away nearly six times faster with altitude — which is exactly why mountain air looks *clean*
+rather than merely thin. Issue #83 adds that species as a second constant plus a second accessor in
+this same file, with no new exponential and no new `<Compile Include>` entry.
+
+8500 m is Earth's textbook value (kT/mg for dry air near 250 K) and is used without apology: RimWorld
+planets are Earth-analogues down to the biome list, and there is nothing in worldgen a per-world
+constant could be sourced from. The unit tests pin it against real measured anchors — Denver 1600 m →
+0.83 atm, Lhasa 3650 m → 0.65, Everest 8850 m → 0.35 — which is the point of preferring one physical
+constant to a hand-tuned ramp.
+
+Sub-sea-level sites clamp to 1 rather than exceeding it. The physics does keep going (the Dead Sea
+shore genuinely sits under ~1.05 atm) but every consumer treats 1 as "the full, unmodified sea-level
+effect" and is tuned against that ceiling — §8 multiplies the fraction straight into its 0.35/0.25
+per-channel blend maxima — so a hard `[0, 1]` contract is worth more than a 5% over-pressure that no
+RimWorld worldgen produces.
+
+### The naming hazard
+
+**`elevation` already means SUN elevation in this subsystem.** `Patch_SkyColorTemperature` opens with
+`float elevation = SolarPosition.ElevationForMap(map)` and every function in `SkyColorTemperature.cs`
+is keyed on `elevationDegrees`. RimWorld's field for terrain height is, unhelpfully, also called
+`elevation`. So the name is dropped at the boundary: the value is `siteAltitudeMetres` from the
+moment it is read, and what reaches the curve is `pressureFraction`. This is not fussiness — two
+different quantities called `elevation` three lines apart would make every subsequent line of both
+files ambiguous to read, and the mistake would be invisible in a diff.
+
+### The impure boundary (`SiteAltitude.cs`)
+
+Shaped exactly like `LatitudeEffect.cs`: one live read off the world grid, converted to a primitive,
+handed to a pure model that owns the math. `Tile.elevation` is a plain public float on **base**
+`RimWorld.Planet.Tile` (not the Odyssey-era `SurfaceTile` subclass — verified by decompiling 1.6
+`Assembly-CSharp`), already in metres, so no DLC gate and no cast. Two new
+`ApiCompatibilityTests` assertions pin it: `Tile_HasElevation` (exists, public, on base `Tile`,
+`System.Single`) and `PlanetLayer_HasIsRootSurface` (the guard that goes with it).
+
+It is its own file rather than a private method on the patch because the live probe has to read the
+*same* value the patch does — §18's rule that a probe reads the same gate as its patch, for the same
+reason: a probe reporting a colour temperature the sky is not being tinted toward is worse than no
+probe. `sky_color_temperature` therefore now reports the tile's own horizon endpoint (~3416 K on a
+4000 m tile), so a mountain scenario can pin the whole chain end-to-end.
+
+Two guards, both returning 0 m — sea level, `pressureFraction` 1, bit-identical to the pre-§20 curve,
+because the right default for "cannot honestly answer" is the behaviour the mod already shipped:
+
+- **Non-surface `PlanetLayer`.** Orbital-ring tiles carry `elevation` because it is on base `Tile`,
+  but it is not a terrain height there. §18's vacuum gate short-circuits space maps before the value
+  is ever used; this guard is what keeps that belt-and-braces rather than an unstated dependency on
+  two independently-motivated gates always agreeing.
+- **No world tile at all.** Pocket maps (vanilla's undercave, a Biomes! Caverns cavern) index out of
+  the layer's tile list. §8 never reaches this on those maps (`MapSky.IsEnclosed` returns first), but
+  `SiteAltitude` is shared and must not throw for a caller that has not made that check. Note the
+  read goes through the `PlanetLayer` indexer rather than `Find.WorldGrid[tile]`: the two reach the
+  same `Tile`, but the layer's bounds-checks and returns null while `WorldGrid`'s subscripts the
+  backing `List<Tile>` unchecked and would throw on `PlanetTile.Invalid`.
+
+### Compat
+
+Realistic Planets 2 and Planetsmith both overhaul worldgen and may shift the elevation distribution
+(see `PlanetsmithCompat.cs`). The model degrades gracefully — an unexpected range just moves along
+the same curve, and the curve is monotone and bounded at both ends — so no compat branch is
+warranted; a sanity check on a generated world is worth doing when one of them is next loaded.
+
+A `SiteAltitudeStrength` slider (0–2, default 1.0 = physical) is deliberately **not** shipped up
+front. Whether the honest range reads too subtle in play is a question for a live A/B, not for
+design, and adding a knob before that is answered would bake in a guess.
+
+### Out of scope, filed separately
+
+- **Biotech `Tile.pollution` as aerosol loading.** Opposite sign to altitude (more reddening), but
+  Mie scattering greys rather than reddens, so it collides with §9's desaturation and needs its own
+  design rather than a second multiplier here.
+- **Latitude-keyed ozone column for §19.** ~260 DU in the tropics vs ~400 DU at high latitudes in
+  spring, so Chappuis blue should strengthen toward the poles. A genuine colour-by-location effect,
+  but it belongs to §19's absorption-notch model, not §8's Rayleigh one — and note it is a *latitude*
+  term, not a site-altitude one, so it does not contradict the invariance pinned above.
+- **§7 starlight extinction.** `k = 0.28` mag/airmass is a documented **sea-level** constant
+  (§18b) with exactly the same site-altitude problem — nearer 0.12–0.15 at 4000 m — and it would use
+  this same `AtmosphericColumn` model.
 
 ## Settings and presets
 

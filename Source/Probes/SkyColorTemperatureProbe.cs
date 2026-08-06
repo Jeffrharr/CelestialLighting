@@ -19,8 +19,13 @@ public sealed class SkyColorTemperatureProbe : IProbe
     public float Read(Map map)
     {
         float elevation = SolarPosition.ElevationForMap(map);
-        // Same §18 vacuum gate the patch reads, so an orbital scenario probes the flat unreddened
-        // anchor (5772 K at every elevation) rather than the ground ramp.
-        return SkyColorTemperature.ColorTemperatureKelvin(elevation, Vacuum.InVacuumForMap(map));
+        // Every input the patch feeds the curve, read the same way through the same helpers, so a
+        // scenario can never observe a temperature the sky is not actually being tinted toward:
+        //   * the §20 site air column, so a mountain scenario probes the whiter horizon endpoint
+        //     (~3420 K at 4000 m) rather than the sea-level 2000 K;
+        //   * the §18 vacuum gate, so an orbital scenario probes the flat unreddened anchor
+        //     (5772 K at every elevation) rather than the ground ramp.
+        return SkyColorTemperature.ColorTemperatureKelvin(
+            elevation, SiteAltitude.PressureFractionForMap(map), Vacuum.InVacuumForMap(map));
     }
 }

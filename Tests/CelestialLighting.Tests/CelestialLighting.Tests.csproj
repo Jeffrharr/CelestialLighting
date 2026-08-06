@@ -53,6 +53,15 @@
     <!-- Subsystem 8 pure core. Depends on Formulas.AtmosphericRefractionDegrees, so Formulas.cs
          above must be linked too (it already is). -->
     <Compile Include="../../Source/SkyColorTemperature.cs" Link="SkyColorTemperature.cs" />
+    <!-- §20's shared atmospheric column model (barometric scale height -> what fraction of a
+         scattering species is still overhead at a given site altitude). Linked directly below
+         SkyColorTemperature because that is its only consumer today and SkyColorTemperatureTests
+         drives both — the site-altitude cases pin the column fractions and the colour-temperature
+         endpoints they produce in the same file, so a change to the scale height shows up as a
+         moved sky colour rather than only as a moved intermediate. It has no dependencies of its
+         own (MathF only), so it can sit anywhere in this list; it is here for readability.
+         Issue #83 adds an aerosol scale height to the same file, which needs no new link entry. -->
+    <Compile Include="../../Source/AtmosphericColumn.cs" Link="AtmosphericColumn.cs" />
     <!-- Subsystem 19 pure core (polar night blue / Chappuis ozone twilight). Reuses
          SkyColorTemperature.Rgb as its colour struct, so the link above is a hard prerequisite —
          but deliberately NOT its BlackbodyToRgb: §19 models an absorption notch, not a Planckian

@@ -335,7 +335,10 @@ public class OzoneTwilightMathTests
     {
         for (float elevation = -20f; elevation <= 10f; elevation += 0.1f)
         {
-            float warm = SkyColorTemperature.TintStrength(elevation, inVacuum: false);
+            // Sea level (pressureFraction 1) is deliberately the worst case for this claim: §20
+            // only ever scales §8's warm tint DOWN with site altitude, so if the product stays
+            // small here it stays small on every tile.
+            float warm = SkyColorTemperature.TintStrength(elevation, pressureFraction: 1f, inVacuum: false);
             float blue = OzoneTwilightMath.BandStrength(elevation, inVacuum: false);
             Assert.That(warm * blue, Is.LessThan(0.10f), $"warm and blue both strong at elevation {elevation}");
         }
