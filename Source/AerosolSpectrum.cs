@@ -310,6 +310,49 @@ public static class AerosolSpectrum
         return new SkyColorTemperature.Rgb(raw.R / brightest, raw.G / brightest, raw.B / brightest);
     }
 
+    // How much of a COLOUR this aerosol has of its own, in [0, 1], as a pure function of particle size.
+    //
+    // WHAT IT IS FOR. Patch_SkyColorTemperature.AerosolBlendBoost opens the adapter's blend under a
+    // thick aerosol column, on the argument that as the layer thickens a larger fraction of the light
+    // reaching the ground was scattered BY THAT LAYER, so the sky approaches the layer's own colour
+    // more completely. That argument has an unstated premise: that the layer HAS a colour of its own.
+    // At alpha = 0 it does not. Grey extinction's transmission is exactly (1, 1, 1), so "the layer's
+    // own colour" is just the clean-air colour, and opening the blend toward it only amplifies §8's
+    // Rayleigh tint — which is a different subsystem's business and the one direction §20b's own
+    // TintStrength note says is wrong. So the boost is scaled by this.
+    //
+    // WHAT IT MEASURES. The CHROMATIC part of the column: the spread between the per-channel optical
+    // depths, tau_B - tau_R, which is what a Beer-Lambert filter contributes to HUE as opposed to
+    // brightness. It is 0 at alpha = 0 by construction rather than by tuning, because at alpha = 0
+    // every channel has the same depth. Normalised against the same spread at ReferenceAngstromExponent
+    // and clamped, so it reads as "how chromatic is this haze compared to the urban haze §20b was
+    // calibrated on".
+    //
+    // TWO PROPERTIES THAT MAKE IT SAFE TO MULTIPLY INTO THE BOOST.
+    //   * The aerosol LOAD cancels. Both depths scale linearly with load, so the ratio does not depend
+    //     on it at all. That matters because the boost is already keyed on load — multiplying by
+    //     something that was also load-dependent would square the amount term and quietly retune §20b.
+    //     This answers the orthogonal question, "what SIZE are the particles", and only that.
+    //   * It is exactly 1 at and above the reference exponent, so every tile at temperate rainfall or
+    //     wetter gets the boost §20b measured, bit-for-bit. §20b's live result is not re-litigated by
+    //     this; only the dry half of the range, which §20b never had a way to express, is tapered.
+    public static float ChromaticFraction(float angstromExponent)
+    {
+        float spread = ChromaticSpread(angstromExponent);
+        float referenceSpread = ChromaticSpread(ReferenceAngstromExponent);
+        return Clamp01(spread / referenceSpread);
+    }
+
+    // tau_B - tau_R per unit of HorizonOpticalDepth and per unit load — i.e. the shape factors' spread
+    // alone. Monotone increasing in alpha (the blue factor rises above 1 while the red one falls below
+    // it), which is what makes ChromaticFraction monotone and therefore safe to use as a ramp.
+    private static float ChromaticSpread(float angstromExponent)
+    {
+        float alpha = ClampAngstrom(angstromExponent);
+        return MathF.Pow(BlueWavelengthNm / ReferenceWavelengthNm, -alpha)
+            - MathF.Pow(RedWavelengthNm / ReferenceWavelengthNm, -alpha);
+    }
+
     // Apply the aerosol's spectral shape to a clean-air sky colour.
     //
     // Multiplication, not a lerp: extinction IS multiplicative, and it is the multiplication that

@@ -60,14 +60,20 @@ public static class Patch_SkyColorTemperature
     // measured against — that is what the refit to CalibrationAnchorKelvin buys. If the boost were
     // instead folded into the optical depth, the aerosol would redden twice.
     //
-    // The one interaction worth knowing about: this is keyed on aerosol AMOUNT, not on particle SIZE,
-    // so at alpha ~0 it opens the blend toward the CLEAN-air colour. A thick grey-dust column
-    // therefore gives a more saturated §8 sunset than clean air rather than an identical one. That is
-    // consistent with the argument above rather than an escape from it — "the sky approaches the
-    // layer's own colour more completely" is a statement about optical thickness, and a grey layer's
-    // own colour just happens to BE the clean-air colour. The offline grey-extinction invariant is a
-    // claim about AerosolSpectrum's transmission, which stays exactly (1, 1, 1) at alpha 0; what a
-    // live frame shows at pollution 1.0 is that invariant composed with this amount-keyed blend.
+    // §20d ALSO KEYS IT ON PARTICLE SIZE, and that is a bug fix rather than a refinement. As §20b
+    // shipped it, this was keyed on aerosol AMOUNT alone, so at alpha ~ 0 it opened the blend toward
+    // the CLEAN-air colour — there being no other colour for a grey layer to have. Measured on
+    // rendered frames, a full grey-dust column came out with mean red RISING 103.6 -> 109.1 against
+    // the clean control: visibly warmer, when the entire claim about large particles is that they dim
+    // WITHOUT colouring. That is the same "haze makes sunsets more vivid" error the note above says
+    // this constant must not commit; it was simply committing it through the blend instead of through
+    // TintStrength.
+    //
+    // So the amount term is multiplied by AerosolSpectrum.ChromaticFraction, which is exactly 0 at
+    // alpha 0 and exactly 1 at and above the reference exponent. Every tile at temperate rainfall or
+    // wetter — which is where §20b's own live measurement was taken — gets this boost bit-for-bit
+    // unchanged. Only the dry half of the range tapers, and that half is a range §20b had no way to
+    // express in the first place.
     private const float AerosolBlendBoost = 0.7f;
 
     static void Postfix(Map map, ref SkyTarget __result)
@@ -146,10 +152,18 @@ public static class Patch_SkyColorTemperature
             elevation, pressureFraction, aerosolFraction, angstromExponent, inVacuum);
         Color target = new Color(rgb.R, rgb.G, rgb.B);
 
-        // Aerosol opens the blend up (see AerosolBlendBoost). At aerosolFraction 0 — every tile
-        // without Biotech, and every clean tile with it — this is exactly 1.0, so the pre-§20b
-        // behaviour is reproduced bit-for-bit rather than approximately.
-        float aerosolBlend = 1f + AerosolBlendBoost * aerosolFraction;
+        // Aerosol opens the blend up (see AerosolBlendBoost), keyed on BOTH halves of what the haze is:
+        // how much of it there is, and whether it has a colour of its own to approach.
+        //
+        // At aerosolFraction 0 — every tile without Biotech, and every clean tile with it — this is
+        // exactly 1.0, so the pre-§20b behaviour is reproduced bit-for-bit rather than approximately.
+        // At ChromaticFraction 0 (alpha 0, grey extinction) it is also exactly 1.0, which is the fix
+        // for a real defect found by measuring: a full grey column used to open the blend to 0.60 and
+        // make the arid frame VISIBLY WARMER than the control, when the whole claim about alpha ~ 0 is
+        // that it dims without colouring. See AerosolSpectrum.ChromaticFraction for why the chromatic
+        // spread is the right thing to scale by and why it cannot double-count the amount term.
+        float aerosolBlend =
+            1f + AerosolBlendBoost * aerosolFraction * AerosolSpectrum.ChromaticFraction(angstromExponent);
 
         __result.colors.sky = Color.Lerp(__result.colors.sky, target, tint * SkyBlend * aerosolBlend);
         __result.colors.overlay = Color.Lerp(__result.colors.overlay, target, tint * OverlayBlend * aerosolBlend);

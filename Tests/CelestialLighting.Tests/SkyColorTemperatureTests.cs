@@ -1084,6 +1084,91 @@ public class SkyColorTemperatureTests
         }
     }
 
+    // --- the chromatic taper on §20b's blend boost ---
+    //
+    // The adapter's AerosolBlendBoost opens the sky/overlay blend under a thick aerosol column. §20b
+    // keyed it on aerosol AMOUNT alone, which is wrong at the grey end for a reason only a rendered
+    // frame showed: a grey layer has no colour of its own, so opening the blend toward "the layer's
+    // colour" just opens it toward §8's clean-air tint and makes a dusty sky WARMER than a clean one.
+    // ChromaticFraction is the size-keyed half that fixes it. These pin its two ends, because the
+    // whole value of the fix is that both ends are exact rather than tuned.
+
+    [TestCase(AerosolSpectrum.GreyExtinctionExponent, 0f)]
+    [TestCase(AerosolSpectrum.ThickDustExponent, 0.1437f)]
+    [TestCase(AerosolSpectrum.CoarseDustExponent, 0.5183f)]
+    [TestCase(AerosolSpectrum.UrbanHazeExponent, 1f)]
+    [TestCase(AerosolSpectrum.FineSmokeExponent, 1f)] // clamped: more chromatic than the reference
+    [TestCase(AerosolSpectrum.RayleighExponent, 1f)] // clamped
+    public void ChromaticFraction_IsZeroAtGreyAndSaturatedAtTheReferenceExponent(
+        float alpha, float expected)
+    {
+        // Derived, not read off a run: the fraction is (450/550)^-a - (600/550)^-a normalised by the
+        // same expression at alpha 1.3, whose value is 0.405013. At alpha 0.2 the numerator is
+        // 1.040960 - 0.982758 = 0.058202, and 0.058202 / 0.405013 = 0.143704. At alpha 0.7 it is
+        // 1.150941 - 0.941037 = 0.209904, and 0.209904 / 0.405013 = 0.518265.
+        Assert.That(AerosolSpectrum.ChromaticFraction(alpha), Is.EqualTo(expected).Within(0.0005f));
+    }
+
+    [Test]
+    public void ChromaticFraction_IsExactlyZeroAtGrey_SoTheBlendBoostCannotWarmAGreySky()
+    {
+        // THE POINT OF THE WHOLE FUNCTION, asserted as exact equality rather than within a tolerance.
+        // A near-zero fraction would still open the blend a little, and "a little warmer than clean
+        // air" is the precise thing a grey aerosol must not be. It holds by construction: at alpha 0
+        // every shape factor is (lambda/lambda_ref)^0 = 1, so the chromatic spread is 1 - 1.
+        Assert.That(AerosolSpectrum.ChromaticFraction(AerosolSpectrum.GreyExtinctionExponent),
+            Is.EqualTo(0f));
+
+        // And the adapter's arithmetic on top of it, restated here rather than reached for, since the
+        // adapter is Verse-bound and cannot be driven offline. A boost factor of exactly 1 is what
+        // makes a grey polluted tile blend identically to a clean one.
+        const float aerosolBlendBoost = 0.7f;
+        float greyBlend = 1f + aerosolBlendBoost * 1f
+            * AerosolSpectrum.ChromaticFraction(AerosolSpectrum.GreyExtinctionExponent);
+        Assert.That(greyBlend, Is.EqualTo(1f));
+    }
+
+    [Test]
+    public void ChromaticFraction_IsExactlyOneFromTheReferenceExponentUp_SoTwentyBIsNotRetuned()
+    {
+        // The other end, and the reason this taper is safe to add to a merged, already-measured
+        // feature. §20b's live A/B was taken on a tile at temperate rainfall or wetter, i.e. at alpha
+        // >= 1.3, and every such tile must still get the boost §20b measured — bit-for-bit, not
+        // approximately, or this becomes a silent retune of someone else's result.
+        for (float alpha = AerosolSpectrum.ReferenceAngstromExponent;
+             alpha <= AerosolSpectrum.RayleighExponent;
+             alpha += 0.05f)
+        {
+            Assert.That(AerosolSpectrum.ChromaticFraction(alpha), Is.EqualTo(1f),
+                $"the blend boost is no longer at full strength at alpha {alpha}");
+        }
+    }
+
+    [Test]
+    public void ChromaticFraction_RisesMonotonically_AndIsIndependentOfTheAerosolLoad()
+    {
+        // Monotone, so the taper is a ramp rather than a lookup with a kink in it.
+        float previous = -1f;
+        for (float alpha = 0f; alpha <= AerosolSpectrum.RayleighExponent; alpha += 0.05f)
+        {
+            float fraction = AerosolSpectrum.ChromaticFraction(alpha);
+            Assert.That(fraction, Is.GreaterThanOrEqualTo(previous), $"fell at alpha {alpha}");
+            previous = fraction;
+        }
+
+        // Load-independence is the property that keeps this from double-counting §20b. The boost is
+        // ALREADY multiplied by aerosolFraction; if this carried an amount term too, the two would
+        // multiply and the boost would fall off as the square of the column. The signature takes no
+        // load at all, which is the structural version of this assertion — this one guards the claim
+        // in the header that the load cancels out of the ratio, so that a future edit reintroducing a
+        // load argument has to confront it.
+        Assert.That(typeof(AerosolSpectrum).GetMethod(nameof(AerosolSpectrum.ChromaticFraction))!
+                .GetParameters().Length,
+            Is.EqualTo(1),
+            "ChromaticFraction took on a second parameter — if it is an aerosol load, it now "
+            + "double-counts the amount term the blend boost already carries");
+    }
+
     [Test]
     public void TheAerosolColourFadesOutWithSunAltitude_AtExactlyTheRateTwentyBsEndpointDid()
     {
