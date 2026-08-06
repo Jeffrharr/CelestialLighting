@@ -75,15 +75,48 @@ public static class SkyColorTemperature
     // ever walk the warm endpoint back up toward the anchor, which is why this interpolates between
     // exactly those two constants and adds no third one.
     //
-    // WHY IT IS LINEAR IN KELVIN. The honest alternative is linear in mireds (10^6/K), the space in
-    // which filter strengths compose additively, and which would arguably model "an extinction
-    // filter whose strength scales with optical depth" better: 4000 m would land at ~2660 K rather
-    // than ~3420 K. We keep Kelvin-space because the ramp this feeds is itself a linear Kelvin lerp,
-    // and mixing two interpolation spaces inside one four-line function buys a second-order
-    // correction on top of a first-order artistic approximation. Both spaces agree exactly at both
-    // endpoints (p = 1 -> HorizonKelvin, p = 0 -> ZenithKelvin), which is where the invariants live.
-    public static float HorizonKelvinForPressure(float pressureFraction) =>
-        Lerp(ZenithKelvin, HorizonKelvin, Clamp01(pressureFraction));
+    // WHY IT IS LINEAR IN MIREDS AND NOT IN KELVIN. A mired is 10^6/K, and the reason to work there
+    // is not the usual perceptual one (equal mired steps look like equal shifts, which is why
+    // photographic filters are graded in mireds). It is that a mired shift is approximately linear
+    // in OPTICAL DEPTH — and optical depth is exactly what pressureFraction scales, since Rayleigh
+    // optical depth is proportional to the air column overhead.
+    //
+    // So the whole model falls out of one statement, "reddening is proportional to column":
+    //
+    //   mired shift at sea level   = 10^6/2000 - 10^6/5772 = 500.0 - 173.2 = 326.8
+    //   mired shift at 4000 m      = 0.6247 * 326.8        = 204.2
+    //   horizon endpoint at 4000 m = 10^6 / (173.2 + 204.2) = 2650 K
+    //
+    // Linear-in-Kelvin has no comparable derivation — it was a first-order artistic choice, and it
+    // put 4000 m at ~3415 K, walking the warm end back nearly twice as far for no stated physical
+    // reason. Both spaces agree EXACTLY at both endpoints (p = 1 -> HorizonKelvin, p = 0 ->
+    // ZenithKelvin), so every invariant that lives at an endpoint — including §18's requirement that
+    // p -> 0 reproduce the vacuum value — is untouched by this choice. Only the interior moves.
+    //
+    // The ramp this feeds is still a linear Kelvin lerp on ELEVATION, so the two spaces do coexist
+    // in the file. That is deliberate rather than sloppy: elevation moves the sun through the
+    // column, which is a geometric path-length effect with its own airmass curve, while this moves
+    // the column's density. They are different physical quantities and there is no reason to expect
+    // one interpolation space to serve both.
+    public static float HorizonKelvinForPressure(float pressureFraction)
+    {
+        float mired = Lerp(
+            MiredOf(ZenithKelvin),
+            MiredOf(HorizonKelvin),
+            Clamp01(pressureFraction));
+
+        return MiredToKelvin(mired);
+    }
+
+    // Both directions of 10^6/K, named rather than inlined so the conversion reads once and the
+    // callers read as interpolation. Guarded against a zero denominator only in the sense that
+    // neither endpoint constant is ever zero or near it: HorizonKelvin is 2000 and ZenithKelvin is
+    // 5772, so mired stays in 173..500 and Kelvin never approaches the singularity at either end.
+    private const float MiredScale = 1e6f;
+
+    private static float MiredOf(float kelvin) => MiredScale / kelvin;
+
+    private static float MiredToKelvin(float mired) => MiredScale / mired;
 
     // Linear ramp from HorizonKelvin (at/below the horizon) to ZenithKelvin (at/above
     // DaylightAltitudeDegrees), clamped flat past both ends. Monotonic in elevation, so a lower sun

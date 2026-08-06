@@ -50,7 +50,7 @@
       "type": "Probe",
       "args": {
         "probeName": "sky_color_temperature",
-        "expectedValue": "4119.7",
+        "expectedValue": "3582.5",
         "tolerance": "40"
       }
     },

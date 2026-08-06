@@ -3714,14 +3714,33 @@ out for vacuum.
    mountain sunset. Physically the two factors are the same optical depth seen twice: less air to
    redden the beam, and less air to carry the reddened colour into the sky.
 
-**Linear in Kelvin, not in mireds.** The more defensible physics is arguably reciprocal: reddening is
-an extinction filter, filter strengths compose additively in mireds (10⁶/K), and a mired-space
-version would put 4000 m at ~2660 K instead of ~3416 K. We stayed in Kelvin space because the ramp
-this feeds is *itself* a linear Kelvin lerp — mixing two interpolation spaces inside one four-line
-function buys a second-order correction on top of a first-order artistic approximation. The choice
-is recorded rather than hidden because both spaces agree **exactly** at both endpoints
-(`p = 1 → 2000 K`, `p = 0 → 5772 K`), so it is only ever the shape in between that is at stake, and
-if the honest range ever reads wrong in play the swap is local to `HorizonKelvinForPressure`.
+**Linear in mireds, not in Kelvin.** A mired is 10⁶/K. The usual reason to work there is
+perceptual — equal mired steps read as equal shifts, which is why photographic filters are graded in
+them — but that is not the reason here. The reason is that **a mired shift is approximately linear in
+optical depth**, and optical depth is exactly what `pressureFraction` scales, since Rayleigh optical
+depth is proportional to the air column overhead.
+
+So the whole endpoint model falls out of the single statement *reddening is proportional to column*:
+
+| | |
+|---|---|
+| mired shift at sea level | `10⁶/2000 − 10⁶/5772` = 500.0 − 173.2 = **326.8** |
+| mired shift at 4000 m | `0.6247 × 326.8` = **204.2** |
+| horizon endpoint at 4000 m | `10⁶ / (173.2 + 204.2)` = **2650 K** |
+
+Linear-in-Kelvin, which this subsystem originally shipped, has no comparable derivation — it was a
+first-order artistic choice, and it put 4000 m at ~3416 K, walking the warm end back nearly twice as
+far for no stated physical reason.
+
+Both spaces agree **exactly** at both endpoints (`p = 1 → 2000 K`, `p = 0 → 5772 K`), so every
+invariant that lives at an endpoint — including §18's requirement that `p → 0` reproduce the vacuum
+value — is untouched by the choice. Only the interior moves.
+
+The ramp this feeds is still a linear Kelvin lerp **on elevation**, so the two spaces do coexist in
+one file. That is deliberate rather than sloppy: elevation moves the sun *through* the column, a
+geometric path-length effect with its own airmass curve, while `pressureFraction` moves the column's
+*density*. They are different physical quantities, and there is no reason to expect one interpolation
+space to serve both.
 
 ### Why the vacuum gate stays separate
 
