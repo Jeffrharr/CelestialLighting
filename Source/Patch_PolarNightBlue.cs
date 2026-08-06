@@ -38,8 +38,14 @@ public static class Patch_PolarNightBlue
     // nothing — which is exactly how §9's first two attempts died (see NightDesaturationMath's
     // header). At 0.45 the multiply overlay attenuates ground red by ~24% at the band's peak; the
     // offline GroundRedAttenuation_ExceedsVisibleThreshold test is what keeps that honest.
-    private const float SkyBlend = 0.45f;
-    private const float OverlayBlend = 0.30f;
+    //
+    // Internal rather than private because §19c (Patch_PurpleLight) DERIVES its own blend from this
+    // pair and §8's: inside the two-degree overlap both sources are fully present, so the composed
+    // displacement from the vanilla palette is their union, 1 - (1 - a)(1 - b). Reading the numbers
+    // instead of copying them is what stops the three subsystems drifting apart if either of these
+    // is ever retuned. Nothing else may touch them.
+    internal const float SkyBlend = 0.45f;
+    internal const float OverlayBlend = 0.30f;
 
     private static void Postfix(Map map, ref SkyTarget __result)
     {

@@ -33,6 +33,7 @@ public class CelestialLightingSettings : ModSettings
     public bool lowLightDesaturation = true;
     public bool skyColorTemperature = true;
     public bool polarNightBlue = true;
+    public bool purpleLight = true;
     public bool aurora = true;
 
     // §11a's ribbon curtain, a sub-toggle of `aurora` above. Separate because it is the one part of the
@@ -65,6 +66,10 @@ public class CelestialLightingSettings : ModSettings
     // presets, in the good direction: inert under Cinematic's 0.50 minNightBrightness, load-bearing
     // under Realistic's 0.)
     public float polarNightBlueStrength = 1f;
+
+    // §19c. Unlike polarNightBlueStrength this scales a single arm — §19c has no brightness half —
+    // so 0 is exactly "feature off" and needs no preset-specific caveat.
+    public float purpleLightStrength = 1f;
 
     // --- Indoor sky-occlusion tunables (drive IndoorOcclusionSettings.Current) ---
     // How much sky a doorway lets past once roofed cells are fully occluded; see
@@ -125,6 +130,8 @@ public class CelestialLightingSettings : ModSettings
         CelestialLightingFeatures.SkyColorTemperature = skyColorTemperature;
         CelestialLightingFeatures.PolarNightBlue = polarNightBlue;
         OzoneTwilightSettings.TintStrength = polarNightBlueStrength;
+        CelestialLightingFeatures.PurpleLight = purpleLight;
+        PurpleLightSettings.TintStrength = purpleLightStrength;
         CelestialLightingFeatures.Aurora = aurora;
         CelestialLightingFeatures.AuroraCurtain = auroraCurtain;
         CelestialLightingFeatures.EclipseDarkening = eclipseDarkening;
@@ -193,6 +200,8 @@ public class CelestialLightingSettings : ModSettings
         Scribe_Values.Look(ref skyColorTemperature, "skyColorTemperature", true);
         Scribe_Values.Look(ref polarNightBlue, "polarNightBlue", true);
         Scribe_Values.Look(ref polarNightBlueStrength, "polarNightBlueStrength", 1f);
+        Scribe_Values.Look(ref purpleLight, "purpleLight", true);
+        Scribe_Values.Look(ref purpleLightStrength, "purpleLightStrength", 1f);
         Scribe_Values.Look(ref aurora, "aurora", true);
         Scribe_Values.Look(ref auroraCurtain, "auroraCurtain", true);
         Scribe_Values.Look(ref eclipseDarkening, "eclipseDarkening", true);

@@ -77,6 +77,18 @@ public static class CelestialLightingFeatures
     // renders — the faithful pre-feature baseline for the harness A/B.
     public static bool PolarNightBlue = true;
 
+    // Feature key for PurpleLight (see CivilTwilightPersistenceKey for why it lives here).
+    public const string PurpleLightKey = "purple_light";
+
+    // §19c twilight purple light: Patch_PurpleLight nudges colors.sky/overlay toward the
+    // superposition of §8's reddened horizon band with §19's ozone-crossed vault, across the
+    // two-degree window (-6..-4) where both sources are live — colour-only, never glow, and with no
+    // brightness arm at all. When off, the patch early-returns via PurpleLight.WindowStrengthFor and
+    // the sky is exactly what vanilla/§2/§8/§9/§19 renders — the faithful pre-feature baseline for
+    // the harness A/B. Note that "on" is ALSO a no-op outside that window by construction, so this
+    // toggle only ever changes two degrees of every dusk and dawn.
+    public static bool PurpleLight = true;
+
     // Feature key for Aurora (see CivilTwilightPersistenceKey for why it lives here).
     public const string AuroraKey = "aurora";
 

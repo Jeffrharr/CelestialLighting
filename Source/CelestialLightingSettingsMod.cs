@@ -144,6 +144,9 @@ public class CelestialLightingSettingsMod : Mod
         // LabeledSlider, not AestheticSlider: this is a per-effect intensity, not one of the taste
         // axes the preset bundle owns, so moving it must NOT flip the preset radio to Custom.
         Settings.polarNightBlueStrength = LabeledSlider(listing, "  Polar blue strength", Settings.polarNightBlueStrength, 0f, 1f);
+        listing.CheckboxLabeled("Twilight purple light", ref Settings.purpleLight,
+            "Turn the sky lavender for the couple of degrees of dusk where the reddened band low in the west and the ozone-blued vault overhead are both fully lit. Both of those sources are short of green — one because a long air path reddened it, the other because ozone absorbs the middle of the spectrum — so where they overlap the sky loses its green and goes purple. Roughly 15-25 minutes after sunset, and the same again before dawn. Colour only; it changes nothing outside that narrow window.");
+        Settings.purpleLightStrength = LabeledSlider(listing, "  Purple light strength", Settings.purpleLightStrength, 0f, 1f);
         listing.CheckboxLabeled("Auroral sky tint", ref Settings.aurora,
             "Shift the night sky toward auroral colours during a solar flare or an aurora event, and at no other time. A flare gets a slow green/red shimmer; an aurora event borrows the colour vanilla is already cycling through, which its own sky render is too bright to show.");
         // The cost is in the LABEL, not only the tooltip. This is the one setting in the mod with a

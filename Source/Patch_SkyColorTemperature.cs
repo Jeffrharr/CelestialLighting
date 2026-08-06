@@ -27,8 +27,12 @@ public static class Patch_SkyColorTemperature
     // Per-channel maximum blend strengths, mirroring Patch_TwilightColor's (sky 0.35 / overlay
     // 0.25) so the two subsystems stack to a coherent — not overpowering — amount of warmth. The
     // pure SkyColorTemperature.TintStrength (0..1) scales these down away from the horizon.
-    private const float SkyBlend = 0.35f;
-    private const float OverlayBlend = 0.25f;
+    //
+    // Internal rather than private because §19c (Patch_PurpleLight) DERIVES its own blend from this
+    // pair and §19's — see the note on Patch_PolarNightBlue.SkyBlend for the union argument.
+    // Nothing else may touch them.
+    internal const float SkyBlend = 0.35f;
+    internal const float OverlayBlend = 0.25f;
 
     // How much further the blend opens up under a FULL sea-level aerosol column (§20b). At
     // aerosolFraction 1 the sky blend runs to 0.35 * 1.7 = 0.60 and the overlay to 0.43.
