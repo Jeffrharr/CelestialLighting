@@ -503,6 +503,14 @@ dark on a new one. The per-source tunables, the atmospheric-glow master toggle, 
 minimum-brightness clamp live in `NightRadianceSettings.cs`, holding the DESIGN defaults until the
 settings/presets screen (below) is built to write them (`// TODO(integration:`).
 
+**Snow lifts the floor (§21).** `NightRadiance.FloorGlowFor` multiplies the assembled floor by
+`SurfaceBuildup.CavityGainFor(map)` — the surface-cloud light cavity. Snow on the ground and a cloud
+base overhead trap light between them, amplifying starlight and moonlight by up to 2.34×, so a
+snowed-in map under an overcast no longer goes as black as a bare one. That is a real tension with
+this subsystem's pitch-black-nights premise and §21 resolves it in favour of the physics; it is
+resolved by the map's own state (mean buildup depth × §13's cloud opacity) rather than by a special
+case, and the gain is exactly 1 — bit-identical to pre-§21 — on any map with no buildup. See §21.
+
 ### 6a. Making moon shadows visible (`Patch_MoonShadowColor`)
 
 **Problem.** §6 computed moon shadows correctly and they still could not be seen. `Patch_ShadowDirection`
@@ -1011,6 +1019,13 @@ being blue from ozone absorption — and a real polar twilight is both at once, 
 a scene whose own colours have drained. On a high-latitude winter day both fire together; the
 ordering error between their two lerps is bounded at ~0.063 (≈16/255), which is a subtle hue
 difference rather than an on/off one, so neither carries a `HarmonyPriority`. See §19.
+
+**§21 needs nothing from this subsystem, and that is the design.** The surface-cloud cavity raises the
+night floor over a snowy map, and §9 keys its rod-vision ramp on brightness — so a snowed-in map
+desaturates *less*, automatically, with no term of §21's own. That is also physically right: snow is
+achromatic and shifts no hue while it desaturates less. §21 therefore writes **no saturation term**;
+a second desaturation input would have been a second source of truth for a number this subsystem
+already owns. See §21.
 
 ### Why the desaturation needs its own draw layer
 
@@ -1823,6 +1838,15 @@ Every dark-palette *non-weather* keeps the clear family's saturation of 1.25, so
 deficit is exactly 0 and the product zeroes it structurally. A luminance-only rule would have dimmed
 caves and the metal hell into blackness and needed an explicit guard bolted on; Orbit would have been
 spared only by the luck of shipping Clear's palette.
+
+**The classifier has a second consumer now (§21).** `WeatherDimming.CloudOpacityFor` is the `a_cloud`
+in §21's cavity — the term that decides whether the light snow throws upward comes back down. That
+makes the opacity a *physical* quantity as well as a rendering one, and it means everything §13 built
+to classify modded content reaches §21 for free: a mod author who attaches `WeatherCloudDeck` to say
+"my heat shimmer is not a cloud deck" is telling both subsystems, from one place. It also raises the
+cost of a misclassification slightly — a false overcast now brightens a snowy map's night floor as
+well as darkening its sky — which is another reason `Tools/WeatherAudit` is the thing to re-run after
+a mod-list change. See §21.
 
 ### Modded weathers, and why the palette alone was not enough
 
@@ -3059,6 +3083,13 @@ structurally zero on `Space` maps (§13's `HasSky` rule and its clear-family pal
 independently return 0 — see §18 and §13). `PenumbraContrastFactor` is *not* scattering-derived: it is
 the 2D approximation of the geometric penumbra itself, and it stays.
 
+**The third fill term, not yet built (§21).** Sea level has skylight, vacuum has the night budget —
+and snow is the third, strongest fill of the three. The surface-cloud cavity makes illumination
+near-isotropic, so shadows flatten and directional shading dies: the whiteout that makes terrain hard
+to read in snow. That is a *contrast* effect and this file is where it belongs, but it is per-cell
+(`SnowGrid.GetDepth`) and therefore sits on §16's ledger. §21 shipped the whole-map ambient half only
+and records the deferral; nothing in this file changed for it.
+
 ### Ordering audit: does anything downstream assume a non-black umbra?
 
 Required before landing, because §15b's eave shade and §9's night wash both composite shadow colour.
@@ -4212,6 +4243,215 @@ play is a question for a live A/B, and adding a knob before that is answered bak
   flagged for altitude. Same `AtmosphericColumn` model, different subsystem.
 - **Latitude-keyed ozone column for §19** remains §20's open item and is unaffected by this section —
   it is a latitude term in the stratosphere, where §20b is a pollution term in the lowest 1.5 km.
+## 21. Snow albedo: the surface-cloud light cavity (`AlbedoCavityMath` / `SurfaceBuildup`)
+
+**Problem.** Fresh snow under a thick overcast is far brighter than the same overcast over bare
+ground — and, counterintuitively, brighter *in diffuse light* than a **clear** sky over that same
+snow. Nothing in the mod models it, and the naive fix ("snowy maps are brighter") gets the
+interesting half exactly backwards.
+
+**The physics — a light-trapping cavity, not a bright surface.** Two ingredients:
+
+1. **Snow albedo is enormous.** Fresh snow reflects 0.80–0.90 of incident shortwave; settled or
+   melting snow 0.40–0.60; soil, rock and vegetation 0.10–0.25. Snow swings the surface reflectance
+   by roughly a factor of four.
+2. **That reflected light is returned by the cloud base.** Light bounces snow → cloud → snow →
+   cloud, a geometric series converging to
+
+   ```
+   A = 1 / (1 - a_surface * a_cloud)
+   ```
+
+| surface | overhead | A | gain vs bare ground |
+|---|---|---|---|
+| fresh snow (0.85) | thick overcast (0.75) | 2.76 | **2.34×** |
+| settled snow (0.50) | thick overcast (0.75) | 1.60 | 1.36× |
+| sand (0.35) | thick overcast (0.75) | 1.36 | 1.15× |
+| bare ground (0.20) | thick overcast (0.75) | 1.18 | 1.00× (baseline) |
+| fresh snow (0.85) | clear sky (~0.10 Rayleigh backscatter) | 1.09 | 1.07× |
+| bare ground (0.20) | clear sky | 1.02 | 1.00× |
+
+Snow buys ~2.3× under a deck and **7% under a clear sky**, because a clear sky is not a reflector.
+That inversion is the whole subsystem: it is why snowy overcast feels wrong, and why the effect
+cannot be had by making snowy maps brighter.
+
+### Why the shipped quantity is a ratio, not `A`
+
+`A` over bare ground is *already* 1.18 under an overcast. The cavity does not switch on when it
+snows; it merely gets much stronger. Every brightness anchor this mod ships — §6b's lux table, §7's
+starlight/airglow floors — was read off published measurements taken over ordinary ground, so the
+bare-ground cavity is already inside them. Applying raw `A` would double-count it and brighten a
+mud-and-grass map that nothing had changed.
+
+`AlbedoCavityMath.CavityGain` therefore divides by the bare-ground baseline. That makes "no buildup"
+**exactly 1.0** — bit-identical to pre-§21 behaviour, with no epsilon and nothing tuned, because the
+numerator and denominator are literally the same expression. `AlbedoCavityMathTests` leads with that
+pin and asserts it as an exact equality across the whole cloud range; if it ever needs a tolerance,
+the ratio has been replaced by something else.
+
+### Keyed on albedo, not on snow depth
+
+RimWorld 1.6 generalized snow into **weather buildup**: `SnowGrid.GetCategory` returns a
+`WeatherBuildupCategory` via `WeatherBuildupUtility`, and Odyssey ships `Map.sandGrid` — a
+byte-for-byte sibling of `SnowGrid` (same `NativeArray<float>` depth grid, same maintained
+`totalDepth` accumulator, same `MaxDepth = 1f`). Sand is not white but it is not bare ground either
+(~0.35 against soil's ~0.20), so it falls out of the same formula with a different constant.
+
+The pure core therefore takes an **albedo**, never a snow depth, and `BuildupSurfaceAlbedo` takes its
+three albedos as arguments rather than reading the constants. The sand arm is one adapter read plus
+`AlbedoCavityMath.SandAlbedo`, with no new maths — pinned structurally by
+`BuildupSurfaceAlbedo_TakesItsAlbedosAsArguments_SoSandNeedsNoSecondRamp`.
+
+**One correction to the framing this landed with:** sand is *not* the same grid reached through
+`WeatherBuildupUtility`. Both grids route their *categories* through
+`WeatherBuildupUtility.GetBuildupCategory`, but the *depths* live in two separate grids, so a sand
+arm reads `map.sandGrid` rather than a category off the snow grid.
+`ApiCompatibilityTests.Map_HasSandGrid_ShapedLikeSnowGrid` records that.
+
+### Depth → albedo: two segments, two different physical facts
+
+`BuildupSurfaceAlbedo` ramps in two pieces rather than one, because conflating them would make a
+half-thawed map either too bright or too dull:
+
+| depth | what is happening |
+|---|---|
+| `0 → 0.25` | **Optical cover.** A dusting does not have snow's albedo, it has a mixture of snow's and the dirt showing through. |
+| `0.25 → 1` | **Fresh versus settled.** Once the ground is hidden, the remaining variation is the snowpack's age. |
+
+Depth is a fair proxy for age *in RimWorld specifically*: `SnowGrid` melts depth down over time, so a
+deep grid **is** a recent fall and a shallow one **is** a settling pack. That is a happy accident of
+the vanilla simulation rather than a general truth, and it is what lets this ramp be honest with one
+input instead of needing an age we would have to track ourselves.
+
+The knee at `0.25` is **vanilla's own** `Dusting`/`Thin` boundary from
+`WeatherBuildupUtility.GetBuildupCategory`, not a number of ours — "you can no longer see the dirt"
+is the same threshold in both models, so the two agree by construction. `ApiCompatibilityTests`
+reads the IL literal so a Ludeon retune shows up as a disagreement rather than a drift.
+
+### Where it lands: §7's night floor
+
+`SurfaceBuildup.CavityGainFor(map)` multiplies the floor inside `NightRadiance.FloorGlowFor`, not
+inside `Patch_NightRadiance`. The gain belongs to "how dark can the sky over this map get", which is
+the question that file exists to answer for all three of its consumers (§7's blend, §18c's umbra
+floor, §18e's eclipse minimum) — so they cannot disagree about it. The two vacuum consumers cost
+nothing: the gain is exactly 1 on a vacuum map.
+
+This is the interaction the subsystem was worth building for. §7 delivers *true pitch-black nights*,
+and a **snowed-in map should not go pitch black** — a full moon on fresh snow under cloud is famously
+bright enough to read by. Before §21 it did. The tension is resolved in favour of the physics, and it
+is resolved by the map's own state rather than by a special case.
+
+§9 Purkinje then consumes the raised brightness **for free**, and correctly: §9 keys its rod-vision
+ramp on apparent brightness, and snow is achromatic — it shifts no hue while it desaturates less. §21
+therefore writes **no saturation term of its own**. A second desaturation input would have been a
+second source of truth for a number §9 already owns.
+
+### Composition with §13, and what is deliberately not modelled
+
+§21 lifts `SkyTarget.glow`; §13 dims `colors.sky`/`.overlay`. Two channels, and their **product** is
+what reaches the screen:
+
+| | gain (§21) | tint (§13) | composed |
+|---|---|---|---|
+| fresh snow, dry overcast | 2.344 | 0.820 | **1.923** |
+| fresh snow, blizzard | 2.344 | 0.745 | 1.747 |
+| fresh snow, clear sky | 1.071 | 1.000 | 1.071 |
+| bare ground, dry overcast | 1.000 | 0.820 | 0.820 |
+| bare ground, clear sky | 1.000 | 1.000 | 1.000 |
+
+The headline test is stated in those composed terms, not in raw gain, because a test on gain alone
+would assert something the player never sees and would pass even if §13's dimming ate the whole
+effect. The bare-ground row is the control: with no buildup the cavity gain is exactly 1, the dimming
+is unopposed, and an overcast is simply darker than a clear sky — which is what the mod did before
+§21 and must keep doing. Without that case the inversion test would pass just as well from a bug that
+brightened every overcast map.
+
+**What is deliberately NOT modelled: cloud extinction of the night sources.** A thick deck both
+closes the cavity (modelled) and attenuates the starlight and moonlight arriving through it (modelled
+nowhere — §13 owns weather attenuation and owns it on the colour channel, never on `.glow`). So the
+amplified night floor is an **upper bound** on a snowy overcast night. That is a consequence of §13's
+channel split rather than an oversight, and it is the first thing the live A/B should look at.
+
+### Gameplay scope: `.glow` is not a free channel
+
+§7 writes `SkyTarget.glow`, which **is** gameplay-visible — `GlowGrid.GroundGlowAt` feeds
+`PlantProperties.growMinGlow` (0.51), `CompPowerPlantSolar` and pawn psych-glow. Amplifying that
+floor could in principle make crops grow at night on a snowy map. It does not: the brightest
+reachable floor (starlight 0.02 + airglow 0.02 + a full moon 0.15 = 0.19) times the largest reachable
+gain (2.344) is **0.446**, comfortably under 0.51.
+
+That is a bound the shipped *constants* give us, not one the code enforces — raising
+`MaxMoonlightGlow` or the snow albedo far enough would cross it silently, and the symptom in play
+would be crops growing in the dark rather than anything that looks like a lighting bug. So it is
+pinned (`AmplifiedGlow_StaysBelowThePlantGrowthThreshold_OnTheDefaultFloor`) rather than left to be
+noticed.
+
+### Cost: whole-map, and why the per-cell half is deferred
+
+`map.snowGrid.TotalDepth / map.Area` is **O(1)**. Decompiling `Verse.SnowGrid` against 1.6's
+`Assembly-CSharp` shows a `private double totalDepth` incremented inside `AddDepth`/`SetDepth` and
+exposed as `public float TotalDepth => (float)totalDepth` — a maintained running total, not a grid
+scan. `SnowGrid.MaxDepth = 1f`, so dividing by `Map.Area` (`Size.x * Size.z`) gives a mean depth
+already normalized. `ApiCompatibilityTests.SnowGrid_HasTotalDepth_AsAMaintainedRunningTotal` asserts
+the private accumulator still exists, because that is the cheapest available proxy for "this is still
+free" — a reimplementation as a loop would break nothing, error nowhere, and quietly start scanning
+the map twice a frame.
+
+A whole-map average is also the **right** model for an ambient term, not merely the cheap one. The
+cavity is a multi-bounce integral over everything the cloud base can see, which at cloud-base height
+is most of the map — so a cell standing on bare mud in the middle of a snowfield genuinely is lifted
+by its neighbours. Averaging over `Map.Area` rather than over snow-capable cells is part of that:
+roofed cells, water and building footprints hold no snow and correctly dilute the mean.
+
+**DEFERRED: the per-cell shadow-fill half.** §18c owns "what fills a shadow" — skylight at sea level,
+the night budget in vacuum — and snow is the third term and the strongest of the three. The cavity
+also makes illumination near-isotropic, so shadows flatten and directional shading dies: the whiteout
+that makes terrain hard to read in snow. That is a *contrast* effect, not just a brightness one, and
+`SnowGrid.GetDepth(cell)` exists to drive it per cell (pinned by
+`SnowGrid_HasGetDepth_ForTheDeferredPerCellHalf`, which is a standing check that the option is still
+available rather than a test of anything we call).
+
+It is deferred on §16's ledger, not on taste. §16 measured what one dirty flag costs across §7b/§9/§15
+(issues #20 and #60), and a per-cell snow term would either need its own `SectionLayer` subscribing to
+`MapMeshFlagDefOf.Snow` — a flag that is raised constantly during snowfall, by
+`SnowGrid.CheckVisualOrPathCostChange` on every cell that crosses a category boundary — or a per-cell
+read inside an existing layer's vertex loop. Both are exactly the shape §16 says to cost before
+building. The ambient half needed none of that and is worth proving in play first.
+
+**Also deferred: the sand arm.** `Map.sandGrid` is one more read and the constant is already in the
+file; it waits on the same "prove the ambient half in play" gate.
+
+### Vacuum (§18)
+
+`A = 1`. No atmosphere, no cloud base, no second wall, no cavity. Shaped to `Source/Vacuum.cs`'s
+convention exactly: `bool inVacuum` is the **last** parameter on `Amplification` and `CavityGain`, it
+is **required rather than defaulted**, and the vacuum value returns before any atmospheric term is
+read — so the two albedo arguments are simply *not consulted* in the vacuum arm, and "an orbital
+platform's regolith bounces light off nothing" is expressed structurally rather than by a comment.
+Every `[TestCase]` pins the vacuum value alongside its sea-level counterpart in one sweep, per the
+same convention, so a regression in either shows up as a diverging pair.
+
+`SurfaceBuildup.CavityGainFor` calls `Vacuum.InVacuumForMap` exactly once and passes the bool down
+rather than early-returning on it — a second place that knows what vacuum means is a second place that
+can disagree with the pure core about it.
+
+### Settings and the feature gate
+
+`CelestialLightingFeatures.SnowAlbedo` (default on; off returns exactly 1 from `CavityGainFor`, so
+"off" is a bit-identical pre-§21 baseline). **Not surfaced in the settings screen**, for §18c's
+reason: the gain is *derived* from published albedos and §13's own cloud opacity rather than tuned,
+so there is no number here a player would sensibly dial. It exists as a harness A/B axis
+(`snow_albedo`, bridged in `ProbeRegistration`) and as an escape hatch.
+
+### Outstanding: what the live A/B has to answer
+
+- **Ice sheet and sea ice.** Both are permanently snow-covered, so both become **permanently**
+  brighter. That is physically right and probably desirable, but it is a persistent change to some of
+  the game's darkest and most hostile biomes, and it wants a deliberate look rather than being
+  discovered in play.
+- **The overcast night upper bound.** See the extinction note above — a snowy overcast night is
+  currently amplified without the deck attenuating the moonlight it is amplifying.
+- Nothing here has been seen in-game. Every number above is offline.
 
 ## Settings and presets
 
