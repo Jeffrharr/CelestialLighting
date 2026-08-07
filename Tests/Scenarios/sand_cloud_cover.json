@@ -1,0 +1,35 @@
+{
+  "name": "sand_cloud_cover",
+  "saveFile": "minimal_colony.rws",
+  "description": "Deferred item from PR #117 (sec21 sand arm), now measured after #100/#120 (sec22 continuous cloud-cover fraction on Clear). Latitude 55, day 5, held at hour 1 (night): WeatherDimming.DimmingFor already short-circuits to zero dimming on true Clear weather regardless of cavity gain (see DESIGN.md sec21's 'issue #100' section), so a daytime/noon reading cannot show anything moving here even with cloud_cover on -- sand_albedo_cavity.json's own committed scenario never tests a Clear-noon condition for the same reason. Two 128x128 SetSand patches at sand_albedo_cavity.json's own (64,64) and (186,186) quadrant anchors -- reusing that scenario's own already-vetted anchors rather than inventing new geometry -- covering roughly half the fixture's 250x250 map (measured MeanSandDepth ~0.51 via a temporary diagnostic probe, well past ShallowBuildupDepth=0.25's ramp-start). A SINGLE 128x128 patch (#117's own literal size/placement, and also the harness's 128x128=16384-cell SetSand/SetTerrain footprint cap -- a single step cannot go larger) was tried first and rejected: centered, it measured mean depth 0.2474 -- just under the ramp's degenerate first segment's 0.25 threshold, because the fixture's colony structures (walls, not roof -- SandGrid/SnowGrid.CanHaveSand blocks full-fill buildings, not roofed-but-open floor tiles) eat several hundred cells out of any single quadrant, and 16384 cells is too tight a margin above the 15625-cell (0.25 x 62500) threshold to survive that loss reliably at any anchor tried. Two non-overlapping patches clear it with room to spare while staying genuinely partial (not the full-map saturation #117's own overcast measurement used). DISCOVERED DURING AUTHORING, AND WORKED AROUND RATHER THAN TOLERATED: cloud_cover_fraction is NOT stable across otherwise-identical fresh runs of this scenario -- three consecutive runs measured ticks_abs_day 65, 65, then 5 (a whole RimWorld year, 60 days, apart) with no scenario change, because SetSeason/SetTime jump to a day-of-year *within whatever absolute year the clock is already in at boot* (see RimWorldTestHarness's ClockProbes.cs header for the documented mechanism), and CloudCoverDrift's noise field has a ~205-year period -- so 'day 5' genuinely samples a different point in the field depending on which year the boot lands in, while sun_elevation stays put (RimWorld's solar geometry is annual-cyclic, so it doesn't care which year it is). Rather than pin a loose range and accept that noise, this scenario forces the fraction: cloud_cover_forced_fraction (CloudCoverFractionOverride.cs, a Harmony postfix over our own CloudCoverClock.FractionForMap, dev-only and excluded from the shipped DLL same as PlanetsmithTiltOverride) pins it to a fixed 0.35 whenever cloud_cover is also on, so every probe below is an exact reproducible pin regardless of which absolute year the harness happens to boot into. cloud_cover off first reproduces #117's own measured gap (the cavity reads only the discrete Clear-sky backscatter, no cloud deck to bounce light off); cloud_cover on (with the fraction forced) then substitutes sec22's continuous per-map fraction at a known, fixed value.",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "55" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "5" } },
+    { "type": "SetTerrain", "args": { "def": "Soil", "width": "128", "height": "128", "anchor": "64,64" } },
+    { "type": "SetTerrain", "args": { "def": "Soil", "width": "128", "height": "128", "anchor": "186,186" } },
+    { "type": "SetSand", "args": { "depth": "1", "width": "128", "height": "128", "anchor": "64,64" } },
+    { "type": "SetSand", "args": { "depth": "1", "width": "128", "height": "128", "anchor": "186,186" } },
+    { "type": "SetWeather", "args": { "weatherDef": "Clear", "instant": "true" } },
+    { "type": "SetTime", "args": { "hour": "1" } },
+    { "type": "Probe", "args": { "probeName": "sun_elevation", "expectedValue": "-50.0017", "tolerance": "0.01" } },
+
+    { "type": "SetFeature", "args": { "featureName": "cloud_cover", "enabled": "false" } },
+    { "type": "Probe", "args": { "probeName": "cloud_cover_fraction", "expectedValue": "0.0000", "tolerance": "0.0005" } },
+    { "type": "SetFeature", "args": { "featureName": "snow_albedo", "enabled": "false" } },
+    { "type": "Probe", "args": { "probeName": "surface_cavity_gain", "expectedValue": "1.0000", "tolerance": "0.0005" } },
+    { "type": "Screenshot", "args": { "fileName": "sand_cloudcover_off_effect_off.png" } },
+    { "type": "SetFeature", "args": { "featureName": "snow_albedo", "enabled": "true" } },
+    { "type": "Probe", "args": { "probeName": "surface_cavity_gain", "expectedValue": "1.0046", "tolerance": "0.002" } },
+    { "type": "Screenshot", "args": { "fileName": "sand_cloudcover_off_effect_on.png" } },
+
+    { "type": "SetFeature", "args": { "featureName": "cloud_cover", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "cloud_cover_forced_fraction", "enabled": "true" } },
+    { "type": "Probe", "args": { "probeName": "cloud_cover_fraction", "expectedValue": "0.3500", "tolerance": "0.0005" } },
+    { "type": "SetFeature", "args": { "featureName": "snow_albedo", "enabled": "false" } },
+    { "type": "Probe", "args": { "probeName": "surface_cavity_gain", "expectedValue": "1.0000", "tolerance": "0.0005" } },
+    { "type": "Screenshot", "args": { "fileName": "sand_cloudcover_on_effect_off.png" } },
+    { "type": "SetFeature", "args": { "featureName": "snow_albedo", "enabled": "true" } },
+    { "type": "Probe", "args": { "probeName": "surface_cavity_gain", "expectedValue": "1.0178", "tolerance": "0.0005" } },
+    { "type": "Screenshot", "args": { "fileName": "sand_cloudcover_on_effect_on.png" } }
+  ]
+}
