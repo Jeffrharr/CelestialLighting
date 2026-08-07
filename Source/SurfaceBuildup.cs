@@ -9,9 +9,9 @@ namespace CelestialLighting;
 //
 // SHARED READ, same discipline as NightRadiance.FloorGlowFor and WeatherDimming.CloudOpacityFor.
 // Only §7's night floor consumes it today, but the cavity is a property of the MAP rather than of
-// the night — §21's per-cell shadow-fill half (DESIGN.md §21) and the sand arm are both expected to
-// want the same number — so it is a function anyone can call rather than a value one patch leaves
-// behind for another to find.
+// the night — §21's per-cell shadow-fill half (DESIGN.md §21) is expected to want the same number —
+// so it is a function anyone can call rather than a value one patch leaves behind for another to
+// find.
 //
 // WHY MEAN DEPTH AND NOT A PER-CELL READ. `map.snowGrid.TotalDepth` is a maintained running total,
 // not a per-call grid scan: decompiling Verse.SnowGrid against 1.6's Assembly-CSharp shows a
@@ -20,14 +20,15 @@ namespace CelestialLighting;
 // dividing by Map.Area (Size.x * Size.z) gives a mean depth already normalized by
 // SnowGrid.MaxDepth = 1f. `SnowGrid.GetDepth(cell)` exists and would let the shadow-fill half go
 // per-cell later; DESIGN.md §21 records why that is deliberately deferred rather than merely
-// unwritten (§16's section-invalidation cost ledger, issues #20 and #60).
+// unwritten (§16's section-invalidation cost ledger, issues #20 and #60). `Map.sandGrid` shares the
+// same shape (Verse.SandGrid.TotalDepth), so the sand read below costs the same one field access.
 //
 // A whole-map average is also the RIGHT model for the term it feeds, not merely the cheap one. The
 // cavity is a multi-bounce integral over everything the cloud base can see, which at cloud-base
 // height is most of the map — so the ambient lift over a half-thawed map genuinely is the areal
 // mean, and a cell standing on bare mud in the middle of a snowfield is genuinely lifted by its
 // neighbours. Averaging over Map.Area rather than over snow-capable cells only is part of that:
-// roofed cells, water and building footprints hold no snow and correctly dilute the mean.
+// roofed cells, water and building footprints hold no snow (or sand) and correctly dilute the mean.
 public static class SurfaceBuildup
 {
     // How much the surface-cloud cavity amplifies diffuse light on this map, as a multiplier on the
@@ -60,11 +61,25 @@ public static class SurfaceBuildup
         // AlbedoCavityMath about it.
         bool inVacuum = Vacuum.InVacuumForMap(map);
 
-        float surfaceAlbedo = AlbedoCavityMath.BuildupSurfaceAlbedo(
-            MeanBuildupDepth(map),
+        float snowSurfaceAlbedo = AlbedoCavityMath.BuildupSurfaceAlbedo(
+            MeanSnowDepth(map),
             AlbedoCavityMath.BareGroundAlbedo,
             AlbedoCavityMath.SettledSnowAlbedo,
             AlbedoCavityMath.FreshSnowAlbedo);
+
+        // Odyssey's desert sibling. Sand has no "settling" story the way snow does — RimWorld never
+        // reports a sandstorm ageing a dune the way it ages a snowpack — so there is no middle albedo
+        // to give BuildupSurfaceAlbedo's second segment: both the bare and shallow arguments are
+        // BareGroundAlbedo, which flattens the 0->ShallowBuildupDepth segment to a no-op and leaves a
+        // single ramp from bare ground straight to SandAlbedo across ShallowBuildupDepth->1. Pinned
+        // by BuildupSurfaceAlbedo_TakesItsAlbedosAsArguments_SoSandNeedsNoSecondRamp.
+        float sandSurfaceAlbedo = AlbedoCavityMath.BuildupSurfaceAlbedo(
+            MeanSandDepth(map),
+            AlbedoCavityMath.BareGroundAlbedo,
+            AlbedoCavityMath.BareGroundAlbedo,
+            AlbedoCavityMath.SandAlbedo);
+
+        float surfaceAlbedo = AlbedoCavityMath.CombinedSurfaceAlbedo(snowSurfaceAlbedo, sandSurfaceAlbedo);
 
         // §13's classifier, unchanged and unduplicated: the same blended opacity that darkens the
         // sky and softens the shadows is the a_cloud that closes the cavity. That is the seam the
@@ -94,12 +109,29 @@ public static class SurfaceBuildup
     private static float CloudOpacityOrClear(Map map) =>
         map == null ? 0f : WeatherDimming.CloudOpacityFor(map);
 
-    // Mean weather-buildup depth across the whole map, in [0,1]. 0 before the grid exists (a map
-    // still being generated asks for sky targets) or if Area is somehow zero, which is the same
-    // answer as "bare ground" and so degrades to a no-op rather than to a divide.
-    private static float MeanBuildupDepth(Map map)
+    // Mean snow-buildup depth across the whole map, in [0,1]. 0 before the grid exists (a map still
+    // being generated asks for sky targets) or if Area is somehow zero, which is the same answer as
+    // "bare ground" and so degrades to a no-op rather than to a divide.
+    private static float MeanSnowDepth(Map map)
     {
         SnowGrid grid = map.snowGrid;
+        if (grid == null)
+            return 0f;
+
+        int area = map.Area;
+        if (area <= 0)
+            return 0f;
+
+        return grid.TotalDepth / area;
+    }
+
+    // Mean sand-buildup depth across the whole map, in [0,1]. Same shape and the same reasons as
+    // MeanSnowDepth above — SandGrid.TotalDepth is the same maintained running total SnowGrid keeps,
+    // per ApiCompatibilityTests.Map_HasSandGrid_ShapedLikeSnowGrid, so this read is O(1) regardless
+    // of map size and costs nothing extra worth measuring.
+    private static float MeanSandDepth(Map map)
+    {
+        SandGrid grid = map.sandGrid;
         if (grid == null)
             return 0f;
 

@@ -478,6 +478,10 @@ public static class ProbeRegistration
         FeatureRegistry.Register(
             CelestialLightingFeatures.SnowAlbedoKey,
             enabled => CelestialLightingFeatures.SnowAlbedo = enabled);
+        // The raw gain SurfaceBuildup.CavityGainFor hands to both consumers (§7 night floor, §13
+        // daytime recovery) — see SurfaceCavityGainProbe's header for why a screenshot A/B alone
+        // cannot tell a genuinely-small lift from no lift at all.
+        ProbeRegistry.Register(new SurfaceCavityGainProbe());
         // Not a CelestialLightingFeatures flag: bridges §7b's minimum-indoor-brightness slider so a
         // visual scenario can A/B a sealed room at full black against one held above it. "enabled" ==
         // true means raise the floor to a clearly-visible 0.25; false restores the shipped 0 (black).
