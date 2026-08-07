@@ -4408,6 +4408,35 @@ Realistic Planets 2 and Planetsmith both overhaul worldgen and may shift the ele
 the same curve, and the curve is monotone and bounded at both ends — so no compat branch is
 warranted; a sanity check on a generated world is worth doing when one of them is next loaded.
 
+**They shift `Tile.rainfall` too, which matters more than elevation does here.** RP2 replaces
+vanilla's noise-based rainfall with a moisture pipeline — `MoistureLayer`,
+`MoistureAdvectionLayer`, `OrographyLayer`, `RainfallLayer`, `AridityLayer` — every stage of which is
+player-tunable through its `ClimateConfiguration` (orographic windward/leeward strength, rain-shadow
+decay, ocean e-folding distance, and so on). Rainfall is the keying axis for §20d's Ångström exponent
+(`AerosolSpectrum.AngstromExponentForRainfall`) and §20e's background aerosol
+(`AtmosphericColumn.BackgroundAerosolFraction`), so a player who turns their humidity knobs is
+moving our sunset colour. The same graceful-degradation argument covers it: both readers clamp
+between vanilla's own ExtremeDesert (340 mm) and rainforest (2000 mm) breakpoints and are monotone
+inside them, so an unfamiliar distribution slides along the curve rather than off it.
+
+**Cloud cover is the same story, and more directly than rainfall's other two consumers.** §22's
+partial cloud cover is not a reading of the current `WeatherDef` — it computes a fraction, and
+`SeasonalWetFraction` computes it from exactly the two quantities RP2 rewrites. `CloudCoverClock`
+reads `tileInfo.rainfall` into each `WeatherDef.commonalityRainfallFactor`, and gates each entry on
+`GenTemperature.GetTemperatureFromSeasonAtTile`, which reaches `SeasonalShiftAmplitudeAt` — a method
+RP2 patches outright. So an RP2 world's humidity and its seasonal temperature curve both land on our
+cloud fraction, and from there on §21's cavity and §23's underlighting.
+
+Nothing needs doing about that, and the reason is worth stating rather than assumed: both inputs are
+read through vanilla's own API surface at the moment they are used, not cached from worldgen, so
+RP2's rainfall writes and its `GenTemperature` prefixes are picked up automatically. The pattern
+holds for every one of §20d/§20e/§22's rainfall consumers — we key on vanilla quantities, and a mod
+that changes those quantities changes what we render without either side knowing about the other.
+
+(An earlier draft of this block asserted that nothing here computes cloud cover at all. That was
+written against a working copy that predated §22 by a fortnight, and it is exactly the drift this
+file's own preamble warns about — the code wins.)
+
 A `SiteAltitudeStrength` slider (0–2, default 1.0 = physical) is deliberately **not** shipped up
 front. Whether the honest range reads too subtle in play is a question for a live A/B, not for
 design, and adding a knob before that is answered would bake in a guess.
@@ -6913,10 +6942,10 @@ On screen, at noon on day 15, latitude 55°, on the shipped Cinematic preset (me
 
 | comparison | median ΔE | what it is |
 |---|---|---|
-| feature off → on, their default tilt | **2.26** (mean 2.96) | what a player with an untouched RP2 world sees |
-| feature off → on, their `VeryHigh` tilt | **2.25** (mean 2.32) | the override arm |
-| their default tilt → their `VeryHigh` tilt | **0.00** (mean 0.80) | tilt magnitude alone, at noon |
-| their midsummer → their midwinter | **31.10** | day 15 against day 45 |
+| feature off → on, their default tilt | **2.25** (mean 2.90) | what a player with an untouched RP2 world sees |
+| feature off → on, their `VeryHigh` tilt | **2.25** (mean 2.27) | the override arm |
+| their default tilt → their `VeryHigh` tilt | **0.00** (mean 0.81) | tilt magnitude alone, at noon |
+| their midsummer → their midwinter | **30.26** | day 15 against day 45 |
 
 **The row that surprised us is the third one, and it is the one to read first — and the reason it is
 not what it looks like.** Going from a 22.5° planet to a 45° one moves noon from 57.5° to 80° of
@@ -6924,8 +6953,8 @@ elevation and moves the median pixel not at all. That reads as "the tilt does no
 pinned rather than argued: `shadow_extrude_far_cells` goes **0.892 → 0.247** across exactly that
 handover, which is cot(57.5°) × 1.4 and cot(80°) × 1.4 to five decimals. The tilt reaches the
 renderer in full; a 3.6× change in shadow length simply does not move a median taken over a frame
-that is mostly sunlit ground. The mean does move (0.80 against a median of exactly zero), and it
-moves further under Cinematic than under Realistic (0.80 vs 0.36) precisely because Cinematic's 1.4×
+that is mostly sunlit ground. The mean does move (0.81 against a median of exactly zero), and it
+moves further under Cinematic than under Realistic (0.81 vs 0.36) precisely because Cinematic's 1.4×
 shadow scale makes those shadow pixels bigger — which is itself the confirmation that the difference
 lives in the shadows and nowhere else.
 
@@ -6941,10 +6970,21 @@ actually experiences: on a 45° planet at 55°N, RP2's midwinter puts the noon s
 horizon (pinned: `sun_elevation` −10.00). `realistic_planets_steep_tilt_day45.png` is a night frame
 taken at 12:00.
 
-A consistency check worth recording: `feature off, day 15` and `steep tilt, day 30` came out
-**pixel-identical** (ΔE 0.00 across every sampled pixel, mean included). Both are declination zero at
-the same hour and latitude, reached from opposite sides — one by our phase being flat, the other by
-theirs — so the quarter-year offset is not merely close to a quarter of a year, it is exactly one.
+**The quarter-year offset is exact, and the proof for it moved during review.** `feature off, day 15`
+and `steep tilt, day 30` are both declination zero at the same hour and latitude, reached from
+opposite sides — one by our phase being flat, the other by theirs. Measured against the base this
+branch was written on, the two frames came out **pixel-identical**, ΔE 0.00 including the mean, which
+was a satisfying way to show that the offset is exactly a quarter of a year rather than approximately
+one.
+
+Rebasing onto §22 broke that, and correctly: the two frames sit on different days of the year, §22
+gives each day its own cloud fraction, and the pair now measures **ΔE 1.08**. Nothing about the
+geometry changed — `sun_elevation` reads 34.9999962 in both, to the digit — so what the rebase
+removed was a coincidence the check was leaning on, not the property it was checking. The real proof
+was always the probe: `axial_tilt_declination` reads 1.02e-06 at one and −5.37e-07 at the other, zero
+to six decimal places on both sides, and both are pinned. Recorded here rather than quietly
+re-baselined because a screenshot pair that stops being identical is exactly the shape of thing that
+gets explained away.
 
 Measured on Cinematic, the shipped default, with the persisted settings file cleared first — this box
 had been carrying Realistic, and `run_test.sh` does not reset mod settings. That skew is worth
