@@ -1,0 +1,75 @@
+{
+  "name": "cloud_cover_label",
+  "saveFile": "minimal_colony.rws",
+  "description": "§22's UI half of PR #118's own checklist gap: the \"- N% cloudy\" weather-panel suffix (CloudCoverLabelKey = \"cloud_cover_label\") never got its own live A/B, only cloud_cover.json's sky tint did. Reuses cloud_cover.json's fixture exactly -- latitude 45, day 40, hour 16 -- because that scenario already surveyed hour 16 as the drift peak (0.2710) under this tile/season, and Patch_CloudCoverLabel reads the same CloudCoverClock.FractionForMap the sky patch does, so the peak hour is peak for both. Master cloud_cover stays ON throughout both captures (Patch_CloudCoverLabel early-returns if the master is off, per CelestialLightingFeatures' own note on CloudCoverLabel being a sub-toggle of CloudCover, same relationship as AuroraCurtain to Aurora) -- only cloud_cover_label toggles, so the pair isolates the text suffix from the sky-tint change cloud_cover.json already measured. No Screenshot step in this harness supports a crop/region arg (Shared/Steps/BuiltIn/VerificationSteps.cs's ScreenshotStep takes only fileName), so these are full 1920x1080 captures like cc_off.png/cc_on.png; the label sits in GlobalControls' fixed 230px-wide weather Rect at the screen's top-right, so ΔE for this pair should be measured over that cropped region, not the full frame -- a full-frame ΔE for a small UI-text change would read as far weaker than the widget itself shows.",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_cover",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "16"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_cover_fraction",
+        "expectedValue": "0.2710",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_cover_label",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cc_label_off.png",
+        "hideUi": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_cover_label",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cc_label_on.png",
+        "hideUi": "false"
+      }
+    }
+  ]
+}
