@@ -357,6 +357,44 @@ public class AlbedoCavityMathTests
         Assert.That(sandGain, Is.LessThan(snowGain));
     }
 
+    // --- Combining more than one cover ---
+
+    [Test]
+    public void CombinedSurfaceAlbedo_IsTheIdentity_WhenOnlyOneCoverIsPresent()
+    {
+        // The common case, and the one every pre-Odyssey map and every desert map without a
+        // freak snowfall lands in: exactly one of the two grids is ever nonzero, so combining must
+        // reproduce that one ramp exactly rather than pulling it toward bare ground.
+        Assert.That(
+            AlbedoCavityMath.CombinedSurfaceAlbedo(AlbedoCavityMath.FreshSnowAlbedo, AlbedoCavityMath.BareGroundAlbedo),
+            Is.EqualTo(AlbedoCavityMath.FreshSnowAlbedo));
+
+        Assert.That(
+            AlbedoCavityMath.CombinedSurfaceAlbedo(AlbedoCavityMath.BareGroundAlbedo, AlbedoCavityMath.SandAlbedo),
+            Is.EqualTo(AlbedoCavityMath.SandAlbedo));
+    }
+
+    [Test]
+    public void CombinedSurfaceAlbedo_TakesTheStrongerCover_NotTheSum()
+    {
+        // A map reading nonzero on both grids at once (a dusted desert) must not brighten past
+        // what its more dominant single cover would produce on its own — the ground is buried
+        // under one thing or the other, never both stacked.
+        float combined = AlbedoCavityMath.CombinedSurfaceAlbedo(
+            AlbedoCavityMath.FreshSnowAlbedo, AlbedoCavityMath.SandAlbedo);
+
+        Assert.That(combined, Is.EqualTo(AlbedoCavityMath.FreshSnowAlbedo));
+        Assert.That(combined, Is.LessThan(AlbedoCavityMath.FreshSnowAlbedo + AlbedoCavityMath.SandAlbedo));
+    }
+
+    [Test]
+    public void CombinedSurfaceAlbedo_IsBareGround_WhenNeitherCoverIsPresent()
+    {
+        Assert.That(
+            AlbedoCavityMath.CombinedSurfaceAlbedo(AlbedoCavityMath.BareGroundAlbedo, AlbedoCavityMath.BareGroundAlbedo),
+            Is.EqualTo(AlbedoCavityMath.BareGroundAlbedo));
+    }
+
     // --- The glow consumer ---
 
     [TestCase(0.00f, 2.344828f, 0.000000f)]   // black stays black: there is nothing to amplify

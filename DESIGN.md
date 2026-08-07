@@ -5578,14 +5578,27 @@ byte-for-byte sibling of `SnowGrid` (same `NativeArray<float>` depth grid, same 
 
 The pure core therefore takes an **albedo**, never a snow depth, and `BuildupSurfaceAlbedo` takes its
 three albedos as arguments rather than reading the constants. The sand arm is one adapter read plus
-`AlbedoCavityMath.SandAlbedo`, with no new maths — pinned structurally by
-`BuildupSurfaceAlbedo_TakesItsAlbedosAsArguments_SoSandNeedsNoSecondRamp`.
+`AlbedoCavityMath.SandAlbedo`, with no new maths in the ramp itself — pinned structurally by
+`BuildupSurfaceAlbedo_TakesItsAlbedosAsArguments_SoSandNeedsNoSecondRamp`. Sand has no "settling"
+story the way snow does, so its call passes `BareGroundAlbedo` for both the bare and shallow
+arguments — flattening the optical-cover segment to a no-op and leaving a single ramp straight from
+bare ground to `SandAlbedo` above `ShallowBuildupDepth`.
 
 **One correction to the framing this landed with:** sand is *not* the same grid reached through
 `WeatherBuildupUtility`. Both grids route their *categories* through
-`WeatherBuildupUtility.GetBuildupCategory`, but the *depths* live in two separate grids, so a sand
+`WeatherBuildupUtility.GetBuildupCategory`, but the *depths* live in two separate grids, so the sand
 arm reads `map.sandGrid` rather than a category off the snow grid.
 `ApiCompatibilityTests.Map_HasSandGrid_ShapedLikeSnowGrid` records that.
+
+**Combining the two covers.** `SurfaceBuildup.CavityGainFor` reads both grids independently — each
+map keeps a `snowGrid` and a `sandGrid` at once, whether or not the biome ever fills the other — and
+composes their two ramped albedos with `AlbedoCavityMath.CombinedSurfaceAlbedo`, which takes the
+**max**, not a sum. A cell's ground is buried under snow, or showing sand, or bare; never a stack of
+both depths at once, so the map's true areal-mean albedo is bounded above by whichever single cover
+is currently more optically dominant. Max is also the identity on every map that only ever reads
+nonzero on one grid — everything that shipped before this — because the other argument is always
+exactly `BareGroundAlbedo`, and each ramp's own floor is `BareGroundAlbedo` by construction.
+`CombinedSurfaceAlbedo_IsTheIdentity_WhenOnlyOneCoverIsPresent` pins that.
 
 ### Depth → albedo: two segments, two different physical facts
 
@@ -5802,8 +5815,26 @@ It is deferred on §16's ledger, not on taste. §16 measured what one dirty flag
 read inside an existing layer's vertex loop. Both are exactly the shape §16 says to cost before
 building. The ambient half needed none of that and is worth proving in play first.
 
-**Also deferred: the sand arm.** `Map.sandGrid` is one more read and the constant is already in the
-file; it waits on the same "prove the ambient half in play" gate.
+**Shipped: the sand arm.** `SurfaceBuildup.CavityGainFor` reads `map.sandGrid` alongside `snowGrid`
+and composes the two ramps with `AlbedoCavityMath.CombinedSurfaceAlbedo` (max, not a sum — see
+"Combining the two covers" above). It landed after the snow half's ambient gate was already proven
+in play; a desert map with dune buildup was the live A/B this addition owed, and it has now been run
+(`sand_albedo_cavity.json`) — see the outstanding-note bullet below for the measured numbers.
+
+A first attempt at that scenario painted a single 128×128 `SetSand` patch (the harness's per-call
+cell cap) on the fixture's 250×250 map and measured **ΔE 0.00 at every tested condition** — not a
+weak effect but an invisible one, and different enough from snow's result under the identical patch
+size (ΔE 6.06) to treat as suspicious rather than simply "the sand arm is subtler." A
+`surface_cavity_gain` probe (`SurfaceBuildup.CavityGainFor` read straight off the live map) confirmed
+it: gain measured `1.0000931`, essentially the no-op floor. The cause is the flat first ramp segment
+sand deliberately uses (see "sand has no settling story" above) meeting `MeanSandDepth`'s whole-map
+areal average (see "why mean depth and not a per-cell read" above): one 128×128 patch on a 250×250
+map dilutes to a mean depth of ≈0.262, only *just* past `ShallowBuildupDepth` (0.25) — enough to
+register on the probe but not enough to move the ramp's second segment by anything the eye can catch.
+Snow's identical patch produces a real ΔE at the same dilution because its own first segment is *not*
+flat (it climbs `BareGroundAlbedo → SettledSnowAlbedo` across exactly that span), so any snow depth
+above zero already carries most of snow's albedo lift before dilution enters into it at all — an
+asymmetry between the two arms' ramp shapes, not a bug in either.
 
 ### Vacuum (§18)
 
@@ -5843,7 +5874,20 @@ so there is no number here a player would sensibly dial. It exists as a harness 
   vanilla's palette, so the physical claim (snowy overcast brighter than snowy *clear* sky) cannot be
   drawn there at all. An additive pass is the only way to express it; whether that is worth the
   complexity is a live-A/B question, not a desk one.
-- Nothing here has been seen in-game. Every number above is offline.
+- **The sand arm's own ΔE — measured.** `sand_albedo_cavity.json`, re-run with `SetSand`/`SetTerrain`
+  tiled four ways to cover the fixture's full 250×250 map (`MeanSandDepth` = 1.0, the ramp's fully
+  saturated case) rather than one 128×128 patch: **overcast night median ΔE 1.36** (visible on close
+  inspection), **overcast noon median ΔE 4.48** (visible at a glance, `surface_cavity_gain` 1.1415),
+  **clear night ΔE 0.00** (imperceptible — clear weather closes §13's cloud opacity to near zero, so
+  there is nothing for the cavity to amplify regardless of buildup depth; `surface_cavity_gain`
+  1.0145 confirms the gain itself is real but has almost no opacity to act on). On the reference scale
+  (§20c 0.36 … §21 snow 6.06) the sand arm's ceiling sits between §20 site altitude (1.88) and §21
+  snow, genuinely visible rather than merely wired — but only once buildup covers most of the map, per
+  the dilution note above. A realistic partial dune field will read weaker in direct proportion to its
+  coverage fraction of `Map.Area`, which is the same areal-mean honesty the mean-depth model gives
+  every other reading of this subsystem, not a special case for sand.
+- Every number above other than the sand arm's is still offline; nothing else in this subsystem has
+  been seen in-game yet.
 
 
 ## 22. Partial cloud cover during Clear weather (`CloudCoverDrift` / `SeasonalWetFraction` / `CloudCoverSky`)

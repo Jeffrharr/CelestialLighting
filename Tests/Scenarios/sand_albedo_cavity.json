@@ -1,0 +1,182 @@
+{
+  "name": "sand_albedo_cavity",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "55"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "5"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": { "def": "Soil", "width": "128", "height": "128", "anchor": "64,64" }
+    },
+    {
+      "type": "SetTerrain",
+      "args": { "def": "Soil", "width": "128", "height": "128", "anchor": "64,186" }
+    },
+    {
+      "type": "SetTerrain",
+      "args": { "def": "Soil", "width": "128", "height": "128", "anchor": "186,64" }
+    },
+    {
+      "type": "SetTerrain",
+      "args": { "def": "Soil", "width": "128", "height": "128", "anchor": "186,186" }
+    },
+    {
+      "type": "SetSand",
+      "args": { "depth": "1", "width": "128", "height": "128", "anchor": "64,64" }
+    },
+    {
+      "type": "SetSand",
+      "args": { "depth": "1", "width": "128", "height": "128", "anchor": "64,186" }
+    },
+    {
+      "type": "SetSand",
+      "args": { "depth": "1", "width": "128", "height": "128", "anchor": "186,64" }
+    },
+    {
+      "type": "SetSand",
+      "args": { "depth": "1", "width": "128", "height": "128", "anchor": "186,186" }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Fog"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "1"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "snow_albedo",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "sand_overcast_night_off.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "snow_albedo",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "sand_overcast_night_on.png"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "surface_cavity_gain",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "snow_albedo",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "sand_clear_night_off.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "snow_albedo",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "sand_clear_night_on.png"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "surface_cavity_gain",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Fog"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "snow_albedo",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "sand_overcast_noon_off.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "snow_albedo",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "sand_overcast_noon_on.png"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "surface_cavity_gain",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    }
+  ]
+}

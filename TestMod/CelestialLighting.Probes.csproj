@@ -104,6 +104,9 @@
     <Compile Include="../Source/Probes/GeometryEvalCountProbe.cs" Link="GeometryEvalCountProbe.cs" />
     <Compile Include="../Source/Probes/SectionLayerDrawCountProbe.cs" Link="SectionLayerDrawCountProbe.cs" />
     <Compile Include="../Source/Probes/ShadowExtrusionProbe.cs" Link="ShadowExtrusionProbe.cs" />
+    <!-- §21's cavity gain, read from the live map — see the file header for why a screenshot A/B
+         alone cannot distinguish a genuinely small lift from no lift at all. -->
+    <Compile Include="../Source/Probes/SurfaceCavityGainProbe.cs" Link="SurfaceCavityGainProbe.cs" />
   </ItemGroup>
 
   <ItemGroup>

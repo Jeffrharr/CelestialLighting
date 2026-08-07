@@ -157,6 +157,23 @@ public static class AlbedoCavityMath
         return Lerp(shallowAlbedo, deepAlbedo, settled);
     }
 
+    // --- Combining more than one cover ---
+
+    // The area-averaged albedo of whatever is actually on the ground, given the two independent
+    // buildup ramps a map can have live at once (snow, sand). MAX rather than a sum or a further
+    // blend: a given patch of ground is buried under snow OR showing sand OR bare, never a mix of
+    // snow-depth and sand-depth stacked on top of each other, so the map's true areal-mean albedo is
+    // bounded above by whichever single cover is currently most optically dominant. Summing would
+    // double-count a map that happened to read nonzero on both grids (a desert dusted by a rare
+    // snowfall, say) past what either cover alone could produce.
+    //
+    // This also keeps the existing regression pins exact with no new casework: on a map with only
+    // ever one grid live (everything shipped before Odyssey), the other argument is always exactly
+    // `bareAlbedo`, and max(x, bareAlbedo) == x whenever x >= bareAlbedo — which BuildupSurfaceAlbedo
+    // guarantees by construction, so this is the identity in every case the mod already tests.
+    public static float CombinedSurfaceAlbedo(float snowSurfaceAlbedo, float sandSurfaceAlbedo) =>
+        snowSurfaceAlbedo > sandSurfaceAlbedo ? snowSurfaceAlbedo : sandSurfaceAlbedo;
+
     // --- The cavity ---
 
     // The multi-bounce amplification A = 1 / (1 - a_surface * a_cloud), in [1, 1/(1-MaxCavityProduct)].
