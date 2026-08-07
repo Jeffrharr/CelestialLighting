@@ -5900,7 +5900,13 @@ replacement rather than a transpiler — see that file's header for why this cod
 duplicating a short, stable vanilla method over an IL-shape patch across a RimWorld update. Gated on
 `CurWeatherPerceived`, not `curWeather`: the label already tracks whichever weather WeatherManager
 judges visually dominant mid-transition, so the suffix asks the same question the label text itself
-is built from rather than the state-machine field `Patch_CloudCoverSky` gates on.
+is built from rather than the state-machine field `Patch_CloudCoverSky` gates on. Shown at every
+reading including 0% — a player watching the label to confirm the feature is alive should see a
+stable readout every time it's Clear, not have it silently vanish on a calm hour. Because of that,
+this patch checks `CelestialLightingFeatures.CloudCover` directly rather than leaning on
+`FractionForMap`'s own zero-return the way `Patch_CloudCoverSky` does: a calm-but-on 0% and an
+off 0% now read as visibly different strings ("Clear - 0% cloudy" vs plain "Clear"), so only an
+explicit flag check keeps "off" reproducing the pre-feature label exactly.
 
 ### Settings and the feature gate
 

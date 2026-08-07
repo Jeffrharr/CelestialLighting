@@ -279,6 +279,9 @@ public static class ProbeRegistration
         FeatureRegistry.Register(
             CelestialLightingFeatures.CloudCoverKey,
             enabled => CelestialLightingFeatures.CloudCover = enabled);
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.CloudCoverLabelKey,
+            enabled => CelestialLightingFeatures.CloudCoverLabel = enabled);
         // Not a CelestialLightingFeatures flag: this bridges the "true pitch-black" atmospheric-floor
         // switch that lives on NightRadianceSettings, so a probe scenario can drop the constant
         // starlight+airglow floor out of the night_radiance sum and watch only moonlight remain.

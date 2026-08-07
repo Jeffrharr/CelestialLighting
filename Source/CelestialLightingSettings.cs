@@ -49,6 +49,12 @@ public class CelestialLightingSettings : ModSettings
     public bool indoorSkyOcclusion = true;
     public bool weatherDimming = true;
     public bool cloudCover = true;
+
+    // §22's weather-label "- N% cloudy" suffix, a sub-toggle of cloudCover above — same relationship
+    // as auroraCurtain to aurora. See CelestialLightingFeatures.CloudCoverLabel for why this covers
+    // only the UI readout, not the sky tint.
+    public bool cloudCoverLabel = true;
+
     public bool eaveShadows = true;
 
     // --- Night-radiance tunables (drive NightRadianceSettings.Current) ---
@@ -141,6 +147,7 @@ public class CelestialLightingSettings : ModSettings
         CelestialLightingFeatures.IndoorSkyOcclusion = indoorSkyOcclusion;
         CelestialLightingFeatures.WeatherDimming = weatherDimming;
         CelestialLightingFeatures.CloudCover = cloudCover;
+        CelestialLightingFeatures.CloudCoverLabel = cloudCoverLabel;
         CelestialLightingFeatures.EaveShadows = eaveShadows;
         // One player-facing switch drives both halves of §15 — the split flag exists only so the
         // harness can isolate them (see CelestialLightingFeatures.EaveShade). A shipped game must
@@ -200,6 +207,7 @@ public class CelestialLightingSettings : ModSettings
         Scribe_Values.Look(ref lowLightDesaturation, "lowLightDesaturation", true);
         Scribe_Values.Look(ref weatherDimming, "weatherDimming", true);
         Scribe_Values.Look(ref cloudCover, "cloudCover", true);
+        Scribe_Values.Look(ref cloudCoverLabel, "cloudCoverLabel", true);
         Scribe_Values.Look(ref skyColorTemperature, "skyColorTemperature", true);
         Scribe_Values.Look(ref polarNightBlue, "polarNightBlue", true);
         Scribe_Values.Look(ref polarNightBlueStrength, "polarNightBlueStrength", 1f);
