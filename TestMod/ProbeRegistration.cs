@@ -125,6 +125,14 @@ public static class ProbeRegistration
         // together — before the fix, this stayed flat at the ClearSkyAlbedo backscatter (~1.07 at
         // full snow) no matter what cloud_cover_fraction read.
         ProbeRegistry.Register(new SurfaceBuildupCavityGainProbe());
+        // §23 (issue #88 option 1). Two metrics off one class, same reasoning as EaveCellProbe: the
+        // headline claim is a comparison between a high deck and a low deck at the same elevation, and
+        // a scenario needs cloud_underlight_altitude alongside the multiplier to confirm which deck it
+        // actually measured rather than trusting the weather roll silently.
+        ProbeRegistry.Register(
+            new CloudUnderlightProbe("cloud_underlight", CloudUnderlightProbe.Metric.Multiplier));
+        ProbeRegistry.Register(new CloudUnderlightProbe(
+            "cloud_underlight_altitude", CloudUnderlightProbe.Metric.AltitudeMetres));
         // The three map-kind gates themselves, so a cavern scenario pins the DECISION and not just its
         // consequences — every gated effect also reads zero for unrelated reasons (wrong time of day,
         // no active condition), so the effect probes alone cannot say whether a gate actually fired.
@@ -287,6 +295,9 @@ public static class ProbeRegistration
         FeatureRegistry.Register(
             CelestialLightingFeatures.CloudCoverLabelKey,
             enabled => CelestialLightingFeatures.CloudCoverLabel = enabled);
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.CloudUnderlightKey,
+            enabled => CelestialLightingFeatures.CloudUnderlight = enabled);
         // Not a CelestialLightingFeatures flag: this bridges the "true pitch-black" atmospheric-floor
         // switch that lives on NightRadianceSettings, so a probe scenario can drop the constant
         // starlight+airglow floor out of the night_radiance sum and watch only moonlight remain.

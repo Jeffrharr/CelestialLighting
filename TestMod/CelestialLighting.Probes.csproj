@@ -98,6 +98,9 @@
     <!-- Issue #100: §21's cavity gain, paired with cloud_cover_fraction above so a scenario can show
          the two moving together on a Clear map — see SurfaceBuildupCavityGainProbe.cs's header. -->
     <Compile Include="../Source/Probes/SurfaceBuildupCavityGainProbe.cs" Link="SurfaceBuildupCavityGainProbe.cs" />
+    <!-- §23 (issue #88, option 1). Two metrics off one class — see CloudUnderlightProbe.cs's own
+         header for why the altitude half is needed alongside the multiplier. -->
+    <Compile Include="../Source/Probes/CloudUnderlightProbe.cs" Link="CloudUnderlightProbe.cs" />
     <Compile Include="../Source/Probes/SkyGlowProbe.cs" Link="SkyGlowProbe.cs" />
     <Compile Include="../Source/Probes/SkyOverlayWarmthProbe.cs" Link="SkyOverlayWarmthProbe.cs" />
     <Compile Include="../Source/Probes/SkyOverlayLuminanceProbe.cs" Link="SkyOverlayLuminanceProbe.cs" />
