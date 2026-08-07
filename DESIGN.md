@@ -5937,6 +5937,33 @@ so there is no number here a player would sensibly dial. It exists as a harness 
   the dilution note above. A realistic partial dune field will read weaker in direct proportion to its
   coverage fraction of `Map.Area`, which is the same areal-mean honesty the mean-depth model gives
   every other reading of this subsystem, not a special case for sand.
+- **The sand arm under Clear weather, with §22's partial cloud cover — measured, item deferred by
+  PR #117.** `sand_cloud_cover.json` reuses `sand_albedo_cavity.json`'s own two 128×128 `SetSand`
+  patches (roughly half the fixture's map, `MeanSandDepth` ≈ 0.51 — genuinely partial, not the
+  full-map saturation the reading above uses) and holds latitude 55, day 5, hour 1 (night — see
+  `WeatherDimming.DimmingFor`'s Clear short-circuit above for why noon cannot show anything here).
+  Before issue #100/PR #120, §21's night-floor cavity read a fixed zero cloud opacity on Clear
+  regardless of §22's actual per-map fraction; after it, the cavity reads §22's continuous fraction
+  during Clear the same way it already read discrete Overcast/Rain/Fog opacity. With `cloud_cover`
+  off, `surface_cavity_gain` is 1.0051 (vs the 1.0000 no-op floor with the effect off) — the discrete
+  Clear-sky backscatter alone, reproducing #117's own reading. With `cloud_cover` on, gain is 1.0178 —
+  more than triple the cloud-off lift, because now the cavity also has §22's cloud deck to bounce
+  light off. Both pairs measured **ΔE 0.00** (cloud off) and **ΔE 0.59** (cloud on) — both imperceptible
+  per this doc's ΔE-1 bar, consistent with the reading above: a partial, half-map patch under Clear
+  moves gain by roughly 0.5–1.8%, well short of the full-map-saturation overcast readings that do clear
+  the bar. So: #100/#120 is confirmed live to change what the cavity reads on Clear (gain roughly
+  triples), but that change is not yet visible on screen at this patch size and time of day — the same
+  "correct but not yet shipped-visible" outcome §20c records, not a bug in either fix.
+  **Harness note, worth keeping for later scenario authors:** `cloud_cover_fraction` was not
+  reproducible across fresh runs at first — `CloudCoverDrift`'s noise field has a ~205-year period, and
+  the harness's `SetSeason`/`SetTime` jump to a day-of-year *within whatever absolute year the game's
+  clock is already in at boot* (documented on `RimWorldTestHarness`'s `ClockProbes.cs`), so "day 5"
+  samples a different point in that noise depending on which year the boot happened to land in — three
+  fresh runs measured `cloud_cover_fraction` anywhere from 0.14 to 0.22 with no scenario change. Rather
+  than pin a loose range, `CloudCoverFractionOverride.cs` (dev-only, same shape and boundary as
+  `PlanetsmithTiltOverride`) postfixes `CloudCoverClock.FractionForMap` to force a fixed 0.35 behind a
+  `cloud_cover_forced_fraction` harness flag, so every probe above is an exact, reproducible pin
+  regardless of which year the fixture boots into.
 - Every number above other than the sand arm's is still offline; nothing else in this subsystem has
   been seen in-game yet.
 

@@ -1,0 +1,79 @@
+using HarmonyLib;
+using Verse;
+
+namespace CelestialLighting.Probes;
+
+// Excluded from the shipped CelestialLighting.dll (see the <Compile Remove> in
+// CelestialLighting.csproj) and compiled into TestMod/CelestialLighting.Probes.csproj instead, same
+// boundary PlanetsmithTiltOverride draws and for the same reason: this must never reach a player's
+// game.
+//
+// WHY THIS EXISTS. CloudCoverClock.FractionForMap's noise is a pure function of (tileId, absTick,
+// wetFraction) -- CloudCoverDrift.cs itself is already fully deterministic given those inputs, no
+// change needed there. The instability is entirely upstream, in what LIVE input the impure half
+// feeds it: absTick comes from Find.TickManager.TicksAbs, and SetSeason/SetTime jump to a
+// day-of-year *within whatever absolute year the clock is already in at boot* (see
+// RimWorldTestHarness's ClockProbes.cs header). RimWorld's year is 60 days; CloudCoverDrift's noise
+// field repeats only every ~205 years -- so "day 5, hour 1" samples a genuinely different point in
+// the field depending on which year the boot happens to land in. Three consecutive fresh runs of
+// the same scenario measured ticks_abs_day 65, 65, then 5 with no scenario change, and
+// cloud_cover_fraction swung from ~0.14 to ~0.22 as a direct result. That is a real, reproducible
+// harness characteristic (day-of-year is not the same as absolute tick), not a CelestialLighting
+// bug -- but it makes the live fraction unusable as an exact scenario pin.
+//
+// So: sidestep it. A Harmony postfix on CloudCoverClock.FractionForMap overwrites its result with a
+// fixed constant whenever the harness flag below is on, so a scenario gets a specific, reproducible
+// cloud fraction on demand instead of tolerating a value that depends on which year the fixture
+// happened to boot into. This is strictly a test seam over our OWN method, so a Harmony patch
+// (rather than PlanetsmithTiltOverride's reflection-into-another-mod's-settings approach) is the
+// natural shape -- there is no external object to reach into.
+//
+// PATCHED MANUALLY, NOT VIA [HarmonyPatch]/PatchAll(). The only PatchAll() call in this codebase is
+// CelestialLightingMod's, and it scans the SHIPPED assembly -- this file is compiled into the
+// separate TestMod/CelestialLighting.Probes.csproj instead, which that scan never sees. Every other
+// probe that patches something (GeometryEvalCountProbe, SectionLayerDrawCountProbe,
+// AuroraPathTimingProbe) does it the same way this does: a static Install() that builds its own
+// Harmony instance and patches explicitly, called once from ProbeRegistration's static constructor.
+public static class CloudCoverFractionOverride
+{
+    public const string FeatureKey = "cloud_cover_forced_fraction";
+
+    // 0.35, not 0 and not 1: high enough that CavityGain's math has real headroom to move (a value
+    // near either clamp boundary would mask a clamping bug the same way PlanetsmithTiltOverride's
+    // own header warns 90 degrees would for tilt), and it matches CloudCoverDrift.WobbleAmplitude in
+    // magnitude only coincidentally -- picked as "a plainly mid-range fraction", not derived from it.
+    public const float ForcedFraction = 0.35f;
+
+    private static bool active;
+    private static bool installed;
+
+    // Called once from ProbeRegistration's static constructor, mirroring GeometryEvalCounters'
+    // Install(). Idempotent so a second call (there should never be one, but nothing enforces that)
+    // does not double-patch.
+    public static void Install()
+    {
+        if (installed)
+            return;
+
+        installed = true;
+        Harmony harmony = new Harmony("celestiallighting.probes.cloudcoverfractionoverride");
+        harmony.Patch(
+            AccessTools.Method(typeof(CloudCoverClock), nameof(CloudCoverClock.FractionForMap)),
+            postfix: new HarmonyMethod(AccessTools.Method(typeof(CloudCoverFractionOverride), nameof(Postfix))));
+    }
+
+    public static void Set(bool enabled) => active = enabled;
+
+    // Logged on every actual override, not only on failure -- see PlanetsmithTiltOverride's own
+    // comment on why a silent test hook is worse than a noisy one: it is indistinguishable from the
+    // feature under test simply not working.
+    private static void Postfix(ref float __result)
+    {
+        if (!active)
+            return;
+
+        Log.Message(
+            $"[CelestialLighting.Probes] Cloud cover fraction override: {__result} -> {ForcedFraction}.");
+        __result = ForcedFraction;
+    }
+}

@@ -298,6 +298,16 @@ public static class ProbeRegistration
         FeatureRegistry.Register(
             CelestialLightingFeatures.CloudUnderlightKey,
             enabled => CelestialLightingFeatures.CloudUnderlight = enabled);
+        // Not a CelestialLightingFeatures flag: forces CloudCoverClock.FractionForMap's result to a
+        // fixed constant so a scenario gets a specific, reproducible cloud fraction on demand instead
+        // of depending on which absolute year the harness's clock jump happened to land in (see
+        // CloudCoverFractionOverride's header). Registered with defaultEnabled FALSE for the same
+        // reason PlanetsmithTiltOverride is — the resting state is "leave the real drift alone".
+        CloudCoverFractionOverride.Install();
+        FeatureRegistry.Register(
+            CloudCoverFractionOverride.FeatureKey,
+            enabled => CloudCoverFractionOverride.Set(enabled),
+            defaultEnabled: false);
         // Not a CelestialLightingFeatures flag: this bridges the "true pitch-black" atmospheric-floor
         // switch that lives on NightRadianceSettings, so a probe scenario can drop the constant
         // starlight+airglow floor out of the night_radiance sum and watch only moonlight remain.

@@ -48,6 +48,10 @@
          see. The file itself explains why a save fixture cannot supply one. Dev-only by
          construction, like everything else in this project. -->
     <Compile Include="../Source/Probes/PlanetsmithTiltOverride.cs" Link="PlanetsmithTiltOverride.cs" />
+    <!-- The other file under Probes/ that WRITES rather than reads: a Harmony postfix that forces
+         CloudCoverClock.FractionForMap to a fixed constant, so a scenario gets a reproducible cloud
+         fraction instead of depending on which absolute year the harness's clock jump lands in. -->
+    <Compile Include="../Source/Probes/CloudCoverFractionOverride.cs" Link="CloudCoverFractionOverride.cs" />
     <Compile Include="../Source/Probes/MoonDeclinationProbe.cs" Link="MoonDeclinationProbe.cs" />
     <Compile Include="../Source/Probes/ShadowVectorXProbe.cs" Link="ShadowVectorXProbe.cs" />
     <Compile Include="../Source/Probes/CivilTwilightProbe.cs" Link="CivilTwilightProbe.cs" />
