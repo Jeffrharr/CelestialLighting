@@ -1,3 +1,4 @@
+using RimWorld;
 using Verse;
 
 namespace CelestialLighting;
@@ -81,33 +82,65 @@ public static class SurfaceBuildup
 
         float surfaceAlbedo = AlbedoCavityMath.CombinedSurfaceAlbedo(snowSurfaceAlbedo, sandSurfaceAlbedo);
 
-        // §13's classifier, unchanged and unduplicated: the same blended opacity that darkens the
-        // sky and softens the shadows is the a_cloud that closes the cavity. That is the seam the
-        // whole subsystem hangs on — WeatherCloudDeck's per-def override reaches this term for free,
-        // so a mod author who declares "my heat shimmer is not a cloud deck" is telling §21 as well
-        // as §13, from one place. The skyless-map cases (caves, pocket maps, orbit) come along too:
-        // CloudOpacityFor returns 0 for them via MapSky.HasSky, which leaves a clear-sky backscatter
-        // and a gain of ~1.07 at worst — and their buildup depth is 0 anyway, so the surface term
-        // pins the gain at exactly 1 regardless.
+        // §13's classifier, unduplicated: the same blended opacity that darkens the sky and softens
+        // the shadows is the a_cloud that closes the cavity for every weather except Clear, where
+        // §22's continuous fraction takes over (see CloudOpacityOrClear below and issue #100). That
+        // is the seam the whole subsystem hangs on — WeatherCloudDeck's per-def override reaches
+        // this term for free, so a mod author who declares "my heat shimmer is not a cloud deck" is
+        // telling §21 as well as §13, from one place. The skyless-map cases (caves, pocket maps,
+        // orbit) come along too: CloudOpacityFor returns 0 for them via MapSky.HasSky, which leaves
+        // a clear-sky backscatter and a gain of ~1.07 at worst — and their buildup depth is 0
+        // anyway, so the surface term pins the gain at exactly 1 regardless.
         //
         // ONE COUPLING WORTH STATING, because it is a user-visible consequence rather than an
         // implementation detail: CloudOpacityFor is gated on CelestialLightingFeatures.WeatherDimming.
-        // Turning §13 off therefore also opens the cavity here — every map reads as a clear sky and
-        // snow buys ~7% instead of ~2.3x. That is the honest answer rather than a bug: with §13 off
-        // the mod has no model of a cloud deck at all, and inventing a second one for §21 alone would
-        // be exactly the "two sources of truth for how overcast it is" that sharing the classifier
-        // exists to prevent.
+        // Turning §13 off therefore also opens the cavity here on every NON-Clear map — it reads as
+        // a clear sky and snow buys ~7% instead of ~2.3x. That is the honest answer rather than a
+        // bug: with §13 off the mod has no model of a cloud deck at all, and inventing a second one
+        // for §21 alone would be exactly the "two sources of truth for how overcast it is" that
+        // sharing the classifier exists to prevent. §22's own gate (CelestialLightingFeatures
+        // .CloudCover) is independent of §13's, so a Clear map keeps reading its cloud-cover fraction
+        // regardless of whether §13 is on — see CloudOpacityOrClear below.
         float cloudAlbedo = AlbedoCavityMath.CloudBaseAlbedo(cloudOpacity);
 
         return AlbedoCavityMath.CavityGain(
             surfaceAlbedo, AlbedoCavityMath.BareGroundAlbedo, cloudAlbedo, inVacuum);
     }
 
-    // §13's blended cloud opacity, or a clear sky when there is no map to ask. Split out only so the
-    // one-argument entry point above can share the body below without reading the opacity inside the
-    // feature gate — a null map must not reach WeatherDimming.CloudOpacityFor.
-    private static float CloudOpacityOrClear(Map map) =>
-        map == null ? 0f : WeatherDimming.CloudOpacityFor(map);
+    // §13's blended cloud opacity for every weather except Clear; §22's continuous cloud-cover
+    // fraction for Clear (issue #100). Before §22 existed, §13 scored Clear as exactly opacity 0 —
+    // "no opinion", not "no cloud" — so on a partly-cloudy Clear day the cavity was reading a
+    // literal clear sky (ClearSkyAlbedo, ~1.07x at most) even while §22 was already rendering that
+    // same sky as up to a third overcast. §22's own hourly-drifting fraction is the more specific
+    // answer for exactly this one weather, so the cavity should read it instead of falling through
+    // to §13's abstention.
+    //
+    // Gated on the map's actual current weather being Clear, not on `weatherOpacity == 0`, for the
+    // same reason AlbedoCavityMath.EffectiveCloudOpacity's header gives: §13 can also read 0 because
+    // it is turned off or because the map has no sky at all, and neither of those is "this map is
+    // in Clear weather right now" — conflating them would leak §22's cloud drift into caves and
+    // pocket maps that have no business seeing a tile's weather at all.
+    //
+    // FEATURE-OFF FALLBACK: CloudCoverClock.FractionForMap returns exactly 0 when
+    // CelestialLightingFeatures.CloudCover is off (its own gate, checked once for both of its
+    // callers — see that file's header), which is the same 0 §13 already reports for Clear. So with
+    // §22 off this reproduces the discrete pre-#100 behaviour bit-for-bit: a Clear sky reads as a
+    // literal clear sky, exactly as it did before this file changed.
+    private static float CloudOpacityOrClear(Map map)
+    {
+        if (map == null)
+            return 0f;
+
+        float weatherOpacity = WeatherDimming.CloudOpacityFor(map);
+        bool weatherIsClear = map.weatherManager?.curWeather == WeatherDefOf.Clear;
+
+        // Only read CloudCoverClock when it can matter — it is a cheap per-tile dictionary lookup,
+        // but there is no reason to touch it (or seed its cache) for a map that is not in Clear
+        // weather right now.
+        float cloudCoverFraction = weatherIsClear ? CloudCoverClock.FractionForMap(map) : 0f;
+
+        return AlbedoCavityMath.EffectiveCloudOpacity(weatherOpacity, weatherIsClear, cloudCoverFraction);
+    }
 
     // Mean snow-buildup depth across the whole map, in [0,1]. 0 before the grid exists (a map still
     // being generated asks for sky targets) or if Area is somehow zero, which is the same answer as

@@ -122,6 +122,32 @@ public static class AlbedoCavityMath
     public static float CloudBaseAlbedo(float cloudOpacity) =>
         Lerp(ClearSkyAlbedo, OvercastCloudAlbedo, Clamp01(cloudOpacity));
 
+    // Which of two cloud signals the cavity should read (issue #100). §13's classifier scores
+    // Clear as exactly opacity 0 by construction — WeatherDimmingMath's palette/precipitation
+    // product is zero on both axes for Clear, Windy and Orbit (DESIGN.md §13's census table) — so
+    // that 0 has never meant "no cloud"; it has only ever meant "§13 has no opinion about this
+    // weather". §22 (DESIGN.md §22) exists specifically to answer the question §13 leaves blank: a
+    // continuous, slowly-drifting cloud FRACTION for exactly the one weather §13 abstains on.
+    //
+    // The substitution is keyed on `weatherIsClear`, not on `weatherOpacity == 0`, so the two
+    // sources can never disagree about which weather each owns — the same mutual-exclusion argument
+    // Patch_CloudCoverSky's header already makes for the sky-colour consumer. A weather that reads
+    // 0 for some other reason (§13 turned off, a skyless map) is not Clear and must keep reading
+    // `weatherOpacity` unchanged, or a cave would suddenly pick up a tile's Clear-day cloud drift.
+    //
+    // `weatherIsClear` and `cloudCoverFraction` are passed in rather than derived here, keeping this
+    // function — like the rest of the file — free of any Verse/WeatherDef dependency; the adapter
+    // (SurfaceBuildup.CloudOpacityOrClear) owns the one WeatherDefOf.Clear comparison and the one
+    // CloudCoverClock.FractionForMap read.
+    //
+    // FEATURE-OFF FALLBACK IS FREE. CloudCoverClock.FractionForMap already returns exactly 0 when
+    // CelestialLightingFeatures.CloudCover is off, and §13 already scores Clear as exactly 0 too —
+    // so passing 0 through here on a Clear map reproduces the discrete pre-#100 reading bit for bit,
+    // with no extra branch needed in this function to reproduce it.
+    public static float EffectiveCloudOpacity(
+        float weatherOpacity, bool weatherIsClear, float cloudCoverFraction) =>
+        weatherIsClear ? cloudCoverFraction : weatherOpacity;
+
     // The area-averaged albedo of the ground, given the map's mean weather-buildup depth in [0,1]
     // (RimWorld's SnowGrid.MaxDepth is 1f, so the depth is already normalized).
     //

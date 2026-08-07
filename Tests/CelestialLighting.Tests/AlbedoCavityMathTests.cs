@@ -290,6 +290,54 @@ public class AlbedoCavityMathTests
         Assert.That(AlbedoCavityMath.ClearSkyAlbedo, Is.GreaterThan(0f));
     }
 
+    // --- Effective cloud opacity: §22's continuous fraction vs §13's discrete classifier (issue #100) ---
+
+    [TestCase(0.00f)]
+    [TestCase(0.27f)]   // mid-range: the value that would have been invisible to §21 before #100
+    [TestCase(1.00f)]
+    public void EffectiveCloudOpacity_OnClearWeather_ReadsTheCloudCoverFraction(float cloudCoverFraction)
+    {
+        // The headline case the issue is about: on Clear, §13's own opacity is irrelevant (it is
+        // always exactly 0 for Clear by construction — see WeatherDimmingMath's census table) and
+        // §22's continuous fraction is what the cavity should see instead, whatever §13 happens to
+        // report.
+        Assert.That(
+            AlbedoCavityMath.EffectiveCloudOpacity(0f, weatherIsClear: true, cloudCoverFraction),
+            Is.EqualTo(cloudCoverFraction));
+    }
+
+    [TestCase(0.00f)]
+    [TestCase(0.55f)]
+    [TestCase(1.00f)]
+    public void EffectiveCloudOpacity_OnNonClearWeather_IgnoresCloudCoverAndReadsTheWeatherOpacity(
+        float weatherOpacity)
+    {
+        // Any real weather (Overcast, Rain, a modded palette) must keep reading §13's classifier
+        // exactly as before #100 — the substitution only ever applies to the one weather §13
+        // abstains on. A stale or nonsensical cloud-cover fraction here (0.9, deliberately far from
+        // weatherOpacity) must be completely ignored, not blended in.
+        Assert.That(
+            AlbedoCavityMath.EffectiveCloudOpacity(weatherOpacity, weatherIsClear: false, cloudCoverFraction: 0.9f),
+            Is.EqualTo(weatherOpacity));
+    }
+
+    [Test]
+    public void EffectiveCloudOpacity_FeatureOff_FallsBackToTheExactPreIssue100Reading()
+    {
+        // §22's own feature gate (CelestialLightingFeatures.CloudCover) already makes
+        // CloudCoverClock.FractionForMap return exactly 0 when off — the adapter passes that 0
+        // straight through as `cloudCoverFraction`. On a Clear map that must reproduce precisely
+        // what §13 itself already reported for Clear (also exactly 0), so "feature off" is
+        // bit-identical to the discrete pre-#100 behaviour with no special case in this function.
+        float preIssue100Reading = AlbedoCavityMath.EffectiveCloudOpacity(
+            weatherOpacity: 0f, weatherIsClear: false, cloudCoverFraction: 0f);
+        float featureOffReading = AlbedoCavityMath.EffectiveCloudOpacity(
+            weatherOpacity: 0f, weatherIsClear: true, cloudCoverFraction: 0f);
+
+        Assert.That(featureOffReading, Is.EqualTo(preIssue100Reading));
+        Assert.That(featureOffReading, Is.EqualTo(0f));
+    }
+
     // --- Depth to albedo ---
 
     [TestCase(0.000f, 0.200f)]   // bare
