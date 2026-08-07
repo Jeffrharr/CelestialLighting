@@ -1992,6 +1992,178 @@ public class ApiCompatibilityTests
                 && field.DeclaringType.FullName == "RimWorld.MapMeshFlagDefOf"
                 && field.Name == flagName);
 
+    // --- §22 partial cloud cover (CloudCoverClock, Patch_CloudCoverSky, Patch_CloudCoverLabel) ---
+    //
+    // §22 reads the same three CurrentWeatherCommonality ingredients §13's guard does not need —
+    // WeatherCommonalityRecord.weather, WeatherDef.commonalityRainfallFactor, WeatherDef.temperatureRange
+    // — plus the biome and season lookups that get it there. Grouped separately from §13's section
+    // above because the two subsystems ask BiomeDef.baseWeatherCommonalities two different questions:
+    // §13 counts records, §22 walks the whole list and evaluates each one.
+
+    [Test]
+    public void Map_TileInfo_ReturnsTile()
+    {
+        // Distinct from Map.Tile (a PlanetTile id, already pinned above) — this is the STRUCT with the
+        // biome/rainfall/temperature data on it. CloudCoverClock reads both off the same map for two
+        // different reasons: Tile for tileId as AerosolDriftClock/SunClock already establish, TileInfo
+        // for everything SeasonalWetFractionFor evaluates.
+        var type = GetType("Verse.Map");
+        Assert.That(type, Is.Not.Null, "Verse.Map no longer exists");
+        var property = type!.Properties.SingleOrDefault(p => p.Name == "TileInfo");
+        Assert.That(property, Is.Not.Null, "Map.TileInfo no longer exists");
+        Assert.That(property!.PropertyType.FullName, Is.EqualTo("RimWorld.Planet.Tile"),
+            "Map.TileInfo no longer returns RimWorld.Planet.Tile");
+    }
+
+    [Test]
+    public void Tile_HasPrimaryBiome()
+    {
+        var type = GetType("RimWorld.Planet.Tile");
+        Assert.That(type, Is.Not.Null, "RimWorld.Planet.Tile no longer exists");
+        var property = type!.Properties.SingleOrDefault(p => p.Name == "PrimaryBiome");
+        Assert.That(property, Is.Not.Null,
+            "Tile.PrimaryBiome no longer exists — CloudCoverClock reads its baseWeatherCommonalities off it");
+        Assert.That(property!.PropertyType.FullName, Is.EqualTo("RimWorld.BiomeDef"));
+    }
+
+    [Test]
+    public void WeatherCommonalityRecord_HasWeather()
+    {
+        // §13 above only needed .commonality; §22 also dereferences .weather itself, to read each
+        // candidate's rainRate/snowRate/temperatureRange/commonalityRainfallFactor.
+        var type = GetType("RimWorld.WeatherCommonalityRecord");
+        Assert.That(type, Is.Not.Null, "RimWorld.WeatherCommonalityRecord no longer exists");
+        var field = type!.Fields.SingleOrDefault(f => f.Name == "weather" && f.IsPublic);
+        Assert.That(field, Is.Not.Null,
+            "WeatherCommonalityRecord.weather no longer exists or is no longer public");
+        Assert.That(field!.FieldType.FullName, Is.EqualTo("Verse.WeatherDef"));
+    }
+
+    [Test]
+    public void WeatherDef_HasTemperatureRange()
+    {
+        // The eligibility gate CurrentWeatherCommonality itself uses (weather.temperatureRange
+        // .Includes(currentTemperature)) — see CloudCoverClock's header for why §22 mirrors this
+        // exactly rather than inventing its own eligibility rule.
+        var type = GetType("Verse.WeatherDef");
+        Assert.That(type, Is.Not.Null, "Verse.WeatherDef no longer exists");
+        var field = type!.Fields.SingleOrDefault(f => f.Name == "temperatureRange" && f.IsPublic);
+        Assert.That(field, Is.Not.Null,
+            "WeatherDef.temperatureRange no longer exists or is no longer public");
+        Assert.That(field!.FieldType.FullName, Is.EqualTo("Verse.FloatRange"));
+    }
+
+    [Test]
+    public void WeatherDef_HasCommonalityRainfallFactor()
+    {
+        // A nullable SimpleCurve — CloudCoverClock's null check (factor 1, not 0, when absent) mirrors
+        // CurrentWeatherCommonality's own `if (... != null) num *= ...` exactly, so the field being
+        // nullable is itself part of what is being pinned here, not an incidental detail.
+        var type = GetType("Verse.WeatherDef");
+        Assert.That(type, Is.Not.Null, "Verse.WeatherDef no longer exists");
+        var field = type!.Fields.SingleOrDefault(f => f.Name == "commonalityRainfallFactor" && f.IsPublic);
+        Assert.That(field, Is.Not.Null,
+            "WeatherDef.commonalityRainfallFactor no longer exists or is no longer public");
+        Assert.That(field!.FieldType.FullName, Is.EqualTo("Verse.SimpleCurve"),
+            "WeatherDef.commonalityRainfallFactor changed shape — a non-nullable curve would break "
+            + "CloudCoverClock's null-means-factor-of-1 mirroring of CurrentWeatherCommonality");
+    }
+
+    [Test]
+    public void FloatRange_HasIncludes()
+    {
+        var type = GetType("Verse.FloatRange");
+        Assert.That(type, Is.Not.Null, "Verse.FloatRange no longer exists");
+        var method = type!.Methods.SingleOrDefault(m => m.Name == "Includes" && m.Parameters.Count == 1);
+        Assert.That(method, Is.Not.Null, "FloatRange.Includes(float) no longer exists");
+        Assert.That(method!.ReturnType.FullName, Is.EqualTo("System.Boolean"));
+    }
+
+    [Test]
+    public void GenTemperature_HasGetTemperatureFromSeasonAtTile()
+    {
+        // The deliberately-not-live-weather estimate CloudCoverClock feeds temperatureRange.Includes —
+        // see that file's header for why this is used instead of map.mapTemperature.OutdoorTemp.
+        var type = GetType("Verse.GenTemperature");
+        Assert.That(type, Is.Not.Null, "Verse.GenTemperature no longer exists");
+        var method = type!.Methods.SingleOrDefault(m =>
+            m.Name == "GetTemperatureFromSeasonAtTile" && m.Parameters.Count == 2);
+        Assert.That(method, Is.Not.Null,
+            "GenTemperature.GetTemperatureFromSeasonAtTile(int, PlanetTile) no longer exists");
+        Assert.That(method!.ReturnType.FullName, Is.EqualTo("System.Single"));
+    }
+
+    [Test]
+    public void WeatherManager_HasMapField()
+    {
+        // Patch_CloudCoverLabel reads __instance.map to call CloudCoverClock.FractionForMap; the null
+        // guard on it mirrors the same possibility Section.map's own pin elsewhere in this file notes.
+        var type = GetType("RimWorld.WeatherManager");
+        Assert.That(type, Is.Not.Null, "RimWorld.WeatherManager no longer exists");
+        var field = type!.Fields.SingleOrDefault(f => f.Name == "map" && f.IsPublic);
+        Assert.That(field, Is.Not.Null, "WeatherManager.map no longer exists or is no longer public");
+        Assert.That(field!.FieldType.FullName, Is.EqualTo("Verse.Map"));
+    }
+
+    [Test]
+    public void WeatherManager_HasCurWeatherPerceived()
+    {
+        // Patch_CloudCoverLabel gates its suffix on this, not on curWeather directly — see that
+        // patch's header for why the label needs to agree with what CurWeatherPerceived itself renders
+        // rather than with the underlying transition state.
+        var type = GetType("RimWorld.WeatherManager");
+        Assert.That(type, Is.Not.Null, "RimWorld.WeatherManager no longer exists");
+        var property = type!.Properties.SingleOrDefault(p => p.Name == "CurWeatherPerceived");
+        Assert.That(property, Is.Not.Null, "WeatherManager.CurWeatherPerceived no longer exists");
+        Assert.That(property!.PropertyType.FullName, Is.EqualTo("Verse.WeatherDef"));
+    }
+
+    [Test]
+    public void WeatherManager_DoWeatherGUI_MatchesTheBodyPatchCloudCoverLabelReplaces()
+    {
+        // Patch_CloudCoverLabel is a full Prefix replacement (return false), the same technique
+        // Patch_SuppressRandomEclipse uses — see that patch's own header for why a small, stable
+        // vanilla method with no natural sub-hook gets reimplemented rather than transpiled. That
+        // means there is no compiler check that the copy is still faithful; this test is it. It pins
+        // the four vanilla members the replacement body itself calls, so a change to any of them fails
+        // here loudly instead of leaving Patch_CloudCoverLabel silently drawing a stale weather label.
+        var type = GetType("RimWorld.WeatherManager");
+        Assert.That(type, Is.Not.Null, "RimWorld.WeatherManager no longer exists");
+        var method = type!.Methods.SingleOrDefault(m => m.Name == "DoWeatherGUI" && m.Parameters.Count == 1);
+        Assert.That(method, Is.Not.Null, "WeatherManager.DoWeatherGUI(Rect) no longer exists");
+        Assert.That(method!.Parameters[0].ParameterType.FullName, Is.EqualTo("UnityEngine.Rect"));
+
+        var widgets = GetType("Verse.Widgets");
+        Assert.That(widgets, Is.Not.Null, "Verse.Widgets no longer exists");
+        Assert.That(
+            widgets!.Methods.Any(m => m.Name == "Label" && m.Parameters.Count == 2
+                && m.Parameters[0].ParameterType.FullName == "UnityEngine.Rect"
+                && m.Parameters[1].ParameterType.FullName == "System.String"),
+            Is.True, "Widgets.Label(Rect, string) no longer exists — DoWeatherGUI's replacement body calls it");
+
+        // The call site passes a plain string, but the overload actually resolved is
+        // TipRegion(Rect, TipSignal) via TipSignal's implicit `string` conversion — so both halves of
+        // that are pinned, not just the method.
+        var tooltipHandler = GetType("Verse.TooltipHandler");
+        Assert.That(tooltipHandler, Is.Not.Null, "Verse.TooltipHandler no longer exists");
+        Assert.That(
+            tooltipHandler!.Methods.Any(m => m.Name == "TipRegion" && m.Parameters.Count == 2
+                && m.Parameters[0].ParameterType.FullName == "UnityEngine.Rect"
+                && m.Parameters[1].ParameterType.FullName == "Verse.TipSignal"),
+            Is.True,
+            "TooltipHandler.TipRegion(Rect, TipSignal) no longer exists — DoWeatherGUI's replacement body calls it");
+
+        var tipSignal = GetType("Verse.TipSignal");
+        Assert.That(tipSignal, Is.Not.Null, "Verse.TipSignal no longer exists");
+        Assert.That(
+            tipSignal!.Methods.Any(m => m.Name == "op_Implicit" && m.Parameters.Count == 1
+                && m.Parameters[0].ParameterType.FullName == "System.String"
+                && m.ReturnType.FullName == "Verse.TipSignal"),
+            Is.True,
+            "TipSignal's implicit string conversion no longer exists — DoWeatherGUI's replacement body "
+            + "passes a plain string to TipRegion and relies on it");
+    }
+
     // --- helpers ---
 
     private TypeDefinition? GetType(string fullName) =>
