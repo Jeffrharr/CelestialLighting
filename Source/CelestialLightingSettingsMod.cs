@@ -139,6 +139,8 @@ public class CelestialLightingSettingsMod : Mod
             "Let clouds, rain and storms darken the sky and soften shadows, scaled by how hard it is coming down. Vanilla changes the sky's colour with the weather but never its brightness. Visual only — plant growth and solar panel output are unaffected.");
         listing.CheckboxLabeled("Partial cloud cover", ref Settings.cloudCover,
             "Let a Clear day drift toward an overcast look as cloud cover builds and clears, keyed on the biome's own season and rainfall so wetter places and wetter seasons see it more. Slow and continuous — a full hour-to-hour lattice, not a coin flip — and the weather label gains a \"- N% cloudy\" suffix to match. Visual only, and only while the weather itself reads Clear; it never changes which weather is rolled or how long it lasts.");
+        listing.CheckboxLabeled("    \"- N% cloudy\" weather label", ref Settings.cloudCoverLabel,
+            "Show the cloud percentage next to the weather name (e.g. \"Clear - 20% cloudy\"), including a reading of 0%. Off keeps the sky effect above but leaves the weather panel reading plain \"Clear\", same as vanilla.");
         listing.CheckboxLabeled("Sky colour-temperature", ref Settings.skyColorTemperature,
             "Warm the sky toward the horizon on a continuous, altitude-keyed curve.");
         listing.CheckboxLabeled("Polar night blue", ref Settings.polarNightBlue,

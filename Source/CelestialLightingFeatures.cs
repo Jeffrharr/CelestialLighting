@@ -208,6 +208,19 @@ public static class CelestialLightingFeatures
     // harness A/B.
     public static bool CloudCover = true;
 
+    // Feature key for CloudCoverLabel (see CivilTwilightPersistenceKey for why it lives here).
+    public const string CloudCoverLabelKey = "cloud_cover_label";
+
+    // A sub-toggle of CloudCover above, same relationship as AuroraCurtain to Aurora: this covers only
+    // Patch_CloudCoverLabel's "- N% cloudy" weather-panel suffix, not the sky tint itself, so a player
+    // who wants the visual effect but not the UI readout (or who finds a stable "- 0% cloudy" during a
+    // calm hour more noise than signal — see that patch's header for why it is shown at every reading
+    // now, including 0%) can drop the text without losing the render. Gated under CloudCover as well as
+    // on its own, same reasoning as AuroraCurtain under Aurora: CloudCover is the master for "does this
+    // mod do partial cloud at all", and a label reporting cloudiness with that master off would be
+    // describing an effect the player switched off.
+    public static bool CloudCoverLabel = true;
+
     // Feature key for IndoorSkyOcclusion (see CivilTwilightPersistenceKey for why it lives here).
     public const string IndoorSkyOcclusionKey = "indoor_sky_occlusion";
 

@@ -49,16 +49,27 @@ public static class Patch_CloudCoverLabel
         // Pocket maps and pre-game previews can carry a WeatherManager with no map yet — the same
         // null a live map never has, guarded the same way CloudCoverClock.FractionForMap itself
         // assumes it will not see.
-        if (__instance.map != null && curWeatherPerceived == WeatherDefOf.Clear)
+        //
+        // GATED ON THE FLAGS HERE TOO, NOT JUST INSIDE FractionForMap. The suffix is now shown at
+        // every reading including 0%, so the fraction being exactly 0 no longer implies "feature is
+        // off" the way it used to — a calm hour with the feature on reads identically to the feature
+        // being off unless this patch checks the flag itself. Patch_CloudCoverSky can still lean on
+        // FractionForMap's own zero-return (its "no tint" and "feature off" cases render pixel-
+        // identical either way), but this patch cannot: "Clear" and "Clear - 0% cloudy" are visibly
+        // different strings, so only an explicit check keeps "off" reproducing the pre-feature label.
+        // CloudCoverLabel is the separate UI-only sub-toggle (a player can want the sky tint without
+        // the text); CloudCover is still checked too, matching AuroraCurtain's own relationship to
+        // Aurora — the sub-toggle never draws with its master off.
+        if (__instance.map != null && curWeatherPerceived == WeatherDefOf.Clear
+            && CelestialLightingFeatures.CloudCover && CelestialLightingFeatures.CloudCoverLabel)
         {
             float cloudCover = CloudCoverClock.FractionForMap(__instance.map);
 
-            // Rounded before the zero check, not after: a cloud cover that rounds DOWN to 0% would
-            // otherwise render as the slightly odd "Clear - 0% cloudy" — technically true of the raw
-            // fraction, misleading about what the label is telling the player.
+            // Always appended, including 0% — a player watching this label to confirm the feature is
+            // alive should see a stable readout every time it's Clear, not have it silently vanish at
+            // exactly the moments (a calm hour) that are most likely to prompt the question.
             int percent = Mathf.RoundToInt(Mathf.Clamp01(cloudCover) * 100f);
-            if (percent > 0)
-                label = $"{label} - {percent}% cloudy";
+            label = $"{label} - {percent}% cloudy";
         }
 
         // Everything below is DoWeatherGUI's own body, unchanged, operating on `label` instead of
