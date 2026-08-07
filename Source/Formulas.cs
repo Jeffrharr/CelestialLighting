@@ -204,8 +204,36 @@ public static class Formulas
     // Realistic Axial Tilt cannot: RAT reckons the year from a different point (sin where we use
     // -cos, a quarter-year apart) and so has to supply the whole declination, not just its scale.
     // See PlanetsmithCompat for the long version.
+    //
+    // Realistic Planets 2 falls on RAT's side of that line rather than Planetsmith's, and by the
+    // same quarter-year: it is served by RealisticPlanetsSolarDeclinationDegrees below, not here.
     public static float SolarDeclinationDegrees(float dayOfYear, float obliquityDegrees) =>
         SanitizeObliquityDegrees(obliquityDegrees) * DeclinationSign(dayOfYear);
+
+    // How far ahead of our year Realistic Planets 2 reckons its own: exactly a quarter.
+    //
+    // Their SolarGeometry.GetSolarDeclinationRad is tilt * sin(2*pi * yearPhase) where ours is
+    // tilt * -cos(2*pi * dayOfYear / DaysPerYear), and -cos(x + pi/2) == sin(x), so the two curves
+    // are the same curve read a quarter of a year apart. Their solstice lands on day 15 where
+    // vanilla's SunPositionUnmodified — and therefore ours — puts it on day 30.
+    //
+    // Stated as an offset in DAYS rather than a second trigonometric expression on purpose. The
+    // offset is the whole of what differs, DeclinationSign stays the only place in the mod where a
+    // seasonal phase is written down, and a reader comparing us to their source has one number to
+    // check instead of two formulas to talk themselves through.
+    public const float RealisticPlanetsYearPhaseOffsetDays = DaysPerYear / 4f;
+
+    // Realistic Planets 2's declination: their obliquity AND their phase.
+    //
+    // The overload above deliberately takes a scale and keeps our phase, which is right for a mod
+    // that has no seasonal model of its own. RP2 has one — it runs the diurnal temperature swing off
+    // this exact curve — so taking the tilt and leaving the phase would light a planet whose sky
+    // peaked fifteen days away from the summer its own weather is simulating.
+    //
+    // DeclinationSign is periodic, so the shifted day-of-year needs no wrapping back into [0, 60):
+    // day 58 + 15 evaluates the cosine at the same place day 13 does.
+    public static float RealisticPlanetsSolarDeclinationDegrees(float dayOfYear, float obliquityDegrees) =>
+        SolarDeclinationDegrees(dayOfYear + RealisticPlanetsYearPhaseOffsetDays, obliquityDegrees);
 
     // Bound-check an obliquity that came from another mod's settings before we build a sky out of it.
     //

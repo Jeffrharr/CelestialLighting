@@ -189,8 +189,23 @@ public class CelestialLightingSettingsMod : Mod
             tooltip: $"This world's obliquity comes from {source}, so the sky matches the planet it "
                 + "generated rather than Earth's 23.4°. Change it there — a second switch here would "
                 + "just let the sky and the biomes disagree again.\n\nDay length is unaffected unless "
-                + "you also pick realistic day length below.");
+                + "you also pick realistic day length below."
+                + SeasonPhaseNote());
     }
+
+    // Realistic Planets 2 supplies a seasonal phase as well as a tilt, and that phase is a quarter of
+    // a year ahead of the one RimWorld runs its temperatures and growing season on. The sun peaking a
+    // fortnight before the warmest day is the most noticeable thing about following RP2's planet, so
+    // it is said here rather than left to be discovered — it reads as a bug otherwise.
+    //
+    // Silent for every other source, because there is nothing to warn about: RAT moves the seasons
+    // themselves, and Planetsmith supplies no phase at all.
+    private string SeasonPhaseNote() =>
+        !AxialTiltCompat.Active && RealisticPlanetsCompat.Active
+            ? "\n\nRealistic Planets 2 also reckons the year a quarter earlier than RimWorld does, so "
+                + "your longest day lands about 15 days before the warmest one. That is its calendar, "
+                + "not a fault in the sky."
+            : "";
 
     // RAT first, matching the precedence in AxialTiltCompat.SolarDeclinationDegrees: it owns the
     // running year's phase, tilt and moon together, so with both installed it is the one answering.
@@ -198,6 +213,9 @@ public class CelestialLightingSettingsMod : Mod
     {
         if (AxialTiltCompat.Active)
             return "Realistic Axial Tilt";
+
+        if (RealisticPlanetsCompat.Active)
+            return "Realistic Planets 2";
 
         return PlanetsmithCompat.Active ? "Planetsmith" : null;
     }

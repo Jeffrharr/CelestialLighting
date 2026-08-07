@@ -43,14 +43,15 @@
     <Compile Include="../Source/Probes/AxialTiltLunarProbe.cs" Link="AxialTiltLunarProbe.cs" />
     <Compile Include="../Source/Probes/PlanetsmithActiveProbe.cs" Link="PlanetsmithActiveProbe.cs" />
     <Compile Include="../Source/Probes/PlanetsmithTiltProbe.cs" Link="PlanetsmithTiltProbe.cs" />
-    <!-- The only file under Probes/ that WRITES to another mod's state rather than reading ours: it
-         puts a steep tilt on the loaded world so the Planetsmith interop has something a probe can
-         see. The file itself explains why a save fixture cannot supply one. Dev-only by
-         construction, like everything else in this project. -->
+    <Compile Include="../Source/Probes/RealisticPlanetsActiveProbe.cs" Link="RealisticPlanetsActiveProbe.cs" />
+    <!-- The three files under Probes/ that WRITE rather than read. Two put a steep tilt on the loaded
+         world so the Planetsmith and Realistic Planets 2 interops have something a probe can see —
+         the files themselves explain why a save fixture cannot supply one. The third is a Harmony
+         postfix that forces CloudCoverClock.FractionForMap to a fixed constant, so a scenario gets a
+         reproducible cloud fraction instead of depending on which absolute year the harness's clock
+         jump lands in. Dev-only by construction, like everything else in this project. -->
     <Compile Include="../Source/Probes/PlanetsmithTiltOverride.cs" Link="PlanetsmithTiltOverride.cs" />
-    <!-- The other file under Probes/ that WRITES rather than reads: a Harmony postfix that forces
-         CloudCoverClock.FractionForMap to a fixed constant, so a scenario gets a reproducible cloud
-         fraction instead of depending on which absolute year the harness's clock jump lands in. -->
+    <Compile Include="../Source/Probes/RealisticPlanetsTiltOverride.cs" Link="RealisticPlanetsTiltOverride.cs" />
     <Compile Include="../Source/Probes/CloudCoverFractionOverride.cs" Link="CloudCoverFractionOverride.cs" />
     <Compile Include="../Source/Probes/MoonDeclinationProbe.cs" Link="MoonDeclinationProbe.cs" />
     <Compile Include="../Source/Probes/ShadowVectorXProbe.cs" Link="ShadowVectorXProbe.cs" />

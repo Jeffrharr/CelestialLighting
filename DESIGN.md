@@ -6774,3 +6774,180 @@ shadow ratio 0.6767 matches the cotangent ratio 0.6768 to four places — the ge
 it is only the day's *pacing* that vanilla still owns. All four rows are pinned; an earlier draft of
 this section quoted the 15:00 figure alone and understated the effect fivefold, which is why the noon
 row is now the one the scenario leads with.
+
+## Interop: Realistic Planets 2 (`Source/RealisticPlanetsCompat.cs`)
+
+**Problem — the same disagreement Planetsmith had, arrived at from the opposite direction.** Realistic
+Planets 2 (`koth.RealisticPlanets2`) is a worldgen and climate overhaul: terrain, hydrology, a layered
+climate model, biome placement, and a bundled fork of Map Mode Framework. One of the parameters the
+player picks when generating a world is an axial tilt — five steps, which `AxialTiltCurves.GetTiltDegrees`
+maps to 0 / 11.25 / 22.5 / 33.75 / 45° — and that tilt shapes the seasonal temperature amplitude, the
+biome layout, and the size of the day/night temperature swing at every tile.
+
+The direction it arrived from matters, because until recently there was nothing here to integrate
+with. Its first Workshop release shipped a `Planets.PlanetaryLighting` namespace: its own sky
+pipeline (`SkyPipeline`), its own geometric eclipses (`MoonShadowEclipseSystem`), a dynamically
+regenerated per-building shadow layer, a lux registry, a moon on the world map — driven by patches on
+`GenCelestial.CelestialSunGlow`, `SkyManager.CurrentSkyTarget`, `GenCelestial.CurShadowStrength`,
+`GlowGrid` and `Printer_Shadow`. Two mods rendering one sky is the conflict class this mod exists to
+avoid (see the Tilt the Planet! entry in `About.xml`'s `incompatibleWith`), and the correct answer
+then was to stay out of the way.
+
+The current release deletes that subsystem outright — 41 types gone, and the assembly no longer
+references `SkyManager`, `GenCelestial`, `GlowGrid`, `SkyColorSet`, `Printer_Shadow` or `SectionLayer`
+anywhere. Its remaining Harmony targets are worldgen (`WorldGenStep_*`, `WorldGenerator`,
+`WorldGrid.RegisterPlanetLayer`, `FeatureWorker_MountainRange`), world-map UI (`PageUtility`,
+`WindowStack`, `WITab_Planet`), `SavedGameLoaderNow`, and four `GenTemperature` /
+`OverallTemperatureUtility` climate methods. **Zero overlap with ours.** What the deletion leaves
+behind is a planet that was built for a tilt and that nobody lights on it: exactly Planetsmith's hole,
+in a mod that had previously been filling it itself.
+
+**Approach — take their obliquity AND their phase.** This is where the interop parts company with the
+Planetsmith one, and the reason is that RP2 still runs a seasonal model after generation where
+Planetsmith does not. `Planets.WorldGen.SolarGeometry.GetSunAltitudeAzimuth` computes a sun altitude
+every time `GenTemperature.OffsetFromSunCycle` is asked for a tile's diurnal swing, off a declination
+of
+
+    declination = tilt × sin(2π × yearPhase)          // theirs
+    declination = tilt × −cos(2π × dayOfYear / 60)    // ours, and vanilla's SunPositionUnmodified
+
+and `−cos(x + π/2) == sin(x)`, so those are one curve read a quarter of a year apart: their solstice
+lands on day 15 where vanilla's lands on day 30. `Formulas.RealisticPlanetsSolarDeclinationDegrees`
+is our own curve evaluated at `dayOfYear + DaysPerYear / 4`, stated as a day offset rather than as a
+second trigonometric expression so that `DeclinationSign` stays the only place in the mod where a
+seasonal phase is written down.
+
+**Why the phase comes too, when Planetsmith's tilt deliberately came alone.** The Planetsmith section
+above turns on the claim that their tilt is a scalar with no phase behind it — no day-of-year term
+anywhere in their assembly — so scaling our curve by their obliquity is the whole correct answer.
+That claim is simply false of RP2: they have a phase, they run it every tick, and it drives a
+gameplay quantity. Taking the tilt and keeping our own phase would light a planet whose sky peaked a
+fortnight away from the daily temperature swing its own weather model is simulating. RP2 therefore
+sits on RAT's side of the line drawn in `Formulas.SolarDeclinationDegrees`' comment — a whole
+declination, not a scale — and is served by its own function rather than by the obliquity overload.
+
+**The cost of that, stated because it is real and a player will see it.** RP2 does *not* patch
+`GenTemperature.OffsetFromSeasonCycle`, so vanilla still owns the SEASONAL temperature cycle and
+still runs it on `−cos`: coldest around day 0, warmest around day 30, growing season to match.
+Following RP2's phase therefore puts our longest day about 15 days before RimWorld's warmest one. On a
+vanilla or Planetsmith world those two agree; on an RP2 world they cannot, because RP2's own two
+halves already disagree — its diurnal model is a quarter-year out of step with the seasonal cycle it
+sits inside, which is an upstream inconsistency rather than one this interop introduces. The choice
+here is only which of their two halves to match, and matching the one that describes the planet keeps
+a single mod answering for the planet's geometry, which is the same ruling the RAT section makes.
+This was raised as a concern before implementation and taken deliberately; the settings screen and
+`About.xml` both say it in prose, because a sun peaking early reads as our bug otherwise.
+
+**Precedence: RAT → RP2 → Planetsmith → our constant.** The chain is `AxialTiltCompat`'s else-arm as
+before. RP2 goes above Planetsmith because it supplies a phase as well as a scale and is still
+simulating the running year, which is the same kind of claim RAT makes; it goes below RAT because RAT
+owns the live planet's geometry including its moon. All three installed at once is not a mod list
+anyone should have — two worldgen overhauls fight over biome placement long before they reach us —
+but the chain answers it anyway rather than asking who is installed in one place.
+
+**Which tilt, and how it is read.** `Planets.Core.Planets_GameComponent.axialTilt` is a **public
+static field**, scribed in that component's `ExposeData`, so it is per-save rather than per-instance
+and there is no component to go and find. That makes this file shorter than `PlanetsmithCompat` in one
+respect — no `World.components` walk, no `WeakReference` cache — and longer in another: the field is an
+enum of theirs, so the degrees have to come from their `AxialTiltCurves.GetTiltDegrees`. We call it
+rather than mirroring the ladder, because five step values are a design decision of theirs and a
+copy here would drift silently the first time they retune one. The table is built once at bind time,
+one `Invoke` per enum value, so the per-frame path is a static field get and a dictionary lookup —
+a `MethodInfo.Invoke` in `SolarPosition`'s geometry path would be the most expensive thing in it by an
+order of magnitude. A dictionary rather than an array because nothing guarantees their enum stays
+zero-based and contiguous.
+
+Because the field is static it keeps the last save's value after the player returns to the main menu,
+so the read is gated on `Current.Game != null`. Without that gate a menu backdrop would be lit on a
+planet that is no longer loaded — a failure mode Planetsmith's version gets for free from its world
+lookup.
+
+**Conflict risk.** No hard assembly reference; every member is a string resolved at runtime, so a
+player without RP2 loads a build that has never heard of it. There is no negotiated API — these are
+internal names, a weaker contract, treated as one: every resolve is null-checked, a miss logs once
+naming the consequence rather than the fault, and the read is wrapped because a throw on the
+per-frame geometry path would be one error per frame forever. An enum step we have never seen (they
+add a sixth) falls back and warns once rather than indexing out of a table. NaN is rejected twice
+over, at the read and again in `Formulas.SanitizeObliquityDegrees`, for the reason the Planetsmith
+section gives.
+
+**No opt-out,** for the reason spelled out at length above: `realistic_planets_geometry` is a harness
+flag so a scenario can reach both arms in one run, nothing in a shipped game writes it, and the
+settings screen reports rather than asks. What it reports gains one line here that the other interops
+do not need — when RP2 is the source in force, the tooltip says the calendar runs a quarter early, so
+the early solstice is documented where a player will actually meet it.
+
+**Testing.** The pure half is `FormulasRealisticPlanetsPhaseTests`: their `sin` formula reproduced
+independently and checked against ours at quarter-day resolution across every tilt step, the
+direction of the offset (a sign slip would still look like "a quarter of a year" in any summary
+statistic), the two days where one model is flat and the other is at full swing, periodicity past the
+end of the year, an upright planet staying seasonless, and the sanitizer's clamp and NaN fallback
+reaching this path too. The live half is `Tests/Scenarios/realistic_planets_tilt.json`.
+
+That scenario needs a world with a non-default tilt for the same reason Planetsmith's does — the tilt
+is chosen in RP2's world-gen UI and frozen into the save, and `minimal_colony.rws` predates RP2, so it
+loads at the scribe default of `Normal`, 22.5°, less than a degree from our own 23.44°.
+`RealisticPlanetsTiltOverride` (dev-only, under `Source/Probes/`) bridges a
+`realistic_planets_steep_tilt` flag that writes their `VeryHigh` step and restores the original on the
+way out. It parses the step out of their enum by NAME rather than writing an ordinal, so a renamed
+step fails loudly instead of selecting a different planet. The 90°-is-the-end-of-the-slider worry that
+ruled out the maximum for Planetsmith does not apply: 45 is not the ceiling of anything of ours
+(`Formulas.MaxObliquityDegrees` is 90), so a clamp pinning every tilt to its maximum would show up
+here as 90 and fail.
+
+The day the scenario samples is day 15, and that choice is the whole of its sensitivity: our
+declination there is exactly zero while theirs is the full tilt, so the two arms of the A/B are "no
+season at all" against "a 45° planet at solstice" — the largest signal this interop can produce, and
+one no tolerance can absorb. `AxialTiltDeclinationProbe`'s own comment already named day 15 as the
+discriminating day for RAT, whose phase convention RP2 shares.
+
+**How much reaches the screen, measured.** The handover is total and exact — every declination and
+elevation pin landed on its analytic value to within 1e-5° on the first run, with no re-derivation:
+22.5° at their default step, 45° with the override, −45° at their midwinter, 0° with the feature off
+(day 15), and 0° again at day 30 with the feature on, which is the quarter-year offset showing up as
+a crossing rather than as a number. Sun elevation at 55°N followed: 57.50 / 80.00 / 35.00, each the
+analytic `90 − |lat − decl|`.
+
+On screen, at noon on day 15, latitude 55°, on the shipped Cinematic preset (median per-pixel CIELAB
+ΔE, CIE76):
+
+| comparison | median ΔE | what it is |
+|---|---|---|
+| feature off → on, their default tilt | **2.26** (mean 2.96) | what a player with an untouched RP2 world sees |
+| feature off → on, their `VeryHigh` tilt | **2.25** (mean 2.32) | the override arm |
+| their default tilt → their `VeryHigh` tilt | **0.00** (mean 0.80) | tilt magnitude alone, at noon |
+| their midsummer → their midwinter | **31.10** | day 15 against day 45 |
+
+**The row that surprised us is the third one, and it is the one to read first — and the reason it is
+not what it looks like.** Going from a 22.5° planet to a 45° one moves noon from 57.5° to 80° of
+elevation and moves the median pixel not at all. That reads as "the tilt does not apply", so it is
+pinned rather than argued: `shadow_extrude_far_cells` goes **0.892 → 0.247** across exactly that
+handover, which is cot(57.5°) × 1.4 and cot(80°) × 1.4 to five decimals. The tilt reaches the
+renderer in full; a 3.6× change in shadow length simply does not move a median taken over a frame
+that is mostly sunlit ground. The mean does move (0.80 against a median of exactly zero), and it
+moves further under Cinematic than under Realistic (0.80 vs 0.36) precisely because Cinematic's 1.4×
+shadow scale makes those shadow pixels bigger — which is itself the confirmation that the difference
+lives in the shadows and nowhere else.
+
+So everything *visible in colour* in the first two rows is the PHASE, not the tilt: at day 15 our own
+curve is flat and theirs is at full swing, so the interop's whole contribution to the sky here is
+having moved the sun off the horizon at all, and above roughly 57° of elevation the sky has saturated
+and stops responding. That is a good outcome for this design — the half that was argued hardest for is
+the half doing the work — but it means a future A/B that varies only the tilt step, at noon, in
+midsummer, will measure ΔE 0 and must be read with the shadow probe beside it.
+
+The fourth row is the same phase seen from the other end, and is included because it is what a player
+actually experiences: on a 45° planet at 55°N, RP2's midwinter puts the noon sun 10° below the
+horizon (pinned: `sun_elevation` −10.00). `realistic_planets_steep_tilt_day45.png` is a night frame
+taken at 12:00.
+
+A consistency check worth recording: `feature off, day 15` and `steep tilt, day 30` came out
+**pixel-identical** (ΔE 0.00 across every sampled pixel, mean included). Both are declination zero at
+the same hour and latitude, reached from opposite sides — one by our phase being flat, the other by
+theirs — so the quarter-year offset is not merely close to a quarter of a year, it is exactly one.
+
+Measured on Cinematic, the shipped default, with the persisted settings file cleared first — this box
+had been carrying Realistic, and `run_test.sh` does not reset mod settings. That skew is worth
+knowing about because it is silent: under Realistic every `shadow_extrude_far_cells` pin in
+`planetsmith_tilt.json` fails by a constant 1.0/1.4, which reads as a shadow regression and is only
+the preset's `shadowLengthScale` going live.

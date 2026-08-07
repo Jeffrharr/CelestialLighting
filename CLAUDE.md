@@ -114,7 +114,8 @@ things worth internalising beyond that:
   dropped.
 - Quote it against the siblings, so a new subsystem's strength is a comparison rather than an
   opinion. The measured set so far: §20c aerosol drift **0.36**, §19b ozone column **1.48**, §20 site
-  altitude **1.88**, §21 snow cavity at overcast noon **6.06**, §20b pollution at 1.0 **6.79**.
+  altitude **1.88**, Realistic Planets 2 interop at their default tilt **2.26**, §21 snow cavity at
+  overcast noon **6.06**, §20b pollution at 1.0 **6.79**.
 
 Scenario notes: `Tests/Scenarios/core_design_suite.txt` batches the scenarios that are safe to run in
 one RimWorld load. Anything that leaves a `GameCondition` behind is deliberately excluded and must

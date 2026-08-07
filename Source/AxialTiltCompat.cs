@@ -82,7 +82,7 @@ public static class AxialTiltCompat
     // the moon, which needs the tilt magnitude rather than a single day's declination, and for the
     // settings screen.
     public static float ObliquityDegrees =>
-        Active ? ratAxialTiltDegrees() : PlanetsmithCompat.ObliquityDegrees;
+        Active ? ratAxialTiltDegrees() : RealisticPlanetsCompat.ObliquityDegrees;
 
     // Bumped by RAT every time a world is generated or loaded. Anything of ours that caches a
     // derived solar quantity across days must drop that cache when this changes, or a save with a
@@ -95,13 +95,18 @@ public static class AxialTiltCompat
     //
     // The `else` arm is a chain rather than a constant, and the order in it is a precedence ruling:
     // RAT first because it is simulating the running year and owns phase, tilt and moon together;
-    // Planetsmith next because it owns only an obliquity, spent at world generation, which our own
-    // phase curve can carry (PlanetsmithCompat has the argument for why that is correct there and
-    // wrong for RAT); our own constant last, when nothing on the mod list has an opinion. Each link
-    // falls through to the next on its own terms, so the chain never has to ask "which mods are
-    // installed" in one place.
+    // Realistic Planets 2 next because it owns a phase as well as an obliquity and is still running
+    // its half of the year after generation (its diurnal temperature model reads the same curve every
+    // tick), so it is the same kind of claim RAT makes and loses only to RAT's moon; Planetsmith
+    // after it because it owns only an obliquity, spent at world generation, which our own phase
+    // curve can carry (PlanetsmithCompat has the argument for why that is correct there and wrong for
+    // RAT); our own constant last, when nothing on the mod list has an opinion. Each link falls
+    // through to the next on its own terms, so the chain never has to ask "which mods are installed"
+    // in one place.
     public static float SolarDeclinationDegrees(float dayOfYear) =>
-        Active ? ratDeclinationDegrees(dayOfYear) : PlanetsmithCompat.SolarDeclinationDegrees(dayOfYear);
+        Active
+            ? ratDeclinationDegrees(dayOfYear)
+            : RealisticPlanetsCompat.SolarDeclinationDegrees(dayOfYear);
 
     // True only when the feature is on, RAT is active, AND their build carries lunar geometry. All
     // three, because all three vary independently: the flag is the player's (and the harness's)
