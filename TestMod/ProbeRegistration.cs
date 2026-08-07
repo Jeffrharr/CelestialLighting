@@ -113,6 +113,13 @@ public static class ProbeRegistration
         ProbeRegistry.Register(new MoonShadowRenderProbe());
         ProbeRegistry.Register(new MoonElevationProbe());
         ProbeRegistry.Register(new WeatherDimmingProbe());
+        // §22. Independent of weather_dimming above: that fraction is 0 throughout Clear by
+        // construction (WeatherDimmingMath classifies Clear at opacity 0 on both its axes — see
+        // Patch_CloudCoverSky's header), and this is the axis that instead moves during Clear. Pair
+        // with SetWeather("Clear") to read what Patch_CloudCoverSky and Patch_CloudCoverLabel are
+        // actually acting on; read under a different weather to confirm the drift keeps moving
+        // underneath even while nothing currently consumes it.
+        ProbeRegistry.Register(new CloudCoverProbe());
         // The three map-kind gates themselves, so a cavern scenario pins the DECISION and not just its
         // consequences — every gated effect also reads zero for unrelated reasons (wrong time of day,
         // no active condition), so the effect probes alone cannot say whether a gate actually fired.
@@ -269,6 +276,9 @@ public static class ProbeRegistration
         FeatureRegistry.Register(
             CelestialLightingFeatures.WeatherDimmingKey,
             enabled => CelestialLightingFeatures.WeatherDimming = enabled);
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.CloudCoverKey,
+            enabled => CelestialLightingFeatures.CloudCover = enabled);
         // Not a CelestialLightingFeatures flag: this bridges the "true pitch-black" atmospheric-floor
         // switch that lives on NightRadianceSettings, so a probe scenario can drop the constant
         // starlight+airglow floor out of the night_radiance sum and watch only moonlight remain.

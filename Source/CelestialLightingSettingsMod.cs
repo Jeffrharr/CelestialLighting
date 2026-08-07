@@ -137,6 +137,8 @@ public class CelestialLightingSettingsMod : Mod
             "Drain colour toward a cool blue-grey as the sky darkens (the Purkinje shift).");
         listing.CheckboxLabeled("Weather dimming", ref Settings.weatherDimming,
             "Let clouds, rain and storms darken the sky and soften shadows, scaled by how hard it is coming down. Vanilla changes the sky's colour with the weather but never its brightness. Visual only — plant growth and solar panel output are unaffected.");
+        listing.CheckboxLabeled("Partial cloud cover", ref Settings.cloudCover,
+            "Let a Clear day drift toward an overcast look as cloud cover builds and clears, keyed on the biome's own season and rainfall so wetter places and wetter seasons see it more. Slow and continuous — a full hour-to-hour lattice, not a coin flip — and the weather label gains a \"- N% cloudy\" suffix to match. Visual only, and only while the weather itself reads Clear; it never changes which weather is rolled or how long it lasts.");
         listing.CheckboxLabeled("Sky colour-temperature", ref Settings.skyColorTemperature,
             "Warm the sky toward the horizon on a continuous, altitude-keyed curve.");
         listing.CheckboxLabeled("Polar night blue", ref Settings.polarNightBlue,

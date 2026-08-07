@@ -1,0 +1,200 @@
+{
+  "name": "cloud_cover",
+  "saveFile": "minimal_colony.rws",
+  "description": "§22 partial cloud cover: the off/on true-no-op invariant (off must read exactly 0, not merely low — see CelestialLightingFeatures' own note on what a flag being off must reproduce), then an hourly drift survey under fixed Clear weather from noon to 8pm on day 40 at latitude 45 (cloud_cover_fraction only has an opinion while curWeather == Clear — see Patch_CloudCoverSky's gate). Values are exact live measurements from this fixture/tile/season, pinned live per the parent CLAUDE.md rule (never replace a measured pin with a computed one); a preset or noise-constant change invalidates the whole ladder and it must be re-run, not re-derived. The A/B screenshot pair sits at hour 16, the surveyed peak (0.2710), for the strongest visible contrast.",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_cover",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_cover_fraction",
+        "expectedValue": "0.0000",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_cover",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_cover_fraction",
+        "expectedValue": "0.2113",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "2500"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_cover_fraction",
+        "expectedValue": "0.2152",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "2500"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_cover_fraction",
+        "expectedValue": "0.2170",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "2500"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_cover_fraction",
+        "expectedValue": "0.2432",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "2500"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_cover_fraction",
+        "expectedValue": "0.2710",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_cover",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cc_off.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_cover",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cc_on.png"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "2500"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_cover_fraction",
+        "expectedValue": "0.2277",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "2500"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_cover_fraction",
+        "expectedValue": "0.1376",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "2500"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_cover_fraction",
+        "expectedValue": "0.0792",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "2500"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_cover_fraction",
+        "expectedValue": "0.0435",
+        "tolerance": "0.0005"
+      }
+    }
+  ]
+}

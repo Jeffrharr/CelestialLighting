@@ -49,6 +49,11 @@
          WeatherDimmingMathTests also exercises PurkinjeMath above, since §13's whole purpose is to
          feed §9 an apparent brightness that finally varies with weather. -->
     <Compile Include="../../Source/WeatherDimmingMath.cs" Link="WeatherDimmingMath.cs" />
+    <!-- §22's Clear-weather cloud-cover sky tint. Depends on WeatherDimmingMath above for its
+         classification anchors (Clear/Overcast luminance and saturation) rather than duplicating
+         them — see CloudCoverSky.cs's header for why reusing vanilla's own overcast destination
+         palette is the point. -->
+    <Compile Include="../../Source/CloudCoverSky.cs" Link="CloudCoverSky.cs" />
     <Compile Include="../../Source/MapSkyMath.cs" Link="MapSkyMath.cs" />
     <!-- Subsystem 8 pure core. Depends on Formulas.AtmosphericRefractionDegrees, so Formulas.cs
          above must be linked too (it already is). -->
@@ -68,7 +73,19 @@
          to the compiler) for the value-noise field itself rather than carrying a second copy. The
          live half that reads the tick and the tile id is AerosolDriftClock.cs and is NOT linked:
          it is Verse-bound by design, which is the whole point of the split. -->
+    <!-- Shared hourly-sampled lattice-noise engine behind AerosolDrift below and §22's CloudCoverDrift.
+         No dependencies of its own besides AuroraNoise (linked further down — order does not matter to
+         the compiler), so it sits here for readability, next to its first consumer. -->
+    <Compile Include="../../Source/LatticeDriftNoise.cs" Link="LatticeDriftNoise.cs" />
     <Compile Include="../../Source/AerosolDrift.cs" Link="AerosolDrift.cs" />
+    <!-- §22's partial cloud cover during Clear weather. SeasonalWetFraction has no dependencies of
+         its own; CloudCoverDrift depends on LatticeDriftNoise above for its noise field, the same
+         way AerosolDrift does, and composes with SeasonalWetFraction's output rather than depending
+         on that file directly (see CloudCoverDrift.cs's header for why the classifier and the noise
+         engine stay in separate files). The live half that reads the tick, the tile, and the biome
+         is CloudCoverClock.cs and is NOT linked, same reason as AerosolDriftClock.cs above. -->
+    <Compile Include="../../Source/SeasonalWetFraction.cs" Link="SeasonalWetFraction.cs" />
+    <Compile Include="../../Source/CloudCoverDrift.cs" Link="CloudCoverDrift.cs" />
     <!-- Subsystem 20d pure core (aerosol spectral shape / Angstrom exponent). Like OzoneTwilightMath
          below it reuses SkyColorTemperature.Rgb as its colour struct, so the SkyColorTemperature
          link above is a hard prerequisite. Its tests live in SkyColorTemperatureTests.cs rather than

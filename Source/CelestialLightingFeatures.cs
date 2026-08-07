@@ -194,6 +194,20 @@ public static class CelestialLightingFeatures
     // WeatherDimmingSettings.MaxDimming slider, which at 0 is independently a full no-op.
     public static bool WeatherDimming = true;
 
+    // Feature key for CloudCover (see CivilTwilightPersistenceKey for why it lives here).
+    public const string CloudCoverKey = "cloud_cover";
+
+    // §22 partial cloud cover: a Clear-weather sky darkens and desaturates toward vanilla's own
+    // Overcast/Rain/Fog palette in proportion to a slowly-drifting, biome/season-derived cloud
+    // fraction (CloudCoverClock), and the weather label gains a "- N% cloudy" suffix to match.
+    // Distinct from WeatherDimming above: that subsystem reshapes an ALREADY-cloudy weather's own
+    // dimming curve and reads exactly 0 throughout Clear by construction, where this is the axis that
+    // exists only during Clear — the two never move together and are gated separately. When off,
+    // Patch_CloudCoverSky and Patch_CloudCoverLabel both early-return and Clear renders and reads
+    // exactly as vanilla/§2/§8/§9/§13 already compose it — the faithful pre-feature baseline for the
+    // harness A/B.
+    public static bool CloudCover = true;
+
     // Feature key for IndoorSkyOcclusion (see CivilTwilightPersistenceKey for why it lives here).
     public const string IndoorSkyOcclusionKey = "indoor_sky_occlusion";
 

@@ -5846,6 +5846,93 @@ so there is no number here a player would sensibly dial. It exists as a harness 
 - Nothing here has been seen in-game. Every number above is offline.
 
 
+## 22. Partial cloud cover during Clear weather (`CloudCoverDrift` / `SeasonalWetFraction` / `CloudCoverSky`)
+
+**Problem.** Vanilla's "Clear" is a single fixed sky palette for its entire duration —
+`WeatherDecider`'s discrete weighted-random state machine has no notion of a fractional cloud amount
+anywhere in it. A colony can sit under a flat, cloudless sky for days between weather rolls, which
+reads as static in a way real Clear days do not.
+
+**Two separate questions, two separate files.** "How cloudy should a *typical* Clear day read, on
+this tile, this time of year" is `SeasonalWetFraction`'s question — reused from vanilla's own
+(private) `WeatherDecider.CurrentWeatherCommonality`: each `WeatherDef` on the biome's
+`baseWeatherCommonalities` contributes `commonality x commonalityRainfallFactor.Evaluate(rainfall)`,
+gated to zero if its `temperatureRange` excludes the tile's seasonal temperature, and the wet-vs-dry
+split (`rainRate`/`snowRate` > vanilla's own 0.1 threshold) turns that weighted list into a single
+wet-mass-over-total-mass ratio in [0, 1]. That value barely moves within a day, so it is read from
+live state (`CloudCoverClock.SeasonalWetFractionFor`) only once per in-game hour. "How cloudy is it
+*this hour*, given that average" is `CloudCoverDrift`'s question — the seasonal mean wobbled by
+coherent lattice noise, additively rather than multiplicatively (see that file's own header: cloud
+cover is a probability, not a loading, so a bone-dry tile must still be *able* to see a passing cloud
+rather than being structurally pinned to zero).
+
+**The noise shape is deliberately faster than §20c's aerosol drift.** Aerosol's 3-day lattice cell
+exists so nothing visibly changes within one evening — flicker there would fight §8's smooth
+elevation ramp. Cloud cover's brief is the opposite: real skies change over a single afternoon, and
+are supposed to. An 8-hour base cell (`CloudCoverDrift.LatticeCellHours`) with three noise octaves —
+against aerosol's two — puts the fastest layer at 2 hours, comfortably inside a single day, so
+octaves occasionally align to produce a faster net swing than any one layer alone. That is the
+"usually drifts, but can shift within an afternoon" character, falling out of the noise shape rather
+than a special case.
+
+**The colour contribution lerps toward vanilla's own overcast anchors, not a bespoke palette.**
+`CloudCoverSky.SkyTintFactor`/`SaturationTintFactor` interpolate from 1 (no change) at cloud cover 0
+to `WeatherDimmingMath`'s existing Overcast/Clear luminance and saturation ratios (0.8 and 0.72) at
+cloud cover 1 — the same destination §13's `WeatherDimming` already renders Overcast/Rain/Fog toward.
+A fully-clouded Clear day therefore reads as "partway to Overcast" using art vanilla already ships,
+not as a CelestialLighting-specific tint layered on top of it. `Patch_CloudCoverSky` gates strictly on
+`curWeather == Clear` (not `lastWeather`, no transition blend — see that file's header for why
+inventing an axis vanilla's state machine has no notion of is not worth cross-fading against a
+transition into a different weather entirely) and multiplies `.colors.sky`/`.colors.overlay`/
+`.colors.saturation` rather than assigning, so it composes with whatever earlier postfix already ran
+(§2's twilight warmth, §8's colour temperature, §11's aurora tint). `.glow` is untouched — same
+gameplay-scope discipline as §13's `WeatherDimming`.
+
+**Never fights `Patch_WeatherDimming` for the same pixels, with no ordering declared.** Both patches
+target `WeatherWorker.CurSkyTarget`, but their gates are mutually exclusive by construction:
+`WeatherDimmingMath` classifies Clear as opacity 0 on both its axes, so `Patch_WeatherDimming`'s own
+early return always fires while the weather is Clear, and `Patch_CloudCoverSky`'s early return always
+fires whenever it is not. Neither patch's output depends on whether the other ran.
+
+**The UI half.** `Patch_CloudCoverLabel` appends "- N% cloudy" to `WeatherManager.DoWeatherGUI`'s
+label whenever `CurWeatherPerceived` reads Clear (e.g. "Clear - 50% cloudy"), a full-body Prefix
+replacement rather than a transpiler — see that file's header for why this codebase prefers
+duplicating a short, stable vanilla method over an IL-shape patch across a RimWorld update. Gated on
+`CurWeatherPerceived`, not `curWeather`: the label already tracks whichever weather WeatherManager
+judges visually dominant mid-transition, so the suffix asks the same question the label text itself
+is built from rather than the state-machine field `Patch_CloudCoverSky` gates on.
+
+### Settings and the feature gate
+
+`CelestialLightingFeatures.CloudCover` (key `cloud_cover`). Off returns exactly 0 from
+`CloudCoverClock.FractionForMap`, which is what makes "off" a faithful pre-feature baseline for both
+`Patch_CloudCoverSky` and `Patch_CloudCoverLabel` at once — see the flag's own note on why "off" must
+mean this, not merely "usually small". `WobbleAmplitude` (0.35, `CloudCoverDrift`) is a starting
+guess, picked the same eyeballed way as §20c's `AerosolDrift.DriftAmplitude`, not because the two
+quantities are physically comparable.
+
+### Live verification
+
+`Tests/Scenarios/cloud_cover.json`, latitude 45, day 40, Clear weather held instant. The off/on
+invariant is exact: with the feature off, `cloud_cover_fraction` reads `0.0000` regardless of time of
+day. With it on, an hourly survey from noon to 8pm reads (all pinned live, ±0.0005): `0.2113, 0.2152,
+0.2170, 0.2432, 0.2710, 0.2277, 0.1376, 0.0792, 0.0435` — the seasonal-mean-plus-noise drift §22's
+design predicts, peaking mid-afternoon on this tile/season and never approaching either bound.
+
+The A/B screenshot pair sits at the surveyed peak (hour 16, cloud cover 0.2710):
+
+median CIELAB ΔE **2.74** — visible at a glance. Against the measured set so far (§20c aerosol drift
+0.36, §19b ozone column 1.48, §20 site altitude 1.88, §21 snow cavity at overcast noon 6.06, §20b
+pollution at 1.0 6.79), §22 lands solidly mid-pack: a real, noticeable shift at roughly a quarter
+cloud cover, well short of a full-overcast repaint.
+
+- **Not yet surveyed at other latitudes/seasons.** The pinned ladder is one tile's one week; a wetter
+  or drier biome, or a season where `SeasonalWetFractionFor`'s temperature gate excludes more of the
+  weather list, has not been looked at.
+- **The label suffix has not been screenshotted.** The sky-colour A/B above confirms the render half;
+  the UI half's correctness rests on the offline `Patch_CloudCoverLabel` reasoning alone.
+
+
 ## Settings and presets
 
 Two cross-cutting settings ideas that span the subsystems above:

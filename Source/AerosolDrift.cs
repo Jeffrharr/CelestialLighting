@@ -53,24 +53,16 @@ public static class AerosolDrift
     // here.
     public const float MaxDriftAmplitude = 0.9f;
 
-    // One in-game hour, i.e. RimWorld's GenDate.TicksPerHour. Restated as a literal rather than read
-    // from GenDate because this file must not reference Verse — the live adapter is where anything
-    // may know what a GenDate is. GenDate.DaysPerYear is pinned in ApiCompatibilityTests for the same
-    // class of reason; this one is pinned as TickManager.TicksAbs plus the arithmetic below.
-    //
-    // WHY HOURLY, AND WHY THE STAIRCASE IS INVISIBLE. Sampling continuously would be smoother and is
-    // tempting, but the mod has a real performance history around per-frame work (issues #11, #12,
-    // #20, #23, #60; DESIGN.md §16) and this value is read several times per map per frame off
-    // WeatherWorker.CurSkyTarget. Hourly quantisation turns that into one noise evaluation per map
-    // per in-game hour. The cost of the staircase: the multiplier's fastest hourly step is 0.018
-    // (measured over the whole period, and pinned), which on the very worst tile (sea level,
-    // pollution 1) is about 9 K of horizon endpoint. Over that same hour the sun itself moves ~15
-    // degrees and drags the endpoint by several HUNDRED K continuously, so the step is around one
-    // percent of a motion already happening. It is not a compromise anyone can see.
-    public const int TicksPerSample = 2500;
+    // Hourly cadence and its floor-division-to-bucket arithmetic now live in LatticeDriftNoise.cs,
+    // shared with §22's CloudCoverDrift (see that file's header for why sampling is hourly at all —
+    // the reasoning is unchanged, only its location). Restated here as forwarding constants rather than
+    // deleted, because AerosolDriftTests.cs — and the rest of this file — is pinned against
+    // AerosolDrift.TicksPerSample and AerosolDrift.SampleIndex by name. This is a relocation of the
+    // arithmetic, not a change to it: the public surface stays exactly what it was.
+    public const int TicksPerSample = LatticeDriftNoise.TicksPerSample;
 
     // Samples per in-game day. RimWorld days are 60000 ticks; 60000 / 2500 = 24.
-    public const int SamplesPerDay = 24;
+    public const int SamplesPerDay = LatticeDriftNoise.SamplesPerDay;
 
     // Width of one noise lattice cell, in days — the coarse correlation time. Three days for the
     // BASE octave; with the second octave at half that, the effective correlation time of the summed
@@ -104,18 +96,10 @@ public static class AerosolDrift
     // Full period of the sequence in samples: 4096 x 72 = 294912 (12288 days).
     public const int SamplesPerPeriod = LatticeCells * SamplesPerCell;
 
-    // Which hourly sample the given absolute tick falls in. This is the ONLY place the tick becomes a
-    // sample index, so it is the only place the cadence lives.
-    //
-    // Floor division rather than C#'s truncating /, so a negative absolute tick (nothing in a real
-    // game produces one, but dev tooling and tests reach for them) walks backwards through the
-    // sequence one bucket at a time instead of folding two buckets together across zero.
-    public static int SampleIndex(int absoluteTicks)
-    {
-        int quotient = absoluteTicks / TicksPerSample;
-        bool roundedTowardZeroFromBelow = absoluteTicks < 0 && quotient * TicksPerSample != absoluteTicks;
-        return roundedTowardZeroFromBelow ? quotient - 1 : quotient;
-    }
+    // Which hourly sample the given absolute tick falls in. Forwards to LatticeDriftNoise — see that
+    // file for the floor-division reasoning — kept as a named method here because AerosolDriftTests.cs
+    // and the rest of this file call it as AerosolDrift.SampleIndex.
+    public static int SampleIndex(int absoluteTicks) => LatticeDriftNoise.SampleIndex(absoluteTicks);
 
     // The shipped multiplier: what to scale §20b's aerosol column by right now on this tile.
     public static float Multiplier(int sampleIndex, int tileSeed) =>
@@ -166,34 +150,12 @@ public static class AerosolDrift
         return driven < 0f ? 0f : (driven > 1f ? 1f : driven);
     }
 
-    // The raw noise field in [0, 1]. One-dimensional in time, obtained from the two-dimensional
-    // AuroraNoise by pinning y.
-    //
-    // WHY REUSE AURORANOISE RATHER THAN WRITE A 1-D VALUE NOISE. It already owns the two decisions
-    // that are easy to get subtly wrong — an avalanching integer hash that does not leave the field
-    // visibly correlated between neighbouring lattice points, and a smootherstep fade that matches
-    // the second derivative at cell boundaries so the field has no creases. A crease in a texture is
-    // a visible line; a crease here would be a kink in how fast the haze changes, which is the same
-    // artifact in the time axis. A second copy of that would be a second thing to get right.
-    //
-    // y = 0 with yPeriod = 1 is what collapses it to one dimension, and the two are belt and braces
-    // rather than redundancy. y = 0 makes the vertical fade exactly 0 in EVERY octave (the octave
-    // scaling multiplies y by the frequency, and 0 times anything is 0), so only the bottom lattice
-    // row is ever read. yPeriod = 1 additionally wraps both rows onto index 0, so even a future
-    // caller that passed a nonzero y would get the same answer instead of silently sampling a
-    // different slice of the field.
-    private static float Field(int sampleIndex, int tileSeed)
-    {
-        // Integer wrap BEFORE the divide — see LatticeCells for why this is the precision-preserving
-        // order. Always-positive modulo, because a negative coordinate would index the hash lattice
-        // outside [0, LatticeCells) and break the wrap in one direction only.
-        int wrapped = sampleIndex % SamplesPerPeriod;
-        if (wrapped < 0)
-            wrapped += SamplesPerPeriod;
-
-        float x = wrapped / (float)SamplesPerCell;
-        return AuroraNoise.Fbm(x, 0f, LatticeCells, 1, tileSeed, Octaves);
-    }
+    // The raw noise field in [0, 1]. Forwards to LatticeDriftNoise.Field with this file's own cell
+    // width/period/octave constants — see that file's header for why the wrapping and the y=0
+    // AuroraNoise collapse live there now, and DESIGN.md §20c for why AerosolDrift's own correlation
+    // time is days rather than the hours §22's CloudCoverDrift uses for the same engine.
+    private static float Field(int sampleIndex, int tileSeed) =>
+        LatticeDriftNoise.Field(sampleIndex, tileSeed, SamplesPerCell, LatticeCells, Octaves);
 
     private static float ClampAmplitude(float amplitude)
     {
