@@ -28,6 +28,9 @@ namespace CelestialLighting;
 //       <li Class="CelestialLighting.WeatherCloudDeck">
 //         <!-- 0 = no deck (never dim this weather); 1 = full deck; anything between is partial. -->
 //         <opacity>0</opacity>
+//         <!-- §23: cloud base height in metres, only meaningful once opacity is above 0. Omit to
+//              keep classifying the altitude automatically from rain/snow/sand rate. -->
+//         <altitudeMetres>10000</altitudeMetres>
 //       </li>
 //     </modExtensions>
 //   </Verse.WeatherDef>
@@ -46,4 +49,16 @@ public class WeatherCloudDeck : DefModExtension
     // an `opacity >= 0` test at the call site, so the sentinel's meaning lives next to the field it
     // belongs to instead of being re-derived by every reader.
     public bool OverridesOpacity => opacity >= 0f;
+
+    // §23 (DESIGN.md, issue #88): cloud base height in metres, the second axis
+    // WeatherDimmingMath.DefaultAltitudeMetres's dry/precipitating classifier cannot settle on its
+    // own — nothing about a rain rate says whether the rain is falling from a low nimbostratus or an
+    // unusually tall storm cell. Same escape-hatch shape as `opacity` above: negative means "unset,
+    // keep classifying automatically", so attaching this extension for `opacity` alone never silently
+    // pins an altitude nobody asked for.
+    public float altitudeMetres = -1f;
+
+    // Same reasoning as OverridesOpacity: named next to the field it reads rather than re-derived at
+    // every call site.
+    public bool OverridesAltitude => altitudeMetres >= 0f;
 }
