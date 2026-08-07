@@ -1,0 +1,24 @@
+{
+  "name": "cloud_cover_albedo_cavity",
+  "saveFile": "minimal_colony.rws",
+  "description": "Issue #100: §21's snow-cloud cavity reading §22's continuous cloud-cover fraction instead of §13's discrete classifier while curWeather == Clear. Fixed snow depth 1 (fresh) at latitude 45, hour 2 -- a genuinely dark hour (sun_elevation ~-19deg, surveyed offline) so the A/B is read on the night floor glow (NightRadiance.FloorGlowFor, the one consumer of the one-arg SurfaceBuildup.CavityGainFor(Map) this fix touches) rather than daytime dimming, which the two-arg overload (unchanged by this fix) already owns. Day 52 was picked over day 40 after a moon-phase survey: the night floor is starlight+airglow+moonlight (NightRadiance.cs), so a near-full moon (moon_illumination ~0.99, above the horizon) gives the cavity's multiplier more absolute glow to amplify than a dim/new-moon night does -- day 40 at the same hour measured a true but imperceptible median CIELAB dE of 0.83; day 52 (same tile, same snow, same hour, moon phase the only deliberate change) measures 1.12, crossing the repo's 'visible on close inspection' floor. cloud_cover off first establishes the true-no-op baseline (cavity_gain must read the exact same value it did before #100 -- the discrete Clear reading of 0 -- see CelestialLightingFeatures' own note on what 'off' must reproduce); cloud_cover on then shows the cavity tracking the continuous fraction (0.3556) instead of staying flat.",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "45" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "52" } },
+    { "type": "SetSnow", "args": { "depth": "1", "width": "128", "height": "128" } },
+    { "type": "SetWeather", "args": { "weatherDef": "Clear", "instant": "true" } },
+    { "type": "SetTime", "args": { "hour": "2" } },
+
+    { "type": "SetFeature", "args": { "featureName": "cloud_cover", "enabled": "false" } },
+    { "type": "Probe", "args": { "probeName": "moon_illumination", "expectedValue": "0.9924", "tolerance": "0.0005" } },
+    { "type": "Probe", "args": { "probeName": "moon_elevation", "expectedValue": "30.6492", "tolerance": "0.0005" } },
+    { "type": "Probe", "args": { "probeName": "cloud_cover_fraction", "expectedValue": "0.0000", "tolerance": "0.0005" } },
+    { "type": "Probe", "args": { "probeName": "cavity_gain", "expectedValue": "1.0316", "tolerance": "0.0005" } },
+    { "type": "Screenshot", "args": { "fileName": "cca_off.png" } },
+
+    { "type": "SetFeature", "args": { "featureName": "cloud_cover", "enabled": "true" } },
+    { "type": "Probe", "args": { "probeName": "cloud_cover_fraction", "expectedValue": "0.3556", "tolerance": "0.0005" } },
+    { "type": "Probe", "args": { "probeName": "cavity_gain", "expectedValue": "1.1192", "tolerance": "0.0005" } },
+    { "type": "Screenshot", "args": { "fileName": "cca_on.png" } }
+  ]
+}
