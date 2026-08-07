@@ -5084,6 +5084,67 @@ the second-time-of-day check that would actually distinguish them. This section 
 and measured, not as a clean unconditional pass — the follow-up is to re-run this same scenario at a
 second time-of-day to see whether the arid-breakpoint result is geometry-dependent or reproducible.
 
+**RESOLVED (issue #111).** Neither (a) nor (b) above. The eightfold gap is real, deterministic, and
+already fully explained by code this section's own text cites two paragraphs up but does not connect
+back to the anomaly: **`AerosolLoadFraction` is not the only rainfall-keyed input the sky patch reads.**
+§20d's `AerosolSpectrum.AngstromExponentForRainfall` is a second, independent function of the same
+`Tile.rainfall`, keyed on the same two vanilla breakpoints but shaped as a **monotonic ramp** rather
+than this section's valley. At the arid breakpoint (340 mm) it reads `ThickDustExponent` (0.2 — near-grey
+extinction, the "sun dims without shifting hue" case §20d's header names explicitly). At the wet
+breakpoint (2000 mm) it reads `FineSmokeExponent` (2.0 — strongly wavelength-selective extinction, the
+"deep saturated red" case). Both breakpoints share the identical `AerosolLoadFraction`
+(`ContinentalBackgroundFraction`, confirmed live: the probe read 0.3426 at both), but they do **not**
+share a colour — and CIELAB ΔE weighs hue shift heavily, so identical *amount* at wildly different
+*colour* produces exactly the kind of lopsided spread measured here.
+
+This is not a new hypothesis requiring fresh live capture: `AerosolSpectrum.ChromaticFraction` — already
+pinned offline (`ChromaticFraction_IsZeroAtGreyAndSaturatedAtTheReferenceExponent`) before this section
+ever shipped — already states the ratio. `ChromaticFraction(ThickDustExponent)` = 0.1437 vs
+`ChromaticFraction(FineSmokeExponent)` = 1.0 (clamped): a ~6.96× spread, the same order of magnitude and
+the same direction as the measured ~8.31× live ΔE ratio (5.500 / 0.662). Re-deriving the committed
+`Tests/Screenshots/background_*` pairs independently (median CIELAB ΔE, per-pixel, no game boot required)
+reproduces the table exactly and shows the mechanism directly in the mean frame colour: arid moves
+rgb(104,61,25) → rgb(104,60,24) (a near-flat shift — grey extinction, as `ThickDustExponent` predicts),
+while wet moves rgb(104,61,25) → rgb(106,56,16) (a large, blue-channel-crushing shift — strongly
+selective extinction, as `FineSmokeExponent` predicts).
+
+The three other candidate explanations issue #111 raised are each ruled out by evidence, not by
+assumption: **terrain dependence** is impossible by construction — `SetTilePropertiesAction` (the
+harness step this scenario's four "tiles" are built from) writes only `Tile.elevation` / `.pollution` /
+`.rainfall` on the live `Tile`; it never touches the map's terrain grid, so all four captures share one
+physical map, camera and terrain, and a whole-frame ΔE cannot be terrain-biased between them. **Mismatched
+solar elevation** is ruled out by the four "before" screenshots themselves: three of the four are
+byte-identical and the fourth differs by a median ΔE of exactly 0.00 against them (confined to 2.3% of
+sampled pixels, consistent with ordinary transient render noise from being first in the capture
+sequence) — which is exactly what the pre-#92 math predicts (pollution = 0 ⇒ `AerosolLoadFraction` = 0
+regardless of altitude or rainfall) and confirms all four captures share one solar geometry, not four.
+**The overlay silently not loading** (a failure mode that has bitten this project before) is ruled out by
+the run logs: both the baseline and overlay runs list `joof.celestiallighting` in the 10-mod `ModsConfig`
+that was actually written, and the overlay run additionally logs "all 1 overlay target(s) are active in
+run's modlist" before launch — the exact check that would have failed had the base `--mod` been omitted.
+The mountain tile's own ΔE (1.865, higher than arid's 0.662 despite a much smaller aerosol amount there,
+~0.022 after altitude falloff) is left unexplained by this section and is very likely §20's independent
+site-altitude curve, not aerosol at all — filed as a loose end rather than chased here, since it is
+outside what issue #111 asked.
+
+Pinned offline as `AridAndWetRainfallBreakpoints_ShareAerosolAmount_ButNotAerosolColour` in
+`SkyColorTemperatureTests.cs`: the amount is asserted identical at both breakpoints (guarding the
+premise), the exponents are asserted to be the two named constants (guarding the mechanism), and the
+`ChromaticFraction` ratio is asserted to stay above 5× (guarding the magnitude) — so a future change that
+quietly re-aligned the two ramps' colours, and silently made this section's numbers stop meaning what
+they say here, fails loudly instead of waiting for the next live A/B to notice.
+
+**What this means for the reference ΔE scale.** The scale is trustworthy for the specific tile/config
+each number was measured at — 0.662 is a correct measurement of "aerosol amount alone, at
+`ThickDustExponent`, is nearly imperceptible", not evidence the amount model is broken or invisible in
+general. Issue #111's "why it matters" point stands on its own regardless of this resolution, though:
+a single ΔE-per-subsystem number *is* an oversimplification once two independently-keyed inputs (amount
+and colour) both vary with the same live quantity, and a scenario that probes only `aerosol_load_fraction`
+— as this one does — cannot see that the colour half moved at all. Extending
+`background_aerosol_clean_air.json` to also `Probe aerosol_angstrom_exponent` at each tile is a natural
+follow-up, filed rather than done blind here since pinning a live scenario's expected values needs its
+own live run to derive them, which this investigation did not require.
+
 ### Out of scope, filed separately
 
 - **§20c's `DriftAmplitude` retune.** Filed as `Jeffrharr/CelestialLighting#108` (referenced from §20c's

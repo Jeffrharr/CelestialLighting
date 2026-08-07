@@ -1275,6 +1275,65 @@ public class SkyColorTemperatureTests
             + "double-counts the amount term the blend boost already carries");
     }
 
+    // --- issue #111: the arid/wet rainfall breakpoints carry the same aerosol AMOUNT but not the
+    // same aerosol COLOUR ---
+    //
+    // §20e's live A/B (DESIGN.md §20e, "Live verification") measured an eightfold spread in median
+    // CIELAB ΔE between the two vanilla rainfall breakpoints — 0.662 at 340 mm (arid) vs 5.500 at
+    // 2000 mm (wet) — despite both tiles reading the identical AerosolLoadFraction
+    // (ContinentalBackgroundFraction, confirmed live: probe read 0.3426 for both). Issue #111 read
+    // that as "same input, wildly different output" and asked whether the measurement or the mod was
+    // at fault.
+    //
+    // Neither. §20e's `background` argument is not the only rainfall-keyed input the sky patch reads:
+    // §20d's AngstromExponentForRainfall is a SECOND, independent function of the same Tile.rainfall,
+    // keyed on the SAME two vanilla breakpoints but shaped as a monotonic ramp rather than §20e's
+    // valley — so "same amount" at the two breakpoints does not imply "same colour". This pins that
+    // fact directly, in the composed pure-core terms the live patch actually evaluates, so a future
+    // change to either ramp that quietly re-aligns the two breakpoints' colours cannot do so silently.
+    [Test]
+    public void AridAndWetRainfallBreakpoints_ShareAerosolAmount_ButNotAerosolColour()
+    {
+        const float aridRainfallMm = 340f;
+        const float wetRainfallMm = 2000f;
+
+        float aridLoad = AtmosphericColumn.AerosolLoadFraction(
+            siteAltitudeMetres: 0f, tilePollution: 0f,
+            backgroundLoadFraction: AtmosphericColumn.BackgroundAerosolFraction(aridRainfallMm));
+        float wetLoad = AtmosphericColumn.AerosolLoadFraction(
+            siteAltitudeMetres: 0f, tilePollution: 0f,
+            backgroundLoadFraction: AtmosphericColumn.BackgroundAerosolFraction(wetRainfallMm));
+
+        // The premise issue #111 observed live (probe reading 0.3426 at both breakpoints): the amount
+        // really is identical, not merely close. Both breakpoints sit at the valley's rim.
+        Assert.That(aridLoad, Is.EqualTo(wetLoad).Within(0.00001f),
+            "the two vanilla rainfall breakpoints are supposed to read the same background AMOUNT " +
+            "(both at ContinentalBackgroundFraction, the valley rim) — if this fails, #111's own " +
+            "premise no longer holds and the rest of this test is moot");
+        Assert.That(aridLoad, Is.EqualTo(AtmosphericColumn.ContinentalBackgroundFraction).Within(0.00001f));
+
+        // The resolution: the two breakpoints do NOT share a colour. ThickDustExponent (near-grey,
+        // alpha 0.2) at the arid end vs FineSmokeExponent (strongly selective, alpha 2.0) at the wet
+        // end — see AerosolSpectrum.AngstromExponentForRainfall.
+        float aridAlpha = AerosolSpectrum.AngstromExponentForRainfall(aridRainfallMm);
+        float wetAlpha = AerosolSpectrum.AngstromExponentForRainfall(wetRainfallMm);
+        Assert.That(aridAlpha, Is.EqualTo(AerosolSpectrum.ThickDustExponent));
+        Assert.That(wetAlpha, Is.EqualTo(AerosolSpectrum.FineSmokeExponent));
+
+        // And the quantitative link to the live spread: ChromaticFraction at those two exponents
+        // already differs by roughly 7x (0.1437 vs 1.0, both pinned above in
+        // ChromaticFraction_IsZeroAtGreyAndSaturatedAtTheReferenceExponent) — the same order of
+        // magnitude as the ~8.3x live ΔE ratio (5.500 / 0.662) issue #111 measured. This is the
+        // number that explains the spread; it is not a new hypothesis, it was already pinned above
+        // and simply never compared against the arid/wet pair before now.
+        float aridChroma = AerosolSpectrum.ChromaticFraction(aridAlpha);
+        float wetChroma = AerosolSpectrum.ChromaticFraction(wetAlpha);
+        Assert.That(wetChroma / aridChroma, Is.GreaterThan(5f),
+            "the chromatic-fraction ratio between the two breakpoints collapsed — it should stay " +
+            "large enough to explain an order-of-magnitude live ΔE spread between two tiles with " +
+            "bit-identical aerosol amount, or issue #111's spread needs re-investigating");
+    }
+
     [Test]
     public void TheAerosolColourFadesOutWithSunAltitude_AtExactlyTheRateTwentyBsEndpointDid()
     {
