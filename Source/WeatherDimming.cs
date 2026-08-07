@@ -128,4 +128,59 @@ public static class WeatherDimming
             colors.sky.r, colors.sky.g, colors.sky.b, colors.saturation,
             def.rainRate, def.snowRate, def.sandRate);
     }
+
+    // §23 (DESIGN.md, issue #88): cloud base height overhead right now, in metres, blended across a
+    // weather transition the same way CloudOpacityFor blends opacity. Deliberately a SEPARATE public
+    // entry point rather than folded into CloudOpacityFor's own return: the two questions ("how much
+    // deck" and "how high is it") have independent callers today (Patch_WeatherDimming never needs
+    // altitude at all) and combining them into one struct would force every existing call site to
+    // start naming a field it does not use.
+    //
+    // Mirrors CloudOpacityFor's gates exactly (feature flag, null weatherManager, MapSky.HasSky) rather
+    // than sharing its early-return path, which does cost one extra MapSky.HasSky check per frame
+    // where a caller wants both numbers. Accepted rather than threaded through as an overload: §8
+    // already reads three separate SiteAltitude values per frame in Patch_SkyColorTemperature
+    // (pressure fraction, aerosol fraction, Angstrom exponent), so one more whole-map, no-cell-scan
+    // read is consistent with what that call site already pays, not a new category of cost.
+    //
+    // THE FEATURE-FLAG CHECK HERE IS NOT, BY ITSELF, WHAT MAKES "OFF" A NO-OP. Unlike opacity, 0 is a
+    // legitimate, physically meaningful altitude (a ground-hugging deck — see
+    // CloudUnderlightMath.ShadowEntryDepressionDegrees), so a caller cannot treat this method reading
+    // 0 as "the feature is off" the way CloudOpacityFor's callers safely treat ITS 0 as "no cloud, do
+    // nothing". Patch_SkyColorTemperature therefore checks CelestialLightingFeatures.CloudUnderlight
+    // itself before calling CloudUnderlightMath.WarmthMultiplier at all; the check here is only
+    // defense in depth (mirroring CloudOpacityFor's own shape) for the unlikely case something else
+    // ever calls this directly.
+    public static float CloudAltitudeMetresFor(Map map)
+    {
+        if (!CelestialLightingFeatures.CloudUnderlight)
+            return 0f;
+
+        WeatherManager weather = map?.weatherManager;
+        if (weather == null)
+            return 0f;
+
+        if (!MapSky.HasSky(map))
+            return 0f;
+
+        return WeatherDimmingMath.BlendOpacity(
+            AltitudeOf(weather.lastWeather),
+            AltitudeOf(weather.curWeather),
+            weather.TransitionLerpFactor);
+    }
+
+    // Classifies a single WeatherDef's cloud base height from data it already ships — the escape
+    // hatch first, the rain/snow/sand-rate classifier otherwise. Mirrors OpacityOf's own shape
+    // exactly, one field over.
+    private static float AltitudeOf(WeatherDef def)
+    {
+        if (def == null)
+            return 0f;
+
+        WeatherCloudDeck declared = def.GetModExtension<WeatherCloudDeck>();
+        if (declared != null && declared.OverridesAltitude)
+            return Mathf.Max(0f, declared.altitudeMetres);
+
+        return WeatherDimmingMath.DefaultAltitudeMetres(def.rainRate, def.snowRate, def.sandRate);
+    }
 }
