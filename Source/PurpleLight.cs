@@ -44,7 +44,7 @@ public static class PurpleLight
     // zero and returning a "safe" colour would invite someone to use it there.
     public static SkyColorTemperature.Rgb ComposedHueFor(Map map)
     {
-        // All four inputs come from the same memoised (map, frame) reads every other sun-driven
+        // All five inputs come from the same memoised (map, frame) reads every other sun-driven
         // patch funnels through, so on any frame where §8 or §19 has already run this costs
         // dictionary hits and nothing else. Latitude comes off SolarPosition.Inputs rather than a
         // second Find.WorldGrid.LongLatOf for the reason Patch_PolarNightBlue spells out: an
@@ -53,16 +53,18 @@ public static class PurpleLight
         SolarPosition.Inputs sun = SolarPosition.InputsForMap(map);
         float elevation = SolarPosition.ElevationForMap(map);
 
-        // The same two atmospheric columns §8 itself reads, so the warm half of the superposition is
-        // the identical spectrum §8 is blending toward on this tile rather than a sea-level stand-in.
-        // §19's half takes no altitude or aerosol input at all and must never grow one — the ozone
-        // layer sits above the boundary layer, and OzoneTwilightMath's signature guard enforces it.
+        // The same three atmospheric readings §8 itself reads (via Patch_SkyColorTemperature), so
+        // the warm half of the superposition is the identical spectrum §8 is blending toward on this
+        // tile rather than a sea-level stand-in. §19's half takes no altitude or aerosol input at all
+        // and must never grow one — the ozone layer sits above the boundary layer, and
+        // OzoneTwilightMath's signature guard enforces it.
         float pressureFraction = SiteAltitude.PressureFractionForMap(map);
         float aerosolFraction = SiteAltitude.AerosolFractionForMap(map);
+        float angstromExponent = SiteAltitude.AngstromExponentForMap(map);
         bool inVacuum = Vacuum.InVacuumForMap(map);
 
         return PurpleLightMath.ComposedHue(
-            elevation, sun.Latitude, pressureFraction, aerosolFraction, inVacuum);
+            elevation, sun.Latitude, pressureFraction, aerosolFraction, angstromExponent, inVacuum);
     }
 
     // §17's enclosed-map gate plus issue #35's blacked-out sky, mirrored from the other

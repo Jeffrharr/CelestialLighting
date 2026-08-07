@@ -219,10 +219,11 @@ public static class PurpleLightMath
         float latitudeDegrees,
         float pressureFraction,
         float aerosolFraction,
+        float angstromExponent,
         bool inVacuum)
     {
         SkyColorTemperature.Rgb warm = Normalised(SkyColorTemperature.SkyColorForElevation(
-            elevationDegrees, pressureFraction, aerosolFraction, inVacuum));
+            elevationDegrees, pressureFraction, aerosolFraction, angstromExponent, inVacuum));
         SkyColorTemperature.Rgb blue = OzoneTwilightMath.ChappuisTransmission(elevationDegrees, latitudeDegrees);
 
         float w = BalancedBlueFraction(warm, blue);

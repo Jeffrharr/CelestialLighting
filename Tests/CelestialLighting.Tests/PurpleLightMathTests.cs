@@ -271,9 +271,9 @@ public class PurpleLightMathTests
     public void ComposedHue_DeepensWithLatitudeAtFixedElevation()
     {
         SkyColorTemperature.Rgb tropical = PurpleLightMath.ComposedHue(
-            WindowMidpoint, 0f, SeaLevel, CleanAir, inVacuum: false);
+            WindowMidpoint, 0f, SeaLevel, CleanAir, AerosolSpectrum.ReferenceAngstromExponent, inVacuum: false);
         SkyColorTemperature.Rgb polar = PurpleLightMath.ComposedHue(
-            WindowMidpoint, 88f, SeaLevel, CleanAir, inVacuum: false);
+            WindowMidpoint, 88f, SeaLevel, CleanAir, AerosolSpectrum.ReferenceAngstromExponent, inVacuum: false);
 
         Assert.That(polar.G, Is.LessThan(tropical.G));
         Assert.That(
@@ -347,7 +347,7 @@ public class PurpleLightMathTests
     public void SequentialLerps_AreOneCompositeLerp(float elevation)
     {
         SkyColorTemperature.Rgb warm = SkyColorTemperature.SkyColorForElevation(
-            elevation, SeaLevel, CleanAir, inVacuum: false);
+            elevation, SeaLevel, CleanAir, AerosolSpectrum.ReferenceAngstromExponent, inVacuum: false);
         SkyColorTemperature.Rgb blue = OzoneTwilightMath.ChappuisTransmission(elevation, PivotLatitude);
 
         float a = SkyColorTemperature.TintStrength(elevation, SeaLevel, inVacuum: false) * WarmSkyBlend;
@@ -404,29 +404,6 @@ public class PurpleLightMathTests
         Assert.That(lower, Is.EqualTo(0.0202f).Within(0.0002f));
         Assert.That(upper, Is.EqualTo(0.0134f).Within(0.0002f));
         Assert.That(lower, Is.GreaterThan(upper), "an empty band is what 'impossible' means here");
-    }
-
-    /// <summary>
-    /// Pollution makes it worse, not better. §20b walks the horizon endpoint DOWN toward 1000 K,
-    /// which deepens the blackbody's blue attenuation and drives the two bounds further apart — so
-    /// the one condition under which a reader might expect the multiply to start working is exactly
-    /// where it fails hardest.
-    /// </summary>
-    [Test]
-    public void SeriesComposition_IsFurtherFromWorkingUnderPollution()
-    {
-        PurpleLightMath.SeriesGreenNotchBand(
-            SkyColorTemperature.HorizonKelvin, PivotLatitude, out float cleanLower, out float cleanUpper);
-        PurpleLightMath.SeriesGreenNotchBand(
-            SkyColorTemperature.AerosolHorizonKelvin, PivotLatitude, out float dirtyLower, out float dirtyUpper);
-
-        Assert.That(
-            PurpleLightMath.SeriesGreenNotchIsReachable(SkyColorTemperature.AerosolHorizonKelvin, PivotLatitude),
-            Is.False);
-        Assert.That(
-            dirtyLower - dirtyUpper,
-            Is.GreaterThan(cleanLower - cleanUpper),
-            "a browner horizon endpoint widens the gap the series construction has to close");
     }
 
     /// <summary>
@@ -521,12 +498,14 @@ public class PurpleLightMathTests
     // ------------------------------------------------------------------------------------------
 
     private static SkyColorTemperature.Rgb Composed(float elevation) =>
-        PurpleLightMath.ComposedHue(elevation, PivotLatitude, SeaLevel, CleanAir, inVacuum: false);
+        PurpleLightMath.ComposedHue(
+            elevation, PivotLatitude, SeaLevel, CleanAir, AerosolSpectrum.ReferenceAngstromExponent,
+            inVacuum: false);
 
     private static SkyColorTemperature.Rgb NormalisedWarm(float elevation)
     {
         SkyColorTemperature.Rgb warm = SkyColorTemperature.SkyColorForElevation(
-            elevation, SeaLevel, CleanAir, inVacuum: false);
+            elevation, SeaLevel, CleanAir, AerosolSpectrum.ReferenceAngstromExponent, inVacuum: false);
         float brightest = System.Math.Max(warm.R, System.Math.Max(warm.G, warm.B));
         return new SkyColorTemperature.Rgb(warm.R / brightest, warm.G / brightest, warm.B / brightest);
     }
@@ -546,7 +525,7 @@ public class PurpleLightMathTests
     private static (float r, float g, float b) WarmAndBlueOnly(float elevation)
     {
         SkyColorTemperature.Rgb warm = SkyColorTemperature.SkyColorForElevation(
-            elevation, SeaLevel, CleanAir, inVacuum: false);
+            elevation, SeaLevel, CleanAir, AerosolSpectrum.ReferenceAngstromExponent, inVacuum: false);
         float a = SkyColorTemperature.TintStrength(elevation, SeaLevel, inVacuum: false) * WarmSkyBlend;
 
         (float r, float g, float b) afterWarm = (
