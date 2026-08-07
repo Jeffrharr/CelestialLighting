@@ -310,6 +310,27 @@ public static class CelestialLightingFeatures
     // right but is a persistent change to the game's darkest maps (DESIGN.md §21).
     public static bool SnowAlbedo = true;
 
+    // Feature key for CloudUnderlight (see CivilTwilightPersistenceKey for why it lives here).
+    public const string CloudUnderlightKey = "cloud_underlight";
+
+    // §23 cloud-base underlighting (issue #88, option 1): a cloud deck keeps catching direct sunlight
+    // from below for a while after the ground itself falls into Earth's own shadow, so
+    // Patch_SkyColorTemperature scales §8's tint strength by CloudUnderlightMath.WarmthMultiplier —
+    // above 1 while the deck is still lit (a high deck lingers longest), below 1 once the deck has
+    // gone dark too (a low deck kills the tail early). Colour-only, and strictly a MODULATION of §8's
+    // existing single sky colour, never a second colour target — see DESIGN.md §23 for why the actual
+    // spatial "warm cloud against cool vault" contrast real skies show is explicitly out of scope
+    // here (issue #88's option 2).
+    //
+    // Zero altitude is a legitimate value (a ground-hugging deck), not a sentinel for "off" — see
+    // WeatherDimming.CloudAltitudeMetresFor's header — so this flag is checked directly in
+    // Patch_SkyColorTemperature rather than inferred from any pure-layer return value. When off, the
+    // multiplier is never applied and §8 renders exactly as it did before this feature — the faithful
+    // pre-feature baseline for the harness A/B. Coupled to WeatherDimming the same way §21's SnowAlbedo
+    // is coupled to it: with WeatherDimming off, CloudOpacityFor already reads 0 everywhere, so this
+    // silently has nothing to modulate regardless of its own flag — an honest consequence, not a bug.
+    public static bool CloudUnderlight = true;
+
     // Feature key for AxialTiltLunarGeometry (see CivilTwilightPersistenceKey for why it lives here).
     public const string AxialTiltLunarGeometryKey = "axial_tilt_lunar_geometry";
 

@@ -152,6 +152,28 @@ public static class Patch_SkyColorTemperature
         if (tint <= 0f)
             return;
 
+        // §23 cloud-base underlighting (issue #88, option 1): a cloud deck keeps catching direct
+        // sunlight from below for a while after the ground falls into Earth's own shadow, so a high
+        // deck should let this tint linger past where a clear sky would already have faded, and a low
+        // deck should kill it early. Modulates the SAME tint used below rather than introducing a
+        // second colour target — see DESIGN.md §23 for why the real "warm cloud against cool sky"
+        // spatial contrast is out of scope for a single flat sky colour.
+        //
+        // Explicit flag check rather than leaning on WeatherDimming.CloudAltitudeMetresFor's own
+        // internal gate: 0 is a legitimate altitude (a ground-hugging deck), not a sentinel for "this
+        // feature is off" — see that method's header — so only checking the flag directly here makes
+        // "off" reproduce §8's pre-§23 tint exactly.
+        if (CelestialLightingFeatures.CloudUnderlight)
+        {
+            float cloudOpacity = WeatherDimming.CloudOpacityFor(map);
+            if (cloudOpacity > 0f)
+            {
+                float cloudAltitudeMetres = WeatherDimming.CloudAltitudeMetresFor(map);
+                tint *= CloudUnderlightMath.WarmthMultiplier(
+                    elevation, cloudAltitudeMetres, cloudOpacity, inVacuum);
+            }
+        }
+
         SkyColorTemperature.Rgb rgb = SkyColorTemperature.SkyColorForElevation(
             elevation, pressureFraction, aerosolFraction, angstromExponent, inVacuum);
         Color target = new Color(rgb.R, rgb.G, rgb.B);
