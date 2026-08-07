@@ -67,6 +67,10 @@ that documents this).
 `./build.sh`, `./TestMod/build.sh`, `./test.sh`. The shipped DLL lands in `1.6/Assemblies/`, which is
 gitignored.
 
+A `pre-commit` hook at `.githooks/pre-commit` runs `build.sh` and `test.sh` and blocks the commit if
+either fails. It is not enabled by default (`core.hooksPath` is local git config, not versioned) —
+run `git config core.hooksPath .githooks` once per clone/worktree to turn it on.
+
 Conventions worth knowing before you write anything:
 
 - **Pure core linked, not copied.** `Tests/CelestialLighting.Tests/CelestialLighting.Tests.csproj`
