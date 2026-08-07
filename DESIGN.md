@@ -4157,6 +4157,45 @@ neutral grey is +0.0032, vanilla's night sky +0.0125, and reference lavender −
 `SkyColorSet.sky`/`.overlay` and `MatBases.LightOverlay` are all already pinned by §2, §8, §7a and
 §19.
 
+#### Filming the sweep, because a still cannot show a transient
+
+Every number above is a point measurement, and a point measurement is exactly what a reader should
+distrust for a claim of this shape. A still at 20.17 asserts a one-game-minute transient; it cannot
+show one, and it is indistinguishable from the best frame of a sweep somebody kept quiet about. So
+the sweep itself is filmed: `Tests/Scenarios/purple_light_timelapse.json` runs the harness
+`Timelapse` step twice over the same third of an hour, once with `purple_light` off and once on,
+and `Tools/Timelapse/compose_ab.py` pairs the two sequences frame-for-frame into
+`Tests/Screenshots/purple_timelapse_ab.mp4` (and a downscaled `.gif`, the only thing GitHub will
+animate inline from a raw URL).
+
+**`stepHours` is `0.004`, and the specific value is load-bearing.** The earlier 0.05 h survey grid
+steps about three game-minutes per frame, which renders the whole phenomenon as a single flicker —
+the same mistake §19's post-mortem warned about, one order finer. 0.004 h is 10 ticks *exactly* at
+`GenDate.TicksPerHour` = 2500, which matters because `AdvanceTime` rounds hours to whole ticks: a
+step that lands on a half-tick sheds it every frame, and over an 80-frame sweep that drift is a
+respectable fraction of a 0.13 h window. The sweep runs 20.00 → 20.32, so roughly 0.10 h of ordinary
+sky precedes the window and 0.08 h follows it — arrival and departure are both in shot rather than
+implied.
+
+What the film shows, measured from the rendered PNGs rather than asserted:
+
+| frames | hours | off vs on |
+|---|---|---|
+| 1–24 | 20.004–20.096 | byte-identical |
+| **25–53** | **20.100–20.212** | **differ — 29 frames, peaking at 20.172 (−5.26°)** |
+| 54–79 | 20.216–20.316 | byte-identical |
+
+So 50 of the 79 published frames are byte-identical and 29 are not, and the 29 are contiguous. That
+is the outside-the-window invariant restated as a *film* rather than as a pair of stills, which is
+the form in which cherry-picking is not available.
+
+One honest wrinkle, recorded because it looks like a counter-example and is not: frame 0 of the two
+sweeps also differs, by 1.3 % of pixels confined to the top 115 rows, with channel deltas up to 248.
+That is the run's first screenshot still carrying UI chrome — alert text, the top bar, the learning
+helper — that hidden-UI mode had not finished tearing down; terrain pixels across the frame are
+byte-identical there. `compose_ab.py --skip-first` drops it. Left in, it would paint a false
+"frames differ" mark on a frame well outside the window, which is the opposite of the point.
+
 ### What is deliberately not done
 
 - **No stratospheric aerosol term.** Real purple light is strongly aerosol-dependent and spectacular

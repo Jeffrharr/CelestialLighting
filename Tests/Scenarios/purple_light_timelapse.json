@@ -1,0 +1,32 @@
+{
+  "name": "purple_light_timelapse",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "45" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "11" } },
+
+    { "type": "SetFeature", "args": { "featureName": "purple_light", "enabled": "false" } },
+    {
+      "type": "Timelapse",
+      "args": {
+        "fromHour": "20.0",
+        "toHour": "20.32",
+        "stepHours": "0.004",
+        "fileNamePrefix": "purple_timelapse_off",
+        "fps": "10"
+      }
+    },
+
+    { "type": "SetFeature", "args": { "featureName": "purple_light", "enabled": "true" } },
+    {
+      "type": "Timelapse",
+      "args": {
+        "fromHour": "20.0",
+        "toHour": "20.32",
+        "stepHours": "0.004",
+        "fileNamePrefix": "purple_timelapse_on",
+        "fps": "10"
+      }
+    }
+  ]
+}
