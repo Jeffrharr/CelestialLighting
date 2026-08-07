@@ -1,0 +1,48 @@
+{
+  "name": "cloud_underlight",
+  "saveFile": "minimal_colony.rws",
+  "description": "§23 cloud-base underlighting (issue #88 option 1): the off/on true-no-op invariant (off must read exactly 1.0, the multiplier's neutral value — see CloudUnderlightProbe's own note on why the flag is checked directly rather than leaning on CloudAltitudeMetresFor's zero return) plus issue #88's headline opposite-sign invariant, using two REAL installed WeatherDefs and no custom Def: Overcast classifies dry (WeatherDimmingMath's automatic altitude classifier lands it at the 4000 m default — the table's 'mid altocumulus' row) and Sandstorm classifies fully precipitating (1000 m default — the table's 'low stratus' row). Latitude 45, day 40, sunset located by survey (civil dusk falls between hour 20.5 and 21 on this tile/season — see the parent CLAUDE.md's 'survey before you pick an hour' note). Hour 20.80 (sun elevation -1.49°, pinned live) is the point the survey found where the two decks' multipliers sit on opposite sides of 1.0: Overcast's shadow-entry angle (~2.03° at 4000 m) still has the deck lit and glowing, Sandstorm's (~1.02° at 1000 m) has already gone dark and is suppressing the tail — but the two phases are NOT symmetric (GlowPhase peaks fast and Sandstorm's own suppression window is barely 10% travelled at this exact elevation), so this crossover pair is the correctness demonstration, not the strongest visual one. A third pair at hour 20.95 (elevation -3.86°) is Sandstorm well past its own shadow entry, deep enough into its suppression window to be issue #88's 'kills the sunset' case at near-maximum strength on this tile. All probe values are exact live measurements, pinned per the parent CLAUDE.md rule (never replace a measured pin with a computed one) — a formula or classifier-default change invalidates the ladder and it must be re-run, not re-derived.",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "45" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "40" } },
+    { "type": "SetTime", "args": { "hour": "20.80" } },
+
+    { "type": "SetWeather", "args": { "weatherDef": "Overcast", "instant": "true" } },
+    { "type": "Probe", "args": { "probeName": "sun_elevation", "expectedValue": "-1.4900", "tolerance": "0.01" } },
+
+    { "type": "SetFeature", "args": { "featureName": "cloud_underlight", "enabled": "false" } },
+    { "type": "Probe", "args": { "probeName": "cloud_underlight", "expectedValue": "1.0000", "tolerance": "0.0005" } },
+    { "type": "Probe", "args": { "probeName": "cloud_underlight_altitude", "expectedValue": "0", "tolerance": "0.5" } },
+    { "type": "Screenshot", "args": { "fileName": "cu_overcast_off.png" } },
+
+    { "type": "SetFeature", "args": { "featureName": "cloud_underlight", "enabled": "true" } },
+    { "type": "Probe", "args": { "probeName": "cloud_underlight_altitude", "expectedValue": "4000", "tolerance": "0.5" } },
+    { "type": "Probe", "args": { "probeName": "cloud_underlight", "expectedValue": "1.4685", "tolerance": "0.0005" } },
+    { "type": "Screenshot", "args": { "fileName": "cu_overcast_on.png" } },
+
+    { "type": "SetWeather", "args": { "weatherDef": "Sandstorm", "instant": "true" } },
+    { "type": "Probe", "args": { "probeName": "sun_elevation", "expectedValue": "-1.4900", "tolerance": "0.01" } },
+
+    { "type": "SetFeature", "args": { "featureName": "cloud_underlight", "enabled": "false" } },
+    { "type": "Probe", "args": { "probeName": "cloud_underlight", "expectedValue": "1.0000", "tolerance": "0.0005" } },
+    { "type": "Probe", "args": { "probeName": "cloud_underlight_altitude", "expectedValue": "0", "tolerance": "0.5" } },
+    { "type": "Screenshot", "args": { "fileName": "cu_sandstorm_off.png" } },
+
+    { "type": "SetFeature", "args": { "featureName": "cloud_underlight", "enabled": "true" } },
+    { "type": "Probe", "args": { "probeName": "cloud_underlight_altitude", "expectedValue": "1000", "tolerance": "0.5" } },
+    { "type": "Probe", "args": { "probeName": "cloud_underlight", "expectedValue": "0.9047", "tolerance": "0.0005" } },
+    { "type": "Screenshot", "args": { "fileName": "cu_sandstorm_on.png" } },
+
+    { "type": "SetTime", "args": { "hour": "20.95" } },
+    { "type": "Probe", "args": { "probeName": "sun_elevation", "expectedValue": "-3.8581", "tolerance": "0.01" } },
+
+    { "type": "SetFeature", "args": { "featureName": "cloud_underlight", "enabled": "false" } },
+    { "type": "Probe", "args": { "probeName": "cloud_underlight", "expectedValue": "1.0000", "tolerance": "0.0005" } },
+    { "type": "Screenshot", "args": { "fileName": "cu_sandstorm_deep_off.png" } },
+
+    { "type": "SetFeature", "args": { "featureName": "cloud_underlight", "enabled": "true" } },
+    { "type": "Probe", "args": { "probeName": "cloud_underlight_altitude", "expectedValue": "1000", "tolerance": "0.5" } },
+    { "type": "Probe", "args": { "probeName": "cloud_underlight", "expectedValue": "0.4297", "tolerance": "0.0005" } },
+    { "type": "Screenshot", "args": { "fileName": "cu_sandstorm_deep_on.png" } }
+  ]
+}
