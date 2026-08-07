@@ -8,7 +8,14 @@ Strongest check: the solo enclosed and solo gap rooms' casters-ON frames are **p
 in the sampled window — enclosure no longer affects the render at all. Offline units: 1210 pass.
 The remaining columns that report "no band" in measurements are band-tip ramp positions (the band
 is sheared along the cast vector, so its western tip covers only part of the strip) — present in
-both rooms alike. All Seam* / DrawDump diagnostics must still be deleted before ship.
+both rooms alike. `SeamSkip`/`SeamDump`/`SeamTint`/`DrawDump`/`SkirtProbe` have been deleted
+(they were also the source of a live perf complaint: `Patch_SeamSkip` patched vanilla's
+`MapDrawLayer.DrawLayer` base method, the hottest possible target — every layer, every section,
+every frame — for a bisect this investigation no longer needs). The regression-value scenarios
+(`eave_seam_solo_enclosed`/`_solo_gap`, `eave_seam_remove_one_wall`, `eave_seam_same_phase`,
+`eave_seam_inset_strip`, `eave_seam_hours`) stay, with their incidental `seam_dump` toggles
+stripped out; the pure bisection scenarios (`eave_seam_drawdump`, `eave_seam_layer_skip`,
+`eave_seam_tint`) that only ever exercised those diagnostics are deleted along with them.
 
 ## SOLVED: vanilla's SectionLayer_IndoorMask clips the band
 
@@ -488,8 +495,8 @@ one lands on the seam.
 | `eave_seam_hours` | 09/12/15/18h. Constant 4 px shortfall at every angle. |
 | `eave_seam_same_phase` | Two rooms 34 cells apart — identical section phase. Use when comparing two configs in one frame. |
 
-`SeamDump` (feature flag `seam_dump`) logs per-cell EmitCell decisions and the finished vertex
-buffer. It is diagnostic only and must be deleted before anything ships.
+`SeamDump` logged per-cell EmitCell decisions and the finished vertex buffer during the
+investigation; it and the feature flag that drove it are deleted now that the fix has shipped.
 
 ## Traps that have already cost time
 
