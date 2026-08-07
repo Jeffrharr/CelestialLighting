@@ -145,29 +145,6 @@ public static class ProbeRegistration
         ProbeRegistry.Register(new EaveCellProbe("eave_cells", EaveCellProbe.Metric.Eaves));
         ProbeRegistry.Register(
             new EaveCellProbe("roof_shadow_cells", EaveCellProbe.Metric.ShadowCasters));
-        // DIAGNOSTIC ONLY (docs/EAVE-SEAM.md): reads the caster grid the mesh builder reads, because
-        // the seam investigation ran out of things it could infer from pixels alone.
-        FeatureRegistry.Register("seam_dump", on => CelestialLighting.SeamDump.Enabled = on);
-        // DIAGNOSTIC ONLY (docs/EAVE-SEAM.md): forces each shadow-adjacent layer's material to a
-        // distinct colour so a screenshot names the layer that actually draws the seam rows.
-        FeatureRegistry.Register("seam_tint", on => CelestialLighting.SeamTint.Enabled = on);
-        // DIAGNOSTIC ONLY (docs/EAVE-SEAM.md): logs the BAKED sun-shadow mesh at draw time for
-        // sections near the seam scenarios' rooms.
-        FeatureRegistry.Register("draw_dump", on => CelestialLighting.DrawDump.Enabled = on);
-        // DIAGNOSTIC ONLY (docs/EAVE-SEAM.md): layer-level draw bisect. Each flag suppresses one
-        // MapDrawLayer type's DrawLayer; seam_skip_sunshadows is the positive control.
-        FeatureRegistry.Register("seam_skip_fog", on => CelestialLighting.SeamSkip.Set("SectionLayer_FogOfWar", on));
-        FeatureRegistry.Register("seam_skip_edge", on => CelestialLighting.SeamSkip.Set("SectionLayer_EdgeShadows", on));
-        FeatureRegistry.Register("seam_skip_light", on => CelestialLighting.SeamSkip.Set("SectionLayer_LightingOverlay", on));
-        FeatureRegistry.Register("seam_skip_things", on => CelestialLighting.SeamSkip.Set("SectionLayer_ThingsGeneral", on));
-        FeatureRegistry.Register("seam_skip_indoormask", on => CelestialLighting.SeamSkip.Set("SectionLayer_IndoorMask", on));
-        FeatureRegistry.Register("seam_skip_eaveshade", on => CelestialLighting.SeamSkip.Set("SectionLayer_EaveShade", on));
-        FeatureRegistry.Register("seam_skip_nightdesat", on => CelestialLighting.SeamSkip.Set("SectionLayer_NightDesaturation", on));
-        FeatureRegistry.Register("seam_skip_sunshadows", on => CelestialLighting.SeamSkip.Set("SectionLayer_SunShadows", on));
-        ProbeRegistry.Register(new CelestialLighting.Probes.SkirtProbe("caster_cells", CelestialLighting.Probes.SkirtProbe.Metric.Casters));
-        ProbeRegistry.Register(new CelestialLighting.Probes.SkirtProbe("north_skirt_cells", CelestialLighting.Probes.SkirtProbe.Metric.NorthSkirts));
-        ProbeRegistry.Register(new CelestialLighting.Probes.SkirtProbe("caster_height_sum", CelestialLighting.Probes.SkirtProbe.Metric.HeightSum));
-
         // §16: what one map-mesh dirty flag costs, per layer, in microseconds. Seven probes rather
         // than one because the question is a comparison — our three added regenerates against the
         // vanilla ones already on the same flag — and a single total would hide exactly that. The

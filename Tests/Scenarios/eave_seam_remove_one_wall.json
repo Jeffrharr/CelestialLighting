@@ -91,13 +91,6 @@
     {
       "type": "SetFeature",
       "args": {
-        "featureName": "seam_dump",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
         "featureName": "eave_shadows",
         "enabled": "false"
       }
