@@ -6034,7 +6034,132 @@ cloud cover, well short of a full-overcast repaint.
   the UI half's correctness rests on the offline `Patch_CloudCoverLabel` reasoning alone.
 
 
-## Settings and presets
+## 23. Cloud-base underlighting (`CloudUnderlightMath`, issue #88 option 1)
+
+**Problem.** A genuinely clear-sky sunset is monotonous — one smooth gradient, the case §8 already
+models. Essentially all of the drama people associate with real sunsets comes from cloud *bases* lit
+from beneath: once the sun sits at or below the horizon, direct light no longer reaches the ground,
+but it still reaches a cloud deck's underside for a while longer, having crossed an extremely long
+low-elevation path and arriving heavily reddened. Cloud altitude sets both the timing and the
+character of that light — issue #88's own table: high cirrus (~10 km) stays lit well below the
+horizon and reads as lingering pinks/magentas, mid altocumulus (~4 km) catches only the last of it as
+deep orange, and low stratus (~1 km) goes dark almost immediately, which is real weather's own way of
+"ruining" a sunset rather than a bug in a warm-tint model that only ever adds warmth.
+
+**Option 1, not option 2 — and why.** Issue #88 lays out both honestly: a real cloud-underlit sky is a
+*spatial* effect (warm cloud against a cool vault), which RimWorld's single flat sky colour cannot
+represent without an §11a-aurora-sized new render path (`SectionLayer`, its own performance budget,
+the whole shape of #60/§20's cost history). Option 1 instead modulates the *strength* of §8's existing
+single-colour tint by how much of the cloud deck is still catching direct light — no new colour
+target, no new geometry on screen, just getting the timing and intensity of a mechanism §8 already
+has right. The issue's own recommendation is to ship option 1 first and only revisit option 2 if a
+live A/B shows the flat version reading as mud; that A/B is the "Live verification" subsection below.
+
+**The geometry reuses §19's Earth-shadow model, inverted.** `PurpleLightMath.ShadowHeightKm` already
+answers "how high has Earth's own shadow climbed, given the sun is this far below the horizon" —
+`h(theta) = R * (sec(theta) - 1)`. `CloudUnderlightMath.ShadowEntryDepressionDegrees` asks the inverse
+question: given a cloud base at height `h`, at what depression angle `theta` does the rising shadow
+finally reach it — `theta(h) = arccos(R / (R + h))`. Deliberately the same secant-shadow model rather
+than the coarser small-angle horizon-dip approximation aviation/marine navigation normally uses: this
+codebase already has one canonical answer for "how high is Earth's shadow" (§19), and a second,
+slightly different approximation of the same physical quantity is exactly the kind of drift the
+mired-space and aerosol notes (§20, §20d) warn against.
+
+**Two phases, meeting at the deck's own shadow-entry angle.** `GlowPhase` is `4t(1-t)` across the
+window from the horizon (t=0) to shadow entry (t=1) — zero at both ends, peaking at the window's
+midpoint, with the zero-at-both-ends shape removing any seam at either boundary once the window's
+width is fixed by the geometry above. `ShadowSuppressionPhase` picks up exactly where `GlowPhase`'s
+window ends and ramps to full (1) at §8's own `NightFadeFloorDegrees` — the point §8's tint is already
+zero, so "full suppression" there multiplies an already-zero contribution rather than doing anything
+of its own. `WarmthMultiplier` combines them as `1 + opacity * (0.6 * glow - suppression)`: a high deck
+(large shadow-entry angle) spends most of the below-horizon range in its glow phase and reads above 1;
+a low deck (shadow-entry angle near 0) has almost no glow phase and spends nearly the whole range in
+suppression, reading below 1 and down to a floor of exactly 0. Same input, opposite sign, by
+construction rather than as a tuned special case — this is issue #88's headline invariant.
+
+**Altitude is a second axis on the same escape hatch §13 already has.** `WeatherCloudDeck.opacity`
+already lets a `WeatherDef` state its cloud coverage outright rather than being classified from
+palette/precipitation. `altitudeMetres` (default unset, sentinel -1) is the same shape one field over:
+declared and used only once `OverridesAltitude` is true, everything else keeps being classified
+automatically. The automatic classifier
+(`WeatherDimmingMath.DefaultAltitudeMetres`) blends between `DryDeckDefaultAltitudeMetres` (4000 m)
+and `PrecipitatingDeckDefaultAltitudeMetres` (1000 m) by the same `ObscurationIntensity` §13 already
+computes from rain/snow/sand rate — chosen to land on issue #88's own worked values for the dry and
+precipitating rows of its table (mid altocumulus ~4 km, low stratus ~1 km). The classifier
+structurally cannot reach the table's third row (high cirrus ~10 km): nothing about a rain rate says
+whether it is falling from a low nimbostratus or an unusually tall storm cell, so that row is reachable
+only through an explicit `WeatherCloudDeck.altitudeMetres` override, same as §13's opacity residue.
+
+**Modulates §8's tint, never introduces a second colour target.** `Patch_SkyColorTemperature` computes
+`tint` exactly as it did before §23, then — gated on `CelestialLightingFeatures.CloudUnderlight`
+directly, not merely on `CloudAltitudeMetresFor`'s own internal zero return, because 0 is a legitimate
+real altitude for a ground-hugging deck and not a sentinel for "feature off" — multiplies it by
+`CloudUnderlightMath.WarmthMultiplier` before blending toward the same target colour §8 already
+computes. `.colors.saturation` and `.glow` are untouched, the same colour-only discipline every
+subsystem in this lane keeps.
+
+### Settings and the feature gate
+
+`CelestialLightingFeatures.CloudUnderlight` (key `cloud_underlight`), default on. Off skips the
+multiplier entirely inside `Patch_SkyColorTemperature`, which is what makes "off" reproduce §8's
+pre-§23 tint bit-for-bit — the harness A/B baseline. Coupled to `WeatherDimming` the same way §21's
+`SnowAlbedo` is: with `WeatherDimming` off, `CloudOpacityFor` already reads 0 everywhere, so §23
+silently has nothing to modulate regardless of its own flag — an honest consequence of building on
+§13's opacity axis, not a bug. `GlowAmplitude` (0.6, `CloudUnderlightMath`) is a starting guess picked
+the same eyeballed way as §22's `WobbleAmplitude`, kept modest relative to the suppression side's full
+[0,1] range so a lit deck reads as more saturated colour rather than an unboundedly stronger blend.
+
+### Live verification
+
+`Tests/Scenarios/cloud_underlight.json`, latitude 45, day 40. Civil dusk on this tile/season falls
+between hour 20.5 and 21 (found by survey, per the parent CLAUDE.md's "survey before you pick an
+hour" note); two real installed `WeatherDef`s stand in for issue #88's table rows with no custom Def
+needed — Overcast classifies dry (`WeatherDimmingMath`'s automatic classifier: 4000 m, "mid
+altocumulus") and Sandstorm classifies fully precipitating (1000 m, "low stratus").
+
+The off/on true-no-op invariant is exact everywhere in the sweep: with the feature off,
+`cloud_underlight` reads `1.0000` regardless of weather or time. All multiplier values below are
+pinned live (±0.0005).
+
+At hour 20.80 (sun elevation **-1.4900°**, pinned), the two decks land on opposite sides of 1.0 for
+the same input, issue #88's headline invariant: Overcast (4000 m) reads **1.4685** — still inside its
+glow window (shadow-entry angle ~2.03°) — while Sandstorm (1000 m) reads **0.9047** — already past its
+own shadow entry (~1.02°) and into suppression. The two phases are not symmetric: `GlowPhase`'s
+`4t(1-t)` hump is already well past its own peak by -1.49° for a 4000 m deck, while Sandstorm's
+suppression window is barely 10% travelled at the same elevation, having only just entered it. That
+asymmetry shows up directly in the measured deltaE:
+
+| capture | condition | median CIELAB ΔE |
+|---|---|---|
+| `cu_overcast_off.png` / `cu_overcast_on.png` | Overcast, -1.49°, glow near its peak | **2.10** — visible at a glance |
+| `cu_sandstorm_off.png` / `cu_sandstorm_on.png` | Sandstorm, -1.49°, suppression just started | **0.57** — imperceptible |
+| `cu_sandstorm_deep_off.png` / `cu_sandstorm_deep_on.png` | Sandstorm, -3.86°, suppression well advanced | **1.32** — visible on close inspection |
+
+**The crossover pair is the correctness demonstration, not the strongest visual one, and that is
+worth stating plainly rather than picking a flattering hour and leaving it there.** The exact
+elevation where the two decks' signs first cross is also the elevation where Sandstorm's own
+suppression has barely started, so the "opposite sign" pair understates the low-deck case on its own.
+Surveying deeper (-3.86°, `cu_sandstorm_deep_*.png`) shows the suppression clearing 1.0 — closer to,
+but still short of, "at a glance". Against the measured set so far (§20c aerosol drift 0.36, §19b
+ozone column 1.48, §20 site altitude 1.88, §21 snow cavity at overcast noon 6.06, §22 cloud cover
+2.74, §20b pollution at 1.0 6.79), §23's boost half lands mid-pack and its suppression half is the
+weakest live-verified subsystem in the mod short of §20c — an honest consequence of option 1's own
+scoping, not a bug: modulating a single flat colour by a fraction that only reaches 1-in-10 of its
+own suppression window at the crossover elevation was never going to read as strongly as a full
+colour-target change would.
+
+- **The suppression case never reaches "visible at a glance" on this tile/season.** Even at the
+  deepest surveyed point (-3.86°, mult 0.4297 — more than half suppressed) the measured ΔE is 1.32.
+  Part of this is structural: `WarmthMultiplier`'s suppression term is riding on top of §8's own
+  `TintStrength`, which is itself fading toward zero as elevation approaches
+  `NightFadeFloorDegrees` — multiplying a shrinking base tint by a shrinking multiplier compounds
+  into a smaller absolute colour change than the arithmetic on the multiplier alone suggests. Whether
+  a still-higher-altitude override (issue #88's ~10 km cirrus row, only reachable via
+  `WeatherCloudDeck.altitudeMetres`) reads more strongly has not been surveyed.
+- **Not yet surveyed at other latitudes/seasons**, and not yet surveyed with an explicit
+  `WeatherCloudDeck.altitudeMetres` override standing in for the table's cirrus row — only the two
+  automatic classifier defaults have been measured.
+
 
 Two cross-cutting settings ideas that span the subsystems above:
 
