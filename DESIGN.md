@@ -1863,6 +1863,13 @@ cost of a misclassification slightly — a false overcast now brightens a snowy 
 well as darkening its sky — which is another reason `Tools/WeatherAudit` is the thing to re-run after
 a mod-list change. See §21.
 
+**One exception, added by issue #100.** §21's night-floor entry point (`SurfaceBuildup`'s one-arg
+`CavityGainFor(Map map)` only — not the two-arg overload this section's own daytime recovery uses)
+substitutes §22's continuous cloud-cover fraction for this classifier's reading **while the map's
+current weather is Clear**, because this classifier has no opinion at all there — it scores Clear as
+0 on both axes by construction, which §22 later made a stale abstention rather than a true "no
+cloud". Every other weather, and every consumer on this page, is unaffected. See §21's own writeup.
+
 ### Modded weathers, and why the palette alone was not enough
 
 §13 originally shipped with the palette rule as the *whole* classifier, arguing from the table above
@@ -5637,6 +5644,50 @@ is resolved by the map's own state rather than by a special case.
 ramp on apparent brightness, and snow is achromatic — it shifts no hue while it desaturates less. §21
 therefore writes **no saturation term of its own**. A second desaturation input would have been a
 second source of truth for a number §9 already owns.
+
+### Issue #100: on Clear weather, reading §22's continuous fraction instead of §13's abstention
+
+The night floor's `a_cloud` comes from `WeatherDimming.CloudOpacityFor` — §13's classifier — for
+every weather **except** Clear. §13 was built to classify precipitation, and it scores Clear as
+opacity exactly 0 by construction (`WeatherDimmingMath` has no term for it on either axis). Before
+§22 existed that 0 was accurate: a Clear sky had no notion of partial cover at all. Once §22 shipped
+a continuous, hourly-drifting cloud-cover fraction for exactly this one weather
+(`CloudCoverClock.FractionForMap`, §22 above), §13's 0 stopped being "no cloud" and became "no
+opinion" — the night floor kept reading a literal clear sky while §22 was already rendering that same
+sky as up to a third overcast, and a snowed-in colony under a hazy Clear night got none of this
+subsystem's amplification.
+
+`AlbedoCavityMath.EffectiveCloudOpacity` closes that gap: `SurfaceBuildup`'s private
+`CloudOpacityOrClear` reads the map's current weather once, and substitutes §22's fraction for §13's
+reading only while that weather is actually Clear. Gated on the weather being Clear, not on
+`weatherOpacity == 0` — §13 can also read 0 because the feature is off or because the map has no sky
+at all (caves, pocket maps), and neither of those means "this map is in Clear weather right now";
+conflating them would leak §22's drift into places that have no business seeing a tile's weather.
+
+This is a **narrower** fix than it might sound: only the one-arg `CavityGainFor(Map map)` — the night
+floor's own entry point — changed. The two-arg overload `WeatherDimming.DimmingFor` threads through
+already-short-circuits to zero dimming before ever reaching the cavity on true Clear weather, so it
+was never reading the stale 0 in the first place, and §22 already tints the Clear sky's daytime
+colour directly (`Patch_CloudCoverSky`). Touching that overload would have been solving a problem
+that does not exist there and duplicating §22's own daytime effect.
+
+**The off-fallback is exact by construction, not by a second branch.** `CloudCoverClock.FractionForMap`
+returns exactly 0 when `CelestialLightingFeatures.CloudCover` is off — the same 0 §13 already reports
+for Clear — so with §22 off this reproduces the pre-#100 reading bit-for-bit with no dedicated
+fallback path to keep in sync. `AlbedoCavityMathTests` pins this explicitly
+(`EffectiveCloudOpacity_FeatureOff_FallsBackToTheExactPreIssue100Reading`).
+
+**Live verification.** `Tests/Scenarios/cloud_cover_albedo_cavity.json`, latitude 45, hour 2 (sun
+well below the horizon, so the reading is genuinely the night floor and not daytime dimming). Day 52
+was chosen after a moon-phase survey specifically for a near-full moon (`moon_illumination` 0.9924):
+the floor this gain multiplies is starlight + airglow + moonlight, so a fuller moon gives the
+multiplier more absolute glow to amplify — the same tile/snow/hour at day 40's dimmer moon phase
+measured a correct but imperceptible median ΔE of 0.83. With `cloud_cover` off, `cavity_gain` reads
+`1.0316` (the discrete Clear-sky backscatter, matching pre-#100 behaviour bit for bit). With it on,
+`cloud_cover_fraction` reads `0.3556` and `cavity_gain` follows it up to `1.1192`. Median CIELAB ΔE
+**1.12** — visible on close inspection, at the low end of the measured set (§20c aerosol drift 0.36,
+§19b ozone column 1.48, §20 site altitude 1.88) — consistent with amplifying a floor that starlight
+and airglow already keep small even at full moon.
 
 ### The daytime half: giving §13's dimming back over snow
 
