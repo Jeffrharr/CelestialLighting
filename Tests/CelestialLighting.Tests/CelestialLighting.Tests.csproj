@@ -167,6 +167,10 @@
          hit/miss/invalidation rules are unit tested offline instead of inferred from in-game
          symptoms — a memo bug looks exactly like a formula bug from the outside. -->
     <Compile Include="../../Source/GeometryMemo.cs" Link="GeometryMemo.cs" />
+    <!-- §23's cloud-base underlighting (issue #88, option 1). Depends on SkyColorTemperature above
+         for NightFadeFloorDegrees — the same public constant PurpleLightMath already reads rather
+         than a second copy of "where civil twilight ends" — so that link is a hard prerequisite. -->
+    <Compile Include="../../Source/CloudUnderlightMath.cs" Link="CloudUnderlightMath.cs" />
   </ItemGroup>
 
 </Project>
