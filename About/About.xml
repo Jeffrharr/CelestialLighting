@@ -88,6 +88,21 @@ Q. Does it work with Planetsmith?
   the whole thing this fixes. The settings screen shows you which mod is setting the tilt and what it
   is. The same is true of Realistic Axial Tilt, which has always owned the tilt outright.
 
+Q. Does it work with Realistic Planets 2?
+
+  Yes, and it follows that one too. Realistic Planets 2 lets you pick an axial tilt when you generate
+  a world, and Celestial Lighting lights the world on it, exactly as it does for Planetsmith. An
+  earlier release of Realistic Planets 2 had a sky engine of its own and the two would have fought;
+  the current one has removed it, so there is nothing left to collide with.
+
+  One difference worth knowing. Realistic Planets 2 also has its own calendar, and it runs about 15
+  days ahead of RimWorld's - so on one of its worlds your longest day arrives a fortnight before your
+  warmest one. Celestial Lighting follows the planet rather than the calendar, so the sun is where
+  Realistic Planets 2 says it is. That is its year, not a fault in the sky.
+
+  As with Planetsmith, there is no switch: the tilt is Realistic Planets 2's setting, and the settings
+  screen reports which mod is setting it and what it is.
+
 Q. Does it work with Biomes! Caverns?
 
   Yes. An underground map has no sky, so sunrise and sunset colour, sky colour temperature,
@@ -184,6 +199,13 @@ Requires Harmony.</description>
          sky — but we read a field off its world component, so load after it and let that component
          exist before anything of ours asks for it. -->
     <li>aspctt.planetsmith</li>
+    <!-- Realistic Planets 2 owns both the axial tilt and the seasonal phase we light its worlds on
+         (see DESIGN.md's Realistic Planets 2 interop). Also NOT a shared patch target: its earlier
+         release shipped a whole sky pipeline and patched GenCelestial, SkyManager, GlowGrid and
+         Printer_Shadow, but the current one has deleted that subsystem and patches only worldgen,
+         world-map UI and GenTemperature. We read a static field off its game component, so load
+         after it and let that component be registered before anything of ours asks. -->
+    <li>koth.RealisticPlanets2</li>
     <!-- Biomes! Core owns the BMT_RockRoofStable RoofDef that Caverns stamps, and Geological
          Landforms owns the BiomeVariantDefs behind its partly-open "shallow cave" maps. We read
          neither directly — both reach us through vanilla BiomeDef/RoofDef fields — but our

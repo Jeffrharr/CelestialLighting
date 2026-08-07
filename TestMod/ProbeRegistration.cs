@@ -26,6 +26,12 @@ public static class ProbeRegistration
         // planetsmith_active still reads 1, which is the intended outcome and the only way a scenario
         // can catch that precedence silently inverting.
         ProbeRegistry.Register(new PlanetsmithTiltProbe());
+        // No realistic_planets_tilt to go with this: planetsmith_tilt already reports
+        // AxialTiltCompat.ObliquityDegrees, which is the whole chain's answer rather than
+        // Planetsmith's field, so on an RP2 world it reads RP2's tilt. A second probe reading the
+        // same property under a different name would be one more thing to keep in step for no
+        // additional coverage.
+        ProbeRegistry.Register(new RealisticPlanetsActiveProbe());
         ProbeRegistry.Register(new MoonDeclinationProbe());
         ProbeRegistry.Register(new ShadowVectorXProbe());
         ProbeRegistry.Register(new CivilTwilightProbe());
@@ -282,6 +288,20 @@ public static class ProbeRegistration
         FeatureRegistry.Register(
             PlanetsmithTiltOverride.FeatureKey,
             enabled => PlanetsmithTiltOverride.Set(enabled),
+            defaultEnabled: false);
+        // The RP2 pair, same shape as the Planetsmith pair above, measuring one more thing: off is
+        // our tilt on OUR phase, on is their tilt on THEIR phase, and the phase half of that is
+        // visible at a day-of-year where ours is flat and theirs is at full swing.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.RealisticPlanetsGeometryKey,
+            enabled => CelestialLightingFeatures.RealisticPlanetsGeometry = enabled);
+        // WRITES to Realistic Planets 2's state, defaultEnabled FALSE, for the reasons given on the
+        // Planetsmith override above. One difference matters here: their tilt is a STATIC field, so
+        // an un-restored override survives the world being unloaded and would follow the harness into
+        // the next scenario's save-load rather than dying with the map.
+        FeatureRegistry.Register(
+            RealisticPlanetsTiltOverride.FeatureKey,
+            enabled => RealisticPlanetsTiltOverride.Set(enabled),
             defaultEnabled: false);
         FeatureRegistry.Register(
             CelestialLightingFeatures.NightRadianceKey,

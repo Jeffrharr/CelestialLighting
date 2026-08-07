@@ -1,0 +1,85 @@
+{
+  "name": "realistic_planets_tilt",
+  "saveFile": "minimal_colony.rws",
+  "requiredMods": {
+    "koth.RealisticPlanets2": "3776715150"
+  },
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "55" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "15" } },
+    { "type": "SetTime", "args": { "hour": "12" } },
+    { "type": "LookAt", "args": { "offset": "0,10", "zoom": "14" } },
+    { "type": "Wait", "args": { "frames": "120" } },
+
+    { "type": "Probe", "args": { "probeName": "realistic_planets_active", "expectedValue": "1", "tolerance": "0.01" } },
+
+    { "type": "Probe", "args": { "probeName": "axial_tilt_active", "expectedValue": "0", "tolerance": "0.01" } },
+
+    { "type": "Probe", "args": { "probeName": "planetsmith_tilt", "expectedValue": "22.5", "tolerance": "0.05" } },
+
+    { "type": "Probe", "args": { "probeName": "axial_tilt_declination", "expectedValue": "22.5", "tolerance": "0.05" } },
+
+    { "type": "Probe", "args": { "probeName": "sun_elevation", "expectedValue": "57.50", "tolerance": "0.35" } },
+
+    { "type": "Probe", "args": { "probeName": "shadow_extrude_far_cells", "expectedValue": "0.892", "tolerance": "0.02" } },
+
+    { "type": "Screenshot", "args": { "fileName": "realistic_planets_default_tilt_day15.png" } },
+
+    { "type": "SetFeature", "args": { "featureName": "realistic_planets_steep_tilt", "enabled": "true" } },
+    { "type": "Wait", "args": { "frames": "30" } },
+
+    { "type": "Probe", "args": { "probeName": "planetsmith_tilt", "expectedValue": "45", "tolerance": "0.05" } },
+
+    { "type": "Probe", "args": { "probeName": "axial_tilt_declination", "expectedValue": "45", "tolerance": "0.05" } },
+
+    { "type": "Probe", "args": { "probeName": "sun_elevation", "expectedValue": "80.00", "tolerance": "0.35" } },
+
+    { "type": "Probe", "args": { "probeName": "shadow_extrude_far_cells", "expectedValue": "0.247", "tolerance": "0.02" } },
+
+    { "type": "Screenshot", "args": { "fileName": "realistic_planets_steep_tilt_day15.png" } },
+
+    { "type": "SetFeature", "args": { "featureName": "realistic_planets_geometry", "enabled": "false" } },
+    { "type": "Wait", "args": { "frames": "30" } },
+
+    { "type": "Probe", "args": { "probeName": "realistic_planets_active", "expectedValue": "0", "tolerance": "0.01" } },
+
+    { "type": "Probe", "args": { "probeName": "planetsmith_tilt", "expectedValue": "23.44", "tolerance": "0.05" } },
+
+    { "type": "Probe", "args": { "probeName": "axial_tilt_declination", "expectedValue": "0", "tolerance": "0.05" } },
+
+    { "type": "Probe", "args": { "probeName": "sun_elevation", "expectedValue": "35.00", "tolerance": "0.35" } },
+
+    { "type": "Probe", "args": { "probeName": "shadow_extrude_far_cells", "expectedValue": "1.999", "tolerance": "0.02" } },
+
+    { "type": "Screenshot", "args": { "fileName": "realistic_planets_feature_off_day15.png" } },
+
+    { "type": "SetFeature", "args": { "featureName": "realistic_planets_geometry", "enabled": "true" } },
+    { "type": "Wait", "args": { "frames": "30" } },
+
+    { "type": "SetSeason", "args": { "dayOfYear": "30" } },
+    { "type": "Wait", "args": { "frames": "30" } },
+
+    { "type": "Probe", "args": { "probeName": "axial_tilt_declination", "expectedValue": "0", "tolerance": "0.05" } },
+
+    { "type": "Probe", "args": { "probeName": "sun_elevation", "expectedValue": "35.00", "tolerance": "0.35" } },
+
+    { "type": "Screenshot", "args": { "fileName": "realistic_planets_steep_tilt_day30.png" } },
+
+    { "type": "SetSeason", "args": { "dayOfYear": "45" } },
+    { "type": "Wait", "args": { "frames": "30" } },
+
+    { "type": "Probe", "args": { "probeName": "axial_tilt_declination", "expectedValue": "-45", "tolerance": "0.05" } },
+
+    { "type": "Probe", "args": { "probeName": "sun_elevation", "expectedValue": "-10.00", "tolerance": "0.35" } },
+
+    { "type": "Screenshot", "args": { "fileName": "realistic_planets_steep_tilt_day45.png" } },
+
+    { "type": "SetSeason", "args": { "dayOfYear": "15" } },
+    { "type": "SetFeature", "args": { "featureName": "realistic_planets_steep_tilt", "enabled": "false" } },
+    { "type": "Wait", "args": { "frames": "30" } },
+
+    { "type": "Probe", "args": { "probeName": "planetsmith_tilt", "expectedValue": "22.5", "tolerance": "0.05" } },
+
+    { "type": "Probe", "args": { "probeName": "axial_tilt_declination", "expectedValue": "22.5", "tolerance": "0.05" } }
+  ]
+}

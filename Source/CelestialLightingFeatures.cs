@@ -369,6 +369,24 @@ public static class CelestialLightingFeatures
     // "off" is a faithful pre-feature baseline -- our own tilt, Planetsmith installed or not.
     public static bool PlanetsmithGeometry = true;
 
+    // Feature key for RealisticPlanetsGeometry (see CivilTwilightPersistenceKey for why the const
+    // lives here).
+    public const string RealisticPlanetsGeometryKey = "realistic_planets_geometry";
+
+    // Realistic Planets 2's per-world axial tilt AND seasonal phase: with RP2 installed, run our sun
+    // on the tilt the CURRENT world was generated with and on RP2's own reckoning of the year, so the
+    // sky matches the planet whose biomes and weather are on the map. See RealisticPlanetsCompat.
+    //
+    // HARNESS-ONLY for the same reason PlanetsmithGeometry above is, and the reasoning there applies
+    // here word for word: the tilt is RP2's setting, and a switch of ours beside it would be a second
+    // source of truth for one number.
+    //
+    // It carries more than Planetsmith's flag does, though, and a scenario flipping it is measuring
+    // more: "off" is our tilt on our phase, "on" is their tilt on their phase, so the two arms differ
+    // by a fortnight of season as well as by a swing. That is also why "off" is still an honest
+    // pre-feature baseline -- it is exactly the sky a build without this file renders.
+    public static bool RealisticPlanetsGeometry = true;
+
     // §14 sun-clock reconciliation. An enum rather than two bools because the modes are mutually
     // exclusive by construction: locked warps OUR sun onto vanilla's clock, realistic makes VANILLA's
     // glow follow ours. Running both would mean each defining itself in terms of the other.
