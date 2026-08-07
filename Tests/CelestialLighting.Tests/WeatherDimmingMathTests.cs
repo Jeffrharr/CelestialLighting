@@ -441,4 +441,36 @@ public class WeatherDimmingMathTests
         Assert.That(WeatherDimmingMath.ShadowContrastFactor(1f, 0.5f),
             Is.EqualTo(1f - WeatherDimmingMath.MaxShadowSoftening).Within(Tolerance));
     }
+
+    // --- §23's DefaultAltitudeMetres (issue #88) ---
+
+    [Test]
+    public void DefaultAltitudeMetres_DryDeckIsIssue88sAltocumulusRow()
+    {
+        Assert.That(WeatherDimmingMath.DefaultAltitudeMetres(0f, 0f, 0f),
+            Is.EqualTo(WeatherDimmingMath.DryDeckDefaultAltitudeMetres).Within(Tolerance));
+    }
+
+    [Test]
+    public void DefaultAltitudeMetres_HeaviestObscurationIsIssue88sLowStratusRow()
+    {
+        Assert.That(
+            WeatherDimmingMath.DefaultAltitudeMetres(WeatherDimmingMath.ObscurationReference, 0f, 0f),
+            Is.EqualTo(WeatherDimmingMath.PrecipitatingDeckDefaultAltitudeMetres).Within(Tolerance));
+    }
+
+    [Test]
+    public void DefaultAltitudeMetres_FallsMonotonicallyAsPrecipitationIntensifies()
+    {
+        // Heavier precipitation should never classify as a HIGHER deck than lighter precipitation —
+        // the whole reason a rain rate is evidence for "low, thick" rather than "high, thin".
+        float previous = float.MaxValue;
+        for (int i = 0; i <= 10; i++)
+        {
+            float rainRate = i * 0.1f * WeatherDimmingMath.ObscurationReference;
+            float altitude = WeatherDimmingMath.DefaultAltitudeMetres(rainRate, 0f, 0f);
+            Assert.That(altitude, Is.LessThanOrEqualTo(previous + Tolerance));
+            previous = altitude;
+        }
+    }
 }

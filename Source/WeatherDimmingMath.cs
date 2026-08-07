@@ -256,6 +256,34 @@ public static class WeatherDimmingMath
         return Clamp01(Clamp01(cloudOpacity) * band);
     }
 
+    // --- §23's cloud-base altitude classifier (DESIGN.md §23, issue #88) ---
+
+    // Default cloud base height for a DRY deck — cloud overhead but nothing falling — in metres.
+    // 4000 m matches issue #88's own worked example: "mid altocumulus (~4 km), lit just below the
+    // horizon, the deep orange/red mackerel sky". Fog, Overcast and every dry thunderstorm land here.
+    public const float DryDeckDefaultAltitudeMetres = 4000f;
+
+    // Default cloud base height once precipitation is falling, in metres. 1000 m matches issue #88's
+    // "low stratus (~1 km), only lit right at sunset, kills the sunset early" row — a deck low enough
+    // to produce rain or snow is typically the low, thick kind, not a high thin one.
+    public const float PrecipitatingDeckDefaultAltitudeMetres = 1000f;
+
+    // The classifier's default cloud base height, in metres, blended by how hard something is falling
+    // out of the sky — the same ObscurationIntensity axis DimmingFraction already uses to move dimming
+    // from a dry deck's floor up to its full peak. Reusing it here rather than a second intensity
+    // measure keeps "how heavy is this weather" answered in exactly one place.
+    //
+    // WHAT THIS DELIBERATELY DOES NOT REACH: issue #88's third row, high cirrus (~10 km), the deck
+    // that lingers longest and reads as pink/magenta. Neither rain/snow/sand rate nor palette opacity
+    // says anything about whether a *dry* deck is a low ceiling or high thin cloud — that distinction
+    // needs WeatherCloudDeck.altitudeMetres stated explicitly by the def, the same escape hatch
+    // OverridesOpacity already provides for content the palette/precipitation rule cannot settle.
+    public static float DefaultAltitudeMetres(float rainRate, float snowRate, float sandRate)
+    {
+        float obscuration = ObscurationIntensity(rainRate, snowRate, sandRate);
+        return Lerp(DryDeckDefaultAltitudeMetres, PrecipitatingDeckDefaultAltitudeMetres, obscuration);
+    }
+
     // --- Consumers ---
 
     // The multiplier Patch_WeatherDimming applies to SkyColorSet.sky and .overlay. Multiplying
