@@ -4209,7 +4209,10 @@ byte-identical there. `compose_ab.py --skip-first` drops it. Left in, it would p
   ozone attenuate red hardest, and a properly band-averaged red cross section — the sRGB red primary
   integrates out to 700 nm, where Chappuis is transparent again — would be materially lower and would
   change the shape arithmetic above. It would also change §19 everywhere, breaking the bit-identical
-  invariant this ticket was pinned on. Worth a ticket of its own; not worth smuggling in here.
+  invariant this ticket was pinned on. Filed as **#112**, which is also the ticket that would
+  reopen the shape half of the refutation above: lowering the red cross section is precisely the
+  move that pushes on the `D_G > D_R` condition, so if the band-averaged value moves red far, the
+  empty `(0.0202, 0.0134)` band is worth recomputing before it is cited again.
 
 
 ## 20. Site altitude — scaling §8's reddening by the observer's air column (`AtmosphericColumn` / `SiteAltitude`)
