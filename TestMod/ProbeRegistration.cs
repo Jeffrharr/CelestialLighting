@@ -120,6 +120,11 @@ public static class ProbeRegistration
         // actually acting on; read under a different weather to confirm the drift keeps moving
         // underneath even while nothing currently consumes it.
         ProbeRegistry.Register(new CloudCoverProbe());
+        // Issue #100: §21's cavity gain, the same value NightRadiance.FloorGlowFor multiplies its
+        // floor by. Pair with cloud_cover_fraction above under Clear weather to show the two moving
+        // together — before the fix, this stayed flat at the ClearSkyAlbedo backscatter (~1.07 at
+        // full snow) no matter what cloud_cover_fraction read.
+        ProbeRegistry.Register(new SurfaceBuildupCavityGainProbe());
         // The three map-kind gates themselves, so a cavern scenario pins the DECISION and not just its
         // consequences — every gated effect also reads zero for unrelated reasons (wrong time of day,
         // no active condition), so the effect probes alone cannot say whether a gate actually fired.

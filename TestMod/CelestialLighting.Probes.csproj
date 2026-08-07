@@ -95,6 +95,9 @@
     <!-- §22. Independent of weather_dimming above — see CloudCoverProbe.cs and its registration
          comment in ProbeRegistration.cs for why the two fractions never move together. -->
     <Compile Include="../Source/Probes/CloudCoverProbe.cs" Link="CloudCoverProbe.cs" />
+    <!-- Issue #100: §21's cavity gain, paired with cloud_cover_fraction above so a scenario can show
+         the two moving together on a Clear map — see SurfaceBuildupCavityGainProbe.cs's header. -->
+    <Compile Include="../Source/Probes/SurfaceBuildupCavityGainProbe.cs" Link="SurfaceBuildupCavityGainProbe.cs" />
     <Compile Include="../Source/Probes/SkyGlowProbe.cs" Link="SkyGlowProbe.cs" />
     <Compile Include="../Source/Probes/SkyOverlayWarmthProbe.cs" Link="SkyOverlayWarmthProbe.cs" />
     <Compile Include="../Source/Probes/SkyOverlayLuminanceProbe.cs" Link="SkyOverlayLuminanceProbe.cs" />
