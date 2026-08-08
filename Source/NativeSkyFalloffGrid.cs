@@ -89,12 +89,19 @@ public static class NativeSkyFalloffGrid
         var visited = new bool[numCells];
         var queue = new Queue<IntVec3>(numCells / 6 + 32);
 
-        // Seeds: every non-interior cell (depth 0 by definition -- sky is already directly overhead,
-        // nothing to redistribute in). A negative/zero maxDepth still seeds correctly; the expansion
+        // Seeds: every UNROOFED cell (depth 0 by definition -- sky is already directly overhead,
+        // nothing to redistribute in). Matches AmbientLightFalloff.MapComp_AmbientLight's own
+        // RebuildDistance seed condition exactly (`!roofGrid.Roofed(cell)`, decompiled to confirm) --
+        // deliberately NOT `!BlocksSky(cell)`. BlocksSky answers "should §7b paint this cell fully
+        // dark", which is false for a WALL cell too (a wall gets the corner-ramp treatment, not a flat
+        // fill -- see IndoorOcclusionMath.BlocksSky's own header), so seeding on it treated every wall
+        // around a room as an opening: a 9x9 room has no floor cell more than a few tiles from *some*
+        // wall, so the whole room read a shallow, near-uniform depth instead of a gradient from the
+        // door outward (#124 follow-up). A negative/zero maxDepth still seeds correctly; the expansion
         // loop below is what refuses to walk past it.
         foreach (IntVec3 cell in map.AllCells)
         {
-            if (BlocksSky(map, cell))
+            if (map.roofGrid.Roofed(cell))
                 continue;
 
             int index = cellIndices.CellToIndex(cell);
@@ -122,6 +129,14 @@ public static class NativeSkyFalloffGrid
                 if (visited[neighbourIndex])
                     continue;
 
+                // A wall never gets flooded into (and is never a seed either -- it's roofed). Without
+                // this, a wall cell reached from one room's interior would still get enqueued and could
+                // hand its depth on to whatever is on the *other* side of that wall, leaking one sealed
+                // room's falloff into its neighbour through solid geometry. A door is explicitly not a
+                // wall here (AltitudeLayer.DoorMoveable), so the flood still crosses an open threshold.
+                if (IsWall(map, neighbour))
+                    continue;
+
                 // Diagonal step through a wall corner: refuse it unless both orthogonal cells that
                 // make up the corner are open, the same "no cutting corners" rule
                 // AmbientLightFalloff.MapComp_AmbientLight's own RebuildDistance applies to its
@@ -139,26 +154,22 @@ public static class NativeSkyFalloffGrid
         depths = result;
     }
 
-    // Identical classification Patch_IndoorSkyOcclusion.ResolveCell already computes per cell -- see
-    // its header for why EaveCells.Encloses (not raw Roofed()) is the right notion of "interior": an
-    // eave/porch cell is roofed but still breathes outdoor air, so treating it as a BFS seed (depth 0)
-    // rather than something to flood into keeps this cache and §7b's occlusion agreeing about which
-    // cells count as indoors, rather than inventing a second, narrower definition here.
-    private static bool BlocksSky(Map map, IntVec3 cell)
+    // Physically solid -- holds up the roof and is not a door. Deliberately NOT
+    // IndoorOcclusionMath.BlocksSky: that predicate answers "should §7b's rendering pass paint this
+    // cell fully dark" (false for a wall, which gets the corner-ramp treatment instead), not "can the
+    // flood pass through this cell". A door never counts as a wall here, so the BFS still crosses an
+    // open threshold the way both DepthAt's own header and Rebuild's seed loop above expect.
+    private static bool IsWall(Map map, IntVec3 cell)
     {
-        RoofDef roof = map.roofGrid.RoofAt(cell);
         Building edifice = map.edificeGrid[cell];
-        bool isDoor = edifice != null && edifice.def.altitudeLayer == AltitudeLayer.DoorMoveable;
-        bool holdsRoof = edifice != null && edifice.def.holdsRoof;
-
-        return IndoorOcclusionMath.BlocksSky(
-            EaveCells.Encloses(map, cell, roof), roof != null && roof.isThickRoof, holdsRoof, isDoor);
+        return edifice != null && edifice.def.holdsRoof
+            && edifice.def.altitudeLayer != AltitudeLayer.DoorMoveable;
     }
 
     private static bool CornerBlocked(Map map, IntVec3 cell, IntVec3 diagonalOffset)
     {
         IntVec3 a = new IntVec3(cell.x + diagonalOffset.x, 0, cell.z);
         IntVec3 b = new IntVec3(cell.x, 0, cell.z + diagonalOffset.z);
-        return (a.InBounds(map) && BlocksSky(map, a)) || (b.InBounds(map) && BlocksSky(map, b));
+        return (a.InBounds(map) && IsWall(map, a)) || (b.InBounds(map) && IsWall(map, b));
     }
 }

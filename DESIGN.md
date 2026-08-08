@@ -851,17 +851,35 @@ lamp flip is the wrong shape.
 
 **Approach.** A whole-map multi-source BFS (`NativeSkyFalloffGrid`), run once per map and cached until
 something changes, mirroring how Ambient Light's own `MapComp_AmbientLight.RebuildDistance` solves the
-identical problem (decompiled in full to confirm): seed every non-interior cell at depth 0, flood
-outward into interior cells up to `maxDepth`, 8-directional with a corner-cut guard so light cannot flood
-diagonally past a solid wall corner no pawn could pass through either. Two deliberate simplifications
-against Ambient Light's own version: integer BFS-layer depth rather than a diagonal-weighted Euclidean
-float distance (this mod's own gradient, not required to match theirs bit-for-bit — see
-`NativeSkyFalloffMath`'s header for why the two formulas are independent by design), and the seed test is
-`!IndoorOcclusionMath.BlocksSky(...)` — the same `EaveCells.Encloses`-based "interior" classification
-`Patch_IndoorSkyOcclusion.ResolveCell` already computes — rather than Ambient Light's raw `!Roofed()`.
-That keeps this cache and §7b's own occlusion agreeing about which cells count as indoors (an eave/porch
-cell is roofed but still breathes outdoor air, so it seeds the flood at depth 0 rather than being flooded
-into), instead of inventing a second, narrower definition of "interior" here.
+identical problem (decompiled in full to confirm): seed every unroofed cell at depth 0
+(`!map.roofGrid.Roofed(cell)`, matching Ambient Light's own seed condition exactly), flood outward up to
+`maxDepth`, 8-directional with a corner-cut guard so the flood cannot cut diagonally past a solid wall
+corner no pawn could pass through either. A wall (`holdsRoof`, not a door) is never seeded and never
+flooded into — it blocks the expansion outright — while a door is explicitly excluded from that wall
+test, so the flood still crosses an open threshold and picks up depth from the genuinely unroofed cell on
+the far side of it. One deliberate simplification against Ambient Light's own version: integer BFS-layer
+depth rather than a diagonal-weighted Euclidean float distance — this mod's own gradient, not required to
+match theirs bit-for-bit (see `NativeSkyFalloffMath`'s header for why the two formulas are independent by
+design).
+
+*Shipped once with a bug here, caught by a player report rather than by the test suite.* The first cut of
+`Rebuild` seeded on `!IndoorOcclusionMath.BlocksSky(cell)` instead — the same "is this cell interior"
+classification `Patch_IndoorSkyOcclusion.ResolveCell` uses for the rendering pass, reused on the theory
+that keeping the two questions ("should this be painted dark", "is this cell a BFS opening") answered by
+one predicate meant they could never disagree. They are not the same question: `BlocksSky` deliberately
+returns `false` for a WALL cell too (a wall gets the corner-ramp treatment, not a flat fill — see
+`BlocksSky`'s own header above), so seeding on it treated every wall around a room as if it were an
+opening. A typical roofed room is only a handful of tiles from *some* wall on every side, so the whole
+room read a shallow, near-uniform depth instead of a gradient concentrated near the actual door — visibly
+a flat fill with the feature on, not a falloff, though every offline `[TestCase]` and the shipped probe's
+huge tolerance both passed regardless, because nothing in that coverage compared one cell's depth against
+another's. Fixed by splitting the two questions apart: seed on `!Roofed()` alone (Ambient Light's own
+literal condition), and add a dedicated `IsWall` blocker check to the expansion loop so a wall neither
+seeds nor gets flooded through in either direction — the latter matters on its own: without it, a wall
+cell reached from one room's interior would still get enqueued and could hand its depth on to whatever
+sits on the wall's *other* side, leaking one sealed room's falloff into its neighbour through solid
+geometry. `CornerBlocked`'s diagonal-cut guard had the identical bug (it also read `BlocksSky`, so a
+diagonal step could cut through a wall corner it should have refused) and took the same `IsWall` fix.
 
 - **Not a `MapComponent`**, per this repo's own convention (parent `CLAUDE.md`): a single-slot
   `WeakReference<Map>` cache, the same shape `AmbientLightCompat.CachedMap` already uses, so deleting the
@@ -871,8 +889,8 @@ into), instead of inventing a second, narrower definition of "interior" here.
   `MapComponentTick` poll anywhere, unlike Ambient Light's own `_dirty` flag which a per-tick check
   consults whether or not anyone is currently reading the grid.
 - **Invalidation mirrors `DirtyHooks`' validated trigger set** (decompiled from `AmbientLightFalloff.dll`
-  this session) rather than inventing a new one: `RoofGrid.SetRoof`, plus spawn/despawn of anything
-  `NativeSkyFalloffGrid.BlocksSky` actually reads — `def.holdsRoof` (a wall) or
+  this session) rather than inventing a new one: `RoofGrid.SetRoof`, plus spawn/despawn of anything the
+  seed/blocker tests above actually read — `def.holdsRoof` (a wall) or
   `def.altitudeLayer == AltitudeLayer.DoorMoveable` (a door). Patched on `Building`, not `Thing` — a
   narrower target than Ambient Light's own Thing-wide patch, since `Building` overrides `SpawnSetup` and
   `DeSpawn` directly and every holdsRoof/door Thing is a `Building` by construction, so the narrower type
@@ -907,17 +925,28 @@ and to `CapOcclusion`'s pre-feature identity — the faithful baseline for the h
 
 **Live-measured** at the same door-adjacent interior cell §7b's own writeup above uses, in a fresh
 `Tests/Scenarios/native_sky_falloff.json` (identical 11×11 roofed room, run with Ambient Light *absent*
-so the native path is exercised in isolation): the BFS depth at that cell is 1, giving fraction 0.5042 at
-noon (`curSkyGlow` ≈ 1.0) against 0 with the feature off. Cropped to the room interior, median CIELAB ΔE
-between those two states is **16.11**, comfortably past the "visible at a glance" 5+ threshold — a
-whole-frame median is 0.0 because the room occupies a small fraction of the captured frame, the same
-scale mismatch that motivates cropping rather than a wider baseline. At 23:00 the same toggle reads
-fraction 0.0202 against 0, and the interior crop's median ΔE is 0.0: not a regression, the same physical
-reason §7b's writeup gives for its own night reading — `curSkyGlow` is nearly zero after dark, so the
-term this feature grades has almost nothing left to redistribute regardless of BFS depth. The
+so the native path is exercised in isolation): the BFS depth at that cell is 2, giving fraction 0.4583 at
+noon (`curSkyGlow` ≈ 1.0) against 0 with the feature off. That depth of 2 is worth calling out on its own:
+it is the real distance from that cell, across the door, to the nearest genuinely unroofed cell outside —
+and it matches `ambient_light_compat.json`'s own depth at the identical cell exactly (see below), which is
+the cross-check that would have caught the seed-condition bug above before it shipped, had anyone thought
+to compare the two paths' depth rather than only their final fractions. Cropped to the room interior,
+median CIELAB ΔE between those two states is **8.95**, comfortably past the "visible at a glance" 5+
+threshold — lower than the bug's own inflated 16.11 by design: that number averaged in a room-wide false
+brightening the fix removed, while this one is the true median over a crop where only the cells actually
+near the door move and the far wall correctly stays near-black. The near-door strip alone (excluding the
+darker far wall) reads median ΔE 17.9 against the feature-off baseline, and the "on" frame's own near-door
+strip differs from its own far-wall strip by median ΔE 10.1 — the gradient the whole-room number cannot
+show by itself. A whole-frame median is 0.0 because the room occupies a small fraction of the captured
+frame, the same scale mismatch that motivates cropping rather than a wider baseline. At 23:00 the same
+toggle reads fraction 0.0183 against 0, and the interior crop's median ΔE is 0.0: not a regression, the
+same physical reason §7b's writeup gives for its own night reading — `curSkyGlow` is nearly zero after
+dark, so the term this feature grades has almost nothing left to redistribute regardless of BFS depth. The
 `ambient_light_compat.json` regression pass (Ambient Light installed) read `ambient_sky_fraction`
 0.458333343 at noon and 0.0183333326 at night — identical to the pre-`SkyFalloffSource` figures §7b's own
-writeup quotes — confirming the dispatcher's deferral doesn't perturb the compat path it wraps.
+writeup quotes, and identical to this fix's own noon/night fractions above — confirming both that the
+dispatcher's deferral doesn't perturb the compat path it wraps, and that the two independently-implemented
+BFS paths now agree at the one cell directly comparable between them.
 
 ## 14. Sun-clock reconciliation (`SunClockMath` / `SunClock` / `Patch_SunGlow`)
 
