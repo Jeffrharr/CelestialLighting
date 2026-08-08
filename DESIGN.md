@@ -770,6 +770,26 @@ reads `map.roofGrid` / `map.edificeGrid` and rewrites `mesh.colors32`.
   equivalent to switching the feature off, a property of the formula rather than a special case. The cap is applied to corners
   *before* they are averaged into a boundary cell's centre, so a floored interior still ramps down across
   its walls rather than the wall flattening out at the floor value.
+- **A second, independent floor for a compatible mod's own sky redistribution (`AmbientLightCompat`,
+  issue #80).** The "Ambient Light" workshop mod (`f1995.ambientlight`) patches `GlowGrid.GroundGlowAt`
+  to redistribute a BFS-graded fraction of `CurSkyGlow` into roofed cells based on distance from the
+  nearest opening — a real, distance-graded *gameplay* value, computed entirely independently of this
+  patch. Its own mouseover readout reports that fraction correctly, but before this compat term
+  existed nothing here ever consulted it: an interior cell could read 46% lit by Ambient Light's own
+  accounting and still render dead black on screen, because `CapOcclusion`'s only floor was
+  `minIndoorBrightness`. It now takes a second, independent floor and applies whichever of the two is
+  looser (`Min` of both `1 - floor` ceilings, so the caps compose rather than one silently overriding
+  the other). `AmbientLightCompat.SkyFractionAt(map, cell)` reflects into Ambient Light's
+  `MapComp_AmbientLight.GetDepth` and its own settings' `maxDepth`/`passThroughPercent` — deliberately
+  re-deriving their two-line falloff formula locally rather than calling into a private method (a
+  weaker contract than a field, and the formula is short enough to keep byte-for-byte identical and
+  unit-test on its own). Reads 0, and therefore changes nothing, whenever Ambient Light isn't
+  installed or the `AmbientLightCompat` feature flag is off — the pre-existing behaviour is the exact
+  fallback. Live-measured at a door-adjacent interior cell in an 11×11 roofed room
+  (`Tests/Scenarios/ambient_light_compat.json`): median CIELAB ΔE 11.26 between the toggle's off/on
+  states at noon, comfortably past the "visible at a glance" 5+ threshold. ΔE 0.0 between the same two
+  states at night is not a regression — it's Ambient Light's own formula returning ~0 once
+  `CurSkyGlow` drops near zero after dark, so there is nothing left for either floor to reveal.
 - **Baked, not per-frame.** Unlike §7a's material colour, these alphas only change when a section is
   dirtied, so `IndoorOcclusionRedraw` forces a `WholeMapChanged(GroundGlow)` when the toggle or either
   slider changes (it compares the *resolved* floor, so either knob moving is caught without duplicating

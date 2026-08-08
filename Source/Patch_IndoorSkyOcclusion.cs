@@ -85,9 +85,9 @@ public static class Patch_IndoorSkyOcclusion
 
         IndoorOcclusionSettings settings = IndoorOcclusionSettings.Current;
         SkyOcclusionWindow window = BuildWindow(map, rect);
-        float[] corners = BuildCornerOcclusion(window, rect, settings);
+        float[] corners = BuildCornerOcclusion(map, window, rect, settings);
         WriteCorners(colors, corners);
-        WriteCentres(window, rect, colors, firstCenterInd, corners, settings);
+        WriteCentres(map, window, rect, colors, firstCenterInd, corners, settings);
         mesh.colors32 = colors;
     }
 
@@ -111,7 +111,7 @@ public static class Patch_IndoorSkyOcclusion
     // The lattice: one more row and column than there are cells, in the same row-major order as the
     // mesh's leading corner vertices, so index i here is vertex i there.
     private static float[] BuildCornerOcclusion(
-        SkyOcclusionWindow window, CellRect rect, IndoorOcclusionSettings settings)
+        Map map, SkyOcclusionWindow window, CellRect rect, IndoorOcclusionSettings settings)
     {
         int stride = rect.Width + 1;
         float[] corners = new float[stride * (rect.Height + 1)];
@@ -119,7 +119,7 @@ public static class Patch_IndoorSkyOcclusion
         {
             for (int x = rect.minX; x <= rect.maxX + 1; x++)
             {
-                corners[(z - rect.minZ) * stride + (x - rect.minX)] = CornerOcclusion(window, x, z, settings);
+                corners[(z - rect.minZ) * stride + (x - rect.minX)] = CornerOcclusion(map, window, x, z, settings);
             }
         }
 
@@ -137,7 +137,7 @@ public static class Patch_IndoorSkyOcclusion
     // wall line into a straight ramp instead of a per-tile starburst. The four corner indices are the
     // same neighbourhood vanilla's own centre pass averages: (x,z), (x+1,z), (x,z+1), (x+1,z+1).
     private static void WriteCentres(
-        SkyOcclusionWindow window, CellRect rect, Color32[] colors, int firstCenterInd, float[] corners,
+        Map map, SkyOcclusionWindow window, CellRect rect, Color32[] colors, int firstCenterInd, float[] corners,
         IndoorOcclusionSettings settings)
     {
         int stride = rect.Width + 1;
@@ -151,9 +151,11 @@ public static class Patch_IndoorSkyOcclusion
 
                 float occlusion = IndoorOcclusionMath.CentreOcclusion(window.BlocksSky(x, z), cornerSum);
 
+                float ambientLightSkyFraction = AmbientLightCompat.SkyFractionAt(map, new IntVec3(x, 0, z));
                 int vertex = firstCenterInd + (z - rect.minZ) * rect.Width + (x - rect.minX);
                 colors[vertex].a = IndoorOcclusionMath.CoverAlpha(
-                    IndoorOcclusionMath.CapOcclusion(occlusion, settings.MinIndoorBrightness), colors[vertex].a);
+                    IndoorOcclusionMath.CapOcclusion(occlusion, settings.MinIndoorBrightness, ambientLightSkyFraction),
+                    colors[vertex].a);
             }
         }
     }
@@ -165,20 +167,38 @@ public static class Patch_IndoorSkyOcclusion
     // this loop used to carry now lives in the window, which answers for an off-map cell with exactly
     // the `false` those two ORs were already contributing.
     private static float CornerOcclusion(
-        SkyOcclusionWindow window, int x, int z, IndoorOcclusionSettings settings)
+        Map map, SkyOcclusionWindow window, int x, int z, IndoorOcclusionSettings settings)
     {
         bool anyBlocksSky = false;
         bool touchesDoor = false;
+        // A corner is shared by up to four cells, and — unlike anyBlocksSky, which is an OR because one
+        // blocked neighbour is enough to occlude — the Ambient Light term takes their MAX: whichever of
+        // the four cells currently has the most sky reaching it is the floor this corner should honour,
+        // the same "more generous floor wins" reasoning IndoorOcclusionMath.CapOcclusion's own doc
+        // comment gives for composing it with MinIndoorBrightness.
+        float ambientLightSkyFraction = 0f;
         for (int i = 0; i < 4; i++)
         {
             int cellX = x - (i & 1);
             int cellZ = z - (i >> 1);
             anyBlocksSky |= window.BlocksSky(cellX, cellZ);
             touchesDoor |= window.IsDoor(cellX, cellZ);
+            ambientLightSkyFraction = Mathf.Max(ambientLightSkyFraction, AmbientLightFractionAt(map, cellX, cellZ));
         }
 
         float occlusion = IndoorOcclusionMath.CornerOcclusion(anyBlocksSky, touchesDoor, settings.DoorSkyLeak);
-        return IndoorOcclusionMath.CapOcclusion(occlusion, settings.MinIndoorBrightness);
+        return IndoorOcclusionMath.CapOcclusion(occlusion, settings.MinIndoorBrightness, ambientLightSkyFraction);
+    }
+
+    // AmbientLightCompat.SkyFractionAt assumes an in-bounds cell (it indexes straight into Ambient
+    // Light's own per-map depth array) — the window's BlocksSky/IsDoor already answer `false` for an
+    // off-map neighbour without needing this guard, but a corner on the map edge still asks about a
+    // cell one step past it, so this checks InBounds itself rather than pushing that contract onto
+    // AmbientLightCompat.
+    private static float AmbientLightFractionAt(Map map, int x, int z)
+    {
+        IntVec3 cell = new IntVec3(x, 0, z);
+        return cell.InBounds(map) ? AmbientLightCompat.SkyFractionAt(map, cell) : 0f;
     }
 
     // Live-state lookup for one cell, baked into the window and never repeated. Reads the roof *def*

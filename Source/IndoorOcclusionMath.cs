@@ -149,8 +149,52 @@ public static class IndoorOcclusionMath
     // The adapter caps corners *before* averaging them into a boundary cell's centre, so a floored
     // interior still ramps down across its walls (floor 0.5 gives inner corners 0.5 and a wall centre of
     // 0.25) rather than the wall flattening out at the floor value.
-    public static float CapOcclusion(float occlusion, float minIndoorBrightness) =>
-        Clamp01(Min(Clamp01(occlusion), 1f - Clamp01(minIndoorBrightness)));
+    //
+    // ambientLightSkyFraction is a second, independent cap of the same shape (AmbientLightCompat.
+    // SkyFractionAt, 0 when that compat is absent or off): where minIndoorBrightness is a flat,
+    // map-wide floor, this one is per-cell and graded by distance from an opening, so a doorway keeps
+    // more sky than a sealed cell three tiles past it even under the same MinIndoorBrightness. The two
+    // compose by Min — whichever floor currently promises more sky wins — rather than adding, so a
+    // player who has raised MinIndoorBrightness for legibility never gets *less* sky than that setting
+    // already guarantees just because Ambient Light's graded value happens to be lower at that cell.
+    public static float CapOcclusion(float occlusion, float minIndoorBrightness, float ambientLightSkyFraction) =>
+        Clamp01(Min(
+            Clamp01(occlusion),
+            Min(1f - Clamp01(minIndoorBrightness), 1f - Clamp01(ambientLightSkyFraction))));
+
+    // Re-derivation of AmbientLightFalloff.ALFUtils.ComputeUnderRoofSkyLight / ComputeFalloffNoSky,
+    // byte-for-byte against the decompiled source (issue #80) rather than reflected into, per this
+    // file's "pure core, no third-party call" discipline (see AmbientLightCompat's header for why a
+    // private method there is a weaker contract than the public fields this reads).
+    //
+    // depth: their BFS distance from the nearest unroofed/unblocked cell (0 or less == not reached,
+    // i.e. unroofed or beyond their own reach — no fraction). curSkyGlow: SkyManager.CurSkyGlow, the
+    // SAME sky term §7a/§7 already floor at night — deliberately, so a genuinely pitch-black night
+    // (their own stated design: "dynamically lightens based on outdoor sky brightness") still yields a
+    // near-zero fraction here, exactly as it does in their own mod. maxDepth/passThroughPercent are
+    // their AmbientLightSettings fields, read live so a player's in-game slider change is honoured
+    // without us caching a stale copy.
+    public static float AmbientLightSkyFraction(int depth, float curSkyGlow, int maxDepth, float passThroughPercent) =>
+        AmbientLightUnderRoofSkyLight(depth, curSkyGlow, maxDepth, passThroughPercent);
+
+    private static float AmbientLightUnderRoofSkyLight(int depth, float curSkyGlow, int maxDepth, float passThroughPercent)
+    {
+        if (curSkyGlow <= 0.001f)
+            return 0f;
+
+        return Clamp01(curSkyGlow * AmbientLightFalloffNoSky(depth, maxDepth, passThroughPercent));
+    }
+
+    private static float AmbientLightFalloffNoSky(int depth, int maxDepth, float passThroughPercent)
+    {
+        if (depth <= 0)
+            return 0f;
+
+        int clampedMaxDepth = maxDepth < 1 ? 1 : maxDepth;
+        float passThrough01 = Clamp01(passThroughPercent / 100f);
+        float depthFraction = Clamp01((float)depth / clampedMaxDepth);
+        return Clamp01(passThrough01 * (1f - depthFraction));
+    }
 
     // Resolve a final vertex alpha, never *lowering* what vanilla baked. Only-ever-raising matters
     // for composition: other mods legitimately write this alpha for their own reasons (Dub's

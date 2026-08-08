@@ -118,6 +118,10 @@
     <!-- §21's cavity gain, read from the live map — see the file header for why a screenshot A/B
          alone cannot distinguish a genuinely small lift from no lift at all. -->
     <Compile Include="../Source/Probes/SurfaceCavityGainProbe.cs" Link="SurfaceCavityGainProbe.cs" />
+    <!-- Issue #80 / AmbientLightCompat: the near-door cell probe, paired GroundGlow (gameplay) vs
+         SkyFraction (what §7b's CapOcclusion actually consumes) — see the file header for why both
+         are needed. -->
+    <Compile Include="../Source/Probes/AmbientLightDoorCellProbe.cs" Link="AmbientLightDoorCellProbe.cs" />
   </ItemGroup>
 
   <ItemGroup>

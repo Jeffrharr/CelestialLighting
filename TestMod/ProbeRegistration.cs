@@ -171,6 +171,14 @@ public static class ProbeRegistration
         ProbeRegistry.Register(new EaveCellProbe("eave_cells", EaveCellProbe.Metric.Eaves));
         ProbeRegistry.Register(
             new EaveCellProbe("roof_shadow_cells", EaveCellProbe.Metric.ShadowCasters));
+        // Issue #80 / AmbientLightCompat: the fixed near-door cell in ambient_light_compat.json.
+        // ambient_ground_glow is the GAMEPLAY value (what Ambient Light's own readout reports);
+        // ambient_sky_fraction is what AmbientLightCompat derives from it for §7b to cap occlusion
+        // with. Pairing them tells "their boost isn't real here" apart from "our compat mis-read it".
+        ProbeRegistry.Register(
+            new AmbientLightDoorCellProbe("ambient_ground_glow", AmbientLightDoorCellProbe.Metric.GroundGlow));
+        ProbeRegistry.Register(
+            new AmbientLightDoorCellProbe("ambient_sky_fraction", AmbientLightDoorCellProbe.Metric.SkyFraction));
         // §16: what one map-mesh dirty flag costs, per layer, in microseconds. Seven probes rather
         // than one because the question is a comparison — our three added regenerates against the
         // vanilla ones already on the same flag — and a single total would hide exactly that. The
@@ -489,6 +497,17 @@ public static class ProbeRegistration
             enabled =>
             {
                 CelestialLightingFeatures.IndoorSkyOcclusion = enabled;
+                IndoorOcclusionRedraw.ForceRebuild();
+            });
+        // Issue #80 / AmbientLightCompat: same baked-mesh situation as §7b's own flag immediately
+        // above (this cap term is applied inside the same SectionLayer_LightingOverlay.Regenerate
+        // postfix), so toggling it needs the identical rebuild or the A/B would compare a stale bake
+        // against itself.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.AmbientLightCompatKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.AmbientLightCompat = enabled;
                 IndoorOcclusionRedraw.ForceRebuild();
             });
         // §15's caster heights are baked into the sun-shadow meshes, so like §7b the toggle is

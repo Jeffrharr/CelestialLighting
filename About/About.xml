@@ -217,5 +217,11 @@ Requires Harmony.</description>
          no hard reference to it — the effect is inert when it's absent — but load after it so our
          render reads its condition state once it has started applying it. -->
     <li>vanillaracesexpanded.sanguophage</li>
+    <!-- Ambient Light redistributes a graded fraction of outdoor sky glow into roofed cells
+         (Verse.GlowGrid.GroundGlowAt), a gameplay value §7b's own occlusion painting never consulted
+         until AmbientLightCompat, which reads their per-map component and per-cell BFS depth. Load
+         after it so that component exists (seeded on Map.FinalizeInit) before we ask for it. See
+         DESIGN.md §7b and issue #80. -->
+    <li>f1995.ambientlight</li>
   </loadAfter>
 </ModMetaData>
