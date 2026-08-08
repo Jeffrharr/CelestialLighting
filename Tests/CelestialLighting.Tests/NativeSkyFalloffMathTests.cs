@@ -90,4 +90,16 @@ public class NativeSkyFalloffMathTests
         float result = NativeSkyFalloffMath.FractionAt(depth: 1, curSkyGlow: 1f, maxDepth: 1000, passThroughPercent: 100f);
         Assert.That(result, Is.EqualTo(1f).Within(0.01f));
     }
+
+    [Test]
+    public void DefaultPassThroughPercent_IsLowerThanAmbientLights55_PerPlaytestFeedback()
+    {
+        // Pinned rather than left to drift: a live playtester found the shipped defaults (originally
+        // matched to Ambient Light's own 55f) lit up a whole roofed room rather than grading near the
+        // door, which is why NativeSkyFalloffSettings exists as a slider at all. If this constant moves
+        // again, NativeSkyFalloffSettings.Defaults and CelestialLightingSettings' field initializer both
+        // need to move with it — they read this constant, not a hardcoded literal, so a rebuild alone
+        // will not catch a silent revert here.
+        Assert.That(NativeSkyFalloffMath.DefaultPassThroughPercent, Is.EqualTo(25f).Within(Tolerance));
+    }
 }

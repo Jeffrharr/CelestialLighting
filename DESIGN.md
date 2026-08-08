@@ -912,11 +912,23 @@ diagonal step could cut through a wall corner it should have refused) and took t
   neighbours and the centre pass) both go through this dispatcher now rather than calling
   `AmbientLightCompat.SkyFractionAt` directly; `IndoorOcclusionMath.CapOcclusion`'s own signature and
   tests are untouched — only what feeds its third argument changed source.
-- **No settings UI**, matching `AmbientLightCompat` immediately above: that compat flag ships with no
-  persisted toggle or slider at all, just the `CelestialLightingFeatures` flag defaulting on with its
-  formula constants (`NativeSkyFalloffMath.DefaultMaxDepth = 12`, `DefaultPassThroughPercent = 55f`,
-  chosen to land in the same register as Ambient Light's own shipped defaults) fixed rather than exposed.
-  Adding slider UI a sibling feature does not have would be scope beyond what issue #124 asked for.
+- **Two sliders, added after live playtesting** — the original decision here was "no settings UI, matching
+  `AmbientLightCompat`'s own precedent", with `passThroughPercent` fixed at 55f to land in the same
+  register as Ambient Light's own shipped default. A playtester found that in practice: a typical roofed
+  room read as generally lit up rather than gently graded near the door. `AmbientLightCompat` has no
+  slider because it has no formula of its own to tune — it just relays another mod's number — but this
+  subsystem's formula is ours, so unlike that precedent there is a real knob to expose. `MaxDepth` and
+  `PassThroughPercent` are now `NativeSkyFalloffSettings.Current`, written by two sliders in
+  `CelestialLightingSettingsMod` ("Sky brightness at an opening" 0-100%, "How far the glow reaches"
+  1-24 cells), persisted like every other tunable. `NativeSkyFalloffMath.DefaultPassThroughPercent`
+  itself also moved, from 55f to **25f** — the new out-of-box value reads as a gradient near an opening
+  rather than a room light; `DefaultMaxDepth` stayed at 12, since the complaint was about brightness, not
+  reach. Both changes are pinned: `NativeSkyFalloffMathTests.DefaultPassThroughPercent_...` catches a
+  silent revert of the constant, and `IndoorOcclusionRedraw.SyncTo` — already the rebuild trigger for
+  §7b's baked alpha — was extended to also watch these two fields, since `SkyFalloffSource` writes into
+  the identical baked term; `NativeSkyFalloffGrid.EnsureCurrent`'s own existing dirty-on-maxDepth-change
+  check (see above) already covered rebuilding the BFS cache itself, so only the mesh-redraw side needed
+  the extra plumbing.
 
 Gated by `CelestialLightingFeatures.NativeSkyFalloff`, default on — the whole point is to close the gap
 for players without Ambient Light, so shipping it off would leave that gap unfixed by default. When off,
@@ -947,6 +959,26 @@ dark, so the term this feature grades has almost nothing left to redistribute re
 writeup quotes, and identical to this fix's own noon/night fractions above — confirming both that the
 dispatcher's deferral doesn't perturb the compat path it wraps, and that the two independently-implemented
 BFS paths now agree at the one cell directly comparable between them.
+
+**Re-measured after the default moved to 25f** (see "Two sliders" above): same door-adjacent cell, same
+scenario. Depth is unchanged at 2 (`MaxDepth` didn't move), giving fraction 0.2083 at noon against 0
+off — exactly `1.0 * 0.25 * (1 - 2/12)`, and exactly proportional to the old 0.4583 by the 25/55 ratio,
+confirming the slider path and the settings-default path compute identically. Cropped to the room
+interior, whole-crop median CIELAB ΔE is **0.0** — most of the crop is unaffected pixel-for-pixel, since
+25% only lifts the near-door cells into visibility. Splitting the crop the same way as above: a strip
+right at the door reads median ΔE **3.64** against feature-off ("visible on close inspection", not "at a
+glance"), a strip at the room's far wall reads **1.65** (barely visible) — a real ~2x gradient, but a
+gentler one than 55f's, as intended.
+
+**Case that surprised us:** the composite screenshot (`Tests/Screenshots/native_sky_falloff/`) still
+reads as a broad, even lightening across the whole room rather than a glow concentrated tightly at the
+door, even at 25%. This is not a bug — `MaxDepth` (12, unchanged) is close to an 11×11 room's own
+diagonal, so nearly every interior cell sits within reach of the BFS regardless of how low
+`PassThroughPercent` is set; lowering that knob scales the whole gradient down uniformly rather than
+steepening it near the opening. A player who wants the effect visibly concentrated at doorways rather
+than merely dimmer needs to lower `MaxDepth` too (the "How far the glow reaches" slider) — this is
+exactly why that slider exists as a second, independent knob rather than folding "strength" and "reach"
+into one.
 
 ## 14. Sun-clock reconciliation (`SunClockMath` / `SunClock` / `Patch_SunGlow`)
 

@@ -26,8 +26,9 @@ public static class SkyFalloffSource
         if (!CelestialLightingFeatures.NativeSkyFalloff)
             return 0f;
 
+        NativeSkyFalloffSettings settings = NativeSkyFalloffSettings.Current;
         return NativeSkyFalloffGrid.FractionAt(
             map, cell, map.skyManager.CurSkyGlow,
-            NativeSkyFalloffMath.DefaultMaxDepth, NativeSkyFalloffMath.DefaultPassThroughPercent);
+            settings.MaxDepth, settings.PassThroughPercent);
     }
 }

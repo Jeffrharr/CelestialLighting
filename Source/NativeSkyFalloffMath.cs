@@ -20,12 +20,15 @@ namespace CelestialLighting;
 // two independently-tuned gradients would put a visible seam wherever the smaller maxDepth runs out.
 public static class NativeSkyFalloffMath
 {
-    // Chosen to land in the same register as Ambient Light's own shipped defaults (maxDepth = 12,
-    // passThroughPercent = 55f — confirmed by decompiling AmbientLightFalloff.dll's
-    // AmbientLightSettings this session), so a player who tries the game with and without Ambient
-    // Light installed sees a similar CHARACTER of falloff near a doorway, not two unrelated tastes.
+    // maxDepth lands in the same register as Ambient Light's own shipped default (12, confirmed by
+    // decompiling AmbientLightFalloff.dll's AmbientLightSettings this session), so a player who tries
+    // the game with and without Ambient Light installed sees a similar CHARACTER of falloff near a
+    // doorway. passThroughPercent does NOT match Ambient Light's own 55f default: live playtesting on
+    // the shipped 55f found a typical roofed room reading as lit up rather than gently graded near the
+    // door (see NativeSkyFalloffSettings for the two matching sliders this drove) — 25f is the new
+    // out-of-box "starting brightness right at the opening" that reads as a gradient, not a room light.
     public const int DefaultMaxDepth = 12;
-    public const float DefaultPassThroughPercent = 55f;
+    public const float DefaultPassThroughPercent = 25f;
 
     // depth: BFS distance from the nearest unroofed/non-blocking cell (NativeSkyFalloffGrid.DepthAt),
     // 0 or less meaning "not reached" — either the cell is unroofed outright (nothing to compute; the
