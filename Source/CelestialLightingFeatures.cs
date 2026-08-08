@@ -235,6 +235,20 @@ public static class CelestialLightingFeatures
     // IndoorOcclusionSettings knobs.
     public static bool IndoorSkyOcclusion = true;
 
+    // Feature key for AmbientLightCompat (see CivilTwilightPersistenceKey for why it lives here).
+    public const string AmbientLightCompatKey = "ambient_light_compat";
+
+    // Soft interop with Ambient Light (f1995.ambientlight, issue #80): when installed, that mod
+    // redistributes a graded, distance-from-opening fraction of outdoor sky glow into roofed cells
+    // (their own mouseover readout reports it directly) but never reaches the screen, because §7b
+    // above forces every enclosed cell's rendered sky-cover toward full occlusion without consulting
+    // it — see AmbientLightCompat's header for the full root-cause writeup. This flag lets
+    // IndoorOcclusionMath.CapOcclusion additionally honour that per-cell fraction as a second floor
+    // alongside MinIndoorBrightness. When off, or when Ambient Light is not installed,
+    // AmbientLightCompat.SkyFractionAt returns 0 for every cell, which is the exact identity CapOcclusion
+    // already had before this flag existed — the faithful pre-feature baseline for the harness A/B.
+    public static bool AmbientLightCompat = true;
+
     // Feature key for EaveShadows (see CivilTwilightPersistenceKey for why the const lives here).
     public const string EaveShadowsKey = "eave_shadows";
 

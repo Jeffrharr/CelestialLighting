@@ -436,7 +436,7 @@ public class SkyOcclusionWindowTests
                 }
 
                 return IndoorOcclusionMath.CapOcclusion(
-                    IndoorOcclusionMath.CornerOcclusion(anyBlocksSky, touchesDoor, Leak), floor);
+                    IndoorOcclusionMath.CornerOcclusion(anyBlocksSky, touchesDoor, Leak), floor, ambientLightSkyFraction: 0f);
             }
 
             return Run(map, minX, minZ, maxX, maxZ, floor, Corner, CentreBlocksSky);
@@ -478,7 +478,7 @@ public class SkyOcclusionWindowTests
                 }
 
                 return IndoorOcclusionMath.CapOcclusion(
-                    IndoorOcclusionMath.CornerOcclusion(anyBlocksSky, touchesDoor, Leak), floor);
+                    IndoorOcclusionMath.CornerOcclusion(anyBlocksSky, touchesDoor, Leak), floor, ambientLightSkyFraction: 0f);
             }
 
             return Run(map, minX, minZ, maxX, maxZ, floor, Corner, window.BlocksSky);
@@ -508,7 +508,8 @@ public class SkyOcclusionWindowTests
                     float cornerSum = corners[c] + corners[c + 1] + corners[c + stride] + corners[c + stride + 1];
                     float occlusion = IndoorOcclusionMath.CentreOcclusion(centreBlocksSky(x, z), cornerSum);
                     centres[(z - minZ) * width + (x - minX)] =
-                        IndoorOcclusionMath.CoverAlpha(IndoorOcclusionMath.CapOcclusion(occlusion, floor), 0);
+                        IndoorOcclusionMath.CoverAlpha(
+                            IndoorOcclusionMath.CapOcclusion(occlusion, floor, ambientLightSkyFraction: 0f), 0);
                 }
             }
 
