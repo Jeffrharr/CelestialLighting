@@ -89,6 +89,17 @@ public class CelestialLightingSettings : ModSettings
     // minNightBrightness above), so it defaults to the shipped preset's value, not the math layer's.
     public float minIndoorBrightness = Presets.Cinematic.MinIndoorBrightness;
 
+    // --- §7c native sky falloff tunables (drive NativeSkyFalloffSettings.Current). Only visible in
+    // practice while the Ambient Light workshop mod is absent — SkyFalloffSource defers to that mod
+    // outright when present, so these two never feed a cell it already answered. Added after live
+    // playtesting found the original 55f-matched-to-Ambient-Light default lit up a whole roofed room
+    // rather than grading near the door; see NativeSkyFalloffMath's header for why the out-of-box
+    // PassThroughPercent moved to 25f. MaxDepth is the other half of that same complaint — a player
+    // who still finds the gradient too broad at 25f should lower this, since PassThroughPercent alone
+    // only scales the whole gradient rather than concentrating it near the opening (DESIGN.md §7c). ---
+    public float nativeSkyFalloffPassThroughPercent = NativeSkyFalloffMath.DefaultPassThroughPercent;
+    public int nativeSkyFalloffMaxDepth = NativeSkyFalloffMath.DefaultMaxDepth;
+
     // --- Eclipse (drives EclipseSettings.Mode) — which eclipse flavour(s) are live. Defaults to
     //     UnnaturalOnly: reshape the darkening of the storyteller's own eclipse, fire nothing of our
     //     own, because natural eclipses are real events and no default here may alter gameplay. The
@@ -179,11 +190,16 @@ public class CelestialLightingSettings : ModSettings
         IndoorOcclusionSettings.Current.DoorSkyLeak = doorSkyLeak;
         IndoorOcclusionSettings.Current.MinIndoorBrightness = minIndoorBrightness;
 
+        // §7c's own two knobs — see SkyFalloffSource for why they only matter without Ambient Light.
+        NativeSkyFalloffSettings.Current.MaxDepth = nativeSkyFalloffMaxDepth;
+        NativeSkyFalloffSettings.Current.PassThroughPercent = nativeSkyFalloffPassThroughPercent;
+
         // §7b's alphas live in baked section meshes, not in a per-frame material, so a change here is
         // invisible until the meshes are rebuilt. Must run after the assignments above.
         IndoorOcclusionRedraw.SyncTo(
             indoorSkyOcclusion, IndoorOcclusionSettings.Current.DoorSkyLeak,
-            IndoorOcclusionSettings.Current.MinIndoorBrightness);
+            IndoorOcclusionSettings.Current.MinIndoorBrightness,
+            NativeSkyFalloffSettings.Current.MaxDepth, NativeSkyFalloffSettings.Current.PassThroughPercent);
 
         // §15's caster heights are baked into the sun-shadow section meshes for the same reason, so
         // the eave toggle needs its own rebuild. Separate from the call above because the two write
@@ -222,6 +238,10 @@ public class CelestialLightingSettings : ModSettings
         Scribe_Values.Look(ref eaveShadows, "eaveShadows", true);
         Scribe_Values.Look(ref doorSkyLeak, "doorSkyLeak", IndoorOcclusionMath.DefaultDoorSkyLeak);
         Scribe_Values.Look(ref minIndoorBrightness, "minIndoorBrightness", Presets.Cinematic.MinIndoorBrightness);
+        Scribe_Values.Look(ref nativeSkyFalloffPassThroughPercent, "nativeSkyFalloffPassThroughPercent",
+            NativeSkyFalloffMath.DefaultPassThroughPercent);
+        Scribe_Values.Look(ref nativeSkyFalloffMaxDepth, "nativeSkyFalloffMaxDepth",
+            NativeSkyFalloffMath.DefaultMaxDepth);
         Scribe_Values.Look(ref atmosphericGlow, "atmosphericGlow", true);
         Scribe_Values.Look(ref minNightBrightness, "minNightBrightness", Presets.Cinematic.MinNightBrightness);
         // The default moved from Both to UnnaturalOnly. Scribe_Values omits a value equal to its

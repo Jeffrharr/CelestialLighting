@@ -10,6 +10,11 @@ namespace CelestialLighting;
 // its sliders has no visible effect until something dirties the map, which reads as "the setting did
 // nothing". This forces the rebuild on an actual change.
 //
+// Also covers §7c's two sliders (NativeSkyFalloffSettings), not just §7b's own: SkyFalloffSource feeds
+// CapOcclusion's same third argument, so a change to either subsystem's knobs invalidates the identical
+// baked alpha and needs the identical rebuild — one redraw trigger for the whole occlusion term rather
+// than two that would have to stay in sync by hand.
+//
 // Change-detected rather than unconditional because CelestialLightingSettings.ApplyToRuntime runs
 // every frame the settings window is open, and WholeMapChanged rebuilds every section on the map —
 // fine once on a click, wasteful at 60 Hz.
@@ -17,25 +22,33 @@ public static class IndoorOcclusionRedraw
 {
     // Seeded with the shipped defaults so a startup ApplyToRuntime that changes nothing also queues
     // nothing. (Harmless either way — no map exists yet at that point — but it keeps the invariant
-    // "these three fields are what the baked meshes were built from" true from the first frame.)
+    // "these fields are what the baked meshes were built from" true from the first frame.)
     private static bool lastEnabled = true;
     private static float lastDoorSkyLeak = IndoorOcclusionMath.DefaultDoorSkyLeak;
     private static float lastMinIndoorBrightness;
+    private static int lastNativeMaxDepth = NativeSkyFalloffMath.DefaultMaxDepth;
+    private static float lastNativePassThroughPercent = NativeSkyFalloffMath.DefaultPassThroughPercent;
 
     // minIndoorBrightness is the floor the bake actually applies (IndoorOcclusionSettings.
     // accessibility slider — either knob moving must trigger a rebuild, and comparing the resolved value
     // catches both without duplicating the max() rule here.
-    public static void SyncTo(bool enabled, float doorSkyLeak, float minIndoorBrightness)
+    public static void SyncTo(
+        bool enabled, float doorSkyLeak, float minIndoorBrightness,
+        int nativeMaxDepth, float nativePassThroughPercent)
     {
         bool unchanged = enabled == lastEnabled
             && doorSkyLeak == lastDoorSkyLeak
-            && minIndoorBrightness == lastMinIndoorBrightness;
+            && minIndoorBrightness == lastMinIndoorBrightness
+            && nativeMaxDepth == lastNativeMaxDepth
+            && nativePassThroughPercent == lastNativePassThroughPercent;
         if (unchanged)
             return;
 
         lastEnabled = enabled;
         lastDoorSkyLeak = doorSkyLeak;
         lastMinIndoorBrightness = minIndoorBrightness;
+        lastNativeMaxDepth = nativeMaxDepth;
+        lastNativePassThroughPercent = nativePassThroughPercent;
         RebuildLightingMeshes();
     }
 

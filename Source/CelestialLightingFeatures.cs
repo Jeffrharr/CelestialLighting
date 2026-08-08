@@ -249,6 +249,21 @@ public static class CelestialLightingFeatures
     // already had before this flag existed — the faithful pre-feature baseline for the harness A/B.
     public static bool AmbientLightCompat = true;
 
+    // Feature key for NativeSkyFalloff (see CivilTwilightPersistenceKey for why it lives here).
+    public const string NativeSkyFalloffKey = "native_sky_falloff";
+
+    // §7c (issue #124): the same distance-from-opening sky gradient AmbientLightCompat above gives
+    // players who have Ambient Light installed, built natively for players who don't. A whole-map BFS
+    // (NativeSkyFalloffGrid) grades §7b's blanket "every interior cell goes fully dark" back down near
+    // an opening. Deferred to AmbientLightCompat when that mod is active rather than composed with it
+    // — see SkyFalloffSource for why merging two independently-tuned gradients would put a visible
+    // seam wherever the smaller maxDepth runs out. Default on: the whole point is to close the gap for
+    // players without Ambient Light, so shipping it off would leave that gap unfixed by default. When
+    // off, SkyFalloffSource.FractionAt returns 0 for every cell exactly like AmbientLightCompat's own
+    // off-state, which is the pre-feature CapOcclusion identity — the faithful baseline for the harness
+    // A/B.
+    public static bool NativeSkyFalloff = true;
+
     // Feature key for EaveShadows (see CivilTwilightPersistenceKey for why the const lives here).
     public const string EaveShadowsKey = "eave_shadows";
 

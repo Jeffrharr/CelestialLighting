@@ -1,0 +1,63 @@
+{
+  "name": "native_sky_falloff",
+  "saveFile": "minimal_colony.rws",
+  "description": "Issue #124 / §7c: the same 11x11 roofed room ambient_light_compat.json's #80 investigation used (a DOOR in the south wall, not a bare gap -- a bare gap makes Room.UsesOutdoorTemperature true, which makes EaveCells.IsEave classify the whole room as an eave, so it never reaches CapOcclusion's cap terms at all). Run this scenario WITHOUT Ambient Light (f1995.ambientlight) in the mod list -- with it absent, AmbientLightCompat.Active is false and SkyFalloffSource falls through to NativeSkyFalloffGrid, exercising the native path in isolation. Forces the Realistic preset first: Cinematic's shipped-default MinIndoorBrightness (0.50) sets CapOcclusion's ceiling to 0.5, which is MORE restrictive than the native term's own ceiling (1 - skyFalloffFraction) whenever that fraction is under 0.5 -- i.e. almost always -- so on Cinematic the toggle cannot move a pixel regardless of whether it works, the same masking CLAUDE.md's night-brightness-clamp memory documents for §7a/§7b.",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "20" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "40" } },
+    { "type": "SetWeather", "args": { "weatherDef": "Clear", "instant": "true" } },
+    {
+      "type": "SetTerrain",
+      "args": { "def": "Concrete", "width": "34", "height": "34", "offset": "0,45", "clear": "true" }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "0,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "-5,5; -4,5; -3,5; -2,5; -1,5; 0,5; 1,5; 2,5; 3,5; 4,5; 5,5; -5,-5; -4,-5; -3,-5; -2,-5; -1,-5; 1,-5; 2,-5; 3,-5; 4,-5; 5,-5; -5,-4; -5,-3; -5,-2; -5,-1; -5,0; -5,1; -5,2; -5,3; -5,4; 5,-4; 5,-3; 5,-2; 5,-1; 5,0; 5,1; 5,2; 5,3; 5,4"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Door", "stuff": "BlocksGranite", "offset": "0,45", "layout": "cells", "clear": "false",
+        "cells": "0,-5"
+      }
+    },
+    {
+      "type": "SetRoof",
+      "args": { "def": "RoofConstructed", "width": "11", "height": "11", "offset": "0,45" }
+    },
+    { "type": "LookAt", "args": { "offset": "0,45", "zoom": "24" } },
+
+    { "type": "SetFeature", "args": { "featureName": "realistic_preset", "enabled": "true" } },
+
+    { "type": "FastForward", "args": { "ticks": "250" } },
+
+    { "type": "SetTime", "args": { "hour": "12" } },
+
+    { "type": "SetFeature", "args": { "featureName": "native_sky_falloff", "enabled": "false" } },
+    { "type": "Probe", "args": { "probeName": "native_falloff_fraction", "expectedValue": "0", "tolerance": "1000000" } },
+    { "type": "Screenshot", "args": { "fileName": "nsf_noon_falloff_off.png" } },
+
+    { "type": "SetFeature", "args": { "featureName": "native_sky_falloff", "enabled": "true" } },
+    { "type": "Probe", "args": { "probeName": "native_falloff_depth", "expectedValue": "0", "tolerance": "1000000" } },
+    { "type": "Probe", "args": { "probeName": "native_falloff_fraction", "expectedValue": "0", "tolerance": "1000000" } },
+    { "type": "Screenshot", "args": { "fileName": "nsf_noon_falloff_on.png" } },
+
+    { "type": "SetTime", "args": { "hour": "23" } },
+
+    { "type": "SetFeature", "args": { "featureName": "native_sky_falloff", "enabled": "false" } },
+    { "type": "Probe", "args": { "probeName": "native_falloff_fraction", "expectedValue": "0", "tolerance": "1000000" } },
+    { "type": "Screenshot", "args": { "fileName": "nsf_night_falloff_off.png" } },
+
+    { "type": "SetFeature", "args": { "featureName": "native_sky_falloff", "enabled": "true" } },
+    { "type": "Probe", "args": { "probeName": "native_falloff_depth", "expectedValue": "0", "tolerance": "1000000" } },
+    { "type": "Probe", "args": { "probeName": "native_falloff_fraction", "expectedValue": "0", "tolerance": "1000000" } },
+    { "type": "Screenshot", "args": { "fileName": "nsf_night_falloff_on.png" } }
+  ]
+}

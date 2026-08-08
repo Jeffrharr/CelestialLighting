@@ -135,6 +135,10 @@
     <!-- §7b's baked verdict window: geometry, storage and reads only, so it is Verse-free too and the
          lattice-equivalence tests can drive the real shipped buffer rather than a stand-in. -->
     <Compile Include="../../Source/SkyOcclusionWindow.cs" Link="SkyOcclusionWindow.cs" />
+    <!-- §7c pure core (native under-roof sky falloff, no Ambient Light dependency). Mirrors
+         IndoorOcclusionMath's AmbientLightSkyFraction in shape but is its own file and its own
+         formula, deliberately not shared code — see its header. -->
+    <Compile Include="../../Source/NativeSkyFalloffMath.cs" Link="NativeSkyFalloffMath.cs" />
     <!-- Subsystem 14 pure core (sun-clock reconciliation). Depends on Formulas.cs, already linked. -->
     <Compile Include="../../Source/SunClockMath.cs" Link="SunClockMath.cs" />
     <!-- Subsystem 18d pure core (limb refraction on vacuum maps). Depends on Formulas for the
