@@ -829,6 +829,96 @@ Gated by `CelestialLightingFeatures.IndoorSkyOcclusion`, default on, separate fr
 because it changes daytime interiors too (an unlit shed at noon goes black), which is a much larger taste
 call than night darkness.
 
+### 7c. Native under-roof sky falloff — no Ambient Light dependency (`NativeSkyFalloffGrid` /
+`SkyFalloffSource`, issue #124)
+
+**Problem.** `AmbientLightCompat` above (issue #80) only helps a player who has the Ambient Light
+workshop mod installed — everyone else still gets §7b's blanket verdict, "every interior cell is fully
+occluded", with no gradient near a doorway or a window gap. Issue #124 asked for the same
+distance-from-opening falloff built natively, without a third-party dependency, and deliberately left
+open how: whether to reuse the per-section window pattern `SkyOcclusionWindow`/`EaveShadowGrid` already
+establish, and how to avoid two competing falloffs when Ambient Light is also present.
+
+**Why not the per-section window pattern.** `SkyOcclusionWindow` and `EaveShadowGrid` work because the
+thing they resolve per cell — is this roofed, what height does this cell cast a shadow at — only ever
+depends on that cell and its immediate neighbours, so a one-cell skirt around the section is enough.
+Distance-to-nearest-opening is not local in that way: a cell fifteen tiles into a mine has no correct
+answer without seeing fifteen tiles in every direction, so a per-section approach would need a skirt
+sized to `maxDepth`, re-run on every section regenerate — and regenerate fires on *any*
+`GroundGlow`-dirtying event, including an ordinary lamp toggle (§7b's own header above already flags
+this cost for a *cheaper* per-cell test than a flood fill). Re-running a `maxDepth`-radius flood on every
+lamp flip is the wrong shape.
+
+**Approach.** A whole-map multi-source BFS (`NativeSkyFalloffGrid`), run once per map and cached until
+something changes, mirroring how Ambient Light's own `MapComp_AmbientLight.RebuildDistance` solves the
+identical problem (decompiled in full to confirm): seed every non-interior cell at depth 0, flood
+outward into interior cells up to `maxDepth`, 8-directional with a corner-cut guard so light cannot flood
+diagonally past a solid wall corner no pawn could pass through either. Two deliberate simplifications
+against Ambient Light's own version: integer BFS-layer depth rather than a diagonal-weighted Euclidean
+float distance (this mod's own gradient, not required to match theirs bit-for-bit — see
+`NativeSkyFalloffMath`'s header for why the two formulas are independent by design), and the seed test is
+`!IndoorOcclusionMath.BlocksSky(...)` — the same `EaveCells.Encloses`-based "interior" classification
+`Patch_IndoorSkyOcclusion.ResolveCell` already computes — rather than Ambient Light's raw `!Roofed()`.
+That keeps this cache and §7b's own occlusion agreeing about which cells count as indoors (an eave/porch
+cell is roofed but still breathes outdoor air, so it seeds the flood at depth 0 rather than being flooded
+into), instead of inventing a second, narrower definition of "interior" here.
+
+- **Not a `MapComponent`**, per this repo's own convention (parent `CLAUDE.md`): a single-slot
+  `WeakReference<Map>` cache, the same shape `AmbientLightCompat.CachedMap` already uses, so deleting the
+  type later never scribes a permanent node onto every map.
+- **Lazy, not ticked.** `MarkDirty` (called from `Patch_SkyFalloffDirty`'s three Harmony postfixes) only
+  flips a bool; the BFS rebuild happens on the next `DepthAt` call that actually needs the answer. No
+  `MapComponentTick` poll anywhere, unlike Ambient Light's own `_dirty` flag which a per-tick check
+  consults whether or not anyone is currently reading the grid.
+- **Invalidation mirrors `DirtyHooks`' validated trigger set** (decompiled from `AmbientLightFalloff.dll`
+  this session) rather than inventing a new one: `RoofGrid.SetRoof`, plus spawn/despawn of anything
+  `NativeSkyFalloffGrid.BlocksSky` actually reads — `def.holdsRoof` (a wall) or
+  `def.altitudeLayer == AltitudeLayer.DoorMoveable` (a door). Patched on `Building`, not `Thing` — a
+  narrower target than Ambient Light's own Thing-wide patch, since `Building` overrides `SpawnSetup` and
+  `DeSpawn` directly and every holdsRoof/door Thing is a `Building` by construction, so the narrower type
+  still catches every relevant case while leaving an item drop or a pawn walking by untouched. `DeSpawn`
+  uses a Prefix, not a Postfix, because `DeSpawn` clears the Thing's `Map` reference as part of what it
+  does — the map has to be read before the call runs.
+- **A `maxDepth` slider change is treated exactly like a dirty map.** The cached array is capped at
+  whatever `maxDepth` was in effect when it was built; if a player raised the slider afterwards, cells
+  the old cap marked "beyond reach" would silently stay wrong without this check.
+- **Deferral, not composition, when Ambient Light is active (`SkyFalloffSource`).** The two sources use
+  different `maxDepth` values and formulas by construction — players tune each independently — so
+  `Max()`-ing them the way `CapOcclusion` already composes `MinIndoorBrightness` and
+  `AmbientLightSkyFraction` would put a visible seam wherever the smaller `maxDepth` runs out, a
+  discontinuity neither gradient has on its own. `SkyFalloffSource.FractionAt` is the single place that
+  decides: `AmbientLightCompat.Active` wins outright when true (its own mouseover readout already reports
+  a gameplay-authoritative value, strictly better-grounded than a second guess computed independently),
+  and the native BFS is never even run in that case — no wasted whole-map flood on every map that has
+  Ambient Light installed. `Patch_IndoorSkyOcclusion`'s two call sites (the corner pass's MAX-over-four-
+  neighbours and the centre pass) both go through this dispatcher now rather than calling
+  `AmbientLightCompat.SkyFractionAt` directly; `IndoorOcclusionMath.CapOcclusion`'s own signature and
+  tests are untouched — only what feeds its third argument changed source.
+- **No settings UI**, matching `AmbientLightCompat` immediately above: that compat flag ships with no
+  persisted toggle or slider at all, just the `CelestialLightingFeatures` flag defaulting on with its
+  formula constants (`NativeSkyFalloffMath.DefaultMaxDepth = 12`, `DefaultPassThroughPercent = 55f`,
+  chosen to land in the same register as Ambient Light's own shipped defaults) fixed rather than exposed.
+  Adding slider UI a sibling feature does not have would be scope beyond what issue #124 asked for.
+
+Gated by `CelestialLightingFeatures.NativeSkyFalloff`, default on — the whole point is to close the gap
+for players without Ambient Light, so shipping it off would leave that gap unfixed by default. When off,
+`SkyFalloffSource.FractionAt` returns 0 for every cell, identical to `AmbientLightCompat`'s own off-state
+and to `CapOcclusion`'s pre-feature identity — the faithful baseline for the harness A/B.
+
+**Live-measured** at the same door-adjacent interior cell §7b's own writeup above uses, in a fresh
+`Tests/Scenarios/native_sky_falloff.json` (identical 11×11 roofed room, run with Ambient Light *absent*
+so the native path is exercised in isolation): the BFS depth at that cell is 1, giving fraction 0.5042 at
+noon (`curSkyGlow` ≈ 1.0) against 0 with the feature off. Cropped to the room interior, median CIELAB ΔE
+between those two states is **16.11**, comfortably past the "visible at a glance" 5+ threshold — a
+whole-frame median is 0.0 because the room occupies a small fraction of the captured frame, the same
+scale mismatch that motivates cropping rather than a wider baseline. At 23:00 the same toggle reads
+fraction 0.0202 against 0, and the interior crop's median ΔE is 0.0: not a regression, the same physical
+reason §7b's writeup gives for its own night reading — `curSkyGlow` is nearly zero after dark, so the
+term this feature grades has almost nothing left to redistribute regardless of BFS depth. The
+`ambient_light_compat.json` regression pass (Ambient Light installed) read `ambient_sky_fraction`
+0.458333343 at noon and 0.0183333326 at night — identical to the pre-`SkyFalloffSource` figures §7b's own
+writeup quotes — confirming the dispatcher's deferral doesn't perturb the compat path it wraps.
+
 ## 14. Sun-clock reconciliation (`SunClockMath` / `SunClock` / `Patch_SunGlow`)
 
 **Problem.** Every visual subsystem keys on `SolarPosition.ElevationForMap` — a real
