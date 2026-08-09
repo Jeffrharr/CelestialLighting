@@ -91,14 +91,17 @@ public class CelestialLightingSettings : ModSettings
 
     // --- §7c native sky falloff tunables (drive NativeSkyFalloffSettings.Current). Only visible in
     // practice while the Ambient Light workshop mod is absent — SkyFalloffSource defers to that mod
-    // outright when present, so these two never feed a cell it already answered. Added after live
-    // playtesting found the original 55f-matched-to-Ambient-Light default lit up a whole roofed room
-    // rather than grading near the door; see NativeSkyFalloffMath's header for why the out-of-box
-    // PassThroughPercent moved to 25f. MaxDepth is the other half of that same complaint — a player
-    // who still finds the gradient too broad at 25f should lower this, since PassThroughPercent alone
-    // only scales the whole gradient rather than concentrating it near the opening (DESIGN.md §7c). ---
-    public float nativeSkyFalloffPassThroughPercent = NativeSkyFalloffMath.DefaultPassThroughPercent;
-    public int nativeSkyFalloffMaxDepth = NativeSkyFalloffMath.DefaultMaxDepth;
+    // outright when present, so these two never feed a cell it already answered. Part of the preset
+    // bundle (see minIndoorBrightness above) rather than one global default: live playtesting settled
+    // on two different values per preset, not one — Cinematic's 0.50 minIndoorBrightness floor already
+    // lifts every roofed cell most of the way up, so it needs a much stronger PassThroughPercent for the
+    // opening to still read as brighter than the rest of the room, where Realistic's floor of 0 leaves
+    // the same job to a much smaller push. See DESIGN.md §7c for the measured values (Realistic 35%/8
+    // cells, Cinematic 80%/10 cells). NativeSkyFalloffMath.DefaultPassThroughPercent/DefaultMaxDepth
+    // remain the math layer's own neutral fallback (used only by NativeSkyFalloffSettings.Defaults and
+    // its offline tests) — not what either preset ships. ---
+    public float nativeSkyFalloffPassThroughPercent = Presets.Cinematic.NativeSkyFalloffPassThroughPercent;
+    public int nativeSkyFalloffMaxDepth = Presets.Cinematic.NativeSkyFalloffMaxDepth;
 
     // --- Eclipse (drives EclipseSettings.Mode) — which eclipse flavour(s) are live. Defaults to
     //     UnnaturalOnly: reshape the darkening of the storyteller's own eclipse, fire nothing of our
@@ -121,6 +124,8 @@ public class CelestialLightingSettings : ModSettings
         weatherDimmingStrength = knobs.WeatherDimming;
         minNightBrightness = knobs.MinNightBrightness;
         minIndoorBrightness = knobs.MinIndoorBrightness;
+        nativeSkyFalloffPassThroughPercent = knobs.NativeSkyFalloffPassThroughPercent;
+        nativeSkyFalloffMaxDepth = knobs.NativeSkyFalloffMaxDepth;
         preset = chosen;
     }
 
@@ -239,9 +244,9 @@ public class CelestialLightingSettings : ModSettings
         Scribe_Values.Look(ref doorSkyLeak, "doorSkyLeak", IndoorOcclusionMath.DefaultDoorSkyLeak);
         Scribe_Values.Look(ref minIndoorBrightness, "minIndoorBrightness", Presets.Cinematic.MinIndoorBrightness);
         Scribe_Values.Look(ref nativeSkyFalloffPassThroughPercent, "nativeSkyFalloffPassThroughPercent",
-            NativeSkyFalloffMath.DefaultPassThroughPercent);
+            Presets.Cinematic.NativeSkyFalloffPassThroughPercent);
         Scribe_Values.Look(ref nativeSkyFalloffMaxDepth, "nativeSkyFalloffMaxDepth",
-            NativeSkyFalloffMath.DefaultMaxDepth);
+            Presets.Cinematic.NativeSkyFalloffMaxDepth);
         Scribe_Values.Look(ref atmosphericGlow, "atmosphericGlow", true);
         Scribe_Values.Look(ref minNightBrightness, "minNightBrightness", Presets.Cinematic.MinNightBrightness);
         // The default moved from Both to UnnaturalOnly. Scribe_Values omits a value equal to its

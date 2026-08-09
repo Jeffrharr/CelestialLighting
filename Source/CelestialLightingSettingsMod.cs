@@ -130,10 +130,10 @@ public class CelestialLightingSettingsMod : Mod
             "Stop the sky lighting roofed cells. Vanilla always bleeds ~61% of the sky into every roofed tile, so a sealed cave never goes black; with this on, an unlit interior is lit by its lamps or not at all — day and night.");
         Settings.doorSkyLeak = LabeledSlider(listing, "  Light leaked through doors", Settings.doorSkyLeak, 0f, 0.5f);
         Settings.minIndoorBrightness = AestheticSlider(listing, "  Minimum indoor brightness", Settings.minIndoorBrightness, 0f, 1f);
-        Settings.nativeSkyFalloffPassThroughPercent = LabeledSlider(listing, "  Sky brightness at an opening (no Ambient Light)",
+        Settings.nativeSkyFalloffPassThroughPercent = AestheticSlider(listing, "  Sky brightness at an opening (no Ambient Light)",
             Settings.nativeSkyFalloffPassThroughPercent, 0f, 100f,
             "How bright a roofed cell right next to a door or window gap gets, before it tapers off with distance. Only used when the Ambient Light workshop mod is not installed — with it installed, that mod's own value is used instead.");
-        Settings.nativeSkyFalloffMaxDepth = LabeledIntSlider(listing, "  How far the glow reaches (cells, no Ambient Light)",
+        Settings.nativeSkyFalloffMaxDepth = AestheticIntSlider(listing, "  How far the glow reaches (cells, no Ambient Light)",
             Settings.nativeSkyFalloffMaxDepth, 1, 24,
             "How many cells deep the gradient above reaches before fading to nothing. Higher = the glow carries further into a room. Only used when the Ambient Light workshop mod is not installed.");
         listing.CheckboxLabeled("Atmospheric night glow", ref Settings.atmosphericGlow,
@@ -312,9 +312,22 @@ public class CelestialLightingSettingsMod : Mod
     // brightness floors drawn up in the effects section, since a preset now sets those too. The
     // accessibility floor and the door leak are orthogonal to the presets and keep the plain
     // LabeledSlider, so touching them never flips the preset to Custom.
-    private float AestheticSlider(Listing_Standard listing, string label, float value, float min, float max)
+    private float AestheticSlider(Listing_Standard listing, string label, float value, float min, float max,
+        string tooltip = null)
     {
-        float updated = LabeledSlider(listing, label, value, min, max);
+        float updated = LabeledSlider(listing, label, value, min, max, tooltip);
+        if (updated != value)
+            Settings.MarkAestheticKnobsCustom();
+        return updated;
+    }
+
+    // Int-backed counterpart to AestheticSlider, for the one PresetKnobs field that isn't a float
+    // (NativeSkyFalloffMaxDepth is a cell count). Same Custom-flip-on-real-change behaviour as its
+    // float sibling, built on LabeledIntSlider the same way AestheticSlider is built on LabeledSlider.
+    private int AestheticIntSlider(Listing_Standard listing, string label, int value, int min, int max,
+        string tooltip = null)
+    {
+        int updated = LabeledIntSlider(listing, label, value, min, max, tooltip);
         if (updated != value)
             Settings.MarkAestheticKnobsCustom();
         return updated;

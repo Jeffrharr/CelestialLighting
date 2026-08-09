@@ -980,6 +980,27 @@ than merely dimmer needs to lower `MaxDepth` too (the "How far the glow reaches"
 exactly why that slider exists as a second, independent knob rather than folding "strength" and "reach"
 into one.
 
+**Moved into the preset bundle, per further live playtest feedback.** The 25f/12 default above was a
+single global value shared by both presets; live play under each preset found that one number cannot
+serve both. `PresetKnobs` gained `NativeSkyFalloffPassThroughPercent`/`NativeSkyFalloffMaxDepth`
+alongside `MinIndoorBrightness`, for the same reason that floor is bundled rather than a standalone
+slider: the two terms compound. Cinematic's `MinIndoorBrightness` sits at 0.50, so every roofed cell is
+already lifted most of the way toward legible before this term runs at all — a 25%-strength opening glow
+barely moves the needle against that floor, and the opening stops reading as distinct from the rest of
+the room. Realistic's floor is 0, so the same 25% (or even less) is doing the floor's whole job by
+itself and reads as intended. Landed on Realistic 35%/8 cells, Cinematic 80%/10 cells — both slightly
+different from the single 25f/12 the section above measured, chosen by playing under each preset
+directly rather than derived from the floor values. `NativeSkyFalloffMath.DefaultPassThroughPercent`
+(25f) and `DefaultMaxDepth` (12) are unchanged and still exist — they are `NativeSkyFalloffSettings`'
+own neutral fallback and the value `NativeSkyFalloffMathTests`' pinned test still checks — but neither
+preset ships them anymore; `CelestialLightingSettings`' field initializers and `ExposeData` defaults now
+read `Presets.Cinematic.NativeSkyFalloffPassThroughPercent`/`MaxDepth` instead, matching how
+`minIndoorBrightness`'s own default already tracks the shipped preset rather than
+`IndoorOcclusionMath.DefaultMinIndoorBrightness`. Both sliders switched from a plain `LabeledSlider`/
+`LabeledIntSlider` to `AestheticSlider`/`AestheticIntSlider` (the latter newly added, mirroring the
+former for the one `PresetKnobs` field that is an int rather than a float) so nudging either now flips
+the preset radio to Custom, matching every other preset-bundle-backed slider.
+
 ## 14. Sun-clock reconciliation (`SunClockMath` / `SunClock` / `Patch_SunGlow`)
 
 **Problem.** Every visual subsystem keys on `SolarPosition.ElevationForMap` — a real

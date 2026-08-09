@@ -68,6 +68,24 @@ public class CelestialSettingsMathTests
         // Same axis again: cinematic nights stay readable, realistic ones go genuinely black.
         Assert.That(Presets.Cinematic.MinNightBrightness, Is.GreaterThan(Presets.Realistic.MinNightBrightness));
         Assert.That(Presets.Cinematic.MinIndoorBrightness, Is.GreaterThan(Presets.Realistic.MinIndoorBrightness));
+        // §7c: Cinematic needs a much stronger opening glow to still read against its own 0.50 floor,
+        // where Realistic's floor of 0 leaves the same job to a smaller push. See PresetKnobs' field
+        // comment for why this is bundled rather than one global default.
+        Assert.That(Presets.Cinematic.NativeSkyFalloffPassThroughPercent,
+            Is.GreaterThan(Presets.Realistic.NativeSkyFalloffPassThroughPercent));
+        Assert.That(Presets.Cinematic.NativeSkyFalloffMaxDepth,
+            Is.GreaterThan(Presets.Realistic.NativeSkyFalloffMaxDepth));
+    }
+
+    [Test]
+    public void NativeSkyFalloff_PinnedPerPresetPerLivePlaytest()
+    {
+        // Live-tuned values, not derived — see DESIGN.md §7c. Pinned so a future refactor of the
+        // preset bundles can't silently drift these back toward one shared default.
+        Assert.That(Presets.Realistic.NativeSkyFalloffPassThroughPercent, Is.EqualTo(35f).Within(Tolerance));
+        Assert.That(Presets.Realistic.NativeSkyFalloffMaxDepth, Is.EqualTo(8));
+        Assert.That(Presets.Cinematic.NativeSkyFalloffPassThroughPercent, Is.EqualTo(80f).Within(Tolerance));
+        Assert.That(Presets.Cinematic.NativeSkyFalloffMaxDepth, Is.EqualTo(10));
     }
 
     [TestCase(CelestialPreset.Realistic, ExpectedResult = true)]
@@ -118,6 +136,8 @@ public class CelestialSettingsMathTests
             Assert.That(knobs.WeatherDimming, Is.InRange(0f, 0.5f));
             Assert.That(knobs.MinNightBrightness, Is.InRange(0f, 1f));
             Assert.That(knobs.MinIndoorBrightness, Is.InRange(0f, 1f));
+            Assert.That(knobs.NativeSkyFalloffPassThroughPercent, Is.InRange(0f, 100f));
+            Assert.That(knobs.NativeSkyFalloffMaxDepth, Is.InRange(1, 24));
         }
     }
 }
