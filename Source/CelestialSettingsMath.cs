@@ -72,13 +72,24 @@ public readonly struct PresetKnobs
     // unreadable. Same taste axis, so same bundle.
     public readonly float MinIndoorBrightness;
 
+    // §7c: brightness at an opening and how many cells the gradient reaches, [0,100] / cells. In the
+    // bundle (not a standalone slider like purpleLightStrength) because how strong this should read
+    // depends on MinIndoorBrightness above it: Cinematic's 0.50 floor already lifts every roofed cell
+    // most of the way up, so a Realistic-tuned PassThroughPercent would barely register against that
+    // floor and the opening would stop reading as brighter than the rest of the room. Live-tuned per
+    // preset for exactly that reason — see DESIGN.md §7c for the measured numbers.
+    public readonly float NativeSkyFalloffPassThroughPercent;
+    public readonly int NativeSkyFalloffMaxDepth;
+
     public PresetKnobs(
         float shadowLengthScale,
         float shadowStrength,
         float desaturation,
         float weatherDimming,
         float minNightBrightness,
-        float minIndoorBrightness)
+        float minIndoorBrightness,
+        float nativeSkyFalloffPassThroughPercent,
+        int nativeSkyFalloffMaxDepth)
     {
         ShadowLengthScale = shadowLengthScale;
         ShadowStrength = shadowStrength;
@@ -86,6 +97,8 @@ public readonly struct PresetKnobs
         WeatherDimming = weatherDimming;
         MinNightBrightness = minNightBrightness;
         MinIndoorBrightness = minIndoorBrightness;
+        NativeSkyFalloffPassThroughPercent = nativeSkyFalloffPassThroughPercent;
+        NativeSkyFalloffMaxDepth = nativeSkyFalloffMaxDepth;
     }
 }
 
@@ -109,7 +122,8 @@ public static class Presets
     public static readonly PresetKnobs Realistic =
         new PresetKnobs(shadowLengthScale: 1.0f, shadowStrength: 1.0f, desaturation: 0.85f,
             weatherDimming: WeatherDimmingMath.DefaultMaxDimming,
-            minNightBrightness: 0.0f, minIndoorBrightness: 0.0f);
+            minNightBrightness: 0.0f, minIndoorBrightness: 0.0f,
+            nativeSkyFalloffPassThroughPercent: 35f, nativeSkyFalloffMaxDepth: 8);
 
     // "Cinematic/Pretty": longer, softer shadows, only mild desaturation so night keeps some colour,
     // and gentler weather dimming so storms stay photogenic rather than murky. The shipped default
@@ -119,7 +133,8 @@ public static class Presets
     public static readonly PresetKnobs Cinematic =
         new PresetKnobs(shadowLengthScale: 1.4f, shadowStrength: 0.8f, desaturation: 0.4f,
             weatherDimming: 0.20f,
-            minNightBrightness: CinematicMinBrightness, minIndoorBrightness: CinematicMinBrightness);
+            minNightBrightness: CinematicMinBrightness, minIndoorBrightness: CinematicMinBrightness,
+            nativeSkyFalloffPassThroughPercent: 80f, nativeSkyFalloffMaxDepth: 10);
 
     // Returns the bundle for a named preset. Custom is intentionally rejected: there is no "custom
     // bundle" to hand back — Custom means the individual fields are whatever the player last set, so

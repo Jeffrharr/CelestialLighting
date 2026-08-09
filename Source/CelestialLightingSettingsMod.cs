@@ -128,8 +128,13 @@ public class CelestialLightingSettingsMod : Mod
             "Darken the on-screen night overlay toward black as the night floor drops.");
         listing.CheckboxLabeled("Black unlit interiors", ref Settings.indoorSkyOcclusion,
             "Stop the sky lighting roofed cells. Vanilla always bleeds ~61% of the sky into every roofed tile, so a sealed cave never goes black; with this on, an unlit interior is lit by its lamps or not at all — day and night.");
-        Settings.doorSkyLeak = LabeledSlider(listing, "  Light leaked through doors", Settings.doorSkyLeak, 0f, 0.5f);
         Settings.minIndoorBrightness = AestheticSlider(listing, "  Minimum indoor brightness", Settings.minIndoorBrightness, 0f, 1f);
+        Settings.nativeSkyFalloffPassThroughPercent = AestheticSlider(listing, "  Sky brightness at an opening (no Ambient Light)",
+            Settings.nativeSkyFalloffPassThroughPercent, 0f, 100f,
+            "How bright a roofed cell right next to a door or window gap gets, before it tapers off with distance. Only used when the Ambient Light workshop mod is not installed — with it installed, that mod's own value is used instead.");
+        Settings.nativeSkyFalloffMaxDepth = AestheticIntSlider(listing, "  How far the glow reaches (cells, no Ambient Light)",
+            Settings.nativeSkyFalloffMaxDepth, 1, 24,
+            "How many cells deep the gradient above reaches before fading to nothing. Higher = the glow carries further into a room. Only used when the Ambient Light workshop mod is not installed.");
         listing.CheckboxLabeled("Atmospheric night glow", ref Settings.atmosphericGlow,
             "The constant starlight + airglow floor. Off = only moonlight lights the night (true pitch-black on a moonless night).");
         Settings.minNightBrightness = AestheticSlider(listing, "  Minimum night brightness", Settings.minNightBrightness, 0f, 1f);
@@ -306,19 +311,43 @@ public class CelestialLightingSettingsMod : Mod
     // brightness floors drawn up in the effects section, since a preset now sets those too. The
     // accessibility floor and the door leak are orthogonal to the presets and keep the plain
     // LabeledSlider, so touching them never flips the preset to Custom.
-    private float AestheticSlider(Listing_Standard listing, string label, float value, float min, float max)
+    private float AestheticSlider(Listing_Standard listing, string label, float value, float min, float max,
+        string tooltip = null)
     {
-        float updated = LabeledSlider(listing, label, value, min, max);
+        float updated = LabeledSlider(listing, label, value, min, max, tooltip);
         if (updated != value)
             Settings.MarkAestheticKnobsCustom();
         return updated;
     }
 
-    // A plain labeled slider with no side effects on the preset selection.
-    private float LabeledSlider(Listing_Standard listing, string label, float value, float min, float max)
+    // Int-backed counterpart to AestheticSlider, for the one PresetKnobs field that isn't a float
+    // (NativeSkyFalloffMaxDepth is a cell count). Same Custom-flip-on-real-change behaviour as its
+    // float sibling, built on LabeledIntSlider the same way AestheticSlider is built on LabeledSlider.
+    private int AestheticIntSlider(Listing_Standard listing, string label, int value, int min, int max,
+        string tooltip = null)
     {
-        listing.Label($"{label}: {value:0.00}");
+        int updated = LabeledIntSlider(listing, label, value, min, max, tooltip);
+        if (updated != value)
+            Settings.MarkAestheticKnobsCustom();
+        return updated;
+    }
+
+    // A plain labeled slider with no side effects on the preset selection. tooltip is optional so every
+    // existing call site (none of which passed one) keeps compiling unchanged.
+    private float LabeledSlider(Listing_Standard listing, string label, float value, float min, float max,
+        string tooltip = null)
+    {
+        listing.Label($"{label}: {value:0.00}", tooltip: tooltip);
         return listing.Slider(value, min, max);
     }
 
+    // Listing_Standard.Slider is float-only; this rounds for display and for the value handed back, so
+    // an int-backed setting (NativeSkyFalloffSettings.MaxDepth is a cell count, not a fraction) still
+    // gets a slider instead of the free-typed Verse.Dialog_Input this repo has no other use for.
+    private int LabeledIntSlider(Listing_Standard listing, string label, int value, int min, int max,
+        string tooltip = null)
+    {
+        listing.Label($"{label}: {value}", tooltip: tooltip);
+        return Mathf.RoundToInt(listing.Slider(value, min, max));
+    }
 }

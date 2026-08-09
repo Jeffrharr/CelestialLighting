@@ -179,6 +179,13 @@ public static class ProbeRegistration
             new AmbientLightDoorCellProbe("ambient_ground_glow", AmbientLightDoorCellProbe.Metric.GroundGlow));
         ProbeRegistry.Register(
             new AmbientLightDoorCellProbe("ambient_sky_fraction", AmbientLightDoorCellProbe.Metric.SkyFraction));
+        // Issue #124 / §7c: same near-door cell, native_sky_falloff.json's own copy of the same room
+        // layout. native_falloff_depth is the raw BFS layer NativeSkyFalloffGrid computes;
+        // native_falloff_fraction is what SkyFalloffSource actually dispatches to §7b's CapOcclusion.
+        ProbeRegistry.Register(
+            new NativeSkyFalloffProbe("native_falloff_depth", NativeSkyFalloffProbe.Metric.Depth));
+        ProbeRegistry.Register(
+            new NativeSkyFalloffProbe("native_falloff_fraction", NativeSkyFalloffProbe.Metric.Fraction));
         // §16: what one map-mesh dirty flag costs, per layer, in microseconds. Seven probes rather
         // than one because the question is a comparison — our three added regenerates against the
         // vanilla ones already on the same flag — and a single total would hide exactly that. The
@@ -508,6 +515,16 @@ public static class ProbeRegistration
             enabled =>
             {
                 CelestialLightingFeatures.AmbientLightCompat = enabled;
+                IndoorOcclusionRedraw.ForceRebuild();
+            });
+        // §7c / NativeSkyFalloff: same baked-mesh situation as the two §7b-family flags immediately
+        // above (SkyFalloffSource feeds the identical CapOcclusion call inside that same postfix), so
+        // the toggle needs the same forced rebuild.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.NativeSkyFalloffKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.NativeSkyFalloff = enabled;
                 IndoorOcclusionRedraw.ForceRebuild();
             });
         // §15's caster heights are baked into the sun-shadow meshes, so like §7b the toggle is

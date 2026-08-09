@@ -32,22 +32,21 @@ namespace CelestialLighting;
 // inside Regenerate.
 public readonly struct SkyOcclusionWindow
 {
-    // Two bits per cell rather than two arrays: both verdicts are read together by the corner pass
-    // and both fall out of the same roof-grid + edifice-grid fetch, so they are stored together and
-    // indexed once.
-    private const byte BlocksSkyBit = 1;
-    private const byte DoorBit = 2;
-
-    private readonly byte[] verdicts;
+    // One verdict per cell. Used to also carry a second, door bit alongside this one — both fell out of
+    // the same roof-grid + edifice-grid fetch, so they were packed together — but the door bit's only
+    // reader was the corner pass's flat doorSkyLeak cap, which §7c's distance-graded sky falloff now
+    // supersedes (see IndoorOcclusionMath.CornerOcclusion's header). With no remaining reader, a plain
+    // bool per cell replaced the bit-packed byte.
+    private readonly bool[] blocksSky;
     private readonly int minX;
     private readonly int minZ;
     private readonly int maxX;
     private readonly int maxZ;
     private readonly int width;
 
-    private SkyOcclusionWindow(byte[] verdicts, int minX, int minZ, int maxX, int maxZ, int width)
+    private SkyOcclusionWindow(bool[] blocksSky, int minX, int minZ, int maxX, int maxZ, int width)
     {
-        this.verdicts = verdicts;
+        this.blocksSky = blocksSky;
         this.minX = minX;
         this.minZ = minZ;
         this.maxX = maxX;
@@ -68,7 +67,7 @@ public readonly struct SkyOcclusionWindow
         int maxZ = Min(sectionMaxZ + 1, mapSizeZ - 1);
 
         int width = maxX - minX + 1;
-        return new SkyOcclusionWindow(new byte[width * (maxZ - minZ + 1)], minX, minZ, maxX, maxZ, width);
+        return new SkyOcclusionWindow(new bool[width * (maxZ - minZ + 1)], minX, minZ, maxX, maxZ, width);
     }
 
     // The resolved bounds, so the adapter's fill loop walks exactly the cells this window stores and
@@ -83,35 +82,20 @@ public readonly struct SkyOcclusionWindow
 
     // Bakes one cell's verdict. Called once per cell by the fill loop; callers must stay inside the
     // bounds above (unlike the reads, a write outside the window is always a bug in the fill loop).
-    public void Resolve(int x, int z, bool blocksSky, bool isDoor)
-    {
-        byte verdict = 0;
-        if (blocksSky)
-            verdict |= BlocksSkyBit;
-
-        if (isDoor)
-            verdict |= DoorBit;
-
-        verdicts[(z - minZ) * width + (x - minX)] = verdict;
-    }
+    public void Resolve(int x, int z, bool blocksSky) =>
+        this.blocksSky[(z - minZ) * width + (x - minX)] = blocksSky;
 
     // Is this cell interior — does it block the sky outright? See IndoorOcclusionMath.BlocksSky for
     // what that means and why it is narrower than "roofed".
-    public bool BlocksSky(int x, int z) => (Verdict(x, z) & BlocksSkyBit) != 0;
-
-    // Is this cell a doorway? Read by the corner pass, which caps a corner a door touches rather than
-    // raising it (IndoorOcclusionMath.CornerOcclusion).
-    public bool IsDoor(int x, int z) => (Verdict(x, z) & DoorBit) != 0;
-
-    // Reads outside the window answer "no contribution" (neither interior nor a door) instead of
-    // throwing, because that is the genuine answer and not a fallback: the only cells the two passes
-    // can ask about outside these bounds are cells off the map edge, and the pre-window code skipped
-    // them with an explicit `cell.InBounds(map)` guard whose effect on the corner pass's two ORs was
-    // exactly `|= false`. Folding it in here removes a per-read bounds check from the hot loop and
-    // keeps the property that two sections baking the same shared boundary vertex compute an
-    // identical value — no 17-cell seams.
-    private byte Verdict(int x, int z) =>
-        Contains(x, z) ? verdicts[(z - minZ) * width + (x - minX)] : (byte)0;
+    //
+    // Reads outside the window answer "no contribution" (not interior) instead of throwing, because
+    // that is the genuine answer and not a fallback: the only cells the two passes can ask about
+    // outside these bounds are cells off the map edge, and the pre-window code skipped them with an
+    // explicit `cell.InBounds(map)` guard whose effect on the corner pass's OR was exactly `|= false`.
+    // Folding it in here removes a per-read bounds check from the hot loop and keeps the property that
+    // two sections baking the same shared boundary vertex compute an identical value — no 17-cell seams.
+    public bool BlocksSky(int x, int z) =>
+        Contains(x, z) && blocksSky[(z - minZ) * width + (x - minX)];
 
     private bool Contains(int x, int z) => x >= minX && x <= maxX && z >= minZ && z <= maxZ;
 

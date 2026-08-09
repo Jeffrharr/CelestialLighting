@@ -64,22 +64,16 @@ public static class IndoorOcclusionMath
     // same divisor vanilla uses when it averages those same four vertices.
     public const int CornersPerCell = 4;
 
-    // How much sky a door lets past, as a fraction (0 == a door occludes like solid roof).
-    //
-    // Vanilla has no door leak: `SectionLayer_LightingOverlay` lumps doors in *with* roof when it bakes
-    // corner vertices (`thing.def.altitudeLayer == AltitudeLayer.DoorMoveable` is one of the disjuncts
-    // that sets its roofed flag), and a closed door's `blockLight` keeps it from contributing glow
-    // either. So at full occlusion a doorway would go dead black, which reads wrong — a door is the one
-    // part of a wall you expect a sliver of outside light around. This is deliberately small: enough to
-    // suggest a threshold, not enough to light the room through it.
-    public const float DefaultDoorSkyLeak = 0.15f;
-
     // Does this cell block the sky outright — is it *interior*? The single question the whole subsystem
     // turns on, and deliberately narrower than "is this cell roofed":
     //
-    //   - A door is never interior. It is the boundary itself; its leak is applied at the vertices
-    //     (see CornerOcclusion) so a threshold stays a threshold instead of a black plug. Stated first
-    //     so the door rule is single-sourced and cannot be reached past by the roof cases below.
+    //   - A door is never interior. It is the boundary itself, so a doorway reads exactly like open
+    //     ground here. This used to also carry a flat door leak at the vertices (see CornerOcclusion's
+    //     history), but §7c's distance-graded sky falloff now reaches door-adjacent corners through
+    //     CapOcclusion's skyFalloffFraction term — a fixed cap here would only ever double-count or
+    //     conflict with that gradient, never improve on it, so it was removed rather than composed.
+    //     Stated first so the door rule is single-sourced and cannot be reached past by the roof cases
+    //     below.
     //   - An unroofed cell is never interior — the sky genuinely is overhead. This is what keeps the
     //     feature from touching the outdoors at all.
     //   - A cell holding up the roof over it — a wall — is not interior either, exactly as vanilla
@@ -109,16 +103,15 @@ public static class IndoorOcclusionMath
     // a wall's inner corners are 1.0 and its outer corners 0.0, so the ramp lives on the wall tile
     // where it belongs and nothing beyond the building is darkened at all.
     //
-    // Touching a door caps the corner instead of raising it — a corner shared by a doorway and the room
-    // behind it keeps `doorSkyLeak` worth of sky, so the threshold reads a shade brighter than the rest
-    // of that room's edge. Cells outside the map simply do not contribute (they cannot be interior),
-    // which needs no special case here and keeps the two sections that each bake a shared boundary
-    // vertex in exact agreement — no 17-cell seams.
-    public static float CornerOcclusion(bool anyNeighbourBlocksSky, bool touchesDoor, float doorSkyLeak)
-    {
-        float occlusion = anyNeighbourBlocksSky ? 1f : 0f;
-        return touchesDoor ? Min(occlusion, 1f - Clamp01(doorSkyLeak)) : occlusion;
-    }
+    // This used to also cap a door-touching corner at a flat `doorSkyLeak`, so the corner shared by a
+    // doorway and the room behind it read a shade brighter than the rest of that room's edge. Removed:
+    // §7c's distance-graded sky falloff already brightens that same corner through CapOcclusion's
+    // skyFalloffFraction term, and unlike this flat cap it scales with distance from the opening, so
+    // it fully supersedes rather than complements the old cap. Cells outside the map simply do not
+    // contribute (they cannot be interior), which needs no special case here and keeps the two sections
+    // that each bake a shared boundary vertex in exact agreement — no 17-cell seams.
+    public static float CornerOcclusion(bool anyNeighbourBlocksSky) =>
+        anyNeighbourBlocksSky ? 1f : 0f;
 
     // The centre vertex of a cell. An interior cell is flat-out fully occluded; anything else — wall,
     // door, open ground — takes the mean of its own four corners, which is exactly what vanilla does
