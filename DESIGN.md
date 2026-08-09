@@ -751,10 +751,48 @@ reads `map.roofGrid` / `map.edificeGrid` and rewrites `mesh.colors32`.
 - **Leaky doors.** Vanilla lumps doors in with roof for cover (`altitudeLayer == AltitudeLayer.DoorMoveable`
   is one of the disjuncts that sets its corner flag) and a closed door's `blockLight` suppresses glow too,
   so at full occlusion a doorway would go dead black. A door is instead treated as a boundary cell like a
-  wall — never interior, so it can never propagate darkness outward through the wall line — and
-  `DoorSkyLeak` (default 0.15) applies as a *cap* on the corners it touches, leaving the threshold a shade
-  brighter than the wall either side of it (centre `(1 - leak) / 2` against the wall's `0.5`). The door
-  test mirrors vanilla's own so the two can never disagree about which cell is a doorway.
+  wall — never interior, so it can never propagate darkness outward through the wall line — and its leak
+  applies as a *cap* on the corners it touches, leaving the threshold a shade brighter than the wall either
+  side of it. The door test mirrors vanilla's own so the two can never disagree about which cell is a
+  doorway. The worked centre value depends on what a corner's *other* three cells are: a door standing
+  alone with open sky on every side gets `(1 - leak) / 2` (two corners capped by the door, two already
+  at 0 from the open sky, mean of four). In the far more common case — a door built into a wall run — the
+  flanking wall cells in the same row block sky on their own account (a wall is a boundary, not open sky),
+  so *every* corner the door touches already has a sky-blocking neighbour before the door's own cap is
+  even applied, and the cap is what's left after the `Min`: centre `1 - leak`, not `(1 - leak) / 2`. Live-
+  measured at noon under a thick roof (`Tests/Scenarios/door_leak_by_type.json`, three 7×7 rooms differing
+  only in door type): a `Door` built from granite stuff (`MaxHitPoints` ≈266, stuff having raised it above
+  the 160 HP baseline) reads 232/255 (0.9098), Odyssey's `AncientBlastDoor` (6000 HP) reads 254/255
+  (0.9961), and a Workshop glass door (`blockLight` `false`) reads 100/255 (0.3922) — vanilla's own
+  `RoofedAreaMinSkyCover` floor, since `leak = 1` occludes nothing for `CoverAlpha`'s `max` to raise. All
+  three match `1 - leak` (quantized) exactly; none match the isolated-door `(1 - leak) / 2` case, because
+  none of the three doors lacks flanking wall.
+  - **Per-door leak, not one global slider (`IndoorOcclusionMath.DoorSkyLeakFor`).** A security
+    door and a wooden door should not leak the same amount, and with third-party door mods numbering in
+    the hundreds a per-defName table was never going to keep up. The fix reads two fields every door
+    def already carries for vanilla's own reasons, so a door leaks correctly the first time we ever see
+    it: `blockLight` (vanilla's own "does this block light propagation" flag — a door author who wants a
+    literally see-through door already has to set it `false` for correct LOS/glow behaviour) gates
+    transparency outright, and `Thing.MaxHitPoints` (live, stat-resolved, so stuff/quality are already
+    folded in) grades how sealed an *opaque* door is, relative to `DoorBase`'s own 160 HP
+    (`BaselineDoorHitPoints`):
+    ```
+    blockLight == false  ->  leak = 1                                            (glass: full pass)
+    blockLight == true   ->  leak = DoorSkyLeak * clamp01(BaselineDoorHitPoints / door.MaxHitPoints)
+    ```
+    A plain vanilla door sits exactly at the 160 HP baseline and reproduces the old flat behaviour byte
+    for byte. Confirmed against real content rather than invented cases: Anomaly's `SecurityDoor` (800
+    HP) and Odyssey's `AncientBlastDoor` (6000 HP) both leave `blockLight` at `DoorBase`'s default `true`
+    and scale down to ~0.03 and ~0.004 respectively — sealed in practice without a hardcoded floor —
+    while a Workshop glass-door mod (ReBuild: Doors and Corners' `RB_GlassAutodoor` /
+    `RB_ReinforcedGlassAutodoor`) sets `blockLight` `false` with unremarkable HP (80, 160), which is
+    exactly why HP alone could never have been the signal. The ratio is clamped to never *exceed* 1, so a
+    door weaker than baseline (an animal flap) does not read as more transparent than a plain wood door
+    just for being flimsy. At a lattice corner touched by more than one door (an odd double-door
+    junction), the corner takes the **max** leak among them — the same "more generous value wins"
+    composition the Ambient Light floor below already uses. `SkyOcclusionWindow` carries the resolved
+    leak as a second per-cell byte (quantized the same way `CoverAlpha` quantizes the final vertex
+    alpha), so the equivalence tests below tolerate ±1/255 against the pre-quantization float.
 - **Only ever raises the baked alpha.** Other mods legitimately write it: Dub's Skylights nulls
   `map.roofGrid` across `Regenerate` so skylit cells never take vanilla's roofed branch, and Biomes!
   Caverns transpiles the roofed test so cavern roofs read as open. Taking `max` means we can add occlusion
@@ -802,10 +840,11 @@ reads `map.roofGrid` / `map.edificeGrid` and rewrites `mesh.colors32`.
   so the cost lands in bursts on ordinary gameplay events. The postfix therefore bakes a
   `(Section.Size + 2)^2 == 361`-cell verdict window up front and reads it — the same trade §15's
   `EaveShadowGrid` already makes for the same reason, deliberately solved the same way rather than a
-  second way: same one-cell skirt, same clip at the map edge, same allocate-per-regenerate (361 bytes,
-  and a shared static buffer would corrupt the mesh if anything ever re-entered `Regenerate`). Pure
-  refactor — every vertex alpha is identical, which `SkyOcclusionWindowTests` pins by running both
-  lattices and comparing. Two properties it preserves rather than papers over: `EaveCells`' `roof == null`
+  second way: same one-cell skirt, same clip at the map edge, same allocate-per-regenerate (361 bytes for
+  the verdict bits, plus a second 361-byte array for the per-door leak added above, and a shared static
+  buffer would corrupt the mesh if anything ever re-entered `Regenerate`). Otherwise a pure refactor —
+  every vertex alpha is identical (within one door-leak quantization step), which `SkyOcclusionWindowTests`
+  pins by running both lattices and comparing. Two properties it preserves rather than papers over: `EaveCells`' `roof == null`
   short-circuit still keeps the room query off unroofed cells (the window resolves exactly the cells the
   lattice was already resolving, no more), and the corner pass's old `cell.InBounds(map)` guard now lives
   in the window, which answers for an off-map cell with the same `false` that guard was contributing.

@@ -84,7 +84,7 @@ public static class Patch_IndoorSkyOcclusion
             return;
 
         IndoorOcclusionSettings settings = IndoorOcclusionSettings.Current;
-        SkyOcclusionWindow window = BuildWindow(map, rect);
+        SkyOcclusionWindow window = BuildWindow(map, rect, settings);
         float[] corners = BuildCornerOcclusion(map, window, rect, settings);
         WriteCorners(colors, corners);
         WriteCentres(map, window, rect, colors, firstCenterInd, corners, settings);
@@ -94,7 +94,7 @@ public static class Patch_IndoorSkyOcclusion
     // Resolves every cell the two passes below can look at — this section plus the one-cell skirt its
     // boundary lattice points reach into — exactly once. This is the only place in the postfix that
     // touches the live map.
-    private static SkyOcclusionWindow BuildWindow(Map map, CellRect rect)
+    private static SkyOcclusionWindow BuildWindow(Map map, CellRect rect, IndoorOcclusionSettings settings)
     {
         SkyOcclusionWindow window = SkyOcclusionWindow.ForSection(
             rect.minX, rect.minZ, rect.maxX, rect.maxZ, map.Size.x, map.Size.z);
@@ -102,7 +102,7 @@ public static class Patch_IndoorSkyOcclusion
         for (int z = window.MinZ; z <= window.MaxZ; z++)
         {
             for (int x = window.MinX; x <= window.MaxX; x++)
-                ResolveCell(map, window, x, z);
+                ResolveCell(map, window, x, z, settings);
         }
 
         return window;
@@ -172,21 +172,25 @@ public static class Patch_IndoorSkyOcclusion
         bool anyBlocksSky = false;
         bool touchesDoor = false;
         // A corner is shared by up to four cells, and — unlike anyBlocksSky, which is an OR because one
-        // blocked neighbour is enough to occlude — the Ambient Light term takes their MAX: whichever of
-        // the four cells currently has the most sky reaching it is the floor this corner should honour,
-        // the same "more generous floor wins" reasoning IndoorOcclusionMath.CapOcclusion's own doc
-        // comment gives for composing it with MinIndoorBrightness.
+        // blocked neighbour is enough to occlude — the Ambient Light term and the door leak both take
+        // their MAX: whichever of the four cells currently promises the most sky is the value this
+        // corner should honour, the same "more generous floor wins" reasoning
+        // IndoorOcclusionMath.CapOcclusion's own doc comment gives for composing it with
+        // MinIndoorBrightness. A corner touching two different door types (an odd double-door junction)
+        // therefore reads by whichever door lets in more, not whichever comes first in the loop.
         float ambientLightSkyFraction = 0f;
+        float doorLeak = 0f;
         for (int i = 0; i < 4; i++)
         {
             int cellX = x - (i & 1);
             int cellZ = z - (i >> 1);
             anyBlocksSky |= window.BlocksSky(cellX, cellZ);
             touchesDoor |= window.IsDoor(cellX, cellZ);
+            doorLeak = Mathf.Max(doorLeak, window.DoorLeak(cellX, cellZ));
             ambientLightSkyFraction = Mathf.Max(ambientLightSkyFraction, AmbientLightFractionAt(map, cellX, cellZ));
         }
 
-        float occlusion = IndoorOcclusionMath.CornerOcclusion(anyBlocksSky, touchesDoor, settings.DoorSkyLeak);
+        float occlusion = IndoorOcclusionMath.CornerOcclusion(anyBlocksSky, touchesDoor, doorLeak);
         return IndoorOcclusionMath.CapOcclusion(occlusion, settings.MinIndoorBrightness, ambientLightSkyFraction);
     }
 
@@ -218,7 +222,7 @@ public static class Patch_IndoorSkyOcclusion
     // the expensive half — the overwhelming majority of cells on any map are unroofed, and baking
     // this window resolves exactly the cells the lattice was already resolving (no more), so no cell
     // that used to exit early is now forced through a full resolution.
-    private static void ResolveCell(Map map, SkyOcclusionWindow window, int x, int z)
+    private static void ResolveCell(Map map, SkyOcclusionWindow window, int x, int z, IndoorOcclusionSettings settings)
     {
         IntVec3 cell = new IntVec3(x, 0, z);
         RoofDef roof = map.roofGrid.RoofAt(cell);
@@ -229,7 +233,15 @@ public static class Patch_IndoorSkyOcclusion
         bool blocksSky = IndoorOcclusionMath.BlocksSky(
             EaveCells.Encloses(map, cell, roof), roof != null && roof.isThickRoof, holdsRoof, isDoor);
 
-        window.Resolve(x, z, blocksSky, isDoor);
+        // blockLight/MaxHitPoints are only meaningful for an actual door; DoorSkyLeakFor's defaultLeak
+        // argument is unused whenever blockLight is false, so passing settings.DoorSkyLeak here even
+        // for a glass door is harmless rather than a leak into that branch.
+        float doorLeak = isDoor
+            ? IndoorOcclusionMath.DoorSkyLeakFor(
+                edifice.def.blockLight, edifice.MaxHitPoints, IndoorOcclusionMath.BaselineDoorHitPoints, settings.DoorSkyLeak)
+            : 0f;
+
+        window.Resolve(x, z, blocksSky, isDoor, doorLeak);
     }
 
     // Mirrors vanilla's own door test — SectionLayer_LightingOverlay identifies doors by

@@ -6,8 +6,10 @@ namespace CelestialLighting;
 // pure core and its offline tests never need a game reference.
 public struct IndoorOcclusionSettings
 {
-    // How much sky a door lets past (see IndoorOcclusionMath.DefaultDoorSkyLeak for why doors are
-    // special-cased at all).
+    // How much sky a baseline (vanilla-tier) door lets past — see IndoorOcclusionMath.DefaultDoorSkyLeak
+    // for why doors are special-cased at all. Per-door leak (IndoorOcclusionMath.DoorSkyLeakFor) scales
+    // this down for tougher opaque doors and ignores it entirely for a door with blockLight false, so
+    // this slider is best read as "how much a plain wood/metal door leaks," not a global door leak.
     public float DoorSkyLeak;
 
     // The fraction of sky a roofed cell keeps no matter how sealed it is — the one floor that reaches

@@ -119,6 +119,63 @@ public class IndoorOcclusionMathTests
             Is.EqualTo(expected).Within(Tolerance));
     }
 
+    // --- DoorSkyLeakFor: per-door leak from blockLight + MaxHitPoints, no defName table ---
+
+    private const float Baseline = IndoorOcclusionMath.BaselineDoorHitPoints;
+
+    [Test]
+    public void DoorSkyLeakFor_GlassDoor_LeaksFully()
+    {
+        // blockLight false is the vanilla-recognized "this does not block light" flag — a door mod
+        // author already has to set it for correct vanilla LOS/glow behaviour, so a see-through door
+        // (e.g. Workshop's RB_GlassAutodoor) reads as fully open regardless of how tough it is.
+        Assert.That(IndoorOcclusionMath.DoorSkyLeakFor(blockLight: false, hitPoints: 6000f, Baseline, Leak),
+            Is.EqualTo(1f).Within(Tolerance));
+    }
+
+    [Test]
+    public void DoorSkyLeakFor_BaselineOpaqueDoor_MatchesTheFlatDefault()
+    {
+        // A plain vanilla wood/metal door sits exactly at DoorBase's own 160 HP, so this reproduces
+        // the pre-per-door behaviour byte for byte.
+        Assert.That(IndoorOcclusionMath.DoorSkyLeakFor(blockLight: true, hitPoints: Baseline, Baseline, Leak),
+            Is.EqualTo(Leak).Within(Tolerance));
+    }
+
+    [Test]
+    public void DoorSkyLeakFor_ToughOpaqueDoor_ScalesLeakDownTowardZero()
+    {
+        // Anomaly's SecurityDoor (800 HP) and Odyssey's AncientBlastDoor (6000 HP) are both far
+        // tougher than baseline and leave blockLight at DoorBase's default true — they should read as
+        // progressively more sealed, never hitting a hardcoded floor.
+        float securityDoorLeak = IndoorOcclusionMath.DoorSkyLeakFor(blockLight: true, hitPoints: 800f, Baseline, Leak);
+        float blastDoorLeak = IndoorOcclusionMath.DoorSkyLeakFor(blockLight: true, hitPoints: 6000f, Baseline, Leak);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(securityDoorLeak, Is.EqualTo(Leak * Baseline / 800f).Within(Tolerance));
+            Assert.That(blastDoorLeak, Is.EqualTo(Leak * Baseline / 6000f).Within(Tolerance));
+            Assert.That(securityDoorLeak, Is.LessThan(Leak));
+            Assert.That(blastDoorLeak, Is.LessThan(securityDoorLeak));
+        });
+    }
+
+    [Test]
+    public void DoorSkyLeakFor_WeakerThanBaselineDoor_NeverExceedsTheDefault()
+    {
+        // An animal flap (20 HP) is flimsier than baseline, but flimsy is not the same question as
+        // transparent — the ratio clamps at 1 so it does not read as leakier than a plain wood door.
+        Assert.That(IndoorOcclusionMath.DoorSkyLeakFor(blockLight: true, hitPoints: 20f, Baseline, Leak),
+            Is.EqualTo(Leak).Within(Tolerance));
+    }
+
+    [Test]
+    public void DoorSkyLeakFor_ZeroHitPoints_FallsBackToTheDefaultRatherThanDividingByZero()
+    {
+        Assert.That(IndoorOcclusionMath.DoorSkyLeakFor(blockLight: true, hitPoints: 0f, Baseline, Leak),
+            Is.EqualTo(Leak).Within(Tolerance));
+    }
+
     // --- CentreOcclusion: interior cells are flat, everything else is the mean of its own corners ---
 
     [Test]

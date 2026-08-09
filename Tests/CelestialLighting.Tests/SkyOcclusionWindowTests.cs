@@ -85,8 +85,8 @@ public class SkyOcclusionWindowTests
     public void Verdicts_AreStoredPerCellAndIndependently()
     {
         SkyOcclusionWindow window = Window(InnerMin, InnerMin, InnerMax, InnerMax);
-        window.Resolve(40, 41, blocksSky: true, isDoor: false);
-        window.Resolve(41, 41, blocksSky: false, isDoor: true);
+        window.Resolve(40, 41, blocksSky: true, isDoor: false, doorLeakFraction: 0f);
+        window.Resolve(41, 41, blocksSky: false, isDoor: true, doorLeakFraction: Leak);
 
         Assert.Multiple(() =>
         {
@@ -94,6 +94,11 @@ public class SkyOcclusionWindowTests
             Assert.That(window.IsDoor(40, 41), Is.False);
             Assert.That(window.BlocksSky(41, 41), Is.False);
             Assert.That(window.IsDoor(41, 41), Is.True);
+            Assert.That(window.DoorLeak(41, 41), Is.EqualTo(Leak).Within(0.005f));
+
+            // A non-door cell's leak is 0 regardless of what was passed in for it (unused, per the
+            // doorLeakFraction param doc) — callers only ever read DoorLeak alongside IsDoor true.
+            Assert.That(window.DoorLeak(40, 41), Is.EqualTo(0f));
 
             // Row stride: the cell directly above must not alias the cell to the right.
             Assert.That(window.BlocksSky(40, 42), Is.False);
@@ -107,8 +112,8 @@ public class SkyOcclusionWindowTests
         // The border cells are the whole point of the +1: they are read by the section's boundary
         // lattice points even though the section never writes a vertex for them.
         SkyOcclusionWindow window = Window(InnerMin, InnerMin, InnerMax, InnerMax);
-        window.Resolve(window.MinX, window.MinZ, blocksSky: true, isDoor: true);
-        window.Resolve(window.MaxX, window.MaxZ, blocksSky: true, isDoor: false);
+        window.Resolve(window.MinX, window.MinZ, blocksSky: true, isDoor: true, doorLeakFraction: Leak);
+        window.Resolve(window.MaxX, window.MaxZ, blocksSky: true, isDoor: false, doorLeakFraction: 0f);
 
         Assert.Multiple(() =>
         {
@@ -134,6 +139,7 @@ public class SkyOcclusionWindowTests
             Assert.That(window.IsDoor(4, -1), Is.False);
             Assert.That(window.BlocksSky(window.MaxX + 1, 4), Is.False);
             Assert.That(window.IsDoor(4, window.MaxZ + 1), Is.False);
+            Assert.That(window.DoorLeak(window.MaxX + 1, 4), Is.EqualTo(0f));
         });
     }
 
@@ -255,10 +261,16 @@ public class SkyOcclusionWindowTests
 
     private static void AssertSameVertices(LatticeRun legacy, LatticeRun windowed)
     {
-        Assert.That(windowed.Corners, Is.EqualTo(legacy.Corners),
-            "corner vertex alphas diverged from per-cell resolution");
-        Assert.That(windowed.Centres, Is.EqualTo(legacy.Centres),
-            "centre vertex alphas diverged from per-cell resolution");
+        // Corners allow one door-leak quantization step (SkyOcclusionWindow.Quantize packs it to a
+        // byte, the same rounding CoverAlpha already accepts for the final vertex alpha) — Legacy
+        // reads the raw float `Leak` constant directly, Windowed round-trips it through the window.
+        Assert.That(windowed.Corners, Is.EqualTo(legacy.Corners).Within(1f / 255f + 1e-6f),
+            "corner vertex alphas diverged from per-cell resolution by more than door-leak byte quantization");
+        // A centre averages four corners, so the same quantization can occasionally shift its own
+        // byte-rounded result by one at a tie — one below the smallest step CoverAlpha's rounding
+        // could not already have produced from an unquantized input.
+        Assert.That(windowed.Centres, Is.EqualTo(legacy.Centres).Within(1),
+            "centre vertex alphas diverged from per-cell resolution by more than door-leak byte quantization");
     }
 
     // A scene with every classification §7b distinguishes: open ground, a sealed room, its walls, a
@@ -461,7 +473,7 @@ public class SkyOcclusionWindowTests
                 for (int x = window.MinX; x <= window.MaxX; x++)
                 {
                     map.Resolve(x, z, out bool blocksSky, out bool isDoor);
-                    window.Resolve(x, z, blocksSky, isDoor);
+                    window.Resolve(x, z, blocksSky, isDoor, isDoor ? Leak : 0f);
                 }
             }
 
@@ -469,16 +481,18 @@ public class SkyOcclusionWindowTests
             {
                 bool anyBlocksSky = false;
                 bool touchesDoor = false;
+                float doorLeak = 0f;
                 for (int i = 0; i < 4; i++)
                 {
                     int cellX = x - (i & 1);
                     int cellZ = z - (i >> 1);
                     anyBlocksSky |= window.BlocksSky(cellX, cellZ);
                     touchesDoor |= window.IsDoor(cellX, cellZ);
+                    doorLeak = Math.Max(doorLeak, window.DoorLeak(cellX, cellZ));
                 }
 
                 return IndoorOcclusionMath.CapOcclusion(
-                    IndoorOcclusionMath.CornerOcclusion(anyBlocksSky, touchesDoor, Leak), floor, ambientLightSkyFraction: 0f);
+                    IndoorOcclusionMath.CornerOcclusion(anyBlocksSky, touchesDoor, doorLeak), floor, ambientLightSkyFraction: 0f);
             }
 
             return Run(map, minX, minZ, maxX, maxZ, floor, Corner, window.BlocksSky);

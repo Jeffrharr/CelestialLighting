@@ -122,6 +122,10 @@
          SkyFraction (what §7b's CapOcclusion actually consumes) — see the file header for why both
          are needed. -->
     <Compile Include="../Source/Probes/AmbientLightDoorCellProbe.cs" Link="AmbientLightDoorCellProbe.cs" />
+    <!-- Per-door leak (IndoorOcclusionMath.DoorSkyLeakFor): the baked CENTRE vertex alpha at a door's
+         own cell, read straight off the mesh rather than off a screenshot — see the probe's own
+         header for why door_leak_by_type.json's screenshot crops measured the wrong rank order. -->
+    <Compile Include="../Source/Probes/DoorSkyCoverAlphaProbe.cs" Link="DoorSkyCoverAlphaProbe.cs" />
   </ItemGroup>
 
   <ItemGroup>

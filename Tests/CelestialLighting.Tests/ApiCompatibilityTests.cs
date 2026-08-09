@@ -1506,6 +1506,29 @@ public class ApiCompatibilityTests
     }
 
     [Test]
+    public void ThingDef_BlockLight_Exists()
+    {
+        // Per-door leak's transparency signal (IndoorOcclusionMath.DoorSkyLeakFor): vanilla's own
+        // "does this block light propagation" flag, which a glass/energy-barrier door already has to
+        // set false for correct vanilla LOS/glow behaviour.
+        var type = GetType("Verse.ThingDef");
+        Assert.That(type, Is.Not.Null, "Verse.ThingDef no longer exists");
+        Assert.That(type!.Fields.Any(f => f.Name == "blockLight" && f.IsPublic), Is.True,
+            "ThingDef.blockLight no longer exists — IndoorOcclusionMath.DoorSkyLeakFor's glass-door case depends on it");
+    }
+
+    [Test]
+    public void Thing_MaxHitPoints_Exists()
+    {
+        // Per-door leak's sturdiness signal: live, stat-resolved (stuff/quality already folded in), so
+        // it grades an armored/reinforced door without a defName table.
+        var type = GetType("Verse.Thing");
+        Assert.That(type, Is.Not.Null, "Verse.Thing no longer exists");
+        Assert.That(type!.Properties.Any(p => p.Name == "MaxHitPoints" && p.GetMethod != null && p.GetMethod.IsPublic),
+            Is.True, "Thing.MaxHitPoints no longer exists — IndoorOcclusionMath.DoorSkyLeakFor's sturdiness scaling depends on it");
+    }
+
+    [Test]
     public void MapDrawer_WholeMapChanged_Exists()
     {
         // IndoorOcclusionRedraw calls this so a settings change rebuilds the baked meshes immediately.

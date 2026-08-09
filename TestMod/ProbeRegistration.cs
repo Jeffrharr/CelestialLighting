@@ -179,6 +179,13 @@ public static class ProbeRegistration
             new AmbientLightDoorCellProbe("ambient_ground_glow", AmbientLightDoorCellProbe.Metric.GroundGlow));
         ProbeRegistry.Register(
             new AmbientLightDoorCellProbe("ambient_sky_fraction", AmbientLightDoorCellProbe.Metric.SkyFraction));
+        // Per-door leak (IndoorOcclusionMath.DoorSkyLeakFor), read off the baked mesh rather than a
+        // screenshot — see DoorSkyCoverAlphaProbe's header. Offsets match
+        // Tests/Scenarios/door_leak_by_type.json's three doors exactly; a scenario edit that moves
+        // one must move its matching offset here too.
+        ProbeRegistry.Register(new DoorSkyCoverAlphaProbe("door_alpha_wood", new IntVec3(-12, 0, -23)));
+        ProbeRegistry.Register(new DoorSkyCoverAlphaProbe("door_alpha_blast", new IntVec3(0, 0, -23)));
+        ProbeRegistry.Register(new DoorSkyCoverAlphaProbe("door_alpha_glass", new IntVec3(12, 0, -23)));
         // §16: what one map-mesh dirty flag costs, per layer, in microseconds. Seven probes rather
         // than one because the question is a comparison — our three added regenerates against the
         // vanilla ones already on the same flag — and a single total would hide exactly that. The

@@ -74,6 +74,39 @@ public static class IndoorOcclusionMath
     // suggest a threshold, not enough to light the room through it.
     public const float DefaultDoorSkyLeak = 0.15f;
 
+    // DoorBase's own MaxHitPoints (Buildings_Structure.xml) — the reference every door leak scales
+    // against below. Not itself a leak value; a plain vanilla wood/metal door sits exactly at this
+    // baseline and keeps DefaultDoorSkyLeak unchanged.
+    public const float BaselineDoorHitPoints = 160f;
+
+    // Per-door sky leak, derived from two fields every door-adding mod already authors for vanilla's
+    // own reasons — no defName table, so a third-party door leaks correctly without us ever having
+    // seen it.
+    //
+    //   blockLight: vanilla's own "does this block light propagation" flag. A mod author who wants a
+    //   literally see-through door (glass, an energy barrier) already has to set it false for correct
+    //   vanilla LOS/glow behaviour — confirmed against a Workshop glass-autodoor mod (ReBuild: Doors
+    //   and Corners) whose RB_GlassAutodoor and RB_ReinforcedGlassAutodoor both set blockLight false
+    //   while their MaxHitPoints (80, 160) are unremarkable, which is why hit points alone cannot be
+    //   the signal. false here means the door does not occlude at all: leak is 1.
+    //
+    //   hitPoints (live Thing.MaxHitPoints, so stuff/quality are already folded in) grades how sealed
+    //   an *opaque* door is, relative to baselineHitPoints. A tougher-than-baseline door (Anomaly's
+    //   SecurityDoor at 800, Odyssey's AncientBlastDoor at 6000) scales defaultLeak down, asymptotically
+    //   toward zero rather than a hardcoded floor, so a fictional vault door can read as genuinely
+    //   sealed. The ratio is clamped to never exceed 1, so a door *weaker* than baseline (an animal
+    //   flap) does not read as more transparent than a plain wood door just for being flimsy.
+    public static float DoorSkyLeakFor(bool blockLight, float hitPoints, float baselineHitPoints, float defaultLeak)
+    {
+        if (!blockLight)
+            return 1f;
+
+        if (hitPoints <= 0f)
+            return Clamp01(defaultLeak);
+
+        return Clamp01(defaultLeak * Clamp01(baselineHitPoints / hitPoints));
+    }
+
     // Does this cell block the sky outright — is it *interior*? The single question the whole subsystem
     // turns on, and deliberately narrower than "is this cell roofed":
     //
