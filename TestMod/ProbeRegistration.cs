@@ -171,14 +171,61 @@ public static class ProbeRegistration
         ProbeRegistry.Register(new EaveCellProbe("eave_cells", EaveCellProbe.Metric.Eaves));
         ProbeRegistry.Register(
             new EaveCellProbe("roof_shadow_cells", EaveCellProbe.Metric.ShadowCasters));
-        // Issue #80 / AmbientLightCompat: the fixed near-door cell in ambient_light_compat.json.
-        // ambient_ground_glow is the GAMEPLAY value (what Ambient Light's own readout reports);
-        // ambient_sky_fraction is what AmbientLightCompat derives from it for §7b to cap occlusion
-        // with. Pairing them tells "their boost isn't real here" apart from "our compat mis-read it".
+        // Issue #80: the fixed near-door cell in ambient_light_compat.json. ambient_ground_glow is the
+        // GAMEPLAY value (what Ambient Light's own readout reports); ambient_sky_fraction is what
+        // IndoorGlowPassthrough derives from it for §7b to cap occlusion with. Pairing them tells
+        // "their boost isn't real here" apart from "our passthrough mis-read it".
         ProbeRegistry.Register(
             new AmbientLightDoorCellProbe("ambient_ground_glow", AmbientLightDoorCellProbe.Metric.GroundGlow));
         ProbeRegistry.Register(
             new AmbientLightDoorCellProbe("ambient_sky_fraction", AmbientLightDoorCellProbe.Metric.SkyFraction));
+        // §7b's transparent-boundary leak (ReBuild: Doors and Corners' glass walls), read straight off
+        // the baked lighting-overlay mesh. Offsets address glass_wall_leak.json's room, whose south
+        // wall is glass and whose other three are granite; moving the room in that scenario must move
+        // these. Six probes because the claim being tested is a SHAPE, not a single number:
+        //   glass_corner  — the lattice point where the glass meets the room. The one that moves.
+        //   glass_centre  — that same cell's centre. Must NOT move: CentreOcclusion forces an interior
+        //                   centre to 255 regardless, so a run where this moved means something other
+        //                   than the leak changed.
+        //   deep_corner   — two cells further in, touching only interior cells. Pins that the light
+        //                   stops one cell from the glass instead of flooding the room.
+        //   granite_*     — the mirror-image cell against the opposite (solid) wall, the control that
+        //                   separates "glass leaks" from "the whole room got brighter".
+        ProbeRegistry.Register(new SkyCoverVertexProbe(
+            "glass_corner", new IntVec3(0, 0, 41), SkyCoverVertexProbe.Metric.CornerAlpha));
+        ProbeRegistry.Register(new SkyCoverVertexProbe(
+            "glass_centre", new IntVec3(0, 0, 41), SkyCoverVertexProbe.Metric.CentreAlpha));
+        ProbeRegistry.Register(new SkyCoverVertexProbe(
+            "deep_corner", new IntVec3(0, 0, 43), SkyCoverVertexProbe.Metric.CornerAlpha));
+        // z=50 rather than 49: a lattice point is the SOUTH-west corner of the cell it is named for, so
+        // the corner that touches the NORTH wall is the one indexed by the wall's own row. Indexing 49
+        // here would have addressed a corner between two interior cells and made the control pass for
+        // the wrong reason.
+        ProbeRegistry.Register(new SkyCoverVertexProbe(
+            "granite_corner", new IntVec3(0, 0, 50), SkyCoverVertexProbe.Metric.CornerAlpha));
+        ProbeRegistry.Register(new SkyCoverVertexProbe(
+            "granite_centre", new IntVec3(0, 0, 49), SkyCoverVertexProbe.Metric.CentreAlpha));
+        // indoor_glow_lamp.json: the lamp regression for IndoorGlowPassthrough. Two cells in one
+        // sealed, roofed, lamp-lit room — right beside the lamp and in the far corner it does not
+        // reach (the room is 25x25 precisely so that corner is outside the lamp's radius-10 glow;
+        // in the 11x11 room this started as, the "far" cell was still lit and proved nothing) —
+        // each reporting all three terms of `sky = max(0, ground - artificial)`. Reading the
+        // pair is the point: beside the lamp, ground is HIGH and sky must still be 0 (a windowless
+        // workshop must never take the sky's colour); in the far corner both fall away together. A
+        // build that simply capped on total glow would show lamp_near_sky tracking lamp_near_ground
+        // instead of sitting at 0, which no single-cell probe could distinguish from working.
+        ProbeRegistry.Register(new IndoorGlowCellProbe(
+            "lamp_near_ground", new IntVec3(0, 0, 46), IndoorGlowCellProbe.Metric.GroundGlow));
+        ProbeRegistry.Register(new IndoorGlowCellProbe(
+            "lamp_near_artificial", new IntVec3(0, 0, 46), IndoorGlowCellProbe.Metric.ArtificialGlow));
+        ProbeRegistry.Register(new IndoorGlowCellProbe(
+            "lamp_near_sky", new IntVec3(0, 0, 46), IndoorGlowCellProbe.Metric.SkyFraction));
+        ProbeRegistry.Register(new IndoorGlowCellProbe(
+            "lamp_far_ground", new IntVec3(-11, 0, 34), IndoorGlowCellProbe.Metric.GroundGlow));
+        ProbeRegistry.Register(new IndoorGlowCellProbe(
+            "lamp_far_artificial", new IntVec3(-11, 0, 34), IndoorGlowCellProbe.Metric.ArtificialGlow));
+        ProbeRegistry.Register(new IndoorGlowCellProbe(
+            "lamp_far_sky", new IntVec3(-11, 0, 34), IndoorGlowCellProbe.Metric.SkyFraction));
         // §16: what one map-mesh dirty flag costs, per layer, in microseconds. Seven probes rather
         // than one because the question is a comparison — our three added regenerates against the
         // vanilla ones already on the same flag — and a single total would hide exactly that. The
@@ -499,15 +546,15 @@ public static class ProbeRegistration
                 CelestialLightingFeatures.IndoorSkyOcclusion = enabled;
                 IndoorOcclusionRedraw.ForceRebuild();
             });
-        // Issue #80 / AmbientLightCompat: same baked-mesh situation as §7b's own flag immediately
+        // Issue #80 / IndoorGlowPassthrough: same baked-mesh situation as §7b's own flag immediately
         // above (this cap term is applied inside the same SectionLayer_LightingOverlay.Regenerate
         // postfix), so toggling it needs the identical rebuild or the A/B would compare a stale bake
         // against itself.
         FeatureRegistry.Register(
-            CelestialLightingFeatures.AmbientLightCompatKey,
+            CelestialLightingFeatures.IndoorGlowPassthroughKey,
             enabled =>
             {
-                CelestialLightingFeatures.AmbientLightCompat = enabled;
+                CelestialLightingFeatures.IndoorGlowPassthrough = enabled;
                 IndoorOcclusionRedraw.ForceRebuild();
             });
         // §15's caster heights are baked into the sun-shadow meshes, so like §7b the toggle is

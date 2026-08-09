@@ -118,10 +118,19 @@
     <!-- §21's cavity gain, read from the live map — see the file header for why a screenshot A/B
          alone cannot distinguish a genuinely small lift from no lift at all. -->
     <Compile Include="../Source/Probes/SurfaceCavityGainProbe.cs" Link="SurfaceCavityGainProbe.cs" />
-    <!-- Issue #80 / AmbientLightCompat: the near-door cell probe, paired GroundGlow (gameplay) vs
+    <!-- Issue #80: the near-door cell probe, paired GroundGlow (gameplay) vs
          SkyFraction (what §7b's CapOcclusion actually consumes) — see the file header for why both
          are needed. -->
     <Compile Include="../Source/Probes/AmbientLightDoorCellProbe.cs" Link="AmbientLightDoorCellProbe.cs" />
+    <!-- Reads §7b's baked lighting-overlay vertex alphas directly, which is the only way to tell "the
+         classification is right" apart from "the classification is right AND the bake reached the
+         mesh". Used by glass_wall_leak.json for the ReBuild: Doors and Corners glass-wall interop. -->
+    <Compile Include="../Source/Probes/SkyCoverVertexProbe.cs" Link="SkyCoverVertexProbe.cs" />
+    <!-- The ground/artificial/sky split behind IndoorGlowPassthrough at an arbitrary cell. Used by
+         indoor_glow_lamp.json to prove a lamp-lit sealed room keeps SkyFraction at 0 while its
+         GroundGlow stays high — the regression that would otherwise put dawn pink on a windowless
+         workshop. -->
+    <Compile Include="../Source/Probes/IndoorGlowCellProbe.cs" Link="IndoorGlowCellProbe.cs" />
   </ItemGroup>
 
   <ItemGroup>

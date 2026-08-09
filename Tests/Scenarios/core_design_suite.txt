@@ -92,3 +92,21 @@ weather_dimming_census.json
 # The gap it was added to close is real and still open: nothing runs this file on a cadence, which is
 # how a pin ce6bdbf invalidated sat broken across five merges. Closing it wants a per-scenario
 # absolute-tick anchor, not a line in this list.
+
+# glass_wall_leak.json is absent for a reason that has nothing to do with residue or the clock: it
+# needs two mods this suite is not run with. It builds its south wall out of RB_GlassWall, so it
+# requires ReBuild: Doors and Corners (ReBuild.COTR.DoorsAndCorners, workshop 3262718980) and that
+# mod's hard dependency Vanilla Expanded Framework, whereas the invocation at the top of this file
+# passes only `--mod . --mod TestMod`. Batched here it would not fail loudly — PlaceThings would
+# report an unresolved def and the glass_* probes would quietly read the granite numbers, which is
+# the "green run that tested nothing" this file exists to prevent. Run it with the mods it needs:
+#
+#   ../RimWorldTestHarness/Runner/run_test.sh Tests/Scenarios/glass_wall_leak.json \
+#       --mod . --mod TestMod \
+#       --mod ~/.local/share/Steam/steamapps/workshop/content/294100/2023507013 \
+#       --mod ~/.local/share/Steam/steamapps/workshop/content/294100/3262718980
+
+# indoor_glow_lamp.json is also absent, for the ordinary reason: PlaceThings leaves map residue. Worth
+# running as its own process after anything that touches §7b's cap terms, and worth running TWICE --
+# with and without Ambient Light (f1995.ambientlight, 3574400467) -- because the assertion is that a
+# lamp-lit sealed room reports sky 0 whether or not an interior-brightening mod is present.

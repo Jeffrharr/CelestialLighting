@@ -149,12 +149,12 @@ public static class Patch_IndoorSkyOcclusion
                 float cornerSum = corners[corner] + corners[corner + 1]
                     + corners[corner + stride] + corners[corner + stride + 1];
 
-                float occlusion = IndoorOcclusionMath.CentreOcclusion(window.BlocksSky(x, z), cornerSum);
+                float occlusion = IndoorOcclusionMath.CentreOcclusion(cornerSum);
 
-                float ambientLightSkyFraction = AmbientLightCompat.SkyFractionAt(map, new IntVec3(x, 0, z));
+                float indoorSkyGlowFraction = IndoorGlowPassthrough.SkyFractionAt(map, new IntVec3(x, 0, z));
                 int vertex = firstCenterInd + (z - rect.minZ) * rect.Width + (x - rect.minX);
                 colors[vertex].a = IndoorOcclusionMath.CoverAlpha(
-                    IndoorOcclusionMath.CapOcclusion(occlusion, settings.MinIndoorBrightness, ambientLightSkyFraction),
+                    IndoorOcclusionMath.CapOcclusion(occlusion, settings.MinIndoorBrightness, indoorSkyGlowFraction),
                     colors[vertex].a);
             }
         }
@@ -170,35 +170,37 @@ public static class Patch_IndoorSkyOcclusion
         Map map, SkyOcclusionWindow window, int x, int z, IndoorOcclusionSettings settings)
     {
         bool anyBlocksSky = false;
-        bool touchesDoor = false;
         // A corner is shared by up to four cells, and — unlike anyBlocksSky, which is an OR because one
-        // blocked neighbour is enough to occlude — the Ambient Light term takes their MAX: whichever of
-        // the four cells currently has the most sky reaching it is the floor this corner should honour,
-        // the same "more generous floor wins" reasoning IndoorOcclusionMath.CapOcclusion's own doc
-        // comment gives for composing it with MinIndoorBrightness.
-        float ambientLightSkyFraction = 0f;
+        // blocked neighbour is enough to occlude — both the door leak and the indoor-glow term take
+        // their MAX: whichever of the four cells currently has the most sky reaching it is the floor
+        // this corner should honour, the same "more generous floor wins" reasoning
+        // IndoorOcclusionMath.CapOcclusion's own doc comment gives for composing it with
+        // MinIndoorBrightness.
+        float skyLeak = 0f;
+        float indoorSkyGlowFraction = 0f;
         for (int i = 0; i < 4; i++)
         {
             int cellX = x - (i & 1);
             int cellZ = z - (i >> 1);
             anyBlocksSky |= window.BlocksSky(cellX, cellZ);
-            touchesDoor |= window.IsDoor(cellX, cellZ);
-            ambientLightSkyFraction = Mathf.Max(ambientLightSkyFraction, AmbientLightFractionAt(map, cellX, cellZ));
+            if (window.IsDoor(cellX, cellZ))
+                skyLeak = Mathf.Max(skyLeak, settings.DoorSkyLeak);
+            indoorSkyGlowFraction = Mathf.Max(indoorSkyGlowFraction, IndoorSkyGlowFractionAt(map, cellX, cellZ));
         }
 
-        float occlusion = IndoorOcclusionMath.CornerOcclusion(anyBlocksSky, touchesDoor, settings.DoorSkyLeak);
-        return IndoorOcclusionMath.CapOcclusion(occlusion, settings.MinIndoorBrightness, ambientLightSkyFraction);
+        float occlusion = IndoorOcclusionMath.CornerOcclusion(anyBlocksSky, skyLeak);
+        return IndoorOcclusionMath.CapOcclusion(occlusion, settings.MinIndoorBrightness, indoorSkyGlowFraction);
     }
 
-    // AmbientLightCompat.SkyFractionAt assumes an in-bounds cell (it indexes straight into Ambient
-    // Light's own per-map depth array) — the window's BlocksSky/IsDoor already answer `false` for an
+    // IndoorGlowPassthrough.SkyFractionAt assumes an in-bounds cell (it indexes straight into the glow
+    // grid) — the window's BlocksSky/IsDoor already answer `false` for an
     // off-map neighbour without needing this guard, but a corner on the map edge still asks about a
     // cell one step past it, so this checks InBounds itself rather than pushing that contract onto
-    // AmbientLightCompat.
-    private static float AmbientLightFractionAt(Map map, int x, int z)
+    // IndoorGlowPassthrough.
+    private static float IndoorSkyGlowFractionAt(Map map, int x, int z)
     {
         IntVec3 cell = new IntVec3(x, 0, z);
-        return cell.InBounds(map) ? AmbientLightCompat.SkyFractionAt(map, cell) : 0f;
+        return cell.InBounds(map) ? IndoorGlowPassthrough.SkyFractionAt(map, cell) : 0f;
     }
 
     // Live-state lookup for one cell, baked into the window and never repeated. Reads the roof *def*
@@ -237,4 +239,5 @@ public static class Patch_IndoorSkyOcclusion
     // from the cell vanilla already treats specially.
     private static bool IsDoor(Building edifice) =>
         edifice != null && edifice.def.altitudeLayer == AltitudeLayer.DoorMoveable;
+
 }

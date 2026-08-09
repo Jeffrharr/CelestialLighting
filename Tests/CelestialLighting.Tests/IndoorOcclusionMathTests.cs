@@ -78,7 +78,7 @@ public class IndoorOcclusionMathTests
     {
         // OR, not a mean. This is what makes a room read *flat*: every corner inside it, and every
         // corner on its inner wall face, lands on exactly 1.0, so there is nothing to interpolate.
-        Assert.That(IndoorOcclusionMath.CornerOcclusion(anyNeighbourBlocksSky: true, touchesDoor: false, Leak),
+        Assert.That(IndoorOcclusionMath.CornerOcclusion(anyNeighbourBlocksSky: true, skyLeak: 0f),
             Is.EqualTo(1f).Within(Tolerance));
     }
 
@@ -87,7 +87,7 @@ public class IndoorOcclusionMathTests
     {
         // The outer face of an exterior wall: no interior cell touches it, so the ground beyond the
         // building is untouched. Averaging here instead is what used to smear black onto the outdoors.
-        Assert.That(IndoorOcclusionMath.CornerOcclusion(anyNeighbourBlocksSky: false, touchesDoor: false, Leak),
+        Assert.That(IndoorOcclusionMath.CornerOcclusion(anyNeighbourBlocksSky: false, skyLeak: 0f),
             Is.EqualTo(0f).Within(Tolerance));
     }
 
@@ -96,7 +96,7 @@ public class IndoorOcclusionMathTests
     {
         // A corner shared by a doorway and the room behind it keeps `doorSkyLeak` worth of sky, so the
         // threshold sits a shade brighter than the rest of that room's edge.
-        Assert.That(IndoorOcclusionMath.CornerOcclusion(anyNeighbourBlocksSky: true, touchesDoor: true, Leak),
+        Assert.That(IndoorOcclusionMath.CornerOcclusion(anyNeighbourBlocksSky: true, skyLeak: Leak),
             Is.EqualTo(1f - Leak).Within(Tolerance));
     }
 
@@ -105,7 +105,7 @@ public class IndoorOcclusionMathTests
     {
         // The cap is a ceiling only — the outer corners of a door, or a freestanding gate in open
         // ground, stay fully open rather than picking up occlusion from the door itself.
-        Assert.That(IndoorOcclusionMath.CornerOcclusion(anyNeighbourBlocksSky: false, touchesDoor: true, Leak),
+        Assert.That(IndoorOcclusionMath.CornerOcclusion(anyNeighbourBlocksSky: false, skyLeak: Leak),
             Is.EqualTo(0f).Within(Tolerance));
     }
 
@@ -115,22 +115,38 @@ public class IndoorOcclusionMathTests
     [TestCase(2f, 0f)]     // and an over-1 leak clamps rather than inverting
     public void CornerOcclusion_ClampsDoorLeak(float doorSkyLeak, float expected)
     {
-        Assert.That(IndoorOcclusionMath.CornerOcclusion(anyNeighbourBlocksSky: true, touchesDoor: true, doorSkyLeak),
+        Assert.That(IndoorOcclusionMath.CornerOcclusion(anyNeighbourBlocksSky: true, skyLeak: doorSkyLeak),
             Is.EqualTo(expected).Within(Tolerance));
     }
 
     // --- CentreOcclusion: interior cells are flat, everything else is the mean of its own corners ---
 
     [Test]
-    public void CentreOcclusion_InteriorCell_IsFullRegardlessOfItsCorners()
+    public void CentreOcclusion_SealedInteriorCell_IsFullWithoutNeedingToBeForced()
     {
-        // Deep inside a room every corner is 1.0 anyway, so the centre agreeing at 1.0 is what makes the
-        // tile shade flat — the mesh fans four triangles out of this vertex, and a centre that disagrees
-        // with its corners is exactly the diamond-shaped bloom this replaced.
-        Assert.That(IndoorOcclusionMath.CentreOcclusion(blocksSky: true, cornerOcclusionSum: 4f),
+        // Deep inside a room every corner is 1.0 anyway — each of them ORs over four cells, and this
+        // cell is one of those four — so the mean lands on 1.0 by itself and the tile shades flat. The
+        // mesh fans four triangles out of this vertex, and a centre that disagrees with its corners is
+        // exactly the diamond-shaped bloom this replaced.
+        //
+        // This used to be enforced with an explicit `blocksSky ? 1f` short-circuit. It was removed
+        // because it was a no-op here (as this assertion shows) and actively wrong on a cell a leak
+        // reached: see CentreOcclusion_CellBesideALeakyBoundary_RampsInsteadOfSpiking.
+        Assert.That(IndoorOcclusionMath.CentreOcclusion(cornerOcclusionSum: 4f),
             Is.EqualTo(1f).Within(Tolerance));
-        Assert.That(IndoorOcclusionMath.CentreOcclusion(blocksSky: true, cornerOcclusionSum: 0f),
-            Is.EqualTo(1f).Within(Tolerance));
+    }
+
+    [Test]
+    public void CentreOcclusion_CellBesideALeakyBoundary_RampsInsteadOfSpiking()
+    {
+        // The sawtooth regression, pinned. An interior cell whose two boundary-side corners are fully
+        // open (0) and whose two inward corners are closed (1) — what any leak, or another mod's indoor
+        // brightening reaching CapOcclusion, produces at a room's edge. Forcing the centre to 1.0 while
+        // the corners sat at 0 made the four triangles fan from a black hub out to lit corners, which
+        // renders as a row of dark spikes — visible in
+        // Tests/Screenshots/glass_wall_noon_leak_on_sawtooth.png. The mean gives 0.5 and a smooth ramp.
+        Assert.That(IndoorOcclusionMath.CentreOcclusion(cornerOcclusionSum: 0f + 0f + 1f + 1f),
+            Is.EqualTo(0.5f).Within(Tolerance));
     }
 
     [Test]
@@ -139,7 +155,7 @@ public class IndoorOcclusionMathTests
         // Inner corners 1.0 (they touch the room), outer corners 0.0 — so the wall tile carries a
         // straight gradient from black on its inner face to nothing on its outer one. Vanilla resolves
         // an uncovered cell's centre the same way, by averaging these same four vertices.
-        Assert.That(IndoorOcclusionMath.CentreOcclusion(blocksSky: false, cornerOcclusionSum: 2f),
+        Assert.That(IndoorOcclusionMath.CentreOcclusion(cornerOcclusionSum: 2f),
             Is.EqualTo(0.5f).Within(Tolerance));
     }
 
@@ -148,7 +164,7 @@ public class IndoorOcclusionMathTests
     {
         // None of its corners touch an interior cell, so nothing outside a properly walled building is
         // darkened at all — the fade is spent entirely on the wall tile.
-        Assert.That(IndoorOcclusionMath.CentreOcclusion(blocksSky: false, cornerOcclusionSum: 0f),
+        Assert.That(IndoorOcclusionMath.CentreOcclusion(cornerOcclusionSum: 0f),
             Is.EqualTo(0f).Within(Tolerance));
     }
 
@@ -158,7 +174,7 @@ public class IndoorOcclusionMathTests
         // The wall block at a building's outside corner touches the room diagonally, at one lattice
         // point out of four: a quarter-strength tile, which is what bilinear interpolation across the
         // quad would have produced anyway.
-        Assert.That(IndoorOcclusionMath.CentreOcclusion(blocksSky: false, cornerOcclusionSum: 1f),
+        Assert.That(IndoorOcclusionMath.CentreOcclusion(cornerOcclusionSum: 1f),
             Is.EqualTo(0.25f).Within(Tolerance));
     }
 
@@ -168,9 +184,9 @@ public class IndoorOcclusionMathTests
         // Same geometry as a wall (two interior corners, two open ones) but with the door cap applied to
         // the inner pair, so a threshold reads lighter than the wall either side of it. That difference
         // is the only thing DoorSkyLeak buys once doors stopped being interior cells.
-        float wall = IndoorOcclusionMath.CentreOcclusion(blocksSky: false, cornerOcclusionSum: 2f);
-        float innerCorner = IndoorOcclusionMath.CornerOcclusion(anyNeighbourBlocksSky: true, touchesDoor: true, Leak);
-        float doorway = IndoorOcclusionMath.CentreOcclusion(blocksSky: false, cornerOcclusionSum: 2f * innerCorner);
+        float wall = IndoorOcclusionMath.CentreOcclusion(cornerOcclusionSum: 2f);
+        float innerCorner = IndoorOcclusionMath.CornerOcclusion(anyNeighbourBlocksSky: true, skyLeak: Leak);
+        float doorway = IndoorOcclusionMath.CentreOcclusion(cornerOcclusionSum: 2f * innerCorner);
 
         Assert.That(doorway, Is.LessThan(wall));
         Assert.That(doorway, Is.EqualTo((1f - Leak) / 2f).Within(Tolerance));
@@ -179,9 +195,9 @@ public class IndoorOcclusionMathTests
     [Test]
     public void CentreOcclusion_ClampsAnOutOfRangeCornerSum()
     {
-        Assert.That(IndoorOcclusionMath.CentreOcclusion(blocksSky: false, cornerOcclusionSum: 40f),
+        Assert.That(IndoorOcclusionMath.CentreOcclusion(cornerOcclusionSum: 40f),
             Is.EqualTo(1f).Within(Tolerance));
-        Assert.That(IndoorOcclusionMath.CentreOcclusion(blocksSky: false, cornerOcclusionSum: -4f),
+        Assert.That(IndoorOcclusionMath.CentreOcclusion(cornerOcclusionSum: -4f),
             Is.EqualTo(0f).Within(Tolerance));
     }
 
@@ -193,10 +209,9 @@ public class IndoorOcclusionMathTests
         // Walk the vertices of an interior cell against a wall — the case the diamond bloom showed up
         // on. Its wall-side corners are shared with the wall cells, but each of those lattice points
         // still touches this interior cell, so they are 1.0 like the rest and the tile is flat.
-        float wallSideCorner = IndoorOcclusionMath.CornerOcclusion(anyNeighbourBlocksSky: true, touchesDoor: false, Leak);
-        float innerCorner = IndoorOcclusionMath.CornerOcclusion(anyNeighbourBlocksSky: true, touchesDoor: false, Leak);
-        float centre = IndoorOcclusionMath.CentreOcclusion(blocksSky: true,
-            cornerOcclusionSum: 2f * wallSideCorner + 2f * innerCorner);
+        float wallSideCorner = IndoorOcclusionMath.CornerOcclusion(anyNeighbourBlocksSky: true, skyLeak: 0f);
+        float innerCorner = IndoorOcclusionMath.CornerOcclusion(anyNeighbourBlocksSky: true, skyLeak: 0f);
+        float centre = IndoorOcclusionMath.CentreOcclusion(cornerOcclusionSum: 2f * wallSideCorner + 2f * innerCorner);
 
         Assert.That(wallSideCorner, Is.EqualTo(1f).Within(Tolerance));
         Assert.That(centre, Is.EqualTo(1f).Within(Tolerance));
@@ -208,8 +223,8 @@ public class IndoorOcclusionMathTests
         // The regression this fix is about, end to end: the wall is not interior, so the lattice on its
         // outer face is 0, so the open cell beyond it averages 0 and takes vanilla's own alpha.
         bool wallIsInterior = IndoorOcclusionMath.BlocksSky(roofed: true, thickRoof: false, holdsRoof: true, isDoor: false);
-        float outerCorner = IndoorOcclusionMath.CornerOcclusion(wallIsInterior, touchesDoor: false, Leak);
-        float outdoorCentre = IndoorOcclusionMath.CentreOcclusion(blocksSky: false, cornerOcclusionSum: 4f * outerCorner);
+        float outerCorner = IndoorOcclusionMath.CornerOcclusion(wallIsInterior, skyLeak: 0f);
+        float outdoorCentre = IndoorOcclusionMath.CentreOcclusion(cornerOcclusionSum: 4f * outerCorner);
 
         Assert.That(outerCorner, Is.EqualTo(0f).Within(Tolerance));
         Assert.That(IndoorOcclusionMath.CoverAlpha(outdoorCentre, vanillaAlpha: 0), Is.EqualTo(0));
@@ -218,16 +233,16 @@ public class IndoorOcclusionMathTests
     // --- CapOcclusion (the one path that can hold an interior above black) ---
     //
     // ambientLightSkyFraction defaults to 0f in every case below that isn't specifically exercising
-    // it — 0 is what AmbientLightCompat.SkyFractionAt returns for every ordinary "no" (mod absent,
+    // it — 0 is what IndoorGlowPassthrough.SkyFractionAt returns for every ordinary "no" (mod absent,
     // compat flag off, cell unreached), so these are exactly the pre-compat CapOcclusion(occlusion,
     // minIndoorBrightness) cases the two-argument signature used to cover.
 
     [Test]
     public void CapOcclusion_FloorOff_IsIdentity()
     {
-        Assert.That(IndoorOcclusionMath.CapOcclusion(1f, minIndoorBrightness: 0f, ambientLightSkyFraction: 0f),
+        Assert.That(IndoorOcclusionMath.CapOcclusion(1f, minIndoorBrightness: 0f, indoorSkyGlowFraction: 0f),
             Is.EqualTo(1f).Within(Tolerance));
-        Assert.That(IndoorOcclusionMath.CapOcclusion(0.85f, minIndoorBrightness: 0f, ambientLightSkyFraction: 0f),
+        Assert.That(IndoorOcclusionMath.CapOcclusion(0.85f, minIndoorBrightness: 0f, indoorSkyGlowFraction: 0f),
             Is.EqualTo(0.85f).Within(Tolerance));
     }
 
@@ -236,7 +251,7 @@ public class IndoorOcclusionMathTests
     {
         // With the indoor floor at 0.15, a sealed cave keeps 15% of the sky — the thing that makes
         // the in-game "toggle minimum brightness" hotkey work indoors, where lifting CurSkyGlow cannot.
-        Assert.That(IndoorOcclusionMath.CapOcclusion(1f, minIndoorBrightness: 0.15f, ambientLightSkyFraction: 0f),
+        Assert.That(IndoorOcclusionMath.CapOcclusion(1f, minIndoorBrightness: 0.15f, indoorSkyGlowFraction: 0f),
             Is.EqualTo(0.85f).Within(Tolerance));
     }
 
@@ -244,14 +259,14 @@ public class IndoorOcclusionMathTests
     public void CapOcclusion_NeverRaisesOcclusion()
     {
         // A doorway already leaking more than the floor asks for is left alone — the cap is a ceiling only.
-        Assert.That(IndoorOcclusionMath.CapOcclusion(0.5f, minIndoorBrightness: 0.15f, ambientLightSkyFraction: 0f),
+        Assert.That(IndoorOcclusionMath.CapOcclusion(0.5f, minIndoorBrightness: 0.15f, indoorSkyGlowFraction: 0f),
             Is.EqualTo(0.5f).Within(Tolerance));
     }
 
     [Test]
     public void CapOcclusion_FullFloor_DisablesOcclusionEntirely()
     {
-        Assert.That(IndoorOcclusionMath.CapOcclusion(1f, minIndoorBrightness: 1f, ambientLightSkyFraction: 0f),
+        Assert.That(IndoorOcclusionMath.CapOcclusion(1f, minIndoorBrightness: 1f, indoorSkyGlowFraction: 0f),
             Is.EqualTo(0f).Within(Tolerance));
     }
 
@@ -260,8 +275,8 @@ public class IndoorOcclusionMathTests
     {
         // The adapter caps corners *before* averaging them into a boundary cell's centre, which keeps the
         // wall a gradient under a floor rather than flattening it out at the floor value.
-        float cappedInner = IndoorOcclusionMath.CapOcclusion(1f, minIndoorBrightness: 0.5f, ambientLightSkyFraction: 0f);
-        float wall = IndoorOcclusionMath.CentreOcclusion(blocksSky: false, cornerOcclusionSum: 2f * cappedInner);
+        float cappedInner = IndoorOcclusionMath.CapOcclusion(1f, minIndoorBrightness: 0.5f, indoorSkyGlowFraction: 0f);
+        float wall = IndoorOcclusionMath.CentreOcclusion(cornerOcclusionSum: 2f * cappedInner);
 
         Assert.That(cappedInner, Is.EqualTo(0.5f).Within(Tolerance));
         Assert.That(wall, Is.EqualTo(0.25f).Within(Tolerance));
@@ -270,21 +285,21 @@ public class IndoorOcclusionMathTests
     // --- CapOcclusion: the Ambient Light term (issue #80) ---
 
     [Test]
-    public void CapOcclusion_AmbientLightFractionOff_IsIdentity()
+    public void CapOcclusion_IndoorSkyGlowFractionOff_IsIdentity()
     {
         // 0 is what SkyFractionAt returns when the mod is absent or the compat flag is off — this is
         // the faithful pre-compat baseline the harness A/B screenshots against.
-        Assert.That(IndoorOcclusionMath.CapOcclusion(1f, minIndoorBrightness: 0f, ambientLightSkyFraction: 0f),
+        Assert.That(IndoorOcclusionMath.CapOcclusion(1f, minIndoorBrightness: 0f, indoorSkyGlowFraction: 0f),
             Is.EqualTo(1f).Within(Tolerance));
     }
 
     [Test]
-    public void CapOcclusion_AmbientLightFraction_LeavesExactlyItsWorthOfSky()
+    public void CapOcclusion_IndoorSkyGlowFraction_LeavesExactlyItsWorthOfSky()
     {
         // The bug this fixes, isolated: MinIndoorBrightness is 0 (the shipped Realistic default) but
         // Ambient Light's own readout says a cell is 46% lit by redistributed sky glow, so occlusion
         // must cap at 0.54 rather than staying at 1 (flat black).
-        Assert.That(IndoorOcclusionMath.CapOcclusion(1f, minIndoorBrightness: 0f, ambientLightSkyFraction: 0.46f),
+        Assert.That(IndoorOcclusionMath.CapOcclusion(1f, minIndoorBrightness: 0f, indoorSkyGlowFraction: 0.46f),
             Is.EqualTo(0.54f).Within(Tolerance));
     }
 
@@ -296,96 +311,135 @@ public class IndoorOcclusionMathTests
         // cell — and symmetrically, a cell Ambient Light lights up more than the flat floor keeps the
         // larger of the two. Min composes on the ceiling (1 - floor) side, so the smaller ceiling —
         // i.e. the larger underlying floor — is the one that actually governs.
-        Assert.That(IndoorOcclusionMath.CapOcclusion(1f, minIndoorBrightness: 0.5f, ambientLightSkyFraction: 0.2f),
+        Assert.That(IndoorOcclusionMath.CapOcclusion(1f, minIndoorBrightness: 0.5f, indoorSkyGlowFraction: 0.2f),
             Is.EqualTo(0.5f).Within(Tolerance));
-        Assert.That(IndoorOcclusionMath.CapOcclusion(1f, minIndoorBrightness: 0.2f, ambientLightSkyFraction: 0.5f),
+        Assert.That(IndoorOcclusionMath.CapOcclusion(1f, minIndoorBrightness: 0.2f, indoorSkyGlowFraction: 0.5f),
             Is.EqualTo(0.5f).Within(Tolerance));
     }
 
     [Test]
-    public void CapOcclusion_AmbientLightFraction_NeverRaisesOcclusion()
+    public void CapOcclusion_IndoorSkyGlowFraction_NeverRaisesOcclusion()
     {
         // Ceiling only, same as MinIndoorBrightness: a doorway already leaking more than the AL floor's
         // ceiling (here 1 - 0.1 = 0.9) asks for is left alone, since 0.5 is already below 0.9.
-        Assert.That(IndoorOcclusionMath.CapOcclusion(0.5f, minIndoorBrightness: 0f, ambientLightSkyFraction: 0.1f),
+        Assert.That(IndoorOcclusionMath.CapOcclusion(0.5f, minIndoorBrightness: 0f, indoorSkyGlowFraction: 0.1f),
             Is.EqualTo(0.5f).Within(Tolerance));
     }
 
     [Test]
-    public void CapOcclusion_AmbientLightFraction_ClampsOutOfRangeInput()
+    public void CapOcclusion_IndoorSkyGlowFraction_ClampsOutOfRangeInput()
     {
-        Assert.That(IndoorOcclusionMath.CapOcclusion(1f, minIndoorBrightness: 0f, ambientLightSkyFraction: 1.5f),
+        Assert.That(IndoorOcclusionMath.CapOcclusion(1f, minIndoorBrightness: 0f, indoorSkyGlowFraction: 1.5f),
             Is.EqualTo(0f).Within(Tolerance));
-        Assert.That(IndoorOcclusionMath.CapOcclusion(1f, minIndoorBrightness: 0f, ambientLightSkyFraction: -0.5f),
+        Assert.That(IndoorOcclusionMath.CapOcclusion(1f, minIndoorBrightness: 0f, indoorSkyGlowFraction: -0.5f),
             Is.EqualTo(1f).Within(Tolerance));
     }
 
-    // --- AmbientLightSkyFraction / the re-derived ComputeUnderRoofSkyLight / ComputeFalloffNoSky ---
+    // --- ArtificialGlow / IndoorSkyGlowFraction: the general "somebody else lit this" term ---
 
     [Test]
-    public void AmbientLightSkyFraction_NoSkyGlow_IsZero()
+    public void ArtificialGlow_Unlit_IsZero()
     {
-        // Their own design intent, stated directly in their mod name: a genuinely pitch-black night
-        // (curSkyGlow == 0) yields zero redistributed light regardless of depth, matching
-        // ALFUtils.ComputeUnderRoofSkyLight's own early-out.
-        Assert.That(IndoorOcclusionMath.AmbientLightSkyFraction(depth: 1, curSkyGlow: 0f, maxDepth: 12, passThroughPercent: 55f),
+        Assert.That(IndoorOcclusionMath.ArtificialGlow(0, 0, 0, 0), Is.EqualTo(0f).Within(Tolerance));
+    }
+
+    [Test]
+    public void ArtificialGlow_FullyLitSentinel_ShortCircuitsToOne()
+    {
+        // Vanilla's GroundGlowAt checks `accumulatedGlowAt.a == 1` and returns 1f before it ever looks
+        // at the colour channels. Transcribed rather than inferred: without it, an a==1 cell with dim
+        // channels would read as nearly unlit and we would report vanilla's own light as another mod's.
+        Assert.That(IndoorOcclusionMath.ArtificialGlow(0, 0, 0, 1), Is.EqualTo(1f).Within(Tolerance));
+    }
+
+    [Test]
+    public void ArtificialGlow_TakesTheBrightestChannel()
+    {
+        // max(r,g,b) / 255 * 3.6, straight out of vanilla. Asserted on each channel in turn so a
+        // transcription slip that always read `r` cannot pass. Channel 30 deliberately: 30/255*3.6 is
+        // 0.4235, comfortably under vanilla's 0.5 ceiling, so this measures the formula rather than the
+        // clamp (which has its own test below). Anything above 35 saturates and would pass whatever the
+        // channel maths did.
+        float expected = 30f / 255f * 3.6f;
+        Assert.Multiple(() =>
+        {
+            Assert.That(IndoorOcclusionMath.ArtificialGlow(30, 0, 0, 0), Is.EqualTo(expected).Within(Tolerance));
+            Assert.That(IndoorOcclusionMath.ArtificialGlow(0, 30, 0, 0), Is.EqualTo(expected).Within(Tolerance));
+            Assert.That(IndoorOcclusionMath.ArtificialGlow(0, 0, 30, 0), Is.EqualTo(expected).Within(Tolerance));
+        });
+    }
+
+    [Test]
+    public void ArtificialGlow_ClampsAtVanillasHalfCeiling()
+    {
+        // Vanilla caps artificial ground glow at 0.5 — which is why a lamp never reads as bright as
+        // open daylight. Missing this cap would make us subtract more than vanilla ever added and
+        // under-report another mod's contribution at exactly the bright cells it matters most.
+        Assert.That(IndoorOcclusionMath.ArtificialGlow(255, 255, 255, 0), Is.EqualTo(0.5f).Within(Tolerance));
+    }
+
+    [Test]
+    public void IndoorSkyGlowFraction_VanillaRoofedCell_IsZero()
+    {
+        // THE property the whole mechanism rests on. On an unmodded install a roofed cell's ground glow
+        // IS its artificial glow — vanilla gates the sky term on `!Roofed` — so the difference is 0 and
+        // this term cannot move a single vertex without another mod present.
+        Assert.That(IndoorOcclusionMath.IndoorSkyGlowFraction(groundGlow: 0.3f, artificialGlow: 0.3f, roofed: true),
             Is.EqualTo(0f).Within(Tolerance));
     }
 
     [Test]
-    public void AmbientLightSkyFraction_UnreachedCell_IsZero()
+    public void IndoorSkyGlowFraction_ExcessOverTheLamps_IsSkySourced()
     {
-        // depth <= 0 means their BFS never reached this cell (unroofed, or beyond maxDepth) — no
-        // fraction to redistribute there.
-        Assert.That(IndoorOcclusionMath.AmbientLightSkyFraction(depth: 0, curSkyGlow: 1f, maxDepth: 12, passThroughPercent: 55f),
+        // A mod raised GroundGlowAt above what the glow grid accounts for. The excess is sky by
+        // elimination: vanilla suppressed its own sky term for this cell, so nothing else could have
+        // produced it.
+        Assert.That(IndoorOcclusionMath.IndoorSkyGlowFraction(groundGlow: 0.46f, artificialGlow: 0.1f, roofed: true),
+            Is.EqualTo(0.36f).Within(Tolerance));
+    }
+
+    [Test]
+    public void IndoorSkyGlowFraction_LampsBrighterThanTheSkyTerm_IsZero()
+    {
+        // Vanilla composes the two with Max, so once the lamps dominate there is no sky "beyond" them
+        // to report. Returning the total here instead is the bug that would put dawn pink on a
+        // windowless, well-lit workshop.
+        Assert.That(IndoorOcclusionMath.IndoorSkyGlowFraction(groundGlow: 0.5f, artificialGlow: 0.5f, roofed: true),
+            Is.EqualTo(0f).Within(Tolerance));
+        Assert.That(IndoorOcclusionMath.IndoorSkyGlowFraction(groundGlow: 0.4f, artificialGlow: 0.5f, roofed: true),
             Is.EqualTo(0f).Within(Tolerance));
     }
 
     [Test]
-    public void AmbientLightSkyFraction_AtTheOpening_IsPassThroughTimesSkyGlow()
+    public void IndoorSkyGlowFraction_UnroofedCell_IsZeroHoweverBrightItIs()
     {
-        // depth 1, the cell right beside the opening: falloff's depth term is 1/maxDepth, close to but
-        // not quite 1, so the fraction sits just under curSkyGlow * passThrough.
-        float maxDepth = 12f;
-        float passThrough = 0.55f;
-        float expected = 1f * passThrough * (1f - 1f / maxDepth);
-        Assert.That(IndoorOcclusionMath.AmbientLightSkyFraction(depth: 1, curSkyGlow: 1f, maxDepth: 12, passThroughPercent: 55f),
-            Is.EqualTo(expected).Within(Tolerance));
-    }
-
-    [Test]
-    public void AmbientLightSkyFraction_AtMaxDepth_IsZero()
-    {
-        // depthFraction clamps to exactly 1 at maxDepth, zeroing the falloff term — their BFS's reach
-        // has a hard edge, not an asymptote.
-        Assert.That(IndoorOcclusionMath.AmbientLightSkyFraction(depth: 12, curSkyGlow: 1f, maxDepth: 12, passThroughPercent: 55f),
+        // Outdoors vanilla puts CurSkyGlow into groundGlow itself, so the difference would report the
+        // ordinary daylit sky as though a mod had injected it and cap occlusion across the whole map.
+        // §7b never occludes an unroofed cell anyway, so 0 is both safe and correct.
+        Assert.That(IndoorOcclusionMath.IndoorSkyGlowFraction(groundGlow: 1f, artificialGlow: 0f, roofed: false),
             Is.EqualTo(0f).Within(Tolerance));
     }
 
     [Test]
-    public void AmbientLightSkyFraction_BeyondMaxDepth_ClampsRatherThanGoingNegative()
+    public void IndoorSkyGlowFraction_ClampsIntoUnitRange()
     {
-        Assert.That(IndoorOcclusionMath.AmbientLightSkyFraction(depth: 20, curSkyGlow: 1f, maxDepth: 12, passThroughPercent: 55f),
-            Is.EqualTo(0f).Within(Tolerance));
+        // groundGlow arrives from a patched method, so an over-1 value is a third-party mod's business
+        // and must clamp rather than propagate into CapOcclusion as a negative cap.
+        Assert.That(IndoorOcclusionMath.IndoorSkyGlowFraction(groundGlow: 4f, artificialGlow: 0f, roofed: true),
+            Is.EqualTo(1f).Within(Tolerance));
     }
 
     [Test]
-    public void AmbientLightSkyFraction_ScalesLinearlyWithCurSkyGlow()
+    public void IndoorSkyGlowFraction_ComposesIntoCapOcclusionAsAFloor()
     {
-        float atFullGlow = IndoorOcclusionMath.AmbientLightSkyFraction(depth: 3, curSkyGlow: 1f, maxDepth: 12, passThroughPercent: 55f);
-        float atHalfGlow = IndoorOcclusionMath.AmbientLightSkyFraction(depth: 3, curSkyGlow: 0.5f, maxDepth: 12, passThroughPercent: 55f);
+        // End to end: a cell another mod has lit to 0.46 keeps 0.46 worth of sky on screen instead of
+        // being painted to full occlusion. This is issue #80's reported symptom stated as arithmetic —
+        // "46% lit by its own readout, rendering flat black".
+        float fraction = IndoorOcclusionMath.IndoorSkyGlowFraction(
+            groundGlow: 0.46f, artificialGlow: 0f, roofed: true);
 
-        Assert.That(atHalfGlow, Is.EqualTo(atFullGlow * 0.5f).Within(Tolerance));
-    }
-
-    [Test]
-    public void AmbientLightSkyFraction_DegenerateMaxDepth_ClampsToOneRatherThanDividingByZero()
-    {
-        // AmbientLightSettings.maxDepth is player-tunable on their settings screen; a value below 1
-        // must not divide by zero or invert the falloff direction.
-        Assert.That(
-            () => IndoorOcclusionMath.AmbientLightSkyFraction(depth: 1, curSkyGlow: 1f, maxDepth: 0, passThroughPercent: 55f),
-            Throws.Nothing);
+        Assert.That(IndoorOcclusionMath.CapOcclusion(1f, minIndoorBrightness: 0f, indoorSkyGlowFraction: fraction),
+            Is.EqualTo(1f - 0.46f).Within(Tolerance));
     }
 
     // --- CoverAlpha ---

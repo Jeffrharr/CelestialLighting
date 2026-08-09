@@ -755,6 +755,55 @@ reads `map.roofGrid` / `map.edificeGrid` and rewrites `mesh.colors32`.
   `DoorSkyLeak` (default 0.15) applies as a *cap* on the corners it touches, leaving the threshold a shade
   brighter than the wall either side of it (centre `(1 - leak) / 2` against the wall's `0.5`). The door
   test mirrors vanilla's own so the two can never disagree about which cell is a doorway.
+- **ReBuild: Doors and Corners — glass walls, and why we ship no glass-specific code.** ReBuild
+  (`ReBuild.COTR.DoorsAndCorners`, workshop 3262718980) is the common source of walls that transmit
+  light. Its 1.6 assembly **transpiles `GlowGrid.GroundGlowAt`**, replacing vanilla's `roofGrid.Roofed(c)`
+  with its own `HasNoNaturalLight()`, which returns `false` for any cell in its `cellsNearbyGlassWalls`
+  set — so vanilla's sky branch fires and those cells receive `CurSkyGlow` as real gameplay light,
+  graded by ReBuild's own BFS from the glass. Its 1.5 assembly *also* patched
+  `SectionLayer_LightingOverlay.Regenerate` to render that; **1.6 dropped that patch** and relies on
+  vanilla's overlay — which is precisely what §7b was painting to full occlusion. The room went black,
+  darker than vanilla's own `RoofedAreaMinSkyCover == 100`.
+
+  The fix is the general term above and nothing else: the passthrough sees their raised `GroundGlowAt`,
+  subtracts the artificial share, and caps occlusion by the remainder, so the room lights up following
+  *their* grading. Note our `roofed` gate reads `roofGrid.Roofed` directly rather than through their
+  transpiled path, which is what keeps the two from cancelling out.
+
+  **A bespoke transparent-wall leak was built for this and then deleted.** It classified an edifice as
+  light-transmitting from `blockLight == false` (gated on `holdsRoof || isDoor`, so furniture could not
+  punch holes) and capped the corners it touched. It worked in the pure core and was **measured inert on
+  screen**: with ReBuild loaded, `glass_wall_leak.json` reported identical vertex alphas with the leak on
+  and off, because the passthrough had already capped those cells to 0 before the leak could apply. It
+  was also strictly worse where it did apply — a one-cell corner cap against ReBuild's real
+  distance-graded falloff. Recorded here because "add a per-mod special case" is the tempting answer and
+  this is the evidence that the general one subsumes it. Shadows needed nothing either way: ReBuild's
+  glass declares `staticSunShadowHeight` 0, which `Patch_ShadowMeshPerimeter` and `EaveShadowGrid`
+  already read.
+- **Another mod's indoor light reaches the screen, whoever that mod is** (`IndoorGlowPassthrough`,
+  `IndoorSkyGlowFraction`, feature key `indoor_glow_passthrough`). §7b decides occlusion from geometry
+  alone, so a mod that redistributes sky glow into roofed cells produced a real, gameplay-visible,
+  mouseover-reportable number that rendered flat black (issue #80: a cell reading "46% lit" by Ambient
+  Light's own readout while drawing black). The general signal comes from vanilla: `GlowGrid.GroundGlowAt`
+  gates its sky term on `!map.roofGrid.Roofed(c)`, so on a roofed cell vanilla returns *only* the
+  artificial term — therefore **anything above the artificial glow was put there by another mod, and is
+  sky-sourced by elimination**. That excess caps occlusion, composed by `Min` with `MinIndoorBrightness`.
+  Identically 0 on an unmodded install, so it cannot move a vertex by itself.
+
+  Two details are load-bearing. The artificial share is **recomputed** from `VisualGlowAt` using vanilla's
+  own formula rather than obtained as `GroundGlowAt(c, ignoreSky: true)`: Ambient Light's postfix is
+  declared `Postfix(ref float __result, GlowGrid __instance, IntVec3 c)` — no `ignoreSky` parameter — so
+  it fires on both calls and that difference is identically zero (verified by decompiling
+  `AmbientLightFalloff.Patch_GlowForcedGround`). And the lamps are **subtracted** rather than the total
+  being used, because this value caps how much of the *sky's colour* a vertex shows; capping on total
+  glow would put dawn pink on a windowless, well-lit workshop.
+
+  This **replaced `AmbientLightCompat`**, which bound by reflection to one named mod — its map component,
+  its settings object, its `GetDepth` — and re-derived its private falloff formula byte-for-byte. That
+  worked and was the wrong shape: it fixed exactly one mod, broke whenever that mod refactored, and every
+  further mod would have needed its own copy. Asking the glow grid instead of the mod is the same fix for
+  all of them, and retires the reflection entirely. Cost is two glow-grid reads per cell per section
+  regenerate, accepted because this runs on a map-mesh dirty flag rather than per frame.
 - **Only ever raises the baked alpha.** Other mods legitimately write it: Dub's Skylights nulls
   `map.roofGrid` across `Regenerate` so skylit cells never take vanilla's roofed branch, and Biomes!
   Caverns transpiles the roofed test so cavern roofs read as open. Taking `max` means we can add occlusion

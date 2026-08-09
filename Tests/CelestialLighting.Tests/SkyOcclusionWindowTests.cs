@@ -94,7 +94,6 @@ public class SkyOcclusionWindowTests
             Assert.That(window.IsDoor(40, 41), Is.False);
             Assert.That(window.BlocksSky(41, 41), Is.False);
             Assert.That(window.IsDoor(41, 41), Is.True);
-
             // Row stride: the cell directly above must not alias the cell to the right.
             Assert.That(window.BlocksSky(40, 42), Is.False);
             Assert.That(window.IsDoor(40, 42), Is.False);
@@ -181,15 +180,22 @@ public class SkyOcclusionWindowTests
     [Test]
     public void Windowed_ResolvesEachCellOnceInsteadOfOncePerRead()
     {
-        // 18*18 corner vertices x 4 cells each + 17*17 centres == 1,585 resolutions on demand,
-        // against 19*19 == 361 baked. This is the whole issue.
+        // 18*18 corner vertices x 4 cells each == 1,296 resolutions on demand, against 19*19 == 361
+        // baked. This is the whole issue.
+        //
+        // It was 1,585 until the glass-wall work: the centre pass used to ask the window for its own
+        // cell's BlocksSky verdict (17*17 == 289 more reads) to decide whether to force the centre to
+        // 1.0. CentreOcclusion now always takes the mean of the four corners, which needs no verdict at
+        // all, so the centre pass reads nothing from the map. The drop is that removal, not a
+        // regression in coverage — the windowed count below is unchanged at 361 because the window
+        // still bakes every cell the corner pass can reach.
         FakeMap map = Scene();
         LatticeRun legacy = LatticeRun.Legacy(map, InnerMin, InnerMin, InnerMax, InnerMax, NoFloor);
         LatticeRun windowed = LatticeRun.Windowed(map, InnerMin, InnerMin, InnerMax, InnerMax, NoFloor);
 
         Assert.Multiple(() =>
         {
-            Assert.That(legacy.Resolutions, Is.EqualTo(1585));
+            Assert.That(legacy.Resolutions, Is.EqualTo(1296));
             Assert.That(windowed.Resolutions, Is.EqualTo(361));
         });
     }
@@ -223,7 +229,7 @@ public class SkyOcclusionWindowTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(legacy.RoomQueries, Is.EqualTo(1585));
+            Assert.That(legacy.RoomQueries, Is.EqualTo(1296));
             Assert.That(windowed.RoomQueries, Is.EqualTo(361));
             AssertSameVertices(legacy, windowed);
         });
@@ -436,7 +442,7 @@ public class SkyOcclusionWindowTests
                 }
 
                 return IndoorOcclusionMath.CapOcclusion(
-                    IndoorOcclusionMath.CornerOcclusion(anyBlocksSky, touchesDoor, Leak), floor, ambientLightSkyFraction: 0f);
+                    IndoorOcclusionMath.CornerOcclusion(anyBlocksSky, touchesDoor ? Leak : 0f), floor, indoorSkyGlowFraction: 0f);
             }
 
             return Run(map, minX, minZ, maxX, maxZ, floor, Corner, CentreBlocksSky);
@@ -478,7 +484,7 @@ public class SkyOcclusionWindowTests
                 }
 
                 return IndoorOcclusionMath.CapOcclusion(
-                    IndoorOcclusionMath.CornerOcclusion(anyBlocksSky, touchesDoor, Leak), floor, ambientLightSkyFraction: 0f);
+                    IndoorOcclusionMath.CornerOcclusion(anyBlocksSky, touchesDoor ? Leak : 0f), floor, indoorSkyGlowFraction: 0f);
             }
 
             return Run(map, minX, minZ, maxX, maxZ, floor, Corner, window.BlocksSky);
@@ -506,10 +512,10 @@ public class SkyOcclusionWindowTests
                 {
                     int c = (z - minZ) * stride + (x - minX);
                     float cornerSum = corners[c] + corners[c + 1] + corners[c + stride] + corners[c + stride + 1];
-                    float occlusion = IndoorOcclusionMath.CentreOcclusion(centreBlocksSky(x, z), cornerSum);
+                    float occlusion = IndoorOcclusionMath.CentreOcclusion(cornerSum);
                     centres[(z - minZ) * width + (x - minX)] =
                         IndoorOcclusionMath.CoverAlpha(
-                            IndoorOcclusionMath.CapOcclusion(occlusion, floor, ambientLightSkyFraction: 0f), 0);
+                            IndoorOcclusionMath.CapOcclusion(occlusion, floor, indoorSkyGlowFraction: 0f), 0);
                 }
             }
 

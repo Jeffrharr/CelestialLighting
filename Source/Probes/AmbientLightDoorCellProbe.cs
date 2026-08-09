@@ -8,11 +8,11 @@ namespace CelestialLighting.Probes;
 // CelestialLighting.csproj) and compiled into TestMod/CelestialLighting.Probes.csproj instead — the
 // shipped mod must never take a hard reference to RimWorldTestHarness, a dev-only tool.
 //
-// Issue #80 / AmbientLightCompat: the one cell the whole investigation was about — an interior cell
+// Issue #80: the one cell the whole investigation was about — an interior cell
 // one step in from the south-wall doorway gap in Tests/Scenarios/ambient_light_compat.json's 11x11
 // roofed room (offset "0,45", gap at local x=0,z=-5). GroundGlow reads the GAMEPLAY value Ambient
 // Light's own mouseover readout reports (Verse.GlowGrid.GroundGlowAt) — independent of whether §7b's
-// occlusion painting lets any of it reach the screen. SkyFraction reads what AmbientLightCompat
+// occlusion painting lets any of it reach the screen. SkyFraction reads what IndoorGlowPassthrough
 // derives for the SAME cell, which is the number §7b's CapOcclusion actually consumes. Pairing them
 // is what lets a scenario tell "Ambient Light's own boost isn't real here" apart from "it's real but
 // our compat failed to bind or mis-read it" — two failure modes that would otherwise both show up as
@@ -26,9 +26,10 @@ public sealed class AmbientLightDoorCellProbe : IProbe
         // redistribution at work, exactly what its "Overlay light: X%" tooltip reports.
         GroundGlow,
 
-        // AmbientLightCompat.SkyFractionAt(map, cell) — the SKY-ONLY term §7b's CapOcclusion actually
-        // caps occlusion with, re-derived independently of GroundGlowAt so it can never be confused
-        // with a lamp (see AmbientLightCompat's header for why that separation matters).
+        // IndoorGlowPassthrough.SkyFractionAt(map, cell) — the SKY-ONLY term §7b's CapOcclusion
+        // actually caps occlusion with: total ground glow minus the artificial share, so it can never
+        // be confused with a lamp (see IndoorOcclusionMath.IndoorSkyGlowFraction for why that
+        // separation matters, and why it is mod-agnostic rather than bound to Ambient Light).
         SkyFraction,
     }
 
@@ -60,7 +61,7 @@ public sealed class AmbientLightDoorCellProbe : IProbe
             case Metric.GroundGlow:
                 return map.glowGrid.GroundGlowAt(cell);
             case Metric.SkyFraction:
-                return AmbientLightCompat.SkyFractionAt(map, cell);
+                return IndoorGlowPassthrough.SkyFractionAt(map, cell);
             default:
                 throw new ArgumentOutOfRangeException(nameof(metric), metric, null);
         }
