@@ -68,8 +68,8 @@ public class CelestialLightingSettings : ModSettings
 
     // How strong §19's polar-night blue is. Scales BOTH arms — the colour nudge and the visual
     // brightness floor — so 0 is a true no-op rather than "no tint but the nights are still lifted".
-    // Deliberately NOT in PresetKnobs: this is a per-effect intensity like doorSkyLeak, not one of
-    // the taste axes the Realistic/Cinematic bundle correlates along. (The FLOOR does interact with
+    // Deliberately NOT in PresetKnobs: this is a per-effect intensity like purpleLightStrength, not one
+    // of the taste axes the Realistic/Cinematic bundle correlates along. (The FLOOR does interact with
     // presets, in the good direction: inert under Cinematic's 0.50 minNightBrightness, load-bearing
     // under Realistic's 0.)
     public float polarNightBlueStrength = 1f;
@@ -79,10 +79,6 @@ public class CelestialLightingSettings : ModSettings
     public float purpleLightStrength = 1f;
 
     // --- Indoor sky-occlusion tunables (drive IndoorOcclusionSettings.Current) ---
-    // How much sky a doorway lets past once roofed cells are fully occluded; see
-    // IndoorOcclusionMath.DefaultDoorSkyLeak for why doors need this at all.
-    public float doorSkyLeak = IndoorOcclusionMath.DefaultDoorSkyLeak;
-
     // How much sky a roofed cell keeps regardless of how sealed it is. 0 = sealed rooms go fully
     // black; raise it to keep interiors readable without disabling the effect or brightening the
     // outdoors via the map-wide accessibility floor. Also part of the preset bundle (see
@@ -192,7 +188,6 @@ public class CelestialLightingSettings : ModSettings
 
         // Roofed cells never take sky glow (GlowGrid.GroundGlowAt returns early for them), so the
         // only way to hold an interior above black is this floor, applied as a cap on occlusion.
-        IndoorOcclusionSettings.Current.DoorSkyLeak = doorSkyLeak;
         IndoorOcclusionSettings.Current.MinIndoorBrightness = minIndoorBrightness;
 
         // §7c's own two knobs — see SkyFalloffSource for why they only matter without Ambient Light.
@@ -202,8 +197,7 @@ public class CelestialLightingSettings : ModSettings
         // §7b's alphas live in baked section meshes, not in a per-frame material, so a change here is
         // invisible until the meshes are rebuilt. Must run after the assignments above.
         IndoorOcclusionRedraw.SyncTo(
-            indoorSkyOcclusion, IndoorOcclusionSettings.Current.DoorSkyLeak,
-            IndoorOcclusionSettings.Current.MinIndoorBrightness,
+            indoorSkyOcclusion, IndoorOcclusionSettings.Current.MinIndoorBrightness,
             NativeSkyFalloffSettings.Current.MaxDepth, NativeSkyFalloffSettings.Current.PassThroughPercent);
 
         // §15's caster heights are baked into the sun-shadow section meshes for the same reason, so
@@ -241,7 +235,6 @@ public class CelestialLightingSettings : ModSettings
         Scribe_Values.Look(ref pitchBlackNights, "pitchBlackNights", true);
         Scribe_Values.Look(ref indoorSkyOcclusion, "indoorSkyOcclusion", true);
         Scribe_Values.Look(ref eaveShadows, "eaveShadows", true);
-        Scribe_Values.Look(ref doorSkyLeak, "doorSkyLeak", IndoorOcclusionMath.DefaultDoorSkyLeak);
         Scribe_Values.Look(ref minIndoorBrightness, "minIndoorBrightness", Presets.Cinematic.MinIndoorBrightness);
         Scribe_Values.Look(ref nativeSkyFalloffPassThroughPercent, "nativeSkyFalloffPassThroughPercent",
             Presets.Cinematic.NativeSkyFalloffPassThroughPercent);

@@ -128,7 +128,6 @@ public class CelestialLightingSettingsMod : Mod
             "Darken the on-screen night overlay toward black as the night floor drops.");
         listing.CheckboxLabeled("Black unlit interiors", ref Settings.indoorSkyOcclusion,
             "Stop the sky lighting roofed cells. Vanilla always bleeds ~61% of the sky into every roofed tile, so a sealed cave never goes black; with this on, an unlit interior is lit by its lamps or not at all — day and night.");
-        Settings.doorSkyLeak = LabeledSlider(listing, "  Light leaked through doors", Settings.doorSkyLeak, 0f, 0.5f);
         Settings.minIndoorBrightness = AestheticSlider(listing, "  Minimum indoor brightness", Settings.minIndoorBrightness, 0f, 1f);
         Settings.nativeSkyFalloffPassThroughPercent = AestheticSlider(listing, "  Sky brightness at an opening (no Ambient Light)",
             Settings.nativeSkyFalloffPassThroughPercent, 0f, 100f,

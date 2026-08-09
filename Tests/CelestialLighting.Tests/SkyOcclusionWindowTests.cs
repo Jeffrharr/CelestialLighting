@@ -22,7 +22,6 @@ public class SkyOcclusionWindowTests
     // real geometry rather than a made-up one.
     private const int SectionSize = 17;
 
-    private const float Leak = IndoorOcclusionMath.DefaultDoorSkyLeak;
     private const float NoFloor = 0f;
 
     // A section fully inside a 60x60 map: rect 34..50, skirt 33..51.
@@ -85,19 +84,16 @@ public class SkyOcclusionWindowTests
     public void Verdicts_AreStoredPerCellAndIndependently()
     {
         SkyOcclusionWindow window = Window(InnerMin, InnerMin, InnerMax, InnerMax);
-        window.Resolve(40, 41, blocksSky: true, isDoor: false);
-        window.Resolve(41, 41, blocksSky: false, isDoor: true);
+        window.Resolve(40, 41, blocksSky: true);
+        window.Resolve(41, 41, blocksSky: false);
 
         Assert.Multiple(() =>
         {
             Assert.That(window.BlocksSky(40, 41), Is.True);
-            Assert.That(window.IsDoor(40, 41), Is.False);
             Assert.That(window.BlocksSky(41, 41), Is.False);
-            Assert.That(window.IsDoor(41, 41), Is.True);
 
             // Row stride: the cell directly above must not alias the cell to the right.
             Assert.That(window.BlocksSky(40, 42), Is.False);
-            Assert.That(window.IsDoor(40, 42), Is.False);
         });
     }
 
@@ -107,15 +103,13 @@ public class SkyOcclusionWindowTests
         // The border cells are the whole point of the +1: they are read by the section's boundary
         // lattice points even though the section never writes a vertex for them.
         SkyOcclusionWindow window = Window(InnerMin, InnerMin, InnerMax, InnerMax);
-        window.Resolve(window.MinX, window.MinZ, blocksSky: true, isDoor: true);
-        window.Resolve(window.MaxX, window.MaxZ, blocksSky: true, isDoor: false);
+        window.Resolve(window.MinX, window.MinZ, blocksSky: true);
+        window.Resolve(window.MaxX, window.MaxZ, blocksSky: true);
 
         Assert.Multiple(() =>
         {
             Assert.That(window.BlocksSky(window.MinX, window.MinZ), Is.True);
-            Assert.That(window.IsDoor(window.MinX, window.MinZ), Is.True);
             Assert.That(window.BlocksSky(window.MaxX, window.MaxZ), Is.True);
-            Assert.That(window.IsDoor(window.MaxX, window.MaxZ), Is.False);
         });
     }
 
@@ -123,17 +117,15 @@ public class SkyOcclusionWindowTests
     public void Verdicts_PastTheBorder_ReadAsNoContribution()
     {
         // Not a fallback: an off-window cell is an off-map cell, and the pre-window corner pass gave
-        // it exactly this treatment via `cell.InBounds(map)` — `|= false` on both ORs.
+        // it exactly this treatment via `cell.InBounds(map)` — `|= false` on the OR.
         SkyOcclusionWindow window = Window(0, 0, SectionSize - 1, SectionSize - 1);
 
         Assert.Multiple(() =>
         {
             Assert.That(window.BlocksSky(-1, 4), Is.False);
-            Assert.That(window.IsDoor(-1, 4), Is.False);
             Assert.That(window.BlocksSky(4, -1), Is.False);
-            Assert.That(window.IsDoor(4, -1), Is.False);
             Assert.That(window.BlocksSky(window.MaxX + 1, 4), Is.False);
-            Assert.That(window.IsDoor(4, window.MaxZ + 1), Is.False);
+            Assert.That(window.BlocksSky(4, window.MaxZ + 1), Is.False);
         });
     }
 
@@ -361,16 +353,15 @@ public class SkyOcclusionWindowTests
 
         public void SetDoor(int x, int z) => doors[Index(x, z)] = true;
 
-        public void Resolve(int x, int z, out bool blocksSky, out bool isDoor)
+        public void Resolve(int x, int z, out bool blocksSky)
         {
             Resolutions++;
             if (!InBounds(x, z))
                 OutOfBoundsResolutions++;
 
             int i = Index(x, z);
-            isDoor = doors[i];
             blocksSky = IndoorOcclusionMath.BlocksSky(
-                Encloses(i), roofed[i] && thickRoof[i], holdsRoof[i], isDoor);
+                Encloses(i), roofed[i] && thickRoof[i], holdsRoof[i], doors[i]);
         }
 
         // EaveCells.Encloses, transcribed: the roof test comes first and is what keeps the room query
@@ -417,33 +408,31 @@ public class SkyOcclusionWindowTests
         {
             map.ResetCounters();
 
-            // The old corner pass took both verdicts off one live-map visit per neighbour (BlocksSky
-            // plus the edifice's door test), which is what the resolution counter counts.
+            // The old corner pass took its verdict off one live-map visit per neighbour, which is what
+            // the resolution counter counts.
             float Corner(int x, int z)
             {
                 bool anyBlocksSky = false;
-                bool touchesDoor = false;
                 for (int i = 0; i < 4; i++)
                 {
                     int cellX = x - (i & 1);
                     int cellZ = z - (i >> 1);
                     if (map.InBounds(cellX, cellZ))
                     {
-                        map.Resolve(cellX, cellZ, out bool blocksSky, out bool isDoor);
+                        map.Resolve(cellX, cellZ, out bool blocksSky);
                         anyBlocksSky |= blocksSky;
-                        touchesDoor |= isDoor;
                     }
                 }
 
                 return IndoorOcclusionMath.CapOcclusion(
-                    IndoorOcclusionMath.CornerOcclusion(anyBlocksSky, touchesDoor, Leak), floor, ambientLightSkyFraction: 0f);
+                    IndoorOcclusionMath.CornerOcclusion(anyBlocksSky), floor, ambientLightSkyFraction: 0f);
             }
 
             return Run(map, minX, minZ, maxX, maxZ, floor, Corner, CentreBlocksSky);
 
             bool CentreBlocksSky(int x, int z)
             {
-                map.Resolve(x, z, out bool blocksSky, out _);
+                map.Resolve(x, z, out bool blocksSky);
                 return blocksSky;
             }
         }
@@ -460,25 +449,23 @@ public class SkyOcclusionWindowTests
             {
                 for (int x = window.MinX; x <= window.MaxX; x++)
                 {
-                    map.Resolve(x, z, out bool blocksSky, out bool isDoor);
-                    window.Resolve(x, z, blocksSky, isDoor);
+                    map.Resolve(x, z, out bool blocksSky);
+                    window.Resolve(x, z, blocksSky);
                 }
             }
 
             float Corner(int x, int z)
             {
                 bool anyBlocksSky = false;
-                bool touchesDoor = false;
                 for (int i = 0; i < 4; i++)
                 {
                     int cellX = x - (i & 1);
                     int cellZ = z - (i >> 1);
                     anyBlocksSky |= window.BlocksSky(cellX, cellZ);
-                    touchesDoor |= window.IsDoor(cellX, cellZ);
                 }
 
                 return IndoorOcclusionMath.CapOcclusion(
-                    IndoorOcclusionMath.CornerOcclusion(anyBlocksSky, touchesDoor, Leak), floor, ambientLightSkyFraction: 0f);
+                    IndoorOcclusionMath.CornerOcclusion(anyBlocksSky), floor, ambientLightSkyFraction: 0f);
             }
 
             return Run(map, minX, minZ, maxX, maxZ, floor, Corner, window.BlocksSky);

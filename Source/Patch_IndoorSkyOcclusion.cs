@@ -170,7 +170,6 @@ public static class Patch_IndoorSkyOcclusion
         Map map, SkyOcclusionWindow window, int x, int z, IndoorOcclusionSettings settings)
     {
         bool anyBlocksSky = false;
-        bool touchesDoor = false;
         // A corner is shared by up to four cells, and — unlike anyBlocksSky, which is an OR because one
         // blocked neighbour is enough to occlude — the sky-falloff term takes their MAX: whichever of
         // the four cells currently has the most sky reaching it is the floor this corner should honour,
@@ -182,11 +181,10 @@ public static class Patch_IndoorSkyOcclusion
             int cellX = x - (i & 1);
             int cellZ = z - (i >> 1);
             anyBlocksSky |= window.BlocksSky(cellX, cellZ);
-            touchesDoor |= window.IsDoor(cellX, cellZ);
             skyFalloffFraction = Mathf.Max(skyFalloffFraction, SkyFalloffFractionAt(map, cellX, cellZ));
         }
 
-        float occlusion = IndoorOcclusionMath.CornerOcclusion(anyBlocksSky, touchesDoor, settings.DoorSkyLeak);
+        float occlusion = IndoorOcclusionMath.CornerOcclusion(anyBlocksSky);
         return IndoorOcclusionMath.CapOcclusion(occlusion, settings.MinIndoorBrightness, skyFalloffFraction);
     }
 
@@ -230,7 +228,7 @@ public static class Patch_IndoorSkyOcclusion
         bool blocksSky = IndoorOcclusionMath.BlocksSky(
             EaveCells.Encloses(map, cell, roof), roof != null && roof.isThickRoof, holdsRoof, isDoor);
 
-        window.Resolve(x, z, blocksSky, isDoor);
+        window.Resolve(x, z, blocksSky);
     }
 
     // Mirrors vanilla's own door test — SectionLayer_LightingOverlay identifies doors by

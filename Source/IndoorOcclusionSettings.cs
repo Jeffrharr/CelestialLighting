@@ -6,10 +6,6 @@ namespace CelestialLighting;
 // pure core and its offline tests never need a game reference.
 public struct IndoorOcclusionSettings
 {
-    // How much sky a door lets past (see IndoorOcclusionMath.DefaultDoorSkyLeak for why doors are
-    // special-cased at all).
-    public float DoorSkyLeak;
-
     // The fraction of sky a roofed cell keeps no matter how sealed it is — the one floor that reaches
     // interiors. 0 (the default) lets sealed rooms go fully black; see
     // IndoorOcclusionMath.DefaultMinIndoorBrightness for why it is a knob. CapOcclusion clamps it, so
@@ -20,7 +16,6 @@ public struct IndoorOcclusionSettings
 
     public static IndoorOcclusionSettings Defaults => new IndoorOcclusionSettings
     {
-        DoorSkyLeak = IndoorOcclusionMath.DefaultDoorSkyLeak,
         MinIndoorBrightness = IndoorOcclusionMath.DefaultMinIndoorBrightness,
     };
 }

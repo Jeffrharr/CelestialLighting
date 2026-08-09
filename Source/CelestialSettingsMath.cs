@@ -73,11 +73,11 @@ public readonly struct PresetKnobs
     public readonly float MinIndoorBrightness;
 
     // §7c: brightness at an opening and how many cells the gradient reaches, [0,100] / cells. In the
-    // bundle (not a standalone slider like doorSkyLeak) because how strong this should read depends on
-    // MinIndoorBrightness above it: Cinematic's 0.50 floor already lifts every roofed cell most of the
-    // way up, so a Realistic-tuned PassThroughPercent would barely register against that floor and the
-    // opening would stop reading as brighter than the rest of the room. Live-tuned per preset for
-    // exactly that reason — see DESIGN.md §7c for the measured numbers.
+    // bundle (not a standalone slider like purpleLightStrength) because how strong this should read
+    // depends on MinIndoorBrightness above it: Cinematic's 0.50 floor already lifts every roofed cell
+    // most of the way up, so a Realistic-tuned PassThroughPercent would barely register against that
+    // floor and the opening would stop reading as brighter than the rest of the room. Live-tuned per
+    // preset for exactly that reason — see DESIGN.md §7c for the measured numbers.
     public readonly float NativeSkyFalloffPassThroughPercent;
     public readonly int NativeSkyFalloffMaxDepth;
 

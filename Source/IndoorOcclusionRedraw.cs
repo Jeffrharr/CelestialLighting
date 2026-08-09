@@ -24,7 +24,6 @@ public static class IndoorOcclusionRedraw
     // nothing. (Harmless either way — no map exists yet at that point — but it keeps the invariant
     // "these fields are what the baked meshes were built from" true from the first frame.)
     private static bool lastEnabled = true;
-    private static float lastDoorSkyLeak = IndoorOcclusionMath.DefaultDoorSkyLeak;
     private static float lastMinIndoorBrightness;
     private static int lastNativeMaxDepth = NativeSkyFalloffMath.DefaultMaxDepth;
     private static float lastNativePassThroughPercent = NativeSkyFalloffMath.DefaultPassThroughPercent;
@@ -33,11 +32,10 @@ public static class IndoorOcclusionRedraw
     // accessibility slider — either knob moving must trigger a rebuild, and comparing the resolved value
     // catches both without duplicating the max() rule here.
     public static void SyncTo(
-        bool enabled, float doorSkyLeak, float minIndoorBrightness,
+        bool enabled, float minIndoorBrightness,
         int nativeMaxDepth, float nativePassThroughPercent)
     {
         bool unchanged = enabled == lastEnabled
-            && doorSkyLeak == lastDoorSkyLeak
             && minIndoorBrightness == lastMinIndoorBrightness
             && nativeMaxDepth == lastNativeMaxDepth
             && nativePassThroughPercent == lastNativePassThroughPercent;
@@ -45,7 +43,6 @@ public static class IndoorOcclusionRedraw
             return;
 
         lastEnabled = enabled;
-        lastDoorSkyLeak = doorSkyLeak;
         lastMinIndoorBrightness = minIndoorBrightness;
         lastNativeMaxDepth = nativeMaxDepth;
         lastNativePassThroughPercent = nativePassThroughPercent;

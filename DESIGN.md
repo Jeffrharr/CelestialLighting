@@ -748,13 +748,20 @@ reads `map.roofGrid` / `map.edificeGrid` and rewrites `mesh.colors32`.
   is therefore `EaveCells.Encloses`, which also requires the cell's room to hold its own temperature
   (§15). Ungated, and shared with §15's shadow half so the two can never disagree about which cells
   are inside.
-- **Leaky doors.** Vanilla lumps doors in with roof for cover (`altitudeLayer == AltitudeLayer.DoorMoveable`
-  is one of the disjuncts that sets its corner flag) and a closed door's `blockLight` suppresses glow too,
-  so at full occlusion a doorway would go dead black. A door is instead treated as a boundary cell like a
-  wall — never interior, so it can never propagate darkness outward through the wall line — and
-  `DoorSkyLeak` (default 0.15) applies as a *cap* on the corners it touches, leaving the threshold a shade
-  brighter than the wall either side of it (centre `(1 - leak) / 2` against the wall's `0.5`). The door
-  test mirrors vanilla's own so the two can never disagree about which cell is a doorway.
+- **Doors are boundary cells, not interior.** Vanilla lumps doors in with roof for cover
+  (`altitudeLayer == AltitudeLayer.DoorMoveable` is one of the disjuncts that sets its corner flag) and
+  a closed door's `blockLight` suppresses glow too, so at full occlusion a doorway would go dead black.
+  A door is instead treated exactly like open ground — never interior, so it can never propagate
+  darkness outward through the wall line. This used to also carry a flat `DoorSkyLeak` cap (default
+  0.15) on the corners a door touched, brightening the threshold a shade above the wall either side of
+  it. Removed once §7c's native sky falloff shipped: that gradient already reaches door-adjacent
+  corners through `CapOcclusion`'s `skyFalloffFraction` term, scaling with distance from the opening
+  rather than a flat amount, so the fixed cap only ever duplicated or clashed with it. See §7c below.
+
+  One trade-off worth being explicit about: a player who has both §7c's native falloff *and* Ambient
+  Light turned off (or not installed) now gets a doorway that reads identically to a plain wall corner —
+  there is no fallback brightening left to fill that gap. That is the accepted cost of not maintaining
+  two independently-tuned brightening terms for the same visual effect.
 - **Only ever raises the baked alpha.** Other mods legitimately write it: Dub's Skylights nulls
   `map.roofGrid` across `Regenerate` so skylit cells never take vanilla's roofed branch, and Biomes!
   Caverns transpiles the roofed test so cavern roofs read as open. Taking `max` means we can add occlusion
@@ -1000,6 +1007,14 @@ read `Presets.Cinematic.NativeSkyFalloffPassThroughPercent`/`MaxDepth` instead, 
 `LabeledIntSlider` to `AestheticSlider`/`AestheticIntSlider` (the latter newly added, mirroring the
 former for the one `PresetKnobs` field that is an int rather than a float) so nudging either now flips
 the preset radio to Custom, matching every other preset-bundle-backed slider.
+
+**Superseded §7b's flat `DoorSkyLeak`, which was removed.** That older cap brightened a door-touching
+corner by a fixed amount regardless of distance from the opening; this gradient does the same job
+better — it scales with distance, so a threshold reads brighter than a cell three tiles into the room
+the way `DoorSkyLeak` never could — and composes through the identical `CapOcclusion` term, so keeping
+both would only ever double-count or fight, never improve on either alone. See §7b's "Doors are
+boundary cells, not interior" bullet for the removal and its one accepted gap: a doorway with both this
+feature and Ambient Light off gets no brightening at all, since nothing else fills that role anymore.
 
 ## 14. Sun-clock reconciliation (`SunClockMath` / `SunClock` / `Patch_SunGlow`)
 
@@ -6418,7 +6433,7 @@ Two cross-cutting settings ideas that span the subsystems above:
   remain for anyone who wants them.
 
   **§19's "Polar blue strength" is deliberately NOT in the bundle.** It is a per-effect intensity
-  like `doorSkyLeak`, not one of the taste axes the six bundled knobs correlate along, and adding a
+  like `purpleLightStrength`, not one of the taste axes the six bundled knobs correlate along, and adding a
   seventh field would touch `PresetKnobs`, its constructor, both preset literals, `ApplyPreset` and
   `CelestialSettingsMathTests` for no gain. Promoting it later is mechanical if eye-tuning shows it
   correlates. It uses `LabeledSlider` rather than `AestheticSlider`, so moving it does not flip the

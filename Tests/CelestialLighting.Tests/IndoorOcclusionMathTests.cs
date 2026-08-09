@@ -7,7 +7,6 @@ namespace CelestialLighting.Tests;
 public class IndoorOcclusionMathTests
 {
     private const float Tolerance = 1e-5f;
-    private const float Leak = IndoorOcclusionMath.DefaultDoorSkyLeak;
 
     // --- BlocksSky: which cells are *interior* ---
 
@@ -51,9 +50,10 @@ public class IndoorOcclusionMathTests
     [Test]
     public void BlocksSky_Door_IsNeverInterior()
     {
-        // A doorway is the boundary itself. Its leak is applied at the vertices (CornerOcclusion) rather
-        // than by making it interior, so it can never propagate blackness outward through the wall line
-        // — including under thick roof, where the door rule deliberately wins.
+        // A doorway is the boundary itself, so it reads exactly like open ground here — including under
+        // thick roof, where the door rule deliberately wins — and can never propagate blackness outward
+        // through the wall line. Any brightening at the threshold now comes from §7c's distance-graded
+        // sky falloff, not from this classification.
         Assert.That(IndoorOcclusionMath.BlocksSky(roofed: true, thickRoof: false, holdsRoof: true, isDoor: true),
             Is.False);
         Assert.That(IndoorOcclusionMath.BlocksSky(roofed: true, thickRoof: true, holdsRoof: true, isDoor: true),
@@ -78,7 +78,7 @@ public class IndoorOcclusionMathTests
     {
         // OR, not a mean. This is what makes a room read *flat*: every corner inside it, and every
         // corner on its inner wall face, lands on exactly 1.0, so there is nothing to interpolate.
-        Assert.That(IndoorOcclusionMath.CornerOcclusion(anyNeighbourBlocksSky: true, touchesDoor: false, Leak),
+        Assert.That(IndoorOcclusionMath.CornerOcclusion(anyNeighbourBlocksSky: true),
             Is.EqualTo(1f).Within(Tolerance));
     }
 
@@ -87,36 +87,8 @@ public class IndoorOcclusionMathTests
     {
         // The outer face of an exterior wall: no interior cell touches it, so the ground beyond the
         // building is untouched. Averaging here instead is what used to smear black onto the outdoors.
-        Assert.That(IndoorOcclusionMath.CornerOcclusion(anyNeighbourBlocksSky: false, touchesDoor: false, Leak),
+        Assert.That(IndoorOcclusionMath.CornerOcclusion(anyNeighbourBlocksSky: false),
             Is.EqualTo(0f).Within(Tolerance));
-    }
-
-    [Test]
-    public void CornerOcclusion_DoorCapsTheInteriorCorner()
-    {
-        // A corner shared by a doorway and the room behind it keeps `doorSkyLeak` worth of sky, so the
-        // threshold sits a shade brighter than the rest of that room's edge.
-        Assert.That(IndoorOcclusionMath.CornerOcclusion(anyNeighbourBlocksSky: true, touchesDoor: true, Leak),
-            Is.EqualTo(1f - Leak).Within(Tolerance));
-    }
-
-    [Test]
-    public void CornerOcclusion_DoorCapNeverRaisesAnOpenCorner()
-    {
-        // The cap is a ceiling only — the outer corners of a door, or a freestanding gate in open
-        // ground, stay fully open rather than picking up occlusion from the door itself.
-        Assert.That(IndoorOcclusionMath.CornerOcclusion(anyNeighbourBlocksSky: false, touchesDoor: true, Leak),
-            Is.EqualTo(0f).Within(Tolerance));
-    }
-
-    [TestCase(-0.5f, 1f)]  // a negative leak cannot make a doorway MORE than fully occluded
-    [TestCase(0f, 1f)]     // leak 0 == a door occludes exactly like the room behind it
-    [TestCase(1f, 0f)]     // leak 1 == a doorway is as open as the sky
-    [TestCase(2f, 0f)]     // and an over-1 leak clamps rather than inverting
-    public void CornerOcclusion_ClampsDoorLeak(float doorSkyLeak, float expected)
-    {
-        Assert.That(IndoorOcclusionMath.CornerOcclusion(anyNeighbourBlocksSky: true, touchesDoor: true, doorSkyLeak),
-            Is.EqualTo(expected).Within(Tolerance));
     }
 
     // --- CentreOcclusion: interior cells are flat, everything else is the mean of its own corners ---
@@ -163,20 +135,6 @@ public class IndoorOcclusionMathTests
     }
 
     [Test]
-    public void CentreOcclusion_Doorway_IsBrighterThanTheWallItSitsIn()
-    {
-        // Same geometry as a wall (two interior corners, two open ones) but with the door cap applied to
-        // the inner pair, so a threshold reads lighter than the wall either side of it. That difference
-        // is the only thing DoorSkyLeak buys once doors stopped being interior cells.
-        float wall = IndoorOcclusionMath.CentreOcclusion(blocksSky: false, cornerOcclusionSum: 2f);
-        float innerCorner = IndoorOcclusionMath.CornerOcclusion(anyNeighbourBlocksSky: true, touchesDoor: true, Leak);
-        float doorway = IndoorOcclusionMath.CentreOcclusion(blocksSky: false, cornerOcclusionSum: 2f * innerCorner);
-
-        Assert.That(doorway, Is.LessThan(wall));
-        Assert.That(doorway, Is.EqualTo((1f - Leak) / 2f).Within(Tolerance));
-    }
-
-    [Test]
     public void CentreOcclusion_ClampsAnOutOfRangeCornerSum()
     {
         Assert.That(IndoorOcclusionMath.CentreOcclusion(blocksSky: false, cornerOcclusionSum: 40f),
@@ -193,8 +151,8 @@ public class IndoorOcclusionMathTests
         // Walk the vertices of an interior cell against a wall — the case the diamond bloom showed up
         // on. Its wall-side corners are shared with the wall cells, but each of those lattice points
         // still touches this interior cell, so they are 1.0 like the rest and the tile is flat.
-        float wallSideCorner = IndoorOcclusionMath.CornerOcclusion(anyNeighbourBlocksSky: true, touchesDoor: false, Leak);
-        float innerCorner = IndoorOcclusionMath.CornerOcclusion(anyNeighbourBlocksSky: true, touchesDoor: false, Leak);
+        float wallSideCorner = IndoorOcclusionMath.CornerOcclusion(anyNeighbourBlocksSky: true);
+        float innerCorner = IndoorOcclusionMath.CornerOcclusion(anyNeighbourBlocksSky: true);
         float centre = IndoorOcclusionMath.CentreOcclusion(blocksSky: true,
             cornerOcclusionSum: 2f * wallSideCorner + 2f * innerCorner);
 
@@ -208,7 +166,7 @@ public class IndoorOcclusionMathTests
         // The regression this fix is about, end to end: the wall is not interior, so the lattice on its
         // outer face is 0, so the open cell beyond it averages 0 and takes vanilla's own alpha.
         bool wallIsInterior = IndoorOcclusionMath.BlocksSky(roofed: true, thickRoof: false, holdsRoof: true, isDoor: false);
-        float outerCorner = IndoorOcclusionMath.CornerOcclusion(wallIsInterior, touchesDoor: false, Leak);
+        float outerCorner = IndoorOcclusionMath.CornerOcclusion(wallIsInterior);
         float outdoorCentre = IndoorOcclusionMath.CentreOcclusion(blocksSky: false, cornerOcclusionSum: 4f * outerCorner);
 
         Assert.That(outerCorner, Is.EqualTo(0f).Within(Tolerance));
@@ -413,15 +371,6 @@ public class IndoorOcclusionMathTests
         // The common outdoor case: occlusion 0 over vanilla's own 0 must stay 0, or the whole map would
         // pick up a veil.
         Assert.That(IndoorOcclusionMath.CoverAlpha(0f, vanillaAlpha: 0), Is.EqualTo(0));
-    }
-
-    [Test]
-    public void CoverAlpha_DoorLeak_LandsAboveVanillaButBelowFull()
-    {
-        // A default-leak door corner: still much darker than vanilla's 100, still visibly not sealed-black.
-        byte alpha = IndoorOcclusionMath.CoverAlpha(1f - Leak, vanillaAlpha: 100);
-        Assert.That(alpha, Is.GreaterThan(IndoorOcclusionMath.VanillaRoofedMinSkyCover));
-        Assert.That(alpha, Is.LessThan(IndoorOcclusionMath.FullSkyCover));
     }
 
     [Test]
