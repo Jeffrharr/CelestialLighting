@@ -348,11 +348,18 @@ public static class CelestialLightingFeatures
     // Feature key for SnowGlare (see CivilTwilightPersistenceKey for why the const lives here).
     public const string SnowGlareKey = "snow_glare";
 
-    // §24 snow-glare bloom (issue #90), PROTOTYPE — default OFF, which is not this file's habit and
-    // is the point. Every other flag here ships on and exists as a harness A/B axis; this one ships
-    // off because the open question in #90 is not whether the maths is right but whether a static
-    // additive wash READS as brightness at all in a fixed-exposure top-down game, or merely as a
-    // washed-out screen. Until a live A/B answers that, no subscriber should get it by surprise.
+    // §24 snow-glare bloom (issue #90). Default ON, after the live A/B answered #90's actual open
+    // question — whether a static additive wash reads as BRIGHTNESS in a fixed-exposure top-down
+    // game or merely as a washed-out screen. It reads as brightness at the calibrated strength: a
+    // snowed-in overcast noon measures median CIELAB ΔE 5.13, and a polar snowfield 3.67 (low winter
+    // sun) to 5.08, which sits alongside §21's own 6.06 rather than above the mod's whole measured
+    // set. It shipped off through the prototype precisely so that question could be answered from
+    // frames rather than from argument; DESIGN.md §24 keeps the numbers.
+    //
+    // WHAT DEFAULT-ON DOES NOT CLAIM: the physically larger inversion (a snowy overcast brighter
+    // than a snowy CLEAR sky) is still NOT rendered at this strength — that needs roughly ΔE 15 and
+    // reads as a milky haze. The shipped default is the visible-but-restrained half of #90, not its
+    // headline. Anyone re-opening that trade should read §24's measured table first.
     //
     // What it does: §21's daytime cavity can amplify diffuse light past what SkyColorSet.sky can
     // express (a multiply whose brightest palette is already (1,1,1)), so a snowy overcast currently
@@ -361,7 +368,7 @@ public static class CelestialLightingFeatures
     // remainder as one additive full-map quad. When off, SnowGlare.AlphaFor returns 0, the overlay
     // returns before its draw call, and rendering is bit-identical to pre-§24 — the faithful baseline
     // for the A/B, and a genuinely zero standing cost on every map that never turns it on.
-    public static bool SnowGlare = false;
+    public static bool SnowGlare = true;
 
     // Feature key for CloudUnderlight (see CivilTwilightPersistenceKey for why it lives here).
     public const string CloudUnderlightKey = "cloud_underlight";
