@@ -186,6 +186,14 @@ public static class ProbeRegistration
         ProbeRegistry.Register(new DoorSkyCoverAlphaProbe("door_alpha_wood", new IntVec3(-12, 0, -23)));
         ProbeRegistry.Register(new DoorSkyCoverAlphaProbe("door_alpha_blast", new IntVec3(0, 0, -23)));
         ProbeRegistry.Register(new DoorSkyCoverAlphaProbe("door_alpha_glass", new IntVec3(12, 0, -23)));
+        // §7b's isOpen branch (door_leak_open_close.json): the SAME wood door def at two offsets, one
+        // left closed and one forced open by the SetDoorOpen step. door_alpha_wood_closed exists only
+        // as a same-run sanity check that the closed-door formula is untouched by the new branch;
+        // door_alpha_wood_open is the actual regression pin, and DoorSkyLeakFor's isOpen check returns
+        // the identical 1f a blockLight-false door already does, so it is expected to land at
+        // door_alpha_glass's own measured value above rather than a new number.
+        ProbeRegistry.Register(new DoorSkyCoverAlphaProbe("door_alpha_wood_closed", new IntVec3(-6, 0, -43)));
+        ProbeRegistry.Register(new DoorSkyCoverAlphaProbe("door_alpha_wood_open", new IntVec3(6, 0, -43)));
         // §16: what one map-mesh dirty flag costs, per layer, in microseconds. Seven probes rather
         // than one because the question is a comparison — our three added regenerates against the
         // vanilla ones already on the same flag — and a single total would hide exactly that. The

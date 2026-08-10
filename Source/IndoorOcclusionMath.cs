@@ -96,8 +96,16 @@ public static class IndoorOcclusionMath
     //   toward zero rather than a hardcoded floor, so a fictional vault door can read as genuinely
     //   sealed. The ratio is clamped to never exceed 1, so a door *weaker* than baseline (an animal
     //   flap) does not read as more transparent than a plain wood door just for being flimsy.
-    public static float DoorSkyLeakFor(bool blockLight, float hitPoints, float baselineHitPoints, float defaultLeak)
+    //
+    //   isOpen (live Building_Door.Open) overrides both of the above: a door standing open is a gap in
+    //   the wall, not a threshold, so it leaks exactly like the doorway would with no door in it at all
+    //   — the same 1f a blockLight-false (glass) door already returns, checked first because an open
+    //   door should read as fully transparent regardless of what it is made of.
+    public static float DoorSkyLeakFor(bool blockLight, float hitPoints, float baselineHitPoints, float defaultLeak, bool isOpen)
     {
+        if (isOpen)
+            return 1f;
+
         if (!blockLight)
             return 1f;
 

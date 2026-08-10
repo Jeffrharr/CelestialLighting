@@ -777,8 +777,9 @@ reads `map.roofGrid` / `map.edificeGrid` and rewrites `mesh.colors32`.
     folded in) grades how sealed an *opaque* door is, relative to `DoorBase`'s own 160 HP
     (`BaselineDoorHitPoints`):
     ```
-    blockLight == false  ->  leak = 1                                            (glass: full pass)
-    blockLight == true   ->  leak = DoorSkyLeak * clamp01(BaselineDoorHitPoints / door.MaxHitPoints)
+    isOpen == true        ->  leak = 1                                            (open: full pass)
+    blockLight == false   ->  leak = 1                                            (glass: full pass)
+    blockLight == true    ->  leak = DoorSkyLeak * clamp01(BaselineDoorHitPoints / door.MaxHitPoints)
     ```
     A plain vanilla door sits exactly at the 160 HP baseline and reproduces the old flat behaviour byte
     for byte. Confirmed against real content rather than invented cases: Anomaly's `SecurityDoor` (800
@@ -793,6 +794,18 @@ reads `map.roofGrid` / `map.edificeGrid` and rewrites `mesh.colors32`.
     composition the Ambient Light floor below already uses. `SkyOcclusionWindow` carries the resolved
     leak as a second per-cell byte (quantized the same way `CoverAlpha` quantizes the final vertex
     alpha), so the equivalence tests below tolerate ±1/255 against the pre-quantization float.
+  - **Open/closed state (`Building_Door.Open`) is a third, independent signal, checked first.** A door
+    standing open is a gap in the wall, not a threshold, so it leaks exactly like the doorway would with
+    no door in it at all — `leak = 1` regardless of `blockLight`/`MaxHitPoints`, the same value a glass
+    door already returns. This is a *live* read (the door's current animation state), not a def-level
+    flag, so it cannot be baked once and forgotten: `Patch_DoorOpenedSkyLeak`/`Patch_DoorClosedSkyLeak`
+    postfix `Verse.MapEvents.Notify_DoorOpened`/`Notify_DoorClosed` — the only vanilla signal that a door
+    actually transitioned, as opposed to its per-frame swing animation — and call
+    `MapDrawer.MapMeshDirty(door.Position, GroundGlow, regenAdjacentCells: true, regenAdjacentSections:
+    false)`. Deliberately the scoped 4-arg overload rather than `IndoorOcclusionRedraw`'s
+    `WholeMapChanged`: a settings change is a once-per-click event, but a colony can open and close doors
+    dozens of times a minute just by walking around, and dirtying every section on the map for each one
+    would be the exact bursty-cost pattern §16's profiling table already warns about.
 - **Only ever raises the baked alpha.** Other mods legitimately write it: Dub's Skylights nulls
   `map.roofGrid` across `Regenerate` so skylit cells never take vanilla's roofed branch, and Biomes!
   Caverns transpiles the roofed test so cavern roofs read as open. Taking `max` means we can add occlusion

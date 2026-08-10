@@ -1,4 +1,5 @@
 using HarmonyLib;
+using RimWorld;
 using UnityEngine;
 using Verse;
 
@@ -235,10 +236,14 @@ public static class Patch_IndoorSkyOcclusion
 
         // blockLight/MaxHitPoints are only meaningful for an actual door; DoorSkyLeakFor's defaultLeak
         // argument is unused whenever blockLight is false, so passing settings.DoorSkyLeak here even
-        // for a glass door is harmless rather than a leak into that branch.
+        // for a glass door is harmless rather than a leak into that branch. `edifice as Building_Door`
+        // rather than a cast: IsDoor only asked about def.altitudeLayer, not the concrete type, so a
+        // non-Building_Door occupying a door layer (unusual, but not this method's contract to rule
+        // out) reads as never open rather than throwing.
         float doorLeak = isDoor
             ? IndoorOcclusionMath.DoorSkyLeakFor(
-                edifice.def.blockLight, edifice.MaxHitPoints, IndoorOcclusionMath.BaselineDoorHitPoints, settings.DoorSkyLeak)
+                edifice.def.blockLight, edifice.MaxHitPoints, IndoorOcclusionMath.BaselineDoorHitPoints,
+                settings.DoorSkyLeak, (edifice as Building_Door)?.Open ?? false)
             : 0f;
 
         window.Resolve(x, z, blocksSky, isDoor, doorLeak);

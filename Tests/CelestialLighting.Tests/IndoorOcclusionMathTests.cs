@@ -129,7 +129,7 @@ public class IndoorOcclusionMathTests
         // blockLight false is the vanilla-recognized "this does not block light" flag — a door mod
         // author already has to set it for correct vanilla LOS/glow behaviour, so a see-through door
         // (e.g. Workshop's RB_GlassAutodoor) reads as fully open regardless of how tough it is.
-        Assert.That(IndoorOcclusionMath.DoorSkyLeakFor(blockLight: false, hitPoints: 6000f, Baseline, Leak),
+        Assert.That(IndoorOcclusionMath.DoorSkyLeakFor(blockLight: false, hitPoints: 6000f, Baseline, Leak, isOpen: false),
             Is.EqualTo(1f).Within(Tolerance));
     }
 
@@ -138,7 +138,7 @@ public class IndoorOcclusionMathTests
     {
         // A plain vanilla wood/metal door sits exactly at DoorBase's own 160 HP, so this reproduces
         // the pre-per-door behaviour byte for byte.
-        Assert.That(IndoorOcclusionMath.DoorSkyLeakFor(blockLight: true, hitPoints: Baseline, Baseline, Leak),
+        Assert.That(IndoorOcclusionMath.DoorSkyLeakFor(blockLight: true, hitPoints: Baseline, Baseline, Leak, isOpen: false),
             Is.EqualTo(Leak).Within(Tolerance));
     }
 
@@ -148,8 +148,8 @@ public class IndoorOcclusionMathTests
         // Anomaly's SecurityDoor (800 HP) and Odyssey's AncientBlastDoor (6000 HP) are both far
         // tougher than baseline and leave blockLight at DoorBase's default true — they should read as
         // progressively more sealed, never hitting a hardcoded floor.
-        float securityDoorLeak = IndoorOcclusionMath.DoorSkyLeakFor(blockLight: true, hitPoints: 800f, Baseline, Leak);
-        float blastDoorLeak = IndoorOcclusionMath.DoorSkyLeakFor(blockLight: true, hitPoints: 6000f, Baseline, Leak);
+        float securityDoorLeak = IndoorOcclusionMath.DoorSkyLeakFor(blockLight: true, hitPoints: 800f, Baseline, Leak, isOpen: false);
+        float blastDoorLeak = IndoorOcclusionMath.DoorSkyLeakFor(blockLight: true, hitPoints: 6000f, Baseline, Leak, isOpen: false);
 
         Assert.Multiple(() =>
         {
@@ -165,15 +165,35 @@ public class IndoorOcclusionMathTests
     {
         // An animal flap (20 HP) is flimsier than baseline, but flimsy is not the same question as
         // transparent — the ratio clamps at 1 so it does not read as leakier than a plain wood door.
-        Assert.That(IndoorOcclusionMath.DoorSkyLeakFor(blockLight: true, hitPoints: 20f, Baseline, Leak),
+        Assert.That(IndoorOcclusionMath.DoorSkyLeakFor(blockLight: true, hitPoints: 20f, Baseline, Leak, isOpen: false),
             Is.EqualTo(Leak).Within(Tolerance));
     }
 
     [Test]
     public void DoorSkyLeakFor_ZeroHitPoints_FallsBackToTheDefaultRatherThanDividingByZero()
     {
-        Assert.That(IndoorOcclusionMath.DoorSkyLeakFor(blockLight: true, hitPoints: 0f, Baseline, Leak),
+        Assert.That(IndoorOcclusionMath.DoorSkyLeakFor(blockLight: true, hitPoints: 0f, Baseline, Leak, isOpen: false),
             Is.EqualTo(Leak).Within(Tolerance));
+    }
+
+    [Test]
+    public void DoorSkyLeakFor_OpenDoor_LeaksFullyRegardlessOfType()
+    {
+        // A door standing open is a gap in the wall, not a threshold — checked first, ahead of
+        // blockLight/hitPoints, so even Odyssey's 6000 HP AncientBlastDoor reads as fully transparent
+        // the moment a pawn swings it open.
+        Assert.That(IndoorOcclusionMath.DoorSkyLeakFor(blockLight: true, hitPoints: 6000f, Baseline, Leak, isOpen: true),
+            Is.EqualTo(1f).Within(Tolerance));
+    }
+
+    [Test]
+    public void DoorSkyLeakFor_OpenGlassDoor_StillLeaksFully()
+    {
+        // Open and blockLight-false both independently mean "fully transparent" — asserting the
+        // combination lands on the same 1f rather than, say, double-counting it keeps the two
+        // early-return branches honest about not interacting.
+        Assert.That(IndoorOcclusionMath.DoorSkyLeakFor(blockLight: false, hitPoints: 6000f, Baseline, Leak, isOpen: true),
+            Is.EqualTo(1f).Within(Tolerance));
     }
 
     // --- CentreOcclusion: interior cells are flat, everything else is the mean of its own corners ---

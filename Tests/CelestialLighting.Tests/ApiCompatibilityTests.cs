@@ -1547,6 +1547,44 @@ public class ApiCompatibilityTests
             "MapMeshFlagDefOf.GroundGlow no longer exists — IndoorOcclusionRedraw dirties this flag");
     }
 
+    [Test]
+    public void BuildingDoor_Open_Exists()
+    {
+        // Live open/closed state: DoorSkyLeakFor's isOpen argument (Patch_IndoorSkyOcclusion) reads
+        // this so an open door leaks fully regardless of its def-level blockLight/hitPoints.
+        var type = GetType("RimWorld.Building_Door");
+        Assert.That(type, Is.Not.Null, "RimWorld.Building_Door no longer exists");
+        Assert.That(type!.Properties.Any(p => p.Name == "Open" && p.GetMethod != null && p.GetMethod.IsPublic),
+            Is.True, "Building_Door.Open no longer exists — the per-door open/closed sky leak depends on it");
+    }
+
+    [Test]
+    public void MapEvents_DoorNotify_Exist()
+    {
+        // Patch_DoorOpenedSkyLeak/Patch_DoorClosedSkyLeak's hook: the only vanilla signal that a door
+        // actually transitioned open/closed, as opposed to its per-frame animation offset.
+        var type = GetType("Verse.MapEvents");
+        Assert.That(type, Is.Not.Null, "Verse.MapEvents no longer exists");
+        Assert.That(
+            type!.Methods.Any(m => m.Name == "Notify_DoorOpened" && m.IsPublic && m.Parameters.Count == 1),
+            Is.True, "MapEvents.Notify_DoorOpened(Building_Door) no longer exists or changed signature");
+        Assert.That(
+            type.Methods.Any(m => m.Name == "Notify_DoorClosed" && m.IsPublic && m.Parameters.Count == 1),
+            Is.True, "MapEvents.Notify_DoorClosed(Building_Door) no longer exists or changed signature");
+    }
+
+    [Test]
+    public void MapDrawer_MapMeshDirty_ScopedOverload_Exists()
+    {
+        // Patch_DoorOpenedSkyLeak/Patch_DoorClosedSkyLeak deliberately use the 4-arg overload, not
+        // WholeMapChanged: a single door open/close should dirty its own section (plus neighbours on a
+        // section boundary), not every section on the map.
+        var type = GetType("Verse.MapDrawer");
+        Assert.That(type, Is.Not.Null, "Verse.MapDrawer no longer exists");
+        Assert.That(type!.Methods.Any(m => m.Name == "MapMeshDirty" && m.IsPublic && m.Parameters.Count == 4),
+            Is.True, "MapDrawer.MapMeshDirty(IntVec3, ulong, bool, bool) no longer exists or changed signature");
+    }
+
     // --- Room / GridsUtility / relevantChangeTypes (§15 eaves — EaveShadowGrid,
     //     Patch_IndoorSkyOcclusion, Patch_ShadowRoofInvalidation) ---
 
