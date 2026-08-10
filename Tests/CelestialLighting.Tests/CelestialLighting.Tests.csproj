@@ -142,6 +142,11 @@
          IndoorOcclusionMath's AmbientLightSkyFraction in shape but is its own file and its own
          formula, deliberately not shared code — see its header. -->
     <Compile Include="../../Source/NativeSkyFalloffMath.cs" Link="NativeSkyFalloffMath.cs" />
+    <!-- §7d pure core (door-strength weighting for §7c's BFS): how much a door DIMS the flood's running
+         strength as it crosses, keyed off its ThingDef.BaseMaxHitPoints against a vanilla wood Door's —
+         deliberately not extra BFS distance, see the file's own header. Its own file and its own
+         formula for the same reason NativeSkyFalloffMath is not shared with IndoorOcclusionMath. -->
+    <Compile Include="../../Source/DoorLeakMath.cs" Link="DoorLeakMath.cs" />
     <!-- Subsystem 14 pure core (sun-clock reconciliation). Depends on Formulas.cs, already linked. -->
     <Compile Include="../../Source/SunClockMath.cs" Link="SunClockMath.cs" />
     <!-- Subsystem 18d pure core (limb refraction on vacuum maps). Depends on Formulas for the

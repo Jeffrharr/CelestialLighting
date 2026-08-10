@@ -135,6 +135,13 @@ public class CelestialLightingSettingsMod : Mod
         Settings.nativeSkyFalloffMaxDepth = AestheticIntSlider(listing, "  How far the glow reaches (cells, no Ambient Light)",
             Settings.nativeSkyFalloffMaxDepth, 1, 24,
             "How many cells deep the gradient above reaches before fading to nothing. Higher = the glow carries further into a room. Only used when the Ambient Light workshop mod is not installed.");
+        // LabeledSlider, not AestheticSlider: a stronger-than-wood door dimming the flood is a
+        // per-effect intensity, not one of the taste axes the preset bundle owns — an all-wood-door
+        // game must read identically at every preset, so moving this must NOT flip the preset to
+        // Custom (same reasoning as polarNightBlueStrength/purpleLightStrength above).
+        Settings.doorStrengthSensitivity = LabeledSlider(listing, "  Door strength dims the glow (no Ambient Light)",
+            Settings.doorStrengthSensitivity, 0f, 2f,
+            "How much a sturdier-than-wood door (higher max HP) dims the glow crossing it, on top of the distance falloff above — 0 turns this off, so every door dims exactly like a wood one. Wood doors themselves are never affected, at any value. Only used when the Ambient Light workshop mod is not installed.");
         listing.CheckboxLabeled("Atmospheric night glow", ref Settings.atmosphericGlow,
             "The constant starlight + airglow floor. Off = only moonlight lights the night (true pitch-black on a moonless night).");
         Settings.minNightBrightness = AestheticSlider(listing, "  Minimum night brightness", Settings.minNightBrightness, 0f, 1f);
@@ -308,9 +315,10 @@ public class CelestialLightingSettingsMod : Mod
 
     // An aesthetic-knob slider: on a real change it records that the knobs no longer match a named
     // preset. Every slider backed by a PresetKnobs field uses this — including the two minimum-
-    // brightness floors drawn up in the effects section, since a preset now sets those too. The
-    // accessibility floor and the door leak are orthogonal to the presets and keep the plain
-    // LabeledSlider, so touching them never flips the preset to Custom.
+    // brightness floors drawn up in the effects section, since a preset now sets those too. Per-effect
+    // intensity knobs that are NOT part of any preset bundle — the accessibility floor,
+    // polarNightBlueStrength/purpleLightStrength, and §7d's doorStrengthSensitivity — keep the plain
+    // LabeledSlider instead, so touching them never flips the preset to Custom.
     private float AestheticSlider(Listing_Standard listing, string label, float value, float min, float max,
         string tooltip = null)
     {

@@ -1067,6 +1067,72 @@ both would only ever double-count or fight, never improve on either alone. See �
 boundary cells, not interior" bullet for the removal and its one accepted gap: a doorway with both this
 feature and Ambient Light off gets no brightening at all, since nothing else fills that role anymore.
 
+### 7d. Door strength dims the native flood (`DoorLeakMath` / `NativeSkyFalloffGrid`)
+
+**Problem.** §7c's BFS treats every door as an equally-open threshold — a plain wood door and Anomaly's
+Security Door hand the flood on with the same one-step cost, so a bunker behind a blast door reads
+exactly as bright inside as a house behind a wood one. A sturdier door should leak less light, and
+should do so independent of what it happens to be built from: a plasteel wood-frame Door and a wood
+one are the same `ThingDef`, and a player who never builds anything but ordinary doors should see no
+change at all.
+
+**Approach.** `DoorLeakMath.CrossingMultiplier` turns "how much stronger than a wood door" into an
+exponential attenuation on the flood's *strength*, not its *distance*:
+
+```csharp
+ratio = doorMaxHitPoints / referenceMaxHitPoints;
+extraRatio = max(ratio - 1, 0);
+multiplier = clamp01(exp(-sensitivity * extraRatio));
+```
+
+`NativeSkyFalloffGrid.Rebuild` carries a second `strengths` array alongside its existing `depths` one,
+seeded at 1.0 for every unroofed cell and propagated forward as a running product — each cell's
+strength is its nearest neighbour's strength times `CrossingMultiplier` if the neighbour being entered
+is a door, or times 1 for ordinary floor. `FractionAt` multiplies `NativeSkyFalloffMath`'s existing
+depth/maxDepth falloff by this strength as a final term.
+
+- **Deliberately not extra BFS distance.** An earlier version of this feature had a stronger door cost
+  extra BFS steps, which reads as pushing the room *behind* the door farther away — a security door
+  made the room look deeper than its geometry, not just darker. What a stronger door should change is
+  how much light survives the crossing, not how far it then has to travel: the room stays exactly as
+  deep as its walls say, same as behind a plain wood door. Explicit design constraint from the feature
+  request this exists for: the door must change the flood's *initial strength*, never the number of BFS
+  steps. Depth and strength are therefore two separate arrays computed in the same pass, never folded
+  into one.
+- **`ThingDef.BaseMaxHitPoints`, not `Thing.MaxHitPoints`.** RimWorld has no stat that means "how much
+  light a door should block" — max HP is the closest existing proxy for "how substantial is this door
+  *type*", and reading it at the `ThingDef` level (`stuff: null`) means a plasteel Door and a wood Door
+  read identically, since `StatWorker.GetValueUnfinished` gates its entire stuff-factor/offset block
+  behind `req.StuffDef != null` (decompiled to confirm). Deliberate: a Security Door should leak less
+  because it *is* a sturdier door type, not because a player happened to build an ordinary one from a
+  pricier material — and pulling in stuff would need a matching table per stuff category with no way to
+  stay exhaustive against modded stuff.
+- **The reference is a wood door, and ratio 1 there is load-bearing.** `DoorStrengthReference` memoizes
+  `ThingDefOf.Door.BaseMaxHitPoints` (160, `DoorBase`'s own `statBases` override, not the 100 `StatDef`
+  default) once — defs never change at runtime, so re-deriving it on every `Rebuild` would pay a stat
+  walk this value can never actually move on. A door *weaker* than the reference (Odyssey's
+  `VacBarrier`, 100) simply keeps the flat 1.0 multiplier rather than brightening the flood — this knob
+  only ever dims, matching "standard wooden doors should behave as they do currently" from the feature
+  request that specified this. Worked examples from decompiled `BaseMaxHitPoints` values, sensitivity at
+  its default 0.5 (`DoorLeakMathTests`): `OrnateDoor` (250, ratio 1.5625) keeps ≈0.75 — a mild dimming
+  for a merely fancier door; Anomaly's `SecurityDoor` (800, ratio 5.0) keeps ≈0.135; Odyssey's
+  `AncientBlastDoor` (6000, ratio 37.5) decays to effectively opaque. Two crossings in series (nested
+  airlocks) compound multiplicatively, since `strengths` is a running product rather than a per-cell
+  lookup.
+- **`doorStrengthSensitivity` is a plain slider, not a preset-bundle knob.** An all-wood-door game must
+  read identically at every preset, so moving this must never flip the preset radio to Custom — the same
+  reasoning `polarNightBlueStrength`/`purpleLightStrength` already apply to their own per-effect
+  intensities that sit outside the Cinematic/Realistic taste axis. `LabeledSlider`, range 0–2 (0 is the
+  feature's own off-switch, reproducing the flat pre-§7d multiplier of 1 for every door regardless of
+  strength). `IndoorOcclusionRedraw.SyncTo` already forces the whole-map `GroundGlow` rebuild §7b's own
+  "Baked, not per-frame" bullet describes for `MaxDepth`/`PassThroughPercent`; it was extended to watch
+  this field too, since it feeds the identical baked alpha through `SkyFalloffSource`.
+- **Only weighs the native BFS, never the passthrough.** `SkyFalloffSource` defers to
+  `IndoorGlowPassthrough` outright whenever another mod (Ambient Light) answers — that mod's own door
+  handling is out of scope here, the same reason the two sources are never merged (§7c's "Deferral, not
+  composition" bullet). A player running Ambient Light sees no door-strength effect from this mod; the
+  settings slider's own label says so ("no Ambient Light").
+
 ## 14. Sun-clock reconciliation (`SunClockMath` / `SunClock` / `Patch_SunGlow`)
 
 **Problem.** Every visual subsystem keys on `SolarPosition.ElevationForMap` — a real

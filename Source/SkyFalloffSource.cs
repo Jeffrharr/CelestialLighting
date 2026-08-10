@@ -52,7 +52,7 @@ public static class SkyFalloffSource
         NativeSkyFalloffSettings settings = NativeSkyFalloffSettings.Current;
         float native = NativeSkyFalloffGrid.FractionAt(
             map, cell, map.skyManager.CurSkyGlow,
-            settings.MaxDepth, settings.PassThroughPercent);
+            settings.MaxDepth, settings.PassThroughPercent, settings.DoorStrengthSensitivity);
 
         return SkyFalloffArbitration.Resolve(
             fromOtherMod, ownerPresent: false, nativeEnabled: true, native);

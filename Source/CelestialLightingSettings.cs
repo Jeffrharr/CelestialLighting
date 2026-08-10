@@ -99,6 +99,12 @@ public class CelestialLightingSettings : ModSettings
     public float nativeSkyFalloffPassThroughPercent = Presets.Cinematic.NativeSkyFalloffPassThroughPercent;
     public int nativeSkyFalloffMaxDepth = Presets.Cinematic.NativeSkyFalloffMaxDepth;
 
+    // §7d door-strength weighting (DoorLeakMath) — how much a stronger-than-wood door dims the native
+    // flood as it crosses, not one of the taste axes above: an all-wood-door game must read identically
+    // regardless of preset, so this is a plain global default rather than a PresetKnobs field, the same
+    // reasoning polarNightBlueStrength/purpleLightStrength already apply to their own per-effect knobs.
+    public float doorStrengthSensitivity = DoorLeakMath.DefaultSensitivity;
+
     // --- Eclipse (drives EclipseSettings.Mode) — which eclipse flavour(s) are live. Defaults to
     //     UnnaturalOnly: reshape the darkening of the storyteller's own eclipse, fire nothing of our
     //     own, because natural eclipses are real events and no default here may alter gameplay. The
@@ -194,11 +200,16 @@ public class CelestialLightingSettings : ModSettings
         NativeSkyFalloffSettings.Current.MaxDepth = nativeSkyFalloffMaxDepth;
         NativeSkyFalloffSettings.Current.PassThroughPercent = nativeSkyFalloffPassThroughPercent;
 
+        // §7d — only ever multiplies the native flood's strength, so it is a no-op whenever the
+        // Ambient Light passthrough is answering instead (see DoorLeakMath's own header).
+        NativeSkyFalloffSettings.Current.DoorStrengthSensitivity = doorStrengthSensitivity;
+
         // §7b's alphas live in baked section meshes, not in a per-frame material, so a change here is
         // invisible until the meshes are rebuilt. Must run after the assignments above.
         IndoorOcclusionRedraw.SyncTo(
             indoorSkyOcclusion, IndoorOcclusionSettings.Current.MinIndoorBrightness,
-            NativeSkyFalloffSettings.Current.MaxDepth, NativeSkyFalloffSettings.Current.PassThroughPercent);
+            NativeSkyFalloffSettings.Current.MaxDepth, NativeSkyFalloffSettings.Current.PassThroughPercent,
+            NativeSkyFalloffSettings.Current.DoorStrengthSensitivity);
 
         // §15's caster heights are baked into the sun-shadow section meshes for the same reason, so
         // the eave toggle needs its own rebuild. Separate from the call above because the two write
@@ -240,6 +251,7 @@ public class CelestialLightingSettings : ModSettings
             Presets.Cinematic.NativeSkyFalloffPassThroughPercent);
         Scribe_Values.Look(ref nativeSkyFalloffMaxDepth, "nativeSkyFalloffMaxDepth",
             Presets.Cinematic.NativeSkyFalloffMaxDepth);
+        Scribe_Values.Look(ref doorStrengthSensitivity, "doorStrengthSensitivity", DoorLeakMath.DefaultSensitivity);
         Scribe_Values.Look(ref atmosphericGlow, "atmosphericGlow", true);
         Scribe_Values.Look(ref minNightBrightness, "minNightBrightness", Presets.Cinematic.MinNightBrightness);
         // The default moved from Both to UnnaturalOnly. Scribe_Values omits a value equal to its

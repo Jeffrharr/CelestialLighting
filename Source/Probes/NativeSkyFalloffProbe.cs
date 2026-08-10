@@ -30,27 +30,36 @@ public sealed class NativeSkyFalloffProbe : IProbe
     // One cell north of the doorway gap: local (0, -4) off the room's offset (0, 45), i.e. map centre
     // + (0, 41) — identical placement to AmbientLightDoorCellProbe's NearDoorLocalOffset, matching
     // Tests/Scenarios/native_sky_falloff.json's room exactly.
-    private static readonly IntVec3 RoomOffset = new IntVec3(0, 0, 45);
+    private static readonly IntVec3 DefaultRoomOffset = new IntVec3(0, 0, 45);
     private static readonly IntVec3 NearDoorLocalOffset = new IntVec3(0, 0, -4);
 
     private readonly Metric metric;
+    private readonly IntVec3 roomOffset;
 
     public string Name { get; }
 
-    public NativeSkyFalloffProbe(string name, Metric metric)
+    public NativeSkyFalloffProbe(string name, Metric metric) : this(name, metric, DefaultRoomOffset)
+    {
+    }
+
+    // §7d door_strength_leak.json: two copies of the same 11x11 room side by side, differing only in
+    // which door def sits in the south wall, so this needs a second room offset rather than the one
+    // native_sky_falloff.json's own room hardcodes above.
+    public NativeSkyFalloffProbe(string name, Metric metric, IntVec3 roomOffset)
     {
         Name = name;
         this.metric = metric;
+        this.roomOffset = roomOffset;
     }
 
     public float Read(Map map)
     {
-        IntVec3 cell = map.Center + RoomOffset + NearDoorLocalOffset;
+        IntVec3 cell = map.Center + roomOffset + NearDoorLocalOffset;
 
         switch (metric)
         {
             case Metric.Depth:
-                return NativeSkyFalloffGrid.DepthAt(map, cell, NativeSkyFalloffMath.DefaultMaxDepth);
+                return NativeSkyFalloffGrid.DepthAt(map, cell, NativeSkyFalloffMath.DefaultMaxDepth, DoorLeakMath.DefaultSensitivity);
             case Metric.Fraction:
                 return SkyFalloffSource.FractionAt(map, cell);
             default:

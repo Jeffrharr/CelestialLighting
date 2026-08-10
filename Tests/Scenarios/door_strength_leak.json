@@ -1,0 +1,77 @@
+{
+  "name": "door_strength_leak",
+  "saveFile": "minimal_colony.rws",
+  "description": "§7d: two copies of native_sky_falloff.json's own 11x11 roofed room, side by side in one frame, identical in every way except which door def sits in the south wall gap -- room A a plain wood Door (BaseMaxHitPoints 160, the DoorLeakMath reference, so it must leak exactly like pre-§7d), room B Odyssey's AncientBlastDoor (6000, ratio 37.5, decays to effectively opaque). Depth is expected identical between the two (door strength never changes BFS distance, only the flood's strength -- the explicit design constraint this feature shipped under), so a difference in wood_door_depth vs door_strength_depth would itself be a bug. Run WITHOUT Ambient Light, same reason native_sky_falloff.json gives, and forces the Realistic preset first for the same masking reason (Cinematic's MinIndoorBrightness floor dwarfs this term).",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "20" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "40" } },
+    { "type": "SetWeather", "args": { "weatherDef": "Clear", "instant": "true" } },
+    {
+      "type": "SetTerrain",
+      "args": { "def": "Concrete", "width": "50", "height": "20", "offset": "0,45", "clear": "true" }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "-13,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "-5,5; -4,5; -3,5; -2,5; -1,5; 0,5; 1,5; 2,5; 3,5; 4,5; 5,5; -5,-5; -4,-5; -3,-5; -2,-5; -1,-5; 1,-5; 2,-5; 3,-5; 4,-5; 5,-5; -5,-4; -5,-3; -5,-2; -5,-1; -5,0; -5,1; -5,2; -5,3; -5,4; 5,-4; 5,-3; 5,-2; 5,-1; 5,0; 5,1; 5,2; 5,3; 5,4"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Door", "stuff": "BlocksGranite", "offset": "-13,45", "layout": "cells", "clear": "false",
+        "cells": "0,-5"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "13,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "-5,5; -4,5; -3,5; -2,5; -1,5; 0,5; 1,5; 2,5; 3,5; 4,5; 5,5; -5,-5; -4,-5; -3,-5; -2,-5; -1,-5; 1,-5; 2,-5; 3,-5; 4,-5; 5,-5; -5,-4; -5,-3; -5,-2; -5,-1; -5,0; -5,1; -5,2; -5,3; -5,4; 5,-4; 5,-3; 5,-2; 5,-1; 5,0; 5,1; 5,2; 5,3; 5,4"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "AncientBlastDoor", "offset": "13,45", "layout": "cells", "clear": "false",
+        "cells": "0,-5"
+      }
+    },
+    {
+      "type": "SetRoof",
+      "args": { "def": "RoofConstructed", "width": "11", "height": "11", "offset": "-13,45" }
+    },
+    {
+      "type": "SetRoof",
+      "args": { "def": "RoofConstructed", "width": "11", "height": "11", "offset": "13,45" }
+    },
+    { "type": "LookAt", "args": { "offset": "0,45", "zoom": "34" } },
+
+    { "type": "SetFeature", "args": { "featureName": "realistic_preset", "enabled": "true" } },
+
+    { "type": "FastForward", "args": { "ticks": "250" } },
+
+    { "type": "SetTime", "args": { "hour": "12" } },
+
+    { "type": "Probe", "args": { "probeName": "wood_door_depth", "expectedValue": "2", "tolerance": "0" } },
+    { "type": "Probe", "args": { "probeName": "wood_door_fraction", "expectedValue": "0.262499988", "tolerance": "0.0001" } },
+    { "type": "Probe", "args": { "probeName": "door_strength_depth", "expectedValue": "2", "tolerance": "0" } },
+    { "type": "Probe", "args": { "probeName": "door_strength_fraction", "expectedValue": "3.11354387e-09", "tolerance": "1e-10" } },
+    { "type": "Screenshot", "args": { "fileName": "door_strength_noon.png" } },
+
+    { "type": "SetTime", "args": { "hour": "23" } },
+
+    { "type": "Probe", "args": { "probeName": "wood_door_fraction", "expectedValue": "0.0104999989", "tolerance": "0.0001" } },
+    { "type": "Probe", "args": { "probeName": "door_strength_fraction", "expectedValue": "1.24541752e-10", "tolerance": "1e-11" } },
+    { "type": "Screenshot", "args": { "fileName": "door_strength_night.png" } }
+  ]
+}

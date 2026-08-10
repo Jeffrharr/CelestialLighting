@@ -20,11 +20,18 @@ public struct NativeSkyFalloffSettings
     // up the whole room rather than grading near the door.
     public float PassThroughPercent;
 
+    // §7d: how many extra BFS steps a door adds per whole ratio point its ThingDef.BaseMaxHitPoints
+    // sits above a vanilla wood Door's — see DoorLeakMath.DoorStepCost. 0 (or below) reproduces the
+    // pre-§7d flat 1-step door cost exactly, same "floor is a true no-op" contract MaxDepth and
+    // PassThroughPercent already honour at their own floors.
+    public float DoorStrengthSensitivity;
+
     public static NativeSkyFalloffSettings Current = Defaults;
 
     public static NativeSkyFalloffSettings Defaults => new NativeSkyFalloffSettings
     {
         MaxDepth = NativeSkyFalloffMath.DefaultMaxDepth,
         PassThroughPercent = NativeSkyFalloffMath.DefaultPassThroughPercent,
+        DoorStrengthSensitivity = DoorLeakMath.DefaultSensitivity,
     };
 }

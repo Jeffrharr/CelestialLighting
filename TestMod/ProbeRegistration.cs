@@ -221,6 +221,22 @@ public static class ProbeRegistration
             new NativeSkyFalloffProbe("native_falloff_depth", NativeSkyFalloffProbe.Metric.Depth));
         ProbeRegistry.Register(
             new NativeSkyFalloffProbe("native_falloff_fraction", NativeSkyFalloffProbe.Metric.Fraction));
+        // §7d door_strength_leak.json: two rooms side by side, at (-13, 45) and (13, 45) rather than
+        // native_sky_falloff.json's single room at (0, 45) -- neither reuses native_falloff_depth /
+        // native_falloff_fraction above, since those are hardcoded to (0, 45), which this scenario
+        // leaves as open exterior ground between the two rooms and would read as "no occlusion" for
+        // the wrong reason. wood_door_* is room A (a plain wood Door, must match native_falloff_*'s
+        // OWN pinned values exactly since DoorLeakMath's reference ratio is 1 for the reference door);
+        // door_strength_* is room B (Odyssey's AncientBlastDoor, ratio 37.5). Same near-door local
+        // offset for both, so the pair is directly comparable at identical depth/geometry.
+        ProbeRegistry.Register(new NativeSkyFalloffProbe(
+            "wood_door_depth", NativeSkyFalloffProbe.Metric.Depth, new IntVec3(-13, 0, 45)));
+        ProbeRegistry.Register(new NativeSkyFalloffProbe(
+            "wood_door_fraction", NativeSkyFalloffProbe.Metric.Fraction, new IntVec3(-13, 0, 45)));
+        ProbeRegistry.Register(new NativeSkyFalloffProbe(
+            "door_strength_depth", NativeSkyFalloffProbe.Metric.Depth, new IntVec3(13, 0, 45)));
+        ProbeRegistry.Register(new NativeSkyFalloffProbe(
+            "door_strength_fraction", NativeSkyFalloffProbe.Metric.Fraction, new IntVec3(13, 0, 45)));
         // §16: what one map-mesh dirty flag costs, per layer, in microseconds. Seven probes rather
         // than one because the question is a comparison — our three added regenerates against the
         // vanilla ones already on the same flag — and a single total would hide exactly that. The
