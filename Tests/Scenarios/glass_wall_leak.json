@@ -1,0 +1,71 @@
+{
+  "name": "glass_wall_leak",
+  "saveFile": "minimal_colony.rws",
+  "description": "ReBuild: Doors and Corners (ReBuild.COTR.DoorsAndCorners, workshop 3262718980) compat, and the headline live proof of IndoorGlowPassthrough. An 11x11 roofed room whose SOUTH wall is RB_GlassWall and whose other three walls are granite, so one frame carries both the case under test and its own control. Requires that mod (and its hard dependency, Vanilla Expanded Framework) via --mod; without them RB_GlassWall does not resolve, PlaceThings reports a missing def, and every glass_* probe quietly reads the granite numbers -- a green run that tested nothing, so check the placement step actually placed before trusting the pins. WHAT IS ACTUALLY BEING TESTED, which is NOT a glass-specific code path of ours: ReBuild 1.6 transpiles GlowGrid.GroundGlowAt, replacing vanilla's roofGrid.Roofed(c) with its own HasNoNaturalLight(), which returns false for cells in its cellsNearbyGlassWalls set -- so vanilla's sky branch fires and those cells receive CurSkyGlow as real gameplay light, graded by ReBuild's own BFS. Their 1.5 assembly also patched SectionLayer_LightingOverlay.Regenerate to render that; 1.6 DROPPED that patch and relies on vanilla's overlay, which is exactly what our 7b was painting black. IndoorGlowPassthrough reads the excess of GroundGlowAt over the artificial share and caps occlusion by it, so the room lights up following ReBuild's grading with no glass-specific code on our side -- an earlier attempt at a bespoke transparent-wall leak was deleted after this scenario measured it as completely inert here. Toggling indoor_glow_passthrough is therefore the honest A/B: 7b still running, glass still treated as opaque, which is the shipped-before behaviour. Forces the Realistic preset first for the reason ambient_light_compat.json documents at length -- Cinematic's default MinIndoorBrightness (0.50) caps CapOcclusion map-wide and compresses the very contrast this reads. No door and no gap in the shell: a bare gap would make Room.UsesOutdoorTemperature true, EaveCells.IsEave would classify the whole room as an eave, and it would never reach the occlusion path at all (live-diagnosed on ambient_light_compat.json). A glass wall is impassable and airtight, so the room stays genuinely enclosed and the only way sky reaches it is the mechanism under test.",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "20" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "40" } },
+    { "type": "SetWeather", "args": { "weatherDef": "Clear", "instant": "true" } },
+    {
+      "type": "SetTerrain",
+      "args": { "def": "Concrete", "width": "34", "height": "34", "offset": "0,45", "clear": "true" }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "0,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "-5,5; -4,5; -3,5; -2,5; -1,5; 0,5; 1,5; 2,5; 3,5; 4,5; 5,5; -5,-4; -5,-3; -5,-2; -5,-1; -5,0; -5,1; -5,2; -5,3; -5,4; 5,-4; 5,-3; 5,-2; 5,-1; 5,0; 5,1; 5,2; 5,3; 5,4"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "RB_GlassWall",
+        "stuff": "BlocksGranite",
+        "offset": "0,45",
+        "layout": "cells",
+        "clear": "false",
+        "cells": "-5,-5; -4,-5; -3,-5; -2,-5; -1,-5; 0,-5; 1,-5; 2,-5; 3,-5; 4,-5; 5,-5"
+      }
+    },
+    {
+      "type": "SetRoof",
+      "args": { "def": "RoofConstructed", "width": "11", "height": "11", "offset": "0,45" }
+    },
+    { "type": "LookAt", "args": { "offset": "0,45", "zoom": "24" } },
+
+    { "type": "SetFeature", "args": { "featureName": "realistic_preset", "enabled": "true" } },
+    { "type": "FastForward", "args": { "ticks": "250" } },
+    { "type": "SetTime", "args": { "hour": "12" } },
+
+    { "type": "SetFeature", "args": { "featureName": "indoor_glow_passthrough", "enabled": "false" } },
+    { "type": "Probe", "args": { "probeName": "glass_corner", "expectedValue": "0", "tolerance": "1000000" } },
+    { "type": "Probe", "args": { "probeName": "glass_centre", "expectedValue": "0", "tolerance": "1000000" } },
+    { "type": "Probe", "args": { "probeName": "deep_corner", "expectedValue": "0", "tolerance": "1000000" } },
+    { "type": "Probe", "args": { "probeName": "granite_corner", "expectedValue": "0", "tolerance": "1000000" } },
+    { "type": "Probe", "args": { "probeName": "granite_centre", "expectedValue": "0", "tolerance": "1000000" } },
+    { "type": "Screenshot", "args": { "fileName": "glass_wall_noon_passthrough_off.png" } },
+
+    { "type": "SetFeature", "args": { "featureName": "indoor_glow_passthrough", "enabled": "true" } },
+    { "type": "Probe", "args": { "probeName": "glass_corner", "expectedValue": "0", "tolerance": "1000000" } },
+    { "type": "Probe", "args": { "probeName": "glass_centre", "expectedValue": "0", "tolerance": "1000000" } },
+    { "type": "Probe", "args": { "probeName": "deep_corner", "expectedValue": "0", "tolerance": "1000000" } },
+    { "type": "Probe", "args": { "probeName": "granite_corner", "expectedValue": "0", "tolerance": "1000000" } },
+    { "type": "Probe", "args": { "probeName": "granite_centre", "expectedValue": "0", "tolerance": "1000000" } },
+    { "type": "Screenshot", "args": { "fileName": "glass_wall_noon_passthrough_on.png" } },
+
+    { "type": "SetTime", "args": { "hour": "20" } },
+
+    { "type": "SetFeature", "args": { "featureName": "indoor_glow_passthrough", "enabled": "false" } },
+    { "type": "Probe", "args": { "probeName": "glass_corner", "expectedValue": "0", "tolerance": "1000000" } },
+    { "type": "Screenshot", "args": { "fileName": "glass_wall_dusk_passthrough_off.png" } },
+
+    { "type": "SetFeature", "args": { "featureName": "indoor_glow_passthrough", "enabled": "true" } },
+    { "type": "Probe", "args": { "probeName": "glass_corner", "expectedValue": "0", "tolerance": "1000000" } },
+    { "type": "Screenshot", "args": { "fileName": "glass_wall_dusk_passthrough_on.png" } }
+  ]
+}

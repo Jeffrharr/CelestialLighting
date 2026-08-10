@@ -143,50 +143,84 @@ public static class IndoorOcclusionMath
     // interior still ramps down across its walls (floor 0.5 gives inner corners 0.5 and a wall centre of
     // 0.25) rather than the wall flattening out at the floor value.
     //
-    // ambientLightSkyFraction is a second, independent cap of the same shape (AmbientLightCompat.
-    // SkyFractionAt, 0 when that compat is absent or off): where minIndoorBrightness is a flat,
-    // map-wide floor, this one is per-cell and graded by distance from an opening, so a doorway keeps
-    // more sky than a sealed cell three tiles past it even under the same MinIndoorBrightness. The two
+    // skyFalloffFraction is a second, independent cap of the same shape (SkyFalloffSource.FractionAt,
+    // 0 when nothing is lighting interiors): where minIndoorBrightness is a flat, map-wide floor, this
+    // one is per-cell and graded by distance from an opening, so a doorway keeps more sky than a sealed
+    // cell three tiles past it even under the same MinIndoorBrightness. The two
     // compose by Min — whichever floor currently promises more sky wins — rather than adding, so a
     // player who has raised MinIndoorBrightness for legibility never gets *less* sky than that setting
-    // already guarantees just because Ambient Light's graded value happens to be lower at that cell.
-    public static float CapOcclusion(float occlusion, float minIndoorBrightness, float ambientLightSkyFraction) =>
+    // already guarantees just because the other source's graded value happens to be lower at that cell.
+    public static float CapOcclusion(float occlusion, float minIndoorBrightness, float skyFalloffFraction) =>
         Clamp01(Min(
             Clamp01(occlusion),
-            Min(1f - Clamp01(minIndoorBrightness), 1f - Clamp01(ambientLightSkyFraction))));
+            Min(1f - Clamp01(minIndoorBrightness), 1f - Clamp01(skyFalloffFraction))));
 
-    // Re-derivation of AmbientLightFalloff.ALFUtils.ComputeUnderRoofSkyLight / ComputeFalloffNoSky,
-    // byte-for-byte against the decompiled source (issue #80) rather than reflected into, per this
-    // file's "pure core, no third-party call" discipline (see AmbientLightCompat's header for why a
-    // private method there is a weaker contract than the public fields this reads).
+    // --- The general "somebody else lit this interior" term (replaces the Ambient Light interop) ---
     //
-    // depth: their BFS distance from the nearest unroofed/unblocked cell (0 or less == not reached,
-    // i.e. unroofed or beyond their own reach — no fraction). curSkyGlow: SkyManager.CurSkyGlow, the
-    // SAME sky term §7a/§7 already floor at night — deliberately, so a genuinely pitch-black night
-    // (their own stated design: "dynamically lightens based on outdoor sky brightness") still yields a
-    // near-zero fraction here, exactly as it does in their own mod. maxDepth/passThroughPercent are
-    // their AmbientLightSettings fields, read live so a player's in-game slider change is honoured
-    // without us caching a stale copy.
-    public static float AmbientLightSkyFraction(int depth, float curSkyGlow, int maxDepth, float passThroughPercent) =>
-        AmbientLightUnderRoofSkyLight(depth, curSkyGlow, maxDepth, passThroughPercent);
+    // Supersedes a byte-for-byte re-derivation of Ambient Light's own private falloff formula, which we
+    // used to reflect their map component and settings for (issue #80). That approach worked and was
+    // wrong in shape: it fixed exactly one mod by name, broke whenever that mod refactored, and every
+    // other mod that brightens interiors would have needed its own copy of the same scaffolding. This
+    // asks a question no mod has to opt into.
+    //
+    // THE SIGNAL. Verse.GlowGrid.GroundGlowAt gates its sky term on `!map.roofGrid.Roofed(c)`, so for a
+    // roofed cell vanilla returns nothing but the artificial term — lamps, fires, cave plants, via
+    // GetAccumulatedGlowAt. Therefore, on a roofed cell:
+    //
+    //     anything in GroundGlowAt above the artificial term was put there by another mod,
+    //     and it is sky-sourced, because that is the only term vanilla suppressed.
+    //
+    // Identically 0 on an unmodded install, so it cannot move a single vertex by itself, and it picks
+    // up any mod that raises indoor glow however it does it — postfix, transpiler, or writing the grid
+    // directly — without us naming one. §7c's own native BFS is unaffected: it never goes through
+    // GroundGlowAt, so it neither feeds this term nor is shadowed by it (see SkyFalloffSource for how
+    // the two are arbitrated).
+    //
+    // WHY THE ARTIFICIAL TERM IS RECOMPUTED RATHER THAN ASKED FOR. The obvious version of this is
+    // `GroundGlowAt(c) - GroundGlowAt(c, ignoreSky: true)`, and it does not work. Ambient Light's
+    // postfix is declared `Postfix(ref float __result, GlowGrid __instance, IntVec3 c)` — it does not
+    // take `ignoreSky`, so it fires on both calls and the difference is identically zero (verified by
+    // decompiling AmbientLightFalloff.Patch_GlowForcedGround). Recomputing vanilla's own artificial
+    // formula from the accumulated glow colour dodges that entirely, because mods that brighten
+    // interiors patch GroundGlowAt, not GetAccumulatedGlowAt.
+    //
+    // WHY SUBTRACT THE LAMPS AT ALL, rather than capping on total glow. This value caps how much of the
+    // SKY's colour a vertex shows. A lamp-lit room has plenty of glow and no sky reaching it, so capping
+    // on the total would make every lit interior start taking sky colour — dawn pink on a windowless
+    // workshop. Vanilla composes the two with Max, so the honest reading of "sky beyond what the lamps
+    // already provide" is the difference, and it is 0 whenever the lamps dominate. Live-verified in
+    // Tests/Scenarios/indoor_glow_lamp.json.
 
-    private static float AmbientLightUnderRoofSkyLight(int depth, float curSkyGlow, int maxDepth, float passThroughPercent)
+    // Vanilla's own artificial-glow formula, transcribed from GlowGrid.GroundGlowAt's second half so the
+    // subtraction above is against exactly the quantity vanilla would have returned. `a == 1` is
+    // vanilla's fully-lit sentinel and short-circuits to 1 before the channel maths; otherwise it takes
+    // the brightest channel, scales by 3.6/255, and clamps at 0.5 (vanilla's own ceiling on artificial
+    // ground glow, which is why a lamp never reads as bright as open daylight).
+    public static float ArtificialGlow(byte r, byte g, byte b, byte a)
     {
-        if (curSkyGlow <= 0.001f)
-            return 0f;
+        if (a == 1)
+            return 1f;
 
-        return Clamp01(curSkyGlow * AmbientLightFalloffNoSky(depth, maxDepth, passThroughPercent));
+        float brightest = r > g ? r : g;
+        if (b > brightest)
+            brightest = b;
+
+        float scaled = brightest / 255f * 3.6f;
+        return scaled < 0.5f ? scaled : 0.5f;
     }
 
-    private static float AmbientLightFalloffNoSky(int depth, int maxDepth, float passThroughPercent)
+    // The sky-sourced share of a roofed cell's glow: whatever another mod added on top of the lamps.
+    // Gated on `roofed` because that is what makes the subtraction meaningful — on an UNROOFED cell
+    // vanilla puts CurSkyGlow into groundGlow itself, and the difference would report the ordinary
+    // outdoor sky as though a mod had injected it, capping occlusion everywhere outdoors. §7b never
+    // occludes an unroofed cell anyway, so 0 is both the safe and the correct answer there.
+    public static float IndoorSkyGlowFraction(float groundGlow, float artificialGlow, bool roofed)
     {
-        if (depth <= 0)
+        if (!roofed)
             return 0f;
 
-        int clampedMaxDepth = maxDepth < 1 ? 1 : maxDepth;
-        float passThrough01 = Clamp01(passThroughPercent / 100f);
-        float depthFraction = Clamp01((float)depth / clampedMaxDepth);
-        return Clamp01(passThrough01 * (1f - depthFraction));
+        float excess = groundGlow - artificialGlow;
+        return excess <= 0f ? 0f : Clamp01(excess);
     }
 
     // Resolve a final vertex alpha, never *lowering* what vanilla baked. Only-ever-raising matters

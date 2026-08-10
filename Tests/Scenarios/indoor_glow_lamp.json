@@ -1,0 +1,206 @@
+{
+  "name": "indoor_glow_lamp",
+  "saveFile": "minimal_colony.rws",
+  "description": "The lamp regression for IndoorGlowPassthrough (the general replacement for AmbientLightCompat). That term reports `sky = max(0, GroundGlowAt - artificial)` on a roofed cell, and the danger is the subtraction: capping on TOTAL glow instead would make any lamp-lit interior start taking the sky's colour, so a windowless workshop would go pink at dawn. A sealed, roofed 25x25 granite room with a TorchLamp at its centre. MEASURED RESULT beside the lamp: ground 0.5, artificial 0.5, sky 0 -- the lamp lights the room and contributes no sky, which is the assertion. In the far corner: ground 0, sky 0. THREE AUTHORING TRAPS, all hit for real while writing this. (1) TorchLamp, not StandingLamp: StandingLamp needs a powered conduit and would sit dark, making every probe read 0 and the scenario pass while testing nothing. TorchLamp carries a bare CompProperties_Glower with no power or fuel comp. (2) The room is 25x25 because glowRadius is 10 -- in the 11x11 room this started as, the 'far' cell was inside the glow and the contrast did not exist. (3) This scenario reproducibly timed out at 900s until the harness learned to suppress blocking modals. FastForward advances the clock far enough for RimWorld to raise Dialog_NamePlayerFactionAndSettlement, whose forcePause stops TicksGame -- so FastForward waited for a tick target that could never arrive, and the run died with the last log line being an unrelated step. The harness now refuses such a window at WindowStack.Add and records it in ScenarioReport.DismissedDialogs. Note the prompt is raised on the GAME's schedule, so a green run here with DismissedDialogs empty means it simply did not fire this time -- it is not evidence about the guard, which has its own self-test in the harness (Scenarios/dialog_guard.json). Probes read the glow grid directly, so the preset (which only scales rendered alpha) buys this scenario nothing anyway. Run standalone -- PlaceThings leaves map residue -- and run it TWICE at the harness level: once with only CelestialLighting (every sky term pins 0, as above) and once with Ambient Light (f1995.ambientlight, 3574400467) loaded, where the far corner is where its redistribution appears while the cell beside the lamp must STILL read 0, because the lamp dominates the Max vanilla composes them with.",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "20"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Concrete",
+        "width": "40",
+        "height": "40",
+        "offset": "0,45",
+        "clear": "true"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "0,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "-12,12; -12,-12; -11,12; -11,-12; -10,12; -10,-12; -9,12; -9,-12; -8,12; -8,-12; -7,12; -7,-12; -6,12; -6,-12; -5,12; -5,-12; -4,12; -4,-12; -3,12; -3,-12; -2,12; -2,-12; -1,12; -1,-12; 0,12; 0,-12; 1,12; 1,-12; 2,12; 2,-12; 3,12; 3,-12; 4,12; 4,-12; 5,12; 5,-12; 6,12; 6,-12; 7,12; 7,-12; 8,12; 8,-12; 9,12; 9,-12; 10,12; 10,-12; 11,12; 11,-12; 12,12; 12,-12; -12,-11; 12,-11; -12,-10; 12,-10; -12,-9; 12,-9; -12,-8; 12,-8; -12,-7; 12,-7; -12,-6; 12,-6; -12,-5; 12,-5; -12,-4; 12,-4; -12,-3; 12,-3; -12,-2; 12,-2; -12,-1; 12,-1; -12,0; 12,0; -12,1; 12,1; -12,2; 12,2; -12,3; 12,3; -12,4; 12,4; -12,5; 12,5; -12,6; 12,6; -12,7; 12,7; -12,8; 12,8; -12,9; 12,9; -12,10; 12,10; -12,11; 12,11"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "TorchLamp",
+        "offset": "0,45",
+        "layout": "cells",
+        "clear": "false",
+        "cells": "0,0"
+      }
+    },
+    {
+      "type": "SetRoof",
+      "args": {
+        "def": "RoofConstructed",
+        "width": "25",
+        "height": "25",
+        "offset": "0,45"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "0,45",
+        "zoom": "30"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "realistic_preset",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "FastForward",
+      "args": {
+        "ticks": "250"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "lamp_near_ground",
+        "expectedValue": "0",
+        "tolerance": "1000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "lamp_near_artificial",
+        "expectedValue": "0",
+        "tolerance": "1000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "lamp_near_sky",
+        "expectedValue": "0",
+        "tolerance": "1000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "lamp_far_ground",
+        "expectedValue": "0",
+        "tolerance": "1000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "lamp_far_artificial",
+        "expectedValue": "0",
+        "tolerance": "1000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "lamp_far_sky",
+        "expectedValue": "0",
+        "tolerance": "1000000"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "indoor_glow_lamp_noon.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "lamp_near_ground",
+        "expectedValue": "0",
+        "tolerance": "1000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "lamp_near_artificial",
+        "expectedValue": "0",
+        "tolerance": "1000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "lamp_near_sky",
+        "expectedValue": "0",
+        "tolerance": "1000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "lamp_far_ground",
+        "expectedValue": "0",
+        "tolerance": "1000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "lamp_far_artificial",
+        "expectedValue": "0",
+        "tolerance": "1000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "lamp_far_sky",
+        "expectedValue": "0",
+        "tolerance": "1000000"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "indoor_glow_lamp_midnight.png"
+      }
+    }
+  ]
+}
