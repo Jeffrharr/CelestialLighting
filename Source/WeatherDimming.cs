@@ -260,9 +260,15 @@ public static class WeatherDimming
     // itself before calling CloudUnderlightMath.WarmthMultiplier at all; the check here is only
     // defense in depth (mirroring CloudOpacityFor's own shape) for the unlikely case something else
     // ever calls this directly.
+    //
+    // TWO FLAGS, EITHER OF WHICH KEEPS THIS ALIVE. §23b's additive layer (CloudUnderlightLayer) reads
+    // the same altitude for the same geometry, and the two lanes are independently switchable — so
+    // gating on §23's flag alone would make "flat lane off, spatial lane on" silently return a
+    // ground-hugging 0 and kill the layer for a reason no setting names. The guard means "no consumer
+    // of cloud altitude is on", which is the thing it was always standing for.
     public static float CloudAltitudeMetresFor(Map map)
     {
-        if (!CelestialLightingFeatures.CloudUnderlight)
+        if (!CelestialLightingFeatures.CloudUnderlight && !CelestialLightingFeatures.CloudUnderlightLayer)
             return 0f;
 
         WeatherManager weather = map?.weatherManager;

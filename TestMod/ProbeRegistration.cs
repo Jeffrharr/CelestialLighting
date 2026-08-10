@@ -139,6 +139,17 @@ public static class ProbeRegistration
             new CloudUnderlightProbe("cloud_underlight", CloudUnderlightProbe.Metric.Multiplier));
         ProbeRegistry.Register(new CloudUnderlightProbe(
             "cloud_underlight_altitude", CloudUnderlightProbe.Metric.AltitudeMetres));
+        // §23b (issue #88 option 2), the spatial lane. cloud_underlight_layer is what reaches the
+        // material; cloud_underlight_cover says which of the two cloud sources was live (§13's deck
+        // opacity or §22's Clear-weather fraction, which §23's own probes above cannot see at all);
+        // and cloud_underlight_structure is the field's peak residual, the number that must go to zero
+        // at BOTH a clear sky and a solid overcast.
+        ProbeRegistry.Register(new CloudUnderlightLayerProbe(
+            "cloud_underlight_layer", CloudUnderlightLayerProbe.Metric.Strength));
+        ProbeRegistry.Register(new CloudUnderlightLayerProbe(
+            "cloud_underlight_cover", CloudUnderlightLayerProbe.Metric.Fraction));
+        ProbeRegistry.Register(new CloudUnderlightLayerProbe(
+            "cloud_underlight_structure", CloudUnderlightLayerProbe.Metric.FieldPeak));
         // The three map-kind gates themselves, so a cavern scenario pins the DECISION and not just its
         // consequences — every gated effect also reads zero for unrelated reasons (wrong time of day,
         // no active condition), so the effect probes alone cannot say whether a gate actually fired.
@@ -427,6 +438,13 @@ public static class ProbeRegistration
         FeatureRegistry.Register(
             CelestialLightingFeatures.CloudUnderlightKey,
             enabled => CelestialLightingFeatures.CloudUnderlight = enabled);
+        // §23b ships OFF, so this is registered with defaultEnabled false — same as the two dev
+        // overrides below, and for a related reason: the resting state has to be the pre-feature one
+        // until the live A/B settles issue #88's option-2 question.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.CloudUnderlightLayerKey,
+            enabled => CelestialLightingFeatures.CloudUnderlightLayer = enabled,
+            defaultEnabled: false);
         // Not a CelestialLightingFeatures flag: forces CloudCoverClock.FractionForMap's result to a
         // fixed constant so a scenario gets a specific, reproducible cloud fraction on demand instead
         // of depending on which absolute year the harness's clock jump happened to land in (see

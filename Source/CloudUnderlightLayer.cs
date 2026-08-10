@@ -1,0 +1,121 @@
+using RimWorld;
+using Verse;
+
+namespace CelestialLighting;
+
+// The thin adapter for §23b (issue #88 option 2): pulls the live values the pure layer needs — how
+// much of the sky is cloud, how high its base is, where the sun is, and whether there is any air —
+// and answers the two questions the overlay asks each frame: how strong is the underlit-cloud layer,
+// and what colour is it.
+//
+// SHARED READ, the same discipline as SnowGlare.AlphaFor and WeatherDimming.DimmingFor: the probe and
+// the draw hook both come through here, so a harness reading can never disagree with what was
+// actually drawn. That matters more here than usual — issue #88's open question for option 2 is
+// whether spatial warm patches read as sky drama or as stains on the ground, and a probe measuring a
+// different number than the screen shows would make that question unanswerable.
+public static class CloudUnderlightLayer
+{
+    // The strength knob actually used, seeded from the pure core's starting guess. Mutable ONLY so a
+    // live harness sweep can move it within one RimWorld boot, exactly the dev seam
+    // SnowGlare.IntensityScale opened for the same kind of question: "at what strength does this stop
+    // reading as underlit cloud and start reading as blotches" is a question about several values of
+    // one constant, and rebuilding the mod per value would compare frames from different processes.
+    //
+    // Nothing in the shipped mod writes it, so a player's game always runs the calibrated default.
+    public static float AmplitudeScale = CloudUnderlightMath.LayerAmplitude;
+
+    // How much of this map's sky is cloud right now, in [0, 1] — the field's own input.
+    //
+    // TWO SOURCES, AND THEY CANNOT BOTH BE LIVE. §13 classifies a WeatherDef's deck opacity and scores
+    // Clear as exactly 0 on both its axes; §22 invents a fractional cloud amount that only exists
+    // WHILE the weather is Clear. So the two are mutually exclusive by construction — the same
+    // property Patch_CloudCoverSky's header records for why it never fights Patch_WeatherDimming —
+    // and taking the larger of them is a max over a pair that always has a zero in it, not a blend of
+    // two competing opinions.
+    //
+    // Reading BOTH is the whole reason §23b can do something §23 cannot. §23 keys on §13's opacity
+    // alone, so it is silent on a Clear day by construction; issue #88's most common real sunset — a
+    // partly-cloudy clear evening — is exactly the case where structure is everything and the flat
+    // lane has nothing to say.
+    public static float CloudFractionFor(Map map)
+    {
+        float deck = WeatherDimming.CloudOpacityFor(map);
+        if (deck > 0f)
+            return deck;
+
+        return map.weatherManager?.curWeather == WeatherDefOf.Clear
+            ? CloudCoverClock.FractionForMap(map)
+            : 0f;
+    }
+
+    // The additive layer's strength for this map right now, in [0, AmplitudeScale]. Exactly 0 whenever
+    // the layer must not draw at all, which the overlay reads as "make no draw call" rather than as
+    // "draw a transparent quad".
+    //
+    // THE GATES ARE ORDERED BY COST TIMES SELECTIVITY, NOT BY THE ORDER THE PHYSICS READS — the same
+    // discipline §24 arrived at, and it matters more here. This runs once per frame for as long as a
+    // save is loaded, and the honest thing to notice about §23b is that it can only ever draw during
+    // the few minutes a day the sun spends inside the below-horizon glow window. Every other frame of
+    // the year has to cost almost nothing.
+    public static float StrengthFor(Map map)
+    {
+        // (1) Feature flag. One bool, and "off" has to mean the draw call does not happen — that is
+        // what makes the harness A/B a real baseline rather than a picture of the mod being absent.
+        if (!CelestialLightingFeatures.CloudUnderlightLayer)
+            return 0f;
+
+        if (map?.skyManager == null)
+            return 0f;
+
+        // (2) THE SUN'S ELEVATION, and it is by far the most selective question available. The glow
+        // window runs from the horizon down to the deck's own shadow entry, which even a 10 km cirrus
+        // caps at ~3.2 degrees and §23's own fade floor caps at 6 — so the layer is structurally dead
+        // for all but a few minutes a day. Asking here, against the widest possible window, skips the
+        // weather walk for every daytime and every night frame without needing to know the altitude
+        // that would set the real window. GeometryMemo already has this value for the frame.
+        float elevation = SolarPosition.ElevationForMap(map);
+        if (elevation >= 0f || elevation <= SkyColorTemperature.NightFadeFloorDegrees)
+            return 0f;
+
+        // (3) Map kind. A cavern or a pocket map has no sky to put cloud in, and an unnatural darkness
+        // has blacked out the one it does have — the same pair §8's own patch checks, for the same
+        // reason (DESIGN.md §17).
+        if (!MapSky.HasSky(map) || MapSky.SkyBlackedOut(map))
+            return 0f;
+
+        // (4) Cloud, and only now: the weather walk is the expensive read here (WeatherDimming's own
+        // header records that CloudOpacityFor is deliberately un-memoized), and on a Clear map it is
+        // followed by §22's hourly-cached fraction.
+        float fraction = CloudFractionFor(map);
+        if (fraction <= 0f)
+            return 0f;
+
+        return CloudUnderlightMath.LayerStrengthWithAmplitude(
+            elevation,
+            WeatherDimming.CloudAltitudeMetresFor(map),
+            fraction,
+            AmplitudeScale,
+            Vacuum.InVacuumForMap(map));
+    }
+
+    // The colour the layer adds: §8's OWN target colour at this elevation, not a second reddening
+    // model of our own.
+    //
+    // This is the same discipline §23 kept when it chose to modulate §8's tint rather than introduce a
+    // colour target — see DESIGN.md §23 — and it is worth being explicit that §23b's novelty is
+    // spatial, not chromatic. Light reaching a cloud base from below has grazed a very long
+    // atmospheric path, and §8's curve at a below-horizon elevation is already this codebase's one
+    // canonical answer for what a path that long does to sunlight. A private "even redder than §8"
+    // curve here would be a second opinion about the same physics, which is exactly the drift
+    // DESIGN.md §20/§20d warns about for mired space.
+    public static SkyColorTemperature.Rgb TintFor(Map map)
+    {
+        float elevation = SolarPosition.ElevationForMap(map);
+        return SkyColorTemperature.SkyColorForElevation(
+            elevation,
+            SiteAltitude.PressureFractionForMap(map),
+            SiteAltitude.AerosolFractionForMap(map),
+            SiteAltitude.AngstromExponentForMap(map),
+            Vacuum.InVacuumForMap(map));
+    }
+}
