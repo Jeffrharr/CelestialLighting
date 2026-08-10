@@ -1,0 +1,223 @@
+{
+  "name": "snow_glare",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "55"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "5"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "realistic_preset",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetSnow",
+      "args": {
+        "depth": "1",
+        "width": "128",
+        "height": "128",
+        "anchor": "64,64"
+      }
+    },
+    {
+      "type": "SetSnow",
+      "args": {
+        "depth": "1",
+        "width": "128",
+        "height": "128",
+        "anchor": "64,186"
+      }
+    },
+    {
+      "type": "SetSnow",
+      "args": {
+        "depth": "1",
+        "width": "128",
+        "height": "128",
+        "anchor": "186,64"
+      }
+    },
+    {
+      "type": "SetSnow",
+      "args": {
+        "depth": "1",
+        "width": "128",
+        "height": "128",
+        "anchor": "186,186"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Fog"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "surface_cavity_gain",
+        "expectedValue": "2.2422",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "snow_glare_excess",
+        "expectedValue": "0.9732",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "snow_glare",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "snow_glare_alpha",
+        "expectedValue": "0.0000",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "glare_overcast_noon_off.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "snow_glare",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "snow_glare_alpha",
+        "expectedValue": "0.0532",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "glare_overcast_noon_on.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "snow_glare_strong",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "snow_glare_alpha",
+        "expectedValue": "0",
+        "tolerance": "1000000"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "glare_overcast_noon_strong.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "snow_glare_strong",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "snow_glare_excess",
+        "expectedValue": "0.0000",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "snow_glare_alpha",
+        "expectedValue": "0.0000",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "glare_clear_noon_on.png"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Fog"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "snow_glare_alpha",
+        "expectedValue": "0.0000",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "type": "Profile",
+      "args": {
+        "name": "snow_glare_perf",
+        "prefix": "CelestialLighting",
+        "frames": "1200",
+        "timeSpeed": "superfast"
+      }
+    }
+  ]
+}

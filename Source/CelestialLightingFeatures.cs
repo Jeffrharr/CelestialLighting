@@ -345,6 +345,24 @@ public static class CelestialLightingFeatures
     // right but is a persistent change to the game's darkest maps (DESIGN.md §21).
     public static bool SnowAlbedo = true;
 
+    // Feature key for SnowGlare (see CivilTwilightPersistenceKey for why the const lives here).
+    public const string SnowGlareKey = "snow_glare";
+
+    // §24 snow-glare bloom (issue #90), PROTOTYPE — default OFF, which is not this file's habit and
+    // is the point. Every other flag here ships on and exists as a harness A/B axis; this one ships
+    // off because the open question in #90 is not whether the maths is right but whether a static
+    // additive wash READS as brightness at all in a fixed-exposure top-down game, or merely as a
+    // washed-out screen. Until a live A/B answers that, no subscriber should get it by surprise.
+    //
+    // What it does: §21's daytime cavity can amplify diffuse light past what SkyColorSet.sky can
+    // express (a multiply whose brightest palette is already (1,1,1)), so a snowy overcast currently
+    // clamps to clear-day parity and the inversion §21 exists to demonstrate — snowy overcast
+    // BRIGHTER than snowy clear sky — flattens to a tie. SnowGlareOverlay draws the clamped-away
+    // remainder as one additive full-map quad. When off, SnowGlare.AlphaFor returns 0, the overlay
+    // returns before its draw call, and rendering is bit-identical to pre-§24 — the faithful baseline
+    // for the A/B, and a genuinely zero standing cost on every map that never turns it on.
+    public static bool SnowGlare = false;
+
     // Feature key for CloudUnderlight (see CivilTwilightPersistenceKey for why it lives here).
     public const string CloudUnderlightKey = "cloud_underlight";
 

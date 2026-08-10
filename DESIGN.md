@@ -6670,6 +6670,132 @@ Two cross-cutting settings ideas that span the subsystems above:
 All tunables persist via the mod's `ModSettings`; the preset buttons just write bundles of those
 same values, so a preset is never a separate code path.
 
+## 24. Snow-glare bloom — the additive pass (`SnowGlareMath` / `SnowGlare` / `SnowGlareOverlay`, issue #90)
+
+**Status: PROTOTYPE, shipped OFF.** Everything below is built, live-verified and measured; whether it
+should default on is a taste question this section deliberately does not answer. It is the only flag
+in `CelestialLightingFeatures` that ships `false`.
+
+**Problem.** §21 claims a snowy *overcast* is brighter than a snowy *clear* sky — the counterintuitive
+inversion the whole subsystem exists to demonstrate. §21 cannot render it. `SkyColorSet.sky` is a
+multiply into `MatBases.LightOverlay.color` and vanilla's brightest palette is Clear's `(1,1,1)`,
+i.e. "do not darken", so `AlbedoCavityMath.RecoveredDimming` clamps at zero dimming and the ordering
+flattens to a tie. Issue #90 records that boundary; this section is the attempt to cross it.
+
+**The shipped quantity is the RESIDUAL, not the gain.** The obvious implementation — draw glare
+proportional to `cavityGain` — would double-count what §21 already delivers through the multiply lane
+and would fire on maps where that lane has headroom to spare. `SnowGlareMath.UndrawableExcess` instead
+returns exactly what `RecoveredDimming`'s clamp discarded: `(1 - dimming) * cavityGain - 1`, floored
+at zero. So the two lanes **partition one product** rather than both rendering it —
+
+| condition | multiply lane | additive lane |
+|---|---|---|
+| bare ground | renders all of it | exactly 0 (gain is 1, nothing overflows) |
+| snowy clear sky | renders all of it | exactly 0 (1.07× fits under the ceiling) |
+| snowy overcast | renders up to parity | the remainder |
+
+— and neither needs to know the other exists at draw time. `SnowGlareMathTests` asserts the partition
+directly (no gap, no overlap, and the two summing back to the unclamped product), which is why that
+file compiles `AlbedoCavityMath` alongside its own subject.
+
+**Cheap by shape, not by tuning, and that is the whole reason it is a quad.** The expensive design for
+a snow effect is per-cell: a `SectionLayer` subscribing to `MapMeshFlagDefOf.Snow`, a flag
+`SnowGrid.CheckVisualOrPathCostChange` raises constantly during snowfall — exactly what §16's ledger
+(issues #20, #60) says to cost before building. §24 needs none of it, because **§21's model is already
+a whole-map areal mean** (`SurfaceBuildup` reads `TotalDepth / Area`). There is no per-cell
+information in the quantity being drawn, so one uniform quad is not a compromise on the model, it is
+its resolution. Per frame: one `Graphics.DrawMesh` against `MeshPool.wholeMapPlane`, no mesh
+regeneration, no dirty flag, no allocation after startup, and the material colour written only when
+the alpha actually moves.
+
+**Altitude is load-bearing, and the obvious choice is wrong.** `AltitudeLayer.Weather` (31) — where
+vanilla's own weather overlays draw — sits directly below `LightingOverlay` (32), so anything drawn
+there is multiplied by the sky colour afterwards. For an additive pass whose purpose is to exceed
+what that multiply can express, that is self-defeating. A Weather-altitude build was actually run
+before this was noticed, and it is worth recording that it did **not** render nothing: it measured
+ΔE 19.79, because an overcast daytime palette is a ~0.8 multiply and passes most of the addition
+through. The failure is conditional rather than total — the attenuation tracks the palette, so it
+bites hardest where the sky is darkest and glare would *fade as the deck thickened*, which is
+backwards. `VisEffects` (33) is above `LightingOverlay` and below `FogOfWar`, the same pair §11a's
+curtain needed. Staying below `FogOfWar` is right for glare specifically where it was wrong for the
+aurora: an aurora is sky and is not hidden by a player's ignorance of terrain, but glare is light
+bouncing off *ground*.
+
+### The bug the offline tests could not catch
+
+The first cut scaled the alpha by `CurSkyGlow` alone, on the reasoning that sky glow goes to zero
+after dusk and would gate the effect off at night for free. **It does not.** §7 holds a night floor of
+starlight, airglow and moonlight, and §21 *amplifies that floor over snow*
+(`NightRadiance.FloorGlowFor` multiplies it by the same cavity gain). On a snowed-in overcast night
+the harness read a live alpha of **0.0372** where the scenario pinned 0 — §21 was being paid for twice,
+once through its multiplicative night arm and again through this additive one, in exactly the
+conditions the night arm was built for.
+
+The offline test suite passed throughout, because it asserted "night is zero" by feeding `skyGlow`
+0 — a value that never occurs on a snowy map. `SnowGlareMath.DaylightAboveNightFloor` is the fix:
+scale by `skyGlow - nightFloorGlow`, floored at zero. That is the *right* quantity rather than a
+convenient one — the floor is precisely the light §21 has already amplified, so what remains above it
+is precisely the light it has not. No daytime/night branch, no second copy of §6b's
+`LightingSun`→`LightingMoon` threshold to keep in sync, and a continuous ramp through dusk.
+
+### Live verification
+
+`Tests/Scenarios/snow_glare.json`, latitude 55, day 5, Cinematic preset, full-map fresh snow (four
+tiled `SetSnow` patches — the harness's per-call cell cap is 128×128 and the fixture is 250×250), Fog
+at noon. `surface_cavity_gain` **2.2422**, `snow_glare_excess` **0.9732** — a 97% overflow, which is
+the undrawable 1.92× of issue #90's table appearing as a measured number.
+
+| capture | condition | `snow_glare_alpha` | median CIELAB ΔE vs off |
+|---|---|---|---|
+| `glare_overcast_noon_on.png` | Fog, noon, calibrated | 0.0532 | **5.13** — obvious |
+| `glare_overcast_noon_strong.png` | Fog, noon, swept to 0.18 | 0.1595 | **14.87** — obvious |
+| `glare_clear_noon_on.png` | Clear, noon | **0.0000** | n/a — the partition holds live |
+| (night, Fog, hour 1) | after the floor fix | **0.0000** | n/a — no double-count |
+
+**THE INVERSION IS DRAWABLE, AND THE PRICE IS NOW MEASURED RATHER THAN GUESSED.** Comparing mean frame
+colour, snowy clear sits at `rgb(162, 144, 130)`. At the calibrated strength the snowy overcast reaches
+only `rgb(144, 132, 122)` — still *darker* than clear, so #90's ordering is **not** restored. At the
+swept strength it reaches `rgb(169, 157, 147)` and **does** exceed clear, i.e. the inversion renders.
+So the answer to the ticket's open question is a number: the effect needs roughly ΔE 15 to make
+overcast visibly out-brighten clear, against a mod whose largest shipped effect to date is §20b
+pollution at 6.79, and at that strength it reads as a bright hazy whiteout with visibly flattened
+terrain contrast. An earlier accidental build at ΔE 19.79 read as milky haze outright.
+
+That is the trade #90 asked to have quantified, and it is genuinely two-sided rather than a
+disappointment: a whiteout *is* what standing on snow under a deck looks like, and flattened contrast
+is §21's own stated physics (the cavity restores brightness and destroys contrast — "that asymmetry is
+the whiteout"). Whether RimWorld's fixed exposure makes it read as bright or as washed out is the call
+this section leaves open, with frames committed to `Tests/Screenshots/` so it can be made by looking.
+
+### Performance
+
+The standing cost is what matters here and it is not the aurora's profile. §11a is rare and
+time-limited, so its per-frame cost amortises over how seldom it runs; snow glare on an ice sheet is
+every daylight frame, all year. Profiled over 1201 frames:
+
+```
+CelestialLighting.Patch_SnowGlareDraw:Postfix   avgMsPerFrame 0.0564   maxMsPerFrame 0.9252
+                                                callsPerFrame 2.00     0.339% of a 60 fps frame
+```
+
+`callsPerFrame` 2.00 is `GameConditionManagerDraw` recursing into its parent manager; the identity
+guard early-returns on one of the two, so the real work is ~56 µs on the pass that draws — and per
+this repo's own rule about call counts including early returns, the mean-per-call figure understates
+that. **Almost none of it is the draw call.** The cost is `SnowGlare.AlphaFor` walking
+`WeatherDimming.CloudOpacityFor`, which `MapSky`'s header records as deliberately un-memoized, and
+walking it **twice**: once via `UndrawableExcessFor` and again inside `NightRadiance.FloorGlowFor` →
+`SurfaceBuildup.CavityGainFor`. That redundancy is an artifact of the night-floor fix and is the
+obvious thing to remove (a `FrameStamp` memo, per issue #12's pattern) if this ever ships on.
+
+### Known limitation, recorded rather than hidden
+
+`SectionLayer_IndoorMask` draws between `Weather` and `VisEffects` (measured, per §11a's altitude
+note), so the quad washes over roofed interiors that should see no outdoor glare at all. It is **not**
+fixable by moving altitude — below the mask is also below `LightingOverlay`, which is the fatal case
+above — so it needs a real answer: a masked mesh, or a per-room term. Deliberately left until the look
+question above has a verdict, since a prototype that may be deleted should not first grow a second
+subsystem.
+
 ## Conflict risk
 
 Decompiled the user's local Dub's Skylights 1.6 copy (`Dubwise.DubsSkylights`) — its patches
