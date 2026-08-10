@@ -3,7 +3,7 @@ using System.Collections.Generic;
 namespace CelestialLighting.Tests;
 
 /// <summary>
-/// Offline coverage for SnowGlareMaskMath.cs — §24's roof mask (issue #90). No RimWorld/Unity
+/// Offline coverage for OpenSkyMaskMath.cs — §24's roof mask (issue #90). No RimWorld/Unity
 /// assembly required.
 ///
 /// The mask decides which cells the glare quad covers, and its failure mode is quiet: an off-by-one
@@ -12,7 +12,7 @@ namespace CelestialLighting.Tests;
 /// pinned here rather than left to the live A/B.
 /// </summary>
 [TestFixture]
-public class SnowGlareMaskMathTests
+public class OpenSkyMaskMathTests
 {
     // Builds a grid from row strings, '#' roofed and '.' open, top row first in the array's own
     // order — so the literal in each test reads as a little map.
@@ -32,18 +32,18 @@ public class SnowGlareMaskMathTests
     [Test]
     public void AnOpenMap_IsOneFullWidthRunPerRow_AndReportsAsWholeMap()
     {
-        List<SnowGlareMaskMath.Run> runs = SnowGlareMaskMath.UnroofedRuns(
+        List<OpenSkyMaskMath.Run> runs = OpenSkyMaskMath.UnroofedRuns(
             Grid("....", "....", "...."), 4, 3);
 
         Assert.That(runs.Count, Is.EqualTo(3), "one maximal run per row");
-        foreach (SnowGlareMaskMath.Run run in runs)
+        foreach (OpenSkyMaskMath.Run run in runs)
         {
             Assert.That(run.XStart, Is.EqualTo(0));
             Assert.That(run.XEnd, Is.EqualTo(3));
             Assert.That(run.Width, Is.EqualTo(4));
         }
 
-        Assert.That(SnowGlareMaskMath.CoversWholeMap(runs, 4, 3), Is.True,
+        Assert.That(OpenSkyMaskMath.CoversWholeMap(runs, 4, 3), Is.True,
             "nothing roofed, so the caller should fall back to the shared whole-map plane");
     }
 
@@ -52,7 +52,7 @@ public class SnowGlareMaskMathTests
     [Test]
     public void ARoofInTheMiddle_SplitsTheRow_WithNoCellLeakingOnEitherSide()
     {
-        List<SnowGlareMaskMath.Run> runs = SnowGlareMaskMath.UnroofedRuns(
+        List<OpenSkyMaskMath.Run> runs = OpenSkyMaskMath.UnroofedRuns(
             Grid("..##.."), 6, 1);
 
         Assert.That(runs.Count, Is.EqualTo(2));
@@ -63,7 +63,7 @@ public class SnowGlareMaskMathTests
         Assert.That(runs[1].XStart, Is.EqualTo(4), "and resume one cell past it");
         Assert.That(runs[1].XEnd, Is.EqualTo(5));
 
-        Assert.That(SnowGlareMaskMath.CoversWholeMap(runs, 6, 1), Is.False);
+        Assert.That(OpenSkyMaskMath.CoversWholeMap(runs, 6, 1), Is.False);
     }
 
     // A run still open at the right edge must close at the edge rather than be dropped — the
@@ -71,7 +71,7 @@ public class SnowGlareMaskMathTests
     [Test]
     public void ARunReachingTheRightEdge_IsClosedRatherThanDropped()
     {
-        List<SnowGlareMaskMath.Run> runs = SnowGlareMaskMath.UnroofedRuns(
+        List<OpenSkyMaskMath.Run> runs = OpenSkyMaskMath.UnroofedRuns(
             Grid("##...."), 6, 1);
 
         Assert.That(runs.Count, Is.EqualTo(1));
@@ -83,7 +83,7 @@ public class SnowGlareMaskMathTests
     [TestCase("#.#.#.", 3)]
     public void RoofPatterns_ProduceTheExpectedRunCount(string row, int expected)
     {
-        Assert.That(SnowGlareMaskMath.UnroofedRuns(Grid(row), row.Length, 1).Count,
+        Assert.That(OpenSkyMaskMath.UnroofedRuns(Grid(row), row.Length, 1).Count,
             Is.EqualTo(expected));
     }
 
@@ -92,11 +92,11 @@ public class SnowGlareMaskMathTests
     [Test]
     public void AFullyRoofedMap_YieldsNoRuns_AndIsNotReportedAsWholeMap()
     {
-        List<SnowGlareMaskMath.Run> runs = SnowGlareMaskMath.UnroofedRuns(
+        List<OpenSkyMaskMath.Run> runs = OpenSkyMaskMath.UnroofedRuns(
             Grid("####", "####"), 4, 2);
 
         Assert.That(runs, Is.Empty);
-        Assert.That(SnowGlareMaskMath.CoversWholeMap(runs, 4, 2), Is.False,
+        Assert.That(OpenSkyMaskMath.CoversWholeMap(runs, 4, 2), Is.False,
             "an empty mask is not a full-map mask");
     }
 
@@ -105,7 +105,7 @@ public class SnowGlareMaskMathTests
     [Test]
     public void RowsDoNotBleedIntoEachOther()
     {
-        List<SnowGlareMaskMath.Run> runs = SnowGlareMaskMath.UnroofedRuns(
+        List<OpenSkyMaskMath.Run> runs = OpenSkyMaskMath.UnroofedRuns(
             Grid("..##", "...."), 4, 2);
 
         Assert.That(runs.Count, Is.EqualTo(2));
@@ -118,9 +118,9 @@ public class SnowGlareMaskMathTests
     [Test]
     public void DegenerateInputs_ReturnEmpty_RatherThanThrowing()
     {
-        Assert.That(SnowGlareMaskMath.UnroofedRuns(null!, 4, 4), Is.Empty);
-        Assert.That(SnowGlareMaskMath.UnroofedRuns(Grid("...."), 0, 1), Is.Empty);
-        Assert.That(SnowGlareMaskMath.UnroofedRuns(Grid("...."), 4, 0), Is.Empty);
-        Assert.That(SnowGlareMaskMath.CoversWholeMap(null!, 4, 4), Is.False);
+        Assert.That(OpenSkyMaskMath.UnroofedRuns(null!, 4, 4), Is.Empty);
+        Assert.That(OpenSkyMaskMath.UnroofedRuns(Grid("...."), 0, 1), Is.Empty);
+        Assert.That(OpenSkyMaskMath.UnroofedRuns(Grid("...."), 4, 0), Is.Empty);
+        Assert.That(OpenSkyMaskMath.CoversWholeMap(null!, 4, 4), Is.False);
     }
 }

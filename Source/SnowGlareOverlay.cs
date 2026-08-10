@@ -110,10 +110,10 @@ public static class SnowGlareOverlay
         // SectionLayer_IndoorMask draws between Weather and VisEffects (measured, per §11a's altitude
         // note), i.e. BELOW us, so vanilla's own roof masking does not apply — and dropping below it
         // to catch that masking would also drop below LightingOverlay, which is the fatal case above.
-        // SnowGlareMask therefore builds the open-sky mesh itself, from Map.roofGrid, rebuilt only
+        // OpenSkyMask therefore builds the open-sky mesh itself, from Map.roofGrid, rebuilt only
         // when a roof is written. A null mesh means the map is entirely roofed and there is nothing to
         // draw at all.
-        Mesh mesh = SnowGlareMask.MeshFor(map);
+        Mesh mesh = OpenSkyMask.MeshFor(map);
         if (mesh == null)
             return;
 

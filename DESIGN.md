@@ -6940,7 +6940,14 @@ walking it **twice**: once via `UndrawableExcessFor` and again inside `NightRadi
 `SurfaceBuildup.CavityGainFor`. That redundancy is an artifact of the night-floor fix and is the
 obvious thing to remove (a `FrameStamp` memo, per issue #12's pattern) if this ever ships on.
 
-### The roof mask (`SnowGlareMaskMath` / `SnowGlareMask` / `Patch_SnowGlareRoofInvalidation`)
+### The roof mask (`OpenSkyMaskMath` / `OpenSkyMask` / `Patch_OpenSkyMaskInvalidation`)
+
+**Named for the mask, not for §24, because §23b now draws through it too.** It was built here first
+and the reasoning below is §24's, but "which cells can see the sky" is a property of the map rather
+than of either effect, so both consumers share one cache, one set of roof-write hooks and one
+rebuild. Its mesh charts UVs in **map space** (`x / width`, `z / height`) rather than 0..1 per quad,
+matching `MeshPool.wholeMapPlane`'s own convention — invisible to §24, whose material carries no
+texture, and load-bearing for §23b, which tiles one.
 
 `SectionLayer_IndoorMask` draws between `Weather` and `VisEffects` (measured, per §11a's altitude
 note), i.e. **below** §24 — so vanilla's own roof masking does not apply, and the first prototype
@@ -6948,8 +6955,8 @@ washed glare straight across roofed interiors that have no sky. Dropping below t
 not available: that is also below `LightingOverlay`, which is the fatal case above. So the mask has to
 be geometry we build.
 
-`SnowGlareMaskMath.UnroofedRuns` collapses each row's unroofed cells into maximal horizontal spans,
-and `SnowGlareMask` turns those into one mesh. **Rows only, no vertical merge** — a 2-D merge would
+`OpenSkyMaskMath.UnroofedRuns` collapses each row's unroofed cells into maximal horizontal spans,
+and `OpenSkyMask` turns those into one mesh. **Rows only, no vertical merge** — a 2-D merge would
 compress an unroofed map from 250 quads to 1, but it is the kind of code that is wrong in exactly one
 configuration nobody tests, and the mesh is rebuilt so rarely that a few hundred spare quads cost
 nothing. A map with nothing roofed short-circuits to `MeshPool.wholeMapPlane`, the shared mesh vanilla

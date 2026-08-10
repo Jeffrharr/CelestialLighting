@@ -2,15 +2,19 @@ using System.Collections.Generic;
 
 namespace CelestialLighting;
 
-// §24's roof mask, pure half: turns a map's roofed/unroofed grid into the smallest set of horizontal
-// runs that covers the UNROOFED cells, so the glare quad can be built from open sky only.
+// The additive pass's roof mask, pure half: turns a map's roofed/unroofed grid into the smallest set
+// of horizontal runs that covers the UNROOFED cells, so an additive quad can be built from open sky
+// only.
 //
-// WHY A MASK IS NEEDED AT ALL. §24 draws at AltitudeLayer.VisEffects, which it must (below that sits
-// LightingOverlay, whose multiply is the very ceiling this subsystem exists to exceed — see
-// SnowGlareOverlay). But SectionLayer_IndoorMask draws between Weather and VisEffects, so vanilla's
-// own roof masking happens BELOW us and does not apply: the first prototype washed glare straight
-// across roofed interiors, which have no sky and should see none of it. Moving down is not an option,
-// so the mask has to be geometry we build ourselves.
+// WHY A MASK IS NEEDED AT ALL. The additive pass draws at AltitudeLayer.VisEffects, which it must
+// (below that sits LightingOverlay, whose multiply is the very ceiling these subsystems exist to
+// exceed — see SnowGlareOverlay). But SectionLayer_IndoorMask draws between Weather and VisEffects,
+// so vanilla's own roof masking happens BELOW us and does not apply: §24's first prototype washed
+// glare straight across roofed interiors, which have no sky and should see none of it. Moving down is
+// not an option, so the mask has to be geometry we build ourselves.
+//
+// Shared by §24's snow glare and §23b's cloud underlight — see OpenSkyMask's header for why the
+// question ("which cells can see the sky") belongs to the map rather than to either effect.
 //
 // WHY RUNS RATHER THAN ONE QUAD PER CELL. A 250x250 map is 62,500 cells, i.e. 250,000 vertices if
 // each cell is its own quad — a mesh big enough to need a 32-bit index buffer and slow enough to
@@ -22,13 +26,13 @@ namespace CelestialLighting;
 //
 // WHY NOT MERGE VERTICALLY TOO. Merging identical adjacent rows into rectangles would compress a
 // no-roof map from 250 quads to 1, and it is genuinely tempting. It is not done because the mesh is
-// rebuilt only when a roof changes (see Patch_SnowGlareRoofInvalidation) and a few hundred extra
+// rebuilt only when a roof changes (see Patch_OpenSkyMaskInvalidation) and a few hundred extra
 // quads cost nothing per frame — while a two-dimensional merge is the kind of code that is wrong in
 // exactly one configuration nobody tests. Row runs are provably correct by inspection and their
 // worst case is bounded by the row count.
 //
 // Pure by the repo's convention: no UnityEngine, no Verse, primitives in and out.
-public static class SnowGlareMaskMath
+public static class OpenSkyMaskMath
 {
     // One horizontal span of unroofed cells on row Z, covering cells [XStart, XEnd] inclusive.
     //
@@ -81,8 +85,8 @@ public static class SnowGlareMaskMath
 
                 // Roofed cell closing a run that was in progress. The run ends at the PREVIOUS cell,
                 // which is why the end is stored inclusive rather than as a length — an off-by-one
-                // here leaks glare one cell under the eaves, and that is the single most likely place
-                // for this file to be subtly wrong.
+                // here leaks the additive pass one cell under the eaves, and that is the single most
+                // likely place for this file to be subtly wrong.
                 if (!isOpen && runStart >= 0)
                 {
                     runs.Add(new Run(z, runStart, x - 1));
