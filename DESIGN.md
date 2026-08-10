@@ -6774,12 +6774,19 @@ time-limited, so its per-frame cost amortises over how seldom it runs; snow glar
 every daylight frame, all year. Profiled over 1201 frames:
 
 ```
-CelestialLighting.Patch_SnowGlareDraw:Postfix   avgMsPerFrame 0.0564   maxMsPerFrame 0.9252
-                                                callsPerFrame 2.00     0.339% of a 60 fps frame
+CelestialLighting.Patch_SnowGlareDraw:Postfix   avgMsPerFrame 0.0495   maxMsPerFrame 1.1982
+                                                callsPerFrame 2.00     avgUsPerCall 24.79
+                                                0.559% of the 8.86 ms frame this run achieved
+                                                0.297% of a 60 fps budget
 ```
 
+Measured over 1201 frames at 112.84 fps with `PausedFrames` 0 — worth checking, because a scenario
+that leaves the clock paused profiles nothing while reporting a healthy-looking table. Third in the
+mod's own table behind §7b's occlusion postfix (0.1444) and the probe bridge's draw counter (0.0855),
+and ahead of every `CurSkyTarget` postfix the mod ships.
+
 `callsPerFrame` 2.00 is `GameConditionManagerDraw` recursing into its parent manager; the identity
-guard early-returns on one of the two, so the real work is ~56 µs on the pass that draws — and per
+guard early-returns on one of the two, so the real work is ~50 µs on the pass that draws — and per
 this repo's own rule about call counts including early returns, the mean-per-call figure understates
 that. **Almost none of it is the draw call.** The cost is `SnowGlare.AlphaFor` walking
 `WeatherDimming.CloudOpacityFor`, which `MapSky`'s header records as deliberately un-memoized, and
