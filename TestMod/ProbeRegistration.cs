@@ -171,14 +171,49 @@ public static class ProbeRegistration
         ProbeRegistry.Register(new EaveCellProbe("eave_cells", EaveCellProbe.Metric.Eaves));
         ProbeRegistry.Register(
             new EaveCellProbe("roof_shadow_cells", EaveCellProbe.Metric.ShadowCasters));
-        // Issue #80 / AmbientLightCompat: the fixed near-door cell in ambient_light_compat.json.
+        // Issue #80: the fixed near-door cell in ambient_light_compat.json.
         // ambient_ground_glow is the GAMEPLAY value (what Ambient Light's own readout reports);
-        // ambient_sky_fraction is what AmbientLightCompat derives from it for §7b to cap occlusion
-        // with. Pairing them tells "their boost isn't real here" apart from "our compat mis-read it".
+        // ambient_sky_fraction is what SkyFalloffSource resolves for it, for §7b to cap occlusion with.
+        // Pairing them tells "their boost isn't real here" apart from "our passthrough mis-read it".
         ProbeRegistry.Register(
             new AmbientLightDoorCellProbe("ambient_ground_glow", AmbientLightDoorCellProbe.Metric.GroundGlow));
         ProbeRegistry.Register(
             new AmbientLightDoorCellProbe("ambient_sky_fraction", AmbientLightDoorCellProbe.Metric.SkyFraction));
+        // §7b's baked lighting-overlay vertex alphas, for glass_wall_leak.json. Six probes because the
+        // claim is a SHAPE, not a number: glass_corner moves; glass_centre and deep_corner say how far
+        // in it reaches; the granite pair is the control separating "glass leaks" from "the whole room
+        // got brighter". Offsets address that scenario's room and must move with it.
+        ProbeRegistry.Register(new SkyCoverVertexProbe(
+            "glass_corner", new IntVec3(0, 0, 41), SkyCoverVertexProbe.Metric.CornerAlpha));
+        ProbeRegistry.Register(new SkyCoverVertexProbe(
+            "glass_centre", new IntVec3(0, 0, 41), SkyCoverVertexProbe.Metric.CentreAlpha));
+        ProbeRegistry.Register(new SkyCoverVertexProbe(
+            "deep_corner", new IntVec3(0, 0, 43), SkyCoverVertexProbe.Metric.CornerAlpha));
+        // z=50 rather than 49: a lattice point is the SOUTH-west corner of the cell it is named for, so
+        // the corner touching the NORTH wall is indexed by the wall's own row. 49 would have addressed
+        // a corner between two interior cells and passed for the wrong reason.
+        ProbeRegistry.Register(new SkyCoverVertexProbe(
+            "granite_corner", new IntVec3(0, 0, 50), SkyCoverVertexProbe.Metric.CornerAlpha));
+        ProbeRegistry.Register(new SkyCoverVertexProbe(
+            "granite_centre", new IntVec3(0, 0, 49), SkyCoverVertexProbe.Metric.CentreAlpha));
+        // indoor_glow_lamp.json: the lamp regression for the passthrough's subtraction. Two cells in a
+        // sealed, roofed, lamp-lit room — beside the lamp and in the far corner it cannot reach (the
+        // room is 25x25 precisely because glowRadius is 10) — each reporting all three terms of
+        // `sky = max(0, ground - artificial)`. Beside the lamp, ground is HIGH and sky must still be 0;
+        // a build that capped on total glow would show lamp_near_sky tracking lamp_near_ground, which
+        // no single-cell probe could tell from working.
+        ProbeRegistry.Register(new IndoorGlowCellProbe(
+            "lamp_near_ground", new IntVec3(0, 0, 46), IndoorGlowCellProbe.Metric.GroundGlow));
+        ProbeRegistry.Register(new IndoorGlowCellProbe(
+            "lamp_near_artificial", new IntVec3(0, 0, 46), IndoorGlowCellProbe.Metric.ArtificialGlow));
+        ProbeRegistry.Register(new IndoorGlowCellProbe(
+            "lamp_near_sky", new IntVec3(0, 0, 46), IndoorGlowCellProbe.Metric.SkyFraction));
+        ProbeRegistry.Register(new IndoorGlowCellProbe(
+            "lamp_far_ground", new IntVec3(-11, 0, 34), IndoorGlowCellProbe.Metric.GroundGlow));
+        ProbeRegistry.Register(new IndoorGlowCellProbe(
+            "lamp_far_artificial", new IntVec3(-11, 0, 34), IndoorGlowCellProbe.Metric.ArtificialGlow));
+        ProbeRegistry.Register(new IndoorGlowCellProbe(
+            "lamp_far_sky", new IntVec3(-11, 0, 34), IndoorGlowCellProbe.Metric.SkyFraction));
         // Issue #124 / §7c: same near-door cell, native_sky_falloff.json's own copy of the same room
         // layout. native_falloff_depth is the raw BFS layer NativeSkyFalloffGrid computes;
         // native_falloff_fraction is what SkyFalloffSource actually dispatches to §7b's CapOcclusion.
@@ -506,15 +541,15 @@ public static class ProbeRegistration
                 CelestialLightingFeatures.IndoorSkyOcclusion = enabled;
                 IndoorOcclusionRedraw.ForceRebuild();
             });
-        // Issue #80 / AmbientLightCompat: same baked-mesh situation as §7b's own flag immediately
+        // Issue #80 / IndoorGlowPassthrough: same baked-mesh situation as §7b's own flag immediately
         // above (this cap term is applied inside the same SectionLayer_LightingOverlay.Regenerate
         // postfix), so toggling it needs the identical rebuild or the A/B would compare a stale bake
         // against itself.
         FeatureRegistry.Register(
-            CelestialLightingFeatures.AmbientLightCompatKey,
+            CelestialLightingFeatures.IndoorGlowPassthroughKey,
             enabled =>
             {
-                CelestialLightingFeatures.AmbientLightCompat = enabled;
+                CelestialLightingFeatures.IndoorGlowPassthrough = enabled;
                 IndoorOcclusionRedraw.ForceRebuild();
             });
         // §7c / NativeSkyFalloff: same baked-mesh situation as the two §7b-family flags immediately

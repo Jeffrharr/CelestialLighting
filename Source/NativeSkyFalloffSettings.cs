@@ -5,8 +5,8 @@ namespace CelestialLighting;
 // (CelestialLightingSettings.ApplyToRuntime) and read by SkyFalloffSource. Deliberately Verse-free so
 // the pure core and its offline tests never need a game reference.
 //
-// Both fields only matter while AmbientLightCompat.Active is false — SkyFalloffSource defers to that
-// mod outright when it is present, so these never feed a cell Ambient Light already answered.
+// Both fields only matter for cells no other mod has already lit — SkyFalloffSource defers to
+// IndoorGlowPassthrough outright wherever it answers, so these never feed such a cell.
 public struct NativeSkyFalloffSettings
 {
     // How far (in BFS-layer cells) the gradient reaches from an opening before it hits zero. Higher =

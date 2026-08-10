@@ -219,9 +219,18 @@ Requires Harmony.</description>
     <li>vanillaracesexpanded.sanguophage</li>
     <!-- Ambient Light redistributes a graded fraction of outdoor sky glow into roofed cells
          (Verse.GlowGrid.GroundGlowAt), a gameplay value §7b's own occlusion painting never consulted
-         until AmbientLightCompat, which reads their per-map component and per-cell BFS depth. Load
-         after it so that component exists (seeded on Map.FinalizeInit) before we ask for it. See
-         DESIGN.md §7b and issue #80. -->
+         until IndoorGlowPassthrough. We no longer reflect into it: §7b reads the glow grid itself and
+         treats anything above the artificial share on a roofed cell as sky another mod added, so this
+         interop needs no per-mod code. Still declared, because their postfix must have run before we
+         read GroundGlowAt. See DESIGN.md §7b and issue #80. -->
     <li>f1995.ambientlight</li>
+    <!-- ReBuild: Doors and Corners transpiles GlowGrid.GroundGlowAt so cells near its glass walls
+         report as unroofed there and receive real sky glow, graded by its own BFS. Its 1.5 build also
+         patched SectionLayer_LightingOverlay.Regenerate to render that and 1.6 dropped it, relying on
+         vanilla's overlay — which §7b was painting black, so a glass-walled room came out darker than
+         vanilla. IndoorGlowPassthrough reads that glow and stands §7b down for those cells. §7c's own
+         BFS cannot cover this: a glass wall holds roof and is not a door, so it blocks the flood.
+         Load after it so its transpiler is applied before we read GroundGlowAt. See DESIGN.md §7b. -->
+    <li>ReBuild.COTR.DoorsAndCorners</li>
   </loadAfter>
 </ModMetaData>

@@ -777,26 +777,77 @@ reads `map.roofGrid` / `map.edificeGrid` and rewrites `mesh.colors32`.
   equivalent to switching the feature off, a property of the formula rather than a special case. The cap is applied to corners
   *before* they are averaged into a boundary cell's centre, so a floored interior still ramps down across
   its walls rather than the wall flattening out at the floor value.
-- **A second, independent floor for a compatible mod's own sky redistribution (`AmbientLightCompat`,
-  issue #80).** The "Ambient Light" workshop mod (`f1995.ambientlight`) patches `GlowGrid.GroundGlowAt`
-  to redistribute a BFS-graded fraction of `CurSkyGlow` into roofed cells based on distance from the
-  nearest opening — a real, distance-graded *gameplay* value, computed entirely independently of this
-  patch. Its own mouseover readout reports that fraction correctly, but before this compat term
-  existed nothing here ever consulted it: an interior cell could read 46% lit by Ambient Light's own
-  accounting and still render dead black on screen, because `CapOcclusion`'s only floor was
-  `minIndoorBrightness`. It now takes a second, independent floor and applies whichever of the two is
-  looser (`Min` of both `1 - floor` ceilings, so the caps compose rather than one silently overriding
-  the other). `AmbientLightCompat.SkyFractionAt(map, cell)` reflects into Ambient Light's
-  `MapComp_AmbientLight.GetDepth` and its own settings' `maxDepth`/`passThroughPercent` — deliberately
-  re-deriving their two-line falloff formula locally rather than calling into a private method (a
-  weaker contract than a field, and the formula is short enough to keep byte-for-byte identical and
-  unit-test on its own). Reads 0, and therefore changes nothing, whenever Ambient Light isn't
-  installed or the `AmbientLightCompat` feature flag is off — the pre-existing behaviour is the exact
-  fallback. Live-measured at a door-adjacent interior cell in an 11×11 roofed room
-  (`Tests/Scenarios/ambient_light_compat.json`): median CIELAB ΔE 11.26 between the toggle's off/on
-  states at noon, comfortably past the "visible at a glance" 5+ threshold. ΔE 0.0 between the same two
-  states at night is not a regression — it's Ambient Light's own formula returning ~0 once
-  `CurSkyGlow` drops near zero after dark, so there is nothing left for either floor to reveal.
+- **A second, independent floor for whatever else is lighting interiors (`IndoorGlowPassthrough`,
+  issue #80).** §7b decides occlusion from geometry alone, so any mod that redistributes sky glow into
+  roofed cells produced a real, distance-graded, mouseover-reportable *gameplay* value that rendered
+  flat black: an interior cell could read 46% lit by Ambient Light's own accounting while
+  `CapOcclusion`'s only floor was `minIndoorBrightness`. It now takes a second, independent floor and
+  applies whichever of the two is looser (`Min` of both `1 - floor` ceilings, so they compose rather
+  than one silently overriding the other).
+
+  **The signal is vanilla's own, and names no mod.** `GlowGrid.GroundGlowAt` gates its sky term on
+  `!map.roofGrid.Roofed(c)`, so on a *roofed* cell vanilla returns nothing but the artificial term —
+  therefore **anything above the artificial glow was put there by somebody else, and is sky-sourced by
+  elimination.** Identically 0 on an unmodded install, so it cannot move a vertex by itself.
+
+  Two details are load-bearing. The artificial share is **recomputed** from `VisualGlowAt` using
+  vanilla's own formula rather than obtained as `GroundGlowAt(c, ignoreSky: true)`: Ambient Light's
+  postfix is declared `Postfix(ref float __result, GlowGrid __instance, IntVec3 c)` — no `ignoreSky`
+  parameter — so it fires on both calls and that difference is identically zero (verified by
+  decompiling `AmbientLightFalloff.Patch_GlowForcedGround`). And the lamps are **subtracted** rather
+  than the total being used, because this value caps how much of the *sky's* colour a vertex shows;
+  capping on total glow would put dawn pink on a windowless, well-lit workshop.
+
+  **This replaced `AmbientLightCompat`**, which bound by reflection to one named mod — its map
+  component, its settings object, its `GetDepth` — and re-derived its private falloff formula
+  byte-for-byte. That worked and was the wrong shape: it fixed exactly one mod, broke whenever that mod
+  refactored, and every further mod would have needed its own copy. Measured equivalence: the general
+  term recovers **the same 0.4583** the reflection produced, with no reflection at all.
+
+  **It also reaches a case the old arm structurally could not.** ReBuild: Doors and Corners
+  (`ReBuild.COTR.DoorsAndCorners`) transpiles `GroundGlowAt`, swapping `roofGrid.Roofed(c)` for its own
+  `HasNoNaturalLight()`, false for cells in its `cellsNearbyGlassWalls` set — so cells near a **glass
+  wall** receive `CurSkyGlow` as real gameplay light, graded by its own BFS. Its 1.5 assembly also
+  patched `SectionLayer_LightingOverlay.Regenerate` to render that; **1.6 dropped that patch** and
+  relies on vanilla's overlay, which §7b was painting to full occlusion — darker than vanilla's own
+  `RoofedAreaMinSkyCover == 100`. §7c's native BFS cannot help here: a glass wall holds roof and is not
+  a door, so it blocks the flood outright. The passthrough fixes it with no glass-specific code, and
+  the room lights following *their* grading. Live: `Tests/Scenarios/glass_wall_leak.json`, median
+  CIELAB ΔE **22.35** over changed pixels (full-frame median 0.00 — the room is 3% of the frame; the
+  far-field control moved 0.52%).
+
+  **A bespoke transparent-wall leak was built for this and deleted.** It classified an edifice from
+  `blockLight == false` (gated on `holdsRoof || isDoor`, so furniture could not punch holes) and capped
+  the corners it touched. It worked in the pure core and measured **completely inert on screen**: with
+  ReBuild loaded, vertex alphas were identical with it on and off, because the passthrough had already
+  capped those cells to 0. Recorded because "add a per-mod special case" is the tempting answer and
+  this is the evidence the general one subsumes it. Shadows needed nothing either way: ReBuild's glass
+  declares `staticSunShadowHeight` 0, which `Patch_ShadowMeshPerimeter` and `EaveShadowGrid` already
+  read.
+
+  **Deferral is whole-map, not per cell.** When another mod *owns* under-roof falloff — supplies a
+  whole-map distance-from-an-opening gradient of its own, as Ambient Light does — §7c's native BFS is
+  not consulted anywhere on the map, and is never even built. Falling through per cell is the easy
+  mistake and reintroduces exactly the seam §7c set out to avoid: a cell just past their `maxDepth`
+  returns 0 from the passthrough and would then be answered by our gradient, which has an
+  independently tuned `maxDepth`, so a discontinuity appears *inside a single room* that neither
+  gradient has on its own. `SkyFalloffArbitration` is the pure rule; `UnderRoofFalloffOwner` is the
+  detection.
+
+  That detection **names mods**, unlike the passthrough, and the reason is concrete. The tempting
+  general test — "has anyone other than us patched `GroundGlowAt`?" — is wrong: ReBuild patches
+  exactly that method, but only to pass light through its glass walls, and supplies no door gradient
+  at all. Standing §7c down for it would silently delete under-roof falloff for every player who has
+  ReBuild. "Does this mod own the whole gradient" is not observable at runtime, so it is a short
+  explicit list with the reason recorded per entry. Measured both ways: with Ambient Light installed
+  the near-door cell reads `ambient_sky_fraction` **0 → 0.4583** across the passthrough toggle (0, not
+  §7c's 0.2625 — the native gradient really is out); without it, `native_sky_falloff.json` still reads
+  depth 2 and **0.2625** at that same cell, so the door leak is untouched.
+
+  **The lamp guard.** `Tests/Scenarios/indoor_glow_lamp.json` pins the subtraction: a sealed, roofed,
+  torch-lit 25×25 room reads ground 0.5, artificial 0.5, **sky 0**, identical at noon and midnight,
+  with and without Ambient Light loaded. `TorchLamp` rather than `StandingLamp` — the latter needs a
+  powered conduit, sits dark, and would make every probe read 0 while the scenario passed.
 - **Baked, not per-frame.** Unlike §7a's material colour, these alphas only change when a section is
   dirtied, so `IndoorOcclusionRedraw` forces a `WholeMapChanged(GroundGlow)` when the toggle or either
   slider changes (it compares the *resolved* floor, so either knob moving is caught without duplicating
@@ -839,7 +890,7 @@ call than night darkness.
 ### 7c. Native under-roof sky falloff — no Ambient Light dependency (`NativeSkyFalloffGrid` /
 `SkyFalloffSource`, issue #124)
 
-**Problem.** `AmbientLightCompat` above (issue #80) only helps a player who has the Ambient Light
+**Problem.** `IndoorGlowPassthrough` above (issue #80) only helps a player who has some interior-brightening
 workshop mod installed — everyone else still gets §7b's blanket verdict, "every interior cell is fully
 occluded", with no gradient near a doorway or a window gap. Issue #124 asked for the same
 distance-from-opening falloff built natively, without a third-party dependency, and deliberately left
@@ -889,7 +940,7 @@ geometry. `CornerBlocked`'s diagonal-cut guard had the identical bug (it also re
 diagonal step could cut through a wall corner it should have refused) and took the same `IsWall` fix.
 
 - **Not a `MapComponent`**, per this repo's own convention (parent `CLAUDE.md`): a single-slot
-  `WeakReference<Map>` cache, the same shape `AmbientLightCompat.CachedMap` already uses, so deleting the
+  `WeakReference<Map>` cache, so deleting the
   type later never scribes a permanent node onto every map.
 - **Lazy, not ticked.** `MarkDirty` (called from `Patch_SkyFalloffDirty`'s three Harmony postfixes) only
   flips a bool; the BFS rebuild happens on the next `DepthAt` call that actually needs the answer. No
@@ -912,17 +963,17 @@ diagonal step could cut through a wall corner it should have refused) and took t
   `Max()`-ing them the way `CapOcclusion` already composes `MinIndoorBrightness` and
   `AmbientLightSkyFraction` would put a visible seam wherever the smaller `maxDepth` runs out, a
   discontinuity neither gradient has on its own. `SkyFalloffSource.FractionAt` is the single place that
-  decides: `AmbientLightCompat.Active` wins outright when true (its own mouseover readout already reports
+  decides: `IndoorGlowPassthrough` wins outright wherever it answers (another mod's own mouseover readout already reports
   a gameplay-authoritative value, strictly better-grounded than a second guess computed independently),
   and the native BFS is never even run in that case — no wasted whole-map flood on every map that has
   Ambient Light installed. `Patch_IndoorSkyOcclusion`'s two call sites (the corner pass's MAX-over-four-
   neighbours and the centre pass) both go through this dispatcher now rather than calling
-  `AmbientLightCompat.SkyFractionAt` directly; `IndoorOcclusionMath.CapOcclusion`'s own signature and
+  `IndoorGlowPassthrough.SkyFractionAt` directly; `IndoorOcclusionMath.CapOcclusion`'s own signature and
   tests are untouched — only what feeds its third argument changed source.
 - **Two sliders, added after live playtesting** — the original decision here was "no settings UI, matching
-  `AmbientLightCompat`'s own precedent", with `passThroughPercent` fixed at 55f to land in the same
+  Ambient Light's own precedent", with `passThroughPercent` fixed at 55f to land in the same
   register as Ambient Light's own shipped default. A playtester found that in practice: a typical roofed
-  room read as generally lit up rather than gently graded near the door. `AmbientLightCompat` has no
+  room read as generally lit up rather than gently graded near the door. The passthrough has no
   slider because it has no formula of its own to tune — it just relays another mod's number — but this
   subsystem's formula is ours, so unlike that precedent there is a real knob to expose. `MaxDepth` and
   `PassThroughPercent` are now `NativeSkyFalloffSettings.Current`, written by two sliders in
@@ -939,7 +990,7 @@ diagonal step could cut through a wall corner it should have refused) and took t
 
 Gated by `CelestialLightingFeatures.NativeSkyFalloff`, default on — the whole point is to close the gap
 for players without Ambient Light, so shipping it off would leave that gap unfixed by default. When off,
-`SkyFalloffSource.FractionAt` returns 0 for every cell, identical to `AmbientLightCompat`'s own off-state
+`SkyFalloffSource.FractionAt` returns 0 for every cell, identical to the passthrough's own off-state
 and to `CapOcclusion`'s pre-feature identity — the faithful baseline for the harness A/B.
 
 **Live-measured** at the same door-adjacent interior cell §7b's own writeup above uses, in a fresh

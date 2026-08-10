@@ -188,7 +188,7 @@ public static class Patch_IndoorSkyOcclusion
         return IndoorOcclusionMath.CapOcclusion(occlusion, settings.MinIndoorBrightness, skyFalloffFraction);
     }
 
-    // AmbientLightCompat.SkyFractionAt (one of SkyFalloffSource's two possible answers) assumes an
+    // IndoorGlowPassthrough.SkyFractionAt (one of SkyFalloffSource's two possible answers) assumes an
     // in-bounds cell — it indexes straight into Ambient Light's own per-map depth array — so this
     // checks InBounds itself rather than pushing that contract onto the dispatcher. (NativeSkyFalloffGrid
     // guards internally, so the check is redundant-but-harmless on that path.) The window's

@@ -6,9 +6,9 @@ namespace CelestialLighting;
 
 // Live-state half of §7c (DESIGN.md) -- the adapter that walks Map/RoofGrid/EdificeGrid to answer
 // NativeSkyFalloffMath.FractionAt's `depth` argument. See NativeSkyFalloffMath's header for the pure
-// formula, and AmbientLightCompat.cs for why this exists as a second, mutually exclusive source rather
+// formula, and SkyFalloffSource.cs for why this exists as a second, mutually exclusive source rather
 // than a merge with that one -- SkyFalloffSource is the dispatcher that picks between the two; this
-// file has no opinion on CelestialLightingFeatures or AmbientLightCompat.Active and will compute
+// file has no opinion on CelestialLightingFeatures or whether another mod answered, and will compute
 // whenever asked, so a probe can read a raw BFS depth independent of whichever flag is currently set.
 //
 // Whole-map multi-source BFS, run once per map and cached until something changes -- not a
@@ -21,7 +21,7 @@ namespace CelestialLighting;
 // RebuildDistance (decompiled to confirm, this session).
 //
 // Not a MapComponent, per this repo's own convention (parent CLAUDE.md): a single-slot
-// WeakReference<Map> cache, the same shape AmbientLightCompat.CachedMap already uses, so deleting this
+// WeakReference<Map> cache, so deleting this
 // type later never leaves a scribed node behind on every map.
 public static class NativeSkyFalloffGrid
 {
@@ -34,7 +34,7 @@ public static class NativeSkyFalloffGrid
     };
 
     // Fully qualified: Verse.WeakReference<T> and System.WeakReference<T> collide under `using System;`
-    // + `using Verse;`, same ambiguity AmbientLightCompat.cs's own CachedMap field already works around.
+    // + `using Verse;`.
     private static readonly System.WeakReference<Map> CachedMap = new System.WeakReference<Map>(null);
     private static int[] depths;
     private static bool dirty = true;

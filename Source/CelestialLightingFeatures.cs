@@ -235,31 +235,37 @@ public static class CelestialLightingFeatures
     // IndoorOcclusionSettings knobs.
     public static bool IndoorSkyOcclusion = true;
 
-    // Feature key for AmbientLightCompat (see CivilTwilightPersistenceKey for why it lives here).
-    public const string AmbientLightCompatKey = "ambient_light_compat";
+    // Feature key for IndoorGlowPassthrough (see CivilTwilightPersistenceKey for why it lives here).
+    public const string IndoorGlowPassthroughKey = "indoor_glow_passthrough";
 
-    // Soft interop with Ambient Light (f1995.ambientlight, issue #80): when installed, that mod
-    // redistributes a graded, distance-from-opening fraction of outdoor sky glow into roofed cells
-    // (their own mouseover readout reports it directly) but never reaches the screen, because §7b
-    // above forces every enclosed cell's rendered sky-cover toward full occlusion without consulting
-    // it — see AmbientLightCompat's header for the full root-cause writeup. This flag lets
-    // IndoorOcclusionMath.CapOcclusion additionally honour that per-cell fraction as a second floor
-    // alongside MinIndoorBrightness. When off, or when Ambient Light is not installed,
-    // AmbientLightCompat.SkyFractionAt returns 0 for every cell, which is the exact identity CapOcclusion
-    // already had before this flag existed — the faithful pre-feature baseline for the harness A/B.
-    public static bool AmbientLightCompat = true;
+    // Lets ANOTHER MOD's indoor brightening reach the screen (issue #80). §7b decides occlusion from
+    // geometry alone, so a mod that redistributes sky glow into roofed cells produced a real,
+    // gameplay-visible, mouseover-reportable number that rendered as flat black. With this on,
+    // SkyFalloffSource honours whatever sky-sourced glow actually reached the cell, ahead of §7c's own
+    // native BFS.
+    //
+    // This replaced a per-mod interop (AmbientLightCompat, which reflected into f1995.ambientlight's
+    // map component and re-derived its private falloff formula). The general version asks the glow grid
+    // instead of the mod, so any mod that brightens interiors is honoured without being named — and it
+    // reaches cases the old one structurally could not, notably ReBuild: Doors and Corners' glass walls
+    // (§7c's BFS treats a glass wall as solid, because it holds roof and is not a door).
+    //
+    // When off, or on an unmodded install, IndoorGlowPassthrough.SkyFractionAt returns 0 for every
+    // cell, so SkyFalloffSource falls straight through to §7c — the faithful pre-feature baseline for
+    // the harness A/B.
+    public static bool IndoorGlowPassthrough = true;
 
     // Feature key for NativeSkyFalloff (see CivilTwilightPersistenceKey for why it lives here).
     public const string NativeSkyFalloffKey = "native_sky_falloff";
 
-    // §7c (issue #124): the same distance-from-opening sky gradient AmbientLightCompat above gives
+    // §7c (issue #124): the same distance-from-opening sky gradient IndoorGlowPassthrough above gives
     // players who have Ambient Light installed, built natively for players who don't. A whole-map BFS
     // (NativeSkyFalloffGrid) grades §7b's blanket "every interior cell goes fully dark" back down near
-    // an opening. Deferred to AmbientLightCompat when that mod is active rather than composed with it
+    // an opening. Deferred to IndoorGlowPassthrough when another mod is answering rather than composed
     // — see SkyFalloffSource for why merging two independently-tuned gradients would put a visible
     // seam wherever the smaller maxDepth runs out. Default on: the whole point is to close the gap for
     // players without Ambient Light, so shipping it off would leave that gap unfixed by default. When
-    // off, SkyFalloffSource.FractionAt returns 0 for every cell exactly like AmbientLightCompat's own
+    // off, SkyFalloffSource.FractionAt returns 0 for every cell exactly like the passthrough's own
     // off-state, which is the pre-feature CapOcclusion identity — the faithful baseline for the harness
     // A/B.
     public static bool NativeSkyFalloff = true;

@@ -425,7 +425,7 @@ public class SkyOcclusionWindowTests
                 }
 
                 return IndoorOcclusionMath.CapOcclusion(
-                    IndoorOcclusionMath.CornerOcclusion(anyBlocksSky), floor, ambientLightSkyFraction: 0f);
+                    IndoorOcclusionMath.CornerOcclusion(anyBlocksSky), floor, skyFalloffFraction: 0f);
             }
 
             return Run(map, minX, minZ, maxX, maxZ, floor, Corner, CentreBlocksSky);
@@ -465,7 +465,7 @@ public class SkyOcclusionWindowTests
                 }
 
                 return IndoorOcclusionMath.CapOcclusion(
-                    IndoorOcclusionMath.CornerOcclusion(anyBlocksSky), floor, ambientLightSkyFraction: 0f);
+                    IndoorOcclusionMath.CornerOcclusion(anyBlocksSky), floor, skyFalloffFraction: 0f);
             }
 
             return Run(map, minX, minZ, maxX, maxZ, floor, Corner, window.BlocksSky);
@@ -496,7 +496,7 @@ public class SkyOcclusionWindowTests
                     float occlusion = IndoorOcclusionMath.CentreOcclusion(centreBlocksSky(x, z), cornerSum);
                     centres[(z - minZ) * width + (x - minX)] =
                         IndoorOcclusionMath.CoverAlpha(
-                            IndoorOcclusionMath.CapOcclusion(occlusion, floor, ambientLightSkyFraction: 0f), 0);
+                            IndoorOcclusionMath.CapOcclusion(occlusion, floor, skyFalloffFraction: 0f), 0);
                 }
             }
 
