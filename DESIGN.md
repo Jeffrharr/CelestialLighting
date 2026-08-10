@@ -6534,6 +6534,12 @@ target, no new geometry on screen, just getting the timing and intensity of a me
 has right. The issue's own recommendation is to ship option 1 first and only revisit option 2 if a
 live A/B shows the flat version reading as mud; that A/B is the "Live verification" subsection below.
 
+**Option 2 now exists too, as §23b.** It was taken up not because the A/B below read as mud but
+because it read as *weak* — the suppression half measured 1.32 at its deepest surveyed point — and
+because §24 had meanwhile built the additive pass that made option 2 affordable. The two are
+complements rather than replacements: §23 owns the sky's mean colour and the deck weathers, §23b owns
+the structure and (in practice, on a vanilla install) the Clear ones. See §23b for the partition.
+
 **The geometry reuses §19's Earth-shadow model, inverted.** `PurpleLightMath.ShadowHeightKm` already
 answers "how high has Earth's own shadow climbed, given the sun is this far below the horizon" —
 `h(theta) = R * (sec(theta) - 1)`. `CloudUnderlightMath.ShadowEntryDepressionDegrees` asks the inverse
@@ -6638,6 +6644,186 @@ colour-target change would.
 - **Not yet surveyed at other latitudes/seasons**, and not yet surveyed with an explicit
   `WeatherCloudDeck.altitudeMetres` override standing in for the table's cirrus row — only the two
   automatic classifier defaults have been measured.
+
+
+## 23b. The underlit cloud LAYER (`CloudUnderlightField` / `CloudUnderlightOverlay`, issue #88 option 2)
+
+**Status: SHIPPED OFF** (`cloud_underlight_layer`), the same prototype posture §24 took, and for the
+same reason: issue #88 and epic #103 both record an open question that cannot be settled by argument,
+only by looking. RimWorld is top-down with fixed exposure, so warm patches drifting across the ground
+may read as sky drama or as stains on the terrain. The frames below are committed so the call can be
+made by looking.
+
+**Problem.** §23 above is explicit about what it does not do. It modulates the *strength* of §8's one
+flat sky colour, which gets the timing and intensity of cloud-base underlighting right — and issue
+#88's actual mechanism is *spatial*: warm underlit cloud standing against a cool vault is a
+difference between two places on screen. One colour cannot be two colours, and averaging them gives a
+neutral mud that is worse than not trying. §23's own live verification is what promoted this from
+"maybe later" to "now": its suppression half measured **1.32** at its deepest surveyed point, the
+weakest live-verified result in the mod short of §20c, precisely because a single flat colour scaled
+by a fraction has so little room to move.
+
+**The partition: the flat lane carries the MEAN, this lane carries what is above it.** The obvious
+implementation — draw warm light proportional to how underlit the deck is — would render a second
+time what §23 already renders through §8's tint. `CloudUnderlightField.Residual` instead subtracts the
+field's own areal mean, so what is drawn at a point is how much *more* underlit cloud sits there than
+the map average. This is the same "two lanes, one quantity" shape `SnowGlareMath.UndrawableExcess`
+uses against §21 one subsystem over, and both degenerate skies fall out of it rather than being
+special-cased:
+
+| sky | what this lane draws | why |
+|---|---|---|
+| cloud fraction 0 | exactly nothing | no cloud, no structure — and §23 has nothing to modulate either |
+| cloud fraction 0.5 | the most it ever draws | half lit deck, half open vault: the largest contrast a sky has |
+| cloud fraction 1 | exactly nothing | an unbroken deck is uniform, i.e. exactly the sky one flat colour describes perfectly — all of it is §23's |
+
+**It covers the sky §23 structurally cannot, which is the more common one.** §13 scores Clear as cloud
+opacity 0 on both axes, so §23 is silent on a clear evening by construction — and the *audit* makes
+that sharper than it looks: across 81 installed `WeatherDef`s, §13's classifier scores every vanilla
+weather as either 0 or 1 and nothing in between (the seven partial values are all workshop weathers,
+§13's own documented judgement-call residue). So on a vanilla install the only route to a partly
+covered sky is §22's Clear-weather cloud fraction, and §23b is in practice a **Clear-weather
+subsystem** whose complement is §23's deck-weather one. `CloudUnderlightLayer.CloudFractionFor` reads
+both and takes the larger, which is a max over a pair that always contains a zero rather than a blend
+of two opinions — the same mutual exclusivity `Patch_CloudCoverSky` already relies on.
+
+**The strength reuses §23's own window rather than deriving a second one.**
+`CloudUnderlightMath.LayerStrength` is `amplitude x GlowPhase(elevation, shadowEntry)` — the same
+`GlowPhase`, off the same inverted Earth-shadow geometry. Keeping one canonical answer to "how high
+is Earth's shadow" is why §23's geometry was built on §19's model in the first place (see §23 above,
+and §20/§20d on mired-space drift); a private copy here would reintroduce that drift one subsystem
+later and let the two lanes disagree about when a sunset ends. It carries **no opacity term**: how
+much cloud there is enters through the field, and multiplying by it again would make a full overcast
+the strongest spatial case when it is the one case with nothing spatial to say. The suppression phase
+is likewise absent — killing a sunset is something done to a flat colour, not something an additive
+pass can draw, so issue #88's "a low overcast ruins it" case stays entirely §23's.
+
+**Colour is §8's, not a second reddening model.** The layer adds
+`SkyColorTemperature.SkyColorForElevation` at the current elevation — the very colour §8 is already
+blending the sky toward. §23b's novelty is spatial, not chromatic, and light that has grazed a very
+long atmospheric path is a quantity this codebase already has exactly one answer for.
+
+**A texture, not vertex colours, and that is a deliberate refusal to guess.** §15b's eave shade proves
+per-vertex colour is honoured through `ShaderDatabase.Transparent` — but this pass must be ADDITIVE
+(`MoteGlow`), and nothing in this codebase has ever asked `MoteGlow` to honour a vertex colour.
+`SheetMaterial`'s header records why that is not a guess worth making: the shader is not ours, and
+being wrong renders something plausible rather than nothing. §11a needed exactly this and used a
+texture, so §23b follows the path already known to work here — and gets bilinear soft edges (epic
+#103's first-class requirement, free rather than as inset rim geometry) and drift-as-a-UV-pan out of
+it. The tile is seamless by construction because `AuroraNoise` wraps on an integer lattice.
+
+**The bake is split where the cadences differ.** The field's *shape* depends only on the cloud
+fraction, which moves a few times an in-game hour; its *colour* is §8's target, which moves every
+frame as the sun sets. So the noise walk runs on the fraction and the byte write runs on the colour.
+Without that split, a subsystem whose entire life is the ten minutes around sunset would re-walk
+4,096 noise samples per frame during exactly those ten minutes.
+
+**The threshold is read off each tile's own histogram, and the fixed version was wrong in a way that
+would have shipped.** A fixed cut through fractal value noise is a cut through the steep part of a
+peaked histogram, and one texture tile is a small sample (`LatticeCells` is 4, so 16 base cells).
+Measured across three tile seeds, one fixed cut produced covered areas of **0.41, 0.78 and 0.70** for
+the same requested 0.5 — "how cloudy is it" would have meant something different on every colony.
+`ThresholdFor` takes the quantile instead, which makes covered area exact on any seed and deleted the
+two tuning constants that were standing in for it.
+
+### Settings and the feature gate
+
+`CelestialLightingFeatures.CloudUnderlightLayer` (key `cloud_underlight_layer`), default **off**. Off
+is a true no-op: `StrengthFor` returns 0 and the overlay returns before its draw call, so rendering is
+bit-identical to pre-§23b and the standing cost is genuinely zero. Independent of §23's own flag in
+both directions — `WeatherDimming.CloudAltitudeMetresFor` was widened to survive either, because
+gating it on the flat lane alone made "flat off, spatial on" return a ground-hugging 0 and silently
+kill the layer for a reason no setting names.
+
+`LayerAmplitude` (0.20) is a starting guess in the same sense §24's intensity scale started as one.
+The harness sweeps it through `CloudUnderlightLayer.AmplitudeScale` (`cloud_underlight_quiet`).
+
+### Live verification
+
+`Tests/Scenarios/cloud_underlight_layer.json`, latitude 45, day 40 — the tile and season §23's own
+scenario established civil dusk on — with every hour located by
+`cloud_underlight_layer_survey.json` rather than reasoned about. **That survey was not a formality:**
+§23b's glow window runs from the horizon only down to the deck's shadow entry (~2.03° for a 4000 m
+deck), about **seven minutes** on this tile, so an hourly grid does not under-sample it, it misses it
+entirely. Peak strength is at hour 20.78 (`sun_elevation` **-1.1715°**, pinned); the window is shut by
+20.84 (**-2.1251°**).
+
+| capture | condition | `cloud_underlight_layer` | median CIELAB ΔE vs off |
+|---|---|---|---|
+| `cul_clear_on.png` | Clear, §22 cover 0.35, calibrated | 0.1952 | **9.12** — obvious |
+| `cul_clear_quiet.png` | the same, amplitude swept to 0.067 | 0.0651 | **3.16** — visible at a glance |
+| `cul_overcast_on.png` | Overcast, cover 1.00 | 0.1952 | **0.00** — 0.0% of pixels changed |
+| (past shadow entry, -2.13°) | Clear, below the window | 0.0000 | **0.00** — 0.0% of pixels changed |
+
+**The Clear pair is the headline and the Overcast pair is the point.** At the same instant, §23's own
+multiplier reads exactly **1.0000** under Clear (it is doing nothing at all — §13 scores Clear as
+opacity 0) and **1.5857** under Overcast, while §23b does the reverse. The two lanes cover disjoint
+skies, and the Overcast null is the mean subtraction working: a solid deck has no gaps, so there is no
+structure to draw however strong the layer is. Any visible difference in that pair would mean the two
+lanes had started double-counting, which is exactly what §24's night pair is evidence against for
+§21.
+
+**9.12 is larger than anything the mod currently ships** (§20b pollution at 6.79, §21 snow cavity at
+6.06), which is why the sweep captured the quiet end from the same boot. Reading the frames: 0.067
+(ΔE 3.16) is the shipping strength and 0.20 is the demonstration one. That call is deliberately left
+open, with the captures committed to make it from.
+
+- **The map is dark at this hour and that is not a scene-lighting mistake, it is where the effect
+  lives.** Mean frame colour with the feature off is `rgb(27, 17, 10)`. An earlier run measured
+  `rgb(2, 1, 1)` — literally black — for two harness reasons worth recording: `ModSettings` XML sits
+  outside the harness's claim ledger, so Realistic (left persisted by an earlier `snow_glare` run)
+  zeroed the brightness floors, and the fixture's map was still fogged, which draws neither terrain
+  nor things. The scenario now pins `realistic_preset` false and paints terrain map-wide to unfog it.
+- **Only one tile, one season and one cloud fraction have been measured**, and the fraction is forced
+  (`cloud_cover_forced_fraction`, 0.35) rather than live. Nothing has been surveyed at a fraction near
+  either end, where the field's structure is by design weakest.
+- **The drift has not been filmed.** It is reproducible from the absolute tick (`DriftOffsetU/V`)
+  specifically so a `TickLapse` can capture it, and that has not been done.
+
+### Performance
+
+`Tests/Scenarios/cloud_underlight_layer_profile.json`, two windows for the same reason §24 uses two —
+one of them alone would be a lie. `drawing` is the surveyed peak of the glow window, a few minutes a
+day; `gated` is the identical build at noon, which is what essentially every frame of every save is.
+
+```
+drawing (Clear + cover 0.35, hour 20.78, 601 frames)
+  Patch_CloudUnderlightDraw:Postfix   avgMsPerFrame 0.2240   maxMsPerFrame 0.7500
+                                      callsPerFrame 2.00     avgUsPerCall 112.18
+                                      1.344% of a 60 fps budget
+
+gated out (noon, sun above the horizon)
+  Patch_CloudUnderlightDraw:Postfix   avgMsPerFrame 0.0059   maxMsPerFrame 0.0236
+                                      callsPerFrame 2.00     avgUsPerCall 2.97
+                                      0.036% of a 60 fps budget
+```
+
+**38x between the two, and the gate that buys it is the sun's elevation.** `StrengthFor` asks for the
+elevation against the widest possible window (§8's own fade floor) before it asks anything about
+weather, cloud or the map kind — so a frame outside the window costs one bool, one memoised float and
+a compare, and never reaches `WeatherDimming.CloudOpacityFor`, which `MapSky`'s header records as
+deliberately un-memoized. `callsPerFrame` 2.00 is `GameConditionManagerDraw` recursing into its parent
+manager, with the identity guard early-returning on one of the two, so per this repo's own note about
+call counts including early returns the real drawing pass is ~224 µs and the mean understates it.
+
+`maxMsPerFrame` 0.75 against a 0.224 mean is unremarkable — notably *unlike* §24's 3.61, because the
+open-sky mask it shares is already built by the time this draws.
+
+### The mask is now shared (epic #103)
+
+`SnowGlareMask`/`SnowGlareMaskMath`/`Patch_SnowGlareRoofInvalidation` became
+`OpenSkyMask`/`OpenSkyMaskMath`/`Patch_OpenSkyMaskInvalidation`, and the mesh's UVs changed from 0..1
+per quad to map space so a tiling texture can be drawn through it. §24 cannot observe the change (its
+material has no texture, so the sampler returns Unity's default white whatever the coordinates say) —
+argued rather than unit-tested, because UVs live in the Unity-side adapter, and then checked by
+re-running `snow_glare.json`: median ΔE **0.00** against the committed frame, with an identical mean
+frame colour of `rgb(144, 131, 121)`.
+
+That is one consumer's worth of epic #103's "one draw, many contributors", arriving as a shared asset
+rather than as an API guessed at in advance. What is still NOT shared is the draw call itself: §24 and
+§23b each own a `GameConditionManagerDraw` postfix and each issue their own `Graphics.DrawMesh`. They
+are independent additive contributions to one frame, so nothing is wrong — but the epic's "one draw"
+half is unbuilt, and it will stay that way until #3's sun shafts give it a third consumer.
 
 
 Two cross-cutting settings ideas that span the subsystems above:

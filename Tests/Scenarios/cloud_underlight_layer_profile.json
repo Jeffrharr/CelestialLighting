@@ -1,0 +1,127 @@
+{
+  "name": "cloud_underlight_layer_profile",
+  "saveFile": "minimal_colony.rws",
+  "description": "\u00a723b's standing cost, in the two windows that mean different things \u2014 the same pair snow_glare.json and snow_glare_gated.json split into two files for \u00a724, kept together here because \u00a723b's gate needs no map state to fire and so cannot contaminate the second window. 'drawing' profiles the subsystem at the surveyed peak of its glow window, which is a few minutes a day; 'gated' profiles the identical build at noon, which is the state almost every frame of almost every save is in. Quoting only the first would overstate the standing cost enormously, and quoting only the second would be marketing.",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "realistic_preset",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Soil",
+        "width": "128",
+        "height": "128",
+        "anchor": "64,64"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Soil",
+        "width": "128",
+        "height": "128",
+        "anchor": "64,186"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Soil",
+        "width": "128",
+        "height": "128",
+        "anchor": "186,64"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Soil",
+        "width": "128",
+        "height": "128",
+        "anchor": "186,186"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_cover_forced_fraction",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_underlight_layer",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "20.78"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_underlight_layer",
+        "expectedValue": "0.1952",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "Profile",
+      "args": {
+        "name": "drawing",
+        "prefix": "CelestialLighting",
+        "frames": "600"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_underlight_layer",
+        "expectedValue": "0.0000",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "Profile",
+      "args": {
+        "name": "gated",
+        "prefix": "CelestialLighting",
+        "frames": "600"
+      }
+    }
+  ]
+}

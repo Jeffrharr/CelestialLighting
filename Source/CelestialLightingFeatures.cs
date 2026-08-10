@@ -379,8 +379,10 @@ public static class CelestialLightingFeatures
     // above 1 while the deck is still lit (a high deck lingers longest), below 1 once the deck has
     // gone dark too (a low deck kills the tail early). Colour-only, and strictly a MODULATION of §8's
     // existing single sky colour, never a second colour target — see DESIGN.md §23 for why the actual
-    // spatial "warm cloud against cool vault" contrast real skies show is explicitly out of scope
-    // here (issue #88's option 2).
+    // spatial "warm cloud against cool vault" contrast real skies show is out of scope for THIS flag.
+    // That contrast is issue #88's option 2 and now exists as §23b (CloudUnderlightLayer below), which
+    // is a complement rather than a replacement: this lane owns the sky's mean colour, that one owns
+    // the structure above it.
     //
     // Zero altitude is a legitimate value (a ground-hugging deck), not a sentinel for "off" — see
     // WeatherDimming.CloudAltitudeMetresFor's header — so this flag is checked directly in
