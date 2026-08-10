@@ -391,6 +391,28 @@ public static class CelestialLightingFeatures
     // silently has nothing to modulate regardless of its own flag — an honest consequence, not a bug.
     public static bool CloudUnderlight = true;
 
+    // Feature key for CloudUnderlightLayer (see CivilTwilightPersistenceKey for why it lives here).
+    public const string CloudUnderlightLayerKey = "cloud_underlight_layer";
+
+    // §23b, issue #88's OPTION 2: the spatial half of cloud-base underlighting, drawn additively
+    // through the pass §24 built rather than modulated into the sky palette's multiply. Warm underlit
+    // cloud against a cool vault is a difference between two PLACES, which one flat sky colour cannot
+    // express at all — §23 above is explicit about only getting the timing and intensity right.
+    //
+    // SHIPS OFF, and deliberately, exactly as §24 did through its own prototype phase. Issue #88 and
+    // epic #103 both record the same open question, and neither can be settled by argument: RimWorld
+    // is top-down with fixed exposure, so warm patches drifting over the ground may read as sky drama
+    // or may read as stains on the terrain. Off is a true no-op — CloudUnderlightLayer.StrengthFor
+    // returns 0, the overlay returns before its draw call, and rendering is bit-identical to pre-§23b
+    // — which is what makes the harness A/B a real baseline rather than a picture of the mod being
+    // absent, and what makes the standing cost on a player's save genuinely zero until this flips.
+    //
+    // INDEPENDENT OF CloudUnderlight above, in both directions. §23 modulates §8's flat tint and §23b
+    // adds structure on top; they partition one quantity (the flat lane renders the field's mean, this
+    // lane renders what is above it) but neither needs the other to be on. Turning both off reproduces
+    // pre-§23 rendering exactly.
+    public static bool CloudUnderlightLayer = false;
+
     // Feature key for AxialTiltLunarGeometry (see CivilTwilightPersistenceKey for why it lives here).
     public const string AxialTiltLunarGeometryKey = "axial_tilt_lunar_geometry";
 
