@@ -1,0 +1,137 @@
+{
+  "name": "snow_night_moon_survey",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "55"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "realistic_preset",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "1"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "moon_illumination",
+        "expectedValue": "0",
+        "tolerance": "1000000"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "12"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "moon_illumination",
+        "expectedValue": "0",
+        "tolerance": "1000000"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "19"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "moon_illumination",
+        "expectedValue": "0",
+        "tolerance": "1000000"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "26"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "moon_illumination",
+        "expectedValue": "0",
+        "tolerance": "1000000"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "33"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "moon_illumination",
+        "expectedValue": "0",
+        "tolerance": "1000000"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "moon_illumination",
+        "expectedValue": "0",
+        "tolerance": "1000000"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "47"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "moon_illumination",
+        "expectedValue": "0",
+        "tolerance": "1000000"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "54"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "moon_illumination",
+        "expectedValue": "0",
+        "tolerance": "1000000"
+      }
+    }
+  ]
+}
