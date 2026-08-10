@@ -6775,6 +6775,33 @@ frames are pixel-identical because §21 already amplifies the night floor multip
 snowy map is visibly not black, and none of that is §24's doing. A capture that showed *any*
 difference at 01:00 would mean the bug found during this prototype's own bring-up had returned.
 
+**On a polar snowfield** (`snow_glare_icesheet.json`, latitude 70, `Ice` terrain painted map-wide,
+full-depth snow re-laid per scene, Fog). The cavity is saturated in all three — `surface_cavity_gain`
+2.2422, `snow_glare_excess` 0.9732 — so what moves between them is purely the daylight term:
+
+| scene | `sun_elevation` | `snow_glare_alpha` | median ΔE |
+|---|---|---|---|
+| `ice_winter_*` (day 52) | **4.3156°** | 0.0382 | **3.67** |
+| `ice_equinox_*` (day 37) | **37.4193°** | 0.0532 | **5.08** |
+| `ice_summer_*` (day 22) | **35.6844°** | 0.0532 | **5.08** |
+
+**The alpha plateaus at 0.0532** once the sun is well up, because `DaylightAboveNightFloor` saturates —
+`skyGlow` is already 1 and the only remaining variable is the floor. So a polar summer is no brighter
+than an equinox as far as §24 is concerned, and the low-sun winter case is the only one that reads
+differently. That is the ramp behaving as designed, not a survey that missed the peak.
+
+**A prediction that was wrong, kept because it cost a wrong scene choice.** These latitudes were
+picked expecting polar night: the textbook maximum solar elevation at latitude 70 at the winter
+solstice is −3.44°, which would have made §24 exactly zero and the scene pointless. Measured, day 52
+at latitude 70 puts the sun at **+4.32°** — RimWorld's day-of-year to declination mapping is not the
+textbook one, and day 52 is not its solstice. This is exactly why CLAUDE.md says to survey with
+`sun_elevation` and pin it next to the effect rather than reasoning about hours from first principles.
+
+**The painted `Ice` terrain contributed nothing visible** and is retained only so the scenario says
+what it means: full-depth snow covers the ground completely, so the terrain beneath it is never drawn.
+What makes these frames a polar scene is the latitude, the season and the saturated buildup, not the
+terrain def.
+
 **Roof masking, measured by crop** (`glare_roof_noon_*`, zoomed onto the fixture's walled room):
 inside the roofed interior median ΔE **0.00** with **0.0%** of pixels changed; on open ground in the
 same frame pair, median ΔE **4.85** with **100%** changed. The mask is doing exactly what it claims,
