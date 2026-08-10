@@ -165,7 +165,23 @@
     {
       "type": "Probe",
       "args": {
-        "probeName": "snow_glare_excess",
+        "probeName": "cloud_cover_fraction",
+        "expectedValue": "0.0091",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "surface_cavity_gain",
+        "expectedValue": "1.0729",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "weather_dimming",
         "expectedValue": "0.0000",
         "tolerance": "0.0005"
       }
@@ -173,8 +189,44 @@
     {
       "type": "Probe",
       "args": {
+        "probeName": "snow_glare_excess",
+        "expectedValue": "0.0729",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "snow_glare",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
         "probeName": "snow_glare_alpha",
         "expectedValue": "0.0000",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "glare_clear_noon_off.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "snow_glare",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "snow_glare_alpha",
+        "expectedValue": "0.0042",
         "tolerance": "0.0005"
       }
     },

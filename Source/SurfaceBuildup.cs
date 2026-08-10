@@ -141,6 +141,14 @@ public static class SurfaceBuildup
     // callers — see that file's header), which is the same 0 §13 already reports for Clear. So with
     // §22 off this reproduces the discrete pre-#100 behaviour bit-for-bit: a Clear sky reads as a
     // literal clear sky, exactly as it did before this file changed.
+    //
+    // THE DAYTIME ARM ASKS THE SAME QUESTION SEPARATELY (issue #134): WeatherDimming.DeckOpacityFor is
+    // this substitution written for the caller that has already read §13's opacity and cannot afford
+    // to read it twice. It is a deliberate duplicate of the SHAPE, not of the RULE — both funnel into
+    // AlbedoCavityMath.EffectiveCloudOpacity, so there is still exactly one place that decides what a
+    // Clear sky's deck is. The two differ in one respect worth knowing before touching either: the
+    // daytime one re-asks MapSky.HasSky, because DimmingFor has always returned 0 on a skyless map and
+    // that contract predates §22.
     private static float CloudOpacityOrClear(Map map)
     {
         if (map == null)

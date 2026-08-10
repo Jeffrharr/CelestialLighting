@@ -26,14 +26,22 @@ namespace CelestialLighting;
 //   * a thin deck overflows only slightly, so glare ramps with the deck rather than switching on;
 //   * a snowy OVERCAST is where it blooms, which is precisely the inversion #90 says is missing.
 //
-// A SNOWY CLEAR SKY IS ALSO EXACTLY 0, BUT NOT FOR THE REASON IT FIRST APPEARS TO BE — worth stating
-// because the plausible-sounding version is wrong and was written down here before it was checked.
-// It is NOT that a clear sky's 1.07x cavity fits under the ceiling: with no dimming to spend, 1.07x
-// would overflow and this function would return 0.071. It is that §13's classifier scores Clear as no
-// cloud deck at all, so WeatherDimming returns before the cavity is ever consulted (see
-// WeatherDimming.UndrawableExcessFor). §24 is therefore a cloud-deck effect end to end, and that
-// holds even for a partly-cloudy Clear carrying §22's fraction, because §13 still scores Clear as
-// zero on both its axes. The live scenario measures the 0 either way; only the explanation differed.
+// A SNOWY CLEAR SKY IS NOT 0 ANY MORE, AND WHY IT IS NOT IS THE INTERESTING PART (issue #134). It has
+// no dimming to spend, so the cavity's whole gain overflows and this function returns `gain - 1`
+// exactly — a partly-cloudy Clear day is the one case where the additive lane carries ALL of §21's
+// daytime amplification rather than the remainder of it. The gain comes from §22's continuous
+// cloud-cover fraction, which WeatherDimming.DeckOpacityFor substitutes for §13's abstention on
+// Clear, so the strength ramps with how much cloud has actually drifted overhead: a residual around
+// 0.15 at a light 0.14 cover against 0.97 under thick fog, i.e. a fifth to a quarter of the overcast
+// case.
+//
+// A SKY §22 REPORTS AS GENUINELY CLOUDLESS STILL RETURNS 0, because DeckOpacityFor's own zero stops
+// the read before the cavity is consulted. That leaves a small step at the boundary rather than a
+// ramp from nothing: the first sliver of cloud brings the clear-sky cavity (~1.07x over fresh snow)
+// with it, so the residual jumps 0 -> ~0.07 — about 3.5% of MaxIntensity once scaled, far below
+// anything visible. The alternative, letting a genuinely cloudless snowy noon glare on the strength
+// of that same 1.07x, is a much larger scope claim (it would fire on every snowy map in the game at
+// midday) and is deliberately not made here. §24 remains a cloud effect.
 //
 // So the effect appears only in the case the multiplicative lane could not express, and the two
 // lanes partition the amplification between them rather than both rendering it. Nothing needs to
@@ -74,7 +82,7 @@ public static class SnowGlareMath
 
     // How much of §21's daytime amplification overflowed the multiply lane's ceiling, in additive
     // fractions of the scene's own brightness. 0 whenever the multiply lane could express the whole
-    // thing — which is every bare-ground map, every clear sky, and every map with the cavity off.
+    // thing — which is every bare-ground map, every cloudless sky, and every map with the cavity off.
     //
     // The algebra is RecoveredDimming's, continued past the point where it clamps. §13's surviving
     // light fraction is (1 - dimming); the cavity multiplies diffuse light by cavityGain; so the
