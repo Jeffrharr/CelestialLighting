@@ -27,7 +27,8 @@ public class SnowGlareMathTests
     [TestCase(0.18f, 2.345f, 0.9229f)]   // fresh snow, thick overcast: the case #90 says is undrawable
     [TestCase(0.18f, 1.360f, 0.1152f)]   // settled snow, same deck: a modest overflow
     [TestCase(0.18f, 1.000f, 0.0000f)]   // bare ground: no cavity, so nothing to overflow
-    [TestCase(0.18f, 1.070f, 0.0000f)]   // snowy CLEAR sky: 1.07x still fits under the ceiling
+    [TestCase(0.18f, 1.070f, 0.0000f)]   // thin deck over snow: 0.82 * 1.07 == 0.877, no overflow
+    [TestCase(0.00f, 1.070f, 0.0700f)]   // the SAME gain with no dimming DOES overflow — see below
     [TestCase(0.40f, 1.600f, 0.0000f)]   // heavy dimming eats the gain: 0.6 * 1.6 == 0.96, no overflow
     [TestCase(0.40f, 2.345f, 0.4070f)]   // same weather over fresh snow: overflows anyway
     public void UndrawableExcess_IsWhatTheMultiplyLaneCouldNotRender_AndIsZeroInVacuum(
@@ -48,6 +49,25 @@ public class SnowGlareMathTests
     // Under the multiply lane alone these two conditions tie — both clamp to zero dimming, i.e.
     // clear-day parity — which is exactly the flattening #90 documents. The residual breaks the tie
     // in the direction the physics predicts, and that is the entire reason this subsystem exists.
+    // WHY A SNOWY CLEAR SKY RENDERS NO GLARE, pinned because the intuitive explanation is wrong and
+    // was briefly written into this file's comments before it was checked. It is NOT that a clear
+    // sky's 1.07x cavity fits under the multiply lane's ceiling — the case above proves it does not,
+    // returning 0.0700 with no dimming to spend. It is that §13's classifier scores Clear as no cloud
+    // deck at all, so WeatherDimming.UndrawableExcessFor returns before this function is ever reached.
+    //
+    // That is a live-state gate rather than arithmetic, so it cannot be asserted here; the scenario
+    // pins it instead (snow_glare.json reads snow_glare_excess 0.0000 under Clear). This test exists
+    // to stop the ARITHMETIC being "corrected" to return zero for a clear sky, which would look like
+    // a tidy-up and would silently change what a thin deck renders.
+    [Test]
+    public void AClearSkyGain_StillOverflows_SoTheZeroOnClearWeatherComesFromTheDeckGateNotFromHere()
+    {
+        Assert.That(
+            SnowGlareMath.UndrawableExcess(0f, 1.070f, false),
+            Is.EqualTo(0.0700f).Within(Tolerance),
+            "with no dimming, even a clear sky's small cavity overflows — the gate is upstream");
+    }
+
     [Test]
     public void SnowyOvercast_OverflowsFurtherThanSnowyClearSky_WhichIsTheInversionTheMultiplyLaneFlattens()
     {

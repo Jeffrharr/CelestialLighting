@@ -39,6 +39,21 @@ public static class SurfaceBuildup
     public static float CavityGainFor(Map map) =>
         CavityGainFor(map, CloudOpacityOrClear(map));
 
+    // Is there ANY weather buildup on this map — the cheapest possible "can the cavity do anything
+    // here" question, for callers that run every frame and want to leave before doing real work.
+    //
+    // Two field reads and no arithmetic: both grids keep TotalDepth as a maintained running total (see
+    // this file's header), so this is O(1) regardless of map size. False is a complete answer, not an
+    // approximation — with no buildup both ramps sit at BareGroundAlbedo, CavityGain is exactly 1, and
+    // every consumer's no-op path follows. §24's draw hook is the caller this exists for.
+    public static bool HasBuildup(Map map)
+    {
+        if (map == null)
+            return false;
+
+        return (map.snowGrid?.TotalDepth ?? 0f) > 0f || (map.sandGrid?.TotalDepth ?? 0f) > 0f;
+    }
+
     // Overload for callers that have ALREADY read §13's cloud opacity, which the daytime consumer
     // has: WeatherDimming.DimmingFor computes the opacity, derives the dimming from it, and then
     // needs the gain for the same opacity. Threading it through rather than letting this re-read it

@@ -45,9 +45,36 @@ public static class SnowGlare
         if (map?.skyManager == null)
             return 0f;
 
-        // §21's residual. Reads WeatherDimming rather than SurfaceBuildup directly because the
-        // residual is a property of the PAIR (dimming, gain) — see UndrawableExcessFor's header for
-        // why the two halves of one product must come from one read.
+        // THE GATES BELOW ARE ORDERED BY COST TIMES SELECTIVITY, NOT BY THE ORDER THE PHYSICS READS.
+        // This runs once per frame on the visible map for as long as a save is loaded, so what matters
+        // is what a map with NO SNOW pays — which is every map in most biomes, and every snowy map for
+        // most of the year. Before these two checks existed that map still walked the full weather
+        // classifier every frame to arrive at zero.
+        //
+        // (1) BUILDUP. One field read per grid (SnowGrid/SandGrid keep TotalDepth as a maintained
+        // running total — see SurfaceBuildup's header), and by far the most selective thing we can
+        // ask: no buildup means the cavity gain is exactly 1, which means the residual is exactly 0,
+        // whatever the sky is doing. Nothing downstream can rescue a map that fails this.
+        if (!SurfaceBuildup.HasBuildup(map))
+            return 0f;
+
+        // (2) DAYLIGHT. A cached float on SkyManager. Zero glow is night, and §24 does not fire at
+        // night by construction (see SnowGlareMath.DaylightAboveNightFloor) — asking here skips the
+        // weather walk for every night frame on a snowed-in map, which on a polar colony is most of
+        // them.
+        if (map.skyManager.CurSkyGlow <= 0f)
+            return 0f;
+
+        // (3) WEATHER, and only now. §21's residual is a property of the PAIR (dimming, gain) — see
+        // UndrawableExcessFor's header for why the two halves of one product must come from one read.
+        //
+        // This is also where the WEATHER gate itself lives, and it is stronger than it looks:
+        // UndrawableExcessFor returns 0 the moment §13's classifier reports no cloud deck, before the
+        // cavity is consulted at all. So Clear weather never reaches the arithmetic — including a
+        // partly-cloudy Clear carrying §22's cloud fraction, since §13 scores Clear as opacity 0 on
+        // both axes regardless. §24 is a cloud-deck effect end to end, which is the same short-circuit
+        // §21's own daytime arm already relies on (DESIGN.md §21, "the two-arg overload ... already
+        // short-circuits to zero dimming before ever reaching the cavity on true Clear weather").
         float excess = WeatherDimming.UndrawableExcessFor(map);
         if (excess <= 0f)
             return 0f;
