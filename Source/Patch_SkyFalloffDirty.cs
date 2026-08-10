@@ -56,8 +56,12 @@ public static class Patch_SkyFalloffDirty
         }
     }
 
-    // The only two edifice-derived inputs NativeSkyFalloffGrid.BlocksSky reads (holdsRoof, isDoor) --
+    // holdsRoof and isDoor are the two edifice-derived inputs IsWall reads that this needs to gate on --
     // kept as one predicate so SpawnSetup and DeSpawn cannot drift apart on what counts as relevant.
+    // blockLight is a third input IsWall reads (glass-wall passthrough) but needs no separate trigger
+    // here: it is a static ThingDef property that can only vary among buildings that already satisfy
+    // holdsRoof, so any spawn/despawn this predicate already catches also catches every blockLight
+    // change.
     private static bool RelevantToFalloff(Building building) =>
         building.def.holdsRoof || building.def.altitudeLayer == AltitudeLayer.DoorMoveable;
 }

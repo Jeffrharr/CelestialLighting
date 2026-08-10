@@ -10,10 +10,10 @@ namespace CelestialLighting;
 // its sliders has no visible effect until something dirties the map, which reads as "the setting did
 // nothing". This forces the rebuild on an actual change.
 //
-// Also covers §7c's two sliders (NativeSkyFalloffSettings), not just §7b's own: SkyFalloffSource feeds
-// CapOcclusion's same third argument, so a change to either subsystem's knobs invalidates the identical
-// baked alpha and needs the identical rebuild — one redraw trigger for the whole occlusion term rather
-// than two that would have to stay in sync by hand.
+// Also covers §7c's sliders (NativeSkyFalloffSettings) and §7d's door-strength sensitivity, not just
+// §7b's own: SkyFalloffSource feeds CapOcclusion's same third argument, so a change to any of the three
+// subsystems' knobs invalidates the identical baked alpha and needs the identical rebuild — one redraw
+// trigger for the whole occlusion term rather than three that would have to stay in sync by hand.
 //
 // Change-detected rather than unconditional because CelestialLightingSettings.ApplyToRuntime runs
 // every frame the settings window is open, and WholeMapChanged rebuilds every section on the map —
@@ -27,18 +27,20 @@ public static class IndoorOcclusionRedraw
     private static float lastMinIndoorBrightness;
     private static int lastNativeMaxDepth = NativeSkyFalloffMath.DefaultMaxDepth;
     private static float lastNativePassThroughPercent = NativeSkyFalloffMath.DefaultPassThroughPercent;
+    private static float lastDoorStrengthSensitivity = DoorLeakMath.DefaultSensitivity;
 
     // minIndoorBrightness is the floor the bake actually applies (IndoorOcclusionSettings.
     // accessibility slider — either knob moving must trigger a rebuild, and comparing the resolved value
     // catches both without duplicating the max() rule here.
     public static void SyncTo(
         bool enabled, float minIndoorBrightness,
-        int nativeMaxDepth, float nativePassThroughPercent)
+        int nativeMaxDepth, float nativePassThroughPercent, float doorStrengthSensitivity)
     {
         bool unchanged = enabled == lastEnabled
             && minIndoorBrightness == lastMinIndoorBrightness
             && nativeMaxDepth == lastNativeMaxDepth
-            && nativePassThroughPercent == lastNativePassThroughPercent;
+            && nativePassThroughPercent == lastNativePassThroughPercent
+            && doorStrengthSensitivity == lastDoorStrengthSensitivity;
         if (unchanged)
             return;
 
@@ -46,6 +48,7 @@ public static class IndoorOcclusionRedraw
         lastMinIndoorBrightness = minIndoorBrightness;
         lastNativeMaxDepth = nativeMaxDepth;
         lastNativePassThroughPercent = nativePassThroughPercent;
+        lastDoorStrengthSensitivity = doorStrengthSensitivity;
         RebuildLightingMeshes();
     }
 
@@ -54,10 +57,14 @@ public static class IndoorOcclusionRedraw
     // without this a scenario's A/B screenshots would both show whatever was baked before the toggle.
     public static void ForceRebuild() => RebuildLightingMeshes();
 
-    // GroundGlow is the flag the lighting overlay layer itself registers as relevant (see
-    // SectionLayer_LightingOverlay's constructor), so dirtying it regenerates exactly the layer whose
-    // alphas we rewrite. Find.Maps is empty during startup and on the main menu, which also keeps the
-    // MapMeshFlagDefOf lookup from running before defs are loaded.
+    // Same rebuild, but for exactly one map — GameComponent_SkyFalloffRedraw calls this per map whose
+    // CurSkyGlow has actually drifted, rather than paying for every map on the tick just one of them
+    // needs a rebuild. GroundGlow is the flag SectionLayer_LightingOverlay's own constructor registers
+    // as relevant, so dirtying it regenerates exactly the layer whose alphas we rewrite.
+    public static void ForceRebuildMap(Map map) => map.mapDrawer?.WholeMapChanged((ulong)MapMeshFlagDefOf.GroundGlow);
+
+    // Find.Maps is empty during startup and on the main menu, which also keeps the MapMeshFlagDefOf
+    // lookup from running before defs are loaded.
     private static void RebuildLightingMeshes()
     {
         List<Map> maps = Find.Maps;
@@ -65,6 +72,6 @@ public static class IndoorOcclusionRedraw
             return;
 
         for (int i = 0; i < maps.Count; i++)
-            maps[i].mapDrawer?.WholeMapChanged((ulong)MapMeshFlagDefOf.GroundGlow);
+            ForceRebuildMap(maps[i]);
     }
 }

@@ -1,0 +1,59 @@
+{
+  "name": "sky_falloff_redraw",
+  "saveFile": "minimal_colony.rws",
+  "description": "§7b mesh-staleness fix. Builds native_sky_falloff.json's own 11x11 roofed room (wood Door, single south gap) so the redraw_corner probe reads the exact near-door lattice point that probe's own scenario measures. Bakes it at noon with the fix (sky_falloff_redraw) turned OFF, real-ticks the clock forward with FastForward (SetTime/AdvanceTime only jump the tick counter and never run GameComponentTick at all, so they could not exercise this bug) to ~19:00 -- surveyed at sun_elevation ~14 degrees, still bright enough that the sky is a visibly warm dusk colour rather than the near-black a full midnight jump converges to regardless of which alpha the mesh holds -- and shows the mesh staying pinned at its noon bake straight through, the exact failure the fix's header describes. Then flips the fix on and lets one more 250-tick GameComponentTick boundary pass, which forces an immediate rebuild since the map has no baseline glow recorded from the OFF stretch, and the corner should darken toward the dusk sky's real CurSkyGlow. Forces the Realistic preset first for the usual reason (Cinematic's MinIndoorBrightness floor of 0.50 dwarfs this term and would make every frame pixel-identical).",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "20" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "40" } },
+    { "type": "SetWeather", "args": { "weatherDef": "Clear", "instant": "true" } },
+    { "type": "SetTime", "args": { "hour": "12" } },
+
+    {
+      "type": "SetTerrain",
+      "args": { "def": "Concrete", "width": "34", "height": "34", "offset": "0,45", "clear": "true" }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "0,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "-5,5; -4,5; -3,5; -2,5; -1,5; 0,5; 1,5; 2,5; 3,5; 4,5; 5,5; -5,-5; -4,-5; -3,-5; -2,-5; -1,-5; 1,-5; 2,-5; 3,-5; 4,-5; 5,-5; -5,-4; -5,-3; -5,-2; -5,-1; -5,0; -5,1; -5,2; -5,3; -5,4; 5,-4; 5,-3; 5,-2; 5,-1; 5,0; 5,1; 5,2; 5,3; 5,4"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Door", "stuff": "BlocksGranite", "offset": "0,45", "layout": "cells", "clear": "false",
+        "cells": "0,-5"
+      }
+    },
+    {
+      "type": "SetRoof",
+      "args": { "def": "RoofConstructed", "width": "11", "height": "11", "offset": "0,45" }
+    },
+    { "type": "LookAt", "args": { "offset": "0,45", "zoom": "24" } },
+
+    { "type": "SetFeature", "args": { "featureName": "realistic_preset", "enabled": "true" } },
+
+    { "type": "FastForward", "args": { "ticks": "250" } },
+
+    { "type": "SetFeature", "args": { "featureName": "sky_falloff_redraw", "enabled": "false" } },
+
+    { "type": "Probe", "args": { "probeName": "redraw_corner", "expectedValue": "177", "tolerance": "1" } },
+    { "type": "Screenshot", "args": { "fileName": "sky_falloff_redraw_noon_baseline.png" } },
+
+    { "type": "FastForward", "args": { "ticks": "17000" } },
+
+    { "type": "Probe", "args": { "probeName": "redraw_corner", "expectedValue": "177", "tolerance": "1" } },
+    { "type": "Screenshot", "args": { "fileName": "sky_falloff_redraw_dusk_stale.png" } },
+
+    { "type": "SetFeature", "args": { "featureName": "sky_falloff_redraw", "enabled": "true" } },
+    { "type": "FastForward", "args": { "ticks": "260" } },
+
+    { "type": "Probe", "args": { "probeName": "redraw_corner", "expectedValue": "220", "tolerance": "1" } },
+    { "type": "Screenshot", "args": { "fileName": "sky_falloff_redraw_dusk_fixed.png" } }
+  ]
+}

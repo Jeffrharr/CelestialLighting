@@ -1,0 +1,75 @@
+{
+  "name": "door_strength_perf",
+  "saveFile": "minimal_colony.rws",
+  "description": "Performance-only companion to door_strength_leak.json and sky_falloff_redraw.json -- same two-room, two-door-type layout (so NativeSkyFalloffGrid.Rebuild's per-cell DoorLeakMath.CrossingMultiplier call is exercised, not just a flat-weight BFS), profiled across a real civil-twilight ramp at superfast so GameComponent_SkyFalloffRedraw.GameComponentTick actually crosses its 250-tick check-and-maybe-rebuild boundary more than once rather than reading as free on a paused clock. sun_elevation probed before/after to confirm the window really crossed the ramp rather than idling flat daylight.",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "20" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "40" } },
+    { "type": "SetWeather", "args": { "weatherDef": "Clear", "instant": "true" } },
+    {
+      "type": "SetTerrain",
+      "args": { "def": "Concrete", "width": "50", "height": "20", "offset": "0,45", "clear": "true" }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "-13,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "-5,5; -4,5; -3,5; -2,5; -1,5; 0,5; 1,5; 2,5; 3,5; 4,5; 5,5; -5,-5; -4,-5; -3,-5; -2,-5; -1,-5; 1,-5; 2,-5; 3,-5; 4,-5; 5,-5; -5,-4; -5,-3; -5,-2; -5,-1; -5,0; -5,1; -5,2; -5,3; -5,4; 5,-4; 5,-3; 5,-2; 5,-1; 5,0; 5,1; 5,2; 5,3; 5,4"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Door", "stuff": "BlocksGranite", "offset": "-13,45", "layout": "cells", "clear": "false",
+        "cells": "0,-5"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "13,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "-5,5; -4,5; -3,5; -2,5; -1,5; 0,5; 1,5; 2,5; 3,5; 4,5; 5,5; -5,-5; -4,-5; -3,-5; -2,-5; -1,-5; 1,-5; 2,-5; 3,-5; 4,-5; 5,-5; -5,-4; -5,-3; -5,-2; -5,-1; -5,0; -5,1; -5,2; -5,3; -5,4; 5,-4; 5,-3; 5,-2; 5,-1; 5,0; 5,1; 5,2; 5,3; 5,4"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "AncientBlastDoor", "offset": "13,45", "layout": "cells", "clear": "false",
+        "cells": "0,-5"
+      }
+    },
+    {
+      "type": "SetRoof",
+      "args": { "def": "RoofConstructed", "width": "11", "height": "11", "offset": "-13,45" }
+    },
+    {
+      "type": "SetRoof",
+      "args": { "def": "RoofConstructed", "width": "11", "height": "11", "offset": "13,45" }
+    },
+    { "type": "LookAt", "args": { "offset": "0,45", "zoom": "34" } },
+
+    { "type": "SetFeature", "args": { "featureName": "realistic_preset", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "sky_falloff_redraw", "enabled": "true" } },
+
+    { "type": "FastForward", "args": { "ticks": "250" } },
+    { "type": "SetTime", "args": { "hour": "17" } },
+
+    { "type": "Probe", "args": { "probeName": "sun_elevation", "expectedValue": "0", "tolerance": "1000000" } },
+
+    { "type": "Profile",
+      "args": { "name": "door_strength_perf", "prefix": "CelestialLighting", "frames": "1200", "timeSpeed": "superfast" } },
+
+    { "type": "Probe", "args": { "probeName": "sun_elevation", "expectedValue": "0", "tolerance": "1000000" } },
+
+    { "type": "ProfileAssert",
+      "args": { "table": "door_strength_perf", "label": "*", "metric": "avgMsPerFrame", "max": "1.0" } }
+  ]
+}

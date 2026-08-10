@@ -196,6 +196,16 @@ public static class ProbeRegistration
             "granite_corner", new IntVec3(0, 0, 50), SkyCoverVertexProbe.Metric.CornerAlpha));
         ProbeRegistry.Register(new SkyCoverVertexProbe(
             "granite_centre", new IntVec3(0, 0, 49), SkyCoverVertexProbe.Metric.CentreAlpha));
+        // sky_falloff_redraw.json: the near-door corner of native_sky_falloff.json's own room --
+        // same map address glass_corner reads (that room and this one are both built at offset
+        // (0, 45) with the south gap at local (0, -5)), registered under its own name because this
+        // scenario's room has no glass and reusing "glass_corner" here would misname what it reads.
+        // This is the vertex GameComponent_SkyFalloffRedraw exists to keep in step with CurSkyGlow: a
+        // corner probe rather than the fraction/depth probes above because SkyFalloffSource.FractionAt
+        // is a pure function of live CurSkyGlow and so can never observe a stale BAKE -- only the mesh
+        // byte Patch_IndoorSkyOcclusion actually wrote can.
+        ProbeRegistry.Register(new SkyCoverVertexProbe(
+            "redraw_corner", new IntVec3(0, 0, 41), SkyCoverVertexProbe.Metric.CornerAlpha));
         // indoor_glow_lamp.json: the lamp regression for the passthrough's subtraction. Two cells in a
         // sealed, roofed, lamp-lit room — beside the lamp and in the far corner it cannot reach (the
         // room is 25x25 precisely because glowRadius is 10) — each reporting all three terms of
@@ -221,6 +231,38 @@ public static class ProbeRegistration
             new NativeSkyFalloffProbe("native_falloff_depth", NativeSkyFalloffProbe.Metric.Depth));
         ProbeRegistry.Register(
             new NativeSkyFalloffProbe("native_falloff_fraction", NativeSkyFalloffProbe.Metric.Fraction));
+        // §7d door_strength_leak.json: two rooms side by side, at (-13, 45) and (13, 45) rather than
+        // native_sky_falloff.json's single room at (0, 45) -- neither reuses native_falloff_depth /
+        // native_falloff_fraction above, since those are hardcoded to (0, 45), which this scenario
+        // leaves as open exterior ground between the two rooms and would read as "no occlusion" for
+        // the wrong reason. wood_door_* is room A (a plain wood Door, must match native_falloff_*'s
+        // OWN pinned values exactly since DoorLeakMath's reference ratio is 1 for the reference door);
+        // door_strength_* is room B (Odyssey's AncientBlastDoor, ratio 37.5). Same near-door local
+        // offset for both, so the pair is directly comparable at identical depth/geometry.
+        ProbeRegistry.Register(new NativeSkyFalloffProbe(
+            "wood_door_depth", NativeSkyFalloffProbe.Metric.Depth, new IntVec3(-13, 0, 45)));
+        ProbeRegistry.Register(new NativeSkyFalloffProbe(
+            "wood_door_fraction", NativeSkyFalloffProbe.Metric.Fraction, new IntVec3(-13, 0, 45)));
+        ProbeRegistry.Register(new NativeSkyFalloffProbe(
+            "door_strength_depth", NativeSkyFalloffProbe.Metric.Depth, new IntVec3(13, 0, 45)));
+        ProbeRegistry.Register(new NativeSkyFalloffProbe(
+            "door_strength_fraction", NativeSkyFalloffProbe.Metric.Fraction, new IntVec3(13, 0, 45)));
+        // glass_wall_leak2.json (§7c's IsWall blockLight gate, distinct from IndoorGlowPassthrough's own
+        // glass_wall_leak.json): same two-room-side-by-side shape as door_strength_leak.json above, at
+        // (-13, 65) and (13, 65) so it cannot collide with either scenario's rooms. Room A's south wall
+        // is unbroken granite (wall_control_*) -- the BFS must never reach the near-wall interior cell
+        // at all, since a solid wall is never a seed and is never crossed. Room B swaps the single wall
+        // cell a door would otherwise occupy for VFEArch_CellWall itself (holdsRoof true, blockLight
+        // false) instead (glass_wall_*) -- IsWall's own blockLight check is what lets the flood cross it
+        // exactly like an open threshold.
+        ProbeRegistry.Register(new NativeSkyFalloffProbe(
+            "wall_control_depth", NativeSkyFalloffProbe.Metric.Depth, new IntVec3(-13, 0, 65)));
+        ProbeRegistry.Register(new NativeSkyFalloffProbe(
+            "wall_control_fraction", NativeSkyFalloffProbe.Metric.Fraction, new IntVec3(-13, 0, 65)));
+        ProbeRegistry.Register(new NativeSkyFalloffProbe(
+            "glass_wall_depth", NativeSkyFalloffProbe.Metric.Depth, new IntVec3(13, 0, 65)));
+        ProbeRegistry.Register(new NativeSkyFalloffProbe(
+            "glass_wall_fraction", NativeSkyFalloffProbe.Metric.Fraction, new IntVec3(13, 0, 65)));
         // §16: what one map-mesh dirty flag costs, per layer, in microseconds. Seven probes rather
         // than one because the question is a comparison — our three added regenerates against the
         // vanilla ones already on the same flag — and a single total would hide exactly that. The
@@ -562,6 +604,13 @@ public static class ProbeRegistration
                 CelestialLightingFeatures.NativeSkyFalloff = enabled;
                 IndoorOcclusionRedraw.ForceRebuild();
             });
+        // §7b mesh-staleness fix (GameComponent_SkyFalloffRedraw). Unlike the three flags above, no
+        // ForceRebuild here: this only changes whether FUTURE ticks keep the mesh in step with
+        // CurSkyGlow, and toggling it must not itself repaint anything, or a scenario could never
+        // capture the "already stale, fix now switched off" frame the bug depends on.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.SkyFalloffRedrawKey,
+            enabled => CelestialLightingFeatures.SkyFalloffRedraw = enabled);
         // §15's caster heights are baked into the sun-shadow meshes, so like §7b the toggle is
         // invisible until they are regenerated — without the rebuild both A/B screenshots would show
         // whatever was baked before the flip.
