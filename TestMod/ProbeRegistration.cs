@@ -714,6 +714,19 @@ public static class ProbeRegistration
         // frames from the same process rather than from two builds. "enabled" true is the strong end;
         // false restores the shipped calibration. Ceiling moves with the scale — see SnowGlare
         // .MaxIntensity for why sweeping one without the other measures the clamp instead of the knob.
+        // Not a CelestialLightingFeatures flag: sweeps §23b's amplitude within one boot, the same seam
+        // and the same reason as snow_glare_strong below. Issue #88 option 2's open question is a
+        // question about several values of one constant ("at what strength does this read as underlit
+        // cloud rather than as blotches on the ground"), and rebuilding the mod per value would
+        // compare frames captured by different processes. "enabled" true is the quiet end at a third
+        // of the calibration, so the sweep brackets the shipped guess from BELOW as well — §23b's
+        // field concentrates its whole budget into the cloudy fraction of the map, so the risk here is
+        // the opposite of §24's.
+        FeatureRegistry.Register(
+            "cloud_underlight_quiet",
+            enabled => CloudUnderlightLayer.AmplitudeScale =
+                enabled ? CloudUnderlightMath.LayerAmplitude / 3f : CloudUnderlightMath.LayerAmplitude,
+            defaultEnabled: false);
         FeatureRegistry.Register(
             "snow_glare_strong",
             enabled =>
