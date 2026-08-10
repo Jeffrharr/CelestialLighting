@@ -10,10 +10,10 @@ namespace CelestialLighting;
 // its sliders has no visible effect until something dirties the map, which reads as "the setting did
 // nothing". This forces the rebuild on an actual change.
 //
-// Also covers §7c's two sliders (NativeSkyFalloffSettings) and §7d's door-strength sensitivity, not just
-// §7b's own: SkyFalloffSource feeds CapOcclusion's same third argument, so a change to either subsystem's
-// knobs invalidates the identical baked alpha and needs the identical rebuild — one redraw trigger for
-// the whole occlusion term rather than three that would have to stay in sync by hand.
+// Also covers §7c's sliders (NativeSkyFalloffSettings) and §7d's door-strength sensitivity, not just
+// §7b's own: SkyFalloffSource feeds CapOcclusion's same third argument, so a change to any of the three
+// subsystems' knobs invalidates the identical baked alpha and needs the identical rebuild — one redraw
+// trigger for the whole occlusion term rather than three that would have to stay in sync by hand.
 //
 // Change-detected rather than unconditional because CelestialLightingSettings.ApplyToRuntime runs
 // every frame the settings window is open, and WholeMapChanged rebuilds every section on the map —
@@ -57,10 +57,14 @@ public static class IndoorOcclusionRedraw
     // without this a scenario's A/B screenshots would both show whatever was baked before the toggle.
     public static void ForceRebuild() => RebuildLightingMeshes();
 
-    // GroundGlow is the flag the lighting overlay layer itself registers as relevant (see
-    // SectionLayer_LightingOverlay's constructor), so dirtying it regenerates exactly the layer whose
-    // alphas we rewrite. Find.Maps is empty during startup and on the main menu, which also keeps the
-    // MapMeshFlagDefOf lookup from running before defs are loaded.
+    // Same rebuild, but for exactly one map — GameComponent_SkyFalloffRedraw calls this per map whose
+    // CurSkyGlow has actually drifted, rather than paying for every map on the tick just one of them
+    // needs a rebuild. GroundGlow is the flag SectionLayer_LightingOverlay's own constructor registers
+    // as relevant, so dirtying it regenerates exactly the layer whose alphas we rewrite.
+    public static void ForceRebuildMap(Map map) => map.mapDrawer?.WholeMapChanged((ulong)MapMeshFlagDefOf.GroundGlow);
+
+    // Find.Maps is empty during startup and on the main menu, which also keeps the MapMeshFlagDefOf
+    // lookup from running before defs are loaded.
     private static void RebuildLightingMeshes()
     {
         List<Map> maps = Find.Maps;
@@ -68,6 +72,6 @@ public static class IndoorOcclusionRedraw
             return;
 
         for (int i = 0; i < maps.Count; i++)
-            maps[i].mapDrawer?.WholeMapChanged((ulong)MapMeshFlagDefOf.GroundGlow);
+            ForceRebuildMap(maps[i]);
     }
 }

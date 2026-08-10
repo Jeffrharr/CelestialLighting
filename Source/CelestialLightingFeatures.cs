@@ -430,6 +430,23 @@ public static class CelestialLightingFeatures
     // artifact the mod shipped with — 3 to 6 hours a day at ordinary latitudes where vanilla's sky was
     // lit while our sun sat below the horizon, i.e. bright ground casting no shadows.
     public static SunClockMode SunClock = SunClockMode.LockedToVanilla;
+
+    // Feature key for SkyFalloffRedraw (see CivilTwilightPersistenceKey for why the const lives here).
+    public const string SkyFalloffRedrawKey = "sky_falloff_redraw";
+
+    // §7b/§7c staleness fix: GameComponent_SkyFalloffRedraw rebuilds a map's lighting meshes when its
+    // CurSkyGlow has drifted since they were last baked, since neither a roof edit nor a glow change —
+    // the only two things that dirty a section otherwise — happens just because the clock advanced. A
+    // room's baked brightness would otherwise stay pinned at whatever time it was last touched by
+    // something else, straight through to the opposite end of the day. HARNESS-ONLY: there is no
+    // equivalent settings-screen toggle, since "the mesh matches the current sky" is a correctness
+    // property, not a taste knob a player would want turned off. Exists purely so a scenario can hold
+    // the fix off, jump the clock across a civil-twilight ramp with no lamp or roof touched, and show
+    // the stale mesh the bug used to leave behind — with it on, the same jump lands on a mesh that
+    // matches the new CurSkyGlow. When off, GameComponentTick returns immediately and no map is ever
+    // read, reproducing the pre-fix behaviour exactly (the mesh only updates from whatever else
+    // dirties a section, same as before this file existed).
+    public static bool SkyFalloffRedraw = true;
 }
 
 public enum SunClockMode

@@ -196,6 +196,16 @@ public static class ProbeRegistration
             "granite_corner", new IntVec3(0, 0, 50), SkyCoverVertexProbe.Metric.CornerAlpha));
         ProbeRegistry.Register(new SkyCoverVertexProbe(
             "granite_centre", new IntVec3(0, 0, 49), SkyCoverVertexProbe.Metric.CentreAlpha));
+        // sky_falloff_redraw.json: the near-door corner of native_sky_falloff.json's own room --
+        // same map address glass_corner reads (that room and this one are both built at offset
+        // (0, 45) with the south gap at local (0, -5)), registered under its own name because this
+        // scenario's room has no glass and reusing "glass_corner" here would misname what it reads.
+        // This is the vertex GameComponent_SkyFalloffRedraw exists to keep in step with CurSkyGlow: a
+        // corner probe rather than the fraction/depth probes above because SkyFalloffSource.FractionAt
+        // is a pure function of live CurSkyGlow and so can never observe a stale BAKE -- only the mesh
+        // byte Patch_IndoorSkyOcclusion actually wrote can.
+        ProbeRegistry.Register(new SkyCoverVertexProbe(
+            "redraw_corner", new IntVec3(0, 0, 41), SkyCoverVertexProbe.Metric.CornerAlpha));
         // indoor_glow_lamp.json: the lamp regression for the passthrough's subtraction. Two cells in a
         // sealed, roofed, lamp-lit room — beside the lamp and in the far corner it cannot reach (the
         // room is 25x25 precisely because glowRadius is 10) — each reporting all three terms of
@@ -578,6 +588,13 @@ public static class ProbeRegistration
                 CelestialLightingFeatures.NativeSkyFalloff = enabled;
                 IndoorOcclusionRedraw.ForceRebuild();
             });
+        // §7b mesh-staleness fix (GameComponent_SkyFalloffRedraw). Unlike the three flags above, no
+        // ForceRebuild here: this only changes whether FUTURE ticks keep the mesh in step with
+        // CurSkyGlow, and toggling it must not itself repaint anything, or a scenario could never
+        // capture the "already stale, fix now switched off" frame the bug depends on.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.SkyFalloffRedrawKey,
+            enabled => CelestialLightingFeatures.SkyFalloffRedraw = enabled);
         // §15's caster heights are baked into the sun-shadow meshes, so like §7b the toggle is
         // invisible until they are regenerated — without the rebuild both A/B screenshots would show
         // whatever was baked before the flip.

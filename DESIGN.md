@@ -852,6 +852,29 @@ reads `map.roofGrid` / `map.edificeGrid` and rewrites `mesh.colors32`.
   dirtied, so `IndoorOcclusionRedraw` forces a `WholeMapChanged(GroundGlow)` when the toggle or either
   slider changes (it compares the *resolved* floor, so either knob moving is caught without duplicating
   the max() rule) — otherwise the setting appears to do nothing until something else dirties the map.
+- **The same staleness applies to time itself, and is fixed the same way (`GameComponent_SkyFalloffRedraw`).**
+  `SkyFalloffSource.FractionAt` (both its native-BFS and passthrough arms) is a function of
+  `CurSkyGlow`, but nothing about the clock advancing dirties a section — only a roof edit or a glow
+  change does. Left alone, a room baked at noon stays noon-bright straight through to midnight until
+  something unrelated (a lamp toggling nearby) happens to rebuild it. Fixed with a `GameComponent`
+  (never a `MapComponent` — see the repo's own tombstoned `MapComponent_SunShadowAxis`, keyed on this
+  exact same live/redraw shape and killed for it) that checks every 250 ticks whether each map's current
+  `CurSkyGlow` has drifted ≥`SkyFalloffRedrawMath.DefaultThreshold` (0.05) from what its meshes were
+  last baked against, tracked per map by tile ID (mirroring `CloudCoverClock.Cache`'s own reasoning for
+  why a `Dictionary<int, float>` never cleared on despawn is safe) and calling
+  `IndoorOcclusionRedraw.ForceRebuildMap` only for the maps that actually moved. **Why a drift gate is
+  safe here despite the tombstone's warning against "dirtying sections on a clock, forever":** the
+  tombstoned feature's driving value (sun azimuth) sweeps continuously all day, so any nonzero threshold
+  still fired on a bounded schedule every single day. `CurSkyGlow` does not share that shape —
+  `SunClockMath.GlowFromElevation` (and the vanilla `WeatherWorker.CurSkyTarget` curve it follows) holds
+  glow flat at 0 through the night and flat at 1 through the day, moving only across the two civil-
+  twilight ramps, a bounded fraction of the day — so the gate only ever fires during a dawn or dusk
+  transition that is genuinely in progress, not forever. Skipped entirely (no map read at all) when
+  neither `NativeSkyFalloff` nor `IndoorGlowPassthrough` is on, since `FractionAt` returns a flat 0 in
+  that case and there is nothing to go stale. Gated by `CelestialLightingFeatures.SkyFalloffRedraw`,
+  harness-only (no settings-screen toggle — "the mesh matches the current sky" is a correctness
+  property, not a taste knob), so a scenario can hold the fix off, jump the clock across a civil-
+  twilight ramp with no lamp or roof touched, and capture the stale mesh the bug used to leave behind.
 - **One resolution per cell, not one per read (`SkyOcclusionWindow`).** The lattice reads each cell up
   to five times — four times as a neighbour of a corner vertex it meets at, once as its own centre — and
   each read reaches `EaveCells.Encloses`, i.e. potentially a `Room` query. At `Section.Size == 17` that
