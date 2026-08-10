@@ -197,6 +197,88 @@
       }
     },
     {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "snow_glare",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "glare_night_off.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "snow_glare",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "snow_glare_alpha",
+        "expectedValue": "0.0000",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "glare_night_on.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "16"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "snow_glare_alpha",
+        "expectedValue": "0.0315",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "17"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "snow_glare_alpha",
+        "expectedValue": "0.0200",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "18"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "snow_glare_alpha",
+        "expectedValue": "0.0071",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "19"
+      }
+    },
+    {
       "type": "Probe",
       "args": {
         "probeName": "snow_glare_alpha",
@@ -207,7 +289,72 @@
     {
       "type": "SetTime",
       "args": {
+        "hour": "16"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "snow_glare",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "glare_dusk_off.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "snow_glare",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "glare_dusk_on.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
         "hour": "12"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "0,0",
+        "zoom": "18"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "snow_glare",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "glare_roof_noon_off.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "snow_glare",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "glare_roof_noon_on.png"
       }
     },
     {

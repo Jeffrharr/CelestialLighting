@@ -23,8 +23,17 @@ namespace CelestialLighting;
 // that overflowed instead means:
 //
 //   * bare ground is exactly 0, because gain is exactly 1 and nothing overflows;
-//   * a snowy CLEAR sky is ~0, because 1.07x fits under the ceiling with room to spare;
+//   * a thin deck overflows only slightly, so glare ramps with the deck rather than switching on;
 //   * a snowy OVERCAST is where it blooms, which is precisely the inversion #90 says is missing.
+//
+// A SNOWY CLEAR SKY IS ALSO EXACTLY 0, BUT NOT FOR THE REASON IT FIRST APPEARS TO BE — worth stating
+// because the plausible-sounding version is wrong and was written down here before it was checked.
+// It is NOT that a clear sky's 1.07x cavity fits under the ceiling: with no dimming to spend, 1.07x
+// would overflow and this function would return 0.071. It is that §13's classifier scores Clear as no
+// cloud deck at all, so WeatherDimming returns before the cavity is ever consulted (see
+// WeatherDimming.UndrawableExcessFor). §24 is therefore a cloud-deck effect end to end, and that
+// holds even for a partly-cloudy Clear carrying §22's fraction, because §13 still scores Clear as
+// zero on both its axes. The live scenario measures the 0 either way; only the explanation differed.
 //
 // So the effect appears only in the case the multiplicative lane could not express, and the two
 // lanes partition the amplification between them rather than both rendering it. Nothing needs to

@@ -106,12 +106,30 @@ public static class SnowGlareOverlay
         // ignorance of the terrain, but glare is light bouncing off GROUND, so unexplored ground
         // having none of it is correct rather than a limitation.
         //
-        // KNOWN LIMITATION OF THE PROTOTYPE, recorded rather than hidden: SectionLayer_IndoorMask
-        // draws between Weather and VisEffects (measured, per the aurora's note), so this quad washes
-        // over roofed interiors that should not see outdoor glare at all. It is not fixable by moving
-        // altitude — below the mask is also below LightingOverlay, which is the fatal case above — so
-        // it needs a real answer (a masked mesh, or a per-room term) IF the effect survives the look
-        // test that issue #90 says to run first. Deliberately left for that verdict.
-        SkyOverlay.DrawWorldOverlay(map, GlareMat, AltitudeLayer.VisEffects.AltitudeFor());
+        // ROOFED CELLS ARE MASKED OUT BY GEOMETRY, because they cannot be masked by altitude.
+        // SectionLayer_IndoorMask draws between Weather and VisEffects (measured, per §11a's altitude
+        // note), i.e. BELOW us, so vanilla's own roof masking does not apply — and dropping below it
+        // to catch that masking would also drop below LightingOverlay, which is the fatal case above.
+        // SnowGlareMask therefore builds the open-sky mesh itself, from Map.roofGrid, rebuilt only
+        // when a roof is written. A null mesh means the map is entirely roofed and there is nothing to
+        // draw at all.
+        Mesh mesh = SnowGlareMask.MeshFor(map);
+        if (mesh == null)
+            return;
+
+        // THE TWO MESHES NEED DIFFERENT ORIGINS, and getting this wrong offsets the whole effect by
+        // half a map with no error. MeshPool.wholeMapPlane is built around the origin and is what
+        // SkyOverlay.DrawWorldOverlay exists to place — it positions the plane at map.Center. Our own
+        // mask is built in absolute cell coordinates instead, because it is a set of scattered runs
+        // with no meaningful centre to be placed by, so it draws at the origin. Branching on which
+        // mesh came back keeps that difference in one visible place rather than inside the mask.
+        if (mesh == MeshPool.wholeMapPlane)
+        {
+            SkyOverlay.DrawWorldOverlay(map, GlareMat, AltitudeLayer.VisEffects.AltitudeFor());
+            return;
+        }
+
+        Vector3 position = new Vector3(0f, AltitudeLayer.VisEffects.AltitudeFor(), 0f);
+        Graphics.DrawMesh(mesh, position, Quaternion.identity, GlareMat, 0);
     }
 }

@@ -6691,8 +6691,20 @@ at zero. So the two lanes **partition one product** rather than both rendering i
 | condition | multiply lane | additive lane |
 |---|---|---|
 | bare ground | renders all of it | exactly 0 (gain is 1, nothing overflows) |
-| snowy clear sky | renders all of it | exactly 0 (1.07× fits under the ceiling) |
+| thin deck over snow | renders all of it | small — glare ramps with the deck rather than switching on |
 | snowy overcast | renders up to parity | the remainder |
+
+**A snowy clear sky renders no glare either, but not for the reason it first appears to — and the
+plausible-sounding version was written into this document before it was checked.** It is *not* that a
+clear sky's 1.07× cavity fits under the ceiling: with no dimming to spend, 1.07× overflows and the
+residual would be 0.071. It is that §13's classifier scores Clear as **no cloud deck at all**, so
+`WeatherDimming.UndrawableExcessFor` returns before the cavity is ever consulted. §24 is a cloud-deck
+effect end to end, and that holds even for a partly-cloudy Clear carrying §22's fraction, since §13
+still scores Clear as zero on both its axes — the same short-circuit §21's own daytime arm relies on.
+The live measurement was 0 either way; only the explanation was wrong.
+`AClearSkyGain_StillOverflows_SoTheZeroOnClearWeatherComesFromTheDeckGateNotFromHere` pins the
+arithmetic, so a later "tidy-up" cannot make the clear-sky zero look intrinsic and silently change
+what a thin deck renders.
 
 — and neither needs to know the other exists at draw time. `SnowGlareMathTests` asserts the partition
 directly (no gap, no overlap, and the two summing back to the unclamped product), which is why that
@@ -6749,8 +6761,24 @@ the undrawable 1.92× of issue #90's table appearing as a measured number.
 |---|---|---|---|
 | `glare_overcast_noon_on.png` | Fog, noon, calibrated | 0.0532 | **5.13** — obvious |
 | `glare_overcast_noon_strong.png` | Fog, noon, swept to 0.18 | 0.1595 | **14.87** — obvious |
-| `glare_clear_noon_on.png` | Clear, noon | **0.0000** | n/a — the partition holds live |
-| (night, Fog, hour 1) | after the floor fix | **0.0000** | n/a — no double-count |
+| `glare_dusk_on.png` | Fog, 16:00 | 0.0315 | **3.00** — visible at a glance |
+| `glare_night_on.png` | Fog, 01:00 | **0.0000** | **0.00** — 0.0% of pixels changed |
+| `glare_clear_noon_on.png` | Clear, noon | **0.0000** | n/a — the deck gate, live |
+
+**The daylight ramp, surveyed rather than assumed** (`snow_glare_alpha` by hour, Fog, full-map snow):
+16:00 **0.0315**, 17:00 **0.0200**, 18:00 **0.0071**, 19:00 **0.0000**. It fades out with the light and
+reaches exactly zero before night rather than stepping off at a threshold — which is what
+`DaylightAboveNightFloor` buys over a daytime/night branch.
+
+**The night pair is the double-count guard's evidence, and it is deliberately a null result.** Both
+frames are pixel-identical because §21 already amplifies the night floor multiplicatively there — the
+snowy map is visibly not black, and none of that is §24's doing. A capture that showed *any*
+difference at 01:00 would mean the bug found during this prototype's own bring-up had returned.
+
+**Roof masking, measured by crop** (`glare_roof_noon_*`, zoomed onto the fixture's walled room):
+inside the roofed interior median ΔE **0.00** with **0.0%** of pixels changed; on open ground in the
+same frame pair, median ΔE **4.85** with **100%** changed. The mask is doing exactly what it claims,
+and the two crops in one frame pair is the cheapest way to show it.
 
 **THE INVERSION IS DRAWABLE, AND THE PRICE IS NOW MEASURED RATHER THAN GUESSED.** Comparing mean frame
 colour, snowy clear sits at `rgb(162, 144, 130)`. At the calibrated strength the snowy overcast reaches
@@ -6773,17 +6801,51 @@ The standing cost is what matters here and it is not the aurora's profile. §11a
 time-limited, so its per-frame cost amortises over how seldom it runs; snow glare on an ice sheet is
 every daylight frame, all year. Profiled over 1201 frames:
 
+**Two windows, because one of them would be a lie on its own.** `snow_glare.json`'s window profiles the
+subsystem at full tilt — snowed in, overcast, noon, drawing every frame — which is the state a polar
+colony sits in and nowhere near the state most maps are in. `snow_glare_gated.json` profiles the same
+build on a bare map, where `HasBuildup` returns false and the postfix leaves immediately. Quoting only
+the first would overstate the standing cost for almost every save; quoting only the second would be
+marketing.
+
 ```
-CelestialLighting.Patch_SnowGlareDraw:Postfix   avgMsPerFrame 0.0495   maxMsPerFrame 1.1982
-                                                callsPerFrame 2.00     avgUsPerCall 24.79
-                                                0.559% of the 8.86 ms frame this run achieved
-                                                0.297% of a 60 fps budget
+drawing every frame (snowed in, Fog, noon)
+  Patch_SnowGlareDraw:Postfix   avgMsPerFrame 0.0696   maxMsPerFrame 3.6149
+                                callsPerFrame 2.00     avgUsPerCall 34.84
+                                0.418% of a 60 fps budget
+
+gated out (no buildup on the map)
+  Patch_SnowGlareDraw:Postfix   avgMsPerFrame 0.0008   maxMsPerFrame 0.0791
+                                callsPerFrame 2.00     avgUsPerCall 0.41
+                                0.005% of a 60 fps budget
 ```
 
-Measured over 1201 frames at 112.84 fps with `PausedFrames` 0 — worth checking, because a scenario
-that leaves the clock paused profiles nothing while reporting a healthy-looking table. Third in the
-mod's own table behind §7b's occlusion postfix (0.1444) and the probe bridge's draw counter (0.0855),
-and ahead of every `CurSkyTarget` postfix the mod ships.
+**87× between the two, which is the whole argument for the gate order.** A map with no buildup pays
+0.41 µs per call against 34.84 — two `TotalDepth` field reads and a return. Before `HasBuildup` existed
+that map still walked the full weather classifier every frame to arrive at zero, so this is not a
+micro-optimisation of an already-cheap path; it is the difference between the subsystem costing
+something on every save in the game and costing something only where it can actually draw.
+
+`callsPerFrame` 2.00 is `GameConditionManagerDraw` recursing into its parent manager; the identity
+guard early-returns on one of the two, so the real work is ~70 µs on the pass that draws — the 34.84 µs
+mean averages that against a no-op, per the harness's own note about call counts including early
+returns.
+
+**The mask made the drawing case dearer, and that is the trade being bought.** Before roof masking the
+same window measured 0.0495 ms/frame at 24.79 µs per call; the mask adds a mesh lookup and swaps
+vanilla's shared plane for our own geometry, taking it to 0.0696 at 34.84. That is the cost of not
+washing glare across every roofed interior, paid only on maps that are actually drawing glare.
+
+**Almost none of either figure is the draw call.** The cost is `SnowGlare.AlphaFor` walking
+`WeatherDimming.CloudOpacityFor` — which `MapSky`'s header records as deliberately un-memoized — and
+walking it **twice**, once via `UndrawableExcessFor` and again inside `NightRadiance.FloorGlowFor` →
+`SurfaceBuildup.CavityGainFor`. That redundancy is an artifact of the night-floor fix and is the
+obvious thing to remove (a `FrameStamp` memo, per issue #12's pattern) if this ever ships on.
+
+`maxMsPerFrame` 3.6149 against a 0.0696 mean is worth noting rather than smoothing over: a max fifty
+times the mean is a dropped frame, and it is most likely the mask's first build (or a rebuild after a
+roof write) landing inside the window. If §24 goes past prototype that wants isolating before the memo
+above, not after.
 
 `callsPerFrame` 2.00 is `GameConditionManagerDraw` recursing into its parent manager; the identity
 guard early-returns on one of the two, so the real work is ~50 µs on the pass that draws — and per
@@ -6794,14 +6856,52 @@ walking it **twice**: once via `UndrawableExcessFor` and again inside `NightRadi
 `SurfaceBuildup.CavityGainFor`. That redundancy is an artifact of the night-floor fix and is the
 obvious thing to remove (a `FrameStamp` memo, per issue #12's pattern) if this ever ships on.
 
-### Known limitation, recorded rather than hidden
+### The roof mask (`SnowGlareMaskMath` / `SnowGlareMask` / `Patch_SnowGlareRoofInvalidation`)
 
 `SectionLayer_IndoorMask` draws between `Weather` and `VisEffects` (measured, per §11a's altitude
-note), so the quad washes over roofed interiors that should see no outdoor glare at all. It is **not**
-fixable by moving altitude — below the mask is also below `LightingOverlay`, which is the fatal case
-above — so it needs a real answer: a masked mesh, or a per-room term. Deliberately left until the look
-question above has a verdict, since a prototype that may be deleted should not first grow a second
-subsystem.
+note), i.e. **below** §24 — so vanilla's own roof masking does not apply, and the first prototype
+washed glare straight across roofed interiors that have no sky. Dropping below the mask to catch it is
+not available: that is also below `LightingOverlay`, which is the fatal case above. So the mask has to
+be geometry we build.
+
+`SnowGlareMaskMath.UnroofedRuns` collapses each row's unroofed cells into maximal horizontal spans,
+and `SnowGlareMask` turns those into one mesh. **Rows only, no vertical merge** — a 2-D merge would
+compress an unroofed map from 250 quads to 1, but it is the kind of code that is wrong in exactly one
+configuration nobody tests, and the mesh is rebuilt so rarely that a few hundred spare quads cost
+nothing. A map with nothing roofed short-circuits to `MeshPool.wholeMapPlane`, the shared mesh vanilla
+already keeps resident, so the common case builds nothing at all.
+
+**Why keying on roofs is affordable where keying on snow was not.** This is the same per-cell precision
+§21's shadow-fill arm is deferred for, and it escapes §16's ledger (issues #20, #60) on a single
+distinction: that ledger is about `MapMeshFlagDefOf.Snow`, which `SnowGrid.CheckVisualOrPathCostChange`
+raises constantly during snowfall. Roofs change when a player builds and otherwise never. Same
+precision, a rebuild rate near zero.
+
+Invalidation is a postfix on `RoofGrid.SetRoof` and `RoofGrid.RemoveRoofUnsafe` rather than a
+`relevantChangeTypes` widening, because §24 is not a section layer and would have had to become one
+purely to receive the notification. It is also strictly *cheaper* than the flag:
+`Patch_ShadowRoofInvalidation`'s own header records that `GlowGrid.DirtyCell` raises `Roofs` alongside
+`GroundGlow`, so a flag subscriber rebuilds every time a lamp toggles. Patching the two writers
+rebuilds on roofs and only on roofs.
+
+### The gates, and what a map with no snow pays
+
+§24's draw hook runs once per frame for as long as a save is loaded, so the number that matters is
+what a map with **no snow** costs — which is every map in most biomes, and every snowy map for most of
+the year. `SnowGlare.AlphaFor` is therefore ordered by cost × selectivity rather than by the order the
+physics reads:
+
+1. **Feature flag** — one bool.
+2. **Buildup** (`SurfaceBuildup.HasBuildup`) — two `TotalDepth` field reads, O(1) regardless of map
+   size, and by far the most selective question available: no buildup means gain is exactly 1, which
+   means the residual is exactly 0 whatever the sky is doing.
+3. **Daylight** — a cached float on `SkyManager`. Skips the weather walk for every night frame on a
+   snowed-in map, which on a polar colony is most of them.
+4. **Weather** — only now, and it is itself a gate: `UndrawableExcessFor` returns 0 the moment §13
+   reports no cloud deck, so Clear never reaches the arithmetic.
+
+Before gates 2 and 3 existed, a snowless map walked the full weather classifier every frame to arrive
+at zero. That was the entire measured cost of the subsystem on maps where it can never do anything.
 
 ## Conflict risk
 
