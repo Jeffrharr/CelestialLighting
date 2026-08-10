@@ -197,6 +197,9 @@
          for NightFadeFloorDegrees — the same public constant PurpleLightMath already reads rather
          than a second copy of "where civil twilight ends" — so that link is a hard prerequisite. -->
     <Compile Include="../../Source/CloudUnderlightMath.cs" Link="CloudUnderlightMath.cs" />
+    <!-- §23b's underlit-cloud field (issue #88, option 2). Depends on AuroraNoise, already linked
+         above for §11a — the same tileable value noise, deliberately not a second copy of it. -->
+    <Compile Include="../../Source/CloudUnderlightField.cs" Link="CloudUnderlightField.cs" />
   </ItemGroup>
 
 </Project>

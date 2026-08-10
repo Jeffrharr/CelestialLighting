@@ -50,6 +50,16 @@ public static class CloudUnderlightMath
     // blend, and Color.Lerp's own clamp caps how much overshoot is ever visible anyway.
     private const float GlowAmplitude = 0.6f;
 
+    // §23b's peak additive alpha, at the top of the glow window over a half-covered sky. A starting
+    // guess in the same sense §24's own intensity scale started as one — the number the live A/B
+    // exists to settle — but anchored rather than invented: §24 measured that an additive pass reads
+    // as "obvious" at alpha ~0.05 and as milky haze by ~0.16, and this lane's own field can only ever
+    // spend a fraction of this budget at any one point (the residual peaks at 1 - fraction, and only
+    // over the cloudy part of the map), so the peak alpha actually reaching a pixel is roughly half
+    // this. The live sweep runs against CloudUnderlightLayer.AmplitudeScale, which seeds from here —
+    // the same dev seam SnowGlare.IntensityScale opened for the same question.
+    public const float LayerAmplitude = 0.20f;
+
     // The depression angle (degrees below the horizon, positive) at which a cloud base of the given
     // altitude enters Earth's own shadow and stops catching direct sunlight from underneath.
     //
@@ -146,6 +156,54 @@ public static class CloudUnderlightMath
         // algebra never actually goes negative, but a consumer multiplying this straight into a blend
         // strength should never be handed a sign flip from float error.
         return multiplier < 0f ? 0f : multiplier;
+    }
+
+    // §23b (issue #88 OPTION 2): how strong the additive underlit-cloud LAYER is right now, in
+    // [0, LayerAmplitude]. Zero is a true no-op — the overlay returns before its draw call rather than
+    // drawing a transparent quad.
+    //
+    // DELIBERATELY THE SAME GlowPhase WarmthMultiplier USES, not a second window of its own. The two
+    // lanes are drawing one physical event — a deck still catching direct sunlight from beneath after
+    // the ground has fallen into Earth's shadow — and the whole reason §23's geometry was derived from
+    // §19's Earth-shadow model rather than from a fresh horizon-dip approximation was to keep one
+    // canonical answer to "how high is Earth's shadow" in the codebase (see this file's header, and
+    // DESIGN.md §20/§20d on mired-space drift). A separate window here would reintroduce exactly that
+    // drift one subsystem later, and the two lanes would disagree about when a sunset ends.
+    //
+    // NO OPACITY TERM, and its absence is load-bearing rather than an omission. How much cloud there
+    // is enters this lane through the FIELD (CloudUnderlightField.PatchIntensity thresholds on it, and
+    // the mean subtraction is what makes a solid overcast contribute no structure at all), so
+    // multiplying by it again here would count coverage twice and, worse, would make a full overcast
+    // the strongest case when it is precisely the case with nothing spatial to say.
+    //
+    // The suppression phase is likewise absent, and correctly so: a low deck's shadow-entry angle is
+    // near zero, so GlowPhase is near zero across the whole below-horizon range and this lane simply
+    // never fires for one. Issue #88's "a low overcast kills the sunset" case stays entirely §23's,
+    // where it belongs — killing a sunset is something done to the flat colour, not something an
+    // additive pass can draw.
+    public static float LayerStrength(
+        float elevationDegrees, float altitudeMetres, float cloudFraction, bool inVacuum) =>
+        LayerStrengthWithAmplitude(
+            elevationDegrees, altitudeMetres, cloudFraction, LayerAmplitude, inVacuum);
+
+    // The amplitude spelled out, so the invariants pinned against this in CloudUnderlightMathTests do
+    // not silently stop meaning anything when the live A/B retunes LayerAmplitude — the same reason
+    // CloudCoverDrift.FractionWithAmplitude exists alongside CloudCoverDrift.Fraction, and the seam
+    // the harness sweep drives.
+    public static float LayerStrengthWithAmplitude(
+        float elevationDegrees, float altitudeMetres, float cloudFraction, float amplitude,
+        bool inVacuum)
+    {
+        if (inVacuum)
+            return 0f;
+
+        if (Clamp01(cloudFraction) <= 0f || !(amplitude > 0f))
+            return 0f;
+
+        float shadowEntry = MathF.Min(
+            ShadowEntryDepressionDegrees(altitudeMetres), -SkyColorTemperature.NightFadeFloorDegrees);
+
+        return amplitude * GlowPhase(elevationDegrees, shadowEntry);
     }
 
     // Guards the a==b case InverseLerpClamped's callers above can genuinely reach (WarmthMultiplier's

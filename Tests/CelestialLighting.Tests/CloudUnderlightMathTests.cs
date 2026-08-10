@@ -227,4 +227,79 @@ public class CloudUnderlightMathTests
             Assert.That(multiplier, Is.GreaterThanOrEqualTo(0f));
         }
     }
+
+    // --- LayerStrength: §23b's additive lane (issue #88 option 2) ---
+
+    // Issue #88's headline invariant for the spatial lane, and the reason it shares GlowPhase with the
+    // flat one: the warm contribution has to PEAK BELOW THE HORIZON. Above it the ground is still lit
+    // directly and there is no underlighting to draw; below shadow entry the deck has gone dark too.
+    [Test]
+    public void LayerStrength_IsZeroWithTheSunUpAndZeroOnceTheDeckIsInShadow()
+    {
+        float entry = CloudUnderlightMath.ShadowEntryDepressionDegrees(4000f);
+
+        Assert.That(CloudUnderlightMath.LayerStrength(5f, 4000f, 0.5f, inVacuum: false),
+            Is.EqualTo(0f).Within(Tolerance));
+        Assert.That(CloudUnderlightMath.LayerStrength(0f, 4000f, 0.5f, inVacuum: false),
+            Is.EqualTo(0f).Within(Tolerance));
+        Assert.That(CloudUnderlightMath.LayerStrength(-entry, 4000f, 0.5f, inVacuum: false),
+            Is.EqualTo(0f).Within(Tolerance));
+        Assert.That(CloudUnderlightMath.LayerStrength(-entry * 0.5f, 4000f, 0.5f, inVacuum: false),
+            Is.EqualTo(CloudUnderlightMath.LayerAmplitude).Within(Tolerance));
+    }
+
+    // A high deck stays lit longer, so at any given depression past a low deck's shadow entry the
+    // high one is still drawing and the low one is not. This is issue #88's altitude table restated
+    // for the additive lane — and it is what makes "a low overcast kills the sunset" fall out here as
+    // silence rather than as a special case.
+    [Test]
+    public void LayerStrength_AHighDeckStillDrawsWhereALowOneHasGoneDark()
+    {
+        float lowDeck = CloudUnderlightMath.LayerStrength(-2.5f, 1000f, 0.5f, inVacuum: false);
+        float highDeck = CloudUnderlightMath.LayerStrength(-2.5f, 10000f, 0.5f, inVacuum: false);
+
+        Assert.That(lowDeck, Is.EqualTo(0f).Within(Tolerance));
+        Assert.That(highDeck, Is.GreaterThan(0f));
+    }
+
+    // Coverage enters this lane through the FIELD, not through the strength — see LayerStrength's own
+    // header. Anything above zero must therefore give the same strength, or a solid overcast would
+    // come out as the strongest spatial case when it is precisely the one with no structure in it.
+    [Test]
+    public void LayerStrength_DoesNotScaleWithCoverage()
+    {
+        float quarter = CloudUnderlightMath.LayerStrength(-1f, 4000f, 0.25f, inVacuum: false);
+        float full = CloudUnderlightMath.LayerStrength(-1f, 4000f, 1f, inVacuum: false);
+
+        Assert.That(quarter, Is.EqualTo(full).Within(Tolerance));
+        Assert.That(quarter, Is.GreaterThan(0f));
+
+        // Zero coverage is still a hard stop, so "off" and "no cloud" both mean no draw call at all.
+        Assert.That(CloudUnderlightMath.LayerStrength(-1f, 4000f, 0f, inVacuum: false),
+            Is.EqualTo(0f).Within(Tolerance));
+    }
+
+    // Vacuum.cs's convention: last parameter, required, and a no-op return before any geometry runs.
+    // There is no cloud deck to underlight without air, and no air to redden the light that lit it.
+    [Test]
+    public void LayerStrength_IsZeroInVacuum()
+    {
+        Assert.That(CloudUnderlightMath.LayerStrength(-1f, 4000f, 0.5f, inVacuum: true),
+            Is.EqualTo(0f).Within(Tolerance));
+    }
+
+    [Test]
+    public void LayerStrength_ScalesLinearlyWithAmplitudeAndIgnoresNonsense()
+    {
+        float half = CloudUnderlightMath.LayerStrengthWithAmplitude(-1f, 4000f, 0.5f, 0.1f, false);
+        float whole = CloudUnderlightMath.LayerStrengthWithAmplitude(-1f, 4000f, 0.5f, 0.2f, false);
+
+        Assert.That(whole, Is.EqualTo(half * 2f).Within(Tolerance));
+        Assert.That(CloudUnderlightMath.LayerStrengthWithAmplitude(-1f, 4000f, 0.5f, 0f, false),
+            Is.EqualTo(0f));
+        Assert.That(CloudUnderlightMath.LayerStrengthWithAmplitude(-1f, 4000f, 0.5f, -1f, false),
+            Is.EqualTo(0f));
+        Assert.That(CloudUnderlightMath.LayerStrengthWithAmplitude(-1f, 4000f, 0.5f, float.NaN, false),
+            Is.EqualTo(0f));
+    }
 }
