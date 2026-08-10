@@ -187,7 +187,7 @@
     <!-- §24's roof mask. Independent of SnowGlareMath above — it answers "which cells" while that
          one answers "how bright" — but linked here for the same reason: its failure mode is a quiet
          off-by-one that leaks glare under the eaves, which no screenshot of a 250x250 map resolves. -->
-    <Compile Include="../../Source/SnowGlareMaskMath.cs" Link="SnowGlareMaskMath.cs" />
+    <Compile Include="../../Source/OpenSkyMaskMath.cs" Link="OpenSkyMaskMath.cs" />
     <!-- Issue #12's per-frame geometry memo. Verse-free by design (the live half that reads
          Time.frameCount / the tick / the mode flags lives in Source/FrameStamp.cs), so its
          hit/miss/invalidation rules are unit tested offline instead of inferred from in-game
