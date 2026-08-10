@@ -201,8 +201,9 @@ public static class Patch_IndoorSkyOcclusion
     }
 
     // Live-state lookup for one cell, baked into the window and never repeated. Reads the roof *def*
-    // rather than the Roofed() bool because thick roof (a mountain) is one of the inputs — under it
-    // even a wall counts as buried, which is vanilla's own exception too.
+    // rather than the Roofed() bool because thick roof (a mountain) is one of the inputs — paired with
+    // natural rock it is what tells unmined stone, which is buried, apart from a built wall standing
+    // under a mined-out mountain roof, which is not (#129; BlocksSky carries why they differ).
     //
     // The roof an EAVE carries (§15: roofed, but part of a room that breathes outdoor air — a porch,
     // a lean-to, the overhang that oversails a wall) is not passed on as "roofed" at all. Blacking a
@@ -226,10 +227,20 @@ public static class Patch_IndoorSkyOcclusion
         bool holdsRoof = edifice != null && edifice.def.holdsRoof;
 
         bool blocksSky = IndoorOcclusionMath.BlocksSky(
-            EaveCells.Encloses(map, cell, roof), roof != null && roof.isThickRoof, holdsRoof, isDoor);
+            EaveCells.Encloses(map, cell, roof), roof != null && roof.isThickRoof, holdsRoof, isDoor,
+            NaturalRock(edifice));
 
         window.Resolve(x, z, blocksSky);
     }
+
+    // Unmined stone: the game's own flag for it, set on RockBase and so inherited by every vanilla
+    // rock and ore alike (the ore defs only add isResourceRock on top, which is why that one is not
+    // tested here). Modded rock that forgets the flag reads as a wall and gets the ramp rather than
+    // the blackout — the safe way round, since the failure is then a stone face a shade too light
+    // rather than a wall ring swallowed whole. CollapsedRocks sets it false deliberately and is
+    // likewise treated as the debris pile it is.
+    private static bool NaturalRock(Building edifice) =>
+        edifice != null && edifice.def.building != null && edifice.def.building.isNaturalRock;
 
     // Mirrors vanilla's own door test — SectionLayer_LightingOverlay identifies doors by
     // AltitudeLayer.DoorMoveable, not by type — so our notion of "this is a doorway" can never drift

@@ -206,6 +206,23 @@ public static class ProbeRegistration
         // byte Patch_IndoorSkyOcclusion actually wrote can.
         ProbeRegistry.Register(new SkyCoverVertexProbe(
             "redraw_corner", new IntVec3(0, 0, 41), SkyCoverVertexProbe.Metric.CornerAlpha));
+        // thick_roof_wall.json (#129): whether a wall ring under a mountain roof is a boundary or is
+        // swallowed into the room's blackout. Four centres and no corner, because the claim here is
+        // about the cells the wall RING renders as, and a wall's centre is the mean of its own corners
+        // — the one vertex that moves when the classification changes. thick_wall against
+        // constructed_wall is the whole comparison: the constructed room is built identically and its
+        // wall was never affected, so a run where BOTH moved means something other than this rule did
+        // it. thick_outside is the second symptom, one cell of open ground north of the wall that
+        // inherited darkness through the wall's outer lattice points; thick_floor is the control that
+        // must NOT move, since the interior floor being black is working as designed.
+        ProbeRegistry.Register(new SkyCoverVertexProbe(
+            "thick_wall_centre", new IntVec3(-10, 0, 33), SkyCoverVertexProbe.Metric.CentreAlpha));
+        ProbeRegistry.Register(new SkyCoverVertexProbe(
+            "thick_outside_centre", new IntVec3(-10, 0, 34), SkyCoverVertexProbe.Metric.CentreAlpha));
+        ProbeRegistry.Register(new SkyCoverVertexProbe(
+            "thick_floor_centre", new IntVec3(-10, 0, 31), SkyCoverVertexProbe.Metric.CentreAlpha));
+        ProbeRegistry.Register(new SkyCoverVertexProbe(
+            "constructed_wall_centre", new IntVec3(10, 0, 33), SkyCoverVertexProbe.Metric.CentreAlpha));
         // indoor_glow_lamp.json: the lamp regression for the passthrough's subtraction. Two cells in a
         // sealed, roofed, lamp-lit room — beside the lamp and in the far corner it cannot reach (the
         // room is 25x25 precisely because glowRadius is 10) — each reporting all three terms of

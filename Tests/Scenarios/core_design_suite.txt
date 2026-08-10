@@ -72,6 +72,11 @@ weather_dimming_census.json
 # weather_dimming's 7 — so dropping it from the suite costs no §13 coverage, only the feature-toggle
 # A/B and the blizzard frames, both of which are visual checks rather than cadence checks.
 #
+# thick_roof_wall.json is absent for the same reason as penumbra_lowsun below: it builds two rooms and
+# repaints terrain (ScenarioResidue.Map). The preset is not what disqualifies it — it flips
+# realistic_preset, but ResetAll() puts that back between scenarios, which is exactly what the
+# defaultEnabled: false on that arm is for. Run it standalone.
+#
 # penumbra_lowsun.json is deliberately absent: it builds a wall grid and repaints terrain
 # (ScenarioResidue.Map), and it is still in-flight work whose expected softness (0.5367) does not
 # match what the current build reads at its chosen hour (0.0920). Run it standalone while that is

@@ -1,0 +1,37 @@
+{
+  "name": "thick_roof_wall",
+  "saveFile": "minimal_colony.rws",
+  "description": "Issue #129: a wall ring under a thick (mountain) roof went as black as the room's own floor, so a mountain base read as one solid black square with a door graphic in it. Two identical 7x7 granite rooms with a granite door, side by side, differing ONLY in the roof laid over them: RoofRockThick west, RoofConstructed east. The constructed room is the control -- its wall ring was always a ramp -- so the pins are a comparison rather than a number: thick_wall_centre must match constructed_wall_centre, thick_floor_centre must stay fully occluded (the interior being black is working as designed and is not what this is about), and thick_outside_centre pins the second symptom, one cell of open ground north of the wall that used to inherit darkness through the wall's outer lattice points. Realistic preset because MinIndoorBrightness holds the interior off black under Cinematic, which compresses exactly the range being measured. Roofs are 7x7 so they cover the walls themselves, not just the interior -- a 5x5 roof leaves the wall ring unroofed and the scenario measures nothing. The concrete pads are 9x9 rather than the 17x17 the neighbouring door scenarios use: 9x9 is exactly the room plus the one-cell margin thick_outside_centre reads, and a 17x17 pad reaches steam geysers that SetTerrain cannot clear, which fails the run on an error that has nothing to do with what is being measured. Every pin below is a live measurement, and each one was also measured on the pre-fix build for the contrast: thick_wall_centre 255 -> 123 (now identical to the constructed control), thick_outside_centre 128 -> 50 (50 is vanilla's OWN number for that cell, since its corner pass raises the two lattice points touching a roofed cell to its 100 floor, so what the fix removed there is entirely ours), thick_floor_centre 240 -> 240 and constructed_wall_centre 123 -> 123, both unmoved. thick_floor_centre is 240 rather than 255 because the door lets §7c's graded sky falloff a little way in; it is pinned as measured, not as derived.",
+  "steps": [
+    {"type": "SetFeature", "args": {"featureName": "realistic_preset", "enabled": "true"}},
+    {"type": "SetFeature", "args": {"featureName": "indoor_sky_occlusion", "enabled": "true"}},
+    {"type": "SetTile", "args": {"latitude": "45"}},
+    {"type": "SetSeason", "args": {"dayOfYear": "40"}},
+    {"type": "SetWeather", "args": {"weatherDef": "Clear", "instant": "true"}},
+
+    {"type": "SetTerrain", "args": {"def": "Concrete", "width": "9", "height": "9", "offset": "-10,30", "clear": "true"}},
+    {"type": "SetTerrain", "args": {"def": "Concrete", "width": "9", "height": "9", "offset": "10,30", "clear": "true"}},
+
+    {"type": "PlaceThings", "args": {"def": "Wall", "stuff": "BlocksGranite", "offset": "-10,30", "layout": "cells", "clear": "false", "cells": "-3,-3; -2,-3; -1,-3; 1,-3; 2,-3; 3,-3; -3,3; -2,3; -1,3; 0,3; 1,3; 2,3; 3,3; -3,-2; -3,-1; -3,0; -3,1; -3,2; 3,-2; 3,-1; 3,0; 3,1; 3,2"}},
+    {"type": "PlaceThings", "args": {"def": "Wall", "stuff": "BlocksGranite", "offset": "10,30", "layout": "cells", "clear": "false", "cells": "-3,-3; -2,-3; -1,-3; 1,-3; 2,-3; 3,-3; -3,3; -2,3; -1,3; 0,3; 1,3; 2,3; 3,3; -3,-2; -3,-1; -3,0; -3,1; -3,2; 3,-2; 3,-1; 3,0; 3,1; 3,2"}},
+    {"type": "PlaceThings", "args": {"def": "Door", "stuff": "BlocksGranite", "offset": "-10,27", "layout": "cells", "clear": "false", "cells": "0,0"}},
+    {"type": "PlaceThings", "args": {"def": "Door", "stuff": "BlocksGranite", "offset": "10,27", "layout": "cells", "clear": "false", "cells": "0,0"}},
+
+    {"type": "SetRoof", "args": {"def": "RoofRockThick", "width": "7", "height": "7", "offset": "-10,30"}},
+    {"type": "SetRoof", "args": {"def": "RoofConstructed", "width": "7", "height": "7", "offset": "10,30"}},
+
+    {"type": "SetTime", "args": {"hour": "12"}},
+
+    {"type": "LookAt", "args": {"offset": "-10,30", "zoom": "13"}},
+    {"type": "Wait", "args": {"frames": "2"}},
+    {"type": "Screenshot", "args": {"fileName": "thick_roof_wall_mountain.png"}},
+    {"type": "LookAt", "args": {"offset": "10,30", "zoom": "13"}},
+    {"type": "Wait", "args": {"frames": "2"}},
+    {"type": "Screenshot", "args": {"fileName": "thick_roof_wall_constructed.png"}},
+
+    {"type": "Probe", "args": {"probeName": "thick_wall_centre", "expectedValue": "123", "tolerance": "1"}},
+    {"type": "Probe", "args": {"probeName": "thick_outside_centre", "expectedValue": "50", "tolerance": "1"}},
+    {"type": "Probe", "args": {"probeName": "thick_floor_centre", "expectedValue": "240", "tolerance": "1"}},
+    {"type": "Probe", "args": {"probeName": "constructed_wall_centre", "expectedValue": "123", "tolerance": "1"}}
+  ]
+}

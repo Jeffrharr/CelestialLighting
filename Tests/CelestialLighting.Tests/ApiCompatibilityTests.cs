@@ -1463,12 +1463,32 @@ public class ApiCompatibilityTests
     [Test]
     public void RoofDef_IsThickRoof_Exists()
     {
-        // Vanilla's own cover test short-circuits its roof-holder exclusion on this flag, and so does
-        // ours: under a mountain even a wall cell counts as interior.
+        // Half of our "is this cell the mountain itself" test — the other half is
+        // BuildingProperties.isNaturalRock below, and only the two together bury a cell. Vanilla's own
+        // corner pass short-circuits its roof-holder exclusion on this same flag, though it stops at
+        // raising the cover to its 100 floor rather than blacking the cell out (see #129).
         var type = GetType("Verse.RoofDef");
         Assert.That(type, Is.Not.Null, "Verse.RoofDef no longer exists");
         Assert.That(type!.Fields.Any(f => f.Name == "isThickRoof" && f.IsPublic), Is.True,
             "RoofDef.isThickRoof no longer exists — IndoorOcclusionMath.BlocksSky's mountain exception depends on it");
+    }
+
+    [Test]
+    public void BuildingProperties_IsNaturalRock_Exists()
+    {
+        // The other half. Losing this field would not fail loudly — every rock would read as a built
+        // wall and mountain interiors would quietly go a shade light — so it is pinned rather than left
+        // to the eye. Reached as ThingDef.building, which is why that property is checked too.
+        var thingDef = GetType("Verse.ThingDef");
+        Assert.That(thingDef, Is.Not.Null, "Verse.ThingDef no longer exists");
+        Assert.That(thingDef!.Fields.Any(f => f.Name == "building" && f.IsPublic), Is.True,
+            "ThingDef.building no longer exists — Patch_IndoorSkyOcclusion reads isNaturalRock through it");
+
+        var type = GetType("RimWorld.BuildingProperties");
+        Assert.That(type, Is.Not.Null, "RimWorld.BuildingProperties no longer exists");
+        Assert.That(type!.Fields.Any(f => f.Name == "isNaturalRock" && f.IsPublic), Is.True,
+            "BuildingProperties.isNaturalRock no longer exists — IndoorOcclusionMath.BlocksSky tells unmined "
+            + "stone from a built wall under a mountain roof with it");
     }
 
     [Test]

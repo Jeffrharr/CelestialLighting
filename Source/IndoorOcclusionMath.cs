@@ -79,9 +79,29 @@ public static class IndoorOcclusionMath
     //   - A cell holding up the roof over it — a wall — is not interior either, exactly as vanilla
     //     decides for both of its vertex passes. Getting this wrong is what painted exterior walls
     //     black and pushed the darkness a cell past them onto open ground.
-    //   - Unless the roof is *thick*: a mountain buries whatever is under it, wall or not, and vanilla
-    //     makes the same exception (`roofDef.isThickRoof` short-circuits its holdsRoof test).
-    public static bool BlocksSky(bool roofed, bool thickRoof, bool holdsRoof, bool isDoor)
+    //   - Unless the solid cell *is* the mountain: natural rock under a thick roof is interior, because
+    //     there is no wall face there to catch the light — it is unmined stone all the way up.
+    //
+    // That last clause used to read `thickRoof || !holdsRoof`, i.e. a thick roof buried whatever was
+    // under it, wall or not (#129). The analogy it was drawn from does not survive the trip: vanilla's
+    // `roofDef.isThickRoof` short-circuit lives in the *corner* pass only — its centre pass tests a
+    // bare `roofed && !holdsRoof` with no thickness term at all (see the two-pass listing at the head
+    // of this file) — and even at the corner all it does is raise the cover to the 100 floor. We
+    // collapsed both passes onto this one predicate and turned that floor into a full 255 blackout, so
+    // "the mountain holds its own roof up" came out as "the wall's own sky reads zero", which is a
+    // gameplay-mechanics answer to a rendering question. Live, it swallowed the whole wall ring of a
+    // mountain room into the same black square as its floor: no wall texture, no boundary, no ramp.
+    //
+    // Splitting on natural rock rather than dropping the thickness term outright keeps the half of the
+    // old behaviour that was right. Unmined stone genuinely has no sky and should stay buried; a
+    // *built* wall under a mined-out mountain roof is the same stone wall it would be under a
+    // constructed one, and now gets the same corner ramp. It is the same "one predicate was really two
+    // questions" split EavesMath.IsEave/CastsRoofShadow already made against this same thickRoof veto.
+    //
+    // Note this leaves an interior partition wall inside a mountain base still fully occluded, and
+    // correctly so: it is not the rule below that darkens it but its own four corners, every one of
+    // them shared with interior floor. No sky reaches that wall, so none is drawn on it.
+    public static bool BlocksSky(bool roofed, bool thickRoof, bool holdsRoof, bool isDoor, bool naturalRock)
     {
         if (isDoor)
             return false;
@@ -89,7 +109,10 @@ public static class IndoorOcclusionMath
         if (!roofed)
             return false;
 
-        return thickRoof || !holdsRoof;
+        if (!holdsRoof)
+            return true;
+
+        return thickRoof && naturalRock;
     }
 
     // A lattice corner is shared by up to four cells and is covered if *any* of them is interior — an
