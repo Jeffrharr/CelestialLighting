@@ -203,19 +203,31 @@ public static class NativeSkyFalloffGrid
         if (edifice == null || edifice.def.altitudeLayer != AltitudeLayer.DoorMoveable)
             return 1f;
 
-        return DoorLeakMath.CrossingMultiplier(edifice.def.BaseMaxHitPoints, doorReferenceMaxHitPoints, doorStrengthSensitivity);
+        return DoorLeakMath.CrossingMultiplier(edifice.def.BaseMaxHitPoints, doorReferenceMaxHitPoints, doorStrengthSensitivity, edifice.def.blockLight);
     }
 
-    // Physically solid -- holds up the roof and is not a door. Deliberately NOT
+    // Physically solid -- holds up the roof, is not a door, and actually blocks light. Deliberately NOT
     // IndoorOcclusionMath.BlocksSky: that predicate answers "should §7b's rendering pass paint this
     // cell fully dark" (false for a wall, which gets the corner-ramp treatment instead), not "can the
     // flood pass through this cell". A door never counts as a wall here, so the BFS still crosses an
     // open threshold the way both DepthAt's own header and Rebuild's seed loop above expect.
+    //
+    // The blockLight check is what makes a see-through wall (a modded glass partition, e.g. Vanilla
+    // Furniture Expanded - Architect's VFEArch_CellWall: holdsRoof true, blockLight false, and -- unlike
+    // ReBuild's own glass walls -- no GroundGlowAt patch of its own to own the whole-map gradient
+    // instead) read as ordinary open floor rather than solid rock: the BFS crosses it for free, exactly
+    // as it crosses a door with CrossingMultiplier's own no-op floor, since CrossingMultiplier only ever
+    // special-cases AltitudeLayer.DoorMoveable and leaves every other edifice at its default 1. This is
+    // NOT the "bespoke transparent-wall leak" §7b's header records as deleted for measuring inert --
+    // that measurement was taken with ReBuild loaded, which stands this entire BFS down map-wide via
+    // UnderRoofFalloffOwner, so it could never have exercised this branch in the first place. A glass
+    // wall from a mod that does not own the gradient is the one live case where this is not inert.
     private static bool IsWall(Map map, IntVec3 cell)
     {
         Building edifice = map.edificeGrid[cell];
         return edifice != null && edifice.def.holdsRoof
-            && edifice.def.altitudeLayer != AltitudeLayer.DoorMoveable;
+            && edifice.def.altitudeLayer != AltitudeLayer.DoorMoveable
+            && edifice.def.blockLight;
     }
 
     private static bool CornerBlocked(Map map, IntVec3 cell, IntVec3 diagonalOffset)

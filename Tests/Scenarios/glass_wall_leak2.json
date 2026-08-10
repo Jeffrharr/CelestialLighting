@@ -1,0 +1,70 @@
+{
+  "name": "glass_wall_leak2",
+  "saveFile": "minimal_colony.rws",
+  "description": "§7c's IsWall blockLight gate (distinct from IndoorGlowPassthrough's own glass_wall_leak.json, which covers a mod that OWNS the whole-map gradient via GroundGlowAt -- this one covers a mod that does not, so §7c's own native BFS is the only thing that can light its glass walls at all). Two copies of the same 11x11 roofed room, side by side, at (-13,65) and (13,65) so neither collides with door_strength_leak.json's own rooms at (-13,45)/(13,45). Room A's south wall is unbroken granite (wall_control_*): the near-wall interior cell must read depth 0 (never reached -- a solid wall is neither a seed nor crossable), proving the control is genuinely sealed. Room B's south wall has one granite cell replaced by Vanilla Furniture Expanded - Architect's VFEArch_CellWall (holdsRoof true, blockLight false, and -- unlike ReBuild: Doors and Corners' own glass walls -- no GroundGlowAt patch of its own, so it does not become an UnderRoofFalloffOwner and stand this BFS down): glass_wall_depth must read exactly 2, same as a doorway would (the flood crosses it for free, one step, same as door_strength_leak.json's own wood_door_depth), and glass_wall_fraction should read close to wood_door_depth's own fraction at the same depth, since CrossingMultiplier only ever special-cases AltitudeLayer.DoorMoveable and leaves this wall cell at the default no-op multiplier of 1 -- a glass wall dims nothing, it just stops being opaque. Run WITHOUT Ambient Light and forces the Realistic preset first, same reasons native_sky_falloff.json and door_strength_leak.json give.",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "20" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "40" } },
+    { "type": "SetWeather", "args": { "weatherDef": "Clear", "instant": "true" } },
+    {
+      "type": "SetTerrain",
+      "args": { "def": "Concrete", "width": "50", "height": "20", "offset": "0,65", "clear": "true" }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "-13,65",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "-5,5; -4,5; -3,5; -2,5; -1,5; 0,5; 1,5; 2,5; 3,5; 4,5; 5,5; -5,-5; -4,-5; -3,-5; -2,-5; -1,-5; 0,-5; 1,-5; 2,-5; 3,-5; 4,-5; 5,-5; -5,-4; -5,-3; -5,-2; -5,-1; -5,0; -5,1; -5,2; -5,3; -5,4; 5,-4; 5,-3; 5,-2; 5,-1; 5,0; 5,1; 5,2; 5,3; 5,4"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "13,65",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "-5,5; -4,5; -3,5; -2,5; -1,5; 0,5; 1,5; 2,5; 3,5; 4,5; 5,5; -5,-5; -4,-5; -3,-5; -2,-5; -1,-5; 1,-5; 2,-5; 3,-5; 4,-5; 5,-5; -5,-4; -5,-3; -5,-2; -5,-1; -5,0; -5,1; -5,2; -5,3; -5,4; 5,-4; 5,-3; 5,-2; 5,-1; 5,0; 5,1; 5,2; 5,3; 5,4"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "VFEArch_CellWall", "stuff": "Steel", "offset": "13,65", "layout": "cells", "clear": "false",
+        "cells": "0,-5"
+      }
+    },
+    {
+      "type": "SetRoof",
+      "args": { "def": "RoofConstructed", "width": "11", "height": "11", "offset": "-13,65" }
+    },
+    {
+      "type": "SetRoof",
+      "args": { "def": "RoofConstructed", "width": "11", "height": "11", "offset": "13,65" }
+    },
+    { "type": "LookAt", "args": { "offset": "0,65", "zoom": "34" } },
+
+    { "type": "SetFeature", "args": { "featureName": "realistic_preset", "enabled": "true" } },
+
+    { "type": "FastForward", "args": { "ticks": "250" } },
+
+    { "type": "SetTime", "args": { "hour": "12" } },
+
+    { "type": "Probe", "args": { "probeName": "wall_control_depth", "expectedValue": "0", "tolerance": "0" } },
+    { "type": "Probe", "args": { "probeName": "wall_control_fraction", "expectedValue": "0", "tolerance": "0" } },
+    { "type": "Probe", "args": { "probeName": "glass_wall_depth", "expectedValue": "2", "tolerance": "0" } },
+    { "type": "Probe", "args": { "probeName": "glass_wall_fraction", "expectedValue": "0.262499988", "tolerance": "0.0001" } },
+    { "type": "Screenshot", "args": { "fileName": "glass_wall_leak2_noon.png" } },
+
+    { "type": "SetTime", "args": { "hour": "23" } },
+
+    { "type": "Probe", "args": { "probeName": "wall_control_fraction", "expectedValue": "0", "tolerance": "0" } },
+    { "type": "Probe", "args": { "probeName": "glass_wall_fraction", "expectedValue": "0.0104999989", "tolerance": "0.0001" } },
+    { "type": "Screenshot", "args": { "fileName": "glass_wall_leak2_night.png" } }
+  ]
+}

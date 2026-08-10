@@ -247,6 +247,22 @@ public static class ProbeRegistration
             "door_strength_depth", NativeSkyFalloffProbe.Metric.Depth, new IntVec3(13, 0, 45)));
         ProbeRegistry.Register(new NativeSkyFalloffProbe(
             "door_strength_fraction", NativeSkyFalloffProbe.Metric.Fraction, new IntVec3(13, 0, 45)));
+        // glass_wall_leak2.json (§7c's IsWall blockLight gate, distinct from IndoorGlowPassthrough's own
+        // glass_wall_leak.json): same two-room-side-by-side shape as door_strength_leak.json above, at
+        // (-13, 65) and (13, 65) so it cannot collide with either scenario's rooms. Room A's south wall
+        // is unbroken granite (wall_control_*) -- the BFS must never reach the near-wall interior cell
+        // at all, since a solid wall is never a seed and is never crossed. Room B swaps the single wall
+        // cell a door would otherwise occupy for VFEArch_CellWall itself (holdsRoof true, blockLight
+        // false) instead (glass_wall_*) -- IsWall's own blockLight check is what lets the flood cross it
+        // exactly like an open threshold.
+        ProbeRegistry.Register(new NativeSkyFalloffProbe(
+            "wall_control_depth", NativeSkyFalloffProbe.Metric.Depth, new IntVec3(-13, 0, 65)));
+        ProbeRegistry.Register(new NativeSkyFalloffProbe(
+            "wall_control_fraction", NativeSkyFalloffProbe.Metric.Fraction, new IntVec3(-13, 0, 65)));
+        ProbeRegistry.Register(new NativeSkyFalloffProbe(
+            "glass_wall_depth", NativeSkyFalloffProbe.Metric.Depth, new IntVec3(13, 0, 65)));
+        ProbeRegistry.Register(new NativeSkyFalloffProbe(
+            "glass_wall_fraction", NativeSkyFalloffProbe.Metric.Fraction, new IntVec3(13, 0, 65)));
         // §16: what one map-mesh dirty flag costs, per layer, in microseconds. Seven probes rather
         // than one because the question is a comparison — our three added regenerates against the
         // vanilla ones already on the same flag — and a single total would hide exactly that. The

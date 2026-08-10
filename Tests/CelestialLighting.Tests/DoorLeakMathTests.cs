@@ -17,7 +17,7 @@ public class DoorLeakMathTests
         // "Our default should be wooden doors" — an all-wood-door playthrough must see the exact
         // pre-§7d multiplier of 1 (no dimming), not a fractional discount for reading its own
         // reference value.
-        Assert.That(DoorLeakMath.CrossingMultiplier(WoodDoor, WoodDoor, DoorLeakMath.DefaultSensitivity),
+        Assert.That(DoorLeakMath.CrossingMultiplier(WoodDoor, WoodDoor, DoorLeakMath.DefaultSensitivity, blocksLight: true),
             Is.EqualTo(1f).Within(Tolerance));
     }
 
@@ -27,7 +27,7 @@ public class DoorLeakMathTests
         // Odyssey's VacBarrier (100) reads WEAKER than a wood Door under BaseMaxHitPoints — this knob
         // only ever dims the flood, so a door it doesn't recognise as "stronger" leaves it at the
         // ordinary 1, not a bonus brightening for being flimsy.
-        Assert.That(DoorLeakMath.CrossingMultiplier(100f, WoodDoor, DoorLeakMath.DefaultSensitivity),
+        Assert.That(DoorLeakMath.CrossingMultiplier(100f, WoodDoor, DoorLeakMath.DefaultSensitivity, blocksLight: true),
             Is.EqualTo(1f).Within(Tolerance));
     }
 
@@ -35,7 +35,7 @@ public class DoorLeakMathTests
     public void CrossingMultiplier_OrnateDoor_DimsMildly()
     {
         // 250 / 160 = 1.5625, extraRatio 0.5625, exp(-0.5 * 0.5625) ~= 0.7548.
-        Assert.That(DoorLeakMath.CrossingMultiplier(250f, WoodDoor, DoorLeakMath.DefaultSensitivity),
+        Assert.That(DoorLeakMath.CrossingMultiplier(250f, WoodDoor, DoorLeakMath.DefaultSensitivity, blocksLight: true),
             Is.EqualTo(0.75485f).Within(1e-3f));
     }
 
@@ -43,7 +43,7 @@ public class DoorLeakMathTests
     public void CrossingMultiplier_SecurityDoor_LeaksAlmostNothing()
     {
         // 800 / 160 = 5.0, extraRatio 4.0, exp(-0.5 * 4.0) ~= 0.1353.
-        Assert.That(DoorLeakMath.CrossingMultiplier(800f, WoodDoor, DoorLeakMath.DefaultSensitivity),
+        Assert.That(DoorLeakMath.CrossingMultiplier(800f, WoodDoor, DoorLeakMath.DefaultSensitivity, blocksLight: true),
             Is.EqualTo(0.13534f).Within(1e-3f));
     }
 
@@ -52,7 +52,7 @@ public class DoorLeakMathTests
     {
         // 6000 / 160 = 37.5, extraRatio 36.5 -- exp(-0.5 * 36.5) underflows to (effectively) zero
         // rather than throwing or producing NaN/Infinity.
-        Assert.That(DoorLeakMath.CrossingMultiplier(6000f, WoodDoor, DoorLeakMath.DefaultSensitivity),
+        Assert.That(DoorLeakMath.CrossingMultiplier(6000f, WoodDoor, DoorLeakMath.DefaultSensitivity, blocksLight: true),
             Is.EqualTo(0f).Within(1e-6f));
     }
 
@@ -61,7 +61,7 @@ public class DoorLeakMathTests
     {
         // The slider's own floor: even Anomaly's SecurityDoor leaves the flood at the ordinary 1 when
         // the player has turned door-strength weighting off entirely.
-        Assert.That(DoorLeakMath.CrossingMultiplier(800f, WoodDoor, sensitivity: 0f),
+        Assert.That(DoorLeakMath.CrossingMultiplier(800f, WoodDoor, sensitivity: 0f, blocksLight: true),
             Is.EqualTo(1f).Within(Tolerance));
     }
 
@@ -70,7 +70,7 @@ public class DoorLeakMathTests
     {
         // A non-positive reference means "couldn't resolve ThingDefOf.Door.BaseMaxHitPoints" — degrade
         // to the pre-feature flat multiplier of 1 rather than dividing by zero.
-        Assert.That(DoorLeakMath.CrossingMultiplier(800f, 0f, DoorLeakMath.DefaultSensitivity),
+        Assert.That(DoorLeakMath.CrossingMultiplier(800f, 0f, DoorLeakMath.DefaultSensitivity, blocksLight: true),
             Is.EqualTo(1f).Within(Tolerance));
     }
 
@@ -80,8 +80,30 @@ public class DoorLeakMathTests
         // Nested airlocks: NativeSkyFalloffGrid propagates strength forward as a running product, so
         // this pure core only needs to guarantee a single crossing's multiplier composes by
         // multiplication -- two OrnateDoor crossings in a row should read as that multiplier squared.
-        float single = DoorLeakMath.CrossingMultiplier(250f, WoodDoor, DoorLeakMath.DefaultSensitivity);
+        float single = DoorLeakMath.CrossingMultiplier(250f, WoodDoor, DoorLeakMath.DefaultSensitivity, blocksLight: true);
         float twice = single * single;
         Assert.That(twice, Is.EqualTo(0.56980f).Within(1e-3f));
+    }
+
+    [Test]
+    public void CrossingMultiplier_BlocksLightFalse_PassesFullyRegardlessOfHitPoints()
+    {
+        // ThingDef.blockLight is vanilla's own "does this register with the glow grid" flag
+        // (Building.SpawnSetup/DeSpawn read it directly). A modded see-through door (a glass door, the
+        // motivating case) sets it false -- light does not care how sturdy the door is, only whether
+        // it is opaque, so strength must not matter here at all.
+        Assert.That(DoorLeakMath.CrossingMultiplier(800f, WoodDoor, DoorLeakMath.DefaultSensitivity, blocksLight: false),
+            Is.EqualTo(1f).Within(Tolerance));
+    }
+
+    [Test]
+    public void CrossingMultiplier_BlocksLightFalse_OverridesEvenAnExtremelyStrongDoor()
+    {
+        // Same as above but at AncientBlastDoor's own hit points -- a door strong enough to decay to
+        // effectively zero when opaque (see CrossingMultiplier_AncientBlastDoor_DecaysToEffectivelyZero)
+        // must still pass fully once blocksLight is false, proving the gate is checked BEFORE the ratio
+        // math rather than blended into it.
+        Assert.That(DoorLeakMath.CrossingMultiplier(6000f, WoodDoor, DoorLeakMath.DefaultSensitivity, blocksLight: false),
+            Is.EqualTo(1f).Within(Tolerance));
     }
 }

@@ -1130,6 +1130,55 @@ depth/maxDepth falloff by this strength as a final term.
   because it *is* a sturdier door type, not because a player happened to build an ordinary one from a
   pricier material — and pulling in stuff would need a matching table per stuff category with no way to
   stay exhaustive against modded stuff.
+- **`ThingDef.blockLight` gates the whole formula, checked before the ratio math.** Strength was never
+  the right question for a door that is not opaque: RimWorld's own glow grid already has a flag for
+  exactly this (`Building.SpawnSetup`/`DeSpawn` call `map.glowGrid.LightBlockerAdded`/`Removed` gated on
+  `if (def.blockLight)`, decompiled to confirm). `DoorBase` defaults it `true`, and no vanilla or DLC
+  door currently overrides it — the gap only shows up with a modded see-through door (a glass door,
+  motivating case), which sets it `false`. `CrossingMultiplier` returns `1` immediately when
+  `blocksLight` is `false`, before touching `doorMaxHitPoints` at all, so a door that is both strong and
+  see-through still passes fully rather than merely dimming less than an equally strong opaque one —
+  light does not care how sturdy a pane of glass is. Deliberately not folded into the ratio (e.g. "treat
+  a see-through door as if it had the reference's own HP") because that would still leave some dimming
+  on a door whose actual `BaseMaxHitPoints` sits above the wood reference. No live scenario for this one
+  — no glass-door mod is installed locally to spawn one against — the offline `DoorLeakMathTests` cases
+  are the only proof (`CrossingMultiplier_BlocksLightFalse_PassesFullyRegardlessOfHitPoints` and
+  `..._OverridesEvenAnExtremelyStrongDoor`, the latter pinned at `AncientBlastDoor`'s own hit points to
+  prove the gate short-circuits ahead of the exponential, not blended into it).
+- **A glass *wall* gets the same `blockLight` gate, but as a passthrough, not a multiplier — and this
+  reopens a case §7's own header records as measured inert, in the one situation where it is not.**
+  `IsWall` now also requires `blockLight`, so a see-through wall (`holdsRoof` true, `blockLight` false)
+  no longer counts as a wall at all: the BFS crosses it exactly like open floor, one step of depth, no
+  strength cost, since `CrossingMultiplier` only ever special-cases `AltitudeLayer.DoorMoveable` and
+  leaves every other edifice at its default 1. This is deliberately a passthrough (empty space), not a
+  door-style dimming crossing — a pane of glass is not a sturdier or flimsier obstacle the way a door is,
+  it simply is not one. §7's "A bespoke transparent-wall leak was built for this and deleted" note
+  (above) describes the *same* change, and it is not a contradiction: that measurement was taken with
+  ReBuild loaded, and ReBuild's own `GroundGlowAt` patch makes it an `UnderRoofFalloffOwner`, which stands
+  this entire BFS down map-wide before the branch could ever run. It could not have been anything but
+  inert there. The live case this reopens is a glass wall from a mod that does NOT own the whole gradient
+  — Vanilla Furniture Expanded - Architect's `VFEArch_CellWall` (`holdsRoof` true, `blockLight` false, no
+  `GroundGlowAt` patch of its own) — where §7c's BFS is the only thing that ever runs, and previously
+  read the wall as solid rock regardless of `blockLight`. `IndoorGlowPassthrough` still wins outright
+  wherever another mod's gradient answers (`SkyFalloffArbitration`'s deferral is unchanged), so this only
+  ever fires in the gap passthrough cannot reach — a genuinely new case, not a second implementation of
+  the same fix. Live-verified in `Tests/Scenarios/glass_wall_leak2.json` (`VFEArch_CellWall` + its
+  `VanillaExpanded.VFEArchitect`/`OskarPotocki.VanillaFactionsExpanded.Core` dependency, neither installed
+  by any other scenario in this suite): a granite-walled control room reads `wall_control_depth` 0 (never
+  reached) against a same-shaped room with one wall cell swapped for `VFEArch_CellWall`, which reads
+  `glass_wall_depth` 2 and `glass_wall_fraction` exactly matching `door_strength_leak.json`'s own
+  `wood_door_fraction` at the same depth (0.262499988 at noon, 0.0104999989 at 23:00) — confirming the
+  crossing is genuinely strength-free, not merely dimmed less. Median CIELAB ΔE (CIE76) between the two
+  rooms' interiors (clear of the wall sprite's own vertical bleed, which otherwise swamps the comparison
+  with the two defs' unrelated base textures) is 1.10 at noon — visible on close inspection — and ~0 at
+  23:00, where the fraction itself is too small to read on screen despite being real.
+  **Kept out of `.glow`, on purpose.** `NativeSkyFalloffGrid.FractionAt` feeds only
+  `SkyFalloffSource.FractionAt`, consumed solely by `Patch_IndoorSkyOcclusion`'s `CapOcclusion` argument
+  — the cosmetic vertex-alpha term `SectionLayer_LightingOverlay` paints, never `map.glowGrid`. A glass
+  wall reading as passable here changes how much of the *sky's colour* an indoor cell shows, not how
+  bright the room actually is for gameplay purposes (pathing, plant growth, mood, `Room` mechanics all
+  still see the wall as solid) — the same visual/atmospheric-only boundary this repo holds everywhere
+  else it writes `.glow` at all (§7's own "few patches write `SkyTarget.glow`" scope note).
 - **The reference is a wood door, and ratio 1 there is load-bearing.** `DoorStrengthReference` memoizes
   `ThingDefOf.Door.BaseMaxHitPoints` (160, `DoorBase`'s own `statBases` override, not the 100 `StatDef`
   default) once — defs never change at runtime, so re-deriving it on every `Rebuild` would pay a stat

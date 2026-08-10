@@ -59,8 +59,19 @@ public static class DoorLeakMath
     // sensitivity: NativeSkyFalloffSettings.DoorStrengthSensitivity — 0 (or below) reproduces the
     // pre-feature flat multiplier of 1 exactly, the same "slider at its floor is a true no-op" contract
     // every other §7c knob honours.
-    public static float CrossingMultiplier(float doorMaxHitPoints, float referenceMaxHitPoints, float sensitivity)
+    // blocksLight: the door's own ThingDef.blockLight — vanilla's own flag for exactly this question
+    // (Building.SpawnSetup/DeSpawn read it, unconditionally, to decide whether to register the cell
+    // with map.glowGrid at all; decompiled to confirm). DoorBase defaults it true and no vanilla or DLC
+    // door currently overrides it, but a modded see-through door (a glass door, say) sets it false —
+    // and strength was never the right question for that door: light does not care how sturdy a pane of
+    // glass is, only whether it is opaque. Checked FIRST, before the ratio math, rather than blended
+    // into it, so a door that is both strong and see-through still passes fully instead of merely
+    // dimming less than an equally strong opaque one would.
+    public static float CrossingMultiplier(float doorMaxHitPoints, float referenceMaxHitPoints, float sensitivity, bool blocksLight)
     {
+        if (!blocksLight)
+            return 1f;
+
         if (referenceMaxHitPoints <= 0f || sensitivity <= 0f)
             return 1f;
 

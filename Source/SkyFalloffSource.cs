@@ -27,8 +27,12 @@ namespace CelestialLighting;
 // instead of the mod, so it covers Ambient Light (measured: it recovers the same 0.4583 that
 // reflection did, with no reflection) AND every other mod that lights interiors. That matters for a
 // case the old arm structurally could not reach: ReBuild: Doors and Corners transpiles GroundGlowAt so
-// cells near its GLASS WALLS receive sky glow, and a glass wall holds roof and is not a door, so §7c's
-// BFS treats it as solid and floods nothing through it. Neither arm covered glass before this.
+// cells near its GLASS WALLS receive sky glow, and ReBuild's own patch makes it an
+// UnderRoofFalloffOwner, standing §7c's BFS down entirely wherever it is installed. A glass wall from a
+// mod that does NOT own the gradient is now covered by §7c's own BFS instead (NativeSkyFalloffGrid's
+// IsWall reads blockLight directly), so between the two arms every glass-wall mod is covered one way or
+// the other -- passthrough wherever another mod owns the gradient, native BFS passthrough everywhere
+// else.
 public static class SkyFalloffSource
 {
     public static float FractionAt(Map map, IntVec3 cell)
