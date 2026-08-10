@@ -6672,9 +6672,15 @@ same values, so a preset is never a separate code path.
 
 ## 24. Snow-glare bloom — the additive pass (`SnowGlareMath` / `SnowGlare` / `SnowGlareOverlay`, issue #90)
 
-**Status: PROTOTYPE, shipped OFF.** Everything below is built, live-verified and measured; whether it
-should default on is a taste question this section deliberately does not answer. It is the only flag
-in `CelestialLightingFeatures` that ships `false`.
+**Status: SHIPPED ON**, after the prototype phase answered #90's open question from frames. It shipped
+`false` through that phase deliberately, so the taste call could be made by looking rather than by
+argument; the measured table below is what settled it.
+
+**What default-on does and does not claim.** It renders the visible-but-restrained half of #90: a
+snowed-in overcast noon at median CIELAB ΔE 5.13, a polar snowfield at 3.67-5.08, alongside §21's own
+6.06. It does **not** render the headline inversion — a snowy overcast brighter than a snowy CLEAR
+sky still needs roughly ΔE 15 and reads as milky haze at that strength. Anyone reopening that trade
+should start from the sweep below rather than from the physics.
 
 **Problem.** §21 claims a snowy *overcast* is brighter than a snowy *clear* sky — the counterintuitive
 inversion the whole subsystem exists to demonstrate. §21 cannot render it. `SkyColorSet.sky` is a
