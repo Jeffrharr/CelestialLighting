@@ -266,8 +266,13 @@ public class SkyOcclusionWindowTests
         map.Outline(30, 30, 44, 44, holdsRoof: true);
         map.SetDoor(37, 30);
 
-        // A mountain pocket overlapping the room's corner: thick roof buries wall and floor alike.
+        // A mined-out mountain pocket overlapping the room's corner: thick roof over open floor, and
+        // over the room's own wall where the two meet. That wall is not buried — it is a built wall
+        // standing under a mountain roof, not the mountain (#129).
         map.Fill(40, 40, 48, 48, roofed: true, thickRoof: true);
+
+        // The unmined far end of that same pocket, which is buried: stone all the way up, no wall face.
+        map.FillRock(46, 46, 48, 48);
 
         // A porch: roofed, not a mountain, and its room uses outdoor temperature — an eave, which is
         // never interior even though it is roofed.
@@ -292,6 +297,7 @@ public class SkyOcclusionWindowTests
         private readonly bool[] roofed;
         private readonly bool[] thickRoof;
         private readonly bool[] holdsRoof;
+        private readonly bool[] naturalRock;
         private readonly bool[] doors;
         private readonly bool[] outdoorTemperature;
 
@@ -301,6 +307,7 @@ public class SkyOcclusionWindowTests
             roofed = new bool[size * size];
             thickRoof = new bool[size * size];
             holdsRoof = new bool[size * size];
+            naturalRock = new bool[size * size];
             doors = new bool[size * size];
             outdoorTemperature = new bool[size * size];
         }
@@ -351,6 +358,22 @@ public class SkyOcclusionWindowTests
             }
         }
 
+        // Unmined stone, which is both the edifice holding its own thick roof up and the thing that
+        // makes it the mountain rather than a wall standing under one (#129).
+        public void FillRock(int minX, int minZ, int maxX, int maxZ)
+        {
+            Fill(minX, minZ, maxX, maxZ, roofed: true, thickRoof: true);
+            for (int z = minZ; z <= maxZ; z++)
+            {
+                for (int x = minX; x <= maxX; x++)
+                {
+                    int i = Index(x, z);
+                    holdsRoof[i] = true;
+                    naturalRock[i] = true;
+                }
+            }
+        }
+
         public void SetDoor(int x, int z) => doors[Index(x, z)] = true;
 
         public void Resolve(int x, int z, out bool blocksSky)
@@ -361,7 +384,7 @@ public class SkyOcclusionWindowTests
 
             int i = Index(x, z);
             blocksSky = IndoorOcclusionMath.BlocksSky(
-                Encloses(i), roofed[i] && thickRoof[i], holdsRoof[i], doors[i]);
+                Encloses(i), roofed[i] && thickRoof[i], holdsRoof[i], doors[i], naturalRock[i]);
         }
 
         // EaveCells.Encloses, transcribed: the roof test comes first and is what keeps the room query

@@ -730,8 +730,21 @@ reads `map.roofGrid` / `map.edificeGrid` and rewrites `mesh.colors32`.
   both of which the first cut got wrong and both of which were visible on screen:
   - **A wall is a boundary, not an interior.** A wall cell is roofed (it carries the roof it holds up),
     so classifying on `Roofed()` alone painted every exterior wall dead black and pushed the darkness one
-    cell past it onto open ground. `holdsRoof` excludes it, exactly as vanilla does — *unless* the roof is
-    thick, since a mountain buries whatever is under it (vanilla's `isThickRoof` disjunct).
+    cell past it onto open ground. `holdsRoof` excludes it, exactly as vanilla does — *unless* the cell is
+    unmined stone (`isThickRoof && building.isNaturalRock`), which is buried because there is no wall face
+    there at all.
+    That exception used to read `isThickRoof` alone, i.e. a mountain buried whatever was under it, wall or
+    not, borrowed from vanilla's `isThickRoof` disjunct. It was over-applied on two counts (#129): the
+    disjunct is in vanilla's **corner** pass only — its centre pass tests a bare `Roofed && !holdsRoof`
+    with no thickness term — and even there it raises the cover to the 100 floor rather than blacking the
+    cell out. Reproducing a roof-*support* rule as "this cell's own sky reads zero" swallowed the entire
+    wall ring of a mountain room into the same black square as its floor: no wall texture, no boundary, no
+    ramp. Narrowing to natural rock keeps the half that was right (unmined stone genuinely has no sky) and
+    drops the half that was not (a built wall under a mined-out mountain roof is the same wall it would be
+    under a constructed one). It is the same one-predicate-was-two-questions split `EavesMath` already made
+    against this same `thickRoof` veto. Note an interior partition wall deep in a mountain base is still
+    fully occluded — but by its own four corners, every one shared with interior floor, which is the
+    correct reason rather than the roof over it.
   - **Corners OR, boundary centres average.** A corner is covered if *any* of its four cells is interior,
     so every vertex inside a room lands on 1.0 and the interior renders flat. A cell that is not itself
     interior takes the mean of its own four corners, so an exterior wall is `1.0` on its inner face,

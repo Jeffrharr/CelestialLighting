@@ -15,7 +15,9 @@ public class IndoorOcclusionMathTests
     {
         // The sky genuinely is overhead, so vanilla's own cover stands — this is what keeps the feature
         // from darkening the outdoors at all.
-        Assert.That(IndoorOcclusionMath.BlocksSky(roofed: false, thickRoof: false, holdsRoof: false, isDoor: false),
+        Assert.That(
+            IndoorOcclusionMath.BlocksSky(
+                roofed: false, thickRoof: false, holdsRoof: false, isDoor: false, naturalRock: false),
             Is.False);
     }
 
@@ -24,7 +26,9 @@ public class IndoorOcclusionMathTests
     {
         // The headline case: a sealed room tile takes no sky at all, so it renders from its artificial
         // glow alone (black when unlit) instead of vanilla's ~61%-of-sky.
-        Assert.That(IndoorOcclusionMath.BlocksSky(roofed: true, thickRoof: false, holdsRoof: false, isDoor: false),
+        Assert.That(
+            IndoorOcclusionMath.BlocksSky(
+                roofed: true, thickRoof: false, holdsRoof: false, isDoor: false, naturalRock: false),
             Is.True);
     }
 
@@ -34,17 +38,45 @@ public class IndoorOcclusionMathTests
         // Regression: a wall is roofed (its own cell carries the roof it holds up), and treating that as
         // interior blacked out every exterior wall and pushed the darkness a cell past it onto open
         // ground. Vanilla excludes roof-holders from cover in *both* of its vertex passes; so do we.
-        Assert.That(IndoorOcclusionMath.BlocksSky(roofed: true, thickRoof: false, holdsRoof: true, isDoor: false),
+        Assert.That(
+            IndoorOcclusionMath.BlocksSky(
+                roofed: true, thickRoof: false, holdsRoof: true, isDoor: false, naturalRock: false),
             Is.False);
     }
 
     [Test]
-    public void BlocksSky_WallUnderThickRoof_IsInterior()
+    public void BlocksSky_UnminedRockUnderThickRoof_IsInterior()
     {
-        // A mountain buries whatever is under it, wall included — vanilla's `roofDef.isThickRoof`
-        // disjunct short-circuits its holdsRoof test for exactly this reason.
-        Assert.That(IndoorOcclusionMath.BlocksSky(roofed: true, thickRoof: true, holdsRoof: true, isDoor: false),
+        // The mountain itself: solid stone with no wall face to catch light, so it is buried whole.
+        Assert.That(
+            IndoorOcclusionMath.BlocksSky(
+                roofed: true, thickRoof: true, holdsRoof: true, isDoor: false, naturalRock: true),
             Is.True);
+    }
+
+    [Test]
+    public void BlocksSky_BuiltWallUnderThickRoof_IsNotInterior()
+    {
+        // #129. This read True until the thickness term was narrowed to natural rock, and it swallowed
+        // the whole wall ring of a mountain room into the same black square as its floor. A built wall
+        // under a mined-out mountain roof is the same wall it would be under a constructed one, so it
+        // gets the same corner ramp — what is overhead is not what decides that.
+        Assert.That(
+            IndoorOcclusionMath.BlocksSky(
+                roofed: true, thickRoof: true, holdsRoof: true, isDoor: false, naturalRock: false),
+            Is.False);
+    }
+
+    [Test]
+    public void BlocksSky_NaturalRockWithoutAThickRoof_IsNotInterior()
+    {
+        // The two halves are an AND, not either alone: rock left standing under a *constructed* roof
+        // has a face like any other wall. Rare, and pinned so the clause cannot quietly decay back into
+        // "natural rock is always buried".
+        Assert.That(
+            IndoorOcclusionMath.BlocksSky(
+                roofed: true, thickRoof: false, holdsRoof: true, isDoor: false, naturalRock: true),
+            Is.False);
     }
 
     [Test]
@@ -54,9 +86,13 @@ public class IndoorOcclusionMathTests
         // thick roof, where the door rule deliberately wins — and can never propagate blackness outward
         // through the wall line. Any brightening at the threshold now comes from §7c's distance-graded
         // sky falloff, not from this classification.
-        Assert.That(IndoorOcclusionMath.BlocksSky(roofed: true, thickRoof: false, holdsRoof: true, isDoor: true),
+        Assert.That(
+            IndoorOcclusionMath.BlocksSky(
+                roofed: true, thickRoof: false, holdsRoof: true, isDoor: true, naturalRock: false),
             Is.False);
-        Assert.That(IndoorOcclusionMath.BlocksSky(roofed: true, thickRoof: true, holdsRoof: true, isDoor: true),
+        Assert.That(
+            IndoorOcclusionMath.BlocksSky(
+                roofed: true, thickRoof: true, holdsRoof: true, isDoor: true, naturalRock: false),
             Is.False);
     }
 
@@ -65,9 +101,13 @@ public class IndoorOcclusionMathTests
     {
         // Defensive: thick roof cannot exist without a roof, but the flags arrive as independent
         // primitives here, so the unroofed case must dominate rather than fall through.
-        Assert.That(IndoorOcclusionMath.BlocksSky(roofed: false, thickRoof: true, holdsRoof: false, isDoor: false),
+        Assert.That(
+            IndoorOcclusionMath.BlocksSky(
+                roofed: false, thickRoof: true, holdsRoof: false, isDoor: false, naturalRock: false),
             Is.False);
-        Assert.That(IndoorOcclusionMath.BlocksSky(roofed: false, thickRoof: false, holdsRoof: true, isDoor: false),
+        Assert.That(
+            IndoorOcclusionMath.BlocksSky(
+                roofed: false, thickRoof: false, holdsRoof: true, isDoor: false, naturalRock: false),
             Is.False);
     }
 
@@ -165,7 +205,7 @@ public class IndoorOcclusionMathTests
     {
         // The regression this fix is about, end to end: the wall is not interior, so the lattice on its
         // outer face is 0, so the open cell beyond it averages 0 and takes vanilla's own alpha.
-        bool wallIsInterior = IndoorOcclusionMath.BlocksSky(roofed: true, thickRoof: false, holdsRoof: true, isDoor: false);
+        bool wallIsInterior = IndoorOcclusionMath.BlocksSky(roofed: true, thickRoof: false, holdsRoof: true, isDoor: false, naturalRock: false);
         float outerCorner = IndoorOcclusionMath.CornerOcclusion(wallIsInterior);
         float outdoorCentre = IndoorOcclusionMath.CentreOcclusion(blocksSky: false, cornerOcclusionSum: 4f * outerCorner);
 
