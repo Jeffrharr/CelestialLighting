@@ -132,6 +132,9 @@
     <Compile Include="../../Source/CelestialSettingsMath.cs" Link="CelestialSettingsMath.cs" />
     <!-- Subsystem 7b pure core (indoor sky occlusion). Verse-free, so it compiles under net8.0 as-is. -->
     <Compile Include="../../Source/IndoorOcclusionMath.cs" Link="IndoorOcclusionMath.cs" />
+    <!-- Which under-roof sky source answers a cell. Pure ordering logic, linked so the seam rule (an
+         owning mod's zero is a real zero, not an invitation for §7c to fill in) is testable offline. -->
+    <Compile Include="../../Source/SkyFalloffArbitration.cs" Link="SkyFalloffArbitration.cs" />
     <!-- §7b's baked verdict window: geometry, storage and reads only, so it is Verse-free too and the
          lattice-equivalence tests can drive the real shipped buffer rather than a stand-in. -->
     <Compile Include="../../Source/SkyOcclusionWindow.cs" Link="SkyOcclusionWindow.cs" />

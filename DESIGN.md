@@ -825,6 +825,25 @@ reads `map.roofGrid` / `map.edificeGrid` and rewrites `mesh.colors32`.
   declares `staticSunShadowHeight` 0, which `Patch_ShadowMeshPerimeter` and `EaveShadowGrid` already
   read.
 
+  **Deferral is whole-map, not per cell.** When another mod *owns* under-roof falloff — supplies a
+  whole-map distance-from-an-opening gradient of its own, as Ambient Light does — §7c's native BFS is
+  not consulted anywhere on the map, and is never even built. Falling through per cell is the easy
+  mistake and reintroduces exactly the seam §7c set out to avoid: a cell just past their `maxDepth`
+  returns 0 from the passthrough and would then be answered by our gradient, which has an
+  independently tuned `maxDepth`, so a discontinuity appears *inside a single room* that neither
+  gradient has on its own. `SkyFalloffArbitration` is the pure rule; `UnderRoofFalloffOwner` is the
+  detection.
+
+  That detection **names mods**, unlike the passthrough, and the reason is concrete. The tempting
+  general test — "has anyone other than us patched `GroundGlowAt`?" — is wrong: ReBuild patches
+  exactly that method, but only to pass light through its glass walls, and supplies no door gradient
+  at all. Standing §7c down for it would silently delete under-roof falloff for every player who has
+  ReBuild. "Does this mod own the whole gradient" is not observable at runtime, so it is a short
+  explicit list with the reason recorded per entry. Measured both ways: with Ambient Light installed
+  the near-door cell reads `ambient_sky_fraction` **0 → 0.4583** across the passthrough toggle (0, not
+  §7c's 0.2625 — the native gradient really is out); without it, `native_sky_falloff.json` still reads
+  depth 2 and **0.2625** at that same cell, so the door leak is untouched.
+
   **The lamp guard.** `Tests/Scenarios/indoor_glow_lamp.json` pins the subtraction: a sealed, roofed,
   torch-lit 25×25 room reads ground 0.5, artificial 0.5, **sky 0**, identical at noon and midnight,
   with and without Ambient Light loaded. `TorchLamp` rather than `StandingLamp` — the latter needs a

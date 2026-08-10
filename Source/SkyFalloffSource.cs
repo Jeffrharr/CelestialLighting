@@ -9,12 +9,17 @@ namespace CelestialLighting;
 // either source directly, so there is exactly one place that decides which (if either) answers a
 // given cell.
 //
-// Deferral, not composition, when another mod is answering: the two sources use different maxDepth
-// values and formulas by construction (players tune each independently), so blending them (e.g. Max())
-// would put a visible seam wherever the smaller maxDepth runs out -- a discontinuity neither gradient
-// has on its own. Another mod's value is also gameplay-authoritative (Ambient Light's mouseover
-// readout already reports exactly it), so it wins outright rather than being treated as one input
-// among several. The native BFS is not consulted for a cell somebody else has already lit.
+// Deferral, not composition, and deferral at WHOLE-MAP scope rather than per cell. The two sources
+// use different maxDepth values and formulas by construction (players tune each independently), so
+// blending them (e.g. Max()) would put a visible seam wherever the smaller maxDepth runs out -- a
+// discontinuity neither gradient has on its own. Falling through PER CELL has the same fault and is
+// easier to write by accident: a cell just past Ambient Light's reach returns 0 from the passthrough
+// and would then be answered by our BFS, so the seam reappears inside a single room. So when another
+// mod OWNS under-roof falloff (UnderRoofFalloffOwner), our BFS is not consulted anywhere on the map --
+// not merely skipped for the cells that mod happened to light.
+//
+// Their value is also gameplay-authoritative: Ambient Light's own mouseover readout already reports
+// exactly it, so it wins outright rather than being treated as one input among several.
 //
 // WHY THE FIRST ARM IS NO LONGER AMBIENT-LIGHT-SPECIFIC. It used to be AmbientLightCompat, which bound
 // by reflection to one named mod -- its map component, its settings object, its GetDepth -- and
@@ -28,19 +33,28 @@ public static class SkyFalloffSource
 {
     public static float FractionAt(Map map, IntVec3 cell)
     {
-        // > 0 means some mod actually put sky-sourced light in this cell. 0 covers both "no such mod"
-        // and "this particular cell is beyond its reach", which is exactly when the native BFS should
-        // answer instead -- so the two compose without either needing to know the other exists.
+        // Whatever another mod put in this cell, whoever it is. Read first because it is
+        // gameplay-authoritative wherever it answers.
         float fromOtherMod = IndoorGlowPassthrough.SkyFractionAt(map, cell);
-        if (fromOtherMod > 0f)
-            return fromOtherMod;
 
-        if (!CelestialLightingFeatures.NativeSkyFalloff)
-            return 0f;
+        // Short-circuited rather than passed to the arbiter as a fourth argument, because computing it
+        // means BUILDING the whole-map BFS: with an owner present that grid is never wanted, and
+        // running it for nothing on every map with Ambient Light installed is exactly the waste §7c's
+        // own header set out to avoid.
+        if (fromOtherMod > 0f || UnderRoofFalloffOwner.Present
+            || !CelestialLightingFeatures.NativeSkyFalloff)
+        {
+            return SkyFalloffArbitration.Resolve(
+                fromOtherMod, UnderRoofFalloffOwner.Present,
+                CelestialLightingFeatures.NativeSkyFalloff, nativeFraction: 0f);
+        }
 
         NativeSkyFalloffSettings settings = NativeSkyFalloffSettings.Current;
-        return NativeSkyFalloffGrid.FractionAt(
+        float native = NativeSkyFalloffGrid.FractionAt(
             map, cell, map.skyManager.CurSkyGlow,
             settings.MaxDepth, settings.PassThroughPercent);
+
+        return SkyFalloffArbitration.Resolve(
+            fromOtherMod, ownerPresent: false, nativeEnabled: true, native);
     }
 }
