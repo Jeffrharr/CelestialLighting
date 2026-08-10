@@ -678,6 +678,32 @@ public static class ProbeRegistration
         // daytime recovery) — see SurfaceCavityGainProbe's header for why a screenshot A/B alone
         // cannot tell a genuinely-small lift from no lift at all.
         ProbeRegistry.Register(new SurfaceCavityGainProbe());
+        // §24 snow-glare bloom (issue #90), the prototype's A/B axis. Nothing baked to rebuild —
+        // SnowGlare.AlphaFor is read fresh inside SnowGlareOverlay.Draw every frame, so the next
+        // frame shows the flip. Unlike every other feature here the shipped default is OFF, so this
+        // registration is what turns it on for a capture at all; a scenario that forgets the
+        // SetFeature step measures the baseline twice and reports a confident ΔE 0.00.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.SnowGlareKey,
+            enabled => CelestialLightingFeatures.SnowGlare = enabled);
+        // The drawn alpha, and the residual behind it. Two probes rather than one because they
+        // distinguish "no overflow to draw" from "overflow drawn too faintly" — see the probes' own
+        // headers for why that distinction decides whether #90 gets built or closed.
+        ProbeRegistry.Register(new SnowGlareProbe());
+        ProbeRegistry.Register(new SnowGlareExcessProbe());
+        // Not a CelestialLightingFeatures flag: sweeps §24's strength knob within one boot, so the
+        // calibrated look and the strength needed to actually DRAW #90's inversion can be captured as
+        // frames from the same process rather than from two builds. "enabled" true is the strong end;
+        // false restores the shipped calibration. Ceiling moves with the scale — see SnowGlare
+        // .MaxIntensity for why sweeping one without the other measures the clamp instead of the knob.
+        FeatureRegistry.Register(
+            "snow_glare_strong",
+            enabled =>
+            {
+                SnowGlare.IntensityScale = enabled ? 0.18f : SnowGlareMath.DefaultIntensityScale;
+                SnowGlare.MaxIntensity = enabled ? 1f : SnowGlareMath.MaxIntensity;
+            },
+            defaultEnabled: false);
         // Not a CelestialLightingFeatures flag: bridges §7b's minimum-indoor-brightness slider so a
         // visual scenario can A/B a sealed room at full black against one held above it. "enabled" ==
         // true means raise the floor to a clearly-visible 0.25; false restores the shipped 0 (black).

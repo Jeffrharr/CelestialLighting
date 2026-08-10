@@ -55,21 +55,8 @@ public static class WeatherDimming
     // is 0, so the feature gate and the clear-sky fast path are both inherited from it.
     public static float DimmingFor(Map map)
     {
-        float opacity = CloudOpacityFor(map);
-        if (opacity <= 0f)
+        if (!ReadDimmingAndGain(map, out float dimming, out float cavityGain))
             return 0f;
-
-        // Vanilla already lerps all three rates across the weather transition (WeatherManager.RainRate
-        // and friends are Mathf.Lerp(last, cur, TransitionLerpFactor)), so we deliberately do not lerp
-        // them again here — only the palette-derived opacity needs our own blend. SandRate returns 0
-        // without Odyssey, so reading it unconditionally is safe.
-        WeatherManager weather = map.weatherManager;
-        float dimming = WeatherDimmingMath.DimmingFraction(
-            opacity,
-            weather.RainRate,
-            weather.SnowRate,
-            weather.SandRate,
-            WeatherDimmingSettings.MaxDimming);
 
         // §21: the DAYTIME half of the surface-cloud cavity. The same deck this function is dimming
         // for also bounces the ground's light back down, and over snow it hands most of the dimming
@@ -89,8 +76,55 @@ public static class WeatherDimming
         //
         // The opacity is passed rather than re-read: CavityGainFor would otherwise walk MapSky's
         // uncached biome/condition gates a second time on a path SkyManager runs twice per map per
-        // frame.
-        return AlbedoCavityMath.RecoveredDimming(dimming, SurfaceBuildup.CavityGainFor(map, opacity));
+        // frame — see ReadDimmingAndGain below, which owns that single read for both consumers.
+        return AlbedoCavityMath.RecoveredDimming(dimming, cavityGain);
+    }
+
+    // §24 (issue #90): the amplification RecoveredDimming's clamp threw away, for the additive glare
+    // overlay to draw instead. 0 whenever DimmingFor returns 0, and 0 whenever the multiply lane had
+    // headroom for the whole cavity — see SnowGlareMath.UndrawableExcess for why the residual rather
+    // than the gain is the right quantity to hand a second renderer.
+    //
+    // Shares DimmingFor's reads through ReadDimmingAndGain rather than repeating them, for §13's own
+    // stated reason: two independently-derived answers to "how heavy is the weather" are two answers
+    // that can disagree, and here they would disagree ON SCREEN — the multiply lane and the additive
+    // lane are rendering two halves of one product, so they must be halves of the SAME product.
+    public static float UndrawableExcessFor(Map map)
+    {
+        if (!ReadDimmingAndGain(map, out float dimming, out float cavityGain))
+            return 0f;
+
+        return SnowGlareMath.UndrawableExcess(dimming, cavityGain, Vacuum.InVacuumForMap(map));
+    }
+
+    // The shared read behind DimmingFor and UndrawableExcessFor: §13's dimming fraction and §21's
+    // cavity gain, both derived from ONE cloud-opacity read. Returns false for the clear-sky /
+    // feature-off / skyless fast path, where both consumers answer 0 — extracted rather than
+    // duplicated so the extraction is provably behaviour-preserving for DimmingFor (same reads, same
+    // order, same early return), which matters because DimmingFor reaches every map on every save.
+    private static bool ReadDimmingAndGain(Map map, out float dimming, out float cavityGain)
+    {
+        dimming = 0f;
+        cavityGain = 1f;
+
+        float opacity = CloudOpacityFor(map);
+        if (opacity <= 0f)
+            return false;
+
+        // Vanilla already lerps all three rates across the weather transition (WeatherManager.RainRate
+        // and friends are Mathf.Lerp(last, cur, TransitionLerpFactor)), so we deliberately do not lerp
+        // them again here — only the palette-derived opacity needs our own blend. SandRate returns 0
+        // without Odyssey, so reading it unconditionally is safe.
+        WeatherManager weather = map.weatherManager;
+        dimming = WeatherDimmingMath.DimmingFraction(
+            opacity,
+            weather.RainRate,
+            weather.SnowRate,
+            weather.SandRate,
+            WeatherDimmingSettings.MaxDimming);
+
+        cavityGain = SurfaceBuildup.CavityGainFor(map, opacity);
+        return true;
     }
 
     // §13's STRUCTURAL GUARD, and the half of the problem the pure classifier cannot reach. "Is this

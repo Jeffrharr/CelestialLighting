@@ -178,6 +178,12 @@
          channels together: §21 lifts .glow, §13 dims the colour, and only their product is what the
          screen shows. -->
     <Compile Include="../../Source/AlbedoCavityMath.cs" Link="AlbedoCavityMath.cs" />
+    <!-- §24's glare residual (issue #90). Compiled alongside AlbedoCavityMath above rather than on
+         its own because the property worth testing is a RELATIONSHIP between the two: what
+         RecoveredDimming's clamp discards is exactly what UndrawableExcess returns, so the tests
+         assert the two against the same (dimming, gain) pairs and would catch either half drifting
+         into double-counting or into a gap. -->
+    <Compile Include="../../Source/SnowGlareMath.cs" Link="SnowGlareMath.cs" />
     <!-- Issue #12's per-frame geometry memo. Verse-free by design (the live half that reads
          Time.frameCount / the tick / the mode flags lives in Source/FrameStamp.cs), so its
          hit/miss/invalidation rules are unit tested offline instead of inferred from in-game
