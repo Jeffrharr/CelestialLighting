@@ -49,23 +49,63 @@ public class SnowGlareMathTests
     // Under the multiply lane alone these two conditions tie — both clamp to zero dimming, i.e.
     // clear-day parity — which is exactly the flattening #90 documents. The residual breaks the tie
     // in the direction the physics predicts, and that is the entire reason this subsystem exists.
-    // WHY A SNOWY CLEAR SKY RENDERS NO GLARE, pinned because the intuitive explanation is wrong and
-    // was briefly written into this file's comments before it was checked. It is NOT that a clear
-    // sky's 1.07x cavity fits under the multiply lane's ceiling — the case above proves it does not,
-    // returning 0.0700 with no dimming to spend. It is that §13's classifier scores Clear as no cloud
-    // deck at all, so WeatherDimming.UndrawableExcessFor returns before this function is ever reached.
+    // WHY A CLEAR SKY'S SMALL CAVITY IS THE WHOLE OF WHAT §24 DRAWS THERE (issue #134). With no
+    // dimming to spend, a clear sky's 1.07x does NOT fit under the multiply lane's ceiling — it
+    // overflows completely, and the additive lane carries all of it. That was already true when the
+    // gate upstream stopped Clear weather from ever reaching this function; what #134 changed is that
+    // WeatherDimming now hands Clear a deck opacity from §22's cloud-cover fraction instead of §13's
+    // abstention, so the gain arriving here is the partly-cloudy one and this arithmetic is what
+    // renders.
     //
-    // That is a live-state gate rather than arithmetic, so it cannot be asserted here; the scenario
-    // pins it instead (snow_glare.json reads snow_glare_excess 0.0000 under Clear). This test exists
-    // to stop the ARITHMETIC being "corrected" to return zero for a clear sky, which would look like
-    // a tidy-up and would silently change what a thin deck renders.
+    // Kept as a named test rather than folded into the TestCase table because it is the case most
+    // likely to be "corrected" to return zero for a clear sky — which would look like a tidy-up and
+    // would silently switch the new behaviour back off from the far side of the codebase.
     [Test]
-    public void AClearSkyGain_StillOverflows_SoTheZeroOnClearWeatherComesFromTheDeckGateNotFromHere()
+    public void AClearSkyGain_OverflowsCompletely_BecauseThereIsNoDimmingToAbsorbIt()
     {
         Assert.That(
             SnowGlareMath.UndrawableExcess(0f, 1.070f, false),
             Is.EqualTo(0.0700f).Within(Tolerance),
-            "with no dimming, even a clear sky's small cavity overflows — the gate is upstream");
+            "with no dimming, even a clear sky's small cavity overflows in full");
+    }
+
+    // ISSUE #134's LADDER, pinned end to end: §22's cloud-cover fraction -> cloud-base albedo ->
+    // cavity gain -> residual, over the full-map fresh snow the live scenario builds. The fractions
+    // are §22's own measured hourly values from cloud_cover.json rather than round numbers, so this
+    // test fails if either §22's range or §21's albedo endpoints move under §24 without anyone
+    // re-measuring what glare does on a partly-cloudy day.
+    //
+    // THE RESIDUAL IS EXACTLY `gain - 1` HERE, and that is the structural point rather than a
+    // coincidence of these numbers: Clear weather contributes no dimming, so `(1 - 0) * gain - 1`
+    // leaves the multiply lane with nothing it can render and hands §24 the entire cavity. It is the
+    // only condition in the mod where that happens.
+    [TestCase(0.1400f, 1.1482f)]
+    [TestCase(0.2113f, 1.1933f)]
+    [TestCase(0.2710f, 1.2346f)]   // §22's measured peak
+    [TestCase(0.3556f, 1.2996f)]
+    public void OnClearWeather_TheWholeCavityOverflows_SoTheResidualIsGainMinusOne(
+        float cloudCoverFraction, float expectedGain)
+    {
+        // The same two calls WeatherDimming/SurfaceBuildup make on a Clear frame, with the surface
+        // albedo of the full-map fresh snow the scenario lays down.
+        float cloudAlbedo = AlbedoCavityMath.CloudBaseAlbedo(cloudCoverFraction);
+        float gain = AlbedoCavityMath.CavityGain(
+            AlbedoCavityMath.FreshSnowAlbedo, AlbedoCavityMath.BareGroundAlbedo, cloudAlbedo, false);
+
+        Assert.That(
+            gain,
+            Is.EqualTo(expectedGain).Within(0.0005f),
+            "§22's fraction reaches the cavity through CloudBaseAlbedo's clear->overcast lerp");
+
+        Assert.That(
+            SnowGlareMath.UndrawableExcess(0f, gain, false),
+            Is.EqualTo(gain - 1f).Within(Tolerance),
+            "no dimming means the multiply lane renders none of it and §24 renders all of it");
+
+        Assert.That(
+            AlbedoCavityMath.RecoveredDimming(0f, gain),
+            Is.EqualTo(0f),
+            "and DimmingFor still reports exactly zero dimming on Clear, as it always has");
     }
 
     [Test]

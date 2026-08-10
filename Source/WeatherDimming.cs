@@ -52,7 +52,9 @@ public static class WeatherDimming
     }
 
     // The 0..1 fraction by which the rendered sky is currently darkened. 0 whenever CloudOpacityFor
-    // is 0, so the feature gate and the clear-sky fast path are both inherited from it.
+    // is 0 — the feature gate and the skyless fast path are inherited from it, and Clear weather
+    // stays at exactly 0 too even though ReadDimmingAndGain now looks past it for §24's sake (see
+    // that function's header for why the clamp, not a gate, is what holds that).
     public static float DimmingFor(Map map)
     {
         if (!ReadDimmingAndGain(map, out float dimming, out float cavityGain))
@@ -98,18 +100,51 @@ public static class WeatherDimming
     }
 
     // The shared read behind DimmingFor and UndrawableExcessFor: §13's dimming fraction and §21's
-    // cavity gain, both derived from ONE cloud-opacity read. Returns false for the clear-sky /
-    // feature-off / skyless fast path, where both consumers answer 0 — extracted rather than
-    // duplicated so the extraction is provably behaviour-preserving for DimmingFor (same reads, same
-    // order, same early return), which matters because DimmingFor reaches every map on every save.
+    // cavity gain. Returns false for the no-deck / feature-off / skyless fast path, where both
+    // consumers answer 0 — extracted rather than duplicated so the extraction is provably
+    // behaviour-preserving for DimmingFor (same reads, same order, same early return), which matters
+    // because DimmingFor reaches every map on every save.
+    //
+    // THE TWO OPACITIES ARE DELIBERATELY NOT THE SAME NUMBER (issue #134), and the split is the whole
+    // content of this function:
+    //
+    //   * DIMMING reads §13's classifier ALONE, which scores Clear as exactly 0. A clear sky does not
+    //     darken the ground, whatever fraction of it §22 has drifted cloud across — and §22 already
+    //     renders its own sky tint in Patch_CloudCoverSky, so deriving a second dimming from the same
+    //     fraction here would darken a partly-cloudy Clear day twice.
+    //   * The CAVITY reads §13 off Clear and §22's continuous fraction on it, because "is there a
+    //     cloud base overhead for the snow to bounce light off" is a question §22 answers better than
+    //     §13's abstention does. That is the same substitution SurfaceBuildup.CloudOpacityOrClear
+    //     already makes for §7's night floor (issue #100), through the same pure function, so the two
+    //     arms of §21 now give ONE answer to "is there a deck" instead of disagreeing across noon.
+    //
+    // WHAT THAT MEANS ON SCREEN, and why it does not move §21's daytime arm at all: with dimming 0 and
+    // a gain above 1, AlbedoCavityMath.RecoveredDimming's `1 - (1 - 0) * gain` is negative and clamps
+    // to 0, so DimmingFor still returns exactly 0 on every Clear sky exactly as before. The whole
+    // cavity therefore overflows the multiply lane, and every bit of it lands in §24's additive one as
+    // `gain - 1` — which is precisely the partition SnowGlareMath.UndrawableExcess exists to perform.
+    // §21's day arm keeps rendering nothing on Clear not because it is gated off but because it has no
+    // headroom to render anything into.
     private static bool ReadDimmingAndGain(Map map, out float dimming, out float cavityGain)
     {
         dimming = 0f;
         cavityGain = 1f;
 
         float opacity = CloudOpacityFor(map);
-        if (opacity <= 0f)
+        float deckOpacity = DeckOpacityFor(map, opacity);
+        if (deckOpacity <= 0f)
             return false;
+
+        // The cavity always reads the DECK opacity. Off Clear the two are the same float by
+        // EffectiveCloudOpacity's definition, so this is not a behaviour change for any weather §13
+        // classifies — it just stops the Clear case needing a second call site.
+        cavityGain = SurfaceBuildup.CavityGainFor(map, deckOpacity);
+
+        // Clear weather: §22 found a deck for the cavity, but §13 still has no dimming to offer, so
+        // skip the rate read entirely rather than feeding it an opacity it never classified. Leaving
+        // `dimming` at 0 is what keeps DimmingFor bit-identical on Clear (see the header).
+        if (opacity <= 0f)
+            return true;
 
         // Vanilla already lerps all three rates across the weather transition (WeatherManager.RainRate
         // and friends are Mathf.Lerp(last, cur, TransitionLerpFactor)), so we deliberately do not lerp
@@ -123,8 +158,48 @@ public static class WeatherDimming
             weather.SandRate,
             WeatherDimmingSettings.MaxDimming);
 
-        cavityGain = SurfaceBuildup.CavityGainFor(map, opacity);
         return true;
+    }
+
+    // How much deck the CAVITY sees: §13's blended opacity under every weather except Clear, §22's
+    // continuous cloud-cover fraction under Clear (issue #134). The daytime mirror of
+    // SurfaceBuildup.CloudOpacityOrClear, sharing AlbedoCavityMath.EffectiveCloudOpacity with it so
+    // the rule itself is written down once and the night and day arms cannot drift apart.
+    //
+    // TAKES THE ALREADY-READ §13 OPACITY rather than re-reading it, for the reason
+    // SurfaceBuildup.CavityGainFor's two-arg overload exists: CloudOpacityFor walks MapSky's uncached
+    // biome gates, and SkyManager calls CurSkyTarget twice per map per frame.
+    //
+    // GATED ON curWeather BEING Clear, not on `weatherOpacity == 0`, exactly as CloudOpacityOrClear is
+    // and for the reason EffectiveCloudOpacity's header gives: §13 also reads 0 on a skyless map and
+    // with its own feature off, and neither of those means "this map is in Clear weather right now".
+    //
+    // MapSky.HasSky IS ASKED AGAIN HERE, and it is not redundant with CloudOpacityFor's copy of it —
+    // that one has already collapsed to the same 0 a Clear sky produces, so by this point a 0 cannot
+    // tell us whether there is a sky at all. Asking costs one biome-list walk on Clear frames only
+    // (the `weatherIsClear` test short-circuits it away on every other weather), and it is what keeps
+    // DimmingFor's and §24's long-standing contract that a cave gets no weather lighting. It is
+    // deliberately NOT pushed down into CloudOpacityOrClear: that would change §7's shipped night
+    // floor on skyless maps, which is a separate question with its own measurements behind it.
+    //
+    // §13'S FEATURE FLAG IS NOT CONSULTED ON THE CLEAR PATH, which is a real (if small) coupling worth
+    // stating: turning weather dimming off leaves §24 firing on a partly-cloudy Clear day while
+    // silencing it under an actual overcast. That is the same asymmetry §7's night floor has shipped
+    // with since #100 — §22 has its own gate (CelestialLightingFeatures.CloudCover), and §13 has no
+    // opinion about Clear to switch off in the first place, so matching the night arm keeps one story
+    // rather than inventing a second.
+    private static float DeckOpacityFor(Map map, float weatherOpacity)
+    {
+        bool weatherIsClear = map?.weatherManager?.curWeather == WeatherDefOf.Clear;
+
+        // Read §22 only when it can matter — a cheap per-tile dictionary lookup, but there is no
+        // reason to touch it (or seed its cache) on a map that is not in Clear weather right now, and
+        // no reason to walk MapSky a second time either.
+        float cloudCoverFraction = weatherIsClear && MapSky.HasSky(map)
+            ? CloudCoverClock.FractionForMap(map)
+            : 0f;
+
+        return AlbedoCavityMath.EffectiveCloudOpacity(weatherOpacity, weatherIsClear, cloudCoverFraction);
     }
 
     // §13's STRUCTURAL GUARD, and the half of the problem the pure classifier cannot reach. "Is this

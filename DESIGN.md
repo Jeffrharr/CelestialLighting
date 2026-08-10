@@ -2272,12 +2272,15 @@ cost of a misclassification slightly — a false overcast now brightens a snowy 
 well as darkening its sky — which is another reason `Tools/WeatherAudit` is the thing to re-run after
 a mod-list change. See §21.
 
-**One exception, added by issue #100.** §21's night-floor entry point (`SurfaceBuildup`'s one-arg
-`CavityGainFor(Map map)` only — not the two-arg overload this section's own daytime recovery uses)
-substitutes §22's continuous cloud-cover fraction for this classifier's reading **while the map's
-current weather is Clear**, because this classifier has no opinion at all there — it scores Clear as
-0 on both axes by construction, which §22 later made a stale abstention rather than a true "no
-cloud". Every other weather, and every consumer on this page, is unaffected. See §21's own writeup.
+**One exception, added by issue #100 and widened by issue #134.** §21's cavity — the night floor
+through `SurfaceBuildup.CloudOpacityOrClear`, and since #134 the daytime arm too through
+`WeatherDimming.DeckOpacityFor` — substitutes §22's continuous cloud-cover fraction for this
+classifier's reading **while the map's current weather is Clear**, because this classifier has no
+opinion at all there: it scores Clear as 0 on both axes by construction, which §22 later made a stale
+abstention rather than a true "no cloud". The substitution reaches the *cavity* only. **This section's
+own dimming is untouched and still reads exactly 0 on Clear**, since a clear sky does not darken the
+ground and §22 renders its own sky tint separately. Every other weather is unaffected either way. See
+§21's and §24's own writeups.
 
 ### Modded weathers, and why the palette alone was not enough
 
@@ -6102,12 +6105,21 @@ reading only while that weather is actually Clear. Gated on the weather being Cl
 at all (caves, pocket maps), and neither of those means "this map is in Clear weather right now";
 conflating them would leak §22's drift into places that have no business seeing a tile's weather.
 
-This is a **narrower** fix than it might sound: only the one-arg `CavityGainFor(Map map)` — the night
-floor's own entry point — changed. The two-arg overload `WeatherDimming.DimmingFor` threads through
-already-short-circuits to zero dimming before ever reaching the cavity on true Clear weather, so it
-was never reading the stale 0 in the first place, and §22 already tints the Clear sky's daytime
-colour directly (`Patch_CloudCoverSky`). Touching that overload would have been solving a problem
-that does not exist there and duplicating §22's own daytime effect.
+This was a **narrower** fix than it might sound, and it stayed narrow for two releases: only the
+one-arg `CavityGainFor(Map map)` — the night floor's own entry point — changed. The two-arg overload
+`WeatherDimming.DimmingFor` threads through short-circuited to zero dimming before ever reaching the
+cavity on true Clear weather, so it was never reading the stale 0 in the first place, and §22 already
+tints the Clear sky's daytime colour directly (`Patch_CloudCoverSky`).
+
+**Issue #134 later closed the day/night asymmetry that left behind, and it is worth being precise
+about what changed.** The *dimming* is still §13's alone and is still exactly 0 on Clear — deriving a
+second dimming from §22's fraction would darken a partly-cloudy day twice, once here and once in
+`Patch_CloudCoverSky`, which is why that was rejected then and is still rejected now. What changed is
+that the daytime read now asks the same "is there a deck overhead" question the night arm asks
+(`WeatherDimming.DeckOpacityFor`, through this same `EffectiveCloudOpacity`), so the cavity gain is no
+longer a different number either side of dusk. Nothing on this page renders differently as a result —
+`RecoveredDimming` clamps a zero-dimming cavity away exactly as before — and the whole of the
+recovered amplification goes to §24's additive lane instead. See §24.
 
 **The off-fallback is exact by construction, not by a second branch.** `CloudCoverClock.FractionForMap`
 returns exactly 0 when `CelestialLightingFeatures.CloudCover` is off — the same 0 §13 already reports
@@ -6379,7 +6391,9 @@ so there is no number here a player would sensibly dial. It exists as a harness 
   PR #117.** `sand_cloud_cover.json` reuses `sand_albedo_cavity.json`'s own two 128×128 `SetSand`
   patches (roughly half the fixture's map, `MeanSandDepth` ≈ 0.51 — genuinely partial, not the
   full-map saturation the reading above uses) and holds latitude 55, day 5, hour 1 (night — see
-  `WeatherDimming.DimmingFor`'s Clear short-circuit above for why noon cannot show anything here).
+  `WeatherDimming.DimmingFor`'s Clear clamp above for why the *sky tint* cannot show anything at noon
+  here; since issue #134 a partly-cloudy Clear noon does reach §24's additive lane, but that is glare
+  rather than this reading, and over half-map sand the residual is a fraction of the snow case's).
   Before issue #100/PR #120, §21's night-floor cavity read a fixed zero cloud opacity on Clear
   regardless of §22's actual per-map fraction; after it, the cavity reads §22's continuous fraction
   during Clear the same way it already read discrete Overcast/Rain/Fog opacity. With `cloud_cover`
@@ -6677,8 +6691,8 @@ same values, so a preset is never a separate code path.
 argument; the measured table below is what settled it.
 
 **What default-on does and does not claim.** It renders the visible-but-restrained half of #90: a
-snowed-in overcast noon at median CIELAB ΔE 5.13, a polar snowfield at 3.67-5.08, alongside §21's own
-6.06. It does **not** render the headline inversion — a snowy overcast brighter than a snowy CLEAR
+snowed-in overcast noon at median CIELAB ΔE 5.13, a polar snowfield at 3.67-5.08, a partly-cloudy
+Clear noon at 1.13 (issue #134), alongside §21's own 6.06. It does **not** render the headline inversion — a snowy overcast brighter than a snowy CLEAR
 sky still needs roughly ΔE 15 and reads as milky haze at that strength. Anyone reopening that trade
 should start from the sweep below rather than from the physics.
 
@@ -6699,18 +6713,36 @@ at zero. So the two lanes **partition one product** rather than both rendering i
 | bare ground | renders all of it | exactly 0 (gain is 1, nothing overflows) |
 | thin deck over snow | renders all of it | small — glare ramps with the deck rather than switching on |
 | snowy overcast | renders up to parity | the remainder |
+| partly-cloudy **Clear** | renders *none* of it (no dimming to spend) | **all** of it, `gain - 1` |
 
-**A snowy clear sky renders no glare either, but not for the reason it first appears to — and the
-plausible-sounding version was written into this document before it was checked.** It is *not* that a
-clear sky's 1.07× cavity fits under the ceiling: with no dimming to spend, 1.07× overflows and the
-residual would be 0.071. It is that §13's classifier scores Clear as **no cloud deck at all**, so
-`WeatherDimming.UndrawableExcessFor` returns before the cavity is ever consulted. §24 is a cloud-deck
-effect end to end, and that holds even for a partly-cloudy Clear carrying §22's fraction, since §13
-still scores Clear as zero on both its axes — the same short-circuit §21's own daytime arm relies on.
-The live measurement was 0 either way; only the explanation was wrong.
-`AClearSkyGain_StillOverflows_SoTheZeroOnClearWeatherComesFromTheDeckGateNotFromHere` pins the
-arithmetic, so a later "tidy-up" cannot make the clear-sky zero look intrinsic and silently change
-what a thin deck renders.
+**A partly-cloudy Clear day fires, and that last row is the whole of issue #134.** §24 originally
+inherited §13's view that Clear is *no cloud deck at all*, so `UndrawableExcessFor` returned before the
+cavity was consulted and a visibly-clouded snowy Clear day rendered nothing while the same map's
+*night* floor was already being amplified by exactly that cloud fraction (#100, #120). The daytime
+mirror of that fix is `WeatherDimming.DeckOpacityFor`: §13's classifier off Clear, §22's continuous
+cloud-cover fraction on it, through the same `AlbedoCavityMath.EffectiveCloudOpacity` the night arm
+uses, so there is one answer to "is there a deck overhead" rather than one per time of day.
+
+**It moves §21's daytime arm by exactly nothing, and the reason is arithmetic rather than a gate.**
+The two daytime consumers now read the same deck, which is what #134 was worried about — but only §24
+can render it. Dimming stays 0 on Clear (a clear sky genuinely does not darken the ground, and §22
+already draws its own sky tint in `Patch_CloudCoverSky`; deriving a second dimming from that same
+fraction would darken a partly-cloudy day twice). With `dimming` 0 and a gain above 1,
+`RecoveredDimming`'s `1 - (1 - 0) × gain` is negative and clamps, so `DimmingFor` returns exactly 0 on
+Clear as it always has — pinned by the `weather_dimming 0.0000` probe sitting next to the glare probes
+in both scenarios. The multiply lane is not switched off on Clear; it has no headroom to render into.
+
+**The boundary is a small step rather than a smooth ramp, and that is deliberate.** A sky §22 reports
+as exactly cloudless still returns 0, because `DeckOpacityFor` stops the read before the cavity. The
+first sliver of cloud brings the clear-sky cavity (≈1.07× over fresh snow) with it, so the residual
+jumps 0 → ≈0.073 — measured live at ΔE **0.38**, imperceptible, and about 3.5% of `MaxIntensity` once
+scaled. The alternative is to let a genuinely cloudless snowy noon glare on the strength of that same
+1.07×, which would fire on every snowy map in the game at midday; that is a much larger scope claim
+than #134 asked for and is not made here. §24 remains a cloud effect.
+`AClearSkyGain_OverflowsCompletely_BecauseThereIsNoDimmingToAbsorbIt` and
+`OnClearWeather_TheWholeCavityOverflows_SoTheResidualIsGainMinusOne` pin the arithmetic (the latter
+walking §22's own measured fractions through `CloudBaseAlbedo` to the residual), so a later "tidy-up"
+cannot make the clear-sky case look intrinsically zero and silently switch this back off.
 
 — and neither needs to know the other exists at draw time. `SnowGlareMathTests` asserts the partition
 directly (no gap, no overlap, and the two summing back to the unclamped product), which is why that
@@ -6769,7 +6801,26 @@ the undrawable 1.92× of issue #90's table appearing as a measured number.
 | `glare_overcast_noon_strong.png` | Fog, noon, swept to 0.18 | 0.1595 | **14.87** — obvious |
 | `glare_dusk_on.png` | Fog, 16:00 | 0.0315 | **3.00** — visible at a glance |
 | `glare_night_on.png` | Fog, 01:00 | **0.0000** | **0.00** — 0.0% of pixels changed |
-| `glare_clear_noon_on.png` | Clear, noon | **0.0000** | n/a — the deck gate, live |
+| `glare_clear_noon_on.png` | Clear, noon, §22 cover **0.0091** | 0.0042 | **0.38** — imperceptible |
+| `glare_partly_cloudy_noon_on.png` | Clear, noon, §22 cover **0.2113** | 0.0106 | **1.13** — visible on close inspection |
+
+**The two Clear rows are one measurement of the same ramp at two cloud fractions, and #134 is the
+reason they are both here.** The Clear-noon capture in `snow_glare.json` happens to land on an almost
+cloudless hour (§22 reads 0.0091), so it measures the *boundary step* described above rather than the
+feature: 0.38 is the clear-sky cavity alone, and it is below this repo's shipping bar by design.
+`snow_glare_partly_cloudy.json` exists because of exactly that — latitude 45, day 40, noon, the same
+tile and hour whose 0.2113 fraction `cloud_cover.json` already pins, so the two scenarios cross-check
+§22's clock as well as §24's response to it. `surface_cavity_gain` **1.1855**, `snow_glare_excess`
+**0.1855** (identical, because Clear spends no dimming), alpha **0.0106**, ΔE **1.13**.
+
+**1.13 is a real but modest effect, and issue #134 predicted the range before it was built** (ΔE
+1–1.5, from a paper estimate of the residual ladder — the earlier verbal guess of "comparable to the
+overcast case" was wrong by an order of magnitude and #134 corrected it in writing). It sits above
+§20c's knowingly-inert 0.36 and alongside §19b's 1.48, so it ships; it is a fifth of the overcast
+case's 5.13, which is the right ordering for a fifth as much cloud. The scenario also pins the
+feature-off baseline the only way that means anything here: with §22 turned off, `cloud_cover_fraction`,
+`snow_glare_excess` and `snow_glare_alpha` all return to exactly **0.0000** on the same frame, which is
+the pre-#134 behaviour reproduced rather than approximated.
 
 **The daylight ramp, surveyed rather than assumed** (`snow_glare_alpha` by hour, Fog, full-map snow):
 16:00 **0.0315**, 17:00 **0.0200**, 18:00 **0.0071**, 19:00 **0.0000**. It fades out with the light and

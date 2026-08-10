@@ -31,8 +31,8 @@ public static class SnowGlare
 
     // The additive overlay alpha for this map right now, in [0, SnowGlareMath.MaxIntensity]. Exactly
     // 0 when the feature is off, when there is no map or sky manager yet (map generation asks for
-    // draws), when §21's cavity had no overflow — every bare-ground map and every clear sky — and on
-    // a vacuum map.
+    // draws), when §21's cavity had no overflow — every bare-ground map and every cloudless sky — and
+    // on a vacuum map.
     public static float AlphaFor(Map map)
     {
         // Feature gate first, so "off" costs one bool read and reproduces pre-§24 rendering exactly:
@@ -68,13 +68,13 @@ public static class SnowGlare
         // (3) WEATHER, and only now. §21's residual is a property of the PAIR (dimming, gain) — see
         // UndrawableExcessFor's header for why the two halves of one product must come from one read.
         //
-        // This is also where the WEATHER gate itself lives, and it is stronger than it looks:
-        // UndrawableExcessFor returns 0 the moment §13's classifier reports no cloud deck, before the
-        // cavity is consulted at all. So Clear weather never reaches the arithmetic — including a
-        // partly-cloudy Clear carrying §22's cloud fraction, since §13 scores Clear as opacity 0 on
-        // both axes regardless. §24 is a cloud-deck effect end to end, which is the same short-circuit
-        // §21's own daytime arm already relies on (DESIGN.md §21, "the two-arg overload ... already
-        // short-circuits to zero dimming before ever reaching the cavity on true Clear weather").
+        // This is also where the WEATHER gate itself lives, and it is a CLOUD gate rather than a
+        // weather-def one (issue #134): UndrawableExcessFor returns 0 when nothing is overhead, and on
+        // Clear weather "what is overhead" is answered by §22's continuous cloud-cover fraction rather
+        // than by §13's abstention. So a partly-cloudy Clear day does fire, with the whole cavity in
+        // the additive lane because there is no dimming for the multiply lane to give back; a sky §22
+        // reports as genuinely cloudless still returns 0 here. §24 is a cloud effect end to end, and
+        // it now ramps with the cloud rather than with the weather def's name.
         float excess = WeatherDimming.UndrawableExcessFor(map);
         if (excess <= 0f)
             return 0f;
