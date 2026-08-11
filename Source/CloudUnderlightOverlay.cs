@@ -146,8 +146,15 @@ public static class CloudUnderlightOverlay
         float fraction = CloudUnderlightLayer.CloudFractionFor(map);
         int fractionStep = (int)(fraction * FractionSteps + 0.5f);
 
-        SkyColorTemperature.Rgb tint = CloudUnderlightLayer.TintFor(map);
-        int tintKey = TintKey(tint);
+        SkyColorTemperature.Rgb hot = CloudUnderlightLayer.HotTintFor(map);
+        SkyColorTemperature.Rgb cool = CloudUnderlightLayer.CoolTintFor(map);
+        CloudUnderlightLayer.GradientAxisFor(map, out int axisU, out int axisV);
+
+        // The axis joins the two colours in the cache key. It changes at most eight times a day (it
+        // is the sun's bearing rounded to the eight tiling directions), but when it does change every
+        // texel's colour moves, so a key that ignored it would leave the gradient pointing the old
+        // way until the sun's colour happened to move a quantum.
+        int tintKey = TintKey(hot) ^ (TintKey(cool) * 31) ^ ((axisU + 2) << 26) ^ ((axisV + 2) << 29);
 
         bool structureStale = mapId != _bakedMapId || fractionStep != _bakedFractionStep;
         if (!structureStale && tintKey == _bakedTintKey)
@@ -167,7 +174,12 @@ public static class CloudUnderlightOverlay
         }
 
         CloudUnderlightField.WriteRgba(
-            Pixels, Intensity, Intensity.Length, _bakedMean, tint.R, tint.G, tint.B);
+            Pixels, Intensity,
+            CloudUnderlightField.Resolution, CloudUnderlightField.Resolution,
+            _bakedMean,
+            hot.R, hot.G, hot.B,
+            cool.R, cool.G, cool.B,
+            axisU, axisV);
         _bakedTintKey = tintKey;
 
         // LoadRawTextureData rather than SetPixels32, the same choice AuroraCurtainOverlay made and

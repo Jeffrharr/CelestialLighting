@@ -1,0 +1,129 @@
+{
+  "name": "cloud_underlight_layer_lapse",
+  "saveFile": "minimal_colony.rws",
+  "description": "\u00a723b over TIME, which is the only way to answer the question the stills cannot: does this read as a sunset. Three sweeps on the same tile and season as cloud_underlight_layer.json (latitude 45, day 40, Clear with \u00a722's fraction forced to 0.35). The first is the whole evening at 0.02-hour steps \u2014 deliberately the widest one, because \u00a723b's glow window is only about seven minutes wide and the honest question is what that looks like inside an evening rather than under a microscope. The second and third are the window itself at 0.004-hour steps, layer on and layer off, which is also the only sweep long enough in ticks for the field's drift to move: it pans one full tile per 7200 ticks and a whole sunset is a few percent of one. No pins \u2014 this scenario exists to be watched, and every number it would assert is already pinned in cloud_underlight_layer.json.",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "realistic_preset",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Soil",
+        "width": "128",
+        "height": "128",
+        "anchor": "64,64"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Soil",
+        "width": "128",
+        "height": "128",
+        "anchor": "64,186"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Soil",
+        "width": "128",
+        "height": "128",
+        "anchor": "186,64"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Soil",
+        "width": "128",
+        "height": "128",
+        "anchor": "186,186"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_cover_forced_fraction",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cul_lapse_warmup.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_underlight_layer",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Timelapse",
+      "args": {
+        "fromHour": "19.50",
+        "stepHours": "0.02",
+        "steps": "100",
+        "fileNamePrefix": "cul_evening_on",
+        "fps": "12",
+        "settleFrames": "2"
+      }
+    },
+    {
+      "type": "Timelapse",
+      "args": {
+        "fromHour": "20.60",
+        "stepHours": "0.004",
+        "steps": "80",
+        "fileNamePrefix": "cul_window_on",
+        "fps": "12",
+        "settleFrames": "2"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_underlight_layer",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Timelapse",
+      "args": {
+        "fromHour": "20.60",
+        "stepHours": "0.004",
+        "steps": "80",
+        "fileNamePrefix": "cul_window_off",
+        "fps": "12",
+        "settleFrames": "2"
+      }
+    }
+  ]
+}

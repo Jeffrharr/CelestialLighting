@@ -6663,6 +6663,18 @@ neutral mud that is worse than not trying. §23's own live verification is what 
 weakest live-verified result in the mod short of §20c, precisely because a single flat colour scaled
 by a fraction has so little room to move.
 
+**SCOPE, AND IT IS THE MOST LOAD-BEARING PARAGRAPH IN THIS SECTION. §23b draws the light a cloud deck
+BOUNCES BACK DOWN ONTO THE GROUND. It is illumination, not a picture of clouds.** That distinction was
+not in the original design; it came out of watching the first build, where the reasonable reaction was
+"this shades patches of the map and barely looks like clouds". Both halves of that are right, and only
+the second is a complaint about the wrong thing. Bounced light off a deck is *diffuse by
+construction* — every point on the ground sees a large solid angle of lit cloud — so it varies
+smoothly over tens of cells and has no edges of its own to draw. A sharper field would not read as
+more cloud-like; it would read as cloud SHADOWS painted onto the terrain, which is a different and
+wrong claim about where the light is coming from. Clouds that actually look like clouds on screen are
+issue #138, a separate subsystem alongside this one rather than a refinement of it — and if it lands,
+the two must share one field, because bright ground under a drawn gap is the whole point.
+
 **The partition: the flat lane carries the MEAN, this lane carries what is above it.** The obvious
 implementation — draw warm light proportional to how underlit the deck is — would render a second
 time what §23 already renders through §8's tint. `CloudUnderlightField.Residual` instead subtracts the
@@ -6698,10 +6710,31 @@ the strongest spatial case when it is the one case with nothing spatial to say. 
 is likewise absent — killing a sunset is something done to a flat colour, not something an additive
 pass can draw, so issue #88's "a low overcast ruins it" case stays entirely §23's.
 
-**Colour is §8's, not a second reddening model.** The layer adds
-`SkyColorTemperature.SkyColorForElevation` at the current elevation — the very colour §8 is already
-blending the sky toward. §23b's novelty is spatial, not chromatic, and light that has grazed a very
-long atmospheric path is a quantity this codebase already has exactly one answer for.
+**The colour is a GRADIENT between two ends, and that is where the drama actually is.** The first
+build tinted the whole field with one colour — `SkyColorForElevation` at the current elevation, §8's
+own target — on the reasoning that §23b's novelty was spatial and the codebase should keep one
+answer per physical quantity. Watching it showed the flaw: a single warm tint spread over the field
+adds warm light *everywhere*, which reads as the map being turned up, and is a thing §23's flat lane
+already does one lane down. What makes a real sunset dramatic is that the light reaching the ground
+is a **different colour in different directions** — deck toward the sun is lit through the longest,
+reddest path and bounces deep orange down; deck away from it is lit by the anti-solar twilight sky
+and bounces pink.
+
+So the bake blends between two ends, and both are borrowed rather than invented: the sunward end is
+§8's `SkyColorForElevation` as before, and the anti-solar end is §19c's `PurpleLight.ComposedHueFor`,
+this codebase's existing answer for twilight purple (delegated to §19c's adapter, not recomputed, so
+the two cannot disagree about what that is). One colour authority became two *existing* colour
+authorities, which is a different thing from inventing a palette.
+
+**The gradient's axis is quantised to the eight directions that tile, and that is a real compromise.**
+The texture repeats and pans — that is what makes drift free — so anything baked into it must be
+periodic over the tile, or a colour seam sweeps across the colony once per drift cycle. A gradient
+along an arbitrary sun azimuth is not periodic; a cosine along an *integer lattice* direction is. So
+`GradientAxis` rounds the sun's bearing to the nearest of the eight (at cos 67.5°, so each owns an
+equal 45° arc), and the colour lobes lie along that. The axis therefore tracks the sun to within
+22.5°, and the lobe's *phase* rides with the field rather than being pinned to the sun. Acceptable
+because a top-down player cannot see the sun: what reads is that the light differs across the map.
+`TheColourGradientWrapsSeamlessly` pins the periodicity for all four axis families.
 
 **A texture, not vertex colours, and that is a deliberate refusal to guess.** §15b's eave shade proves
 per-vertex colour is honoured through `ShaderDatabase.Transparent` — but this pass must be ADDITIVE
@@ -6735,8 +6768,12 @@ both directions — `WeatherDimming.CloudAltitudeMetresFor` was widened to survi
 gating it on the flat lane alone made "flat off, spatial on" return a ground-hugging 0 and silently
 kill the layer for a reason no setting names.
 
-`LayerAmplitude` (0.20) is a starting guess in the same sense §24's intensity scale started as one.
-The harness sweeps it through `CloudUnderlightLayer.AmplitudeScale` (`cloud_underlight_quiet`).
+`LayerAmplitude` is **0.10**, and it got there by watching rather than by arithmetic. The first
+calibration was 0.20, which measured median ΔE 9.12 — larger than anything the mod ships — and read
+as distracting over a sunset rather than as part of one. The old value stays reachable in one boot
+through `CloudUnderlightLayer.AmplitudeScale` (`cloud_underlight_strong`), which is what stops the
+decision from becoming a claim about a build nobody can rebuild: the two frames differ in exactly one
+constant, from one process, at one instant.
 
 ### Live verification
 
@@ -6750,10 +6787,53 @@ entirely. Peak strength is at hour 20.78 (`sun_elevation` **-1.1715°**, pinned)
 
 | capture | condition | `cloud_underlight_layer` | median CIELAB ΔE vs off |
 |---|---|---|---|
-| `cul_clear_on.png` | Clear, §22 cover 0.35, calibrated | 0.1952 | **9.12** — obvious |
-| `cul_clear_quiet.png` | the same, amplitude swept to 0.067 | 0.0651 | **3.16** — visible at a glance |
-| `cul_overcast_on.png` | Overcast, cover 1.00 | 0.1952 | **0.00** — 0.0% of pixels changed |
+| `cul_clear_on.png` | Clear, §22 cover 0.35, **shipped 0.10** | 0.0976 | **4.31** — visible at a glance |
+| `cul_clear_strong.png` | the same, swept back to the first guess | 0.1952 | **8.41** — obvious, and too much |
+| `cul_overcast_on.png` | Overcast, cover 1.00 | 0.0976 | **0.00** — 0.0% of pixels changed |
 | (past shadow entry, -2.13°) | Clear, below the window | 0.0000 | **0.00** — 0.0% of pixels changed |
+
+**The colour gradient measured, because a whole-frame mean cannot see it** — it averages exactly the
+contrast being claimed. Splitting one frame into a 4x4 grid and measuring the light §23b *added* per
+cell (on minus off, per channel) at the shipped amplitude:
+
+```
++13.2/ 8.2/ 3.5    + 8.0/ 4.0/ 0.2    + 2.3/ 1.2/ 0.0    + 5.7/ 3.5/ 1.5
++ 3.5/ 2.2/ 0.9    + 8.2/ 4.0/-0.2    +14.5/ 7.3/ 0.4    +16.8/10.7/ 5.3
++ 2.1/ 1.3/ 0.5    + 8.6/ 4.3/-0.2    +16.3/ 8.2/ 0.4    +16.3/10.4/ 5.1
++ 0.1/ 0.0/-0.0    + 1.3/ 0.6/-0.1    +13.2/ 6.7/ 0.3    + 2.9/ 1.7/ 0.5
+```
+
+Red-minus-blue runs from 0.1 to 15.9 across one frame. The pink end reaches `+16.8/10.7/5.3` and the
+orange end `+16.3/8.2/0.4` at nearly the same brightness — same amount of light, visibly different
+colour, in one frame. That is the claim, and it is the thing the flat lane cannot make at all.
+
+### Over time
+
+`Tests/Scenarios/cloud_underlight_layer_lapse.json` films three sweeps: the whole evening with the
+layer on (`cul_evening_on.mp4`), and the glow window itself five times slower, on and off
+(`cul_window_on.mp4` / `cul_window_off.mp4`). Measuring the two window sweeps against each other frame
+for frame — same hour in both — gives the effect's envelope rather than one instant of it:
+
+| hour | 20.60–20.66 | 20.68 | 20.72 | **20.776** | 20.82 | 20.84+ |
+|---|---|---|---|---|---|---|
+| median ΔE | 0.00 | 1.05 | 2.64 | **4.32** | 2.20 | 0.00 |
+
+It blooms in and out over **~10.5 game minutes**, centred about 1.2° below the horizon, with no seam
+at either end — `GlowPhase`'s `4t(1-t)` shape doing exactly what it was chosen for. As a sunset event
+that is the right behaviour: real cloud-base afterglow is a brief flare, not a state.
+
+**The drift does not read within one sunset, and that is by construction rather than by oversight.**
+The field pans one full tile per 7,200 ticks, so a 10-minute window advances it about 6% of a tile.
+Over an evening it is a slow slide; inside the event it is effectively frozen. Making patches form
+and dissolve *during* a sunset would need time as a third noise axis, and is deliberately not done —
+real cloud fields do not reshape in ten minutes either.
+
+**`Tools/CloudPreview` renders the field offline**, to PNGs and with a bake timing, because "does this
+look right" is a question about the field's shape and answering it through the harness costs a full
+RimWorld boot per iteration. It is also the wrong instrument for it: in game the field is composited
+at low alpha over dark terrain, so a shape problem and a strength problem are hard to tell apart. Same
+premise as `Tools/AuroraPreview` next door, and it links the shipped file rather than reimplementing
+it.
 
 **The Clear pair is the headline and the Overcast pair is the point.** At the same instant, §23's own
 multiplier reads exactly **1.0000** under Clear (it is doing nothing at all — §13 scores Clear as
@@ -6763,10 +6843,11 @@ structure to draw however strong the layer is. Any visible difference in that pa
 lanes had started double-counting, which is exactly what §24's night pair is evidence against for
 §21.
 
-**9.12 is larger than anything the mod currently ships** (§20b pollution at 6.79, §21 snow cavity at
-6.06), which is why the sweep captured the quiet end from the same boot. Reading the frames: 0.067
-(ΔE 3.16) is the shipping strength and 0.20 is the demonstration one. That call is deliberately left
-open, with the captures committed to make it from.
+**4.31 sits mid-pack, and the first guess did not.** At 0.20 the layer measured 9.12, larger than
+anything the mod ships (§20b pollution 6.79, §21 snow cavity 6.06), and watching a sunset at it was
+what settled the question the number could not: it was distracting rather than atmospheric. Halved.
+Against the measured set, §23b's shipped 4.31 now sits between §22's cloud cover (2.74) and §21's
+snow cavity (6.06) — noticeable, not the loudest thing on screen.
 
 - **The map is dark at this hour and that is not a scene-lighting mistake, it is where the effect
   lives.** Mean frame colour with the feature off is `rgb(27, 17, 10)`. An earlier run measured
@@ -6777,8 +6858,12 @@ open, with the captures committed to make it from.
 - **Only one tile, one season and one cloud fraction have been measured**, and the fraction is forced
   (`cloud_cover_forced_fraction`, 0.35) rather than live. Nothing has been surveyed at a fraction near
   either end, where the field's structure is by design weakest.
-- **The drift has not been filmed.** It is reproducible from the absolute tick (`DriftOffsetU/V`)
-  specifically so a `TickLapse` can capture it, and that has not been done.
+- **The gradient's phase is not pinned to the sun**, only its axis (see above). Nobody has checked
+  what that looks like across a whole day, when the axis steps between its eight directions — a step
+  recolours every texel at once, and whether that reads as a change in the weather or as a glitch is
+  unsurveyed.
+- **The colour has only been measured at one elevation.** Both ends move with the sun (§8's target and
+  §19c's hue are both elevation-driven), so the gradient's own contrast is a curve nobody has plotted.
 
 ### Performance
 

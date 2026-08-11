@@ -1,7 +1,7 @@
 {
   "name": "cloud_underlight_layer",
   "saveFile": "minimal_colony.rws",
-  "description": "\u00a723b, the SPATIAL half of cloud-base underlighting (issue #88 option 2), drawn additively through the pass \u00a724 built. Latitude 45, day 40 \u2014 the tile and season \u00a723's own scenario already established civil dusk on \u2014 with every hour located by cloud_underlight_layer_survey.json rather than reasoned about, because \u00a723b's glow window is only a few minutes wide (horizon down to the deck's ~2.03\u00b0 shadow entry) and an hourly grid misses it entirely. All probe values are exact live measurements, pinned per the parent CLAUDE.md rule; a formula change invalidates them and they must be re-measured, not re-derived.\n\nTHE HEADLINE PAIR IS THE CLEAR ONE, and that is the point rather than a convenience: \u00a713 scores Clear as cloud opacity 0, so \u00a723's flat lane reads exactly 1.0000 there and does nothing, while \u00a722's partial cloud cover (forced to a reproducible 0.35, see CloudCoverFractionOverride) gives \u00a723b a half-covered sky and its largest structure. The two lanes cover disjoint skies.\n\nTHE OVERCAST PAIR IS A DELIBERATE NULL RESULT, the same kind of evidence \u00a724's night pair is. A solid deck has no gaps, so cloud_underlight_structure reads 0.0000 and nothing is drawn however strong the layer is (cloud_underlight_layer still reads 0.1952) \u2014 while \u00a723's own multiplier reads 1.5857 at the same instant. Any visible difference between those two frames would mean the mean subtraction that keeps the two lanes from double-counting had broken.\n\nThe past-window pair pins the other end: below the deck's shadow entry the deck is in Earth's shadow too, the strength is exactly 0, and the two frames must be identical.",
+  "description": "\u00a723b, the SPATIAL half of cloud-base underlighting (issue #88 option 2), drawn additively through the pass \u00a724 built. Latitude 45, day 40 \u2014 the tile and season \u00a723's own scenario already established civil dusk on \u2014 with every hour located by cloud_underlight_layer_survey.json rather than reasoned about, because \u00a723b's glow window is only a few minutes wide (horizon down to the deck's ~2.03\u00b0 shadow entry) and an hourly grid misses it entirely. All probe values are exact live measurements, pinned per the parent CLAUDE.md rule; a formula change invalidates them and they must be re-measured, not re-derived.\n\nTHE HEADLINE PAIR IS THE CLEAR ONE, and that is the point rather than a convenience: \u00a713 scores Clear as cloud opacity 0, so \u00a723's flat lane reads exactly 1.0000 there and does nothing, while \u00a722's partial cloud cover (forced to a reproducible 0.35, see CloudCoverFractionOverride) gives \u00a723b a half-covered sky and its largest structure. The two lanes cover disjoint skies.\n\nTHE OVERCAST PAIR IS A DELIBERATE NULL RESULT, the same kind of evidence \u00a724's night pair is. A solid deck has no gaps, so cloud_underlight_structure reads 0.0000 and nothing is drawn however strong the layer is (cloud_underlight_layer still reads 0.0976) \u2014 while \u00a723's own multiplier reads 1.5857 at the same instant. Any visible difference between those two frames would mean the mean subtraction that keeps the two lanes from double-counting had broken.\n\nThe layer also carries a COLOUR GRADIENT (DESIGN.md \u00a723b): the sunward end is \u00a78's own target colour and the anti-solar end is \u00a719c's composed twilight hue, blended along the tiling direction nearest the sun's bearing, so a frame holds warm and magenta light at once rather than one flat tint.\n\nThe past-window pair pins the other end: below the deck's shadow entry the deck is in Earth's shadow too, the strength is exactly 0, and the two frames must be identical.",
   "steps": [
     {
       "type": "SetTile",
@@ -132,7 +132,7 @@
       "type": "Probe",
       "args": {
         "probeName": "cloud_underlight_layer",
-        "expectedValue": "0.1952",
+        "expectedValue": "0.0976",
         "tolerance": "0.0005"
       }
     },
@@ -169,7 +169,7 @@
     {
       "type": "SetFeature",
       "args": {
-        "featureName": "cloud_underlight_quiet",
+        "featureName": "cloud_underlight_strong",
         "enabled": "true"
       }
     },
@@ -177,20 +177,20 @@
       "type": "Probe",
       "args": {
         "probeName": "cloud_underlight_layer",
-        "expectedValue": "0.0651",
+        "expectedValue": "0.1952",
         "tolerance": "0.001"
       }
     },
     {
       "type": "Screenshot",
       "args": {
-        "fileName": "cul_clear_quiet.png"
+        "fileName": "cul_clear_strong.png"
       }
     },
     {
       "type": "SetFeature",
       "args": {
-        "featureName": "cloud_underlight_quiet",
+        "featureName": "cloud_underlight_strong",
         "enabled": "false"
       }
     },
@@ -289,7 +289,7 @@
       "type": "Probe",
       "args": {
         "probeName": "cloud_underlight_layer",
-        "expectedValue": "0.1952",
+        "expectedValue": "0.0976",
         "tolerance": "0.0005"
       }
     },
