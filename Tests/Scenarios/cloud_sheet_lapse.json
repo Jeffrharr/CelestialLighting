@@ -1,0 +1,142 @@
+{
+  "name": "cloud_sheet_lapse",
+  "saveFile": "minimal_colony.rws",
+  "description": "\u00a725's cloud sheets MOVING, which is the only way to judge them \u2014 a still frame cannot show whether a sky drifts or slides, and the whole design (bounded sheets at varying speeds, entering and leaving off-map) exists to answer that. ALL THREE LANES ON, so what is filmed is one cloud deck seen three ways \u2014 the sheet above, its shadow on the ground, and (at dusk) the light it bounces down \u2014 all sharing one CloudSheetLayout, which is the property these films exist to show. Two TickLapse sweeps on the same tile and season as cloud_layers.json: partly cloudy Clear at noon (five sheets), then Overcast at noon (twelve), so the count-from-cloudiness rule can be seen rather than read.\n\nTICKS, NOT HOURS, and that is the whole reason this is a separate scenario from cloud_underlight_layer_lapse.json. Sheet placement is a function of the absolute tick, and one crossing takes CloudSheetLayout.BaseCrossingTicks (20000, most of an in-game day). A Timelapse's hour steps would jump most of a crossing per frame and read as teleporting; 30 ticks a frame over 240 frames covers roughly a third of one crossing smoothly, which is what motion looks like. The step size was raised alongside BaseCrossingTicks: slowing the clouds and keeping the film's step fixed would have filmed the same span at half the motion.\n\nNo pins: this exists to be watched, and every number worth asserting is already pinned in cloud_layers.json.",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "realistic_preset",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Soil",
+        "width": "128",
+        "height": "128",
+        "anchor": "64,64"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Soil",
+        "width": "128",
+        "height": "128",
+        "anchor": "64,186"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Soil",
+        "width": "128",
+        "height": "128",
+        "anchor": "186,64"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Soil",
+        "width": "128",
+        "height": "128",
+        "anchor": "186,186"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_cover_forced_fraction",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_sheet",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_underlight_layer",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_shadow",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cs_warmup.png"
+      }
+    },
+    {
+      "type": "TickLapse",
+      "args": {
+        "ticks": "30",
+        "steps": "240",
+        "fileNamePrefix": "cs_clear_drift",
+        "fps": "20",
+        "settleFrames": "2"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Overcast",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "type": "TickLapse",
+      "args": {
+        "ticks": "30",
+        "steps": "240",
+        "fileNamePrefix": "cs_overcast_drift",
+        "fps": "20",
+        "settleFrames": "2"
+      }
+    }
+  ]
+}

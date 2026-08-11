@@ -333,6 +333,107 @@ public static class CloudField
 
     public const int SheetOctaves = 4;
 
+    // How far out from a blob's centre its alpha starts falling off, as a fraction of the half-width.
+    // The rim between this and 1.0 is what makes a bounded sheet have an EDGE rather than a seam: the
+    // alpha reaches exactly zero before the quad does, so nothing about the quad is visible.
+    public const float BlobCoreFraction = 0.35f;
+
+    // Fills a square atlas of `blobsPerAxis` x `blobsPerAxis` cloud blobs, each one noise shaped by a
+    // radial falloff to zero at its own edge.
+    //
+    // BAKED ONCE, EVER — which is the whole reason §25 moved from a tiling field to bounded sheets.
+    // The old arrangement re-walked the noise whenever the cloud fraction moved, at 7 ms a time on the
+    // main thread (28 ms before the resolution came down). A bounded sheet's SHAPE does not depend on
+    // how cloudy it is, on where it has drifted to, or on what colour the sun is: coverage became a
+    // count of sheets, drift became a transform, and colour became a per-sheet material tint. So this
+    // runs once in a static constructor during load and never again.
+    //
+    // An ATLAS rather than one blob, because sheets are drawn several at a time and rotation alone does
+    // not hide that they are the same object. Four shapes times a free rotation times a size variation
+    // is enough that a sky of a dozen reads as a dozen clouds.
+    public static void FillBlobAtlas(float[] intensity, int atlasSize, int blobsPerAxis, int seed, int octaves)
+    {
+        if (intensity == null || atlasSize <= 0 || blobsPerAxis <= 0)
+            return;
+
+        int blobSize = atlasSize / blobsPerAxis;
+        float half = blobSize * 0.5f;
+
+        for (int y = 0; y < atlasSize; y++)
+        {
+            int blobY = y / blobSize;
+            int row = y * atlasSize;
+
+            for (int x = 0; x < atlasSize; x++)
+            {
+                int blobX = x / blobSize;
+
+                // Local coordinates within this blob, in [-1, 1] from its own centre.
+                float localX = ((x % blobSize) - half + 0.5f) / half;
+                float localY = ((y % blobSize) - half + 0.5f) / half;
+                float radius = MathF.Sqrt(localX * localX + localY * localY);
+
+                // Radial falloff, smoothstepped so the rim has no crease. Zero at and beyond the
+                // inscribed circle, which is what keeps the quad's corners empty and its edges
+                // invisible.
+                float fade = 1f - InverseLerpClamped(BlobCoreFraction, 1f, radius);
+                fade = fade * fade * (3f - 2f * fade);
+
+                if (fade <= 0f)
+                {
+                    intensity[row + x] = 0f;
+                    continue;
+                }
+
+                // Each blob in the atlas gets its own noise seed, so the four are different clouds
+                // rather than four crops of one. Sampled on the blob's own local coordinates rather
+                // than the atlas's, so the noise scale is the same in every cell of the atlas.
+                int blobSeed = seed + (blobY * blobsPerAxis + blobX) * 7919;
+                float coverage = Coverage(
+                    (x % blobSize) / (float)blobSize, (y % blobSize) / (float)blobSize, blobSeed, octaves);
+
+                // Stretch the noise's own narrow range across [0, 1] so a blob has solid middles and
+                // ragged edges rather than being uniformly half-transparent. Value noise clusters
+                // around 0.5, so this cut and gain are what turn "grey mush" into "cloud".
+                float shaped = Clamp01((coverage - 0.34f) * 3.2f);
+
+                intensity[row + x] = fade * shaped;
+            }
+        }
+    }
+
+    // The blob atlas's bytes: white in RGB, the blob's own shape in alpha. Colour is a per-sheet
+    // material tint rather than baked, because every sheet on screen wants a different one (they sit
+    // at different points of the sunset's colour gradient) and because a tint that changes every frame
+    // must not imply a re-bake.
+    public static void WriteBlobRgba(byte[] rgba, float[] intensity, int count)
+    {
+        if (rgba == null || intensity == null)
+            return;
+
+        for (int i = 0; i < count; i++)
+        {
+            int o = i * 4;
+            rgba[o + 0] = 255;
+            rgba[o + 1] = 255;
+            rgba[o + 2] = 255;
+            rgba[o + 3] = ToByte(intensity[i]);
+        }
+    }
+
+    // How warm the colour gradient is at a point of the MAP, in [0, 1] — 1 at the sunward lobe, 0 at
+    // the anti-solar one. The same cosine WriteUnderlightRgba bakes per texel, evaluated instead at a
+    // single point, which is all a bounded sheet needs: one sheet is one place, so it takes one colour.
+    //
+    // Being periodic no longer matters here (nothing tiles), but it is kept rather than replaced with a
+    // plain ramp so that §23b's ground patches and §25's sheets are warm in the same places. Two
+    // different gradient shapes would have the sky and the ground disagreeing about where the sun is.
+    public static float GradientWarmth(float u, float v, int axisU, int axisV)
+    {
+        float s = axisU * u + axisV * v;
+        return 0.5f + 0.5f * MathF.Cos(2f * MathF.PI * s);
+    }
+
     // §25's bytes: the sheet's colour in RGB, its own coverage in alpha.
     //
     // NOT A RESIDUAL, unlike the two illumination writers — see CloudSheetMath.SheetAlpha for why. A
@@ -414,6 +515,9 @@ public static class CloudField
     }
 
     private static float Mix(float a, float b, float t) => a + (b - a) * t;
+
+    private static float InverseLerpClamped(float a, float b, float v) =>
+        MathF.Abs(b - a) < 1e-6f ? 0f : Clamp01((v - a) / (b - a));
 
     // The drift offset for a tick, in UV. Computed from the absolute tick rather than accumulated per
     // frame, for the reason AuroraSheetSpec.PanU records: an accumulated pan depends on how many

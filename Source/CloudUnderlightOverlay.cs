@@ -35,7 +35,16 @@ public static class CloudUnderlightOverlay
     //
     // This composites rendered pixels only. SkyTarget.glow, GlowGrid, plant growth, solar output and
     // pawn vision are all untouched — §23b stays inside the mod's colour-only lane exactly as §23 does.
-    private static readonly Material LayerMat = new Material(ShaderDatabase.MoteGlow);
+    private static readonly Material[] LayerMats = BuildMaterials();
+
+    private static Material[] BuildMaterials()
+    {
+        Material[] materials = new Material[CloudSheetLayout.MaxSheets];
+        for (int i = 0; i < materials.Length; i++)
+            materials[i] = new Material(ShaderDatabase.MoteGlow);
+
+        return materials;
+    }
 
     // The last alpha written to the material, cached for the same reason SheetMaterial exists:
     // Material.color is a native round trip in both directions, so the last written value is
@@ -43,61 +52,73 @@ public static class CloudUnderlightOverlay
     // steady-state value and seeding with it would let a genuine first frame at 0 skip its write.
     private static float _lastAlpha = float.NaN;
 
-    // Draws this frame's underlit-cloud layer over `map`, or nothing at all if there is none. Called
-    // once per frame from Patch_CloudLayersDraw, for the currently-visible map only.
+    // Draws this frame's underlit-cloud layer over `map`, or nothing at all if there is none.
+    //
+    // ONE DRAW PER SHEET, through the open-sky mask, sharing CloudSheetLayout's placements with §23c
+    // and §25 — see CloudSheetDraw for the whole arrangement, and for why a bounded shape that has to
+    // respect roofs is drawn as the mask's geometry with the shape moved by texture coordinates.
+    //
+    // The colour is sampled per SHEET rather than per texel: a sheet is one place, so it takes one
+    // colour off the sunward/anti-solar gradient, and a sky of sheets shows its warm side and its cool
+    // side at once because the sheets are in different places.
     public static void Draw(Map map)
     {
         float strength = CloudLayers.StrengthFor(map);
 
         // The overwhelmingly common case: the sun is not inside the glow window, or there is no cloud,
-        // or the feature is off. Returning before touching the texture, the material or the draw call
-        // is what makes "§23b costs nothing outside the minutes it can draw" literally true rather
-        // than approximately true.
+        // or the feature is off. Returning before touching a material or a draw call is what makes
+        // "§23b costs nothing outside the minutes it can draw" literally true.
         if (strength <= 0f)
             return;
 
-        // Roofed cells are masked out by GEOMETRY, because they cannot be masked by altitude:
-        // SectionLayer_IndoorMask draws below VisEffects, so vanilla's own roof masking does not reach
-        // this pass. See OpenSkyMaskMath's header. A null mesh means the map is entirely roofed and
-        // there is nothing to draw at all.
-        Mesh mesh = OpenSkyMask.MeshFor(map);
-        if (mesh == null)
+        int count = CloudSheetDraw.PlaceSheets(map, out CloudSheetLayout.Placement[] placements);
+        if (count <= 0)
             return;
 
-        // The shared bake. §23c draws this identical texture through a black Transparent material,
-        // which is what makes "the light a deck adds" and "the light it blocks" the same pixels rather
-        // than two fields that have to be kept in step — see CloudFieldTexture.
-        LayerMat.mainTexture = CloudFieldTexture.For(map);
-        CloudFieldTexture.ApplyTiling(LayerMat, map);
+        SkyColorTemperature.Rgb hot = CloudLayers.HotTintFor(map);
+        SkyColorTemperature.Rgb cool = CloudLayers.CoolTintFor(map);
+        CloudLayers.GradientAxisFor(map, out int axisU, out int axisV);
 
-        if (strength != _lastAlpha)
+        float altitude = AltitudeLayer.VisEffects.AltitudeFor();
+        int atlasCells = CloudSheetOverlay.AtlasCells;
+
+        for (int i = 0; i < count; i++)
         {
-            LayerMat.color = new Color(1f, 1f, 1f, strength);
-            _lastAlpha = strength;
-        }
+            CloudSheetLayout.Placement placement = placements[i];
+            if (!CloudSheetLayout.OnScreen(placement, map.Size.x, map.Size.z))
+                continue;
 
-        // ALTITUDE: VisEffects (33), above LightingOverlay (32) and below FogOfWar — the same pair
-        // §11a's curtain and §24's glare both need, and load-bearing for the same reason. Drawing at
-        // AltitudeLayer.Weather (31), where vanilla's own weather overlays live, would put this pass
-        // BELOW the multiply it exists to exceed. §24 measured what that costs rather than asserting
-        // it: an overcast palette passes most of an addition through, so the failure is conditional
-        // and backwards (the effect fades as the deck thickens) rather than total.
-        //
-        // Below FogOfWar is right here for the same reason it is right for glare: this is light
-        // landing on GROUND, so unexplored ground having none of it is correct rather than a
-        // limitation. An aurora is sky, which is why §11a is the one that clears the fog.
-        if (mesh == MeshPool.wholeMapPlane)
-        {
-            SkyOverlay.DrawWorldOverlay(map, LayerMat, AltitudeLayer.VisEffects.AltitudeFor());
-            return;
-        }
+            // Stacked cloud bounces more light down, capped — the same OverlapBoost §25 uses for its
+            // opacity and §23c for its shadow depth, so all three read one number about one sky.
+            float boost = CloudSheetMath.OverlapBoost(
+                CloudSheetLayout.OverlapDepth(placements, count, i));
 
-        // The two meshes need different origins: vanilla's shared plane is centred on map.Center and
-        // placed by SkyOverlay.DrawWorldOverlay, while our masked mesh is built in absolute cell
-        // coordinates and draws at the origin. Branching on which came back keeps that difference in
-        // one visible place rather than hidden inside the mask — the same shape SnowGlareOverlay uses.
-        Vector3 position = new Vector3(0f, AltitudeLayer.VisEffects.AltitudeFor(), 0f);
-        Graphics.DrawMesh(mesh, position, Quaternion.identity, LayerMat, 0);
+            Material material = LayerMats[i];
+            material.mainTexture = CloudSheetOverlay.Atlas;
+            CloudSheetDraw.ApplySheetUvs(
+                material, placement, map, atlasCells,
+                placement.ShapeSeed % (atlasCells * atlasCells));
+
+            // Warm toward the sun, magenta away from it — §8's target colour and §19c's composed
+            // twilight hue, sampled at this sheet's own centre.
+            float warmth = CloudField.GradientWarmth(
+                placement.CenterX / map.Size.x, placement.CenterZ / map.Size.z, axisU, axisV);
+
+            material.color = new Color(
+                Mix(cool.R, hot.R, warmth),
+                Mix(cool.G, hot.G, warmth),
+                Mix(cool.B, hot.B, warmth),
+                Mathf.Min(strength * placement.Alpha * boost, 1f));
+
+            // ALTITUDE: VisEffects (33), above LightingOverlay (32) and below FogOfWar — the pair
+            // §11a's curtain and §24's glare both need. AltitudeLayer.Weather (31), where vanilla's
+            // own weather overlays live, would put this pass BELOW the multiply it exists to exceed;
+            // §24 measured what that costs rather than asserting it. Below FogOfWar because this is
+            // light landing on GROUND, so unexplored ground having none of it is correct.
+            if (!CloudSheetDraw.DrawThroughMask(map, material, altitude))
+                return;
+        }
     }
 
+    private static float Mix(float a, float b, float t) => a + (b - a) * t;
 }
