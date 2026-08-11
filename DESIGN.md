@@ -8388,8 +8388,11 @@ the preset's `shadowLengthScale` going live.
 
 ## 25b. Cloud varieties, and the altitudes they sit at (`CloudDeckMath`, §25's decks)
 
-**Status: implemented, on by default *within* §25 — which is itself shipped off.** So nothing here
-reaches a player until §25 does. What it changes is what §25 draws when it does.
+**Status: implemented and shipped on, inside §25 — which now ships on too**, behind the "Visible
+clouds" checkbox. So unlike the prototype this was written against, **this does reach players**: every
+sunset a subscriber sees gets its clouds layered, and `DeckIllumination` below changes what §25 draws
+at dusk for everyone, not just in the harness. It gets no checkbox of its own — §25's is the real
+opinion ("should the mod draw clouds"), where "should your clouds all be at one altitude" is not.
 
 ### The problem, which is two problems that turn out to be one
 
@@ -8597,9 +8600,17 @@ Quoted as p90 rather than median throughout, per §25's own note: a lane that dr
 over part of a frame is exactly what a median hides.
 
 **Read this against §25's own baseline, not against the sibling subsystems.** §25 measured median 0.00
-/ p90 7.52 at noon *for the entire lane* — §25b's p90 6.15 is a comparable-magnitude change laid on
-top of a prototype that is itself shipped off and whose section says the frames argue against the
-approach. Neither number is an argument for turning §25 on.
+/ p90 7.52 at noon *for the entire lane* — so §25b's p90 6.15 is a change of comparable magnitude to
+the entire lane it sits inside, which is a larger claim than it first reads as.
+
+**This section was written while §25 was still a prototype shipped off, and it is not any more.**
+Rebasing onto the commit that ships §25 on behind "Visible clouds" changes what these numbers are
+*for*: they stop being a prototype's self-assessment and start being a description of what
+subscribers will see. Two consequences worth stating rather than leaving implicit — the layering now
+reaches every sunset a player watches, and `DeckIllumination`'s brighter, more opaque dusk cloud is a
+visible change to a shipped feature rather than to a dev-only one. Nothing measured here was re-run
+after that rebase; the frames are from the same code, and the code did not move, but the audience
+did.
 
 **The camera is zoomed out to the map centre in that scenario, and it is load-bearing rather than
 framing.** A sheet is two-thirds of the map across and there are five of them at cover 0.35, so at the
