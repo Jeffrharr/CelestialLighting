@@ -7801,6 +7801,35 @@ a much tighter zoom would still thin the slice.
 
 Frames: `Tests/Screenshots/ts_{early,peak,late}_{off,on}.png`.
 
+### The films, and tracking the band rather than trusting them
+
+`ts_sweep_on.mp4` / `ts_sweep_off.mp4`: 250 frames at 12 fps = **20.83 s**, against 0.50 game hours
+filmed × 41.667 s/game-hour = **20.83 s of play at 1× speed**. Real time to the frame.
+
+A film is the weakest possible evidence for a claim about motion — an evening simply getting darker
+looks like a sweep whether or not anything swept — so the band is *tracked* rather than watched. For
+each of the 250 frame pairs, the off-vs-on ΔE is binned across screen columns and reduced to its
+ΔE-weighted mean column. A boundary crossing the viewport marches; a uniform lift sits at 0.5 forever.
+
+| t (s) | centroid | mean ΔE |
+|---|---|---|
+| 2.50 | 0.112 | 0.21 |
+| 3.75 | 0.387 | 0.62 |
+| 6.25 | 0.465 | 1.26 |
+| 8.75 | 0.612 | 3.86 |
+| 10.00 | 0.563 | 5.13 |
+| 11.25 | 0.442 | 4.96 |
+| 12.50 | 0.312 | 4.18 |
+| 13.75 | 0.201 | 2.67 |
+| 15.00 | 0.116 | 1.05 |
+| 17.50 | 0.008 | 0.00 |
+
+**From the peak onward it marches monotonically 0.563 → 0.008** — the band leaving across the sunward
+(left) edge, which is the crossing the subsystem exists to draw. The rise before it is over frames
+whose mean ΔE is 0.2–3.9, i.e. the envelope ramping in while both lights grow together; the early
+centroids are noise-dominated and are shown rather than trimmed, because a table that only displayed
+the clean half would be advocacy.
+
 ### What is still open
 
 - **Does it read as dusk or as an artifact?** The films exist to answer this and the numbers cannot.
