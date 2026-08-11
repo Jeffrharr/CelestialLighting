@@ -69,6 +69,23 @@ public static class CloudSheetOverlay
         float underlit = CloudSheetMath.UnderlitFraction(SolarPosition.ElevationForMap(map));
         float brightness = CloudSheetMath.SheetBrightness(map.skyManager.CurSkyGlow);
 
+        // §26's DECK boundary, when the twilight sweep is drawing (issue #140's depth half). Read once
+        // per frame for the same reason the colour ends above are: it is a property of the sun and the
+        // deck, so every sheet is under the same one.
+        //
+        // WHAT THIS CHANGES AND WHY IT IS THE HONEST VERSION. Without it every sheet takes its colour
+        // from CloudField.GradientWarmth, a STATIC map-space gradient — so the whole deck turns warm
+        // together and the sky reads as flat, which is the "no depth" complaint. Earth's shadow
+        // reaches a deck at height h LATER than it reaches the ground, at the angle §23 already
+        // computes, so the deck has its own boundary that lags the ground's and lags further for a
+        // higher deck. Shading each sheet against THAT gives sheets on the sunward side still catching
+        // light while sheets behind the boundary have gone out — parallax that falls out of the
+        // altitude the weather already declares rather than a tuned offset.
+        //
+        // Inert when §26 is off: DeckShadingFor returns false and the gradient below is untouched.
+        bool deckShading = TwilightSweep.DeckShadingFor(
+            map, out float deckSweep, out float sweepAxisU, out float sweepAxisV);
+
         float altitude = AltitudeLayer.FogOfWar.AltitudeFor() + Altitudes.AltInc;
 
         for (int i = 0; i < count; i++)
@@ -86,8 +103,25 @@ public static class CloudSheetOverlay
             float boost = CloudSheetMath.OverlapBoost(
                 CloudSheetLayout.OverlapDepth(Placements, count, i));
 
-            SetSheet(i, placement, hot, cool, axisU, axisV, underlit,
-                Mathf.Min(brightness * boost, 1f), Mathf.Min(alpha * placement.Alpha * boost, 1f), map);
+            // §26's per-sheet lit fraction: 1 where this sheet still catches light, 0 where the
+            // deck's own shadow boundary has passed it. Multiplying the frame-wide `underlit` by it
+            // is what turns a deck that all warms together into one that goes out in order.
+            float sheetUnderlit = underlit;
+            float sheetWarmth = float.NaN;
+
+            if (deckShading)
+            {
+                float axisPosition = TwilightSweepField.AxisPosition(
+                    placement.CenterX / map.Size.x, placement.CenterZ / map.Size.z,
+                    sweepAxisU, sweepAxisV);
+
+                sheetUnderlit = underlit * TwilightSweepMath.LitFraction(axisPosition, deckSweep);
+                sheetWarmth = TwilightSweepMath.Warmth(axisPosition, deckSweep);
+            }
+
+            SetSheet(i, placement, hot, cool, axisU, axisV, sheetUnderlit,
+                Mathf.Min(brightness * boost, 1f), Mathf.Min(alpha * placement.Alpha * boost, 1f),
+                map, sheetWarmth);
 
             // NO OPEN-SKY MASK, deliberately. §23b and §23c mask to unroofed cells because they are
             // light reaching the GROUND, which a roof stops. A cloud is above the roof and should draw
@@ -104,10 +138,16 @@ public static class CloudSheetOverlay
         }
     }
 
+    // `sweepWarmth` is §26's hue for this sheet against the DECK's boundary, or NaN when §26 is not
+    // drawing. NaN rather than a bool-plus-value pair because there is exactly one caller and the
+    // sentinel keeps the parameter list from growing a second flag that can disagree with the first —
+    // and because a NaN that leaked through would produce a visibly broken sheet rather than a
+    // plausible wrong colour, which is the failure mode worth having.
     private static void SetSheet(
         int slot, in CloudSheetLayout.Placement placement,
         in SkyColorTemperature.Rgb hot, in SkyColorTemperature.Rgb cool,
-        int axisU, int axisV, float underlit, float brightness, float alpha, Map map)
+        int axisU, int axisV, float underlit, float brightness, float alpha, Map map,
+        float sweepWarmth)
     {
         Material material = SheetMats[slot];
 
@@ -132,8 +172,18 @@ public static class CloudSheetOverlay
         // tiled version baked this per texel; a bounded sheet is one place, so it takes one colour —
         // which is cheaper AND is what makes a sky of sheets show its warm side and its cool side at
         // once, since the sheets are in different places.
-        float warmth = CloudField.GradientWarmth(
-            placement.CenterX / map.Size.x, placement.CenterZ / map.Size.z, axisU, axisV);
+        //
+        // §26 REPLACES THAT GRADIENT WHEN IT IS DRAWING, rather than blending with it, and the choice
+        // is deliberate. Both are answers to "which way is the sun from this sheet", and running two
+        // at once would put two crossovers on one sky. §26's is the better answer while it is
+        // available: it is keyed to the true azimuth rather than to the eight lattice directions
+        // CloudField must round to (issue #139), and it is anchored to the deck's own moving shadow
+        // boundary rather than to a phase that rides with the field's pan. Outside §26's window there
+        // is no boundary to anchor to, so the static gradient is the only answer there is.
+        float warmth = float.IsNaN(sweepWarmth)
+            ? CloudField.GradientWarmth(
+                placement.CenterX / map.Size.x, placement.CenterZ / map.Size.z, axisU, axisV)
+            : sweepWarmth;
 
         float sunsetR = Mix(cool.R, hot.R, warmth);
         float sunsetG = Mix(cool.G, hot.G, warmth);

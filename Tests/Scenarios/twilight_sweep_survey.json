@@ -1,0 +1,766 @@
+{
+  "name": "twilight_sweep_survey",
+  "saveFile": "minimal_colony.rws",
+  "description": "SURVEY ONLY, no pins: locates \u00a726's sweep window on this tile before the A/B pins anything in it. Every Probe carries a dummy expectation and a huge tolerance, so the scenario passes regardless and the numbers are read out of the report's ActualValue fields. \u00a726's window runs from the horizon to \u00a78's -6\u00b0 fade floor, which is roughly three times \u00a723b's, but RimWorld's clock does not put sunset at 18:00 and the window's ENDS are what the A/B needs \u2014 the envelope is zero at both of them by construction, so an hour picked just inside one reads as a healthy non-zero position with nothing at all on screen. Latitude 45, day 40, Clear: \u00a726 reads no cloud fraction, and a cloudless sky keeps the three cloud lanes from confounding it.",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "realistic_preset",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Soil",
+        "width": "128",
+        "height": "128",
+        "anchor": "64,64"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Soil",
+        "width": "128",
+        "height": "128",
+        "anchor": "64,186"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Soil",
+        "width": "128",
+        "height": "128",
+        "anchor": "186,64"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Soil",
+        "width": "128",
+        "height": "128",
+        "anchor": "186,186"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "twilight_sweep",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "20.50"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_position",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_amplitude",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "20.55"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_position",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_amplitude",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "20.60"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_position",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_amplitude",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "20.65"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_position",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_amplitude",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "20.70"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_position",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_amplitude",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "20.75"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_position",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_amplitude",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "20.80"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_position",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_amplitude",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "20.85"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_position",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_amplitude",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "20.90"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_position",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_amplitude",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "20.95"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_position",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_amplitude",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "21.00"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_position",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_amplitude",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "21.05"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_position",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_amplitude",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "21.10"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_position",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_amplitude",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "21.15"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_position",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_amplitude",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "21.20"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_position",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_amplitude",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "21.25"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_position",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_amplitude",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "21.30"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_position",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_amplitude",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "21.35"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_position",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_amplitude",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "21.40"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_position",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_amplitude",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "21.45"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_position",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_amplitude",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "21.50"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_position",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_amplitude",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "21.55"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_position",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_amplitude",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "21.60"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_position",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_amplitude",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    }
+  ]
+}

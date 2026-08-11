@@ -1,0 +1,117 @@
+{
+  "name": "twilight_sweep_lapse",
+  "saveFile": "minimal_colony.rws",
+  "description": "\u00a726 filmed across one dusk, on and off (issue #140). \u00a726's entire claim is about MOTION, which no still frame can carry \u2014 and which a video makes very easy to believe on no evidence, since an evening simply getting darker looks like a sweep whether or not anything swept. The twilight_sweep scenario's pinned probes are what make this falsifiable; this is what makes it watchable. Both halves are filmed because the question is comparative: a band that reads as a rendering artifact and one that reads as dusk look identical in isolation. Paced to REAL TIME: 0.002 game hours per frame at 12 fps is exactly 1x play speed, so a second of video is a second of play \u2014 a film compressed to a convenient length cannot answer a question about a speed.",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "realistic_preset",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Soil",
+        "width": "128",
+        "height": "128",
+        "anchor": "64,64"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Soil",
+        "width": "128",
+        "height": "128",
+        "anchor": "64,186"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Soil",
+        "width": "128",
+        "height": "128",
+        "anchor": "186,64"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Soil",
+        "width": "128",
+        "height": "128",
+        "anchor": "186,186"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "20.62"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "ts_lapse_warmup.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "twilight_sweep",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Timelapse",
+      "args": {
+        "fromHour": "20.62",
+        "stepHours": "0.00200",
+        "steps": "250",
+        "fileNamePrefix": "ts_sweep_on",
+        "fps": "12",
+        "settleFrames": "2"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "twilight_sweep",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Timelapse",
+      "args": {
+        "fromHour": "20.62",
+        "stepHours": "0.00200",
+        "steps": "250",
+        "fileNamePrefix": "ts_sweep_off",
+        "fps": "12",
+        "settleFrames": "2"
+      }
+    }
+  ]
+}
