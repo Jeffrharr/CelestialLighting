@@ -8385,6 +8385,229 @@ knowing about because it is silent: under Realistic every `shadow_extrude_far_ce
 `planetsmith_tilt.json` fails by a constant 1.0/1.4, which reads as a shadow regression and is only
 the preset's `shadowLengthScale` going live.
 
+
+## 25b. Cloud varieties, and the altitudes they sit at (`CloudDeckMath`, §25's decks)
+
+**Status: implemented, on by default *within* §25 — which is itself shipped off.** So nothing here
+reaches a player until §25 does. What it changes is what §25 draws when it does.
+
+### The problem, which is two problems that turn out to be one
+
+§25 drew **one cloud type**. One noise character, one opacity, one speed, with variety coming only
+from shape, mirroring and size — a sky of twelve of the same thing. Its own section says so and files
+the fix as future work: *"A second type — thin high cirrus against fat cumulus — would be a different
+shaping curve in `FillBlobAtlas` plus a second atlas, and is deliberately not attempted."*
+
+Separately, §25's sunset colour ran on **one handover window**, `UnderlitFraction`'s fixed
+`[-1.5, 6]` degrees. That lower bound was the crudest number in the subsystem: it said every deck
+stays underlit forever once the sun is 1.5° down, which is wrong at both ends. And it was a guess
+standing in for a quantity this codebase already computes exactly —
+`CloudUnderlightMath.ShadowEntryDepressionDegrees` answers *at what solar depression does a deck at
+this height stop catching direct sun*, and §23 has been using it since it was written.
+
+**A single window is only correct if every cloud is at one height.** That is the join: the two
+problems are one problem seen from opposite ends, and neither can be fixed alone.
+
+### What a sunset actually looks like
+
+Not "the clouds turn orange". *The clouds turn orange and then go out in order, bottom deck first.* A
+low deck loses the sun about 1.0° below the horizon; cirrus at 9.5 km holds it to about 3.1°. So for
+a couple of minutes the low cumulus is already a flat grey mass while the cirrus above it is still
+burning. That sequencing **is** the effect, and it is unreachable without varieties, because it is a
+statement about two decks at once.
+
+### The table
+
+| deck | altitude | opacity | size | speed | cut | gain | freq u × v |
+|---|---|---|---|---|---|---|---|
+| low — cumulus / stratocumulus | 1.0 km | 1.00 | 1.00 | 1.00 | 0.34 | 3.2 | 1.00 × 1.00 |
+| mid — altocumulus | 5.0 km | 0.72 | 0.85 | 1.35 | 0.38 | 3.4 | 2.20 × 2.20 |
+| high — cirrus | 9.5 km | 0.55 | 1.30 | 2.10 | 0.40 | 2.6 | 0.35 × 1.90 |
+
+**Three because that is how meteorology already divides the troposphere**, and because it is the
+smallest number that can show the sequencing above — two decks going out one after the other reads as
+a glitch, three reads as depth.
+
+The altitudes are the entries with a derivation rather than a taste call behind them. The low deck's
+is `WeatherDimmingMath.PrecipitatingDeckDefaultAltitudeMetres`, *read* rather than restated: the low
+deck is by definition the one that rains, so the height the existing classifier already assigns a
+raining sky is this deck's height. Sharing the constant is what makes the mixture below reproduce the
+classifier *exactly* rather than nearly. The high deck's 9.5 km matches issue #88's *"high cirrus
+(~10 km), the deck that lingers longest and reads as pink/magenta"* — a row §23 wrote down and
+nothing could reach until now.
+
+**Opacity is the column that carries, and it reaches all three lanes from one number.** It is folded
+into `CloudSheetLayout.Placement.Alpha`, which §25, §23b and §23c all read — so a cirrus sheet draws
+sheer, casts a faint shadow and bounces little light without three subsystems being tuned to agree.
+
+**The low row is §25's original curve, unchanged** (cut 0.34, gain 3.2, frequency 1), so a sky that
+draws only low cloud draws exactly what §25 drew before this existed. `CloudDeckMathTests` pins that
+against `CloudField.DefaultShapeCut`/`DefaultShapeGain` so it stays a checkable claim rather than a
+comment.
+
+**Frequency, not gain, is what makes a mackerel sky** — and finding that out cost a render. The mid
+row's first cut used gain 4.2 and came out as one solid mass with holes punched in it, *less*
+cloud-like than the deck below it. Altocumulus is many small elements, which is a frequency. The
+ratio between the two axes is separately what makes cirrus streaky: long features across, thin ones
+along, laid on u because u is the +x every sheet travels and the shear that draws real cirrus out is
+the wind it sits in.
+
+### The atlas is 3×3, one row per deck
+
+Was 2×2 at 256 px. Now 3×3 at 384, so a blob keeps its 128 px rather than being squeezed to 85 to fit
+an extra row into the old size. **A row is a cloud TYPE**: `FillBlobAtlas` shapes each row with its
+own deck's curve, so every cell of row 2 is cirrus however its column is picked.
+
+**A second atlas was the other option and is the wrong one.** All three lanes must draw the *same*
+shapes — they are the light this cloud adds and the light it blocks — so per-type atlases would mean
+three textures that three lanes each had to agree on picking from, i.e. three chances for the sky and
+the ground to show different clouds. That exact bug already happened once (§25's "All three lanes draw
+the same sheets"). One atlas with rows for types keeps the agreement structural, and
+`CloudSheetLayout.BlobFor` is the single place that maps a deck to a row — it was open-coded in three
+files before, which was already one copy too many.
+
+The bake is 2.25× the texels, **64–79 ms, paid once in the static constructor** and never again.
+`Tools/CloudPreview` renders it offline in about a second
+(`Tests/Screenshots/cd_atlas_rows.png` — bottom row is the cirrus streaks).
+
+### The mixture: decomposing one classified altitude into a layered sky
+
+`WeatherDimmingMath.DefaultAltitudeMetres` classifies a `WeatherDef`'s deck height from its
+precipitation rates, 4000 m dry down to 1000 m raining, and its own header names the hole this fills:
+*"Neither rain/snow/sand rate nor palette opacity says anything about whether a **dry** deck is a low
+ceiling or high thin cloud."*
+
+That is not a defect of the classifier. It is that **a single number cannot describe a layered sky**,
+and a real dry sky is layered. So the classified altitude is read as the sky's centre of mass and
+decomposed into a mixture over the three decks, anchored at the one end precipitation genuinely pins
+down.
+
+Piecewise linear over three named anchor mixtures — all-low at 1000 m, fair-weather
+(0.50 / 0.22 / 0.28) at 4000 m, mostly-cirrus (0 / 0.15 / 0.85) at 9.5 km.
+
+**A Gaussian kernel in log-altitude was tried first and is the obvious thing to reach for.** It fails
+on the case that matters most. `DryDeckDefaultAltitudeMetres` is 4000 m, which is not a claim that a
+dry sky's clouds are at 4 km — it is a single number standing in for a layered sky — so a kernel
+centred there hands almost everything to the 5 km mid deck and a partly-cloudy Clear evening comes out
+as altocumulus with no fair-weather cumulus in it at all. That is §22's whole case, and the commonest
+sunset. Anchoring on named mixtures keeps the classifier's two real endpoints while letting the middle
+say what the classifier cannot.
+
+**Monotone by construction**, which matters more than it looks: the mixture is re-evaluated every
+frame and a weather transition slides the classified altitude continuously. `DeckFor` walks cumulative
+weights in deck order, so a sheet near a boundary converts low → mid → high as the sky lifts, one at a
+time and always in that direction. The sky is seen to *layer upward* rather than to reshuffle.
+
+**A sheet's deck draw is fixed for the life of its slot**, not re-rolled per crossing like its shape
+and mirroring. That is a genuine circularity rather than a preference: the deck sets the sheet's
+speed, the speed sets how long a crossing takes, and a crossing counter is what a per-crossing re-roll
+would key on. Keying it on a speed-agnostic counter instead was tried and is worse than it sounds —
+the counter ticks out of step with the sheet's real crossings, so a cirrus sheet flips to cumulus in
+full view of the camera.
+
+### A cache bug the harness found
+
+`CloudSheetDraw.PlaceSheets` cached on `(tick, mapId)`. Where a sheet *is* depends on nothing but the
+tick, so that is exact — but what *kind* of cloud it is depends on the weather, and **the weather can
+change while the tick does not.** Most obviously on a paused colony, which is the state every harness
+scenario is in the moment after it jumps the clock.
+
+That is not a harness quirk to work around; it is a correctness bug the harness found. The probe
+reporting the mixture read live state while the tick-cached placements still drew the old one, so the
+sky on screen and the number in the report could disagree. It surfaced as a §25b A/B measuring
+**ΔE 0.00 with every pixel unchanged**: the feature toggle could not reach the draw at all.
+
+The mixture now resolves **per frame** (`Time.frameCount`) and the placements re-run when it moves,
+which also fixes `SetWeather` on a paused map.
+
+### §25's sheet was invisible at sunset, and that had to be fixed for any of this to be visible
+
+§25 scaled both the sheet's colour and its alpha by `SheetBrightness(skyGlow)` — by how bright the
+**ground** is. Right for a cloud in shadow, exactly backwards for one in sunlight: sky glow collapses
+the moment the sun crosses the horizon, so the sheet went dark and sheer at precisely the elevations
+§25b's windows live in.
+
+Measured, not suspected: the whole four-frame sunset A/B came out at **median ΔE 0.00 with under 1% of
+pixels changed**, while the probes proved the colour arithmetic underneath was running correctly. A
+subsystem computing the right answer onto an invisible surface.
+
+So `CloudSheetMath.DeckIllumination` takes whichever is brighter — the ambient light everything gets,
+or the direct light only this deck is getting (`UnderlitDeckFloor` 0.55). **A deck in direct sun is the
+brightest thing in a sunset sky**, which is the entire reason anybody looks at one.
+
+**Eclipses still darken the clouds**, which was the stated reason `SheetBrightness` keys on glow rather
+than geometry and is not given up here: the floor is proportional to the underlit fraction, which is
+zero above 6° of elevation, so through a *daylight* eclipse — the case that matters — the max is sky
+glow exactly as before. The narrow case it does get wrong, named rather than left to be found: an
+eclipse **during civil twilight** would keep the deck lit. Wrong, rare, and much the lesser of the two
+errors — the alternative is the sunset being invisible every evening to avoid being wrong on the few
+minutes the two ever coincide.
+
+This moved the illumination term out of `SheetAlphaWithAmplitude` and `CloudLayers.SheetAlphaFor`,
+because it is a per-**sheet** quantity now. **The `cloud_sheet_alpha` probe therefore changed meaning**
+and no longer folds brightness in — §25's verification table above quotes 0.3500 / 0.3346 / 0.0422 for
+it, and under §25b those all read the flat amplitude instead. The numbers in that table are the record
+of what was measured then; they are not re-derived here.
+
+### What this deliberately does not do yet
+
+**§23b's underlit-ground lane still runs on the map's single classified altitude.** A cirrus sheet's
+bounced light on the ground still dies when the low deck's does, even though its own drawn colour now
+outlives it. Fixing that means moving §23b's window inside its per-sheet loop — a contained change, not
+made here so that this one's ΔE is attributable to the sheet alone.
+
+**§23c's shadow amplitude was left at 0.18** for the same reason, and now has a second motive to move:
+adding thinner decks lowers the mean shadow strength, so §23c is weaker than the 1.28 it measured.
+
+### Live verification
+
+`Tests/Scenarios/cloud_deck_survey.json` swept 20.70 → 20.98 at 0.02 h (latitude 45, day 40) because
+**the entire sequence spans elevation −0.4° to −4.3°, about a quarter of an in-game hour.** An hourly
+grid steps over it whole. `cloud_deck_varieties.json` then takes its four hours from that sweep's
+readings.
+
+The A/B is `cloud_deck_varieties` **off against on** — off collapses the mixture to all-low, so both
+sides share atlas, shapes, placements, sizes and speeds and the only difference is which sheets were
+promoted off the low deck. An A/B against §25-absent would have measured the whole lane instead.
+
+| capture pair | elevation | `underlit_low` | `underlit_high` | median ΔE | p90 | p99 | changed |
+|---|---|---|---|---|---|---|---|
+| `cd_noon_*` | noon | 0 | 0 | 0.86 | **6.15** | 12.82 | 66.0% |
+| `cd_0674_*` | −0.68° | 1.000 | 1.000 | 0.00 | 0.76 | 1.25 | 27.0% |
+| `cd_1490_*` | −1.49° | 0.538 | 1.000 | 0.00 | 1.29 | 1.80 | 30.9% |
+| `cd_2442_*` | −2.44° | **0.000** | **1.000** | 0.00 | 1.15 | 1.53 | 32.6% |
+| `cd_3701_*` | −3.70° | 0.000 | 0.389 | 0.00 | 0.00 | 0.46 | **1.1%** |
+
+**The last row is the one to lead with, because it is the one that failed.** At −3.70° the cirrus is
+itself part-way out (`underlit_high` 0.389), so its illumination is 0.55 × 0.389 = 0.21 against the
+low deck's ambient 0.12 — a gap of nothing, on a scene already at rgb(27,17,11). **1.1% of pixels
+changed and p90 exactly 0.00.** The tail of the sequence, the part where cirrus is supposed to be the
+last thing burning, does not render at all. The probe says the geometry is right; the frame says
+nobody will see it.
+
+**The honest reading is that the arithmetic is verified and the pixels are not, yet.** The
+`underlit_low` / `underlit_high` pair is the subsystem's whole claim and it is pinned live: at −2.44°
+the low deck reads exactly 0 while the cirrus above it reads exactly 1. But the *visible* result of
+that is p90 ≈ 1.2 over a third of the frame — close-inspection at best — because the whole scene is at
+rgb(27,17,11) by then and absolute Lab distances are small however large the relative change. Daylight
+is where the varieties show: **p90 6.15 over 66% of the frame**, which is the shape claim rather than
+the colour one.
+
+Quoted as p90 rather than median throughout, per §25's own note: a lane that draws bounded objects
+over part of a frame is exactly what a median hides.
+
+**Read this against §25's own baseline, not against the sibling subsystems.** §25 measured median 0.00
+/ p90 7.52 at noon *for the entire lane* — §25b's p90 6.15 is a comparable-magnitude change laid on
+top of a prototype that is itself shipped off and whose section says the frames argue against the
+approach. Neither number is an argument for turning §25 on.
+
+**The camera is zoomed out to the map centre in that scenario, and it is load-bearing rather than
+framing.** A sheet is two-thirds of the map across and there are five of them at cover 0.35, so at the
+default colony zoom whether any cloud is in shot depends on which tick the scenario stopped at. The
+first cut of the A/B measured ΔE 0.00 across the whole sunset for exactly that reason — the sun was
+surveyed and the clouds were not. *Surveying the sun tells you when to look; it does not tell you
+where.*
+
 ## Interop: Clouds (`Source/CloudsCompat.cs` / `CloudsCompatMath.cs`)
 
 **Clouds** (`brrainz.clouds`, Andreas Pardeike, Workshop 3039192325) hangs a Unity `ParticleSystem`
