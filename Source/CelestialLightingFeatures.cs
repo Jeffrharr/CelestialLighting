@@ -460,6 +460,28 @@ public static class CelestialLightingFeatures
     // first thing to fix now that this is on by default rather than opt-in.
     public static bool CloudSheet = true;
 
+    // Feature key for CloudDeckVarieties (see CivilTwilightPersistenceKey for why it lives here).
+    public const string CloudDeckVarietiesKey = "cloud_deck_varieties";
+
+    // §25b: whether the sky is LAYERED — cumulus low, altocumulus in the middle, cirrus high, each
+    // at its own altitude, its own opacity, its own speed and its own sunset window — or all one
+    // deck, which is what §25 drew before this existed.
+    //
+    // SHIPS ON, AND UNLIKE CloudSheet ABOVE IT GETS NO SETTINGS CHECKBOX. That is the distinction
+    // rather than the default: §25 ships on behind "Visible clouds" because whether the mod draws
+    // clouds at all is a real opinion a player might hold. This is not a lane and not an opinion — it
+    // is a property of the cloud that lane already draws, costing one extra atlas row and nothing per
+    // frame, and "would you like your clouds to all be at the same altitude" is not a question worth
+    // a checkbox. With CloudSheet off it is unreachable either way.
+    //
+    // WHAT IT EXISTS FOR IS THE A/B, and the shape of "off" is what makes that A/B honest. Off does
+    // NOT mean "no varieties feature" in the sense of skipping the code — it means the deck mixture
+    // collapses to all-low (CloudSheetDraw.PlaceSheets), so both sides draw from the same atlas with
+    // the same shapes, the same placements, the same sizes and the same speeds, and the ONLY
+    // difference between the two frames is which sheets were promoted off the low deck. Without that,
+    // an A/B could only compare §25b-on against §25-absent and would measure both at once.
+    public static bool CloudDeckVarieties = true;
+
     // Feature key for AxialTiltLunarGeometry (see CivilTwilightPersistenceKey for why it lives here).
     public const string AxialTiltLunarGeometryKey = "axial_tilt_lunar_geometry";
 

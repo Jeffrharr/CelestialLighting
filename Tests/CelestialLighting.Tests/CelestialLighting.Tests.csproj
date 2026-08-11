@@ -214,8 +214,15 @@
     <!-- The Clouds interop's policy half: which cloud lanes stand down when another mod is
          drawing the clouds. Pure, so the ruling is pinned offline rather than only on screen. -->
     <Compile Include="../../Source/CloudsCompatMath.cs" Link="CloudsCompatMath.cs" />
-    <!-- §25's sheet placement: where the bounded clouds are and how they move. No dependencies of its
-         own; CloudSheetLayoutTests drives it alongside CloudSheetMath's overlap cap, because the two
+    <!-- §25b's cloud varieties: the deck table, the mixture that decomposes §13's single classified
+         deck altitude into it, and the per-sheet deck draw. Depends on BOTH CloudUnderlightMath
+         (for ShadowEntryDepressionDegrees — deliberately delegated rather than a third copy of the
+         Earth-shadow geometry) and WeatherDimmingMath (for the two default deck altitudes it anchors
+         the mixture on), so it must come after both. -->
+    <Compile Include="../../Source/CloudDeckMath.cs" Link="CloudDeckMath.cs" />
+    <!-- §25's sheet placement: where the bounded clouds are and how they move. Depends on
+         CloudDeckMath above, which sets a placed sheet's size, speed and opacity from its deck;
+         CloudSheetLayoutTests drives it alongside CloudSheetMath's overlap cap, because the two
          halves of "overlapping clouds read as thicker" live one in each file. -->
     <Compile Include="../../Source/CloudSheetLayout.cs" Link="CloudSheetLayout.cs" />
   </ItemGroup>

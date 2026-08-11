@@ -90,9 +90,11 @@ public static class CloudUnderlightOverlay
 
             Material material = LayerMats[i];
             material.mainTexture = CloudSheetOverlay.Atlas;
+            // The same atlas cell §25 draws the cloud from — see CloudSheetLayout.BlobFor. The light
+            // a cloud bounces down has to have that cloud's outline, not another deck's.
             CloudSheetDraw.ApplySheetUvs(
                 material, placement, map, atlasCells,
-                placement.ShapeSeed % (atlasCells * atlasCells));
+                CloudSheetLayout.BlobFor(placement, atlasCells));
 
             // Warm toward the sun, magenta away from it — §8's target colour and §19c's composed
             // twilight hue, sampled at this sheet's own centre.

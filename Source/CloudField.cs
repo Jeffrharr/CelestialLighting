@@ -349,9 +349,28 @@ public static class CloudField
     // runs once in a static constructor during load and never again.
     //
     // An ATLAS rather than one blob, because sheets are drawn several at a time and rotation alone does
-    // not hide that they are the same object. Four shapes times a free rotation times a size variation
+    // not hide that they are the same object. Several shapes times mirroring times a size variation
     // is enough that a sky of a dozen reads as a dozen clouds.
-    public static void FillBlobAtlas(float[] intensity, int atlasSize, int blobsPerAxis, int seed, int octaves)
+    //
+    // A ROW IS A CLOUD TYPE (§25b). `rowCut`, `rowGain`, `rowFrequencyU` and `rowFrequencyV` are all
+    // indexed by atlas ROW, so every cell of row 2 is shaped by the same curve and is therefore the
+    // same kind of cloud however its column is picked — which is what CloudSheetLayout.BlobFor's
+    // row-is-deck convention relies on. Passed in as plain float arrays rather than read from
+    // CloudDeckMath so this file keeps its only dependency (AuroraNoise) and stays the primitive the
+    // deck table is expressed IN rather than a second place that knows what a cirrus is.
+    //
+    // All four arrays may be null or short, in which case the missing rows fall back to the single
+    // curve this method shipped with — so a caller that has not heard of decks bakes exactly the
+    // atlas §25 baked before they existed. That is what this overload is: the old signature, kept
+    // callable rather than given optional null parameters, because the test project compiles this
+    // file with nullable reference types on and a defaulted `float[] = null` is a warning there.
+    public static void FillBlobAtlas(
+        float[] intensity, int atlasSize, int blobsPerAxis, int seed, int octaves) =>
+        FillBlobAtlas(intensity, atlasSize, blobsPerAxis, seed, octaves, null, null, null, null);
+
+    public static void FillBlobAtlas(
+        float[] intensity, int atlasSize, int blobsPerAxis, int seed, int octaves,
+        float[] rowCut, float[] rowGain, float[] rowFrequencyU, float[] rowFrequencyV)
     {
         if (intensity == null || atlasSize <= 0 || blobsPerAxis <= 0)
             return;
@@ -363,6 +382,11 @@ public static class CloudField
         {
             int blobY = y / blobSize;
             int row = y * atlasSize;
+
+            float cut = RowValue(rowCut, blobY, DefaultShapeCut);
+            float gain = RowValue(rowGain, blobY, DefaultShapeGain);
+            float frequencyU = PositiveRowValue(rowFrequencyU, blobY);
+            float frequencyV = PositiveRowValue(rowFrequencyV, blobY);
 
             for (int x = 0; x < atlasSize; x++)
             {
@@ -385,21 +409,61 @@ public static class CloudField
                     continue;
                 }
 
-                // Each blob in the atlas gets its own noise seed, so the four are different clouds
-                // rather than four crops of one. Sampled on the blob's own local coordinates rather
+                // Each blob in the atlas gets its own noise seed, so they are different clouds
+                // rather than crops of one. Sampled on the blob's own local coordinates rather
                 // than the atlas's, so the noise scale is the same in every cell of the atlas.
+                //
+                // THE ROW'S FREQUENCIES SCALE THE SAMPLE COORDINATES, WHICH IS WHERE THE CLOUD TYPES
+                // COME FROM. Sampling faster makes finer features, so raising BOTH gives the many
+                // small elements of a mackerel sky, and raising one against the other stretches
+                // features across the low axis — which is how cirrus gets its streaks, laid along u
+                // because u is the +x every sheet travels and the shear that draws real cirrus out is
+                // the wind it sits in.
+                //
+                // Scaling stays inside the tiling lattice: AuroraNoise wraps on integer lattice
+                // coordinates, so an integer or fractional multiple of the unit square still samples
+                // a seamless field, and nothing here can introduce an edge the radial falloff would
+                // then have to hide.
+                //
+                // The falloff above is deliberately left ROUND while the noise inside it is not. It
+                // is the blob's silhouette, and stretching that would elongate the QUAD's footprint —
+                // how big a sheet is and which way it lies is the layout's business, not the atlas's.
                 int blobSeed = seed + (blobY * blobsPerAxis + blobX) * 7919;
                 float coverage = Coverage(
-                    (x % blobSize) / (float)blobSize, (y % blobSize) / (float)blobSize, blobSeed, octaves);
+                    ((x % blobSize) / (float)blobSize) * frequencyU,
+                    ((y % blobSize) / (float)blobSize) * frequencyV, blobSeed, octaves);
 
                 // Stretch the noise's own narrow range across [0, 1] so a blob has solid middles and
                 // ragged edges rather than being uniformly half-transparent. Value noise clusters
-                // around 0.5, so this cut and gain are what turn "grey mush" into "cloud".
-                float shaped = Clamp01((coverage - 0.34f) * 3.2f);
+                // around 0.5, so this cut and gain are what turn "grey mush" into "cloud" — and
+                // varying them per row is what turns it into a PARTICULAR cloud, since a high cut
+                // with a high gain has hard edges and solid middles while a high cut with a low gain
+                // never fills in at all.
+                float shaped = Clamp01((coverage - cut) * gain);
 
                 intensity[row + x] = fade * shaped;
             }
         }
+    }
+
+    // The single shaping curve FillBlobAtlas had before §25b gave each deck its own. Kept as named
+    // constants rather than inline literals so the low deck's row can be stated as "unchanged" in
+    // CloudDeckMath's table and be checkably so.
+    public const float DefaultShapeCut = 0.34f;
+
+    public const float DefaultShapeGain = 3.2f;
+
+    private static float RowValue(float[] values, int row, float fallback) =>
+        values != null && row >= 0 && row < values.Length ? values[row] : fallback;
+
+    // A frequency of zero or less collapses the sample to a single noise value and fills the whole
+    // blob with it, which is a flat disc rather than a cloud. Falls back to 1 — the low deck's, i.e.
+    // the atlas §25 shipped — rather than being clamped to something small, so a missing row is a
+    // missing row rather than a smear.
+    private static float PositiveRowValue(float[] values, int row)
+    {
+        float value = RowValue(values, row, 1f);
+        return value > 0f ? value : 1f;
     }
 
     // The blob atlas's bytes: white in RGB, the blob's own shape in alpha. Colour is a per-sheet

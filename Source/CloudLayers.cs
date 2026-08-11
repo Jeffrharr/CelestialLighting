@@ -173,8 +173,13 @@ public static class CloudLayers
         if (fraction <= 0f)
             return 0f;
 
+        // NO ILLUMINATION TERM HERE ANY MORE (§25b). This used to fold SheetBrightness(CurSkyGlow) in,
+        // which was fine while every cloud was equally lit and is wrong now that they are not: a sheet
+        // is lit by whichever deck it is on, and at 2.4 degrees below the horizon those differ by the
+        // entire range. The overlay applies CloudSheetMath.DeckIllumination per sheet; this is the
+        // lane's ceiling, and the probe on it reports the gate rather than what reaches a pixel.
         return CloudSheetMath.SheetAlphaWithAmplitude(
-            fraction, map.skyManager.CurSkyGlow, SheetAmplitudeScale, Vacuum.InVacuumForMap(map));
+            fraction, SheetAmplitudeScale, Vacuum.InVacuumForMap(map));
     }
 
     // The SUNWARD end of the layer's colour: §8's own target colour at this elevation, not a second

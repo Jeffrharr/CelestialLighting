@@ -261,15 +261,24 @@ public static class WeatherDimming
     // defense in depth (mirroring CloudOpacityFor's own shape) for the unlikely case something else
     // ever calls this directly.
     //
-    // TWO FLAGS, EITHER OF WHICH KEEPS THIS ALIVE. §23b's additive layer (CloudUnderlightLayer) reads
-    // the same altitude for the same geometry, and the two lanes are independently switchable — so
-    // gating on §23's flag alone would make "flat lane off, spatial lane on" silently return a
-    // ground-hugging 0 and kill the layer for a reason no setting names. The guard means "no consumer
-    // of cloud altitude is on", which is the thing it was always standing for.
+    // THREE FLAGS, ANY OF WHICH KEEPS THIS ALIVE. §23b's additive layer (CloudUnderlightLayer) reads
+    // the same altitude for the same geometry, and §25b's deck mixture (CloudSheet) decomposes it
+    // into the layered sky a single number cannot describe. All three lanes are independently
+    // switchable — so gating on §23's flag alone would make "flat lane off, spatial lane on" silently
+    // return a ground-hugging 0 and kill the layer for a reason no setting names. The guard means "no
+    // consumer of cloud altitude is on", which is the thing it was always standing for.
+    //
+    // §25b is the one that makes the list load-bearing rather than tidy: a 0 here collapses the deck
+    // mixture onto the low deck, so leaving CloudSheet off this list would mean switching off §23
+    // silently deleted every cirrus in the sky.
     public static float CloudAltitudeMetresFor(Map map)
     {
-        if (!CelestialLightingFeatures.CloudUnderlight && !CelestialLightingFeatures.CloudUnderlightLayer)
+        if (!CelestialLightingFeatures.CloudUnderlight
+            && !CelestialLightingFeatures.CloudUnderlightLayer
+            && !CelestialLightingFeatures.CloudSheet)
+        {
             return 0f;
+        }
 
         WeatherManager weather = map?.weatherManager;
         if (weather == null)

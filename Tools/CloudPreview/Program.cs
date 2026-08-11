@@ -99,6 +99,93 @@ public static class Program
         watch.Stop();
         Console.WriteLine($"sheet bake        {watch.Elapsed.TotalMilliseconds / SheetBakes:0.00} ms " +
                           $"({sheet * sheet} texels x {CloudField.SheetOctaves} octaves)");
+
+        WriteBlobAtlas(outputDir);
+        WriteSunsetSequence();
+    }
+
+    // §25b: the blob atlas the game actually draws its sheets from, one row per deck.
+    //
+    // WHY THIS IS WORTH RENDERING AND THE FIELD ABOVE IS NOT ENOUGH. Everything above previews the
+    // tiled illumination field, which is not what a cloud looks like — it is what the LIGHT off one
+    // looks like, deliberately soft. §25's sheets come from this atlas instead, and "is that a
+    // cirrus" is a question about its rows. Answering it here costs a second; answering it through
+    // the harness costs a RimWorld boot, and the sheet arrives on screen at low alpha over terrain,
+    // where a shape problem and a strength problem look the same.
+    private static void WriteBlobAtlas(string outputDir)
+    {
+        // The game's own dimensions (CloudSheetOverlay.AtlasCells / AtlasSize). Restated rather than
+        // read because those live in a file that imports UnityEngine and cannot be linked here — so
+        // they are printed alongside the render, and a divergence is visible rather than silent.
+        const int Cells = 3;
+        const int Size = 384;
+
+        float[] intensity = new float[Size * Size];
+
+        Stopwatch watch = Stopwatch.StartNew();
+        CloudField.FillBlobAtlas(
+            intensity, Size, Cells, seed: 20260810, octaves: CloudField.SheetOctaves,
+            rowCut: CloudDeckMath.ShapeCuts(),
+            rowGain: CloudDeckMath.ShapeGains(),
+            rowFrequencyU: CloudDeckMath.FrequenciesU(),
+            rowFrequencyV: CloudDeckMath.FrequenciesV());
+        watch.Stop();
+
+        Png.Write($"{outputDir}/cloudatlas.png", Size, Size, Grey(intensity, Size * Size, v => v));
+
+        Console.WriteLine();
+        Console.WriteLine(
+            $"blob atlas        {watch.Elapsed.TotalMilliseconds:0.00} ms " +
+            $"({Size}x{Size}, {Cells}x{Cells} blobs of {Size / Cells}, " +
+            $"{CloudField.SheetOctaves} octaves) — ONCE at load, never again");
+
+        // Per-row coverage, which is the number behind "cirrus is thin". Rows run bottom-up in the
+        // atlas the same way UVs do, so row 0 is the low deck.
+        for (int row = 0; row < Cells; row++)
+        {
+            double sum = 0.0;
+            int blobSize = Size / Cells;
+            for (int y = row * blobSize; y < (row + 1) * blobSize; y++)
+            {
+                for (int x = 0; x < Size; x++)
+                    sum += intensity[y * Size + x];
+            }
+
+            CloudDeckMath.Deck spec = CloudDeckMath.DeckAt(row);
+            Console.WriteLine(
+                $"  row {row} ({spec.AltitudeMetres / 1000f:0.0} km)  " +
+                $"fill {sum / (blobSize * Size):0.000}  opacity {spec.Opacity:0.00}  " +
+                $"cut {spec.ShapeCut:0.00} gain {spec.ShapeGain:0.0} " +
+                $"freq {spec.FrequencyU:0.00}x{spec.FrequencyV:0.00}  " +
+                $"→ effective {sum / (blobSize * Size) * spec.Opacity:0.000}");
+        }
+    }
+
+    // §25b's headline claim as a table: the decks lose the sun in order, so a sunset has a sequence
+    // in it rather than one recolour. Printed rather than rendered because it is a timing, and a
+    // timing is a column of numbers — this is also the survey that says which elevations are worth
+    // spending a live harness capture on (the whole sequence is under four degrees wide).
+    private static void WriteSunsetSequence()
+    {
+        Console.WriteLine();
+        Console.Write("elev   ");
+        for (int deck = 0; deck < CloudDeckMath.DeckCount; deck++)
+            Console.Write($"{CloudDeckMath.DeckAt(deck).AltitudeMetres / 1000f,6:0.0}km");
+
+        Console.WriteLine();
+
+        for (float elevation = 6f; elevation >= -5f; elevation -= 0.25f)
+        {
+            Console.Write($"{elevation,5:0.00}  ");
+            for (int deck = 0; deck < CloudDeckMath.DeckCount; deck++)
+            {
+                float underlit = CloudSheetMath.UnderlitFraction(
+                    elevation, CloudDeckMath.ShadowEntryDegrees(deck));
+                Console.Write($"{underlit,8:0.000}");
+            }
+
+            Console.WriteLine();
+        }
     }
 
     private static byte[] Grey(float[] values, int count, Func<float, float> select)

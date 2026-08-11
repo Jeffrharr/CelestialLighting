@@ -9,8 +9,14 @@ public class CloudSheetLayoutTests
     private const int MapZ = 250;
     private const int Seed = 4242;
 
+    // An all-low-deck mixture, so the placement tests below measure placement rather than §25b's
+    // deck spread. The low deck's size and speed scales are both exactly 1, so these are the numbers
+    // this file pinned before decks existed — which is the point: adding varieties must not have
+    // moved where an ordinary cloud goes. CloudDeckMathTests owns the mixture itself.
+    private static readonly float[] LowDeckOnly = { 1f, 0f, 0f };
+
     private static CloudSheetLayout.Placement Place(int index, int ticks) =>
-        CloudSheetLayout.PlacementFor(index, Seed, ticks, MapX, MapZ);
+        CloudSheetLayout.PlacementFor(index, Seed, ticks, MapX, MapZ, LowDeckOnly);
 
     // Coverage is a COUNT here, not a threshold — which is the headline difference from the tiled
     // version §25 replaced, and from §23b/§23c, where coverage moves a threshold instead.
@@ -169,14 +175,14 @@ public class CloudSheetLayoutTests
     {
         CloudSheetLayout.Placement[] stacked =
         {
-            new CloudSheetLayout.Placement(100f, 100f, 80f, false, false, 1f, 0),
-            new CloudSheetLayout.Placement(100f, 100f, 80f, false, false, 1f, 0),
+            new CloudSheetLayout.Placement(100f, 100f, 80f, false, false, 1f, 0, CloudDeckMath.LowDeck),
+            new CloudSheetLayout.Placement(100f, 100f, 80f, false, false, 1f, 0, CloudDeckMath.LowDeck),
         };
 
         CloudSheetLayout.Placement[] apart =
         {
-            new CloudSheetLayout.Placement(0f, 0f, 80f, false, false, 1f, 0),
-            new CloudSheetLayout.Placement(400f, 400f, 80f, false, false, 1f, 0),
+            new CloudSheetLayout.Placement(0f, 0f, 80f, false, false, 1f, 0, CloudDeckMath.LowDeck),
+            new CloudSheetLayout.Placement(400f, 400f, 80f, false, false, 1f, 0, CloudDeckMath.LowDeck),
         };
 
         Assert.That(CloudSheetLayout.OverlapDepth(stacked, 2, 0), Is.EqualTo(1f).Within(1e-4f));
@@ -190,14 +196,14 @@ public class CloudSheetLayoutTests
     {
         CloudSheetLayout.Placement[] thick =
         {
-            new CloudSheetLayout.Placement(100f, 100f, 80f, false, false, 1f, 0),
-            new CloudSheetLayout.Placement(100f, 100f, 80f, false, false, 1f, 0),
+            new CloudSheetLayout.Placement(100f, 100f, 80f, false, false, 1f, 0, CloudDeckMath.LowDeck),
+            new CloudSheetLayout.Placement(100f, 100f, 80f, false, false, 1f, 0, CloudDeckMath.LowDeck),
         };
 
         CloudSheetLayout.Placement[] thin =
         {
-            new CloudSheetLayout.Placement(100f, 100f, 80f, false, false, 1f, 0),
-            new CloudSheetLayout.Placement(100f, 100f, 80f, false, false, 0.3f, 0),
+            new CloudSheetLayout.Placement(100f, 100f, 80f, false, false, 1f, 0, CloudDeckMath.LowDeck),
+            new CloudSheetLayout.Placement(100f, 100f, 80f, false, false, 0.3f, 0, CloudDeckMath.LowDeck),
         };
 
         Assert.That(CloudSheetLayout.OverlapDepth(thin, 2, 0),

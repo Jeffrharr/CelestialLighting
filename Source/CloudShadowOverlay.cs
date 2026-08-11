@@ -71,9 +71,12 @@ public static class CloudShadowOverlay
 
             Material material = ShadowMats[i];
             material.mainTexture = CloudSheetOverlay.Atlas;
+            // The same atlas cell §25 draws the cloud from, resolved through the one function that
+            // knows the row-is-deck convention — so this shadow is cast by that cloud rather than by
+            // one with the same seed on a different deck.
             CloudSheetDraw.ApplySheetUvs(
                 material, placement, map, CloudSheetOverlay.AtlasCells,
-                placement.ShapeSeed % (CloudSheetOverlay.AtlasCells * CloudSheetOverlay.AtlasCells));
+                CloudSheetLayout.BlobFor(placement, CloudSheetOverlay.AtlasCells));
 
             // Black, so the blend is a pure multiply. The alpha is the whole signal.
             material.color = new Color(0f, 0f, 0f, Mathf.Min(alpha * placement.Alpha * boost, 1f));
