@@ -210,6 +210,17 @@ public static class TwilightSweepMath
         return Clamp01(((beltLight * BeltWarmth) + glowLight) / total);
     }
 
+    // How lit a point is, in [0, 1], independent of how strong the pass is drawing. This is
+    // `Intensity` with the amplitude taken out — the band's SHAPE rather than its brightness.
+    //
+    // WHAT IT IS FOR: §25's cloud sheets, which are drawn by an entirely different lane. A sheet does
+    // not want §26's additive alpha added to it; it wants to know whether the sun still reaches it,
+    // so it can pick its own colour between "still catching light" and "gone out". Handing the shape
+    // over rather than the alpha keeps §26 from having an opinion about how bright a cloud is, which
+    // is CloudSheetMath.SheetBrightness's job and is keyed on sky glow so eclipses work for free.
+    public static float LitFraction(float axisPosition, float sweep) =>
+        Intensity(axisPosition, sweep, 1f);
+
     // The three shape terms both public functions above are built from, evaluated once so the two can
     // never disagree about where the belt is.
     private static void Components(

@@ -7483,6 +7483,214 @@ other mod doing the same.
 `GenCelestial.CurShadowStrength(Map)` is a small public static leaf method with a single call site
 inside `SkyManager.SkyManagerUpdate` — same low-risk profile as `GetLightSourceInfo`.
 
+## 26. The twilight sweep (`TwilightSweepMath` / `TwilightSweepField` / `TwilightSweepOverlay`, issue #140)
+
+**Status: PROTOTYPE, ships OFF** (`twilight_sweep`), the same posture §24 and the three cloud lanes
+took through their own prototype phases and for the same reason: the open question cannot be settled
+by argument.
+
+**Problem — and it is not a physics gap, which makes it unlike every section above.** Every sky
+subsystem in this document is **one number or one colour per frame**, applied everywhere at once and
+changing only with the clock: §8's colour temperature, §13's dimming, §19's ozone notch, §19c's
+purple light, §22's cloud cover, §23's underlighting. The only spatial effects are §11a's aurora
+curtain and §15b's eave shade, and both stand still. **Nothing in this mod has ever moved across the
+ground.**
+
+That matters because of the wall epic #103 names and §24 measured. RimWorld has fixed exposure and no
+eye adaptation, so an additive pass has to reach roughly ΔE 15 before it inverts a perceived
+brightness ordering — and at that strength §24 reads as milky haze rather than as glare. Motion does
+not have that ceiling: an edge crossing the colony is legible at a fraction of the contrast a static
+wash needs, because the eye is asked to notice a *change* rather than to judge a level. §26 is
+therefore a test of a **different hypothesis**, not another draw on the one §24 already lost.
+
+### What cannot be drawn, and why the obvious version is a flicker
+
+The literal day/night terminator crossing the map is **not renderable**. At latitude 55 it sweeps the
+ground at ~266 m/s, so it crosses a 250-cell map in about a second of real-world time — and
+RimWorld's clock is compressed ~86× at 1× speed, which makes that ~6 ms of wall clock. A
+physically-timed terminator is a single-frame flash.
+
+This is exactly the objection that killed §3's across-map shadow gradient (issues #11, #26): across
+250 cells, real geometry has nothing to say. Anyone proposing "just sweep the terminator" is
+proposing a flicker, and the arithmetic above is kept here so the proposal does not have to be
+re-refuted.
+
+### What is drawn instead, and why its timescale is right by construction
+
+After sunset, **Earth's own shadow** rises out of the anti-solar horizon as a dusky band with the
+pink Belt of Venus riding on its top edge, and climbs across the whole civil-twilight window — tens
+of minutes, not one second. §19c already owns that geometry (`PurpleLightMath.ShadowHeightKm`,
+`h = R(sec θ − 1)`) and §23 already inverts it rather than introducing a second approximation. §26
+adds no new geometry at all: it runs in the window every other twilight subsystem runs in, and only
+asks *where along the sun axis* the boundary has reached.
+
+**Measured on the fixture** (latitude 45, day 40, `minimal_colony.rws`): sunset lands at hour
+**20.654** and §8's −6° floor at **21.09**. The window is therefore **0.435 game hours — 26 game
+minutes, about 18 seconds of real time at 1× speed.** That is the sweep's actual on-screen duration,
+and it is the number the whole design rests on: slow enough to watch, fast enough to finish inside one
+dusk. The sun does *not* fall at a constant rate through it (8°/hour at the horizon, ~15.7°/hour by
+the floor), so the pinned hours are read off the survey table rather than interpolated between its
+ends.
+
+| hour | elevation | position | amplitude | |
+|---|---|---|---|---|
+| 20.65 | +0.035 | 0.0000 | 0.0000 | last frame with the sun up |
+| 20.70 | −0.364 | 0.0607 | 0.0296 | |
+| 20.80 | −1.490 | 0.2483 | 0.0971 | |
+| 20.90 | −3.073 | 0.5122 | 0.1299 | envelope peak |
+| 21.00 | −4.639 | 0.7731 | 0.0912 | |
+| 21.05 | −5.415 | 0.9025 | 0.0458 | |
+| 21.10 | −6.186 | 0.0000 | 0.0000 | past the floor, stood down |
+
+**That table cost three runs, and the reason is worth more than the number.** Seeded from §23b's own
+scenario — which states its window opens at 20.62 on this same tile and season — the first survey
+appeared to be wrong by 2.3 hours: every sample came back with the sun between −16.6° and −25.6°. A
+second survey re-aimed at 18.20–19.30 put sunset at 18.80. **A third run of that same file, byte for
+byte, put it at 20.65.**
+
+Three runs, three answers, one scenario. What moved was **persisted mod settings**, which
+`run_test.sh` does not reset — the parent CLAUDE.md's own warning, met in the wild. The second survey
+was the first run to write `realistic_preset false`, and the write did not fully take until the
+following boot, so runs 1 and 2 were reading a fixture mid-change. **§23b's 20.62 was right the whole
+time; the "2.3 hours late" reading was the artifact, not the seed.** The lesson for any later survey
+here: a `sun_elevation` reading is only trustworthy on a boot whose persisted settings were already
+what the scenario asks for. Run the survey twice and believe the second, or an afternoon of pins gets
+built on a transient.
+
+**The projection is a fiction, and is stated rather than glossed.** A shadow rising up the *sky dome*
+is drawn as a band crossing the *map plane*. That is not a projection of anything — but it is the
+same conceit §11a's aurora curtain ships with, where a display 100 km up is drawn lying across the
+ground, and it was accepted there on the grounds that a top-down camera has nowhere else to put sky.
+What is honest here is the **timing** and the **order**: the boundary starts anti-solar, moves toward
+the sun, and finishes exactly when §8's tint does.
+
+That last property is a constant rather than a reference. `TwilightSweepMath.SweepFloorDegrees`
+duplicates `SkyColorTemperature.NightFadeFloorDegrees` because a pure file cannot see the adapter's
+constants, and `SweepFloor_MatchesSkyColorTemperaturesOwnTwilightFloor` pins the two equal — exactly
+the duplicate-constant drift §20/§20d warn about, caught by a test rather than by hoping.
+
+### The band is two lights, and the belt deliberately outweighs the physics
+
+`TwilightSweepMath.Intensity` sums a **belt** (peaking at the boundary, gone by `BeltWidth` ahead of
+it) and a **horizon glow** (brightest at the sunward edge). Summed rather than blended, because they
+are two lights arriving from two parts of the sky — the same "sources in parallel add, sources in
+series multiply" argument §19c makes at length about the ozone notch.
+
+`BeltWeight` 1.0 against `GlowWeight` 0.35 **inverts the real ordering**, in which the sunset horizon
+is by far the brightest part of a twilight sky. This is deliberate and is the one place §26 chooses a
+property over fidelity: a §26 whose brightest feature sits still at the sunward map edge is a worse
+version of what §8 already draws every evening for free, and it would leave the moving boundary as a
+faint secondary bump. The hypothesis under test needs the thing that moves to be the thing you see.
+The glow is kept rather than dropped because zero would put a hard outer limit on the band — beyond
+`BeltWidth` the field would fall to nothing, and a sunward half that goes abruptly dark reads as a
+*second* edge travelling ahead of the first.
+
+**Position is linear in elevation**, which trades physics for constant speed. The shadow's angular
+altitude is not linear in solar depression, but the quantity being mapped onto it — "how far across a
+250 m map" — is a fiction to begin with, so a nonlinear ramp would add precision to an axis with no
+units. Constant speed *is* the visual claim: an edge that accelerated or stalled mid-crossing would
+read as a stutter rather than as dusk.
+
+**The envelope is zero at both ends** (`4t(1−t)`, §23's `GlowPhase` shape reused rather than
+re-derived), so no step is possible at either boundary at any latitude. This also creates the trap the
+second probe exists for: at the ends the *position* reads a healthy non-zero while nothing at all is
+on screen, so `twilight_sweep_position` and `twilight_sweep_amplitude` are both pinned. A boundary in
+the right place at zero strength and one at full strength that never moves fail identically otherwise.
+
+### Two bugs the offline preview caught before anything reached a screenshot
+
+`Tools/SweepPreview` renders the whole window as a strip in about a second. It earned its keep twice:
+
+- **The bake cost 91 µs/frame** evaluating `Intensity` and `Warmth` per texel, against a whole-mod
+  budget of ~0.46 ms/frame (§3's profile history). The band is one-dimensional, so it now bakes into a
+  256-entry table and the texel loop degrades to an index and a four-byte copy: **23 µs**. "Only during
+  sunset" is not mitigation — sunset is exactly when the player is watching.
+- **The colour came out wrong in a way the maths looked right in.** Ramping warmth linearly from the
+  boundary to the map edge put §19c's normalised hue — roughly (1.00, 0.81, 1.00), a near-white
+  magenta — at the belt's peak, and full orange out where the alpha had fallen to almost nothing. The
+  only visible part of the band was colourless and the only coloured part was invisible. `Warmth` now
+  follows **the same partition the intensity does**, as an intensity-weighted average of the two
+  lights, so the crossover falls out of which source is brighter rather than being tuned. `BeltWarmth`
+  0.25 is why a Belt of Venus is salmon rather than lavender: it is *sunlight* that grazed a long low
+  path and was scattered back, so its hue sits between the two ends rather than at one of them.
+
+### Why §26 sidesteps issue #139 entirely
+
+§23b's colour gradient is stuck at 22.5° axis steps with an unpinned phase because its texture
+**tiles and pans**, so anything baked into it must be periodic over the tile or a seam sweeps the
+colony once per drift cycle. §26's texture tiles nothing — one clamped quad covering the map exactly
+once — so the axis is the true solar azimuth, continuously, with no rounding and no seam. The cost of
+that freedom is the per-frame bake above.
+
+The 2-D bake for what is a 1-D function is likewise forced rather than lazy: a material's texture
+transform can translate, scale and mirror but **cannot rotate** (the same limitation
+`CloudSheetLayout.FlipU` exists to work around), so a 1-D ramp panned by UV could only ever run along
+U or V.
+
+### Where it draws, and why its own patch class
+
+One additive quad at `AltitudeLayer.VisEffects` (33) through §23b's shared open-sky mask — the pass
+§24 built and epic #103 describes. Above `LightingOverlay` (32) because a multiplicative lane has no
+headroom above `(1,1,1)`; below `FogOfWar` because this is light landing on *ground*, so unexplored
+ground having none of it is correct (the same call §24 made, and the opposite of §11a's).
+
+`Patch_TwilightSweepDraw` is separate from `Patch_CloudLayersDraw` rather than a fourth line in it.
+That file groups §23b, §23c and §25 because they are three statements about one cloud deck, so order
+between them is a real question — a cloud's shadow must not draw on top of the cloud. **§26 is not a
+statement about cloud at all:** it draws on a cloudless evening, reads no cloud fraction, and would
+still be correct on a map with the weather system disabled. Order against those three is not a
+question either, which is what makes the split safe: §26 and the two illumination lanes are all
+additive draws at one altitude, and addition commutes.
+
+### The deck offset — issue #140's depth half
+
+`TwilightSweepMath.DeckSweepPosition` answers where the boundary sits for something at altitude.
+Earth's shadow reaches a deck at height `h` later than it reaches the ground, at the depression angle
+`CloudUnderlightMath.ShadowEntryDepressionDegrees(h)` already computes for §23, so the deck behaves
+exactly as if the sun were that much higher: **its boundary lags the ground's, and lags further for a
+higher deck.** Measured at elevation −3° on the fixture — ground 0.500, 1 km stratus 0.331, 4 km
+altocumulus 0.162, 10 km cirrus 0.000.
+
+What that buys is parallax: the ground's shadow edge and §25's cloud sheets' edge are in different
+places at the same instant, and the gap widens with the deck altitude the weather already declares.
+A high cirrus evening reads as clouds still catching light long after the ground has gone dark; a low
+stratus one reads as everything going out together. That is issue #88's "cloud altitude sets the
+timing" mechanism rendered spatially rather than as a strength curve, and it costs one addition.
+
+**§25's sheets consume the SHAPE, not the alpha.** `TwilightSweepMath.LitFraction` is `Intensity`
+with the amplitude removed, and `CloudSheetOverlay` multiplies its frame-wide `underlit` by it per
+sheet. §26 therefore has no opinion about how bright a cloud is — that stays
+`CloudSheetMath.SheetBrightness`, keyed on sky glow, which is what makes eclipses darken clouds for
+free. Without this every sheet took its colour from `CloudField.GradientWarmth`, a *static* map-space
+gradient, so the whole deck warmed together and the sky read flat; with it, sheets go out in the order
+the boundary reaches them.
+
+**It replaces that gradient rather than blending with it**, while §26 is drawing. Both answer "which
+way is the sun from this sheet", and running two at once puts two crossovers on one sky. §26's is the
+better answer where it exists — keyed to the true azimuth rather than the eight lattice directions
+`CloudField` must round to (issue #139), and anchored to the deck's own moving boundary rather than to
+a phase that rides with the field's pan. Outside §26's window there is no boundary to anchor to, so
+the static gradient is the only answer there is, and the handover is a `NaN` sentinel: one caller, no
+second flag to disagree with the first, and a leak would render a visibly broken sheet rather than a
+plausible wrong colour.
+
+### Live verification
+
+`Tests/Scenarios/twilight_sweep{,_survey,_lapse}.json`, generated by
+`Tools/ScenarioGen/gen_twilight_sweep.py` — the survey alone is 100 steps of `SetTime` plus three
+probes, which is not a file anyone should be diffing by hand.
+
+**The film is paced to real time, and that is a requirement rather than a preference.** §26's claim is
+that a boundary crossing the colony reads as dusk rather than as an artifact — a judgement about a
+*speed*. A film compressed to a convenient length cannot answer it: sped up 5× the sweep looks like a
+wipe transition, slowed down it looks like a stain, and neither is what a player sees. RimWorld runs
+2500 ticks per game hour at 60 ticks/second, so one game hour is 41.667 s at 1× speed, and a film is
+real-time when `stepHours × 41.667 == 1/fps`. **0.002 h per frame at 12 fps satisfies that exactly**
+(0.08333 s), which is 250 frames for the 0.50 h filmed — and both halves are filmed, because a band
+that reads as an artifact and one that reads as dusk look identical in isolation.
+
+<!-- MEASUREMENT PENDING: ΔE and captures land with the live A/B; see issue #140. -->
+
 ## Clean-room provenance
 
 The shadow simulator's elevation/azimuth math is standard textbook solar-position trigonometry

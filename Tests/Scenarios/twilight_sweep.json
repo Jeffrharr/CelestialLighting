@@ -1,0 +1,311 @@
+{
+  "name": "twilight_sweep",
+  "saveFile": "minimal_colony.rws",
+  "description": "\u00a726's A/B (issue #140): the same three hours of one dusk with the sweep off and on. Three hours rather than one because the claim is that the boundary MOVES \u2014 a single pair proves a gradient exists, not that it went anywhere \u2014 and sun_elevation is pinned beside both \u00a726 probes at every one so a later clock change fails loudly instead of quietly emptying the frames. The first capture of any run carries the HUD (hideUi is honoured from the second on), so ts_0_off is deliberately the throwaway.",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "realistic_preset",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Soil",
+        "width": "128",
+        "height": "128",
+        "anchor": "64,64"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Soil",
+        "width": "128",
+        "height": "128",
+        "anchor": "64,186"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Soil",
+        "width": "128",
+        "height": "128",
+        "anchor": "186,64"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Soil",
+        "width": "128",
+        "height": "128",
+        "anchor": "186,186"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "20.80"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "ts_warmup.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "twilight_sweep",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "20.80"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_position",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_amplitude",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "ts_0_off.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "20.90"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_position",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_amplitude",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "ts_1_off.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "21.00"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_position",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_amplitude",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "ts_2_off.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "twilight_sweep",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "20.80"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_position",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_amplitude",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "ts_0_on.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "20.90"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_position",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_amplitude",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "ts_1_on.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "21.00"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_position",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "twilight_sweep_amplitude",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "ts_2_on.png"
+      }
+    }
+  ]
+}

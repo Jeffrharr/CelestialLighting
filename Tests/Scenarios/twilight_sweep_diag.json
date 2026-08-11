@@ -1,0 +1,151 @@
+{
+  "name": "twilight_sweep_diag",
+  "saveFile": "minimal_colony.rws",
+  "description": "DIAGNOSTIC, no pins: sun_elevation read at hour 18.95 after each preamble step. The survey and the A/B share a byte-identical preamble but disagree by 15.5 degrees at this hour, which is 1.55 h of clock or a changed day.",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "realistic_preset",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "18.95"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Soil",
+        "width": "128",
+        "height": "128",
+        "anchor": "64,64"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Soil",
+        "width": "128",
+        "height": "128",
+        "anchor": "64,186"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Soil",
+        "width": "128",
+        "height": "128",
+        "anchor": "186,64"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Soil",
+        "width": "128",
+        "height": "128",
+        "anchor": "186,186"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "18.95"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "18.95"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "diag_warmup.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "18.95"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "18.95"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    }
+  ]
+}

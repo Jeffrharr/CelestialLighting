@@ -110,6 +110,31 @@ public static class TwilightSweep
             SolarPosition.ElevationForMap(map), entry, Vacuum.InVacuumForMap(map));
     }
 
+    // Everything §25's sheet lane needs to shade itself against the DECK's boundary, in one read.
+    // Returns false when §26 is not drawing this frame, which the caller reads as "keep doing exactly
+    // what you did before §26 existed".
+    //
+    // ONE CALL PER FRAME, NOT PER SHEET, which is why this hands back three values instead of
+    // answering per placement. The boundary and the axis are properties of the sun and the deck, so
+    // every sheet is under the same ones; asking per sheet would repeat a weather walk and a
+    // shadow-entry computation up to twelve times for one answer. The per-sheet part is a projection
+    // and two table reads, which is what CloudSheetOverlay does inline.
+    public static bool DeckShadingFor(Map map, out float deckSweep, out float axisU, out float axisV)
+    {
+        deckSweep = 0f;
+        axisU = 0f;
+        axisV = 1f;
+
+        // PositionFor carries the whole gate — flag, elevation window, map kind, vacuum — so §25 gets
+        // §26's answer rather than a second opinion about when twilight is.
+        if (PositionFor(map) <= 0f)
+            return false;
+
+        deckSweep = DeckPositionFor(map);
+        AxisFor(map, out axisU, out axisV);
+        return true;
+    }
+
     // The SUNWARD end of the band's colour: §8's own target colour at this elevation, and the
     // ANTI-SOLAR end: §19c's composed twilight hue. Both borrowed rather than invented, exactly as
     // CloudLayers does — see its CoolTintFor note on why a private palette here would be a second

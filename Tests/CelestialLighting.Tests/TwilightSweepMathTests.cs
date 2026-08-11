@@ -244,6 +244,51 @@ public class TwilightSweepMathTests
             Is.EqualTo(TwilightSweepMath.SweepPosition(elevation, inVacuum: false)).Within(Tolerance));
     }
 
+    // --- LitFraction: what §25's sheets consume ---
+
+    [Test]
+    public void LitFraction_IsTheBandShapeWithoutTheAmplitude()
+    {
+        // §25 does not want §26's alpha added to its clouds; it wants the SHAPE, so it can pick its
+        // own colour between "still catching light" and "gone out" while CloudSheetMath.
+        // SheetBrightness keeps sole ownership of how bright a cloud is (and stays keyed on sky glow,
+        // so eclipses darken clouds for free). Pinning the identity keeps a later "optimisation" from
+        // folding an amplitude into it and silently coupling the two lanes' strengths.
+        Assert.That(TwilightSweepMath.LitFraction(0.7f, sweep: 0.3f),
+            Is.EqualTo(TwilightSweepMath.Intensity(0.7f, 0.3f, 1f)).Within(Tolerance));
+    }
+
+    [Test]
+    public void LitFraction_IsZeroBehindTheBoundaryAndPositiveAheadOfIt()
+    {
+        // The whole visual point of the deck offset: sheets behind the boundary have gone out, sheets
+        // ahead of it are still lit. If this were nonzero behind, the deck would warm together again
+        // and the parallax would be gone.
+        Assert.That(TwilightSweepMath.LitFraction(0.1f, sweep: 0.6f), Is.EqualTo(0f));
+        Assert.That(TwilightSweepMath.LitFraction(0.8f, sweep: 0.6f), Is.GreaterThan(0f));
+    }
+
+    [Test]
+    public void ASheetIsStillLitWhereTheGroundBesideItHasGoneOut()
+    {
+        // THE DEPTH CLAIM, END TO END, as one assertion. Take a point the GROUND's boundary has
+        // already passed, and check that a 10 km cirrus deck over that same point is still catching
+        // light — because its own boundary lags. This is the thing a viewer is meant to see, and it
+        // is worth pinning as a conjunction rather than trusting that two separately-correct
+        // functions compose the way the design says.
+        const float elevation = -2f;
+        const float axisPosition = 0.2f;
+
+        float groundSweep = TwilightSweepMath.SweepPosition(elevation, inVacuum: false);
+        float deckSweep = TwilightSweepMath.DeckSweepPosition(
+            elevation, CloudUnderlightMath.ShadowEntryDepressionDegrees(10000f), inVacuum: false);
+
+        Assert.That(TwilightSweepMath.LitFraction(axisPosition, groundSweep), Is.EqualTo(0f),
+            "the ground here should already be in shadow");
+        Assert.That(TwilightSweepMath.LitFraction(axisPosition, deckSweep), Is.GreaterThan(0f),
+            "the cirrus deck above it should still be lit");
+    }
+
     // --- The projection onto the sun axis ---
 
     [TestCase(0f, 1f, TestName = "Axis_DueNorth")]
