@@ -109,6 +109,11 @@
     <!-- §23b (issue #88, option 2). Three metrics off one class — the claim is a conjunction, see
          CloudLayersProbe.cs's own header. -->
     <Compile Include="../Source/Probes/CloudLayersProbe.cs" Link="CloudLayersProbe.cs" />
+    <!-- §26 (issue #140). Two probes rather than one: the position and the amplitude fail in opposite
+         directions, and the envelope is zero at both ends of the window, so the position alone reads
+         healthy at exactly the hours a careless scenario picks. See TwilightSweepAmplitudeProbe.cs. -->
+    <Compile Include="../Source/Probes/TwilightSweepProbe.cs" Link="TwilightSweepProbe.cs" />
+    <Compile Include="../Source/Probes/TwilightSweepAmplitudeProbe.cs" Link="TwilightSweepAmplitudeProbe.cs" />
     <Compile Include="../Source/Probes/SkyGlowProbe.cs" Link="SkyGlowProbe.cs" />
     <Compile Include="../Source/Probes/SkyOverlayWarmthProbe.cs" Link="SkyOverlayWarmthProbe.cs" />
     <Compile Include="../Source/Probes/SkyOverlayLuminanceProbe.cs" Link="SkyOverlayLuminanceProbe.cs" />

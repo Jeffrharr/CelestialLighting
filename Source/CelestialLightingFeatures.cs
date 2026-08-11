@@ -460,6 +460,31 @@ public static class CelestialLightingFeatures
     // first thing to fix now that this is on by default rather than opt-in.
     public static bool CloudSheet = true;
 
+    // Feature key for TwilightSweep (see CivilTwilightPersistenceKey for why it lives here).
+    public const string TwilightSweepKey = "twilight_sweep";
+
+    // §26 (issue #140): THE TWILIGHT SWEEP — Earth's own shadow drawn as a boundary that MOVES across
+    // the map between sunset and the end of civil twilight.
+    //
+    // THE FIRST MOVING EFFECT IN THE MOD, which is the whole reason it is worth a flag of its own.
+    // Every other sky subsystem here is one number or one colour per frame applied everywhere at once;
+    // §11a and §15b are spatial but stand still. Epic #103's standing worry is that RimWorld's fixed
+    // exposure makes a brighter overlay read as washed out rather than luminous — §24 measured that
+    // wall directly. Motion is the one channel that does not depend on exposure, so §26 is a test of a
+    // DIFFERENT hypothesis rather than another draw on the same one.
+    //
+    // SHIPS OFF, like the three cloud lanes above and §24 through its own prototype phase. Issue #140
+    // names the failure mode explicitly and it is not a tuning question: a boundary creeping over the
+    // colony may read as dusk or may read as a rendering artifact ("half my base went dark"), and
+    // nothing but frames can decide which. Off is a true no-op — TwilightSweep.PositionFor returns 0,
+    // the overlay returns before its draw call, and rendering is bit-identical to pre-§26 — which is
+    // what makes the harness A/B a real baseline rather than a picture of the mod being absent.
+    //
+    // INDEPENDENT OF THE CLOUD LANES in both directions. §26 draws on a cloudless evening and reads no
+    // cloud fraction at all; it only consults the deck to offset the SHEETS' own boundary, which is a
+    // read of §13's altitude rather than a dependency on §23b/§23c/§25 being on.
+    public static bool TwilightSweep = false;
+
     // Feature key for AxialTiltLunarGeometry (see CivilTwilightPersistenceKey for why it lives here).
     public const string AxialTiltLunarGeometryKey = "axial_tilt_lunar_geometry";
 

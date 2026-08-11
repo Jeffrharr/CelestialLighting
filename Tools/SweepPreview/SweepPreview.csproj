@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <AssemblyName>SweepPreview</AssemblyName>
+    <RootNamespace>CelestialLighting.Tools</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Same premise as AuroraPreview and CloudPreview next door: the only question this answers is
+         "what does the SHIPPED band look like", so it links the shipped files as source rather than
+         reimplementing them. A lookalike would drift from the game the first time a constant moved,
+         and iterating on those constants is the entire point.
+
+         §26 gets more out of a preview than either of its neighbours did, because its subject is
+         MOTION: the sweep's whole claim is about what happens between frames, and a RimWorld boot
+         shows one evening at whatever hours the scenario happened to pick. This renders the entire
+         window as a strip in about a second, which is what makes the shape of the band, the softness
+         of its edge and the belt/glow balance answerable before anything is captured live. -->
+    <Compile Include="../../Source/TwilightSweepMath.cs" Link="TwilightSweepMath.cs" />
+    <Compile Include="../../Source/TwilightSweepField.cs" Link="TwilightSweepField.cs" />
+    <!-- §23's shadow-entry geometry, so the deck-lag preview shows the REAL offset for a stratus /
+         altocumulus / cirrus evening rather than a made-up one. -->
+    <Compile Include="../../Source/CloudUnderlightMath.cs" Link="CloudUnderlightMath.cs" />
+    <!-- §8's own reddening curve and §19c's composed twilight hue, so the two ends of the band are
+         the SHIPPED colours rather than a preview palette. The four files below them are what those
+         two pull in; the list is ordered by dependency, as in the test project. -->
+    <Compile Include="../../Source/Formulas.cs" Link="Formulas.cs" />
+    <Compile Include="../../Source/AerosolSpectrum.cs" Link="AerosolSpectrum.cs" />
+    <Compile Include="../../Source/AtmosphericColumn.cs" Link="AtmosphericColumn.cs" />
+    <Compile Include="../../Source/SkyColorTemperature.cs" Link="SkyColorTemperature.cs" />
+    <Compile Include="../../Source/OzoneTwilightMath.cs" Link="OzoneTwilightMath.cs" />
+    <Compile Include="../../Source/PurpleLightMath.cs" Link="PurpleLightMath.cs" />
+    <!-- Borrowed wholesale from AuroraPreview: a dependency-free PNG writer, because System.Drawing is
+         not available here and this tool is not worth a package reference. -->
+    <Compile Include="../AuroraPreview/Png.cs" Link="Png.cs" />
+  </ItemGroup>
+</Project>
