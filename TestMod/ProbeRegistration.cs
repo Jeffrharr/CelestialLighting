@@ -453,17 +453,19 @@ public static class ProbeRegistration
             CelestialLightingFeatures.CloudUnderlightLayerKey,
             enabled => CelestialLightingFeatures.CloudUnderlightLayer = enabled,
             defaultEnabled: false);
-        // §23c and §25, registered separately and all three defaulting false. Independently switchable
-        // on purpose: they share a field but they are three different claims, and a scenario has to be
-        // able to show one of them without the other two confounding the frame.
+        // §23c and §25, registered separately. Independently switchable on purpose: they share a field
+        // but they are three different claims, and a scenario has to be able to show one of them
+        // without the other two confounding the frame.
         FeatureRegistry.Register(
             CelestialLightingFeatures.CloudShadowKey,
             enabled => CelestialLightingFeatures.CloudShadow = enabled,
             defaultEnabled: false);
+        // §25 ships ON now, so its resting state is true and this takes the two-arg overload like every
+        // other shipped feature. ResetAll between scenarios in a suite restores THIS value, so getting
+        // it wrong would leave a later scenario measuring an unshipped baseline without saying so.
         FeatureRegistry.Register(
             CelestialLightingFeatures.CloudSheetKey,
-            enabled => CelestialLightingFeatures.CloudSheet = enabled,
-            defaultEnabled: false);
+            enabled => CelestialLightingFeatures.CloudSheet = enabled);
         // Not a CelestialLightingFeatures flag: forces CloudCoverClock.FractionForMap's result to a
         // fixed constant so a scenario gets a specific, reproducible cloud fraction on demand instead
         // of depending on which absolute year the harness's clock jump happened to land in (see

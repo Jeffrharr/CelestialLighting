@@ -144,7 +144,11 @@ public static class CloudLayers
     // only because the fraction itself is cached (§22 hourly, §13 per weather) rather than walked.
     public static float SheetAlphaFor(Map map)
     {
-        if (!CelestialLightingFeatures.CloudSheet)
+        // TWO FLAGS, and CloudCover is the master of the pair (see CelestialLightingFeatures
+        // .CloudSheet for why). Asked here rather than left to CloudFractionFor: that function's §22
+        // arm already reads 0 with partial cover off, but its §13 arm does not, so a rainy day would
+        // otherwise keep growing sheets for a player who switched the mod's cloud opinion off.
+        if (!CelestialLightingFeatures.CloudCover || !CelestialLightingFeatures.CloudSheet)
             return 0f;
 
         if (map?.skyManager == null)

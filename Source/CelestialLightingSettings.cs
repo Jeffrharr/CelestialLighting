@@ -55,6 +55,14 @@ public class CelestialLightingSettings : ModSettings
     // only the UI readout, not the sky tint.
     public bool cloudCoverLabel = true;
 
+    // §25's drawn cloud sheets — the clouds themselves, moving over the map, as opposed to the sky
+    // colour the master toggle above shifts. The other sub-toggle of cloudCover, and the same
+    // relationship: cloudCover says whether this mod has an opinion about cloud at all, this says
+    // whether that opinion is drawn as objects. It is also the one toggle here that changes what is
+    // ON the map rather than what colour it is, which is why it gets its own switch rather than
+    // riding the master. See CelestialLightingFeatures.CloudSheet.
+    public bool cloudSheet = true;
+
     public bool eaveShadows = true;
 
     // --- Night-radiance tunables (drive NightRadianceSettings.Current) ---
@@ -166,6 +174,7 @@ public class CelestialLightingSettings : ModSettings
         CelestialLightingFeatures.WeatherDimming = weatherDimming;
         CelestialLightingFeatures.CloudCover = cloudCover;
         CelestialLightingFeatures.CloudCoverLabel = cloudCoverLabel;
+        CelestialLightingFeatures.CloudSheet = cloudSheet;
         CelestialLightingFeatures.EaveShadows = eaveShadows;
         // One player-facing switch drives both halves of §15 — the split flag exists only so the
         // harness can isolate them (see CelestialLightingFeatures.EaveShade). A shipped game must
@@ -234,6 +243,7 @@ public class CelestialLightingSettings : ModSettings
         Scribe_Values.Look(ref weatherDimming, "weatherDimming", true);
         Scribe_Values.Look(ref cloudCover, "cloudCover", true);
         Scribe_Values.Look(ref cloudCoverLabel, "cloudCoverLabel", true);
+        Scribe_Values.Look(ref cloudSheet, "cloudSheet", true);
         Scribe_Values.Look(ref skyColorTemperature, "skyColorTemperature", true);
         Scribe_Values.Look(ref polarNightBlue, "polarNightBlue", true);
         Scribe_Values.Look(ref polarNightBlueStrength, "polarNightBlueStrength", 1f);

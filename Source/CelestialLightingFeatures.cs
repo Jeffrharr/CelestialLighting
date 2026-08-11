@@ -439,15 +439,26 @@ public static class CelestialLightingFeatures
     // FogOfWar, rather than only the light a deck adds or blocks. The other two lanes are
     // ILLUMINATION and stop at the ground; this is SKY.
     //
-    // THE MOST SPECULATIVE OF THE THREE, and the one whose open question is genuinely unsettled: a
-    // cloud layer over a top-down colony may read as weather or may read as something in the way of
-    // the base the player is trying to run. Issue #138 says to answer that from frames before
-    // designing anything larger, which is what shipping it off and capturing it is for.
+    // SHIPS ON, and it is the only one of the three prototype lanes that does — it is the one a
+    // player would describe as "the mod draws clouds", where §23b and §23c are adjustments to light
+    // that a player would attribute to the weather. Issue #138's open question (does drawn cloud read
+    // as weather, or as something in the way of the base?) was asked of frames, and the answer was
+    // that it reads as sky; what stays true is that it is a taste call, which is what the settings
+    // checkbox is for. Off is a genuine no-op — CloudLayers.SheetAlphaFor returns 0 and the overlay
+    // makes no draw call at all — so the pre-feature baseline is still exactly reachable for a
+    // harness A/B, and that is also what the player's "off" buys them.
+    //
+    // A SUB-TOGGLE OF CloudCover, same relationship as CloudCoverLabel above and gated on both flags
+    // in SheetAlphaFor. §22 is the master for "does this mod have an opinion about cloud at all", and
+    // drawing a cloud deck over a player who switched that off would be the mod arguing with them.
+    // The gate is a real one rather than bookkeeping: the sheet takes its coverage from §13's weather
+    // deck as well as §22's Clear-day fraction, so without it a rainy day would still grow clouds
+    // with partial cover switched off.
     //
     // It also knowingly double-counts §13/§22 over a solid overcast — the sheet and the flat dimming
     // are both rendering the same deck — which is recorded in CloudSheetMath.SheetAlpha and is the
-    // first thing to fix if this goes past prototype.
-    public static bool CloudSheet = false;
+    // first thing to fix now that this is on by default rather than opt-in.
+    public static bool CloudSheet = true;
 
     // Feature key for AxialTiltLunarGeometry (see CivilTwilightPersistenceKey for why it lives here).
     public const string AxialTiltLunarGeometryKey = "axial_tilt_lunar_geometry";

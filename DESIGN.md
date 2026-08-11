@@ -7267,7 +7267,8 @@ at zero. That was the entire measured cost of the subsystem on maps where it can
 
 ## 23c. Daylight cloud shadows (`CloudShadowMath` / `CloudShadowOverlay`)
 
-**Status: SHIPPED OFF** (`cloud_shadow`), alongside §23b and §25.
+**Status: SHIPPED OFF** (`cloud_shadow`), alongside §23b. §25 was the third of the group and is now
+shipped **on** — see its own status note.
 
 **Problem, and it was found by looking at §23b rather than by planning.** Watching §23b's warm patches
 drift over a twilit map, the natural description is "the sun is being shaded by clouds". That is the
@@ -7320,9 +7321,26 @@ overcast at noon. The lanes hand over cleanly and neither doubles the other.
 
 ## 25. The drawn cloud sheet (`CloudSheetMath` / `CloudSheetOverlay`, issue #138)
 
-**Status: SHIPPED OFF, and the frames argue against this approach rather than for it.** That is the
-outcome issue #138 asked for — "answer *does drawn cloud read at all from this camera* before
-designing anything larger" — and it is worth more than a flattering result would have been.
+**Status: SHIPPED ON** (`cloud_sheet`), and it is the only one of the three prototype lanes that is.
+It shipped *off* while it was the tiled field, whose frames argued against the approach rather than
+for it — that verdict is kept below rather than deleted, because it is what the bounded-sheet
+redesign was answering, and issue #138 asked for exactly that: "answer *does drawn cloud read at all
+from this camera* before designing anything larger". The bounded version's frames answer yes.
+
+**It is on because of what it is, not because it measured well.** §23b and §23c adjust light a player
+attributes to the weather; this one is the mod visibly drawing clouds, which is the thing a player
+would call the feature. So it gets a **settings checkbox of its own** ("Visible clouds"), nested
+under "Partial cloud cover" as a **sub-toggle of §22** — the same relationship the `- N% cloudy`
+label has, for the same reason: §22 is the master for *does this mod have an opinion about cloud at
+all*, and drawing a deck over a player who switched that off would be the mod arguing with them. The
+gate is load-bearing rather than bookkeeping, because coverage here comes from §13's weather deck as
+well as §22's Clear-day fraction (`CloudFractionFor`), so without it a rainy day would keep growing
+sheets with partial cover off. Both flags are checked in `CloudLayers.SheetAlphaFor`, which returns 0
+and skips the draw call entirely — off is the pre-feature baseline exactly, for the harness and for
+the player.
+
+**The §13 double-count is now a shipped cost rather than a prototype's.** See the note below on
+`SheetAmplitude` 0.35; it is the first thing to fix.
 
 **What it is.** The other two lanes draw *illumination* and stop at the ground, below `FogOfWar`. This
 draws *sky*: cloud between the camera and the map, above `FogOfWar` for the same reason §11a's aurora
@@ -7405,9 +7423,10 @@ it, per `Vacuum.cs`'s convention. A cavern, a pocket map and an orbital habitat 
 adjustment to a flat approximation of it: an overcast sky should come out *covered*, not
 uniform-and-therefore-invisible. The honest cost, recorded rather than hidden, is that over a solid
 overcast the sheet and §13's flat dimming are both rendering the same deck, so the map is darker than
-either alone intends. That double-count is why `SheetAmplitude` is only 0.35, and it is the first
-thing to fix if this goes past prototype — most likely by feeding §13 a reduced opacity while the
-sheet draws, so the two partition the deck the way §23b and §23 partition the underlight.
+either alone intends. That double-count is why `SheetAmplitude` is only 0.35, and now that the lane
+ships on it is a cost every player pays under overcast rather than an opt-in prototype's — the first
+thing to fix here, most likely by feeding §13 a reduced opacity while the sheet draws, so the two
+partition the deck the way §23b and §23 partition the underlight.
 
 ### Live verification
 
@@ -7430,6 +7449,39 @@ which do change the whole open-sky map.
 sky beside it — a boundary, not a texture. At full cover the twelve overlapping sheets measure ΔE
 4.46 rather than the tiled version's 13.99, and look like a covered sky rather than a grey veil.
 
+### Shipping it on: the default and the §22 gate (`Tests/Scenarios/cloud_sheet_default.json`)
+
+Two claims that only a live run can make, because both are about what a player who touches nothing
+sees. The scenario never issues a `SetFeature cloud_sheet` at all — the reading comes from whatever
+the flag rests at, which is the shipped default — and then switches **partial cloud cover** off to
+check that the master carries the sheet with it.
+
+| capture | condition | `cloud_sheet_alpha` | median ΔE | p90 ΔE | pixels changed |
+|---|---|---|---|---|---|
+| `csd_clear_default.png` | Clear, cover 0.35, noon, nothing set | **0.3500** | 0.00 | 2.55 | 31.0% |
+| `csd_clear_cover_off.png` | the same, §22 off | **0.0000** | — | — | — |
+| `csd_overcast_default.png` | Overcast noon, sheet lane only | **0.3346** | 0.00 | 1.79 | 30.3% |
+| `csd_overcast_cover_off.png` | the same, §22 off | **0.0000** | — | — | — |
+
+**The Overcast zero is the pin that matters**, and it is worth saying why the Clear one is nearly
+free: with §22 off, `CloudFractionFor`'s Clear arm already reads 0 by itself, so that row would pass
+without the gate existing. Overcast coverage comes from §13's weather deck, which §22's switch does
+not touch — a sheet still drawing over a rainy map for somebody who turned partial cloud cover off
+is the actual bug, and only that row catches it.
+
+**LEAD WITH THE WEAK NUMBER: p90 2.55 here against the 7.52 the table above measured under the same
+weather, fraction and hour.** The alpha is identical in both (0.3500), so nothing about the lane's
+strength changed — what differs is *where the sheets were*. Placement is a function of the absolute
+tick, and at this run's tick the deck sat across the top third of the camera with the colony in clear
+sky below it, where the earlier capture caught a mass over the middle. An amplified difference of the
+Overcast pair (`csd_overcast_diff24x.png`, ×24) shows exactly that: soft-edged cloud across the upper
+third, black everywhere else.
+
+That is a property of the lane rather than a flaw in the run, and it is the honest caveat on **any**
+single-frame ΔE for §25: a bounded object that moves gives a different number every tick, so these
+figures bound how strong the effect is *somewhere in frame*, not how strong it is. Judging the deck
+as a whole is what `cloud_sheet_lapse.json` is for.
+
 **A real bug the redesign introduced, found by measuring rather than by reading.** The first bounded
 build still scaled a sheet's alpha by the cloud fraction, carried over from the tiled version where
 one stretched field had to express coverage as opacity. With coverage now a *count*, that counted it
@@ -7446,7 +7498,25 @@ came down — both measured by `Tools/CloudPreview`, and both now historical.
 
 What remains is up to `MaxSheets` (12) draw calls and material writes per frame, of which only the
 on-map ones are issued (`CloudSheetLayout.OnScreen` — sheets spend a real share of each crossing
-outside the map). Not yet profiled in place; that is the one number this section still owes.
+outside the map).
+
+**Now profiled in place, which shipping it on made compulsory rather than optional.**
+`cloud_sheet_default.json`, 58 frames under Dubs Performance Analyzer, five sheets on a Clear map and
+twelve under Overcast:
+
+| row | avg ms/frame | max ms/frame | calls/frame | µs/call | share of a 60 fps frame |
+|---|---|---|---|---|---|
+| `Patch_CloudLayersDraw:Postfix` | 0.213 | 3.67 | 1.97 | 108 | **1.28%** |
+
+Read it with three caveats, all of which make it a ceiling rather than an estimate. The analyzer
+transplants timing calls into every patched method, so the absolute figure carries that overhead. The
+hook is shared by all three lanes and only §25 was live, so this is the whole cloud draw path. And
+**the max is 17× the mean and has not been attributed** — the window spans the load, a weather switch
+and the sheet count going from five to twelve, any of which could own it, and the per-patch table
+cannot say which. That is the number to isolate first if this lane is ever suspected of a hitch;
+quoting the mean alone would be exactly the mistake the parent CLAUDE.md warns about. The game was
+paused throughout, which does not affect a render-path cost but does mean nothing here speaks to
+tick-driven work; there is none in this lane.
 
 ## Conflict risk
 
