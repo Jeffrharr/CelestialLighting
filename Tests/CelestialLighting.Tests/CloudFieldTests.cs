@@ -1,12 +1,12 @@
 namespace CelestialLighting.Tests;
 
-// Offline coverage for the pure §23b underlit-cloud FIELD (Source/CloudUnderlightField.cs, issue #88
+// Offline coverage for the pure §23b underlit-cloud FIELD (Source/CloudField.cs, issue #88
 // option 2), linked into this project via <Compile Include> so these exercise the exact code that
 // ships. §23's own geometry is pinned next door in CloudUnderlightMathTests; this file is only about
 // the spatial half — what gets drawn WHERE, and the mean subtraction that keeps this lane from
 // re-rendering what §23's flat lane already does.
 [TestFixture]
-public class CloudUnderlightFieldTests
+public class CloudFieldTests
 {
     private const float Tolerance = 1e-4f;
     private const int Seed = 1234;
@@ -14,9 +14,9 @@ public class CloudUnderlightFieldTests
     // A whole tile's worth of intensity, at the shipped resolution, for one cloud fraction.
     private static (float[] Intensity, float Mean) Bake(float cloudFraction, int seed = Seed)
     {
-        int n = CloudUnderlightField.Resolution;
+        int n = CloudField.Resolution;
         float[] intensity = new float[n * n];
-        float mean = CloudUnderlightField.FillIntensity(intensity, n, n, cloudFraction, seed);
+        float mean = CloudField.FillIntensity(intensity, n, n, cloudFraction, seed);
         return (intensity, mean);
     }
 
@@ -24,7 +24,7 @@ public class CloudUnderlightFieldTests
     {
         double sum = 0.0;
         for (int i = 0; i < intensity.Length; i++)
-            sum += CloudUnderlightField.Residual(intensity[i], mean);
+            sum += CloudField.Residual(intensity[i], mean);
 
         return (float)(sum / intensity.Length);
     }
@@ -44,7 +44,7 @@ public class CloudUnderlightFieldTests
 
         for (int i = 0; i < intensity.Length; i++)
         {
-            Assert.That(CloudUnderlightField.Residual(intensity[i], mean),
+            Assert.That(CloudField.Residual(intensity[i], mean),
                 Is.EqualTo(0f).Within(Tolerance), $"texel {i} of a uniform sky drew something");
         }
     }
@@ -104,9 +104,9 @@ public class CloudUnderlightFieldTests
     [Test]
     public void ResidualNeverGoesNegative()
     {
-        Assert.That(CloudUnderlightField.Residual(0.1f, 0.6f), Is.EqualTo(0f));
-        Assert.That(CloudUnderlightField.Residual(0.6f, 0.6f), Is.EqualTo(0f));
-        Assert.That(CloudUnderlightField.Residual(0.9f, 0.6f), Is.EqualTo(0.3f).Within(Tolerance));
+        Assert.That(CloudField.Residual(0.1f, 0.6f), Is.EqualTo(0f));
+        Assert.That(CloudField.Residual(0.6f, 0.6f), Is.EqualTo(0f));
+        Assert.That(CloudField.Residual(0.9f, 0.6f), Is.EqualTo(0.3f).Within(Tolerance));
     }
 
     // --- The field's own claim about itself ---
@@ -142,11 +142,11 @@ public class CloudUnderlightFieldTests
     {
         float[] coverage = { 0f, 0.25f, 0.5f, 0.75f, 1f };
 
-        Assert.That(CloudUnderlightField.PatchIntensity(
-                1f, CloudUnderlightField.ThresholdFor(coverage, coverage.Length, 0f)),
+        Assert.That(CloudField.PatchIntensity(
+                1f, CloudField.ThresholdFor(coverage, coverage.Length, 0f)),
             Is.EqualTo(0f).Within(Tolerance));
-        Assert.That(CloudUnderlightField.PatchIntensity(
-                0f, CloudUnderlightField.ThresholdFor(coverage, coverage.Length, 1f)),
+        Assert.That(CloudField.PatchIntensity(
+                0f, CloudField.ThresholdFor(coverage, coverage.Length, 1f)),
             Is.EqualTo(1f).Within(Tolerance));
     }
 
@@ -156,11 +156,11 @@ public class CloudUnderlightFieldTests
     [Test]
     public void EveryPointOnlyGetsCloudierAsTheFractionRises()
     {
-        int n = CloudUnderlightField.Resolution;
+        int n = CloudField.Resolution;
         float[] lower = new float[n * n];
         float[] higher = new float[n * n];
-        CloudUnderlightField.FillIntensity(lower, n, n, 0.35f, Seed);
-        CloudUnderlightField.FillIntensity(higher, n, n, 0.55f, Seed);
+        CloudField.FillIntensity(lower, n, n, 0.35f, Seed);
+        CloudField.FillIntensity(higher, n, n, 0.55f, Seed);
 
         for (int i = 0; i < lower.Length; i++)
             Assert.That(higher[i], Is.GreaterThanOrEqualTo(lower[i] - Tolerance), $"texel {i} went the wrong way");
@@ -187,7 +187,7 @@ public class CloudUnderlightFieldTests
 
     // --- Tileability, which the drift depends on ---
 
-    // The whole drift mechanism is a UV pan over a repeating texture (see CloudUnderlightField's
+    // The whole drift mechanism is a UV pan over a repeating texture (see CloudField's
     // header), so a field that does not wrap seamlessly shows a hard seam sweeping across the colony
     // once per cycle. AuroraNoise guarantees the wrap on its own lattice; this pins that §23b actually
     // samples it on lattice-aligned coordinates, which is the part a resolution change could break.
@@ -196,10 +196,10 @@ public class CloudUnderlightFieldTests
     {
         for (float v = 0f; v < 1f; v += 0.13f)
         {
-            Assert.That(CloudUnderlightField.Coverage(1f, v, Seed),
-                Is.EqualTo(CloudUnderlightField.Coverage(0f, v, Seed)).Within(Tolerance));
-            Assert.That(CloudUnderlightField.Coverage(v, 1f, Seed),
-                Is.EqualTo(CloudUnderlightField.Coverage(v, 0f, Seed)).Within(Tolerance));
+            Assert.That(CloudField.Coverage(1f, v, Seed),
+                Is.EqualTo(CloudField.Coverage(0f, v, Seed)).Within(Tolerance));
+            Assert.That(CloudField.Coverage(v, 1f, Seed),
+                Is.EqualTo(CloudField.Coverage(v, 0f, Seed)).Within(Tolerance));
         }
     }
 
@@ -212,8 +212,8 @@ public class CloudUnderlightFieldTests
         for (int i = 0; i < 64; i++)
         {
             float u = i / 64f;
-            if (System.MathF.Abs(CloudUnderlightField.Coverage(u, 0.5f, 11)
-                    - CloudUnderlightField.Coverage(u, 0.5f, 12)) > 0.01f)
+            if (System.MathF.Abs(CloudField.Coverage(u, 0.5f, 11)
+                    - CloudField.Coverage(u, 0.5f, 12)) > 0.01f)
                 differing++;
         }
 
@@ -228,18 +228,18 @@ public class CloudUnderlightFieldTests
     [Test]
     public void DriftIsAFunctionOfTheTickAndWrapsCleanly()
     {
-        Assert.That(CloudUnderlightField.DriftOffsetU(0), Is.EqualTo(0f).Within(Tolerance));
-        Assert.That(CloudUnderlightField.DriftOffsetU(CloudUnderlightField.DriftTileTicks),
+        Assert.That(CloudField.DriftOffsetU(0), Is.EqualTo(0f).Within(Tolerance));
+        Assert.That(CloudField.DriftOffsetU(CloudField.DriftTileTicks),
             Is.EqualTo(0f).Within(Tolerance));
-        Assert.That(CloudUnderlightField.DriftOffsetU(CloudUnderlightField.DriftTileTicks / 4),
+        Assert.That(CloudField.DriftOffsetU(CloudField.DriftTileTicks / 4),
             Is.EqualTo(0.25f).Within(Tolerance));
 
         // Both axes stay in [0, 1) at every tick across a full cycle, including the V axis whose
         // scaled phase would otherwise leave the unit square.
-        for (int tick = 0; tick < CloudUnderlightField.DriftTileTicks * 3; tick += 37)
+        for (int tick = 0; tick < CloudField.DriftTileTicks * 3; tick += 37)
         {
-            Assert.That(CloudUnderlightField.DriftOffsetU(tick), Is.InRange(0f, 1f));
-            Assert.That(CloudUnderlightField.DriftOffsetV(tick), Is.InRange(0f, 1f));
+            Assert.That(CloudField.DriftOffsetU(tick), Is.InRange(0f, 1f));
+            Assert.That(CloudField.DriftOffsetV(tick), Is.InRange(0f, 1f));
         }
     }
 
@@ -254,7 +254,7 @@ public class CloudUnderlightFieldTests
         float[] intensity = { 0f, 0.5f, 1f };
         byte[] rgba = new byte[intensity.Length * 4];
 
-        CloudUnderlightField.WriteRgba(
+        CloudField.WriteUnderlightRgba(
             rgba, intensity, intensity.Length, 1, 0.25f, 1f, 1f, 1f, 1f, 1f, 1f, axisU: 0, axisV: 0);
 
         Assert.That(rgba[3], Is.EqualTo(0));
@@ -277,7 +277,7 @@ public class CloudUnderlightFieldTests
         byte[] rgba = new byte[intensity.Length * 4];
 
         // Hot is pure red, cool is pure blue, so "which end is this texel" is readable per channel.
-        CloudUnderlightField.WriteRgba(
+        CloudField.WriteUnderlightRgba(
             rgba, intensity, n, n, 0f, 1f, 0f, 0f, 0f, 0f, 1f, axisU: 1, axisV: 0);
 
         byte minRed = 255;
@@ -306,7 +306,7 @@ public class CloudUnderlightFieldTests
         float[] intensity = new float[n * n];
         byte[] rgba = new byte[intensity.Length * 4];
 
-        CloudUnderlightField.WriteRgba(
+        CloudField.WriteUnderlightRgba(
             rgba, intensity, n, n, 0f, 1f, 0f, 0f, 0f, 0f, 1f, axisU, axisV);
 
         // The texel one past the right edge wraps to column 0 of the same row, and likewise for rows.
@@ -333,7 +333,7 @@ public class CloudUnderlightFieldTests
     [TestCase(315f, -1, 1, TestName = "GradientAxis_NorthWest")]
     public void GradientAxisRoundsToTheEightTilingDirections(float azimuth, int expectedU, int expectedV)
     {
-        CloudUnderlightField.GradientAxis(azimuth, out int axisU, out int axisV);
+        CloudField.GradientAxis(azimuth, out int axisU, out int axisV);
 
         Assert.That(axisU, Is.EqualTo(expectedU));
         Assert.That(axisV, Is.EqualTo(expectedV));
@@ -344,7 +344,7 @@ public class CloudUnderlightFieldTests
     [Test]
     public void GradientAxisNeverReturnsNoDirection()
     {
-        CloudUnderlightField.GradientAxis(float.NaN, out int axisU, out int axisV);
+        CloudField.GradientAxis(float.NaN, out int axisU, out int axisV);
         Assert.That(axisU == 0 && axisV == 0, Is.False);
     }
 
@@ -356,7 +356,7 @@ public class CloudUnderlightFieldTests
         float[] intensity = { float.NaN, 5f, -5f };
         byte[] rgba = new byte[intensity.Length * 4];
 
-        CloudUnderlightField.WriteRgba(
+        CloudField.WriteUnderlightRgba(
             rgba, intensity, intensity.Length, 1, 0f,
             float.NaN, 9f, -9f, float.NaN, 9f, -9f, axisU: 0, axisV: 0);
 

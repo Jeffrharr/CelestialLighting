@@ -1,0 +1,21 @@
+{
+  "name": "cloud_underlight_layer_live",
+  "saveFile": "minimal_colony.rws",
+  "description": "NOT A TEST. Stands the game up in §23b's glow window and holds it there so a human can look at it, pan around and zoom — the one thing screenshots and videos cannot be asked to do. Same tile, season, weather and hour as cloud_underlight_layer.json (latitude 45, day 40, Clear with §22's fraction forced to 0.35, hour 20.78 at the surveyed peak), so what is on screen is exactly what that scenario's pinned numbers and committed frames describe.\n\nTHE FINAL Wait IS THE WHOLE POINT, and its size is bounded by the runner rather than by taste: run_test.sh fails a run that has not written its report after 900 seconds, and its teardown then closes the game. 72000 frames is roughly ten minutes at the frame rates this fixture runs at, which leaves headroom under that cap. When it elapses the scenario completes normally, the ledger rolls back and RimWorld closes on its own — re-run for another look rather than killing the runner, which would orphan the game and leave the claim ledger un-rolled-back.\n\nTHE CLOCK IS PAUSED and must stay that way to see anything. SetTime leaves the game paused, and §23b's entire window is ~10 game minutes — about 7 real seconds at 1x speed. Unpausing does not show more of the effect, it ends it.",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "45" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "40" } },
+    { "type": "SetFeature", "args": { "featureName": "realistic_preset", "enabled": "false" } },
+    { "type": "SetTerrain", "args": { "def": "Soil", "width": "128", "height": "128", "anchor": "64,64" } },
+    { "type": "SetTerrain", "args": { "def": "Soil", "width": "128", "height": "128", "anchor": "64,186" } },
+    { "type": "SetTerrain", "args": { "def": "Soil", "width": "128", "height": "128", "anchor": "186,64" } },
+    { "type": "SetTerrain", "args": { "def": "Soil", "width": "128", "height": "128", "anchor": "186,186" } },
+    { "type": "SetWeather", "args": { "weatherDef": "Clear", "instant": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "cloud_cover_forced_fraction", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "cloud_underlight_layer", "enabled": "true" } },
+    { "type": "SetTime", "args": { "hour": "20.78" } },
+    { "type": "Probe", "args": { "probeName": "sun_elevation", "expectedValue": "-1.1715", "tolerance": "0.02" } },
+    { "type": "Probe", "args": { "probeName": "cloud_underlight_layer", "expectedValue": "0.0976", "tolerance": "0.0005" } },
+    { "type": "Wait", "args": { "frames": "72000" } }
+  ]
+}

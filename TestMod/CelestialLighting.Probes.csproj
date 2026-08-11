@@ -107,8 +107,8 @@
          header for why the altitude half is needed alongside the multiplier. -->
     <Compile Include="../Source/Probes/CloudUnderlightProbe.cs" Link="CloudUnderlightProbe.cs" />
     <!-- §23b (issue #88, option 2). Three metrics off one class — the claim is a conjunction, see
-         CloudUnderlightLayerProbe.cs's own header. -->
-    <Compile Include="../Source/Probes/CloudUnderlightLayerProbe.cs" Link="CloudUnderlightLayerProbe.cs" />
+         CloudLayersProbe.cs's own header. -->
+    <Compile Include="../Source/Probes/CloudLayersProbe.cs" Link="CloudLayersProbe.cs" />
     <Compile Include="../Source/Probes/SkyGlowProbe.cs" Link="SkyGlowProbe.cs" />
     <Compile Include="../Source/Probes/SkyOverlayWarmthProbe.cs" Link="SkyOverlayWarmthProbe.cs" />
     <Compile Include="../Source/Probes/SkyOverlayLuminanceProbe.cs" Link="SkyOverlayLuminanceProbe.cs" />

@@ -6646,7 +6646,7 @@ colour-target change would.
   automatic classifier defaults have been measured.
 
 
-## 23b. The underlit cloud LAYER (`CloudUnderlightField` / `CloudUnderlightOverlay`, issue #88 option 2)
+## 23b. The underlit cloud LAYER (`CloudField` / `CloudUnderlightOverlay`, issue #88 option 2)
 
 **Status: SHIPPED OFF** (`cloud_underlight_layer`), the same prototype posture §24 took, and for the
 same reason: issue #88 and epic #103 both record an open question that cannot be settled by argument,
@@ -6677,7 +6677,7 @@ the two must share one field, because bright ground under a drawn gap is the who
 
 **The partition: the flat lane carries the MEAN, this lane carries what is above it.** The obvious
 implementation — draw warm light proportional to how underlit the deck is — would render a second
-time what §23 already renders through §8's tint. `CloudUnderlightField.Residual` instead subtracts the
+time what §23 already renders through §8's tint. `CloudField.Residual` instead subtracts the
 field's own areal mean, so what is drawn at a point is how much *more* underlit cloud sits there than
 the map average. This is the same "two lanes, one quantity" shape `SnowGlareMath.UndrawableExcess`
 uses against §21 one subsystem over, and both degenerate skies fall out of it rather than being
@@ -6873,12 +6873,12 @@ day; `gated` is the identical build at noon, which is what essentially every fra
 
 ```
 drawing (Clear + cover 0.35, hour 20.78, 601 frames)
-  Patch_CloudUnderlightDraw:Postfix   avgMsPerFrame 0.2240   maxMsPerFrame 0.7500
+  Patch_CloudLayersDraw:Postfix   avgMsPerFrame 0.2240   maxMsPerFrame 0.7500
                                       callsPerFrame 2.00     avgUsPerCall 112.18
                                       1.344% of a 60 fps budget
 
 gated out (noon, sun above the horizon)
-  Patch_CloudUnderlightDraw:Postfix   avgMsPerFrame 0.0059   maxMsPerFrame 0.0236
+  Patch_CloudLayersDraw:Postfix   avgMsPerFrame 0.0059   maxMsPerFrame 0.0236
                                       callsPerFrame 2.00     avgUsPerCall 2.97
                                       0.036% of a 60 fps budget
 ```
@@ -7264,6 +7264,112 @@ physics reads:
 
 Before gates 2 and 3 existed, a snowless map walked the full weather classifier every frame to arrive
 at zero. That was the entire measured cost of the subsystem on maps where it can never do anything.
+
+## 23c. Daylight cloud shadows (`CloudShadowMath` / `CloudShadowOverlay`)
+
+**Status: SHIPPED OFF** (`cloud_shadow`), alongside §23b and §25.
+
+**Problem, and it was found by looking at §23b rather than by planning.** Watching §23b's warm patches
+drift over a twilit map, the natural description is "the sun is being shaded by clouds". That is the
+*wrong* reading of §23b — inside its window the sun is below the horizon and there is no direct beam
+left to shade — but it is a completely right description of what a broken deck does for the other
+twelve hours of the day, and the mod did not have it. An additive-only pattern with no cloud drawn
+above it is genuinely ambiguous: given light and dark patches, the eye reaches for the reading it has
+ten thousand hours of. Rather than fight that reading, §23c is the effect it was reaching for.
+
+So the two are **one phenomenon at opposite ends of the day**, and they share a field:
+
+| sun | the deck is | §23c/§23b draws |
+|---|---|---|
+| above the horizon | an **occluder** | subtract light where the cloud is (alpha-blended black) |
+| below the horizon | a **source** | add warm light where the cloud is (additive) |
+
+**Same partition, so §13/§22 are not double-counted.** Those already darken the whole sky by the *mean*
+cloud amount. What a flat colour cannot express is that the darkening is uneven, so this lane draws the
+field's residual above its own mean, exactly as §23b does. Both ends of the coverage range therefore
+draw nothing — and the overcast end is the one worth stating, because "more cloud is more shadow" is
+the intuition a later change would follow: a solid deck shades the whole map evenly, and an even shade
+is precisely §13's job.
+
+**The low-sun fade is not decoration.** `DirectBeamFraction` is `sin(elevation)` — the beam's
+illuminance on a horizontal surface — with a quadratic fade below 10°. A cloud shadow needs a direct
+beam to block, and near the horizon most of what reaches the ground is diffuse skylight the deck does
+not occlude sharply, so the shadow has to be nearly gone well before sunset rather than switching off
+at it. That also hands over cleanly to §23b, which starts only once the sun is *below* the horizon,
+leaving a wide band where neither lane draws and the sky is simply changing colour.
+
+**Altitude is `VisEffects`, the same as §23b, and a shadow's natural home looks like it should be
+lower.** Vanilla's own sun shadows draw far below the lighting overlay as part of the map mesh —
+correctly, because they are cast *by* things *on* the map. A cloud shadow is cast by something above
+everything on the map, so it must darken pawns, buildings and roofs alike, which means drawing after
+them.
+
+### Live verification
+
+`Tests/Scenarios/cloud_layers.json`, latitude 45, day 40, Clear with §22's fraction forced to 0.35.
+At noon (`sun_elevation` **56.72°**) `cloud_shadow_alpha` reads **0.1505** and the frame measures
+median CIELAB ΔE **1.28** against the same frame with the lane off — *visible on close inspection*,
+and the honest verdict is that it is **too subtle**. The residual peaks around 0.65, so the strongest
+patch is drawn at alpha ~0.10 over a fully-lit map, where the eye is comparing against a bright
+surround. `ShadowAmplitude` (0.18) is the knob and the harness sweeps it; a value roughly double this
+is where the next look should start.
+
+Pinned nulls, which are the claims frames alone cannot make: `cloud_shadow_alpha` reads exactly
+**0.0000** at dusk (-1.17°, where §23b is drawing 0.0976 instead) and exactly **0.0000** under a solid
+overcast at noon. The lanes hand over cleanly and neither doubles the other.
+
+## 25. The drawn cloud sheet (`CloudSheetMath` / `CloudSheetOverlay`, issue #138)
+
+**Status: SHIPPED OFF, and the frames argue against this approach rather than for it.** That is the
+outcome issue #138 asked for — "answer *does drawn cloud read at all from this camera* before
+designing anything larger" — and it is worth more than a flattering result would have been.
+
+**What it is.** The other two lanes draw *illumination* and stop at the ground, below `FogOfWar`. This
+draws *sky*: a sheet of cloud between the camera and the map, above `FogOfWar` for the same reason
+§11a's aurora is (a cloud is not hidden by a player's ignorance of the terrain beneath it). Alpha-
+blended rather than additive, because cloud occludes. Same field, same seed, same drift clock, sampled
+at 128² with four octaves against the illumination lanes' 64² and three — see
+`CloudField.Coverage`'s octave overload for why that is the same field at two levels of detail rather
+than two fields that could disagree about where the clouds are.
+
+**Not a residual, unlike the other two, and that is deliberate.** A drawn cloud is the object, not an
+adjustment to a flat approximation of it: an overcast sky should come out *covered*, not
+uniform-and-therefore-invisible. The honest cost, recorded rather than hidden, is that over a solid
+overcast the sheet and §13's flat dimming are both rendering the same deck, so the map is darker than
+either alone intends. That double-count is why `SheetAmplitude` is only 0.35, and it is the first
+thing to fix if this goes past prototype — most likely by feeding §13 a reduced opacity while the
+sheet draws, so the two partition the deck the way §23b and §23 partition the underlight.
+
+### Live verification — and the verdict
+
+| capture | condition | `cloud_sheet_alpha` | median ΔE |
+|---|---|---|---|
+| `cl_noon_sheet.png` | Clear, cover 0.35, noon | 0.1225 | **1.45** |
+| `cl_overcast_noon_all.png` | Overcast, all three lanes | 0.3346 | **13.99**, 100% of pixels |
+| `cl_dusk_underlight_sheet.png` | dusk, with §23b | 0.0148 | 4.28 (vs 4.31 for §23b alone) |
+
+**It does not read as cloud.** At partial cover it reads as mottled haze — the field has structure but
+no *shapes*, and four octaves of value noise over a top-down map produces texture rather than objects.
+At full cover it is worse: the field is uniform, so the sheet is a flat grey veil, and the frame
+measures ΔE 13.99 with every pixel changed while looking washed out rather than overcast. **The sheet
+works least well exactly where it draws most.** And at dusk it is nearly inert (alpha 0.0148), because
+its brightness tracks sky glow.
+
+That is a real answer to #138's question, from frames: **a flat noise sheet is the wrong instrument.**
+What a cloud has and this does not is shape, depth and an edge that means something — which is the
+case for the particle-based approach #138 records, and against spending more on the textured one. The
+sheet stays in the tree, off, as the thing that measurement is about.
+
+### Performance
+
+The sheet's bake is the expensive part of the three lanes and the only one worth its own number:
+**7.07 ms** for 128² at four octaves, on the main thread, measured by `Tools/CloudPreview`. The first
+numbers tried (192² at five) measured **28.43 ms** — nearly two dropped frames — which is why they are
+not the shipped ones. It is still a hitch rather than free, triggered whenever the cloud fraction moves
+a quantum (§22 caches hourly; a weather transition steps through several). The honest fix is §11a's:
+bake in row slices across frames and upload only on completion, which needs `ThresholdFor` restructured
+to work off a subsample. Not done, because the flag ships off and the approach itself is the thing in
+question.
 
 ## Conflict risk
 

@@ -61,7 +61,7 @@ public static class CloudUnderlightMath
     //
     // Note the alpha actually reaching any one pixel is well under this: the field's residual peaks
     // at 1 - fraction and only over the cloudy part of the map, so the budget is spent on a fraction
-    // of the frame rather than across it. The sweep seam is CloudUnderlightLayer.AmplitudeScale, the
+    // of the frame rather than across it. The sweep seam is CloudLayers.AmplitudeScale, the
     // same dev seam SnowGlare.IntensityScale opened for the same kind of question.
     public const float LayerAmplitude = 0.10f;
 
@@ -176,7 +176,7 @@ public static class CloudUnderlightMath
     // drift one subsystem later, and the two lanes would disagree about when a sunset ends.
     //
     // NO OPACITY TERM, and its absence is load-bearing rather than an omission. How much cloud there
-    // is enters this lane through the FIELD (CloudUnderlightField.PatchIntensity thresholds on it, and
+    // is enters this lane through the FIELD (CloudField.PatchIntensity thresholds on it, and
     // the mean subtraction is what makes a solid overcast contribute no structure at all), so
     // multiplying by it again here would count coverage twice and, worse, would make a full overcast
     // the strongest case when it is precisely the case with nothing spatial to say.

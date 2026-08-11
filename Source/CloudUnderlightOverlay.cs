@@ -37,37 +37,6 @@ public static class CloudUnderlightOverlay
     // pawn vision are all untouched — §23b stays inside the mod's colour-only lane exactly as §23 does.
     private static readonly Material LayerMat = new Material(ShaderDatabase.MoteGlow);
 
-    // The baked field. RGB carries §8's tint and alpha carries the residual — see
-    // CloudUnderlightField.WriteRgba for why the colour is baked into the pixels rather than set as
-    // the material's colour.
-    private static readonly Texture2D FieldTex = NewFieldTexture();
-
-    private static readonly float[] Intensity =
-        new float[CloudUnderlightField.Resolution * CloudUnderlightField.Resolution];
-
-    private static readonly byte[] Pixels =
-        new byte[CloudUnderlightField.Resolution * CloudUnderlightField.Resolution * 4];
-
-    // What the currently-baked texture was baked FROM. All four together are the cache key: a bake is
-    // reused only when every input that shaped it still holds.
-    //
-    // The map id is part of it because two maps can be loaded at once and their fields are seeded by
-    // different tiles. Only the visible map draws, so switching between a colony and a caravan map
-    // costs one rebake on the frame after the switch rather than one per frame.
-    private static int _bakedMapId = -1;
-    private static int _bakedFractionStep = int.MinValue;
-    private static int _bakedTintKey = int.MinValue;
-    private static float _bakedMean;
-
-    // Cloud fraction is quantised before it is compared, so §22's continuously drifting value does not
-    // force a rebake every frame for a change no pixel could show. 1/128 is finer than one byte of
-    // alpha, so the quantisation cannot be the thing a viewer sees.
-    private const float FractionSteps = 128f;
-
-    // Same idea for the tint, one axis per channel packed into an int. 64 steps per channel is half a
-    // byte of colour resolution, well under what a texture upload can express.
-    private const float TintSteps = 64f;
-
     // The last alpha written to the material, cached for the same reason SheetMaterial exists:
     // Material.color is a native round trip in both directions, so the last written value is
     // remembered here rather than read back. NaN so the first draw always writes — 0 is a legitimate
@@ -75,10 +44,10 @@ public static class CloudUnderlightOverlay
     private static float _lastAlpha = float.NaN;
 
     // Draws this frame's underlit-cloud layer over `map`, or nothing at all if there is none. Called
-    // once per frame from Patch_CloudUnderlightDraw, for the currently-visible map only.
+    // once per frame from Patch_CloudLayersDraw, for the currently-visible map only.
     public static void Draw(Map map)
     {
-        float strength = CloudUnderlightLayer.StrengthFor(map);
+        float strength = CloudLayers.StrengthFor(map);
 
         // The overwhelmingly common case: the sun is not inside the glow window, or there is no cloud,
         // or the feature is off. Returning before touching the texture, the material or the draw call
@@ -95,24 +64,17 @@ public static class CloudUnderlightOverlay
         if (mesh == null)
             return;
 
-        Rebake(map);
+        // The shared bake. §23c draws this identical texture through a black Transparent material,
+        // which is what makes "the light a deck adds" and "the light it blocks" the same pixels rather
+        // than two fields that have to be kept in step — see CloudFieldTexture.
+        LayerMat.mainTexture = CloudFieldTexture.For(map);
+        CloudFieldTexture.ApplyTiling(LayerMat, map);
 
         if (strength != _lastAlpha)
         {
             LayerMat.color = new Color(1f, 1f, 1f, strength);
             _lastAlpha = strength;
         }
-
-        // The tile is scaled to CellsPerRepeat map cells and panned by the absolute tick. Both work on
-        // top of MAP-SPACE UVs — the mask charts 0..1 across the whole map, matching
-        // MeshPool.wholeMapPlane, so scaling here is in units of "tiles per map" and the same numbers
-        // are correct whichever of the two meshes came back.
-        int absTick = Find.TickManager?.TicksAbs ?? 0;
-        LayerMat.mainTextureScale = new Vector2(
-            map.Size.x / CloudUnderlightField.CellsPerRepeat,
-            map.Size.z / CloudUnderlightField.CellsPerRepeat);
-        LayerMat.mainTextureOffset = new Vector2(
-            CloudUnderlightField.DriftOffsetU(absTick), CloudUnderlightField.DriftOffsetV(absTick));
 
         // ALTITUDE: VisEffects (33), above LightingOverlay (32) and below FogOfWar — the same pair
         // §11a's curtain and §24's glare both need, and load-bearing for the same reason. Drawing at
@@ -138,82 +100,4 @@ public static class CloudUnderlightOverlay
         Graphics.DrawMesh(mesh, position, Quaternion.identity, LayerMat, 0);
     }
 
-    // Re-walks the noise only when the cloud fraction has actually moved, and re-writes the bytes only
-    // when either that or the tint has. See this file's header for why those two cadences are split.
-    private static void Rebake(Map map)
-    {
-        int mapId = map.uniqueID;
-        float fraction = CloudUnderlightLayer.CloudFractionFor(map);
-        int fractionStep = (int)(fraction * FractionSteps + 0.5f);
-
-        SkyColorTemperature.Rgb hot = CloudUnderlightLayer.HotTintFor(map);
-        SkyColorTemperature.Rgb cool = CloudUnderlightLayer.CoolTintFor(map);
-        CloudUnderlightLayer.GradientAxisFor(map, out int axisU, out int axisV);
-
-        // The axis joins the two colours in the cache key. It changes at most eight times a day (it
-        // is the sun's bearing rounded to the eight tiling directions), but when it does change every
-        // texel's colour moves, so a key that ignored it would leave the gradient pointing the old
-        // way until the sun's colour happened to move a quantum.
-        int tintKey = TintKey(hot) ^ (TintKey(cool) * 31) ^ ((axisU + 2) << 26) ^ ((axisV + 2) << 29);
-
-        bool structureStale = mapId != _bakedMapId || fractionStep != _bakedFractionStep;
-        if (!structureStale && tintKey == _bakedTintKey)
-            return;
-
-        if (structureStale)
-        {
-            _bakedMean = CloudUnderlightField.FillIntensity(
-                Intensity,
-                CloudUnderlightField.Resolution,
-                CloudUnderlightField.Resolution,
-                fractionStep / FractionSteps,
-                map.Tile.tileId);
-
-            _bakedMapId = mapId;
-            _bakedFractionStep = fractionStep;
-        }
-
-        CloudUnderlightField.WriteRgba(
-            Pixels, Intensity,
-            CloudUnderlightField.Resolution, CloudUnderlightField.Resolution,
-            _bakedMean,
-            hot.R, hot.G, hot.B,
-            cool.R, cool.G, cool.B,
-            axisU, axisV);
-        _bakedTintKey = tintKey;
-
-        // LoadRawTextureData rather than SetPixels32, the same choice AuroraCurtainOverlay made and
-        // for the same reason: the pure core already writes bytes in exactly the layout
-        // TextureFormat.RGBA32 wants, so this is a memcpy with no per-pixel Color32 marshalling in
-        // between. Apply(false) skips mip regeneration the texture does not have.
-        FieldTex.LoadRawTextureData(Pixels);
-        FieldTex.Apply(false);
-    }
-
-    private static int TintKey(SkyColorTemperature.Rgb tint) =>
-        (Step(tint.R) << 16) | (Step(tint.G) << 8) | Step(tint.B);
-
-    private static int Step(float channel)
-    {
-        int step = (int)(channel * TintSteps + 0.5f);
-        return step < 0 ? 0 : (step > 255 ? 255 : step);
-    }
-
-    private static Texture2D NewFieldTexture()
-    {
-        Texture2D texture = new Texture2D(
-            CloudUnderlightField.Resolution, CloudUnderlightField.Resolution,
-            TextureFormat.RGBA32, mipChain: false)
-        {
-            name = "CelestialLighting_CloudUnderlight",
-            // Repeat is what makes the drift a pan rather than a rebake — the field is tileable by
-            // construction (AuroraNoise wraps on an integer lattice), so a seam can never sweep
-            // across the colony.
-            wrapMode = TextureWrapMode.Repeat,
-            filterMode = FilterMode.Bilinear,
-        };
-
-        LayerMat.mainTexture = texture;
-        return texture;
-    }
 }

@@ -25,25 +25,25 @@ public static class Program
     public static void Main(string[] args)
     {
         string outputDir = args.Length > 0 ? args[0] : ".";
-        int n = CloudUnderlightField.Resolution;
+        int n = CloudField.Resolution;
         float[] intensity = new float[n * n];
 
         Console.WriteLine(
-            $"resolution {n}  cellsPerRepeat {CloudUnderlightField.CellsPerRepeat}  " +
-            $"lattice {CloudUnderlightField.LatticeCells}  octaves {CloudUnderlightField.Octaves}  " +
-            $"edgeSoftness {CloudUnderlightField.EdgeSoftness}");
+            $"resolution {n}  cellsPerRepeat {CloudField.CellsPerRepeat}  " +
+            $"lattice {CloudField.LatticeCells}  octaves {CloudField.Octaves}  " +
+            $"edgeSoftness {CloudField.EdgeSoftness}");
         Console.WriteLine(
-            $"one texel spans {CloudUnderlightField.CellsPerRepeat / n:F2} map cells; " +
-            $"base feature {CloudUnderlightField.CellsPerRepeat / CloudUnderlightField.LatticeCells:F0} " +
+            $"one texel spans {CloudField.CellsPerRepeat / n:F2} map cells; " +
+            $"base feature {CloudField.CellsPerRepeat / CloudField.LatticeCells:F0} " +
             $"cells; finest octave " +
-            $"{CloudUnderlightField.CellsPerRepeat / (CloudUnderlightField.LatticeCells * (1 << (CloudUnderlightField.Octaves - 1))):F1} cells");
+            $"{CloudField.CellsPerRepeat / (CloudField.LatticeCells * (1 << (CloudField.Octaves - 1))):F1} cells");
         Console.WriteLine();
 
         foreach (int seed in Seeds)
         {
             foreach (float fraction in Fractions)
             {
-                float mean = CloudUnderlightField.FillIntensity(intensity, n, n, fraction, seed);
+                float mean = CloudField.FillIntensity(intensity, n, n, fraction, seed);
 
                 // Two renders per case, because they answer different questions. The RESIDUAL is what
                 // is actually drawn; the raw INTENSITY is what the field looks like before the mean
@@ -52,14 +52,14 @@ public static class Program
                 Png.Write($"{outputDir}/cloudfield_s{seed}_f{fraction:0.00}_intensity.png", n, n,
                     Grey(intensity, n * n, v => v));
                 Png.Write($"{outputDir}/cloudfield_s{seed}_f{fraction:0.00}_residual.png", n, n,
-                    Grey(intensity, n * n, v => CloudUnderlightField.Residual(v, mean)));
+                    Grey(intensity, n * n, v => CloudField.Residual(v, mean)));
 
                 float covered = 0f;
                 float peak = 0f;
                 for (int i = 0; i < intensity.Length; i++)
                 {
                     covered += intensity[i];
-                    float residual = CloudUnderlightField.Residual(intensity[i], mean);
+                    float residual = CloudField.Residual(intensity[i], mean);
                     if (residual > peak)
                         peak = residual;
                 }
@@ -74,15 +74,31 @@ public static class Program
 
         // One bake, timed on its own after a warm-up, because this is the number that decides whether
         // a resolution or octave bump is affordable on the main thread.
-        CloudUnderlightField.FillIntensity(intensity, n, n, 0.4f, 1);
+        CloudField.FillIntensity(intensity, n, n, 0.4f, 1);
         Stopwatch watch = Stopwatch.StartNew();
         const int Bakes = 20;
         for (int i = 0; i < Bakes; i++)
-            CloudUnderlightField.FillIntensity(intensity, n, n, 0.4f, i);
+            CloudField.FillIntensity(intensity, n, n, 0.4f, i);
 
         watch.Stop();
-        Console.WriteLine($"bake {watch.Elapsed.TotalMilliseconds / Bakes:0.00} ms " +
-                          $"({n * n} texels x {CloudUnderlightField.Octaves} octaves)");
+        Console.WriteLine($"illumination bake {watch.Elapsed.TotalMilliseconds / Bakes:0.00} ms " +
+                          $"({n * n} texels x {CloudField.Octaves} octaves)");
+
+        // §25's sheet bake, timed separately because it is an order of magnitude larger and runs on
+        // the main thread. This is the number that decides whether the sheet's resolution and octave
+        // count are affordable at all — see CloudSheetOverlay.Rebake for what triggers it.
+        int sheet = CloudField.SheetResolution;
+        float[] sheetIntensity = new float[sheet * sheet];
+        CloudField.FillIntensity(sheetIntensity, sheet, sheet, 0.4f, 1, CloudField.SheetOctaves);
+
+        watch.Restart();
+        const int SheetBakes = 5;
+        for (int i = 0; i < SheetBakes; i++)
+            CloudField.FillIntensity(sheetIntensity, sheet, sheet, 0.4f, i, CloudField.SheetOctaves);
+
+        watch.Stop();
+        Console.WriteLine($"sheet bake        {watch.Elapsed.TotalMilliseconds / SheetBakes:0.00} ms " +
+                          $"({sheet * sheet} texels x {CloudField.SheetOctaves} octaves)");
     }
 
     private static byte[] Grey(float[] values, int count, Func<float, float> select)

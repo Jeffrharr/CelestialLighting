@@ -1,0 +1,473 @@
+{
+  "name": "cloud_layers",
+  "saveFile": "minimal_colony.rws",
+  "description": "All three cloud lanes on one deck, so they can be judged together rather than one at a time \u2014 which is the whole reason they landed in one PR. \u00a723b adds the light a deck bounces down after sunset, \u00a723c subtracts the light it blocks while the sun is up, and \u00a725 draws the deck itself. One field (CloudField), one seed, one drift clock: the bright ground has to be under the gaps.\n\nLatitude 45, day 40, Clear with \u00a722's fraction forced to 0.35 (CloudCoverFractionOverride), except the last pair which switches to Overcast. Most probes here are UNPINNED \u2014 dummy expectation, huge tolerance \u2014 because this scenario exists to produce frames and the numbers that matter are already pinned in cloud_underlight_layer.json. The few that ARE pinned are the ones asserting a lane is standing DOWN, which is the claim frames alone cannot make: cloud_shadow_alpha at 0 after sunset and at 0 under a solid overcast, and cloud_underlight_layer at 0 in the morning.\n\nThe overcast pair is the sharpest statement of how the three differ: both illumination lanes go silent (an unbroken deck has no structure, and a flat colour already describes it \u2014 that is \u00a713's job), while the sheet keeps drawing, because a drawn cloud is the object rather than an adjustment to a flat approximation of it.",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "realistic_preset",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Soil",
+        "width": "128",
+        "height": "128",
+        "anchor": "64,64"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Soil",
+        "width": "128",
+        "height": "128",
+        "anchor": "64,186"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Soil",
+        "width": "128",
+        "height": "128",
+        "anchor": "186,64"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Soil",
+        "width": "128",
+        "height": "128",
+        "anchor": "186,186"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_cover_forced_fraction",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cl_warmup.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_underlight_layer",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_shadow",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_sheet",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_shadow_alpha",
+        "expectedValue": "0.0000",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cl_noon_off.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_shadow",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_shadow_alpha",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cl_noon_shadow.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_sheet",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheet_alpha",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cl_noon_shadow_sheet.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_shadow",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cl_noon_sheet.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_underlight_layer",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_shadow",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_sheet",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "20.78"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "-1.1715",
+        "tolerance": "0.02"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cl_dusk_off.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_underlight_layer",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_underlight_layer",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_shadow_alpha",
+        "expectedValue": "0.0000",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cl_dusk_underlight.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_sheet",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheet_alpha",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cl_dusk_underlight_sheet.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_underlight_layer",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cl_dusk_sheet.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_underlight_layer",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_shadow",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_sheet",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_shadow",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_underlight_layer",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_shadow_alpha",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_underlight_layer",
+        "expectedValue": "0.0000",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cl_morning_shadow.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_underlight_layer",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_shadow",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_sheet",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Overcast",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_underlight_layer",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_shadow",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_sheet",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_underlight_cover",
+        "expectedValue": "1.0000",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_shadow_alpha",
+        "expectedValue": "0.0000",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheet_alpha",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cl_overcast_noon_all.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_underlight_layer",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_shadow",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_sheet",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cl_overcast_noon_off.png"
+      }
+    }
+  ]
+}
