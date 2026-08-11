@@ -46,11 +46,6 @@ public static class CloudUnderlightOverlay
         return materials;
     }
 
-    // The last alpha written to the material, cached for the same reason SheetMaterial exists:
-    // Material.color is a native round trip in both directions, so the last written value is
-    // remembered here rather than read back. NaN so the first draw always writes — 0 is a legitimate
-    // steady-state value and seeding with it would let a genuine first frame at 0 skip its write.
-    private static float _lastAlpha = float.NaN;
 
     // Draws this frame's underlit-cloud layer over `map`, or nothing at all if there is none.
     //
