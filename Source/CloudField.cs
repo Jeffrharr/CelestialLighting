@@ -35,8 +35,8 @@ namespace CelestialLighting;
 //   cloud fraction 0.5 — half lit deck, half open vault, the largest contrast a sky can show
 //
 // The middle case peaking is not tuning. It falls out of subtracting a mean from a field whose values
-// are bounded by [0, 1], and CloudUnderlightFieldTests pins the whole curve rather than its endpoints.
-public static class CloudUnderlightField
+// are bounded by [0, 1], and CloudFieldTests pins the whole curve rather than its endpoints.
+public static class CloudField
 {
     // Baked texture size per axis. Deliberately small: a full re-bake walks every texel (CloudPreview
     // prints the timing), and there is nothing fine-grained in what is being drawn.
@@ -101,8 +101,24 @@ public static class CloudUnderlightField
     // The seed is the map tile id at the call site, same as §22's cloud fraction and §20c's aerosol
     // drift: two colonies on one planet get unrelated skies, and one colony's sky is stable across
     // save and load without anything being persisted.
-    public static float Coverage(float u, float v, int seed) =>
-        AuroraNoise.Fbm(u * LatticeCells, v * LatticeCells, LatticeCells, LatticeCells, seed, Octaves);
+    public static float Coverage(float u, float v, int seed) => Coverage(u, v, seed, Octaves);
+
+    // The same field sampled at a chosen octave count, which is how §25's drawn sheet gets cloud-like
+    // detail out of the field §23b/§23c deliberately keep soft.
+    //
+    // THE TWO AGREE WHERE IT MATTERS, and that is why this is an octave count rather than a second
+    // field. Adding octaves layers finer detail ON TOP of the same lattice at the same seed, so the
+    // large-scale structure — which patch is cloudy — is identical; only the edges gain detail. The
+    // illumination lanes want the blurred version because bounced and blocked light genuinely are
+    // blurred versions of the cloud pattern, and the sheet wants the detailed one because it is
+    // drawing the cloud itself. Same field, two levels of detail, no possibility of them disagreeing
+    // about where the clouds are.
+    //
+    // (Not bit-identical at large scale, strictly: fBm normalises by the summed amplitude, so extra
+    // octaves shift every value slightly. The per-tile quantile threshold absorbs that — covered area
+    // still comes out as the fraction asked for — which is one more thing ThresholdFor buys.)
+    public static float Coverage(float u, float v, int seed, int octaves) =>
+        AuroraNoise.Fbm(u * LatticeCells, v * LatticeCells, LatticeCells, LatticeCells, seed, octaves);
 
     // How underlit-cloud-covered a point is, in [0, 1], given the coverage value above which the deck
     // counts as cloud. A smoothstep band of width EdgeSoftness straddles the threshold — half above,
@@ -185,7 +201,12 @@ public static class CloudUnderlightField
     // texture bytes whenever the SUN's colour moves (every few frames) but only re-runs this noise
     // walk when the cloud FRACTION moves (a few times an in-game hour), so the two stages are split at
     // exactly the boundary where their cadences differ. See CloudUnderlightLayer.
-    public static float FillIntensity(float[] intensity, int width, int height, float cloudFraction, int seed)
+    public static float FillIntensity(
+        float[] intensity, int width, int height, float cloudFraction, int seed) =>
+        FillIntensity(intensity, width, height, cloudFraction, seed, Octaves);
+
+    public static float FillIntensity(
+        float[] intensity, int width, int height, float cloudFraction, int seed, int octaves)
     {
         if (intensity == null || width <= 0 || height <= 0)
             return 0f;
@@ -203,7 +224,7 @@ public static class CloudUnderlightField
             float v = (y + 0.5f) * vScale;
 
             for (int x = 0; x < width; x++)
-                intensity[row + x] = Coverage((x + 0.5f) * uScale, v, seed);
+                intensity[row + x] = Coverage((x + 0.5f) * uScale, v, seed, octaves);
         }
 
         // Raw coverage in hand, the threshold is a property of THIS tile (see ThresholdFor), so the
@@ -263,7 +284,7 @@ public static class CloudUnderlightField
     //
     // Cost stays on the cheap side of the cadence split: this walks the bytes, not the noise, so a
     // colour (and an axis) that move every frame cost a memory write per texel, not a field rebake.
-    public static void WriteRgba(
+    public static void WriteUnderlightRgba(
         byte[] rgba, float[] intensity, int width, int height, float mean,
         float hotR, float hotG, float hotB, float coolR, float coolG, float coolB,
         int axisU, int axisV)
@@ -292,6 +313,71 @@ public static class CloudUnderlightField
                 rgba[o + 1] = ToByte(Mix(coolG, hotG, warmth));
                 rgba[o + 2] = ToByte(Mix(coolB, hotB, warmth));
                 rgba[o + 3] = ToByte(Residual(intensity[row + x], mean));
+            }
+        }
+    }
+
+    // §25's sheet resolution and octave count. Denser and deeper than the illumination lanes, because
+    // this one is drawing the cloud rather than the light it casts — see Coverage's overload for why
+    // more octaves is the same field rather than a second one.
+    //
+    // BOUNDED BY THE BAKE, NOT BY TASTE, and the first numbers picked were not affordable. 192 at five
+    // octaves measured **28.43 ms** in Tools/CloudPreview — nearly two dropped frames at 60 fps, on
+    // the main thread, every time the cloud fraction moves a quantum. 128 at four measures about a
+    // third of that. It is still a hitch rather than free, and the honest fix is the one §11a already
+    // uses (bake in row slices across frames, uploading only on completion); it is not done here
+    // because §25 is a prototype whose flag ships off, and because the rolling bake needs the
+    // threshold pass restructured to work off a subsample. Named rather than hidden — see DESIGN.md
+    // §25's performance note for the measured maxMsPerFrame.
+    public const int SheetResolution = 128;
+
+    public const int SheetOctaves = 4;
+
+    // §25's bytes: the sheet's colour in RGB, its own coverage in alpha.
+    //
+    // NOT A RESIDUAL, unlike the two illumination writers — see CloudSheetMath.SheetAlpha for why. A
+    // drawn cloud is the object, not an adjustment to a flat approximation of it, so alpha is the
+    // field's intensity outright and an overcast sky comes out covered rather than uniform-and-blank.
+    //
+    // The colour blends the same two ends WriteUnderlightRgba uses, along the same tiling axis, but
+    // toward `dayR/G/B` as the sun rises — so a lit-from-above deck reads white-grey and a lit-from-
+    // beneath one carries the sunset's own gradient. `underlit` is CloudSheetMath.UnderlitFraction,
+    // computed once by the caller rather than per texel.
+    public static void WriteSheetRgba(
+        byte[] rgba, float[] intensity, int width, int height,
+        float hotR, float hotG, float hotB, float coolR, float coolG, float coolB,
+        float dayR, float dayG, float dayB, float underlit, float brightness,
+        int axisU, int axisV)
+    {
+        if (rgba == null || intensity == null || width <= 0 || height <= 0)
+            return;
+
+        float uScale = 1f / width;
+        float vScale = 1f / height;
+        float mix = Clamp01(underlit);
+        float lit = Clamp01(brightness);
+
+        for (int y = 0; y < height; y++)
+        {
+            int row = y * width;
+            float v = (y + 0.5f) * vScale;
+
+            for (int x = 0; x < width; x++)
+            {
+                float s = axisU * ((x + 0.5f) * uScale) + axisV * v;
+                float warmth = 0.5f + 0.5f * MathF.Cos(2f * MathF.PI * s);
+
+                // The underlit colour first (the sunset gradient), then blended toward the daylight
+                // colour by how much of the deck's light is coming from above.
+                float r = Mix(Mix(dayR, Mix(coolR, hotR, warmth), mix), 0f, 1f - lit);
+                float g = Mix(Mix(dayG, Mix(coolG, hotG, warmth), mix), 0f, 1f - lit);
+                float b = Mix(Mix(dayB, Mix(coolB, hotB, warmth), mix), 0f, 1f - lit);
+
+                int o = (row + x) * 4;
+                rgba[o + 0] = ToByte(r);
+                rgba[o + 1] = ToByte(g);
+                rgba[o + 2] = ToByte(b);
+                rgba[o + 3] = ToByte(intensity[row + x]);
             }
         }
     }

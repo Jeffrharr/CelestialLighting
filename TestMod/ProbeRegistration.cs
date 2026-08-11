@@ -144,12 +144,20 @@ public static class ProbeRegistration
         // opacity or §22's Clear-weather fraction, which §23's own probes above cannot see at all);
         // and cloud_underlight_structure is the field's peak residual, the number that must go to zero
         // at BOTH a clear sky and a solid overcast.
-        ProbeRegistry.Register(new CloudUnderlightLayerProbe(
-            "cloud_underlight_layer", CloudUnderlightLayerProbe.Metric.Strength));
-        ProbeRegistry.Register(new CloudUnderlightLayerProbe(
-            "cloud_underlight_cover", CloudUnderlightLayerProbe.Metric.Fraction));
-        ProbeRegistry.Register(new CloudUnderlightLayerProbe(
-            "cloud_underlight_structure", CloudUnderlightLayerProbe.Metric.FieldPeak));
+        ProbeRegistry.Register(new CloudLayersProbe(
+            "cloud_underlight_layer", CloudLayersProbe.Metric.Strength));
+        ProbeRegistry.Register(new CloudLayersProbe(
+            "cloud_underlight_cover", CloudLayersProbe.Metric.Fraction));
+        ProbeRegistry.Register(new CloudLayersProbe(
+            "cloud_underlight_structure", CloudLayersProbe.Metric.FieldPeak));
+        // §23c and §25, the other two consumers of the same field. Registered next to §23b's because a
+        // scenario reading one almost always wants the others in the same breath: the claim the three
+        // make together is that they are one cloud deck seen three ways, and the cheapest way to show
+        // a lane standing down is the other two carrying on.
+        ProbeRegistry.Register(new CloudLayersProbe(
+            "cloud_shadow_alpha", CloudLayersProbe.Metric.ShadowAlpha));
+        ProbeRegistry.Register(new CloudLayersProbe(
+            "cloud_sheet_alpha", CloudLayersProbe.Metric.SheetAlpha));
         // The three map-kind gates themselves, so a cavern scenario pins the DECISION and not just its
         // consequences — every gated effect also reads zero for unrelated reasons (wrong time of day,
         // no active condition), so the effect probes alone cannot say whether a gate actually fired.
@@ -445,6 +453,17 @@ public static class ProbeRegistration
             CelestialLightingFeatures.CloudUnderlightLayerKey,
             enabled => CelestialLightingFeatures.CloudUnderlightLayer = enabled,
             defaultEnabled: false);
+        // §23c and §25, registered separately and all three defaulting false. Independently switchable
+        // on purpose: they share a field but they are three different claims, and a scenario has to be
+        // able to show one of them without the other two confounding the frame.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.CloudShadowKey,
+            enabled => CelestialLightingFeatures.CloudShadow = enabled,
+            defaultEnabled: false);
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.CloudSheetKey,
+            enabled => CelestialLightingFeatures.CloudSheet = enabled,
+            defaultEnabled: false);
         // Not a CelestialLightingFeatures flag: forces CloudCoverClock.FractionForMap's result to a
         // fixed constant so a scenario gets a specific, reproducible cloud fraction on demand instead
         // of depending on which absolute year the harness's clock jump happened to land in (see
@@ -722,7 +741,7 @@ public static class ProbeRegistration
         // it come from one process, at one instant, differing in exactly one constant.
         FeatureRegistry.Register(
             "cloud_underlight_strong",
-            enabled => CloudUnderlightLayer.AmplitudeScale =
+            enabled => CloudLayers.AmplitudeScale =
                 enabled ? 0.20f : CloudUnderlightMath.LayerAmplitude,
             defaultEnabled: false);
         FeatureRegistry.Register(

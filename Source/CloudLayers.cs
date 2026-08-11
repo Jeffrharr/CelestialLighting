@@ -13,7 +13,7 @@ namespace CelestialLighting;
 // actually drawn. That matters more here than usual — issue #88's open question for option 2 is
 // whether spatial warm patches read as sky drama or as stains on the ground, and a probe measuring a
 // different number than the screen shows would make that question unanswerable.
-public static class CloudUnderlightLayer
+public static class CloudLayers
 {
     // The strength knob actually used, seeded from the pure core's starting guess. Mutable ONLY so a
     // live harness sweep can move it within one RimWorld boot, exactly the dev seam
@@ -23,6 +23,13 @@ public static class CloudUnderlightLayer
     //
     // Nothing in the shipped mod writes it, so a player's game always runs the calibrated default.
     public static float AmplitudeScale = CloudUnderlightMath.LayerAmplitude;
+
+    // The same seam for the other two lanes, existing for the same one reason and written by nothing
+    // the player can reach. All three are prototypes whose calibration is a taste call, and a taste
+    // call is only honest if the alternatives came out of one process at one instant.
+    public static float ShadowAmplitudeScale = CloudShadowMath.ShadowAmplitude;
+
+    public static float SheetAmplitudeScale = CloudSheetMath.SheetAmplitude;
 
     // How much of this map's sky is cloud right now, in [0, 1] — the field's own input.
     //
@@ -98,6 +105,62 @@ public static class CloudUnderlightLayer
             Vacuum.InVacuumForMap(map));
     }
 
+    // §23c: the alpha of the daylight cloud-shadow wash. Zero is a true no-op — the overlay returns
+    // before its draw call.
+    //
+    // GATE ORDER IS THE MIRROR OF StrengthFor'S, and for the same reason. This lane's window is the
+    // opposite one (sun UP rather than down), and it is far wider — most of the day, on most maps — so
+    // the elevation check is much less selective here than it is there. It still goes first because it
+    // is a memoised float against a constant, and it still saves the weather walk on every night frame.
+    public static float ShadowAlphaFor(Map map)
+    {
+        if (!CelestialLightingFeatures.CloudShadow)
+            return 0f;
+
+        if (map?.skyManager == null)
+            return 0f;
+
+        float elevation = SolarPosition.ElevationForMap(map);
+        if (elevation <= 0f)
+            return 0f;
+
+        if (!MapSky.HasSky(map) || MapSky.SkyBlackedOut(map))
+            return 0f;
+
+        float fraction = CloudFractionFor(map);
+        if (fraction <= 0f)
+            return 0f;
+
+        return CloudShadowMath.ShadowAlphaWithAmplitude(
+            elevation, fraction, ShadowAmplitudeScale, Vacuum.InVacuumForMap(map));
+    }
+
+    // §25: the alpha of the drawn cloud sheet.
+    //
+    // NO ELEVATION GATE, which is the one structural difference from the two illumination lanes and
+    // the reason §25 is the expensive one. Cloud is there at night too — it is the only one of the
+    // three that draws around the clock — so the cheap, highly selective question the others open with
+    // simply does not exist here, and the cloud fraction is the first real gate. That is affordable
+    // only because the fraction itself is cached (§22 hourly, §13 per weather) rather than walked.
+    public static float SheetAlphaFor(Map map)
+    {
+        if (!CelestialLightingFeatures.CloudSheet)
+            return 0f;
+
+        if (map?.skyManager == null)
+            return 0f;
+
+        if (!MapSky.HasSky(map) || MapSky.SkyBlackedOut(map))
+            return 0f;
+
+        float fraction = CloudFractionFor(map);
+        if (fraction <= 0f)
+            return 0f;
+
+        return CloudSheetMath.SheetAlphaWithAmplitude(
+            fraction, map.skyManager.CurSkyGlow, SheetAmplitudeScale, Vacuum.InVacuumForMap(map));
+    }
+
     // The SUNWARD end of the layer's colour: §8's own target colour at this elevation, not a second
     // reddening model of our own.
     //
@@ -136,7 +199,7 @@ public static class CloudUnderlightLayer
     // computation of it, which also means the two cannot disagree about what twilight purple is.
     public static SkyColorTemperature.Rgb CoolTintFor(Map map) => PurpleLight.ComposedHueFor(map);
 
-    // Which way the sun lies, as the tiling axis CloudUnderlightField's colour gradient runs along.
+    // Which way the sun lies, as the tiling axis CloudField's colour gradient runs along.
     // Read through the same SolarPosition.InputsForMap the shadow direction uses (§1), so the colour
     // gradient and the shadows on the ground agree about where the sun is.
     public static void GradientAxisFor(Map map, out int axisU, out int axisV)
@@ -146,6 +209,6 @@ public static class CloudUnderlightLayer
         float azimuth = Formulas.SolarAzimuthDegrees(
             inputs.Latitude, inputs.Declination, elevation, inputs.DayPercent);
 
-        CloudUnderlightField.GradientAxis(azimuth, out axisU, out axisV);
+        CloudField.GradientAxis(azimuth, out axisU, out axisV);
     }
 }

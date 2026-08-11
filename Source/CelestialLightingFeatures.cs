@@ -415,6 +415,40 @@ public static class CelestialLightingFeatures
     // pre-§23 rendering exactly.
     public static bool CloudUnderlightLayer = false;
 
+    // Feature key for CloudShadow (see CivilTwilightPersistenceKey for why it lives here).
+    public const string CloudShadowKey = "cloud_shadow";
+
+    // §23c: DAYLIGHT CLOUD SHADOWS — the same field §23b adds light through, subtracted instead, while
+    // the sun is up. The two are one phenomenon at opposite ends of the day: below the horizon a deck
+    // is the only lit thing in the sky and is a SOURCE; above it, the deck is an OCCLUDER and the
+    // patches on the ground are shade.
+    //
+    // It exists because of what watching §23b showed. Warm patches with no cloud drawn above them read
+    // as "the sun is being shaded by clouds" — which is the wrong reading of §23b (inside its window
+    // there is no direct sun left to shade) and a completely right description of the other twelve
+    // hours of the day, which the mod did not have. Rather than fight the eye's reading, this is the
+    // effect the eye was reaching for.
+    //
+    // Ships OFF, same prototype posture as §23b and §25 alongside it.
+    public static bool CloudShadow = false;
+
+    // Feature key for CloudSheet (see CivilTwilightPersistenceKey for why it lives here).
+    public const string CloudSheetKey = "cloud_sheet";
+
+    // §25 (issue #138): the drawn cloud sheet — actual cloud between the camera and the map, above
+    // FogOfWar, rather than only the light a deck adds or blocks. The other two lanes are
+    // ILLUMINATION and stop at the ground; this is SKY.
+    //
+    // THE MOST SPECULATIVE OF THE THREE, and the one whose open question is genuinely unsettled: a
+    // cloud layer over a top-down colony may read as weather or may read as something in the way of
+    // the base the player is trying to run. Issue #138 says to answer that from frames before
+    // designing anything larger, which is what shipping it off and capturing it is for.
+    //
+    // It also knowingly double-counts §13/§22 over a solid overcast — the sheet and the flat dimming
+    // are both rendering the same deck — which is recorded in CloudSheetMath.SheetAlpha and is the
+    // first thing to fix if this goes past prototype.
+    public static bool CloudSheet = false;
+
     // Feature key for AxialTiltLunarGeometry (see CivilTwilightPersistenceKey for why it lives here).
     public const string AxialTiltLunarGeometryKey = "axial_tilt_lunar_geometry";
 

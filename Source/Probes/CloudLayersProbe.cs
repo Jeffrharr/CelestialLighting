@@ -20,13 +20,20 @@ namespace CelestialLighting.Probes;
 // quantity that must go to ZERO at both a clear sky and a solid overcast. A scenario that pinned only
 // the strength could not tell "the sun is in the window and the sky is uniform" from "the sun is in
 // the window and the field is broken".
-public sealed class CloudUnderlightLayerProbe : IProbe
+public sealed class CloudLayersProbe : IProbe
 {
     public enum Metric
     {
         Strength,
         Fraction,
         FieldPeak,
+
+        // §23c and §25, reported off the same class because they read the same field through the same
+        // adapter and a scenario almost always wants them next to each other — the whole point of the
+        // three lanes is that they are one deck seen three ways, and three probe classes would make
+        // that look like three subsystems that happen to run together.
+        ShadowAlpha,
+        SheetAlpha,
     }
 
     // The field's peak residual is a property of (fraction, tile seed) only, and re-walking 4,096
@@ -41,7 +48,7 @@ public sealed class CloudUnderlightLayerProbe : IProbe
     private readonly string _name;
     private readonly Metric _metric;
 
-    public CloudUnderlightLayerProbe(string name, Metric metric)
+    public CloudLayersProbe(string name, Metric metric)
     {
         _name = name;
         _metric = metric;
@@ -51,17 +58,32 @@ public sealed class CloudUnderlightLayerProbe : IProbe
 
     public float Read(Map map)
     {
+        // §23c and §25 gate themselves inside their own adapters, which check their own flags — so
+        // unlike the three metrics below they need no flag test here, and must not get the
+        // CloudUnderlightLayer one: the three lanes ship independently and a scenario has to be able
+        // to turn on exactly one of them.
+        if (_metric == Metric.ShadowAlpha)
+            return CloudLayers.ShadowAlphaFor(map);
+
+        if (_metric == Metric.SheetAlpha)
+            return CloudLayers.SheetAlphaFor(map);
+
         // The flag is checked directly rather than inferred from any pure-layer return, for the same
         // reason CloudUnderlightProbe does it: "off" must read as a clean zero on every metric so a
         // scenario can pin the true-no-op invariant, and one of the inputs (a cloud fraction of 0) is
         // a legitimate live value rather than a sentinel.
+        //
+        // Note the cloud FRACTION metric is gated on §23b's flag too, which is a wart: the fraction is
+        // a property of the weather rather than of any lane. It stays that way because
+        // cloud_underlight_layer.json's off/on pins were measured against it, and this repo does not
+        // rewrite a measured pin to suit a later tidy-up.
         if (!CelestialLightingFeatures.CloudUnderlightLayer)
             return 0f;
 
         if (_metric == Metric.Strength)
-            return CloudUnderlightLayer.StrengthFor(map);
+            return CloudLayers.StrengthFor(map);
 
-        float fraction = CloudUnderlightLayer.CloudFractionFor(map);
+        float fraction = CloudLayers.CloudFractionFor(map);
         if (_metric == Metric.Fraction)
             return fraction;
 
@@ -74,15 +96,15 @@ public sealed class CloudUnderlightLayerProbe : IProbe
         if (step == _cachedFractionStep && seed == _cachedSeed)
             return _cachedPeak;
 
-        int n = CloudUnderlightField.Resolution;
+        int n = CloudField.Resolution;
         _intensity ??= new float[n * n];
 
-        float mean = CloudUnderlightField.FillIntensity(_intensity, n, n, step / 128f, seed);
+        float mean = CloudField.FillIntensity(_intensity, n, n, step / 128f, seed);
 
         float peak = 0f;
         for (int i = 0; i < _intensity.Length; i++)
         {
-            float residual = CloudUnderlightField.Residual(_intensity[i], mean);
+            float residual = CloudField.Residual(_intensity[i], mean);
             if (residual > peak)
                 peak = residual;
         }

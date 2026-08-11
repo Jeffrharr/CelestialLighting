@@ -4,8 +4,17 @@ using Verse;
 
 namespace CelestialLighting;
 
-// §23b's draw hook (issue #88 option 2): draws the additive underlit-cloud quad once per frame on the
-// visible map.
+// The cloud lanes' draw hook: draws §23b's underlight, §23c's daylight shadows and §25's cloud sheet
+// once per frame on the visible map.
+//
+// ONE PATCH FOR THREE LANES, unlike §11a and §24 which each have their own. They share a field, a
+// mask, a drift clock and a cache, and — more to the point — they are three statements about ONE cloud
+// deck, so an ordering question between them is a real question rather than an accident of which
+// Harmony patch ran first. Ordering them here, in one place, in the order they physically compose
+// (light on the ground first, then the sky above it) is worth more than the symmetry of a class each.
+//
+// The first two are mutually exclusive in time anyway — underlight needs the sun below the horizon,
+// shadows need it above — so on any frame at most two of the three actually draw.
 //
 // THE SAME HOOK AND THE SAME REASONING AS Patch_SnowGlareDraw and Patch_AuroraCurtainDraw — see the
 // latter's header for the full argument against GameCondition.SkyOverlays. The short version is that
@@ -26,7 +35,7 @@ namespace CelestialLighting;
 // and issue #88 explicitly allows for "this reads as mud" being the answer, so leaving no save-file
 // residue is the only responsible choice.
 [HarmonyPatch(typeof(GameConditionManager), nameof(GameConditionManager.GameConditionManagerDraw))]
-public static class Patch_CloudUnderlightDraw
+public static class Patch_CloudLayersDraw
 {
     static void Postfix(GameConditionManager __instance, Map map)
     {
@@ -37,6 +46,12 @@ public static class Patch_CloudUnderlightDraw
         if (map == null || map.gameConditionManager != __instance)
             return;
 
+        // Order is composition order, not importance. §23b and §23c both change the light reaching the
+        // ground and are drawn at VisEffects, under FogOfWar; §25 draws the deck itself above FogOfWar,
+        // i.e. between the camera and everything the other two just did. Reversing them would put a
+        // cloud's own shadow on top of the cloud.
         CloudUnderlightOverlay.Draw(map);
+        CloudShadowOverlay.Draw(map);
+        CloudSheetOverlay.Draw(map);
     }
 }

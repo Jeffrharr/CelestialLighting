@@ -12,7 +12,7 @@
          file as source rather than reimplementing it. A Python lookalike would drift from the game the
          first time a constant moved, and the whole point is to iterate on those constants. -->
     <Compile Include="../../Source/AuroraNoise.cs" Link="AuroraNoise.cs" />
-    <Compile Include="../../Source/CloudUnderlightField.cs" Link="CloudUnderlightField.cs" />
+    <Compile Include="../../Source/CloudField.cs" Link="CloudField.cs" />
     <!-- Borrowed wholesale from AuroraPreview: a dependency-free PNG writer, because System.Drawing is
          not available here and this tool is not worth a package reference. -->
     <Compile Include="../AuroraPreview/Png.cs" Link="Png.cs" />
