@@ -153,6 +153,14 @@ public class CelestialLightingSettingsMod : Mod
             "Let a Clear day drift toward an overcast look as cloud cover builds and clears, keyed on the biome's own season and rainfall so wetter places and wetter seasons see it more. Slow and continuous — a full hour-to-hour lattice, not a coin flip — and the weather label gains a \"- N% cloudy\" suffix to match. Visual only, and only while the weather itself reads Clear; it never changes which weather is rolled or how long it lasts.");
         listing.CheckboxLabeled("    \"- N% cloudy\" weather label", ref Settings.cloudCoverLabel,
             "Show the cloud percentage next to the weather name (e.g. \"Clear - 20% cloudy\"), including a reading of 0%. Off keeps the sky effect above but leaves the weather panel reading plain \"Clear\", same as vanilla.");
+        // The other sub-toggle of "Partial cloud cover", and the one whose tooltip has to be explicit
+        // that it draws something ON the map: every other switch on this screen changes a colour, and
+        // a player scanning the list would otherwise not expect this one to put objects between the
+        // camera and their colony. The performance note is in the tooltip rather than the label —
+        // unlike the auroral curtain above, the cost here is a dozen draw calls of a baked texture
+        // with no per-frame field regeneration, so it does not warrant the same warning in the label.
+        listing.CheckboxLabeled("    Visible clouds", ref Settings.cloudSheet,
+            "Draw the clouds themselves — soft-edged sheets of cloud drifting across the map above everything on it, more of them the cloudier it is, tinted by whatever light is on them (neutral at midday, orange and pink at sunset). Without this, cloud cover only ever shows as a change in the colour and brightness of the sky.\n\nDrifts around the clock, under any weather that has a cloud deck as well as during the partial cover above. Costs up to twelve draw calls a frame while clouds are on screen and nothing at all when the sky is clear; the cloud shapes are baked once when the game loads, not per frame.");
         listing.CheckboxLabeled("Sky colour-temperature", ref Settings.skyColorTemperature,
             "Warm the sky toward the horizon on a continuous, altitude-keyed curve.");
         listing.CheckboxLabeled("Polar night blue", ref Settings.polarNightBlue,
