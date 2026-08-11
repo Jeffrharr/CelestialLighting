@@ -7325,12 +7325,49 @@ outcome issue #138 asked for — "answer *does drawn cloud read at all from this
 designing anything larger" — and it is worth more than a flattering result would have been.
 
 **What it is.** The other two lanes draw *illumination* and stop at the ground, below `FogOfWar`. This
-draws *sky*: a sheet of cloud between the camera and the map, above `FogOfWar` for the same reason
-§11a's aurora is (a cloud is not hidden by a player's ignorance of the terrain beneath it). Alpha-
-blended rather than additive, because cloud occludes. Same field, same seed, same drift clock, sampled
-at 128² with four octaves against the illumination lanes' 64² and three — see
-`CloudField.Coverage`'s octave overload for why that is the same field at two levels of detail rather
-than two fields that could disagree about where the clouds are.
+draws *sky*: cloud between the camera and the map, above `FogOfWar` for the same reason §11a's aurora
+is (a cloud is not hidden by a player's ignorance of the terrain beneath it). Alpha-blended rather
+than additive, because cloud occludes.
+
+**It is bounded sheets, and the version before it was a tiled field.** That first cut stretched one
+tiling noise texture over the whole map, and it was measured before it was replaced: mottled haze at
+partial cover, and — a tiling field at full coverage being uniform — a flat grey veil at full cover,
+**ΔE 13.99 with every pixel changed**, reading washed out rather than overcast. It worked least well
+exactly where it drew most. The tiling was doing damage on its own: *a repeat is a rhythm, and a sky
+does not have one.*
+
+So §25 is now several **bounded cloud sheets** — §11a's own arrangement (slot materials, one quad
+each), with the one difference that these *move*: an aurora's sheets stand still and shimmer, where a
+cloud's whole character is that it goes somewhere. What that buys is not cosmetic:
+
+- **No repeat to find**, because nothing tiles. A sheet's alpha reaches zero inside its own quad
+  (`BlobCoreFraction`), so it has an edge rather than a seam, and the texture is `Clamp` not `Repeat`.
+- **Coverage is a COUNT** (`CloudSheetLayout.SheetCount`, `ceil(fraction × 12)`) — more cloud is more
+  clouds, which is what more cloud looks like out of a window. Full cover is a dozen overlapping
+  sheets rather than a uniform slab.
+- **Motion is not rigid.** Speeds vary by up to half (`SpeedVariation`), so the sky cannot translate
+  as one picture — the failure `AuroraFieldRegistry.Contour` already records. Headings vary only a few
+  degrees (`CrossDriftFraction`), because a cloud field is one air mass.
+- **Sheets enter and leave off-map.** The travel span is the map plus a whole sheet at each end, so
+  the wrap at the end of a crossing happens where nothing can see it — which makes "remove it and
+  start another" free, with no live-cloud list, no spawn schedule and nothing to persist. The sky at
+  tick N is a pure function of N, which is also what makes it screenshotable.
+- **The shape is baked once, ever.** A bounded sheet's shape does not depend on coverage, position or
+  sun colour, so the 2×2 blob atlas is filled in a static constructor during load. That deletes the
+  7 ms main-thread bake the tiled version paid every time the cloud fraction moved.
+
+**Overlapping sheets read as thicker cloud, capped.** Ordinary alpha blending converges on the sheet's
+own colour, so two stacked sheets look exactly like one slightly more opaque one — which is wrong,
+because there is physically more cloud in that column. Asking the GPU would need a framebuffer read
+back per frame; asking the *layout* is free, since there are at most twelve of them and their
+positions are already known. `CloudSheetLayout.OverlapDepth` sums the circle overlap with every other
+sheet, weighted by that sheet's own alpha, and `CloudSheetMath.OverlapBoost` turns it into a capped
+multiplier on both alpha and brightness. The cap is the point: unbounded accumulation would make a
+busy sky a white slab, which is the tiled version's failure reached from the other direction.
+
+**One cloud type.** The atlas holds four shapes of the same character; variety comes from shape,
+rotation, size, speed and position. A second *type* — thin high cirrus against fat cumulus — would be
+a different shaping curve in `FillBlobAtlas` plus a second atlas, and is deliberately not attempted.
 
 **Not a residual, unlike the other two, and that is deliberate.** A drawn cloud is the object, not an
 adjustment to a flat approximation of it: an overcast sky should come out *covered*, not
@@ -7340,36 +7377,44 @@ either alone intends. That double-count is why `SheetAmplitude` is only 0.35, an
 thing to fix if this goes past prototype — most likely by feeding §13 a reduced opacity while the
 sheet draws, so the two partition the deck the way §23b and §23 partition the underlight.
 
-### Live verification — and the verdict
+### Live verification
 
-| capture | condition | `cloud_sheet_alpha` | median ΔE |
-|---|---|---|---|
-| `cl_noon_sheet.png` | Clear, cover 0.35, noon | 0.1225 | **1.45** |
-| `cl_overcast_noon_all.png` | Overcast, all three lanes | 0.3346 | **13.99**, 100% of pixels |
-| `cl_dusk_underlight_sheet.png` | dusk, with §23b | 0.0148 | 4.28 (vs 4.31 for §23b alone) |
+| capture | condition | `cloud_sheet_alpha` | median ΔE | p90 ΔE |
+|---|---|---|---|---|
+| `cl_noon_sheet.png` | Clear, cover 0.35 (5 sheets), noon | 0.3500 | **0.00** | **7.52** |
+| `cl_overcast_noon_all.png` | Overcast (12 sheets), all three lanes | 0.3346 | **4.46** | 23.19 |
+| `cl_dusk_underlight_sheet.png` | dusk, with §23b | 0.0422 | 4.28 | — |
 
-**It does not read as cloud.** At partial cover it reads as mottled haze — the field has structure but
-no *shapes*, and four octaves of value noise over a top-down map produces texture rather than objects.
-At full cover it is worse: the field is uniform, so the sheet is a flat grey veil, and the frame
-measures ΔE 13.99 with every pixel changed while looking washed out rather than overcast. **The sheet
-works least well exactly where it draws most.** And at dusk it is nearly inert (alpha 0.0148), because
-its brightness tracks sky glow.
+**THE MEDIAN IS THE WRONG STATISTIC FOR THIS LANE, and that is worth stating rather than quietly
+switching numbers.** The parent CLAUDE.md's rule — median per-pixel CIELAB ΔE, never channel means —
+exists because a *map-wide* change is what every earlier subsystem made, and a mean cancels. A bounded
+cloud covering half the frame is the case that rule does not cover: half the pixels are untouched by
+construction, so the median reports 0 while the cloud is plainly on screen. The noon frame above is
+exactly that — median 0.00, p90 **7.52**, 48.9% of pixels changed. **Quote a percentile for a lane
+that draws objects rather than weather**, and say which; the median stays right for §23b and §23c,
+which do change the whole open-sky map.
 
-That is a real answer to #138's question, from frames: **a flat noise sheet is the wrong instrument.**
-What a cloud has and this does not is shape, depth and an edge that means something — which is the
-case for the particle-based approach #138 records, and against spending more on the textured one. The
-sheet stays in the tree, off, as the thing that measurement is about.
+**It reads as cloud now.** The noon frame is a soft-edged mass over the right of the map with clear
+sky beside it — a boundary, not a texture. At full cover the twelve overlapping sheets measure ΔE
+4.46 rather than the tiled version's 13.99, and look like a covered sky rather than a grey veil.
+
+**A real bug the redesign introduced, found by measuring rather than by reading.** The first bounded
+build still scaled a sheet's alpha by the cloud fraction, carried over from the tiled version where
+one stretched field had to express coverage as opacity. With coverage now a *count*, that counted it
+twice: a 0.35-covered noon sky rendered at median ΔE 0.00 with p90 0.00 — visible only as a 1-in-255
+lift of the frame mean. `SheetAlpha` now takes the fraction as a gate and nothing else, and
+`ASheetsOwnOpacityDoesNotScaleWithHowCloudyItIs` pins it.
 
 ### Performance
 
-The sheet's bake is the expensive part of the three lanes and the only one worth its own number:
-**7.07 ms** for 128² at four octaves, on the main thread, measured by `Tools/CloudPreview`. The first
-numbers tried (192² at five) measured **28.43 ms** — nearly two dropped frames — which is why they are
-not the shipped ones. It is still a hitch rather than free, triggered whenever the cloud fraction moves
-a quantum (§22 caches hourly; a weather transition steps through several). The honest fix is §11a's:
-bake in row slices across frames and upload only on completion, which needs `ThresholdFor` restructured
-to work off a subsample. Not done, because the flag ships off and the approach itself is the thing in
-question.
+The bake is gone as a per-frame concern: the atlas is filled once in a static constructor during load,
+because a bounded sheet's shape depends on nothing that changes. The tiled version paid **7.07 ms** on
+the main thread every time the cloud fraction moved a quantum, and **28.43 ms** before its resolution
+came down — both measured by `Tools/CloudPreview`, and both now historical.
+
+What remains is up to `MaxSheets` (12) draw calls and material writes per frame, of which only the
+on-map ones are issued (`CloudSheetLayout.OnScreen` — sheets spend a real share of each crossing
+outside the map). Not yet profiled in place; that is the one number this section still owes.
 
 ## Conflict risk
 

@@ -72,14 +72,23 @@ public static class CloudSheetMath
     // UNLIKE §23b AND §23c THIS IS NOT A RESIDUAL, and the difference is the point. Those two draw
     // what a flat sky colour cannot express, so they subtract the mean and leave it to §13/§22. A
     // drawn cloud is not an adjustment to anything — it is the object itself, and an overcast sky
-    // should be covered rather than uniform-and-therefore-invisible. So this scales with the
-    // fraction directly and keeps drawing at full cover.
+    // should be covered rather than uniform-and-therefore-invisible.
     //
-    // The honest cost of that, recorded rather than hidden: over a solid overcast the sheet and §13's
-    // flat dimming are both rendering the same deck, so the map is darker than either alone intends.
-    // That is a real double-count, it is why SheetAmplitude is as low as it is, and it is the first
-    // thing to fix if §25 goes past prototype — most likely by feeding §13 a reduced opacity when the
-    // sheet is drawing, so the two partition the deck the way §23b and §23 partition the underlight.
+    // IT DOES NOT SCALE WITH THE CLOUD FRACTION, AND THAT IS A CORRECTION RATHER THAN AN OMISSION.
+    // It did in the tiled version, correctly: one stretched field had to express "how cloudy" as
+    // opacity because it covered the whole map either way. With bounded sheets, coverage is a COUNT
+    // (CloudSheetLayout.SheetCount) — more cloud is more clouds — so multiplying opacity by it as well
+    // counts coverage twice, which is exactly the double-count §23b's mean subtraction exists to
+    // avoid one lane over. Measured: with the fraction still in, a 0.35-covered noon sky rendered at
+    // median ΔE 0.00, visible only as a 1-in-255 lift of the frame mean.
+    //
+    // The fraction survives as a GATE (no cloud, no sheets) and nowhere else.
+    //
+    // The honest cost, recorded rather than hidden: over a solid overcast the sheets and §13's flat
+    // dimming are both rendering the same deck, so the map is darker than either alone intends. That
+    // is a real double-count and the first thing to fix if §25 goes past prototype — most likely by
+    // feeding §13 a reduced opacity while the sheets draw, so the two partition the deck the way §23b
+    // and §23 partition the underlight.
     public static float SheetAlpha(float cloudFraction, float skyGlow, bool inVacuum) =>
         SheetAlphaWithAmplitude(cloudFraction, skyGlow, SheetAmplitude, inVacuum);
 
@@ -92,14 +101,38 @@ public static class CloudSheetMath
         if (!(amplitude > 0f))
             return 0f;
 
-        float fraction = Clamp01(cloudFraction);
-        if (fraction <= 0f)
+        if (Clamp01(cloudFraction) <= 0f)
             return 0f;
 
         // Brightness scales the alpha as well as the colour, so a night sheet is both darker AND
         // sheerer. Drawing a dark sheet at full alpha over a night map would black the colony out
         // wholesale, which is a lighting change rather than a cloud.
-        return amplitude * fraction * SheetBrightness(skyGlow);
+        return amplitude * SheetBrightness(skyGlow);
+    }
+
+    // How much a sheet's alpha and brightness are raised by other cloud stacked on it, and the ceiling
+    // that raise is capped at. See CloudSheetLayout.OverlapDepth for where the depth comes from.
+    public const float OverlapGain = 0.35f;
+
+    public const float MaxOverlapBoost = 1.6f;
+
+    // Where sheets overlap there is more cloud in the column, and more cloud seen FROM ABOVE is
+    // brighter and denser — a thick cumulus top is the brightest thing in a daytime sky. So overlap
+    // raises both the alpha and the brightness, which is the "partially additive" behaviour ordinary
+    // alpha blending cannot produce on its own: blending converges on the sheet's own colour, so two
+    // stacked sheets would otherwise look exactly like one slightly more opaque one.
+    //
+    // CAPPED, AND THE CAP IS THE POINT. Unbounded accumulation would make a busy sky a white slab —
+    // the exact failure the tiled version had at full cover, arrived at from the other direction. 1.6
+    // lets a genuine stack read as noticeably thicker while keeping the ceiling well inside what the
+    // frame can show.
+    public static float OverlapBoost(float overlapDepth)
+    {
+        if (overlapDepth <= 0f || float.IsNaN(overlapDepth))
+            return 1f;
+
+        float boost = 1f + OverlapGain * overlapDepth;
+        return boost > MaxOverlapBoost ? MaxOverlapBoost : boost;
     }
 
     private static float Clamp01(float v)

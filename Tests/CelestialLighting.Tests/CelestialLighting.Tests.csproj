@@ -205,6 +205,10 @@
          this list is ordered by dependency, and their only dependency is CloudField. -->
     <Compile Include="../../Source/CloudShadowMath.cs" Link="CloudShadowMath.cs" />
     <Compile Include="../../Source/CloudSheetMath.cs" Link="CloudSheetMath.cs" />
+    <!-- §25's sheet placement: where the bounded clouds are and how they move. No dependencies of its
+         own; CloudSheetLayoutTests drives it alongside CloudSheetMath's overlap cap, because the two
+         halves of "overlapping clouds read as thicker" live one in each file. -->
+    <Compile Include="../../Source/CloudSheetLayout.cs" Link="CloudSheetLayout.cs" />
   </ItemGroup>
 
 </Project>

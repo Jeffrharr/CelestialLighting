@@ -15,11 +15,27 @@ public class CloudSheetMathTests
     [Test]
     public void TheSheetKeepsDrawingAtFullCoverUnlikeTheIlluminationLanes()
     {
+        Assert.That(CloudSheetMath.SheetAlpha(1f, 1f, inVacuum: false),
+            Is.EqualTo(CloudSheetMath.SheetAmplitude).Within(Tolerance));
+    }
+
+    // COVERAGE IS A COUNT, NOT AN OPACITY — CloudSheetLayout.SheetCount owns it, so a sheet's own
+    // alpha must not scale with it as well. It did in the tiled version, where one stretched field had
+    // to express "how cloudy" as opacity because it covered the map either way; carrying that over to
+    // bounded sheets counted coverage twice and rendered a 0.35-covered noon sky at median ΔE 0.00.
+    // This is the regression pin for that fix.
+    [Test]
+    public void ASheetsOwnOpacityDoesNotScaleWithHowCloudyItIs()
+    {
+        float thin = CloudSheetMath.SheetAlpha(0.15f, 1f, inVacuum: false);
         float half = CloudSheetMath.SheetAlpha(0.5f, 1f, inVacuum: false);
         float full = CloudSheetMath.SheetAlpha(1f, 1f, inVacuum: false);
 
-        Assert.That(full, Is.GreaterThan(half));
-        Assert.That(full, Is.EqualTo(CloudSheetMath.SheetAmplitude).Within(Tolerance));
+        Assert.That(thin, Is.EqualTo(half).Within(Tolerance));
+        Assert.That(half, Is.EqualTo(full).Within(Tolerance));
+
+        // The fraction survives as a gate and nowhere else.
+        Assert.That(CloudSheetMath.SheetAlpha(0f, 1f, inVacuum: false), Is.EqualTo(0f));
     }
 
     [Test]
@@ -100,7 +116,9 @@ public class CloudSheetMathTests
         Assert.That(whole, Is.EqualTo(half * 2f).Within(Tolerance));
         Assert.That(CloudSheetMath.SheetAlphaWithAmplitude(0.5f, 1f, 0f, false), Is.EqualTo(0f));
         Assert.That(CloudSheetMath.SheetAlphaWithAmplitude(float.NaN, 1f, 0.2f, false), Is.EqualTo(0f));
+        // A NaN sky glow falls back to the night floor rather than propagating — the cloud is still
+        // there, it is simply as dark as this model ever draws one.
         Assert.That(CloudSheetMath.SheetAlphaWithAmplitude(0.5f, float.NaN, 0.2f, false),
-            Is.EqualTo(0.2f * 0.5f * CloudSheetMath.NightBrightness).Within(Tolerance));
+            Is.EqualTo(0.2f * CloudSheetMath.NightBrightness).Within(Tolerance));
     }
 }
