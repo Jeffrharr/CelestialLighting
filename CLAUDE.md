@@ -116,6 +116,10 @@ things worth internalising beyond that:
   opinion. The measured set so far: §20c aerosol drift **0.36**, §19b ozone column **1.48**, §20 site
   altitude **1.88**, Realistic Planets 2 interop at their default tilt **2.25**, §21 snow cavity at
   overcast noon **6.06**, §20b pollution at 1.0 **6.79**.
+- The cloud lanes are quoted as **p90, not median** — they draw bounded objects over part of a frame,
+  which is exactly what a median hides (§25 at noon: median 0.00, p90 7.52). §25b's cloud varieties
+  measure p90 **6.15** at noon and p90 **0.00–1.29** across the sunset, i.e. verified by probe and
+  close to invisible in the frames; the section says so rather than quoting only the daylight number.
 
 Scenario notes: `Tests/Scenarios/core_design_suite.txt` batches the scenarios that are safe to run in
 one RimWorld load. Anything that leaves a `GameCondition` behind is deliberately excluded and must
