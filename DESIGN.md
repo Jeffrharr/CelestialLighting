@@ -7366,8 +7366,40 @@ multiplier on both alpha and brightness. The cap is the point: unbounded accumul
 busy sky a white slab, which is the tiled version's failure reached from the other direction.
 
 **One cloud type.** The atlas holds four shapes of the same character; variety comes from shape,
-rotation, size, speed and position. A second *type* — thin high cirrus against fat cumulus — would be
+mirroring, size, speed and position. A second *type* — thin high cirrus against fat cumulus — would be
 a different shaping curve in `FillBlobAtlas` plus a second atlas, and is deliberately not attempted.
+
+### All three lanes draw the same sheets
+
+**They did not, for a while, and that is the bug this section exists to record.** §25 moved to bounded
+sheets while §23b and §23c were still keyed on the tiled field, which put *two different cloud
+patterns on one screen*: the shadow patches and the drawn clouds disagreed about where the clouds
+were. The whole "one field" premise had quietly stopped being true.
+
+All three now iterate `CloudSheetLayout`'s placements through `CloudSheetDraw`, and they draw them two
+different ways depending on whether a roof stops them:
+
+| lane | drawn as | masked | altitude |
+|---|---|---|---|
+| §25 cloud | its own quad | no — cloud is above the roof | above `FogOfWar` |
+| §23c shadow | the open-sky mask's geometry, blob placed through its map-space UVs | yes | `VisEffects` |
+| §23b underlight | the same | yes | `VisEffects` |
+
+**The UV route is what makes a bounded shape maskable.** A quad cannot be clipped to an arbitrary set
+of cells in one draw call; the mask's mesh already *is* that set of cells, and its UVs chart 0..1
+across the map (see §24's note on that convention), so positioning the blob through
+`CloudSheetLayout.UvTransform` puts the cloud where it belongs and leaves roofed cells simply not
+drawn. `OverlapBoost` feeds all three, so a thick patch of sky, the dark patch under it and the warm
+light it bounces are one number rather than three.
+
+**It cost rotation.** A texture transform can translate, scale and mirror; it cannot rotate. Rather
+than keep rotation for §25 alone — a cloud whose shadow sat at a different angle to itself is worse
+than one that never rotates — rotation became mirroring, which both paths express. Four atlas shapes
+× four flip combinations is sixteen silhouettes, re-rolled per crossing.
+
+**Vacuum and skyless maps.** All three lanes ask `MapSky.HasSky` and `MapSky.SkyBlackedOut` before any
+arithmetic, and every pure core takes `inVacuum` as its last required parameter and early-returns on
+it, per `Vacuum.cs`'s convention. A cavern, a pocket map and an orbital habitat all draw nothing.
 
 **Not a residual, unlike the other two, and that is deliberate.** A drawn cloud is the object, not an
 adjustment to a flat approximation of it: an overcast sky should come out *covered*, not
