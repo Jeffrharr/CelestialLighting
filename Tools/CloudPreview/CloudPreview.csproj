@@ -13,6 +13,24 @@
          first time a constant moved, and the whole point is to iterate on those constants. -->
     <Compile Include="../../Source/AuroraNoise.cs" Link="AuroraNoise.cs" />
     <Compile Include="../../Source/CloudField.cs" Link="CloudField.cs" />
+    <!-- §25b's deck table, so the atlas preview below bakes the rows the game bakes rather than a
+         copy of them, and the sunset table reports the shipped windows.
+
+         THE FOUR ABOVE IT ARE A DEPENDENCY CHAIN, NOT A WISHLIST, and it is longer than it looks
+         because it terminates in one constant. CloudDeckMath delegates its shadow-entry geometry to
+         CloudUnderlightMath rather than re-deriving arccos(R/(R+h)) — the whole point of that
+         delegation — and CloudUnderlightMath reads SkyColorTemperature.NightFadeFloorDegrees, which
+         drags §8's curve and its own two prerequisites in behind it. Paid rather than stubbed: a
+         local copy of any of these is exactly the drift the delegation exists to prevent, and a
+         preview tool showing different numbers from the game is worse than no preview tool. -->
+    <Compile Include="../../Source/Formulas.cs" Link="Formulas.cs" />
+    <Compile Include="../../Source/AtmosphericColumn.cs" Link="AtmosphericColumn.cs" />
+    <Compile Include="../../Source/AerosolSpectrum.cs" Link="AerosolSpectrum.cs" />
+    <Compile Include="../../Source/SkyColorTemperature.cs" Link="SkyColorTemperature.cs" />
+    <Compile Include="../../Source/WeatherDimmingMath.cs" Link="WeatherDimmingMath.cs" />
+    <Compile Include="../../Source/CloudUnderlightMath.cs" Link="CloudUnderlightMath.cs" />
+    <Compile Include="../../Source/CloudDeckMath.cs" Link="CloudDeckMath.cs" />
+    <Compile Include="../../Source/CloudSheetMath.cs" Link="CloudSheetMath.cs" />
     <!-- Borrowed wholesale from AuroraPreview: a dependency-free PNG writer, because System.Drawing is
          not available here and this tool is not worth a package reference. -->
     <Compile Include="../AuroraPreview/Png.cs" Link="Png.cs" />

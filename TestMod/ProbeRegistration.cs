@@ -162,6 +162,23 @@ public static class ProbeRegistration
         // rather than left implicit: a zero alpha alone cannot tell "we stood down for Clouds" from
         // "Clouds never loaded" (CloudsActiveProbe's header).
         ProbeRegistry.Register(new CloudsActiveProbe());
+        // §25b, the cloud varieties. The first two say how the sky is layered — the mixture's mean
+        // altitude, which must reproduce §13's classifier exactly on a raining sky, and the cirrus
+        // share, which is the thing a single classified altitude could never report.
+        //
+        // THE LAST TWO ARE THE SUBSYSTEM'S WHOLE CLAIM AND ONLY WORK AS A PAIR. §25b says the decks
+        // go out from the bottom up, so at the right depression the low cloud reads 0 while the
+        // cirrus above it still reads 1. Pin them together, and pin sun_elevation beside them: the
+        // whole sequence is under four degrees of elevation wide, so a clock change that moved the
+        // sample out of it would otherwise show as "the effect stopped working".
+        ProbeRegistry.Register(new CloudLayersProbe(
+            "cloud_deck_mean_altitude", CloudLayersProbe.Metric.DeckMeanAltitude));
+        ProbeRegistry.Register(new CloudLayersProbe(
+            "cloud_deck_high_share", CloudLayersProbe.Metric.HighDeckShare));
+        ProbeRegistry.Register(new CloudLayersProbe(
+            "cloud_deck_underlit_low", CloudLayersProbe.Metric.UnderlitLow));
+        ProbeRegistry.Register(new CloudLayersProbe(
+            "cloud_deck_underlit_high", CloudLayersProbe.Metric.UnderlitHigh));
         // The three map-kind gates themselves, so a cavern scenario pins the DECISION and not just its
         // consequences — every gated effect also reads zero for unrelated reasons (wrong time of day,
         // no active condition), so the effect probes alone cannot say whether a gate actually fired.
@@ -479,6 +496,13 @@ public static class ProbeRegistration
         FeatureRegistry.Register(
             CloudsCompatOverride.FeatureKey,
             enabled => CloudsCompatOverride.Set(enabled));
+        // §25b, which also ships on and so also takes the two-arg overload. It is not a lane — it is a
+        // property of the cloud the lane above draws — and turning it off collapses the deck mixture
+        // to all-low, i.e. the single-deck sky §25 drew before, which is what makes an A/B of it
+        // measure the varieties rather than the whole subsystem.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.CloudDeckVarietiesKey,
+            enabled => CelestialLightingFeatures.CloudDeckVarieties = enabled);
         // Not a CelestialLightingFeatures flag: forces CloudCoverClock.FractionForMap's result to a
         // fixed constant so a scenario gets a specific, reproducible cloud fraction on demand instead
         // of depending on which absolute year the harness's clock jump happened to land in (see

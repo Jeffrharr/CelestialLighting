@@ -112,8 +112,19 @@ public static class CloudSheetLayout
         // long-running colony from being four shapes on repeat.
         public readonly int ShapeSeed;
 
+        // Which of §25b's decks this sheet belongs to (CloudDeckMath.LowDeck / MidDeck / HighDeck).
+        //
+        // A LAYOUT FIELD RATHER THAN A RENDERING ONE, because it is not only a look. The deck sets
+        // this sheet's size, speed and opacity — all three already folded into the fields above by
+        // the time anyone reads them — and it is what tells §25's colour pass which sunset window
+        // this particular cloud is on, which is the whole point of having decks at all. Carried as
+        // an index rather than a Deck struct so a Placement stays cheap to copy through the array
+        // three overlays share.
+        public readonly int Deck;
+
         public Placement(
-            float centerX, float centerZ, float size, bool flipU, bool flipV, float alpha, int shapeSeed)
+            float centerX, float centerZ, float size, bool flipU, bool flipV, float alpha,
+            int shapeSeed, int deck)
         {
             CenterX = centerX;
             CenterZ = centerZ;
@@ -122,7 +133,37 @@ public static class CloudSheetLayout
             FlipV = flipV;
             Alpha = alpha;
             ShapeSeed = shapeSeed;
+            Deck = deck;
         }
+    }
+
+    // Which cell of the blob atlas this sheet wears: its DECK picks the row and its shape seed picks
+    // the column.
+    //
+    // CENTRALISED HERE BECAUSE ALL THREE LANES HAVE TO AGREE. §25 draws the cloud, §23c its shadow
+    // and §23b the light it bounces, and if any one of them computed a different atlas cell the sky
+    // and the ground would be showing two different clouds — the exact failure CloudSheetDraw's
+    // header records from when the illumination lanes were still keyed on the old tiled field. It
+    // was open-coded in three files before decks existed, which was already one copy too many and
+    // would now be three chances to lose the row.
+    //
+    // The row-is-deck convention is what makes an atlas row a cloud TYPE: CloudField.FillBlobAtlas
+    // shapes each row with its own deck's curve, so every cell of row 2 is cirrus however the column
+    // is picked.
+    public static int BlobFor(in Placement placement, int atlasCells)
+    {
+        if (atlasCells <= 0)
+            return 0;
+
+        int column = placement.ShapeSeed % atlasCells;
+        int row = placement.Deck;
+        if (row < 0)
+            row = 0;
+
+        if (row >= atlasCells)
+            row = atlasCells - 1;
+
+        return row * atlasCells + column;
     }
 
     // The texture transform that puts this sheet's blob exactly where it belongs on the map, for a
@@ -215,22 +256,49 @@ public static class CloudSheetLayout
     // CrossDriftFraction). Sheets going visibly different ways would read as several unrelated
     // weathers at once, because a cloud field is one air mass — so the variation is in SPEED and in a
     // few degrees of heading, not in direction.
-    public static Placement PlacementFor(int index, int seed, int ticks, int mapX, int mapZ)
+    //
+    // `deckWeights` is §25b's deck mixture (CloudDeckMath.MixtureFor). It arrives here rather than
+    // being applied by the caller because the deck sets this sheet's SIZE and SPEED as well as its
+    // look, and those two feed the placement arithmetic below — a caller scaling them afterwards
+    // would move the cloud rather than resize it, because the crossing span depends on the size. A
+    // null or empty mixture puts every sheet on the low deck, which is exactly what §25 drew before
+    // decks existed.
+    public static Placement PlacementFor(
+        int index, int seed, int ticks, int mapX, int mapZ, float[] deckWeights)
     {
         float sizeNoise = Hash01(index, seed, 1);
         float speedNoise = Hash01(index, seed, 2);
         float crossNoise = Hash01(index, seed, 3);
         float phaseNoise = Hash01(index, seed, 4);
-        float rotationNoise = Hash01(index, seed, 5);
         float alphaNoise = Hash01(index, seed, 6);
-        float driftNoise = Hash01(index, seed, 7);
+
+        // The deck's draw is fixed for the whole life of the slot — NOT re-rolled per crossing, which
+        // is what the shape and the mirroring below do and is the first thing to reach for here.
+        //
+        // It cannot be, and the reason is a genuine circularity rather than a preference: the deck
+        // sets the sheet's SPEED, the speed sets how long a crossing takes, and a crossing counter is
+        // what a per-crossing re-roll would have to be keyed on. Keying the deck on a speed-agnostic
+        // counter instead was tried and is worse than it sounds — the counter then ticks out of step
+        // with the sheet's real crossings, so a cirrus sheet flips to cumulus in full view of the
+        // camera.
+        //
+        // Fixed is also the better behaviour on its own terms. A slot's size, speed and cross-track
+        // are already fixed, so this changes nothing about how varied the sky is; and because the
+        // draw is still, the only thing that can move a sheet between decks is the MIXTURE moving —
+        // i.e. the weather genuinely changing. See CloudDeckMath.DeckFor for why that reads as the
+        // sky layering upward rather than as sheets reshuffling.
+        int deck = CloudDeckMath.DeckFor(deckWeights, Hash01(index, seed, 10));
+        CloudDeckMath.Deck spec = CloudDeckMath.DeckAt(deck);
 
         int shorterAxis = mapX < mapZ ? mapX : mapZ;
-        float size = shorterAxis * BaseSizeFraction * (1f + SizeVariation * (2f * sizeNoise - 1f));
+        float size = shorterAxis * BaseSizeFraction * spec.SizeScale
+            * (1f + SizeVariation * (2f * sizeNoise - 1f));
 
-        // Speed varies per sheet; the crossing distance is the map plus a whole sheet at each end.
+        // Speed varies per sheet AND per deck; the crossing distance is the map plus a whole sheet at
+        // each end. The deck's scale divides rather than multiplies because this is a duration: a
+        // cirrus sheet at 2.1x the speed takes 1/2.1 of the time to cross.
         float span = mapX + size * 2f;
-        float crossingTicks = BaseCrossingTicks * (1f - SpeedVariation * speedNoise);
+        float crossingTicks = BaseCrossingTicks * (1f - SpeedVariation * speedNoise) / spec.SpeedScale;
         float travelled = phaseNoise + ticks / crossingTicks;
 
         // How many complete crossings this sheet has made. Everything that should differ between one
@@ -256,9 +324,12 @@ public static class CloudSheetLayout
             // fifth pass is a different-looking cloud rather than the same one coming back round.
             Hash01(index, seed + crossing * 104729, 5) > 0.5f,
             Hash01(index, seed + crossing * 104729, 6) > 0.5f,
-            // 0.55..1.0, so no sheet is invisible and none is a solid stencil.
-            0.55f + 0.45f * alphaNoise,
-            (int)(Hash01(index, seed + crossing * 104729, 9) * 1024f));
+            // 0.55..1.0 of the deck's own opacity, so no sheet is invisible and none is a solid
+            // stencil — and so a cirrus sheet is sheer through all three lanes at once rather than
+            // only in the one that draws it (see CloudDeckMath.Deck.Opacity).
+            (0.55f + 0.45f * alphaNoise) * spec.Opacity,
+            (int)(Hash01(index, seed + crossing * 104729, 9) * 1024f),
+            deck);
     }
 
     // Whether this sheet is currently within drawing distance of the map at all.

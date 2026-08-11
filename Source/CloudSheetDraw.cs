@@ -35,9 +35,14 @@ public static class CloudSheetDraw
     private static readonly CloudSheetLayout.Placement[] Placements =
         new CloudSheetLayout.Placement[CloudSheetLayout.MaxSheets];
 
+    // §25b's deck mixture. Reused for the same reason the placements are: it is one answer per map,
+    // and three lanes ask for it.
+    private static readonly float[] DeckWeights = new float[CloudDeckMath.DeckCount];
+
     private static int _placedTick = int.MinValue;
     private static int _placedMapId = -1;
     private static int _placedCount;
+    private static int _mixtureFrame = -1;
 
     // How many sheets are up over this map right now, placing them if this frame has not already.
     public static int PlaceSheets(Map map, out CloudSheetLayout.Placement[] placements)
@@ -47,17 +52,74 @@ public static class CloudSheetDraw
         int ticks = Find.TickManager?.TicksAbs ?? 0;
         int mapId = map.uniqueID;
 
-        if (ticks == _placedTick && mapId == _placedMapId)
+        // THE MIXTURE IS RESOLVED PER FRAME, THE PLACEMENTS PER TICK, and the two cadences differ on
+        // purpose. Where a sheet IS depends on nothing but the tick, so caching it on the tick is
+        // exact. What KIND of cloud it is depends on the weather, and the weather can change while
+        // the tick does not — most obviously on a paused colony, which is the state every harness
+        // scenario is in the moment after it jumps the clock.
+        //
+        // That is not a harness quirk to work around, it is a correctness bug the harness found. The
+        // probe reading this reports the live mixture while the tick-cached placements would still be
+        // drawing the old one, so the sky on screen and the number in the report would disagree —
+        // which is the exact discipline CloudLayers' header exists to keep. It showed up as a §25b
+        // A/B measuring ΔE 0.00 with every pixel unchanged: the feature toggle could not reach the
+        // draw at all, because the game was paused and the cache never expired.
+        bool mixtureMoved = ResolveMixture(map, mapId);
+
+        if (ticks == _placedTick && mapId == _placedMapId && !mixtureMoved)
             return _placedCount;
 
         int count = CloudSheetLayout.SheetCount(CloudLayers.CloudFractionFor(map));
         for (int i = 0; i < count; i++)
-            Placements[i] = CloudSheetLayout.PlacementFor(i, map.Tile.tileId, ticks, map.Size.x, map.Size.z);
+        {
+            Placements[i] = CloudSheetLayout.PlacementFor(
+                i, map.Tile.tileId, ticks, map.Size.x, map.Size.z, DeckWeights);
+        }
 
         _placedTick = ticks;
         _placedMapId = mapId;
         _placedCount = count;
         return count;
+    }
+
+    // Rewrites DeckWeights for this frame and reports whether it moved.
+    //
+    // ONCE PER FRAME RATHER THAN PER CALL, because all three lanes ask and they ask in the same
+    // frame. The read behind it (WeatherDimming.CloudAltitudeMetresFor) walks the weather pair,
+    // resolves a mod extension on each and lerps them, which is small but not free, and doing it
+    // three times over would be paying twice for an answer that cannot have changed in between.
+    //
+    // Keyed on Time.frameCount rather than on the tick precisely because the tick is the thing that
+    // can stand still while this changes — see PlaceSheets. Also keyed on the map, so switching
+    // between two colonies inside one frame cannot hand the second one the first one's sky.
+    private static bool ResolveMixture(Map map, int mapId)
+    {
+        int frame = Time.frameCount;
+        if (frame == _mixtureFrame && mapId == _placedMapId)
+            return false;
+
+        _mixtureFrame = frame;
+
+        float first = DeckWeights[0];
+        float last = DeckWeights[CloudDeckMath.DeckCount - 1];
+
+        // §25b: which decks this sky's clouds are on, decomposed from the single deck altitude §13's
+        // classifier assigns the weather.
+        //
+        // Flag off collapses it to the low deck, which is the single-deck sky §25 drew before §25b —
+        // same atlas, same shapes, same placements, same speeds, so an A/B of the flag isolates the
+        // varieties themselves rather than measuring the whole sheet lane. See
+        // CelestialLightingFeatures.CloudDeckVarieties for why that shape of "off" is the point.
+        if (CelestialLightingFeatures.CloudDeckVarieties)
+            CloudDeckMath.MixtureFor(DeckWeights, WeatherDimming.CloudAltitudeMetresFor(map));
+        else
+            CloudDeckMath.SingleDeckMixture(DeckWeights);
+
+        // Comparing the two END weights rather than all three is enough and is not a shortcut: the
+        // mixture is a normalised distribution interpolated along one monotone axis, so nothing can
+        // move the middle without moving at least one end. Exact float equality is what is wanted
+        // here — the question is "is this the same array I placed from", not "is it close".
+        return DeckWeights[0] != first || DeckWeights[CloudDeckMath.DeckCount - 1] != last;
     }
 
     // Points `material` at the given sheet, for a mesh whose UVs chart the whole map — the open-sky

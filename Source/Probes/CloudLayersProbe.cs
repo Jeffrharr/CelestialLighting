@@ -34,6 +34,19 @@ public sealed class CloudLayersProbe : IProbe
         // that look like three subsystems that happen to run together.
         ShadowAlpha,
         SheetAlpha,
+
+        // §25b: how the sky is layered right now, and where each layer is in its own sunset.
+        //
+        // THE LAST TWO ARE THE ONLY WAY THE HEADLINE CLAIM IS MEASURABLE. §25b's point is that the
+        // decks lose the sun IN ORDER, so at the right elevation the low cloud is a grey mass while
+        // the cirrus above it is still burning. That is a statement about two numbers at one instant
+        // — no single probe, and no screenshot on its own, can distinguish it from "the sunset
+        // happened" — so a scenario pins UnderlitLow and UnderlitHigh together, with sun_elevation
+        // beside them so a later clock change fails loudly instead of quietly emptying the frames.
+        DeckMeanAltitude,
+        HighDeckShare,
+        UnderlitLow,
+        UnderlitHigh,
     }
 
     // The field's peak residual is a property of (fraction, tile seed) only, and re-walking 4,096
@@ -68,6 +81,9 @@ public sealed class CloudLayersProbe : IProbe
         if (_metric == Metric.SheetAlpha)
             return CloudLayers.SheetAlphaFor(map);
 
+        if (IsDeckMetric(_metric))
+            return ReadDeck(map);
+
         // The flag is checked directly rather than inferred from any pure-layer return, for the same
         // reason CloudUnderlightProbe does it: "off" must read as a clean zero on every metric so a
         // scenario can pin the true-no-op invariant, and one of the inputs (a cloud fraction of 0) is
@@ -88,6 +104,35 @@ public sealed class CloudLayersProbe : IProbe
             return fraction;
 
         return PeakResidual(fraction, map.Tile.tileId);
+    }
+
+    private static bool IsDeckMetric(Metric metric) =>
+        metric == Metric.DeckMeanAltitude
+        || metric == Metric.HighDeckShare
+        || metric == Metric.UnderlitLow
+        || metric == Metric.UnderlitHigh;
+
+    // §25b's four metrics, all read through the same pure core the overlay calls rather than
+    // recomputed here — the discipline this whole file exists to keep.
+    //
+    // UNGATED ON §23b's FLAG, like ShadowAlpha and SheetAlpha above and unlike the three below it.
+    // The deck mixture is a property of the WEATHER, not of any one lane, and a scenario running §25
+    // alone has to be able to see it.
+    private float ReadDeck(Map map)
+    {
+        if (_metric == Metric.UnderlitLow || _metric == Metric.UnderlitHigh)
+        {
+            int deck = _metric == Metric.UnderlitLow ? CloudDeckMath.LowDeck : CloudDeckMath.HighDeck;
+            return CloudSheetMath.UnderlitFraction(
+                SolarPosition.ElevationForMap(map), CloudDeckMath.ShadowEntryDegrees(deck));
+        }
+
+        float[] weights = new float[CloudDeckMath.DeckCount];
+        CloudDeckMath.MixtureFor(weights, WeatherDimming.CloudAltitudeMetresFor(map));
+
+        return _metric == Metric.HighDeckShare
+            ? weights[CloudDeckMath.HighDeck]
+            : CloudDeckMath.MeanAltitudeMetres(weights);
     }
 
     private static float PeakResidual(float fraction, int seed)

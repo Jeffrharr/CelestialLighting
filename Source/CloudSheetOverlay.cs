@@ -27,15 +27,26 @@ namespace CelestialLighting;
 [StaticConstructorOnStartup]
 public static class CloudSheetOverlay
 {
-    // 2x2 blobs of 128, so four distinct cloud shapes. One cloud TYPE — same noise character
-    // throughout — with variety coming from shape, rotation, size and speed. A second type (thin
-    // high cirrus against fat cumulus, say) would be a different shaping curve in
-    // CloudField.FillBlobAtlas plus a second atlas, and is deliberately not attempted yet.
-    // Public so §23b and §23c draw the SAME shapes — they are the light this cloud adds and the
-    // light it blocks, so a second atlas would be two clouds claiming to be one.
-    public const int AtlasCells = 2;
+    // 3x3 blobs of 128: ONE ROW PER DECK (§25b), three shapes each.
+    //
+    // This was 2x2 and one cloud TYPE, with variety coming only from shape, mirroring, size and
+    // speed — a sky of twelve of the same thing. The row is now the cloud's KIND, shaped by its own
+    // deck's curve in CloudField.FillBlobAtlas, so a cirrus cell is thin and streaky everywhere in
+    // row 2 however its column is picked. That is why the count of decks and the atlas's axis are
+    // the same number and have to stay so; CloudSheetLayout.BlobFor is the one place that maps
+    // between them.
+    //
+    // A SECOND ATLAS WAS THE OTHER OPTION AND IS THE WRONG ONE. §23b and §23c must draw the SAME
+    // shapes this does — they are the light this cloud adds and the light it blocks — so a per-type
+    // atlas would mean three textures that all three lanes had to agree on picking from, i.e. three
+    // chances for the sky and the ground to be showing different clouds. One atlas, rows for types,
+    // keeps the agreement structural.
+    public const int AtlasCells = 3;
 
-    private const int AtlasSize = 256;
+    // 384 = 3 x 128, so a blob keeps the 128 px it had at 2x2 rather than being squeezed to 85 to
+    // fit an extra row into the old 256. The bake is 2.25x the texels it was, which is paid ONCE in
+    // the static constructor below and never again — see FillBlobAtlas's "baked once, ever" note.
+    private const int AtlasSize = 384;
 
     public static readonly Texture2D Atlas = BuildAtlas();
 
@@ -66,8 +77,14 @@ public static class CloudSheetOverlay
         SkyColorTemperature.Rgb cool = CloudLayers.CoolTintFor(map);
         CloudLayers.GradientAxisFor(map, out int axisU, out int axisV);
 
-        float underlit = CloudSheetMath.UnderlitFraction(SolarPosition.ElevationForMap(map));
-        float brightness = CloudSheetMath.SheetBrightness(map.skyManager.CurSkyGlow);
+        // ELEVATION AND SKY GLOW ONCE, ILLUMINATION PER SHEET. Both readings are properties of the
+        // map; how much of a given cloud's light is coming from beneath, and therefore how bright and
+        // how opaque that cloud is, is a property of the DECK it sits on (§25b), because a deck loses
+        // the sun at its own altitude's depression angle. Hoisting either out of the loop the way
+        // this used to is what made the whole sky recolour and go out together — see
+        // CloudSheetMath.UnderlitFraction and DeckIllumination.
+        float elevation = SolarPosition.ElevationForMap(map);
+        float skyGlow = map.skyManager.CurSkyGlow;
 
         float altitude = AltitudeLayer.FogOfWar.AltitudeFor() + Altitudes.AltInc;
 
@@ -86,8 +103,19 @@ public static class CloudSheetOverlay
             float boost = CloudSheetMath.OverlapBoost(
                 CloudSheetLayout.OverlapDepth(Placements, count, i));
 
+            float underlit = CloudSheetMath.UnderlitFraction(
+                elevation, CloudDeckMath.ShadowEntryDegrees(placement.Deck));
+
+            // Whichever is brighter, the ambient light everything gets or the direct light only this
+            // deck is getting. It scales the alpha as well as the colour, so a shadowed sheet is both
+            // darker AND sheerer (a dark sheet at full alpha would black the colony out wholesale,
+            // which is a lighting change rather than a cloud) — and, the other way round, a deck still
+            // catching the sun stays opaque enough to read while everything under it fades.
+            float illumination = CloudSheetMath.DeckIllumination(skyGlow, underlit);
+
             SetSheet(i, placement, hot, cool, axisU, axisV, underlit,
-                Mathf.Min(brightness * boost, 1f), Mathf.Min(alpha * placement.Alpha * boost, 1f), map);
+                Mathf.Min(illumination * boost, 1f),
+                Mathf.Min(alpha * illumination * placement.Alpha * boost, 1f), map);
 
             // NO OPEN-SKY MASK, deliberately. §23b and §23c mask to unroofed cells because they are
             // light reaching the GROUND, which a roof stops. A cloud is above the roof and should draw
@@ -111,11 +139,11 @@ public static class CloudSheetOverlay
     {
         Material material = SheetMats[slot];
 
-        // Which of the atlas's blobs this sheet is wearing. Taken from the placement's own ShapeSeed,
-        // which changes once per crossing — so a sheet keeps its silhouette for the whole time it is
-        // on screen and wears a different one next time round. A slot-fixed shape (what this did
-        // first) meant a long-running colony saw four clouds on repeat forever.
-        int blob = placement.ShapeSeed % (AtlasCells * AtlasCells);
+        // Which of the atlas's blobs this sheet is wearing: its deck picks the row and its ShapeSeed
+        // the column. The seed changes once per crossing — so a sheet keeps its silhouette for the
+        // whole time it is on screen and wears a different one next time round. A slot-fixed shape
+        // (what this did first) meant a long-running colony saw the same clouds on repeat forever.
+        int blob = CloudSheetLayout.BlobFor(placement, AtlasCells);
 
         // The sheet's own quad already spans exactly the sheet, so the UV transform here only has to
         // pick the atlas cell and apply the mirroring — no map-space placement, unlike the two
@@ -187,7 +215,14 @@ public static class CloudSheetOverlay
         float[] intensity = new float[AtlasSize * AtlasSize];
         byte[] pixels = new byte[AtlasSize * AtlasSize * 4];
 
-        CloudField.FillBlobAtlas(intensity, AtlasSize, AtlasCells, seed: 20260810, octaves: CloudField.SheetOctaves);
+        // The per-row shaping is §25b's deck table: row 0 keeps the single curve this atlas baked
+        // before decks existed, so a sky that draws only low cloud draws exactly what §25 drew.
+        CloudField.FillBlobAtlas(
+            intensity, AtlasSize, AtlasCells, seed: 20260810, octaves: CloudField.SheetOctaves,
+            rowCut: CloudDeckMath.ShapeCuts(),
+            rowGain: CloudDeckMath.ShapeGains(),
+            rowFrequencyU: CloudDeckMath.FrequenciesU(),
+            rowFrequencyV: CloudDeckMath.FrequenciesV());
         CloudField.WriteBlobRgba(pixels, intensity, intensity.Length);
 
         Texture2D texture = new Texture2D(AtlasSize, AtlasSize, TextureFormat.RGBA32, mipChain: false)
