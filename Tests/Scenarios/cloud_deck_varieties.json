@@ -1,0 +1,397 @@
+{
+  "name": "cloud_deck_varieties",
+  "saveFile": "minimal_colony.rws",
+  "description": "\u00a725b: three cloud decks instead of one, and what that does to a sunset.\n\nA/B is cloud_deck_varieties off against on, NOT \u00a725 off against on. Off collapses the deck mixture to all-low, so both sides draw from the same atlas with the same shapes, placements, sizes and speeds, and the only difference between two frames is which sheets were promoted off the low deck. An A/B against \u00a725-absent would have measured the whole sheet lane.\n\nTHE FOUR HOURS ARE MEASURED, not computed \u2014 cloud_deck_survey.json swept 20.70 to 20.98 at 0.02 h and these are its readings. They have to be: the entire sequence spans elevation -0.4 to -4.3 degrees, about a quarter of an in-game hour, and an hourly grid steps over it whole.\n\nWhat the four say together is the subsystem's claim. A deck loses the sun at its own altitude's depression angle (CloudUnderlightMath.ShadowEntryDepressionDegrees, delegated rather than re-derived), so the decks go out FROM THE BOTTOM UP: at -2.44 degrees the low cloud reads 0 while the cirrus above it still reads 1. That is a statement about two numbers at one instant, which is why cloud_deck_underlit_low and _high are pinned as a pair with sun_elevation beside them \u2014 no single probe, and no screenshot alone, can tell it apart from \"a sunset happened\".\n\nThe last two cases are the mixture rather than the sequence: a dry sky is layered (mean 4260 m, cirrus 0.28 of the sheets), and Rain drops it most of the way down (2222.5 m, cirrus 0.105). Rain does NOT collapse the mixture outright, and the MEASURED pin says so rather than the predicted one this scenario first carried: WeatherDimmingMath's obscuration axis puts plain Rain at about 0.63 of full rather than 1, so its classified deck sits at 2125 m and a light rain keeps some mid cloud \u2014 which is both what the classifier says and what a light rain looks like. The exact collapse is a property of PrecipitatingDeckDefaultAltitudeMetres itself and is pinned offline in CloudDeckMathTests.ARainingSkyIsAllLowDeckAndAgreesWithTheClassifierExactly, where it can be asserted at the constant rather than at whichever WeatherDef happens to reach it.",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "realistic_preset",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Soil",
+        "width": "128",
+        "height": "128",
+        "anchor": "64,64"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Soil",
+        "width": "128",
+        "height": "128",
+        "anchor": "64,186"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Soil",
+        "width": "128",
+        "height": "128",
+        "anchor": "186,64"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Soil",
+        "width": "128",
+        "height": "128",
+        "anchor": "186,186"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_cover_forced_fraction",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_sheet",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "anchor": "125,125",
+        "zoom": "60"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cd_warmup.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "20.74"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "-0.682205439",
+        "tolerance": "0.02"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_deck_underlit_low",
+        "expectedValue": "1.0000",
+        "tolerance": "0.002"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_deck_underlit_high",
+        "expectedValue": "1.0000",
+        "tolerance": "0.002"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_deck_varieties",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cd_0674_one_deck.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_deck_varieties",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cd_0674_layered.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "20.80"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "-1.49000144",
+        "tolerance": "0.02"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_deck_underlit_low",
+        "expectedValue": "0.5376",
+        "tolerance": "0.002"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_deck_underlit_high",
+        "expectedValue": "1.0000",
+        "tolerance": "0.002"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_deck_varieties",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cd_1490_one_deck.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_deck_varieties",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cd_1490_layered.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "20.86"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "-2.44172692",
+        "tolerance": "0.02"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_deck_underlit_low",
+        "expectedValue": "0.0000",
+        "tolerance": "0.002"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_deck_underlit_high",
+        "expectedValue": "1.0000",
+        "tolerance": "0.002"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_deck_varieties",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cd_2442_one_deck.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_deck_varieties",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cd_2442_layered.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "20.94"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "-3.70146585",
+        "tolerance": "0.02"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_deck_underlit_low",
+        "expectedValue": "0.0000",
+        "tolerance": "0.002"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_deck_underlit_high",
+        "expectedValue": "0.3891",
+        "tolerance": "0.002"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_deck_varieties",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cd_3701_one_deck.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_deck_varieties",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cd_3701_layered.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_deck_varieties",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cd_noon_one_deck.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_deck_varieties",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cd_noon_layered.png"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_deck_mean_altitude",
+        "expectedValue": "4260",
+        "tolerance": "1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_deck_high_share",
+        "expectedValue": "0.2800",
+        "tolerance": "0.002"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Rain",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_deck_mean_altitude",
+        "expectedValue": "2222.5",
+        "tolerance": "1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_deck_high_share",
+        "expectedValue": "0.1050",
+        "tolerance": "0.002"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cd_rain_layered.png"
+      }
+    }
+  ]
+}
