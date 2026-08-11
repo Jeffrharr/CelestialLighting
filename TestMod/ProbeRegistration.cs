@@ -158,6 +158,12 @@ public static class ProbeRegistration
             "cloud_shadow_alpha", CloudLayersProbe.Metric.ShadowAlpha));
         ProbeRegistry.Register(new CloudLayersProbe(
             "cloud_sheet_alpha", CloudLayersProbe.Metric.SheetAlpha));
+        // §26 (issue #140). Registered beside the cloud lanes because it shares their twilight window
+        // and a scenario reading one wants the other, NOT because it is a fourth cloud lane — it reads
+        // no cloud fraction and draws on a cloudless evening. Pin both: a boundary in the right place
+        // at zero strength and one at full strength that never moves fail identically otherwise.
+        ProbeRegistry.Register(new TwilightSweepProbe());
+        ProbeRegistry.Register(new TwilightSweepAmplitudeProbe());
         // The three map-kind gates themselves, so a cavern scenario pins the DECISION and not just its
         // consequences — every gated effect also reads zero for unrelated reasons (wrong time of day,
         // no active condition), so the effect probes alone cannot say whether a gate actually fired.
@@ -463,6 +469,13 @@ public static class ProbeRegistration
         FeatureRegistry.Register(
             CelestialLightingFeatures.CloudSheetKey,
             enabled => CelestialLightingFeatures.CloudSheet = enabled,
+            defaultEnabled: false);
+        // §26, also defaulting false. Not one of the cloud lanes despite sitting next to them here:
+        // it shares their twilight window but reads no cloud fraction, so a scenario can film the
+        // sweep over a cloudless evening with all three of the above off.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.TwilightSweepKey,
+            enabled => CelestialLightingFeatures.TwilightSweep = enabled,
             defaultEnabled: false);
         // Not a CelestialLightingFeatures flag: forces CloudCoverClock.FractionForMap's result to a
         // fixed constant so a scenario gets a specific, reproducible cloud fraction on demand instead

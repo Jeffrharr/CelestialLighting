@@ -209,6 +209,15 @@
          own; CloudSheetLayoutTests drives it alongside CloudSheetMath's overlap cap, because the two
          halves of "overlapping clouds read as thicker" live one in each file. -->
     <Compile Include="../../Source/CloudSheetLayout.cs" Link="CloudSheetLayout.cs" />
+    <!-- §26's twilight sweep (issue #140). No dependencies at all — it borrows its two colour
+         endpoints from §8 and §19c at the ADAPTER level, so the pure half takes only floats. The one
+         coupling worth knowing is a constant rather than a reference: SweepFloorDegrees duplicates
+         SkyColorTemperature.NightFadeFloorDegrees on purpose (a pure file cannot see the adapter's),
+         and TwilightSweepMathTests pins the two equal so the duplicate cannot drift. -->
+    <Compile Include="../../Source/TwilightSweepMath.cs" Link="TwilightSweepMath.cs" />
+    <!-- The texel bake, linked separately because it depends on TwilightSweepMath above and the list
+         is ordered by dependency. -->
+    <Compile Include="../../Source/TwilightSweepField.cs" Link="TwilightSweepField.cs" />
   </ItemGroup>
 
 </Project>
