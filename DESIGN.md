@@ -7689,7 +7689,57 @@ real-time when `stepHours × 41.667 == 1/fps`. **0.002 h per frame at 12 fps sat
 (0.08333 s), which is 250 frames for the 0.50 h filmed — and both halves are filmed, because a band
 that reads as an artifact and one that reads as dusk look identical in isolation.
 
-<!-- MEASUREMENT PENDING: ΔE and captures land with the live A/B; see issue #140. -->
+**Measured**, off vs on at the three pinned hours, `sun_elevation` pinned beside both §26 probes and
+reproducing to the digit across the A and B halves:
+
+| hour | position | amplitude | median ΔE | p90 | pixels changed |
+|---|---|---|---|---|---|
+| 20.80 | 0.2483 | 0.0971 | 2.25 | 4.03 | 97.2% |
+| 20.90 | 0.5122 | 0.1299 | **5.41** | 7.75 | 81.2% |
+| 21.00 | 0.7731 | 0.0912 | 0.00 | 1.54 | 12.8% |
+
+Against the ladder — §20c 0.36 · §19b 1.48 · §20 1.88 · RP2 interop 2.25 · §24 5.13 · §21 6.06 ·
+§20b 6.79 — the peak sits with §24 and §21, i.e. obvious without being distracting, which is the band
+CLAUDE.md settled on after §11a read as too loud at ~9.
+
+**The last row is the "median understates a bounded effect" trap, not a weak frame.** At position
+0.773 the boundary has crossed three quarters of the map, so three quarters of it is in shadow with
+nothing drawn — the median lands on an unchanged pixel while the p90 still reads 1.54 and the maximum
+5.78. Quote p90 for §26, as §25 already does for the same reason.
+
+### The band is real in-frame, and eyeballing it said otherwise
+
+The peak capture *looks* like a uniform warm lift. It is not, and this is worth recording because the
+wrong reading was the intuitive one — a whole-map gradient seen through a camera showing a fraction of
+the map delivers only a slice of itself, and a thin enough slice genuinely would be indistinguishable
+from a wash. That is issue #140's open question 1, and no whole-frame median can answer it: a flat lift
+and a steep ramp share one.
+
+Binning the off-vs-on ΔE along the screen axes settles it. Left-to-right, in eighths:
+
+| hour | left → right | spread | top → bottom spread |
+|---|---|---|---|
+| 20.80 | 2.52 2.14 2.00 1.54 1.77 2.13 3.20 **4.40** | 2.85 | 0.42 |
+| 20.90 | 4.90 5.53 **7.20 7.23** 6.87 4.22 1.65 0.23 | 7.00 | 0.90 |
+| 21.00 | **2.29** 0.50 0.03 0.00 0.00 0.00 0.00 0.00 | 2.29 | 0.67 |
+
+The bright side starts at the right edge, peaks mid-frame, and ends at the left — the boundary
+crossing the viewport, one axis carrying the whole structure (spread 7.00) while the perpendicular one
+stays flat (0.90), which is what a band rather than a blob looks like. **Map-anchored is therefore
+vindicated at this zoom**, and question 1 is answered for the default camera rather than in general;
+a much tighter zoom would still thin the slice.
+
+Frames: `Tests/Screenshots/ts_{early,peak,late}_{off,on}.png`.
+
+### What is still open
+
+- **Does it read as dusk or as an artifact?** The films exist to answer this and the numbers cannot.
+- **Zoom.** Answered for the default camera only, per above.
+- **Amplitude.** `SweepAmplitude` 0.13 produced the peak 5.41 above and was not retuned afterwards —
+  `TwilightSweep.AmplitudeScale` is the seam for sweeping it within one boot if the films say
+  otherwise.
+- **Interaction with §22/§23b/§23c/§25 on a cloudy evening.** Every measurement here is on Clear,
+  deliberately, so §26's independence from cloud is what was tested; the stacked case is unmeasured.
 
 ## Clean-room provenance
 
