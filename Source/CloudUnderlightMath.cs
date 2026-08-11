@@ -50,15 +50,20 @@ public static class CloudUnderlightMath
     // blend, and Color.Lerp's own clamp caps how much overshoot is ever visible anyway.
     private const float GlowAmplitude = 0.6f;
 
-    // §23b's peak additive alpha, at the top of the glow window over a half-covered sky. A starting
-    // guess in the same sense §24's own intensity scale started as one — the number the live A/B
-    // exists to settle — but anchored rather than invented: §24 measured that an additive pass reads
-    // as "obvious" at alpha ~0.05 and as milky haze by ~0.16, and this lane's own field can only ever
-    // spend a fraction of this budget at any one point (the residual peaks at 1 - fraction, and only
-    // over the cloudy part of the map), so the peak alpha actually reaching a pixel is roughly half
-    // this. The live sweep runs against CloudUnderlightLayer.AmplitudeScale, which seeds from here —
-    // the same dev seam SnowGlare.IntensityScale opened for the same question.
-    public const float LayerAmplitude = 0.20f;
+    // §23b's peak additive alpha, at the top of the glow window over a half-covered sky.
+    //
+    // CALIBRATED BY WATCHING, WHICH IS WHAT THE PROTOTYPE PHASE WAS FOR. The first guess was 0.20,
+    // which measured median CIELAB deltaE 9.12 — larger than anything the mod ships (§20b pollution
+    // at 6.79) — and read as distracting over a sunset rather than as part of one. Halved to 0.10 on
+    // that call. 0.20 is still reachable in one boot through the harness's cloud_underlight_strong
+    // sweep, so the frames that motivated the change stay reproducible rather than becoming a claim
+    // about a build nobody can rebuild.
+    //
+    // Note the alpha actually reaching any one pixel is well under this: the field's residual peaks
+    // at 1 - fraction and only over the cloudy part of the map, so the budget is spent on a fraction
+    // of the frame rather than across it. The sweep seam is CloudUnderlightLayer.AmplitudeScale, the
+    // same dev seam SnowGlare.IntensityScale opened for the same kind of question.
+    public const float LayerAmplitude = 0.10f;
 
     // The depression angle (degrees below the horizon, positive) at which a cloud base of the given
     // altitude enters Earth's own shadow and stops catching direct sunlight from underneath.

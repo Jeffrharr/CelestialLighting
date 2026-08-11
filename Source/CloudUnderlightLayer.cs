@@ -98,17 +98,16 @@ public static class CloudUnderlightLayer
             Vacuum.InVacuumForMap(map));
     }
 
-    // The colour the layer adds: §8's OWN target colour at this elevation, not a second reddening
-    // model of our own.
+    // The SUNWARD end of the layer's colour: §8's own target colour at this elevation, not a second
+    // reddening model of our own.
     //
     // This is the same discipline §23 kept when it chose to modulate §8's tint rather than introduce a
-    // colour target — see DESIGN.md §23 — and it is worth being explicit that §23b's novelty is
-    // spatial, not chromatic. Light reaching a cloud base from below has grazed a very long
+    // colour target — see DESIGN.md §23. Light reaching a cloud base from below has grazed a very long
     // atmospheric path, and §8's curve at a below-horizon elevation is already this codebase's one
     // canonical answer for what a path that long does to sunlight. A private "even redder than §8"
-    // curve here would be a second opinion about the same physics, which is exactly the drift
-    // DESIGN.md §20/§20d warns about for mired space.
-    public static SkyColorTemperature.Rgb TintFor(Map map)
+    // curve here would be a second opinion about the same physics, exactly the drift DESIGN.md
+    // §20/§20d warns about for mired space.
+    public static SkyColorTemperature.Rgb HotTintFor(Map map)
     {
         float elevation = SolarPosition.ElevationForMap(map);
         return SkyColorTemperature.SkyColorForElevation(
@@ -117,5 +116,36 @@ public static class CloudUnderlightLayer
             SiteAltitude.AerosolFractionForMap(map),
             SiteAltitude.AngstromExponentForMap(map),
             Vacuum.InVacuumForMap(map));
+    }
+
+    // The ANTI-SOLAR end: §19c's composed twilight hue, this codebase's existing answer for the
+    // purple/magenta a twilight sky carries away from the sun (DESIGN.md §19c).
+    //
+    // WHY A SECOND COLOUR AT ALL, when §23 was so careful to have only one. Because one colour is
+    // precisely what the flat lane already is. A single tint spread over the whole field adds warm
+    // light everywhere, which reads as the map being turned up rather than as a sunset; what makes a
+    // real one dramatic is that the light arriving at the GROUND differs by direction — deep orange
+    // bounced off deck lit through the reddest path, pink off deck lit by the anti-solar sky. Two
+    // ends is the minimum that can express that, and both ends are borrowed rather than invented, so
+    // this is still not a new colour authority.
+    //
+    // Delegates to §19c's own adapter rather than calling PurpleLightMath directly, so the five
+    // inputs it composes (elevation, latitude, pressure, aerosol, Angstrom) come from the same
+    // memoised reads §19c uses — see PurpleLight.ComposedHueFor's note on why an independently-read
+    // latitude drifts from the elevation it is meant to pair with. §23b gets §19c's hue, not a second
+    // computation of it, which also means the two cannot disagree about what twilight purple is.
+    public static SkyColorTemperature.Rgb CoolTintFor(Map map) => PurpleLight.ComposedHueFor(map);
+
+    // Which way the sun lies, as the tiling axis CloudUnderlightField's colour gradient runs along.
+    // Read through the same SolarPosition.InputsForMap the shadow direction uses (§1), so the colour
+    // gradient and the shadows on the ground agree about where the sun is.
+    public static void GradientAxisFor(Map map, out int axisU, out int axisV)
+    {
+        SolarPosition.Inputs inputs = SolarPosition.InputsForMap(map);
+        float elevation = SolarPosition.ElevationForMap(map);
+        float azimuth = Formulas.SolarAzimuthDegrees(
+            inputs.Latitude, inputs.Declination, elevation, inputs.DayPercent);
+
+        CloudUnderlightField.GradientAxis(azimuth, out axisU, out axisV);
     }
 }

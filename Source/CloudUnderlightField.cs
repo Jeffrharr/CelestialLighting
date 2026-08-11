@@ -1,3 +1,5 @@
+using System;
+
 namespace CelestialLighting;
 
 // Pure math only — no UnityEngine or Verse types anywhere in this file, same discipline as
@@ -36,16 +38,25 @@ namespace CelestialLighting;
 // are bounded by [0, 1], and CloudUnderlightFieldTests pins the whole curve rather than its endpoints.
 public static class CloudUnderlightField
 {
-    // Baked texture size per axis. Deliberately small: the structure being drawn is cloud-scale
-    // (tens of map cells across), the texture is bilinearly filtered by the GPU on the way to the
-    // screen, and a full re-bake walks every texel. 64 keeps a whole rebake at ~4k noise samples, so
-    // it can happen inside one frame without the rolling row-slice machinery §11a needed.
+    // Baked texture size per axis. Deliberately small: a full re-bake walks every texel (CloudPreview
+    // prints the timing), and there is nothing fine-grained in what is being drawn.
+    //
+    // AND "NOTHING FINE-GRAINED" IS THE SCOPE, NOT A LIMITATION — it is the single most important
+    // sentence in this file. §23b draws the light a cloud base BOUNCES BACK DOWN ONTO THE GROUND. It
+    // is not a picture of clouds. Bounced light off a deck is diffuse by construction: every point on
+    // the ground sees a large solid angle of lit cloud, so the illumination varies smoothly over tens
+    // of cells and has no edges of its own to render. A sharper field here would not look more like
+    // clouds, it would look like cloud SHADOWS painted on the terrain, which is a different (and
+    // wrong) claim about where the light is coming from.
+    //
+    // An actual drawn cloud layer — §11a-style, in the sky, with shapes — is a separate subsystem and
+    // has its own ticket. This one deliberately stops at the illumination.
     public const int Resolution = 64;
 
     // How many map cells one texture tile spans. One tile is a little smaller than a large (250x250)
-    // map, so a colony sees roughly one cloud field's worth of structure at a time rather than a
-    // repeating wallpaper — with the base lattice below, that puts a single patch at ~60 cells,
-    // about the size of a built-up colony core.
+    // map, so a colony sees roughly one field's worth of variation at a time rather than a repeating
+    // wallpaper — with the base lattice below, that puts a single bright region at ~60 cells, about
+    // the size of a built-up colony core.
     public const float CellsPerRepeat = 240f;
 
     // Lattice cells per texture tile per axis, i.e. the base frequency of the noise. Kept as a
@@ -53,9 +64,10 @@ public static class CloudUnderlightField
     // the SHAPE of the field, the resolution is only how finely it is sampled.
     public const int LatticeCells = 4;
 
-    // Three octaves, matching §22's CloudCoverDrift rather than §11a's aurora. Cloud edges are ragged
-    // at every scale; two octaves reads as smooth blobs and four starts putting detail below one
-    // texel, where bilinear filtering throws it away and the bake pays for it anyway.
+    // Three octaves, matching §22's CloudCoverDrift rather than §11a's aurora. Two reads as a single
+    // smooth blob; more than three puts detail below one texel, where bilinear filtering throws it
+    // away and the bake pays for it anyway — and, per the scope note above, detail is not what this
+    // field is for.
     public const int Octaves = 3;
 
     // Bins used to find the coverage threshold from the tile's own histogram. See ThresholdFor.
@@ -218,37 +230,104 @@ public static class CloudUnderlightField
         return residual < 0f ? 0f : residual;
     }
 
-    // Writes the RGBA32 bytes the texture wants: the tint in RGB, the residual in alpha.
+    // Writes the RGBA32 bytes the texture wants: the colour in RGB, the residual in alpha.
     //
-    // THE TINT IS BAKED INTO THE TEXTURE RATHER THAN SET AS THE MATERIAL'S COLOUR, which looks like
-    // the long way round and is not. Both §11a's aurora and §24's glare set Material.color to
-    // (1, 1, 1, alpha) — white — and neither has ever asked ShaderDatabase.MoteGlow to multiply a
-    // COLOURED material through a texture. SheetMaterial's own header records why this codebase does
-    // not guess about that shader's behaviour: it is not ours, and being wrong renders something
-    // plausible rather than nothing. The aurora bakes its driver colour into its pixels for the same
-    // reason, so this file follows the one path that is already known to work here.
+    // THE COLOUR IS NOT ONE COLOUR, AND THAT IS WHERE THE DRAMA IS. A single flat tint across the
+    // whole field adds warm light everywhere and reads as the map being turned up — which is exactly
+    // what §23's flat lane already does, one lane down, and is the thing this one exists to escape.
+    // What makes a real sunset dramatic is that the light arriving at the ground is a DIFFERENT
+    // COLOUR in different directions: the deck toward the sun is lit through the longest, reddest
+    // path and bounces deep orange down, while the deck away from it is lit by the anti-solar
+    // twilight sky and bounces pink/magenta. This blends between those two ends across the field.
     //
-    // The cost of that choice is bounded by the split above: re-tinting walks the bytes but not the
-    // noise, so a colour that moves every frame costs a memory write per texel, not a field rebake.
+    // Both ends are existing authorities rather than a palette invented here — the same discipline
+    // §23 kept by modulating §8's tint instead of introducing a colour target. `hot` is §8's own
+    // SkyColorForElevation, the colour it is already blending the sky toward; `cool` is §19c's
+    // ComposedHue, this codebase's answer for twilight purple. §23b's novelty stays spatial.
+    //
+    // THE AXIS IS QUANTISED TO THE EIGHT DIRECTIONS THAT TILE, which is a real compromise and worth
+    // stating plainly. The texture repeats and pans (that is how drift is free), so anything baked
+    // into it must be periodic over the tile or a seam sweeps across the colony. A gradient along an
+    // arbitrary sun azimuth is not periodic; a cosine along an INTEGER lattice direction is. So
+    // GradientAxis rounds the sun's direction to the nearest of the eight, and the colour lobes lie
+    // along that. The axis therefore tracks the sun to within 22.5 degrees, and the lobe's phase
+    // rides with the field rather than being pinned to the sun — a player cannot see the sun from a
+    // top-down camera, so what reads is that the light differs across the map, which is the point.
+    //
+    // THE BYTES ARE BAKED RATHER THAN SET AS THE MATERIAL'S COLOUR, and that was true before the
+    // gradient existed. Both §11a's aurora and §24's glare set Material.color to (1, 1, 1, alpha) —
+    // white — and neither has ever asked ShaderDatabase.MoteGlow to multiply a COLOURED material
+    // through a texture. SheetMaterial's own header records why this codebase does not guess about
+    // that shader: it is not ours, and being wrong renders something plausible rather than nothing.
+    // The gradient makes the choice moot anyway, since a material colour could not express it.
+    //
+    // Cost stays on the cheap side of the cadence split: this walks the bytes, not the noise, so a
+    // colour (and an axis) that move every frame cost a memory write per texel, not a field rebake.
     public static void WriteRgba(
-        byte[] rgba, float[] intensity, int count, float mean, float tintR, float tintG, float tintB)
+        byte[] rgba, float[] intensity, int width, int height, float mean,
+        float hotR, float hotG, float hotB, float coolR, float coolG, float coolB,
+        int axisU, int axisV)
     {
-        if (rgba == null || intensity == null)
+        if (rgba == null || intensity == null || width <= 0 || height <= 0)
             return;
 
-        byte r = ToByte(tintR);
-        byte g = ToByte(tintG);
-        byte b = ToByte(tintB);
+        float uScale = 1f / width;
+        float vScale = 1f / height;
 
-        for (int i = 0; i < count; i++)
+        for (int y = 0; y < height; y++)
         {
-            int o = i * 4;
-            rgba[o + 0] = r;
-            rgba[o + 1] = g;
-            rgba[o + 2] = b;
-            rgba[o + 3] = ToByte(Residual(intensity[i], mean));
+            int row = y * width;
+            float v = (y + 0.5f) * vScale;
+
+            for (int x = 0; x < width; x++)
+            {
+                // 0.5 + 0.5 cos(2 pi s) with s an integer combination of u and v: periodic over the
+                // tile in both axes by construction, so it wraps exactly wherever the pan puts it.
+                // 1 at the hot end of the lobe, 0 at the cool end.
+                float s = axisU * ((x + 0.5f) * uScale) + axisV * v;
+                float warmth = 0.5f + 0.5f * MathF.Cos(2f * MathF.PI * s);
+
+                int o = (row + x) * 4;
+                rgba[o + 0] = ToByte(Mix(coolR, hotR, warmth));
+                rgba[o + 1] = ToByte(Mix(coolG, hotG, warmth));
+                rgba[o + 2] = ToByte(Mix(coolB, hotB, warmth));
+                rgba[o + 3] = ToByte(Residual(intensity[row + x], mean));
+            }
         }
     }
+
+    // The tiling direction nearest the sun's horizontal bearing, as the integer (u, v) pair
+    // WriteRgba's cosine runs along. See that method for why an arbitrary direction cannot be used.
+    //
+    // Azimuth is degrees clockwise from north, matching Formulas.SolarAzimuthDegrees, and the map's
+    // axes are x = east and z = north, so the sun's direction is (sin, cos). Each component rounds to
+    // -1, 0 or +1 at cos(67.5 degrees) = 0.3827, the halfway point between the axis-aligned and
+    // diagonal directions — which is what makes all eight equally likely rather than the diagonals
+    // swallowing the axes.
+    public static void GradientAxis(float sunAzimuthDegrees, out int axisU, out int axisV)
+    {
+        float radians = sunAzimuthDegrees * (MathF.PI / 180f);
+        axisU = RoundToUnit(MathF.Sin(radians));
+        axisV = RoundToUnit(MathF.Cos(radians));
+
+        // Both components can only round to zero if the sine and cosine are both under 0.3827, which
+        // no angle satisfies — but a NaN azimuth would land here, and a (0, 0) axis makes the cosine
+        // constant, i.e. a flat tint with no gradient at all. Falling back to due north keeps the
+        // gradient present rather than silently reverting to the thing this exists to escape.
+        if (axisU == 0 && axisV == 0)
+            axisV = 1;
+    }
+
+    private static int RoundToUnit(float component)
+    {
+        const float DiagonalThreshold = 0.3827f;
+        if (component > DiagonalThreshold)
+            return 1;
+
+        return component < -DiagonalThreshold ? -1 : 0;
+    }
+
+    private static float Mix(float a, float b, float t) => a + (b - a) * t;
 
     // The drift offset for a tick, in UV. Computed from the absolute tick rather than accumulated per
     // frame, for the reason AuroraSheetSpec.PanU records: an accumulated pan depends on how many

@@ -245,22 +245,107 @@ public class CloudUnderlightFieldTests
 
     // --- The bytes handed to the texture ---
 
+    // Alpha is the residual, floored at zero for the below-mean texel. Written as a single row with a
+    // zero axis so the colour gradient is constant across it and this test is only about the alpha —
+    // the gradient has tests of its own below.
     [Test]
-    public void WriteRgbaCarriesTheTintInRgbAndTheResidualInAlpha()
+    public void WriteRgbaCarriesTheResidualInAlpha()
     {
         float[] intensity = { 0f, 0.5f, 1f };
         byte[] rgba = new byte[intensity.Length * 4];
 
-        CloudUnderlightField.WriteRgba(rgba, intensity, intensity.Length, 0.25f, 1f, 0.5f, 0.25f);
+        CloudUnderlightField.WriteRgba(
+            rgba, intensity, intensity.Length, 1, 0.25f, 1f, 1f, 1f, 1f, 1f, 1f, axisU: 0, axisV: 0);
 
-        Assert.That(rgba[0], Is.EqualTo(255));
-        Assert.That(rgba[1], Is.EqualTo(128));
-        Assert.That(rgba[2], Is.EqualTo(64));
-
-        // Alpha is the residual, floored at zero for the below-mean texel.
         Assert.That(rgba[3], Is.EqualTo(0));
         Assert.That(rgba[7], Is.EqualTo(64));
         Assert.That(rgba[11], Is.EqualTo(191));
+    }
+
+    // --- The colour gradient: §23b's answer to "warm cloud against a cool vault" ---
+
+    // The whole point of two colour endpoints is that the frame contains BOTH at once. A field that
+    // ends up all one colour is the flat lane again with extra steps, which is what this pins against.
+    [Test]
+    public void WriteRgbaSpansBothColourEndsAcrossTheField()
+    {
+        int n = 32;
+        float[] intensity = new float[n * n];
+        for (int i = 0; i < intensity.Length; i++)
+            intensity[i] = 1f;
+
+        byte[] rgba = new byte[intensity.Length * 4];
+
+        // Hot is pure red, cool is pure blue, so "which end is this texel" is readable per channel.
+        CloudUnderlightField.WriteRgba(
+            rgba, intensity, n, n, 0f, 1f, 0f, 0f, 0f, 0f, 1f, axisU: 1, axisV: 0);
+
+        byte minRed = 255;
+        byte maxRed = 0;
+        for (int i = 0; i < intensity.Length; i++)
+        {
+            byte red = rgba[i * 4];
+            if (red < minRed) minRed = red;
+            if (red > maxRed) maxRed = red;
+        }
+
+        Assert.That(maxRed, Is.GreaterThan(240), "nothing in the field reached the sunward colour");
+        Assert.That(minRed, Is.LessThan(15), "nothing in the field reached the anti-solar colour");
+    }
+
+    // The gradient is baked into a texture that TILES and PANS, so it has to be periodic over the tile
+    // or a colour seam sweeps across the colony once per drift cycle. That is the entire reason the
+    // axis is an integer pair rather than the sun's true bearing — see WriteRgba's header.
+    [TestCase(1, 0)]
+    [TestCase(0, 1)]
+    [TestCase(1, 1)]
+    [TestCase(1, -1)]
+    public void TheColourGradientWrapsSeamlessly(int axisU, int axisV)
+    {
+        int n = 16;
+        float[] intensity = new float[n * n];
+        byte[] rgba = new byte[intensity.Length * 4];
+
+        CloudUnderlightField.WriteRgba(
+            rgba, intensity, n, n, 0f, 1f, 0f, 0f, 0f, 0f, 1f, axisU, axisV);
+
+        // The texel one past the right edge wraps to column 0 of the same row, and likewise for rows.
+        // Comparing the two ends of each axis is the cheapest statement of "no discontinuity at the
+        // wrap": with a period-1 cosine they differ by exactly one texel's worth of gradient.
+        for (int y = 0; y < n; y++)
+        {
+            int left = (y * n) * 4;
+            int right = (y * n + n - 1) * 4;
+            Assert.That(System.Math.Abs(rgba[left] - rgba[right]), Is.LessThan(70),
+                $"row {y} jumps across the wrap");
+        }
+    }
+
+    // Eight directions, all of which tile. The rounding threshold is cos(67.5 degrees), so each of the
+    // eight owns an equal 45-degree arc rather than the diagonals swallowing the axes.
+    [TestCase(0f, 0, 1, TestName = "GradientAxis_North")]
+    [TestCase(90f, 1, 0, TestName = "GradientAxis_East")]
+    [TestCase(180f, 0, -1, TestName = "GradientAxis_South")]
+    [TestCase(270f, -1, 0, TestName = "GradientAxis_West")]
+    [TestCase(45f, 1, 1, TestName = "GradientAxis_NorthEast")]
+    [TestCase(135f, 1, -1, TestName = "GradientAxis_SouthEast")]
+    [TestCase(225f, -1, -1, TestName = "GradientAxis_SouthWest")]
+    [TestCase(315f, -1, 1, TestName = "GradientAxis_NorthWest")]
+    public void GradientAxisRoundsToTheEightTilingDirections(float azimuth, int expectedU, int expectedV)
+    {
+        CloudUnderlightField.GradientAxis(azimuth, out int axisU, out int axisV);
+
+        Assert.That(axisU, Is.EqualTo(expectedU));
+        Assert.That(axisV, Is.EqualTo(expectedV));
+    }
+
+    // A zero axis makes the cosine constant, i.e. a flat tint — exactly the thing the gradient exists
+    // to avoid — so nonsense must fall back to a real direction rather than to no gradient.
+    [Test]
+    public void GradientAxisNeverReturnsNoDirection()
+    {
+        CloudUnderlightField.GradientAxis(float.NaN, out int axisU, out int axisV);
+        Assert.That(axisU == 0 && axisV == 0, Is.False);
     }
 
     // Every consumer of these bytes is a texture upload, and a NaN reaching one is a corrupt pixel
@@ -271,7 +356,9 @@ public class CloudUnderlightFieldTests
         float[] intensity = { float.NaN, 5f, -5f };
         byte[] rgba = new byte[intensity.Length * 4];
 
-        CloudUnderlightField.WriteRgba(rgba, intensity, intensity.Length, 0f, float.NaN, 9f, -9f);
+        CloudUnderlightField.WriteRgba(
+            rgba, intensity, intensity.Length, 1, 0f,
+            float.NaN, 9f, -9f, float.NaN, 9f, -9f, axisU: 0, axisV: 0);
 
         Assert.That(rgba[0], Is.EqualTo(0));
         Assert.That(rgba[1], Is.EqualTo(255));
