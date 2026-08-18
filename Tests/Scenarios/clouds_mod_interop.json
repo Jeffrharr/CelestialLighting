@@ -1,0 +1,39 @@
+{
+  "name": "clouds_mod_interop",
+  "saveFile": "minimal_colony.rws",
+  "description": "The Clouds interop (DESIGN.md \"Interop: Clouds\"). MUST BE RUN WITH CLOUDS ACTIVATED: add --mod /home/deck/.local/share/Steam/steamapps/workshop/content/294100/3039192325 to the run_test.sh invocation, or clouds_mod_active reads 0 and every pin below is measuring the wrong thing. The setup mirrors cloud_sheet_default.json exactly (latitude 45, day 40, Cinematic, vanilla day length, soil out to the camera's edges, Clear weather with the fraction forced to 0.35, noon) so its pins are directly comparable: that scenario is the same map without Clouds. Both flags §23c and §23b ship OFF, so this turns them on — the point is to prove all three positional lanes stand down, not just the one that ships on. clouds_interop is the harness-only key that suppresses the interop itself (CloudsCompatOverride), which is what makes the second half an A/B out of one boot rather than a second process with a different live particle field. The FastForward before the clock snap is load-bearing and is the one step that differs from cloud_sheet_default.json: Clouds is a ParticleSystem driven off TickManager.DoSingleTick, so on a paused colony it has emitted nothing and the frames show an empty sky for the mod that is supposedly drawing it. 600 ticks populate it; SetTime then snaps the clock back to noon so every pin below stays comparable with the no-Clouds scenario. The two captures are deliberately NOT separated by a tick advance, so the only thing moving between them is the interop.",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "45" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "40" } },
+    { "type": "SetFeature", "args": { "featureName": "realistic_preset", "enabled": "false" } },
+    { "type": "SetFeature", "args": { "featureName": "realistic_day_length", "enabled": "false" } },
+    { "type": "SetTerrain", "args": { "def": "Soil", "width": "128", "height": "128", "anchor": "64,64" } },
+    { "type": "SetTerrain", "args": { "def": "Soil", "width": "128", "height": "128", "anchor": "64,186" } },
+    { "type": "SetTerrain", "args": { "def": "Soil", "width": "128", "height": "128", "anchor": "186,64" } },
+    { "type": "SetTerrain", "args": { "def": "Soil", "width": "128", "height": "128", "anchor": "186,186" } },
+    { "type": "SetWeather", "args": { "weatherDef": "Clear", "instant": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "cloud_cover_forced_fraction", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "cloud_shadow", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "cloud_underlight_layer", "enabled": "true" } },
+    { "type": "FastForward", "args": { "ticks": "600" } },
+    { "type": "SetTime", "args": { "hour": "12" } },
+    { "type": "Screenshot", "args": { "fileName": "cmi_warmup.png" } },
+
+    { "type": "Probe", "args": { "probeName": "sun_elevation", "expectedValue": "56.7200", "tolerance": "0.02" } },
+    { "type": "Probe", "args": { "probeName": "clouds_mod_active", "expectedValue": "1.0000", "tolerance": "0.0005" } },
+    { "type": "Probe", "args": { "probeName": "cloud_sheet_alpha", "expectedValue": "0.0000", "tolerance": "0.0005" } },
+    { "type": "Probe", "args": { "probeName": "cloud_shadow_alpha", "expectedValue": "0.0000", "tolerance": "0.0005" } },
+    { "type": "Probe", "args": { "probeName": "cloud_underlight_layer", "expectedValue": "0.0000", "tolerance": "0.0005" } },
+    { "type": "Probe", "args": { "probeName": "cloud_underlight_cover", "expectedValue": "0.3500", "tolerance": "0.0005" } },
+    { "type": "Screenshot", "args": { "fileName": "cmi_clouds_only.png" } },
+
+    { "type": "SetFeature", "args": { "featureName": "clouds_interop", "enabled": "false" } },
+    { "type": "Probe", "args": { "probeName": "clouds_mod_active", "expectedValue": "0.0000", "tolerance": "0.0005" } },
+    { "type": "Probe", "args": { "probeName": "cloud_sheet_alpha", "expectedValue": "0.3500", "tolerance": "0.0005" } },
+    { "type": "Probe", "args": { "probeName": "cloud_shadow_alpha", "expectedValue": "0.1505", "tolerance": "0.0005" } },
+    { "type": "Screenshot", "args": { "fileName": "cmi_both_mods.png" } },
+
+    { "type": "SetFeature", "args": { "featureName": "clouds_interop", "enabled": "true" } },
+    { "type": "Probe", "args": { "probeName": "cloud_sheet_alpha", "expectedValue": "0.0000", "tolerance": "0.0005" } }
+  ]
+}

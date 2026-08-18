@@ -53,6 +53,8 @@
     <Compile Include="../Source/Probes/PlanetsmithTiltOverride.cs" Link="PlanetsmithTiltOverride.cs" />
     <Compile Include="../Source/Probes/RealisticPlanetsTiltOverride.cs" Link="RealisticPlanetsTiltOverride.cs" />
     <Compile Include="../Source/Probes/CloudCoverFractionOverride.cs" Link="CloudCoverFractionOverride.cs" />
+    <Compile Include="../Source/Probes/CloudsCompatOverride.cs" Link="CloudsCompatOverride.cs" />
+    <Compile Include="../Source/Probes/CloudsActiveProbe.cs" Link="CloudsActiveProbe.cs" />
     <Compile Include="../Source/Probes/MoonDeclinationProbe.cs" Link="MoonDeclinationProbe.cs" />
     <Compile Include="../Source/Probes/ShadowVectorXProbe.cs" Link="ShadowVectorXProbe.cs" />
     <Compile Include="../Source/Probes/CivilTwilightProbe.cs" Link="CivilTwilightProbe.cs" />
