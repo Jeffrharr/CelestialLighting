@@ -8176,6 +8176,31 @@ is to rebuild the vertex colour the way `GenerateLightingOverlay` does, summing 
 lights with our coverage applied only to the ones we modelled, and projecting once at the end;
 `GlowGridPerLight` already exposes everything that needs.
 
+**Performance is NOT yet measured, and the profile that looks like it measured it did not.** The
+`mask` window of `vector_light_perf.json` reports 0.3165 ms/frame against the gated window's 1.1273,
+which reads as a threefold win and is worth nothing: `Patch_VectorLightSuppress:Postfix` **does not
+appear in that window's table at all**, and neither does `Patch_IndoorSkyOcclusion:Postfix`, which
+patches the same method. Zero rows for two unrelated regenerate patches means **zero section
+regenerates happened** during the window, and the mask does all of its work in a regenerate. The
+window measured the mask doing nothing, which is the "zeros are not measurement" trap wearing a
+green number.
+
+What the same run *does* establish is the shape of the cost rather than its size:
+
+| window | `Patch_VectorLightDraw:Postfix` avg ms/frame | `Patch_VectorLightSuppress:Postfix` | µs/call | max ms/frame |
+|---|---|---|---|---|
+| gated | 0.0001 | 0.0000 | 0.0 | 0.005 |
+| hard edges | 0.0371 | 0.0125 | 13.4 | 1.53 |
+| soft edges | 0.0314 | 0.0165 | 22.1 | 4.42 |
+| mask | **0.0013** | *absent — no regenerates* | — | — |
+
+The draw row collapsing to 0.0013 ms/frame is real and is the design working: phase 3 stands the
+additive pass down entirely, so there is **no per-frame cost at all**. Every cost moves into the
+bake, where the crossfade already spends 13–22 µs per regenerate with worst frames of 1.5–4.4 ms.
+The mask's bake is certainly dearer than that — it samples coverage per cell per emitter — and that
+number is the one that decides whether this can ship. Measuring it needs a profile window that
+provokes regenerates rather than one that happens not to, which the existing scenario does not do.
+
 **Ships off**, like every other §27 phase, and stands down when the per-emitter arrays cannot be read.
 
 ### Performance (`Tests/Scenarios/vector_light_perf.json`)
