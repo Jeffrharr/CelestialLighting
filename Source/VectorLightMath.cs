@@ -794,10 +794,21 @@ public static class VectorLightMath
     // lets a light past that when it is inside its own overlightRadius. An additive pass has neither
     // the compositing nor the cap, so at full strength a torch delivers visibly more light than the
     // same torch does in vanilla — measured on the first live A/B, where a 14-cell room went from
-    // dim to uniformly washed out. Anchoring on vanilla's own 0.5 keeps §27 a change of SHAPE rather
-    // than a change of how bright lamps are, which is what makes the A/B legible: if brightness moved
-    // too, there would be no way to tell which of the two produced the difference on screen.
-    public const float DefaultStrength = 0.5f;
+    // dim to uniformly washed out.
+    //
+    // WHY IT IS NOT 0.5 EITHER, WHICH IS WHAT IT WAS. Anchoring on vanilla's own GroundGlowAt cap
+    // was an argument, not a measurement, and it came out about 3 L* too bright: a lit room read
+    // mean L* 17.09 against vanilla's 14.02 on the same scene, roughly a fifth more light. Nothing
+    // could see that until the vanilla arm was captured alongside, because every A/B until then had
+    // §27 in BOTH of its frames. Solved for directly instead — the additive term is linear in this
+    // constant, so with the room's ambient floor measured from the darkest fifth of the shadowed
+    // frame, 0.5 * (vanilla's contribution / ours) lands on 0.3534, and 0.35 predicts L* 13.94
+    // against vanilla's 14.02. §27 is a change of SHAPE, not a change of how bright lamps are, and
+    // this is the constant that has to hold that line.
+    //
+    // Re-measure rather than re-derive if the falloff curve, PeakScale or the suppression half ever
+    // move: this is a fitted value and its inputs are all upstream of it.
+    public const float DefaultStrength = 0.35f;
 
     // How much of a light's contribution survives the daylight around it.
     //

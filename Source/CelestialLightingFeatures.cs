@@ -657,6 +657,24 @@ public static class CelestialLightingFeatures
     // falloff curve. The hard-edged mesh and the hard-edged texture lookup are the same objects the
     // soft version uses, not a preserved copy of them.
     public static bool VectorLightPenumbra = true;
+
+    // Feature key for VectorLightSuppress.
+    public const string VectorLightSuppressKey = "vector_light_suppress";
+
+    // §27's suppressing half: whether Patch_VectorLightSuppress zeroes the artificial-light RGB in
+    // SectionLayer_LightingOverlay before our polygons are drawn over it.
+    //
+    // ON is the real subsystem. Vanilla's flood has already lit every cell §27 wants to carve a
+    // shadow into, and an additive pass cannot remove light, so without this every shadow simply
+    // fills back in from underneath and the whole mechanism reduces to a brightness increase.
+    //
+    // OFF IS THE MIXED CASE, and it is worth being able to look at rather than only to reason about.
+    // Epic #145 rejected "additive polygons on top of vanilla's render" on exactly the argument
+    // above; this flag is what lets that rejection be a photograph instead of a claim. It is also
+    // the escape hatch the epic asks for in as many words — the suppressing half is the risky one,
+    // because with it on anything §27 does not know about goes BLACK rather than merely unimproved,
+    // and it was always meant to be droppable independently of the polygons if that went wrong.
+    public static bool VectorLightSuppress = true;
 }
 
 public enum SunClockMode
