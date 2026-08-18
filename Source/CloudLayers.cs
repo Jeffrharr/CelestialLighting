@@ -66,9 +66,12 @@ public static class CloudLayers
     // the year has to cost almost nothing.
     public static float StrengthFor(Map map)
     {
-        // (1) Feature flag. One bool, and "off" has to mean the draw call does not happen — that is
-        // what makes the harness A/B a real baseline rather than a picture of the mod being absent.
-        if (!CelestialLightingFeatures.CloudUnderlightLayer)
+        // (1) Feature flag, and the Clouds interop riding on it. One bool, and "off" has to mean the
+        // draw call does not happen — that is what makes the harness A/B a real baseline rather than
+        // a picture of the mod being absent. The interop reuses that exact path rather than opening a
+        // second one: with Clouds installed this lane is off, because it draws light at OUR sheets'
+        // positions and theirs are somewhere else (CloudsCompat).
+        if (!CloudsCompat.LaneDraws(CloudLane.UnderlightLayer, CelestialLightingFeatures.CloudUnderlightLayer))
             return 0f;
 
         if (map?.skyManager == null)
@@ -114,7 +117,9 @@ public static class CloudLayers
     // is a memoised float against a constant, and it still saves the weather walk on every night frame.
     public static float ShadowAlphaFor(Map map)
     {
-        if (!CelestialLightingFeatures.CloudShadow)
+        // Same pairing as StrengthFor's opening gate, and the same reason for it: this wash lands
+        // where WE put the cloud, so it stands down when another mod is drawing the clouds.
+        if (!CloudsCompat.LaneDraws(CloudLane.GroundShadow, CelestialLightingFeatures.CloudShadow))
             return 0f;
 
         if (map?.skyManager == null)
@@ -148,7 +153,14 @@ public static class CloudLayers
         // .CloudSheet for why). Asked here rather than left to CloudFractionFor: that function's §22
         // arm already reads 0 with partial cover off, but its §13 arm does not, so a rainy day would
         // otherwise keep growing sheets for a player who switched the mod's cloud opinion off.
-        if (!CelestialLightingFeatures.CloudCover || !CelestialLightingFeatures.CloudSheet)
+        //
+        // The Clouds interop folds in as a third condition rather than a fourth line, because it is
+        // the same question: whether this mod draws cloud at all. It is the strongest case of the
+        // three lanes — ours and theirs would be two sets of cloud shapes over one map, not merely
+        // two placements of one — so with Clouds installed the sheets are theirs (CloudsCompat).
+        if (!CloudsCompat.LaneDraws(
+                CloudLane.DrawnSheet,
+                CelestialLightingFeatures.CloudCover && CelestialLightingFeatures.CloudSheet))
             return 0f;
 
         if (map?.skyManager == null)

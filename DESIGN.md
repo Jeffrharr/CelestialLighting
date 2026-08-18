@@ -8312,3 +8312,100 @@ had been carrying Realistic, and `run_test.sh` does not reset mod settings. That
 knowing about because it is silent: under Realistic every `shadow_extrude_far_cells` pin in
 `planetsmith_tilt.json` fails by a constant 1.0/1.4, which reads as a shadow regression and is only
 the preset's `shadowLengthScale` going live.
+
+## Interop: Clouds (`Source/CloudsCompat.cs` / `CloudsCompatMath.cs`)
+
+**Clouds** (`brrainz.clouds`, Andreas Pardeike, Workshop 3039192325) hangs a Unity `ParticleSystem`
+over the map: one `GameObject` per map, a billboard particle material whose tint, contrast, opacity
+and edge power come from the current `WeatherDef` through its `WeatherCloudProfile`, drifting on the
+map's wind, plus a per-map `CloudVisibility` gate that refuses pocket maps, fully-roofed maps and
+maps with `disableSunShadows`.
+
+**It conflicts with nothing of ours, and that is the problem.** Decompiled, its Harmony targets are
+`CameraDriver.Update`, `WorldCameraDriver.Update`, `TickManager.DoSingleTick`, `Map.MapPreTick`,
+`MapDeiniter.Deinit`, `Current.ProgramState` and `MemoryUtility` — camera, tick and lifecycle. It
+never touches `SkyManager`, `GenCelestial`, `GlowGrid`, `SectionLayer` or any shadow type; it writes
+no sky colour and no `.glow`. There is no double-patch to order and no light written twice. What
+there is instead is **a second opinion about where the clouds are**, which is worse than a conflict
+because both halves work correctly and the screen is still wrong.
+
+### What breaks, and why it is the same bug §25 already recorded
+
+§25 draws bounded sheets moving across the map, and §23b and §23c draw underlight and shadow at
+*exactly those sheets' positions* — see §25's "All three lanes draw the same sheets", a section that
+exists because we shipped, and then fixed, the bug where two of our OWN lanes disagreed about cloud
+placement. Installing Clouds recreates that bug across mods: their particles and our sheets are
+placed independently, so a shadow crosses the colony under open sky while one of their clouds sails
+past casting nothing. A player does not read that as two mods. They read it as ours being broken.
+
+### The ruling: positional lanes give way, colour lanes do not
+
+`CloudsCompatMath.LaneIsPositional` is the whole interop. The question it asks of each lane is *does
+this depend on where WE decided a cloud is?*
+
+| lane | positional | with Clouds installed |
+|---|---|---|
+| §22 Clear-day sky tint | no | keeps running |
+| §22 `- N% cloudy` label | no | keeps running |
+| §23 colour-temperature scaling | no | keeps running |
+| §23b underlit cloud layer | yes | stands down |
+| §23c daylight cloud shadows | yes | stands down |
+| §25 drawn cloud sheets | yes | stands down |
+
+Only §25 is an outright duplicate of what Clouds draws; §23b and §23c do things it does not attempt
+at all. **We give those up anyway**, because a correct effect keyed to the wrong sky is worse than no
+effect — the shadow is not improved by being the only shadow.
+
+The colour lanes stay because a sky tint is a statement about the whole sky and survives someone else
+rendering the shapes: a 40%-cloudy afternoon is a greyer, less saturated afternoon whoever draws the
+cumulus. Clouds cannot disagree with it either, since its particles read the `WeatherDef`'s palette
+rather than the live sky target and so never see what §22 did. A player who installs Clouds for
+clouds still gets our atmosphere; they get Pardeike's clouds in it.
+
+**This is a judgement call at exactly one place, and it is §22.** With Clouds installed, a Clear day
+that §22 has drifted to 40% cover shows a greyer sky under a nearly cloud-free particle field (their
+`Cover` is ~0 for Clear, though the emission rate never reaches zero, so a few wisps always drift).
+The sky says cloudy and the sky mostly does not look it. Kept anyway: §22 is a *sky colour*
+subsystem, which is the class of thing this mod owns and Clouds does not, and switching it off with
+the interop would silently delete a whole subsystem a player enabled, along with §25's master gate.
+Reversible in one line of `LaneIsPositional` if the frames argue otherwise.
+
+### Suppression reuses the feature-flag path
+
+`CloudLayers`' three gates — `StrengthFor`, `ShadowAlphaFor`, `SheetAlphaFor` — ask
+`CloudsCompat.LaneDraws(lane, flag)` instead of the flag alone, and a suppressed lane returns exactly
+`0f`, which each overlay already reads as "make no draw call". That is the same contract every
+feature flag in the mod keeps (off is the pre-feature baseline bit-for-bit), so the interop opens no
+second code path and the harness sees a real baseline. `CloudLayers` being the sole chokepoint for
+all three lanes *and* for `CloudLayersProbe` is what makes three guard clauses the entire change: a
+probe reading can never disagree with what was drawn.
+
+`LaneDraws` is an AND, deliberately, and it is pinned as one
+(`CloudsCompatMathTests.CloudsNeverRevivesADisabledLane`). The interop may only take a lane from on
+to off — written as a branch ("use theirs instead of ours") it would eventually turn something on
+that the player had switched off.
+
+### Presence, not per-map deferral
+
+Clouds exposes a public `CloudVisibility.IsAllowedOn(Map)`, so we could resume our own sheets on the
+maps it declines. Deliberately not done. Two of its three refusals (pocket map, `disableSunShadows`)
+are cases our own gates already refuse via `MapSky.HasSky`/`SkyBlackedOut` (§17), and the third — a
+surface map that happens to be fully roofed — is a case where *they decided there should be no
+clouds*; treating that as an invitation to draw ours would be arguing with the mod we just handed the
+deck to. Presence is the whole signal, which also means no reflection into their internals: the only
+thing this file names is a packageId string, so a player without Clouds loads a build that has never
+heard of it.
+
+The lookup is cached in a `static bool?` rather than walking `LoadedModManager.RunningMods` per call
+as the other three compat files do — those are read from worldgen and from the settings screen, this
+one is read from three per-frame gates, and the load order cannot change while a game is running.
+
+### Not a setting, but reported
+
+Clouds has no `ModSettings` — installing it is switching it on — so there is no "installed but
+disabled" state to detect and a switch here would only let a player run both cloud fields at once.
+The settings screen instead prints a line under "Visible clouds" saying Clouds is drawing them
+(`CelestialLightingSettingsMod.ShowExternalCloudSource`), the same ruling as the axial-tilt line:
+report which mod owns the thing rather than offering a switch whose only use is making two mods
+render the same object. The checkbox itself stays live, because it is what the mod goes back to the
+moment Clouds is uninstalled.

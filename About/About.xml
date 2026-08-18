@@ -242,5 +242,12 @@ Requires Harmony.</description>
          Declared anyway, because a shared patch target should be visible in the load graph, and
          because our fit check quietly assumes it is measuring a finished string. -->
     <li>Fuu.UncompromisingFires</li>
+    <!-- Clouds hangs a Unity ParticleSystem of drifting clouds over the map. It patches nothing we
+         patch (camera, tick and map lifecycle only) and never writes a sky colour or .glow, so this
+         is not a patch-ordering entry — it is here because CloudsCompat reads the load order to
+         decide whether to draw clouds at all. With it installed our three positional cloud lanes
+         (§23b underlight layer, §23c cloud shadows, §25 drawn sheets) stand down and it owns the
+         deck; our sky colour keeps running. See DESIGN.md "Interop: Clouds". -->
+    <li>brrainz.clouds</li>
   </loadAfter>
 </ModMetaData>
