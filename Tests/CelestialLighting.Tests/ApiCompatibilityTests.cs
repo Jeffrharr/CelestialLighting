@@ -2139,48 +2139,67 @@ public class ApiCompatibilityTests
     }
 
     [Test]
-    public void WeatherManager_DoWeatherGUI_StillHasTheLabelCapSeamPatchCloudCoverLabelTranspiles()
+    public void WeatherManager_DoWeatherGUI_StillHasTheDrawSeamPatchCloudCoverLabelTranspiles()
     {
         // Patch_CloudCoverLabel is a Transpiler, and the seam it splices into is the single
-        // `callvirt Def::get_LabelCap` that DoWeatherGUI builds its Widgets.Label argument from. A
+        // Widgets.Label(Rect, TaggedString) call DoWeatherGUI draws the weather name with. A
         // transpiler that finds no seam does not throw — it silently emits the method unchanged, so
         // the mod would ship with a feature that reads as enabled in the settings panel and never
         // appears on screen. This test is the thing that fails instead.
         //
-        // It also pins WHY the insert is safe next to another mod's inserts on the same seam: the
-        // getter returns TaggedString and Widgets.Label(Rect, TaggedString) consumes one, so our
-        // TaggedString-in/TaggedString-out call is stack-neutral and leaves the argument type the
-        // call site still expects. Uncompromising Fires transpiles this exact seam the same way (see
-        // that patch's header and About.xml's loadAfter entry); if either half of that shape moves,
-        // the composition is what breaks, and it breaks here rather than in a player's weather panel.
+        // The DRAW call is the anchor rather than the Def.LabelCap the string is built from, and that
+        // is deliberate: in vanilla IL the two sites are adjacent and either would do, but another
+        // mod inserting between them (Uncompromising Fires does exactly this) makes the choice decide
+        // whether we run before or after their contribution. Anchoring on the draw call puts us last
+        // in either load order, which is what lets WithCloudCover measure the finished string. Both
+        // halves of the shape are pinned below: the getter still produces the TaggedString, and the
+        // overload that consumes one still exists, so our TaggedString-in/TaggedString-out insert
+        // stays stack-neutral and leaves the argument type the call site expects.
         var type = GetType("RimWorld.WeatherManager");
         Assert.That(type, Is.Not.Null, "RimWorld.WeatherManager no longer exists");
         var method = type!.Methods.SingleOrDefault(m => m.Name == "DoWeatherGUI" && m.Parameters.Count == 1);
         Assert.That(method, Is.Not.Null, "WeatherManager.DoWeatherGUI(Rect) no longer exists");
-        Assert.That(method!.Parameters[0].ParameterType.FullName, Is.EqualTo("UnityEngine.Rect"));
+        Assert.That(method!.Parameters[0].ParameterType.FullName, Is.EqualTo("UnityEngine.Rect"),
+            "DoWeatherGUI's Rect parameter is what the transpiler loads (Ldarg_1) to measure the label against");
+
+        var drawCalls = method.Body.Instructions
+            .Where(i => i.Operand is MethodReference m
+                && m.DeclaringType.FullName == "Verse.Widgets" && m.Name == "Label"
+                && m.Parameters.Count == 2
+                && m.Parameters[0].ParameterType.FullName == "UnityEngine.Rect"
+                && m.Parameters[1].ParameterType.FullName == "Verse.TaggedString")
+            .ToList();
+        Assert.That(drawCalls.Count, Is.EqualTo(1),
+            "DoWeatherGUI no longer calls Widgets.Label(Rect, TaggedString) exactly once — "
+            + "Patch_CloudCoverLabel's transpiler splices its cloud-cover suffix in front of that single "
+            + "call and takes the first match");
 
         var labelCapCalls = method.Body.Instructions
             .Where(i => i.Operand is MethodReference m
                 && m.DeclaringType.FullName == "Verse.Def" && m.Name == "get_LabelCap")
             .ToList();
         Assert.That(labelCapCalls.Count, Is.EqualTo(1),
-            "DoWeatherGUI no longer calls Def.LabelCap exactly once — Patch_CloudCoverLabel's transpiler "
-            + "splices its cloud-cover suffix onto that single call and takes the first match");
-
+            "DoWeatherGUI no longer builds its label from a single Def.LabelCap — the transpiler no "
+            + "longer anchors here, but the label still has to be the TaggedString our insert wraps");
         Assert.That(((MethodReference)labelCapCalls[0].Operand!).ReturnType.FullName,
             Is.EqualTo("Verse.TaggedString"),
             "Def.LabelCap no longer returns TaggedString — Patch_CloudCoverLabel.WithCloudCover takes and "
             + "returns one to keep the insert stack-neutral");
+    }
 
-        var widgets = GetType("Verse.Widgets");
-        Assert.That(widgets, Is.Not.Null, "Verse.Widgets no longer exists");
-        Assert.That(
-            widgets!.Methods.Any(m => m.Name == "Label" && m.Parameters.Count == 2
-                && m.Parameters[0].ParameterType.FullName == "UnityEngine.Rect"
-                && m.Parameters[1].ParameterType.FullName == "Verse.TaggedString"),
-            Is.True,
-            "Widgets.Label(Rect, TaggedString) no longer exists — it is what consumes the label our "
-            + "transpiler hands back, and the overload resolution is what keeps the insert type-preserving");
+    [Test]
+    public void Text_HasCalcSize_ForTheLabelFitCheck()
+    {
+        // Patch_CloudCoverLabel measures the finished label with this before deciding whether its
+        // suffix fits on one line, and drops the suffix if it does not. If this disappears the fit
+        // rule cannot be evaluated at all — which is the difference between "our readout yields to
+        // another mod's" and "the weather panel wraps over the temperature row".
+        var type = GetType("Verse.Text");
+        Assert.That(type, Is.Not.Null, "Verse.Text no longer exists");
+        var method = type!.Methods.SingleOrDefault(m => m.Name == "CalcSize" && m.Parameters.Count == 1
+            && m.Parameters[0].ParameterType.FullName == "System.String");
+        Assert.That(method, Is.Not.Null, "Text.CalcSize(string) no longer exists");
+        Assert.That(method!.ReturnType.FullName, Is.EqualTo("UnityEngine.Vector2"));
     }
 
     // --- helpers ---

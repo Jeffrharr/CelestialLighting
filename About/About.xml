@@ -235,12 +235,12 @@ Requires Harmony.</description>
     <li>ReBuild.COTR.DoorsAndCorners</li>
     <!-- Genuine shared patch target: Uncompromising Fires transpiles WeatherManager.DoWeatherGUI to
          append its map-dryness readout to the weather label and its dryness detail to that label's
-         tooltip. Patch_CloudCoverLabel (§22) appends "- N% cloudy" to the same label off the same
-         `Def.LabelCap` seam, and both inserts are TaggedString-in/TaggedString-out, so the two
-         compose in either order — this entry only fixes WHICH order, and with it we transpile second
-         and therefore sit closest to the property, reading "Clear - 50% cloudy, Moderate dryness"
-         rather than "Clear, Moderate dryness - 50% cloudy". Ordering is load-bearing for legibility,
-         not for correctness. -->
+         tooltip. Patch_CloudCoverLabel (§22) appends "- N% cloudy" to the same label. Both inserts are
+         TaggedString-in/TaggedString-out and ours is anchored on the Widgets.Label call rather than on
+         the Def.LabelCap the string is built from, which deliberately puts us after everything anyone
+         else appended in EITHER application order — so nothing about the result depends on this entry.
+         Declared anyway, because a shared patch target should be visible in the load graph, and
+         because our fit check quietly assumes it is measuring a finished string. -->
     <li>Fuu.UncompromisingFires</li>
   </loadAfter>
 </ModMetaData>

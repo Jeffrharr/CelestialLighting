@@ -21,21 +21,26 @@ namespace CelestialLighting;
 // Patch_SuppressRandomEclipse's technique, on the argument that IL-shape patches are the more fragile
 // option across a RimWorld update. That argument was sound in isolation and wrong in a mod ecosystem:
 // a Prefix returning false skips the *patched* original, so it silently deletes every other mod's
-// contribution to the same method — including transpilers, whose whole point is to compose. Uncompromising
-// Fires (Fuu.UncompromisingFires, Workshop 2623963630) transpiles exactly this method to append its map
-// dryness readout to the same label and its dryness detail to the same tooltip; our Prefix erased both
-// outright, in all weathers, and even with CloudCoverLabel switched off, because the replacement body
-// ran unconditionally. Nothing warns about this — the other mod's patch applies cleanly and simply
-// never executes.
+// contribution to the same method — including transpilers, whose whole point is to compose.
+// Uncompromising Fires (Fuu.UncompromisingFires, Workshop 2623963630) transpiles exactly this method to
+// append its map dryness readout to the same label and its dryness detail to the same tooltip; our
+// Prefix erased both outright, in all weathers, and even with CloudCoverLabel switched off, because the
+// replacement body ran unconditionally. Nothing warns about this — the other mod's patch applies
+// cleanly and simply never executes.
 //
 // So the trade is: accept the IL-shape fragility (guarded by the Cecil pin in ApiCompatibilityTests,
-// which fails loudly if the seam moves) in exchange for being a well-behaved co-patcher. The seam is
-// the single `callvirt Def::get_LabelCap` that DoWeatherGUI's Widgets.Label call is built from; we
-// insert a call that takes the TaggedString the property just produced and returns a TaggedString, so
-// the insertion is stack-neutral and type-preserving. That composes with Uncompromising Fires in either
-// application order — its inserts sit on the same seam and are also TaggedString-in/TaggedString-out,
-// so whichever mod's transpiler runs second simply wraps the other's result. About.xml's loadAfter
-// entry pins the nicer of the two readings ("Clear - 50% cloudy, Moderate dryness").
+// which fails loudly if the seam moves) in exchange for being a well-behaved co-patcher.
+//
+// THE SEAM IS THE Widgets.Label CALL, NOT Def.LabelCap — AND THAT CHOICE IS LOAD-BEARING. The obvious
+// anchor is the `callvirt Def::get_LabelCap` the label is built from, and in vanilla IL the two sites
+// are adjacent, so either anchor produces the same code. They stop being equivalent the moment another
+// mod inserts between them, which is exactly what Uncompromising Fires does. Anchoring on LabelCap puts
+// our call BEFORE their concatenation when they patch second and AFTER it when they patch first, so
+// what we see depends on load order. Anchoring on the Widgets.Label call that consumes the string puts
+// us after everything anyone else appended, in either order: we are always the last hand on the label
+// before it is drawn. That is what makes the fit check below able to measure the real, final string
+// rather than our own half of it, and it is why About.xml's loadAfter entry is now only about
+// determinism rather than about outcome.
 //
 // WHY THE SUFFIX IS NOT LOCALIZED. This mod ships with no Languages/ folder and no other
 // mod-authored string anywhere in Source — every existing `[MustTranslate]` reference here is the mod
@@ -55,29 +60,42 @@ namespace CelestialLighting;
 [HarmonyPatch(typeof(WeatherManager), nameof(WeatherManager.DoWeatherGUI))]
 public static class Patch_CloudCoverLabel
 {
-    // The seam: DoWeatherGUI's only `curWeatherPerceived.LabelCap`, the value it hands to
-    // Widgets.Label(Rect, TaggedString). We append our call immediately after it so the suffix is
-    // applied to the label before anything else consumes it.
     static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
     {
-        MethodInfo labelCap = AccessTools.PropertyGetter(typeof(Def), nameof(Def.LabelCap));
+        MethodInfo drawLabel = AccessTools.Method(typeof(Widgets), nameof(Widgets.Label),
+            new[] { typeof(Rect), typeof(TaggedString) });
         MethodInfo appender = AccessTools.Method(typeof(Patch_CloudCoverLabel), nameof(WithCloudCover));
 
         bool inserted = false;
         foreach (CodeInstruction instruction in instructions)
         {
-            yield return instruction;
-
-            // Only the first match is ours; vanilla has exactly one, but another mod's transpiler may
-            // have already added more, and appending our percentage twice would be worse than missing
-            // it once. Ldarg_0 is DoWeatherGUI's `this` — the WeatherManager whose map we read.
-            bool isSeam = !inserted && instruction.Calls(labelCap);
+            // Only the first match is ours. Vanilla draws the label once; another mod's transpiler
+            // could have added a second Widgets.Label, and appending our percentage twice would be
+            // worse than appending it to the wrong one of two.
+            bool isSeam = !inserted && instruction.Calls(drawLabel);
             if (isSeam)
             {
                 inserted = true;
+
+                // Ldarg_1 is DoWeatherGUI's own `rect` parameter — the width the finished string has
+                // to fit into. Ldarg_0 is `this`, the WeatherManager whose map we read. The stack at
+                // this point is [rect2][label]; we push two more, our call pops three and pushes one,
+                // leaving [rect2][label] for the Widgets.Label call itself. Stack-neutral by
+                // construction, which is what lets another mod's inserts sit next to ours.
+                CodeInstruction loadRect = new CodeInstruction(OpCodes.Ldarg_1);
+
+                // Any branch that targeted the draw call must now target the first instruction we
+                // inserted in front of it, or it would jump over our call and past a half-built stack.
+                // Vanilla has no such branch here; this costs two lines and survives one appearing.
+                loadRect.labels.AddRange(instruction.labels);
+                instruction.labels.Clear();
+
+                yield return loadRect;
                 yield return new CodeInstruction(OpCodes.Ldarg_0);
                 yield return new CodeInstruction(OpCodes.Call, appender);
             }
+
+            yield return instruction;
         }
 
         // A silent no-op would ship a dead feature that looks alive in the settings panel, so say so.
@@ -85,13 +103,13 @@ public static class Patch_CloudCoverLabel
         // failure at patch time. ApiCompatibilityTests is the check meant to catch this before a
         // player ever sees it.
         if (!inserted)
-            Log.Warning("[CelestialLighting] Could not find Def.LabelCap in WeatherManager.DoWeatherGUI; "
-                + "the cloud-cover weather label (§22) is disabled this session.");
+            Log.Warning("[CelestialLighting] Could not find the Widgets.Label call in "
+                + "WeatherManager.DoWeatherGUI; the cloud-cover weather label (§22) is disabled this session.");
     }
 
     // Stack-neutral, type-preserving: TaggedString in, TaggedString out. Anything else here would
     // break whichever other mod's inserts happen to sit next to ours on the same seam.
-    public static TaggedString WithCloudCover(TaggedString label, WeatherManager manager)
+    public static TaggedString WithCloudCover(TaggedString label, Rect rect, WeatherManager manager)
     {
         // Pocket maps and pre-game previews can carry a WeatherManager with no map yet — the same
         // null a live map never has, guarded the same way CloudCoverClock.FractionForMap itself
@@ -115,7 +133,25 @@ public static class Patch_CloudCoverLabel
         // Always appended, including 0% — a player watching this label to confirm the feature is
         // alive should see a stable readout every time it's Clear, not have it silently vanish at
         // exactly the moments (a calm hour) that are most likely to prompt the question.
-        int percent = Mathf.RoundToInt(Mathf.Clamp01(CloudCoverClock.FractionForMap(manager.map)) * 100f);
-        return label + $" - {percent}% cloudy";
+        int percent = CloudCoverLabelMath.Percent(CloudCoverClock.FractionForMap(manager.map));
+        TaggedString withSuffix = label + CloudCoverLabelMath.Suffix(percent);
+
+        // The one case where the suffix IS dropped: it no longer fits on one line. See
+        // CloudCoverLabelMath's header for why ours is the part that yields rather than another mod's.
+        // Measured through Text.CalcSize on the resolved string because that is exactly what
+        // Widgets.Label(Rect, TaggedString) is about to draw — it calls Resolve() itself, and CalcSize
+        // strips the same tags — and measured HERE rather than off a cached width because the string
+        // includes whatever other mods appended, which we do not own and cannot predict. Text.Font is
+        // already GameFont.Small at this point: DoWeatherGUI sets it before the draw call we sit in
+        // front of, so this measures in the font the label is actually rendered in.
+        //
+        // Per-frame CalcSize is deliberate and in-budget: vanilla's own GlobalControls.DoCountdownTimer
+        // measures a string the same way in the same panel every frame, and Text.CalcSize reuses a
+        // shared GUIContent rather than allocating one.
+        string resolved = withSuffix.Resolve();
+        if (!CloudCoverLabelMath.FitsOneLine(Text.CalcSize(resolved).x, rect.width))
+            return label;
+
+        return withSuffix;
     }
 }
