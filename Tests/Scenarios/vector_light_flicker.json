@@ -1,0 +1,152 @@
+{
+  "name": "vector_light_flicker",
+  "saveFile": "minimal_colony.rws",
+  "description": "Frame-to-frame stability of \u00a727, swept with the soft edges off and then on so the question is not 'do frames differ' but 'did phase 2 make them differ MORE'. Twenty ticks a frame keeps the clock still enough that CurSkyGlow cannot move while everything tick-driven still animates. Vanilla's CompFireOverlay flickers the torch sprite by design and shows up in both arms; anything along the shadow edges, or anything present in the second arm and not the first, would be ours. A third arm sweeps the same window with vector_lights off altogether, which is the control that separates '\u00a727's edges shimmer' from 'RimWorld's camera drifts a sub-pixel between frames and every high-contrast edge in the scene shimmers with it'. Pins vector_light_blend off explicitly: it ships on, and these numbers were measured without it, so leaving it implicit would silently change what is being flickerd.",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Concrete",
+        "width": "40",
+        "height": "24",
+        "offset": "0,45",
+        "clear": "true"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "0,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "-13,-7; -13,-6; -13,-5; -13,-4; -13,-3; -13,-2; -13,-1; -13,0; -13,1; -13,2; -13,3; -13,4; -13,5; -13,6; -13,7; -12,-7; -12,7; -11,-7; -11,7; -10,-7; -10,7; -9,-7; -9,7; -8,-7; -8,7; -7,-7; -7,7; -6,-7; -6,7; -5,-7; -5,7; -4,-7; -4,7; -3,-7; -3,7; -2,-7; -2,7; -1,-7; -1,7; 0,-7; 0,-6; 0,-5; 0,-4; 0,-3; 0,-2; 0,-1; 0,1; 0,2; 0,3; 0,4; 0,5; 0,6; 0,7"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "0,45",
+        "layout": "cells",
+        "cells": "-8,-3; -8,-2; -6,3; -6,4"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "TorchLamp",
+        "offset": "0,45",
+        "layout": "cells",
+        "cells": "-3,0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "0"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "0,45",
+        "zoom": "22"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_penumbra_area",
+        "expectedValue": "11.8912582",
+        "tolerance": "0.05"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "TickLapse",
+      "args": {
+        "ticks": "20",
+        "steps": "24",
+        "fileNamePrefix": "flickhard",
+        "settleFrames": "2",
+        "fps": "10"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "TickLapse",
+      "args": {
+        "ticks": "20",
+        "steps": "24",
+        "fileNamePrefix": "flicksoft",
+        "settleFrames": "2",
+        "fps": "10"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "TickLapse",
+      "args": {
+        "ticks": "20",
+        "steps": "24",
+        "fileNamePrefix": "flickoff",
+        "settleFrames": "2",
+        "fps": "10"
+      }
+    }
+  ]
+}

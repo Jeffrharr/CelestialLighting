@@ -311,9 +311,15 @@ public class VectorLightMathTests
 
         VectorLightMath.Segment[] segments = VectorLightMath.SilhouetteSegments(blocked, 8, 8, 0, 0);
         VectorLightMath.LightPolygon polygon = VectorLightMath.Build(3.5f, 3.5f, 6f, segments, 48);
-        VectorLightMath.LightMesh mesh = VectorLightMath.BuildMesh(3.5f, 3.5f, 6f, polygon);
+        VectorLightMath.LightMesh mesh = VectorLightMath.BuildMesh(
+            3.5f, 3.5f, 6f, polygon, VectorLightMath.DefaultSourceRadius);
 
-        Assert.That(TriangleAreaSum(mesh), Is.EqualTo(FanArea(polygon, 3.5f, 3.5f)).Within(1e-3f));
+        // Only the fan. The penumbra wedges that follow it are deliberately OUTSIDE the polygon —
+        // that is what a soft edge is — so counting them here would read as overlap and fail a mesh
+        // that is correct. FanTriangleCount exists to draw that line.
+        Assert.That(
+            TriangleAreaSum(mesh, mesh.FanTriangleCount),
+            Is.EqualTo(FanArea(polygon, 3.5f, 3.5f)).Within(1e-3f));
     }
 
     // Consistent winding, tested as "no triangle faces the other way". A single flipped face is
@@ -344,7 +350,8 @@ public class VectorLightMathTests
 
         VectorLightMath.Segment[] segments = VectorLightMath.SilhouetteSegments(blocked, 8, 8, 0, 0);
         VectorLightMath.LightPolygon polygon = VectorLightMath.Build(3.5f, 3.5f, 6f, segments, 48);
-        VectorLightMath.LightMesh mesh = VectorLightMath.BuildMesh(3.5f, 3.5f, 6f, polygon);
+        VectorLightMath.LightMesh mesh = VectorLightMath.BuildMesh(
+            3.5f, 3.5f, 6f, polygon, VectorLightMath.DefaultSourceRadius);
 
         for (int v = 0; v < mesh.VertexCount; v++)
         {
@@ -358,10 +365,288 @@ public class VectorLightMathTests
     public void ADegeneratePolygonProducesNoMesh()
     {
         VectorLightMath.LightPolygon polygon = new VectorLightMath.LightPolygon(new float[0], new float[0], 0);
-        VectorLightMath.LightMesh mesh = VectorLightMath.BuildMesh(0f, 0f, 6f, polygon);
+        VectorLightMath.LightMesh mesh = VectorLightMath.BuildMesh(
+            0f, 0f, 6f, polygon, VectorLightMath.DefaultSourceRadius);
 
         Assert.That(mesh.VertexCount, Is.EqualTo(0));
         Assert.That(mesh.Triangles.Length, Is.EqualTo(0));
+    }
+
+    // ---- penumbra -----------------------------------------------------------------------
+
+    // The ramp's endpoints. Anything that got these backwards would draw the soft band inverted —
+    // bright where the shadow is and dark where the light is — which reads on screen as a glowing
+    // outline around every shadow rather than as an error.
+    [TestCase(0f, 1f)]
+    [TestCase(1f, 0f)]
+    public void PenumbraVisibleFractionRunsFromFullyLitToFullyOccluded(float across, float expected)
+    {
+        Assert.That(VectorLightMath.PenumbraVisibleFraction(across), Is.EqualTo(expected).Within(Tolerance));
+    }
+
+    // Halfway across, a straight edge bisects the source disc, so exactly half of it is still
+    // visible. This is the one interior point of the curve with an exact closed form, which makes it
+    // the only place a wrong-but-plausible ramp (a linear one, say, which also passes the endpoint
+    // cases above) can be separated from the right one by a single value.
+    [Test]
+    public void PenumbraVisibleFractionIsAHalfAcrossTheMiddle()
+    {
+        Assert.That(VectorLightMath.PenumbraVisibleFraction(0.5f), Is.EqualTo(0.5f).Within(Tolerance));
+    }
+
+    // The S-curve claim itself: shallow at both ends, steepest in the middle. A linear ramp would
+    // pass every assertion above and still leave the visible crease at each end of the band that
+    // choosing a circular segment was meant to remove, so the shape needs its own test.
+    [Test]
+    public void PenumbraVisibleFractionIsSteepestAcrossTheMiddle()
+    {
+        float atEdge = VectorLightMath.PenumbraVisibleFraction(0f) - VectorLightMath.PenumbraVisibleFraction(0.1f);
+        float atMiddle = VectorLightMath.PenumbraVisibleFraction(0.45f) - VectorLightMath.PenumbraVisibleFraction(0.55f);
+
+        Assert.That(atMiddle, Is.GreaterThan(atEdge * 2f));
+    }
+
+    [Test]
+    public void PenumbraVisibleFractionNeverIncreases()
+    {
+        for (int i = 1; i <= 64; i++)
+        {
+            float previous = VectorLightMath.PenumbraVisibleFraction((i - 1) / 64f);
+            float current = VectorLightMath.PenumbraVisibleFraction(i / 64f);
+
+            Assert.That(current, Is.LessThanOrEqualTo(previous + Tolerance), $"rose at {i}");
+        }
+    }
+
+    // Zero width exactly at the occluding corner. This is the property that keeps a shadow sharp
+    // where it meets the wall casting it — the thing a constant-width wedge gets wrong, and gets
+    // wrong in the most visible possible place.
+    [Test]
+    public void PenumbraHalfWidthIsZeroAtTheCorner()
+    {
+        Assert.That(VectorLightMath.PenumbraHalfWidth(4f, 4f, 0.5f), Is.EqualTo(0f).Within(Tolerance));
+        Assert.That(VectorLightMath.PenumbraHalfWidth(3f, 4f, 0.5f), Is.EqualTo(0f).Within(Tolerance));
+    }
+
+    [Test]
+    public void PenumbraHalfWidthGrowsWithDistancePastTheCorner()
+    {
+        float near = VectorLightMath.PenumbraHalfWidth(5f, 4f, 0.5f);
+        float far = VectorLightMath.PenumbraHalfWidth(9f, 4f, 0.5f);
+
+        Assert.That(far, Is.GreaterThan(near));
+    }
+
+    // The asymptote, which is what sets how wide a soft edge can ever get: s/d0, approached but never
+    // reached. Pinned because it is the only bound on the wedge — nothing downstream clamps it — so a
+    // sign slip or an inverted ratio here would open a wedge that swallowed the whole polygon.
+    [Test]
+    public void PenumbraHalfWidthApproachesTheSourceOverCornerRatio()
+    {
+        Assert.That(VectorLightMath.PenumbraHalfWidth(10000f, 4f, 0.5f), Is.EqualTo(0.125f).Within(1e-4f));
+        Assert.That(VectorLightMath.PenumbraHalfWidth(50f, 4f, 0.5f), Is.LessThan(0.125f));
+    }
+
+    // Doubling the source doubles the penumbra, which is the whole physical content of the model:
+    // the softness of a shadow is set by how big the light is, not by how bright it is.
+    [Test]
+    public void PenumbraHalfWidthScalesWithTheSource()
+    {
+        float small = VectorLightMath.PenumbraHalfWidth(8f, 4f, 0.5f);
+        float large = VectorLightMath.PenumbraHalfWidth(8f, 4f, 1f);
+
+        Assert.That(large, Is.EqualTo(small * 2f).Within(Tolerance));
+    }
+
+    // The invariant the feature flag rests on. Row 0 of the 2-D gradient must BE the old 1-D falloff
+    // curve, so that a mesh built with no source radius — every vertex at V = 0 — samples exactly
+    // what the hard-edged version sampled, with no second texture and no branch in the draw.
+    [Test]
+    public void PenumbraGradientFirstRowIsTheFalloffCurve()
+    {
+        byte[] flat = VectorLightMath.FalloffGradient(12f, VectorLightMath.GradientSize);
+        byte[] baked = VectorLightMath.PenumbraGradient(
+            12f, VectorLightMath.GradientSize, VectorLightMath.PenumbraGradientSize);
+
+        for (int i = 0; i < flat.Length; i++)
+            Assert.That(baked[i], Is.EqualTo(flat[i]), $"column {i}");
+    }
+
+    [Test]
+    public void PenumbraGradientLastRowIsFullyDark()
+    {
+        byte[] baked = VectorLightMath.PenumbraGradient(
+            12f, VectorLightMath.GradientSize, VectorLightMath.PenumbraGradientSize);
+        int lastRow = (VectorLightMath.PenumbraGradientSize - 1) * VectorLightMath.GradientSize;
+
+        for (int i = 0; i < VectorLightMath.GradientSize; i++)
+            Assert.That(baked[lastRow + i], Is.EqualTo(0), $"column {i}");
+    }
+
+    // Separability, which is the reason this is one texture rather than a shader: every row is the
+    // falloff curve scaled by that row's ramp value, so a single bilinear sample reproduces the
+    // product exactly. If that ever stopped holding, the texture would be lossy and the shader
+    // argument would come back.
+    [Test]
+    public void PenumbraGradientIsTheFalloffTimesTheRamp()
+    {
+        byte[] flat = VectorLightMath.FalloffGradient(12f, VectorLightMath.GradientSize);
+        byte[] baked = VectorLightMath.PenumbraGradient(
+            12f, VectorLightMath.GradientSize, VectorLightMath.PenumbraGradientSize);
+
+        for (int row = 0; row < VectorLightMath.PenumbraGradientSize; row++)
+        {
+            float ramp = VectorLightMath.PenumbraVisibleFraction(
+                (float)row / (VectorLightMath.PenumbraGradientSize - 1));
+
+            for (int column = 0; column < VectorLightMath.GradientSize; column += 17)
+            {
+                Assert.That(
+                    baked[row * VectorLightMath.GradientSize + column],
+                    Is.EqualTo((int)Math.Round(flat[column] * ramp)).Within(1),
+                    $"row {row} column {column}");
+            }
+        }
+    }
+
+    // OFF REPRODUCES PHASE 1 EXACTLY, vertex for vertex and index for index. The repo's rule is that
+    // a flag turned off must reproduce pre-feature behaviour rather than merely have no effect, and
+    // for a feature whose off state is "pass zero to the same function" that rule is only worth
+    // anything if something checks the two really do coincide.
+    [Test]
+    public void ASourceRadiusOfZeroLeavesTheHardEdgedMeshUntouched()
+    {
+        VectorLightMath.LightMesh hard = BuildBlockedMesh(0f);
+
+        Assert.That(hard.VertexCount, Is.EqualTo(hard.FanTriangleCount / 3 + 1));
+        Assert.That(hard.Triangles.Length, Is.EqualTo(hard.FanTriangleCount));
+
+        for (int v = 0; v < hard.VertexCount; v++)
+            Assert.That(hard.V[v], Is.EqualTo(0f), $"vertex {v}");
+    }
+
+    [Test]
+    public void ASourceRadiusAddsWedgesBeyondTheFanAndLeavesTheFanAlone()
+    {
+        VectorLightMath.LightMesh hard = BuildBlockedMesh(0f);
+        VectorLightMath.LightMesh soft = BuildBlockedMesh(VectorLightMath.DefaultSourceRadius);
+
+        Assert.That(soft.FanTriangleCount, Is.EqualTo(hard.FanTriangleCount));
+        Assert.That(soft.Triangles.Length, Is.GreaterThan(soft.FanTriangleCount));
+
+        // The fan's own vertices are untouched, so the soft edge only ever ADDS light — it cannot
+        // dim what phase 1 already lit. That is deliberate: §27's standing risk is rooms coming out
+        // too dark, and an additive pass could not take light back out anyway.
+        for (int v = 0; v < hard.VertexCount; v++)
+        {
+            Assert.That(soft.X[v], Is.EqualTo(hard.X[v]).Within(Tolerance), $"x {v}");
+            Assert.That(soft.Z[v], Is.EqualTo(hard.Z[v]).Within(Tolerance), $"z {v}");
+            Assert.That(soft.U[v], Is.EqualTo(hard.U[v]).Within(Tolerance), $"u {v}");
+            Assert.That(soft.V[v], Is.EqualTo(0f), $"v {v}");
+        }
+    }
+
+    // The same winding trap as the fan, on the geometry most likely to fall into it: a wedge opens
+    // clockwise or anticlockwise depending on which side of the corner the shadow is, so its index
+    // order has to flip with it. Get that wrong and half the soft edges in a scene render as nothing
+    // at all, on a top-down camera that culls backfaces, while every numeric probe stays healthy.
+    [Test]
+    public void EveryNonDegenerateWedgeTriangleWindsWithTheFan()
+    {
+        VectorLightMath.LightMesh mesh = BuildBlockedMesh(VectorLightMath.DefaultSourceRadius);
+
+        Assert.That(mesh.Triangles.Length, Is.GreaterThan(mesh.FanTriangleCount), "no wedges built");
+
+        for (int t = mesh.FanTriangleCount; t < mesh.Triangles.Length; t += 3)
+        {
+            float area = SignedArea(mesh, t);
+
+            if (Math.Abs(area) > 1e-6f)
+                Assert.That(area, Is.LessThan(0f), $"wedge triangle at index {t} winds the wrong way");
+        }
+    }
+
+    // A wedge lives in the shadow, but it must not escape the light's own reach — an emitter whose
+    // soft edge poked past its radius would light cells vanilla's own falloff says are dark, and
+    // would do it further from the lamp the wider the wedge got.
+    [Test]
+    public void NoWedgeVertexEscapesTheRadius()
+    {
+        VectorLightMath.LightMesh mesh = BuildBlockedMesh(VectorLightMath.DefaultSourceRadius);
+
+        for (int v = 0; v < mesh.VertexCount; v++)
+        {
+            float dx = mesh.X[v] - 8.5f;
+            float dz = mesh.Z[v] - 8.5f;
+
+            Assert.That((float)Math.Sqrt(dx * dx + dz * dz), Is.LessThanOrEqualTo(10f + Tolerance));
+            Assert.That(mesh.V[v], Is.InRange(0f, 1f));
+            Assert.That(mesh.U[v], Is.InRange(0f, 1f));
+        }
+    }
+
+    // An unobstructed light has no corners, so it has no shadow edges and must gain no wedges. The
+    // shadow-edge test keys on a large distance jump between rays an epsilon apart in angle, and an
+    // open circle has neither, so a wedge appearing here would mean the detector was firing on the
+    // polygon merely curving — softening the rim of every lamp into a wider, dimmer halo.
+    [Test]
+    public void AnUnobstructedLightGainsNoWedges()
+    {
+        VectorLightMath.LightMesh mesh = BuildOpenMesh(out int rays);
+
+        Assert.That(mesh.FanTriangleCount, Is.EqualTo(rays * 3));
+        Assert.That(mesh.Triangles.Length, Is.EqualTo(mesh.FanTriangleCount));
+    }
+
+    // ---- the vanilla crossfade ----------------------------------------------------------
+
+    // The endpoints are the whole contract: floor 0 must be §27 untouched and floor 1 must be
+    // nothing at all from us. Anything that drifted at either end would make the knob a brightness
+    // control rather than a redistribution, which is the exact failure the crossfade exists to avoid.
+    [Test]
+    public void TheCrossfadeEndpointsAreExactlyOnAndExactlyOff()
+    {
+        Assert.That(VectorLightMath.BlendedStrength(0.35f, 0f), Is.EqualTo(0.35f).Within(Tolerance));
+        Assert.That(VectorLightMath.BlendedStrength(0.35f, 1f), Is.EqualTo(0f).Within(Tolerance));
+    }
+
+    [TestCase(0.25f, 0.75f)]
+    [TestCase(0.5f, 0.5f)]
+    [TestCase(0.75f, 0.25f)]
+    public void TheCrossfadeGivesAwayExactlyTheShareItKeeps(float floor, float expectedShare)
+    {
+        Assert.That(
+            VectorLightMath.BlendedStrength(1f, floor), Is.EqualTo(expectedShare).Within(Tolerance));
+    }
+
+    // Out-of-range floors are clamped rather than allowed to invert our contribution. A negative one
+    // would make us brighter than unblended §27, which is the direction that washes a room out.
+    [TestCase(-1f, 1f)]
+    [TestCase(2f, 0f)]
+    public void TheCrossfadeClampsRatherThanInverting(float floor, float expected)
+    {
+        Assert.That(VectorLightMath.BlendedStrength(1f, floor), Is.EqualTo(expected).Within(Tolerance));
+    }
+
+    // Vanilla's own channel, scaled. Floor 0 must be a true zero — that is §27's suppression, and a
+    // floor that left 1 or 2 levels behind would put a faint wash into every shadow the subsystem
+    // just carved.
+    [TestCase((byte)200, 0f, (byte)0)]
+    [TestCase((byte)200, 1f, (byte)200)]
+    [TestCase((byte)200, 0.5f, (byte)100)]
+    [TestCase((byte)255, 0.5f, (byte)128)]
+    public void TheFlooredChannelScalesVanillasOwnLight(byte channel, float floor, byte expected)
+    {
+        Assert.That(VectorLightMath.FlooredChannel(channel, floor), Is.EqualTo(expected));
+    }
+
+    // Rounds rather than truncates. Truncation biases every channel down half a level, which across
+    // a whole lighting overlay reads as the floor being dimmer than it was asked for — and it is the
+    // sort of error that looks like the constant being wrong rather than the cast being wrong.
+    [Test]
+    public void TheFlooredChannelRoundsRatherThanTruncating()
+    {
+        Assert.That(VectorLightMath.FlooredChannel(3, 0.5f), Is.EqualTo(2));
     }
 
     // ---- daylight -----------------------------------------------------------------------
@@ -383,7 +668,7 @@ public class VectorLightMathTests
         VectorLightMath.LightPolygon polygon =
             VectorLightMath.Build(0f, 0f, 12f, new VectorLightMath.Segment[0], rays);
 
-        return VectorLightMath.BuildMesh(0f, 0f, 12f, polygon);
+        return VectorLightMath.BuildMesh(0f, 0f, 12f, polygon, VectorLightMath.DefaultSourceRadius);
     }
 
     private static float Length(VectorLightMath.Segment segment)
@@ -403,14 +688,32 @@ public class VectorLightMathTests
                      - (mesh.X[c] - mesh.X[a]) * (mesh.Z[b] - mesh.Z[a]));
     }
 
-    private static float TriangleAreaSum(VectorLightMath.LightMesh mesh)
+    private static float TriangleAreaSum(VectorLightMath.LightMesh mesh, int indexCount)
     {
         float total = 0f;
 
-        for (int t = 0; t < mesh.Triangles.Length; t += 3)
+        for (int t = 0; t < indexCount; t += 3)
             total += Math.Abs(SignedArea(mesh, t));
 
         return total;
+    }
+
+    // A light in a small room with a free-standing block in it, which is the smallest layout that
+    // produces real shadow edges in more than one direction — and so the smallest one that exercises
+    // wedges opening BOTH ways round the polygon. A single blocker only ever yields a mirrored pair
+    // and would let a sign error through on half the geometry.
+    private static VectorLightMath.LightMesh BuildBlockedMesh(float sourceRadius)
+    {
+        bool[] blocked = new bool[16 * 16];
+        blocked[6 * 16 + 6] = true;
+        blocked[6 * 16 + 7] = true;
+        blocked[10 * 16 + 3] = true;
+        blocked[4 * 16 + 11] = true;
+
+        VectorLightMath.Segment[] segments = VectorLightMath.SilhouetteSegments(blocked, 16, 16, 0, 0);
+        VectorLightMath.LightPolygon polygon = VectorLightMath.Build(8.5f, 8.5f, 10f, segments, 48);
+
+        return VectorLightMath.BuildMesh(8.5f, 8.5f, 10f, polygon, sourceRadius);
     }
 
     private static float FanArea(VectorLightMath.LightPolygon polygon, float lightX, float lightZ)

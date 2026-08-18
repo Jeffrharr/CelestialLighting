@@ -61,6 +61,39 @@ public static class VectorLightMath
     // We change WHERE the light reaches, not how bright a lamp is.
     public const float InverseSquareWeight = 0.4f;
 
+    // The emitter's own half-width in cells, which is the entire reason a penumbra exists. A point
+    // source casts a perfectly hard shadow at every distance; a source of finite size casts a soft
+    // one, because near the edge of a shadow a receiver can see PART of the source. A standing lamp,
+    // a torch and a campfire all occupy about one cell, so half a cell is the half-width of all of
+    // them, and the difference between them is not worth a per-def lookup.
+    public const float DefaultSourceRadius = 0.5f;
+
+    // Radial subdivisions across one penumbra wedge. The wedge's angular half-width is NOT linear in
+    // distance from the light — it is s*(d - d0)/(d0*d), which is zero at the occluding corner and
+    // asymptotes to s/d0 — so a single quad from corner to rim would draw a wedge that is much too
+    // wide close to the wall, softening the one place a shadow is genuinely sharp. Four bands puts a
+    // piecewise-linear approximation through that curve. Eight was tried in the preview and is not
+    // distinguishable; four is where it stopped being.
+    public const int PenumbraBands = 4;
+
+    // Rows in the baked 2-D gradient, i.e. samples across the penumbra ramp. Far coarser than the 256
+    // along the falloff axis, and it can afford to be: the ramp is sampled bilinearly across a band
+    // that is at least a cell wide on screen, where the falloff axis is compressing a curve that
+    // rises steeply near the light.
+    public const int PenumbraGradientSize = 32;
+
+    // How far apart two consecutive polygon distances must be before the boundary between them counts
+    // as a shadow EDGE rather than the polygon merely curving. Every corner produces a pair of rays
+    // an epsilon apart in angle whose distances differ by the whole depth of the shadow, so the real
+    // signal is enormous and this only has to clear numerical noise and grazing hits.
+    public const float ShadowEdgeMinDepth = 0.25f;
+
+    // How close in angle two consecutive rays must be to be the epsilon-pair AddCornerRay emitted
+    // rather than two unrelated rays. The pair is exactly CornerRayEpsilon apart by construction and
+    // the nearest thing that could be confused with it is a base ray 7.5 degrees away, so there are
+    // three orders of magnitude of headroom and the exact multiplier does not matter.
+    public const float ShadowEdgeMaxAngle = CornerRayEpsilon * 2.5f;
+
     // One straight occluding edge, in float cell coordinates. Segments have no sidedness: they block
     // light from either direction, which is what lets SilhouetteSegments merge spans contributed by
     // different cells without caring which cell they came from.
@@ -409,46 +442,241 @@ public static class VectorLightMath
         // Distance from the light as a fraction of the radius, in [0, 1]. The draw looks this up in
         // the baked falloff gradient — see FalloffGradient.
         public readonly float[] U;
+
+        // How far across a soft shadow edge this vertex sits: 0 fully lit, 1 fully occluded. Zero on
+        // every vertex of the fan itself, so a mesh built with no source radius carries an all-zero V
+        // and samples the gradient's first row — which is the falloff curve unmodified, i.e. exactly
+        // the 1-D texture the hard-edged version sampled. That is what lets the soft edge be switched
+        // off without a second code path.
+        public readonly float[] V;
+
         public readonly int[] Triangles;
         public readonly int VertexCount;
 
-        public LightMesh(float[] x, float[] z, float[] u, int[] triangles, int vertexCount)
+        // How many of Triangles' entries belong to the visibility fan, before the penumbra wedges
+        // that follow it. The fan alone tiles the polygon exactly once, and the offline geometry
+        // tests assert precisely that — an overlap doubles the light on an additive pass — so they
+        // need to be able to stop where the fan stops. The wedges deliberately lie OUTSIDE the
+        // polygon, in the shadow, and would read as overlap to a test that could not tell them apart.
+        public readonly int FanTriangleCount;
+
+        public LightMesh(
+            float[] x, float[] z, float[] u, float[] v, int[] triangles, int vertexCount,
+            int fanTriangleCount)
         {
             X = x;
             Z = z;
             U = u;
+            V = v;
             Triangles = triangles;
             VertexCount = vertexCount;
+            FanTriangleCount = fanTriangleCount;
         }
     }
 
-    public static LightMesh BuildMesh(float lightX, float lightZ, float radius, LightPolygon polygon)
+    public static LightMesh BuildMesh(
+        float lightX, float lightZ, float radius, LightPolygon polygon, float sourceRadius)
     {
         int rays = polygon.Count;
 
         if (rays < 3 || radius <= 0f)
-            return new LightMesh(new float[0], new float[0], new float[0], new int[0], 0);
+        {
+            return new LightMesh(
+                new float[0], new float[0], new float[0], new float[0], new int[0], 0, 0);
+        }
 
-        int vertexCount = rays + 1;
-        float[] x = new float[vertexCount];
-        float[] z = new float[vertexCount];
-        float[] u = new float[vertexCount];
+        List<float> x = new List<float>(rays + 1);
+        List<float> z = new List<float>(rays + 1);
+        List<float> u = new List<float>(rays + 1);
+        List<float> v = new List<float>(rays + 1);
 
-        x[0] = lightX;
-        z[0] = lightZ;
-        u[0] = 0f;
+        x.Add(lightX);
+        z.Add(lightZ);
+        u.Add(0f);
+        v.Add(0f);
 
         for (int i = 0; i < rays; i++)
         {
             float reach = Math.Min(polygon.Distances[i], radius);
             float angle = polygon.Angles[i];
 
-            x[i + 1] = lightX + (float)Math.Cos(angle) * reach;
-            z[i + 1] = lightZ + (float)Math.Sin(angle) * reach;
-            u[i + 1] = reach / radius;
+            x.Add(lightX + (float)Math.Cos(angle) * reach);
+            z.Add(lightZ + (float)Math.Sin(angle) * reach);
+            u.Add(reach / radius);
+            v.Add(0f);
         }
 
-        return new LightMesh(x, z, u, BuildTriangles(rays), vertexCount);
+        List<int> triangles = new List<int>(BuildTriangles(rays));
+        int fanTriangleCount = triangles.Count;
+
+        AddPenumbraWedges(lightX, lightZ, radius, polygon, sourceRadius, x, z, u, v, triangles);
+
+        return new LightMesh(
+            x.ToArray(), z.ToArray(), u.ToArray(), v.ToArray(), triangles.ToArray(), x.Count,
+            fanTriangleCount);
+    }
+
+    // The soft half of the shadow edge: for every corner the polygon turned into a hard boundary, a
+    // wedge extending from that boundary INTO the shadow, ramping from fully lit to fully dark.
+    //
+    // WHY IT ONLY EVER EXTENDS INTO THE SHADOW, never into the lit side. A real penumbra straddles
+    // the geometric boundary — the lit side should dim as much as the dark side brightens. This pass
+    // is additive, so it can put light into the shadow but has no way to take light back out of the
+    // lit region, and the alternative (rebuilding the fan so its boundary sits at the umbra instead)
+    // would make every shadow WIDER. §27's standing risk is that indirectly-lit rooms come out
+    // uncomfortably dark, so of the two available errors — a soft edge that reaches half a band too
+    // far into the shadow, or one that eats half a band out of the light — the first is the one that
+    // moves in the safe direction. The visible result is the same softening either way.
+    //
+    // THE SHAPE. With the source a disc of radius s and the occluding corner at distance d0, similar
+    // triangles put the penumbra's width at distance d past the light at s*(d - d0)/d0, so its
+    // ANGULAR half-width is s*(d - d0)/(d0*d): zero at the corner, asymptotic to s/d0 far away. A
+    // wedge of constant angular width — which is what a single triangle fanned from the light would
+    // give — is wrong by a full source width at every distance, and wrong in the worst place, since
+    // it softens the shadow right where it touches the wall and is genuinely sharp. Hence bands.
+    private static void AddPenumbraWedges(
+        float lightX, float lightZ, float radius, LightPolygon polygon, float sourceRadius,
+        List<float> x, List<float> z, List<float> u, List<float> v, List<int> triangles)
+    {
+        if (sourceRadius <= 0f)
+            return;
+
+        for (int i = 0; i < polygon.Count; i++)
+        {
+            int next = (i + 1) % polygon.Count;
+
+            if (IsShadowEdge(polygon, i, next))
+                AddPenumbraWedge(lightX, lightZ, radius, polygon, i, next, sourceRadius, x, z, u, v, triangles);
+        }
+    }
+
+    // A boundary is a shadow edge when consecutive rays sit at essentially the same angle and reach
+    // wildly different distances — which is exactly the signature AddCornerRay leaves behind, one ray
+    // stopping on the corner and its neighbour an epsilon away slipping past it. Both halves of the
+    // test are load-bearing: the angle alone also matches the pair on the SAME side of a corner
+    // (whose distances agree, so there is no edge to soften), and the distance alone also matches two
+    // base rays a full 7.5 degrees apart straddling a wall, where the polygon is genuinely that shape
+    // and softening it would blur a wall face rather than a shadow.
+    private static bool IsShadowEdge(LightPolygon polygon, int i, int next)
+    {
+        float angleGap = Math.Abs(NormaliseAngle(polygon.Angles[next] - polygon.Angles[i]));
+        float depth = Math.Abs(polygon.Distances[next] - polygon.Distances[i]);
+
+        return angleGap <= ShadowEdgeMaxAngle && depth >= ShadowEdgeMinDepth;
+    }
+
+    private static void AddPenumbraWedge(
+        float lightX, float lightZ, float radius, LightPolygon polygon, int i, int next,
+        float sourceRadius, List<float> x, List<float> z, List<float> u, List<float> v,
+        List<int> triangles)
+    {
+        bool farIsNext = polygon.Distances[next] > polygon.Distances[i];
+        int far = farIsNext ? next : i;
+        int near = farIsNext ? i : next;
+
+        float cornerDistance = Math.Min(polygon.Distances[near], radius);
+        float reach = Math.Min(polygon.Distances[far], radius);
+
+        // Guard the corner distance the same way Falloff guards its own: the angular width divides by
+        // it, and a light sitting inside the cell it is casting from would otherwise open a wedge
+        // wider than the whole shadow. Vanilla never evaluates its curve closer than one cell either.
+        float d0 = Math.Max(cornerDistance, MinFalloffDistance);
+
+        if (reach <= d0)
+            return;
+
+        // The wedge grows away from the lit side, so its direction is whichever way the near (blocked)
+        // ray lies from the far (unblocked) one. Taken from the ray angles rather than assumed from
+        // index order, because the wrap from the polygon's last entry to its first reverses that.
+        float baseAngle = polygon.Angles[far];
+        float sign = Math.Sign(NormaliseAngle(polygon.Angles[near] - baseAngle));
+
+        if (sign == 0f)
+            return;
+
+        int firstVertex = x.Count;
+
+        for (int band = 0; band <= PenumbraBands; band++)
+        {
+            float distance = d0 + (reach - d0) * band / PenumbraBands;
+            float spread = sign * PenumbraHalfWidth(distance, d0, sourceRadius);
+
+            AddWedgeVertex(lightX, lightZ, radius, baseAngle, distance, 0f, x, z, u, v);
+            AddWedgeVertex(lightX, lightZ, radius, baseAngle + spread, distance, 1f, x, z, u, v);
+        }
+
+        AddWedgeTriangles(firstVertex, sign > 0f, triangles);
+    }
+
+    // The angular half-width of the penumbra at `distance`, for a source of radius `sourceRadius`
+    // whose light is clipped by a corner at `cornerDistance`. Zero at the corner by construction, so
+    // the innermost band is degenerate and the wedge comes to a point exactly where the shadow does.
+    public static float PenumbraHalfWidth(float distance, float cornerDistance, float sourceRadius)
+    {
+        if (distance <= cornerDistance || cornerDistance <= 0f)
+            return 0f;
+
+        return sourceRadius * (distance - cornerDistance) / (cornerDistance * distance);
+    }
+
+    private static void AddWedgeVertex(
+        float lightX, float lightZ, float radius, float angle, float distance, float across,
+        List<float> x, List<float> z, List<float> u, List<float> v)
+    {
+        x.Add(lightX + (float)Math.Cos(angle) * distance);
+        z.Add(lightZ + (float)Math.Sin(angle) * distance);
+        u.Add(Clamp01(distance / radius));
+        v.Add(across);
+    }
+
+    // Two triangles per band, wound clockwise in world XZ to match the fan — see BuildTriangles for
+    // why that matters more than it looks. Which of the two orderings is clockwise depends on which
+    // way the wedge opened, hence the flag rather than a fixed order.
+    private static void AddWedgeTriangles(int firstVertex, bool positiveSpread, List<int> triangles)
+    {
+        for (int band = 0; band < PenumbraBands; band++)
+        {
+            int innerNear = firstVertex + band * 2;
+            int outerNear = innerNear + 1;
+            int innerFar = innerNear + 2;
+            int outerFar = innerNear + 3;
+
+            if (positiveSpread)
+            {
+                triangles.Add(innerNear);
+                triangles.Add(outerNear);
+                triangles.Add(innerFar);
+
+                triangles.Add(outerNear);
+                triangles.Add(outerFar);
+                triangles.Add(innerFar);
+            }
+            else
+            {
+                triangles.Add(innerNear);
+                triangles.Add(innerFar);
+                triangles.Add(outerNear);
+
+                triangles.Add(outerNear);
+                triangles.Add(innerFar);
+                triangles.Add(outerFar);
+            }
+        }
+    }
+
+    // Wrap a raw angle difference into (-pi, pi]. Only the polygon's last-to-first boundary needs it,
+    // where the difference comes out as nearly -2pi, but the shadow-edge test is a magnitude
+    // comparison and would read that wrap as the largest angular gap on the polygon rather than the
+    // smallest.
+    private static float NormaliseAngle(float angle)
+    {
+        while (angle > Math.PI)
+            angle -= (float)(2.0 * Math.PI);
+
+        while (angle <= -Math.PI)
+            angle += (float)(2.0 * Math.PI);
+
+        return angle;
     }
 
     // WINDING. Every face is emitted so its vertices run CLOCKWISE in world XZ, which is what faces
@@ -494,6 +722,56 @@ public static class VectorLightMath
         return gradient;
     }
 
+    // How much of the source a receiver can still see, `across` of the way through the penumbra:
+    // 1 at the lit edge, 0 at the dark one. This is the ramp's SHAPE, and it is not a straight line.
+    //
+    // Sliding a straight occluding edge across a disc does not uncover it evenly — it uncovers a
+    // circular segment, whose area is arccos(p) - p*sqrt(1 - p^2) over pi for an edge p of the way
+    // out from the centre of a unit disc. That is an S-curve: slow at both limbs, steepest across the
+    // middle. A linear ramp instead leaves a visible crease at each end of the band, where the
+    // gradient meets flat light or flat shadow at an angle rather than tangentially, and reads as two
+    // faint extra edges in place of the one hard edge it was supposed to remove.
+    public static float PenumbraVisibleFraction(float across)
+    {
+        float p = 2f * Clamp01(across) - 1f;
+        float area = (float)(Math.Acos(p) - p * Math.Sqrt(Math.Max(1.0 - p * p, 0.0)));
+
+        return Clamp01(area / (float)Math.PI);
+    }
+
+    // The falloff curve and the penumbra ramp baked together into one 2-D gradient, row-major with U
+    // (distance) along the row and V (across the soft edge) down the columns, as bytes ready to
+    // become a texture.
+    //
+    // WHY ONE TEXTURE RATHER THAN TWO PASSES OR A SHADER. The product falloff(u) * ramp(v) is
+    // separable, so a single bilinear sample reproduces it exactly — there is nothing a second pass
+    // or a custom fragment program could compute here that the texture does not already carry. That
+    // matters beyond tidiness: a shader would mean shipping a compiled AssetBundle per platform, and
+    // this repo ships no binary assets (see §11a). The soft edge does not need one.
+    //
+    // Row 0 is the falloff curve alone, which is what every vertex of the fan samples. So a mesh
+    // built with no source radius draws exactly what the hard-edged version drew, through the same
+    // texture, with no branch anywhere — the invariant PenumbraGradientFirstRowIsTheFalloffCurve
+    // pins offline.
+    public static byte[] PenumbraGradient(float radius, int width, int height)
+    {
+        int columns = Math.Max(width, 2);
+        int rows = Math.Max(height, 2);
+        byte[] gradient = new byte[columns * rows];
+
+        byte[] falloff = FalloffGradient(radius, columns);
+
+        for (int row = 0; row < rows; row++)
+        {
+            float visible = PenumbraVisibleFraction((float)row / (rows - 1));
+
+            for (int column = 0; column < columns; column++)
+                gradient[row * columns + column] = (byte)Math.Round(falloff[column] * visible);
+        }
+
+        return gradient;
+    }
+
     // How far a light's colour has to be scaled down so its brightest channel lands at 1.
     //
     // Vanilla's CompProperties_Glower.glowColor is a ColorInt scaled by 1.45, so the default white
@@ -516,10 +794,63 @@ public static class VectorLightMath
     // lets a light past that when it is inside its own overlightRadius. An additive pass has neither
     // the compositing nor the cap, so at full strength a torch delivers visibly more light than the
     // same torch does in vanilla — measured on the first live A/B, where a 14-cell room went from
-    // dim to uniformly washed out. Anchoring on vanilla's own 0.5 keeps §27 a change of SHAPE rather
-    // than a change of how bright lamps are, which is what makes the A/B legible: if brightness moved
-    // too, there would be no way to tell which of the two produced the difference on screen.
-    public const float DefaultStrength = 0.5f;
+    // dim to uniformly washed out.
+    //
+    // WHY IT IS NOT 0.5 EITHER, WHICH IS WHAT IT WAS. Anchoring on vanilla's own GroundGlowAt cap
+    // was an argument, not a measurement, and it came out about 3 L* too bright: a lit room read
+    // mean L* 17.09 against vanilla's 14.02 on the same scene, roughly a fifth more light. Nothing
+    // could see that until the vanilla arm was captured alongside, because every A/B until then had
+    // §27 in BOTH of its frames. Solved for directly instead — the additive term is linear in this
+    // constant, so with the room's ambient floor measured from the darkest fifth of the shadowed
+    // frame, 0.5 * (vanilla's contribution / ours) lands on 0.3534, and 0.35 predicts L* 13.94
+    // against vanilla's 14.02. §27 is a change of SHAPE, not a change of how bright lamps are, and
+    // this is the constant that has to hold that line.
+    //
+    // Re-measure rather than re-derive if the falloff curve, PeakScale or the suppression half ever
+    // move: this is a fitted value and its inputs are all upstream of it.
+    public const float DefaultStrength = 0.35f;
+
+    // How much of vanilla's own flood survives underneath §27, as a fraction — the CROSSFADE between
+    // the two lighting models rather than a choice of one.
+    //
+    // WHY THIS EXISTS. Suppressing vanilla outright is what lets a shadow actually reach dark, and it
+    // is also §27's most dangerous property: anything the polygons do not know about goes BLACK
+    // rather than merely unimproved, and a room lit only by light that bent around a corner loses all
+    // of it. Keeping vanilla's flood at a fraction turns both of those from cliffs into slopes. The
+    // shadow is no longer black, it is dimmer; the room §27 cannot see is no longer unlit, it is
+    // dimmer; and neither depends on §27 having a complete picture of what emits light.
+    //
+    // WHY IT COMPENSATES RATHER THAN ADDS. The naive version of this — leave vanilla alone and draw
+    // our polygons over it — is epic #145's rejected option 1, and the measured reason it fails is
+    // that it SUMS two complete lighting models and lands 6 L* above vanilla. Scaling our own
+    // contribution by (1 - floor) makes the floor a redistribution instead: at 0 this is §27 exactly,
+    // at 1 it is vanilla exactly, and in between the overall level barely moves while the SHAPE
+    // crossfades from one model to the other. That is the property that makes it a usable knob rather
+    // than a brightness control with a shape side effect.
+    //
+    // NOT A MAX, WHICH IS WHAT IT WANTS TO BE. The right composition is max(vanilla, ours) per cell —
+    // vanilla's falloff runs on GEODESIC distance, so in a beam through a doorway its light has
+    // travelled further and arrived dimmer than our straight-line value, and a max would take our
+    // beam exactly where we have something to say and vanilla's floor everywhere we do not. It needs
+    // a per-vertex "how much did vanilla deliver here" channel that MoteGlow has no way to carry, so
+    // it is a shader away rather than an edit away. See DESIGN.md §27.
+    public const float DefaultVanillaFloor = 0.5f;
+
+    // Our additive contribution once the crossfade has taken its share. Kept here rather than inline
+    // in the draw so the offline tests can pin that floor 0 and floor 1 are exactly §27 and exactly
+    // nothing, with no arithmetic drift at the endpoints.
+    public static float BlendedStrength(float strength, float vanillaFloor)
+    {
+        return strength * (1f - Clamp01(vanillaFloor));
+    }
+
+    // Vanilla's own light channel, scaled by the crossfade. Rounds rather than truncates: these are
+    // bytes, and truncation biases every channel down by half a level, which across a whole lighting
+    // overlay reads as the floor being dimmer than it was asked to be.
+    public static byte FlooredChannel(byte channel, float vanillaFloor)
+    {
+        return (byte)Math.Round(channel * Clamp01(vanillaFloor));
+    }
 
     // How much of a light's contribution survives the daylight around it.
     //

@@ -564,6 +564,64 @@ public static class CelestialLightingFeatures
     // Gameplay light is untouched either way. map.glowGrid, GroundGlowAt, plant growth, work speed and
     // pawn vision are identical with this on or off — §27 changes only what is rendered.
     public static bool VectorLights = false;
+
+    // Feature key for VectorLightPenumbra.
+    public const string VectorLightPenumbraKey = "vector_light_penumbra";
+
+    // §27 phase 2, soft shadow edges. Every emitter is treated as a disc half a cell across rather
+    // than a point, so each shadow boundary gains a penumbra wedge that widens with distance from the
+    // corner casting it — the transition band a real light of finite size produces.
+    //
+    // SEPARATE FROM VectorLights ON PURPOSE, even though it is meaningless without it. The two are
+    // the only A/B that isolates the soft edge from the mechanism: with vector_lights on and this
+    // off, the frame is phase 1's hard-edged render, which is the baseline a softness measurement
+    // has to be taken against. Measuring against vanilla instead would measure the whole subsystem.
+    //
+    // OFF REPRODUCES PHASE 1 EXACTLY rather than approximately, and does it without a second draw
+    // path: off passes a source radius of zero, no wedge geometry is emitted at all, and every fan
+    // vertex already carries V = 0, which samples the row of the baked gradient that is the plain
+    // falloff curve. The hard-edged mesh and the hard-edged texture lookup are the same objects the
+    // soft version uses, not a preserved copy of them.
+    public static bool VectorLightPenumbra = true;
+
+    // Feature key for VectorLightSuppress.
+    public const string VectorLightSuppressKey = "vector_light_suppress";
+
+    // §27's suppressing half: whether Patch_VectorLightSuppress zeroes the artificial-light RGB in
+    // SectionLayer_LightingOverlay before our polygons are drawn over it.
+    //
+    // ON is the real subsystem. Vanilla's flood has already lit every cell §27 wants to carve a
+    // shadow into, and an additive pass cannot remove light, so without this every shadow simply
+    // fills back in from underneath and the whole mechanism reduces to a brightness increase.
+    //
+    // OFF IS THE MIXED CASE, and it is worth being able to look at rather than only to reason about.
+    // Epic #145 rejected "additive polygons on top of vanilla's render" on exactly the argument
+    // above; this flag is what lets that rejection be a photograph instead of a claim. It is also
+    // the escape hatch the epic asks for in as many words — the suppressing half is the risky one,
+    // because with it on anything §27 does not know about goes BLACK rather than merely unimproved,
+    // and it was always meant to be droppable independently of the polygons if that went wrong.
+    public static bool VectorLightSuppress = true;
+
+    // Feature key for VectorLightBlend.
+    public const string VectorLightBlendKey = "vector_light_blend";
+
+    // §27 crossfaded with vanilla's flood rather than replacing it: a fraction of vanilla survives
+    // underneath as a floor, and our own contribution drops by the same fraction so the overall level
+    // does not move. See VectorLightMath.DefaultVanillaFloor for why it compensates rather than adds.
+    //
+    // ON BY DEFAULT whenever §27 itself is on, and the deciding argument is compatibility rather
+    // than taste. §27 knows about exactly what vanilla's GlowGrid tells it: registered glowers and
+    // glowing terrain. That covers any mod adding an ordinary CompGlower, and it does NOT cover light
+    // that arrives by some other route — a mod passing sunlight through a window, anything writing
+    // its own section layer, anything lighting cells without registering a glower. With the
+    // suppression total, every one of those goes BLACK rather than merely unimproved, and each would
+    // need finding and special-casing one at a time. With a floor under it, they are all simply dim,
+    // and the list of things §27 has to know about stops being load-bearing.
+    //
+    // The look is the same bargain seen from the other side: shadows are dim rather than dark, and
+    // nothing is ever black. Off is §27 as originally designed — shadows reach full dark, at the
+    // price of a room lit only by light bending around a corner losing all of it.
+    public static bool VectorLightBlend = true;
 }
 
 public enum SunClockMode

@@ -96,7 +96,16 @@ public static class VectorLightOverlay
     private static float StrengthFor(Map map, VectorLightField.LightEntry entry, float skyGlow)
     {
         bool sheltered = map.roofGrid.Roofed(entry.Cell);
-        return VectorLightMath.DefaultStrength * VectorLightMath.DaylightScale(sheltered ? 0f : skyGlow);
+        float daylight = VectorLightMath.DaylightScale(sheltered ? 0f : skyGlow);
+
+        // Whatever share of the light the crossfade left vanilla holding, we do not also deliver —
+        // otherwise the two models sum and the room lands 6 L* bright, which is the measured failure
+        // of drawing over an unsuppressed flood.
+        float floor = CelestialLightingFeatures.VectorLightBlend
+            ? VectorLightMath.DefaultVanillaFloor
+            : 0f;
+
+        return VectorLightMath.BlendedStrength(VectorLightMath.DefaultStrength, floor) * daylight;
     }
 
     // Cull against the camera before doing anything else. A colony's lamps are overwhelmingly
@@ -127,7 +136,15 @@ public static class VectorLightOverlay
         VectorLightMath.LightPolygon polygon = VectorLightMath.Build(
             lightX, lightZ, entry.Radius, segments, VectorLightMath.DefaultBaseRayCount);
 
-        VectorLightMath.LightMesh built = VectorLightMath.BuildMesh(lightX, lightZ, entry.Radius, polygon);
+        // The feature flag is a source radius of zero and nothing else. A point source has no
+        // penumbra by definition, so off emits no wedge geometry and leaves every V at 0, which is
+        // phase 1's mesh exactly rather than a preserved copy of the code that used to build it.
+        float sourceRadius = CelestialLightingFeatures.VectorLightPenumbra
+            ? VectorLightMath.DefaultSourceRadius
+            : 0f;
+
+        VectorLightMath.LightMesh built =
+            VectorLightMath.BuildMesh(lightX, lightZ, entry.Radius, polygon, sourceRadius);
 
         entry.LitArea = PolygonArea(polygon);
         UploadMesh(entry, built, altitude);
@@ -153,9 +170,10 @@ public static class VectorLightOverlay
         {
             Verts.Add(new Vector3(built.X[i], altitude, built.Z[i]));
 
-            // V is parked at the middle of the one-pixel-tall gradient so bilinear filtering has
-            // nothing to interpolate against on that axis; only U carries anything.
-            Uvs.Add(new Vector2(built.U[i], 0.5f));
+            // Both axes carry meaning now the gradient is 2-D: U is distance from the light, V is
+            // how far across a soft shadow edge the vertex sits. Every vertex of the fan itself
+            // carries V = 0, which is the gradient's first row — the falloff curve unmodified.
+            Uvs.Add(new Vector2(built.U[i], built.V[i]));
         }
 
         Tris.AddRange(built.Triangles);
@@ -197,14 +215,22 @@ public static class VectorLightOverlay
         return material;
     }
 
-    // The falloff curve as a 1-D texture: white throughout, with the curve in ALPHA. That split is
-    // copied from AuroraCurtain, which writes colour into RGB and intensity into alpha and is the one
-    // thing here already proven to modulate correctly through MoteGlow. Putting the curve in both
-    // channels would square it if the shader premultiplies, which is the sort of mistake that reads as
-    // "the falloff is too aggressive" rather than as a bug.
+    // The falloff curve and the penumbra ramp as one 2-D texture: white throughout, with the product
+    // of the two in ALPHA. That split is copied from AuroraCurtain, which writes colour into RGB and
+    // intensity into alpha and is the one thing here already proven to modulate correctly through
+    // MoteGlow. Putting the curve in both channels would square it if the shader premultiplies, which
+    // is the sort of mistake that reads as "the falloff is too aggressive" rather than as a bug.
+    //
+    // WHY A TEXTURE AND NOT A SHADER. Soft edges were carried on the epic as blocked on a custom
+    // shader, and they are not: falloff(u) * ramp(v) is separable, so one bilinear sample of a 2-D
+    // texture reproduces it EXACTLY, with nothing left for a fragment program to compute. A shader
+    // would mean shipping a compiled AssetBundle per platform — the toolchain for which does now
+    // work here — but it would buy no fidelity, and it would put the feature behind an asset that
+    // has to be rebuilt for three platforms and checked with shader.isSupported at runtime.
     private static Texture2D BuildGradient(float radius)
     {
-        byte[] curve = VectorLightMath.FalloffGradient(radius, VectorLightMath.GradientSize);
+        byte[] curve = VectorLightMath.PenumbraGradient(
+            radius, VectorLightMath.GradientSize, VectorLightMath.PenumbraGradientSize);
         byte[] rgba = new byte[curve.Length * 4];
 
         for (int i = 0; i < curve.Length; i++)
@@ -215,10 +241,14 @@ public static class VectorLightOverlay
             rgba[i * 4 + 3] = curve[i];
         }
 
-        Texture2D texture = new Texture2D(curve.Length, 1, TextureFormat.RGBA32, mipChain: false)
+        Texture2D texture = new Texture2D(
+            VectorLightMath.GradientSize, VectorLightMath.PenumbraGradientSize,
+            TextureFormat.RGBA32, mipChain: false)
         {
-            // Clamp, not wrap: a U of exactly 1 at the rim must not sample the bright end of the
-            // gradient and ring the outer edge of every light.
+            // Clamp, not wrap, on BOTH axes now. On U it stops a value of exactly 1 at the rim from
+            // sampling the bright end of the falloff and ringing the outer edge of every light; on V
+            // it stops the fully-occluded edge of a wedge from wrapping back round to fully lit,
+            // which would draw a bright seam along the far side of every soft shadow.
             wrapMode = TextureWrapMode.Clamp,
             filterMode = FilterMode.Bilinear,
             name = "CelestialLighting_VectorLightGradient"

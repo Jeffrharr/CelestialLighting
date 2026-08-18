@@ -35,8 +35,15 @@ public static class Patch_VectorLightSuppress
     [HarmonyPriority(Priority.Last)]
     static void Postfix(SectionLayer_LightingOverlay __instance)
     {
-        if (!CelestialLightingFeatures.VectorLights)
+        if (!CelestialLightingFeatures.VectorLights || !CelestialLightingFeatures.VectorLightSuppress)
             return;
+
+        // The crossfade keeps a fraction of vanilla's flood underneath instead of removing it. Zero
+        // is the original behaviour and is what the arithmetic below reduces to when the flag is off,
+        // so there is one code path rather than two.
+        float floor = CelestialLightingFeatures.VectorLightBlend
+            ? VectorLightMath.DefaultVanillaFloor
+            : 0f;
 
         LayerSubMesh subMesh = __instance.GetSubMesh(MatBases.LightOverlay);
         Mesh mesh = subMesh?.mesh;
@@ -51,9 +58,9 @@ public static class Patch_VectorLightSuppress
 
         for (int i = 0; i < colors.Length; i++)
         {
-            colors[i].r = 0;
-            colors[i].g = 0;
-            colors[i].b = 0;
+            colors[i].r = VectorLightMath.FlooredChannel(colors[i].r, floor);
+            colors[i].g = VectorLightMath.FlooredChannel(colors[i].g, floor);
+            colors[i].b = VectorLightMath.FlooredChannel(colors[i].b, floor);
         }
 
         mesh.colors32 = colors;
