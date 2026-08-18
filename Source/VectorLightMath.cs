@@ -865,6 +865,139 @@ public static class VectorLightMath
         return Clamp01(1f - Clamp01(curSkyGlow));
     }
 
+    // How many samples per axis the cell-coverage test takes. Four samples over a cell is enough to
+    // resolve the quarter-cell steps the lighting overlay's own bilinear interpolation can express,
+    // and a finer grid would be measuring a boundary the mesh cannot represent.
+    public const int DefaultCoverageSamples = 2;
+
+    // How far the visibility polygon reaches at a given angle.
+    //
+    // The polygon is stored as parallel sorted arrays rather than as points, which makes this a
+    // binary search plus one lerp instead of a walk. That matters because §27 phase 3 asks this
+    // question a few thousand times per section regenerate rather than once per ray.
+    //
+    // LERPING ACROSS A SHADOW EDGE IS CORRECT, not an approximation. AddCornerRay leaves a pair of
+    // rays a CornerRayEpsilon apart with wildly different distances — one stopping on the corner and
+    // one slipping past it — so interpolating between them reproduces a step, which is what a hard
+    // shadow boundary is. The same lerp across two ordinary base rays 7.5 degrees apart reproduces
+    // the chord the mesh actually draws, so this answers "what does the polygon look like here"
+    // rather than "what would a fresh raycast say", and those differ by up to 0.2% near a wall.
+    public static float BoundaryDistanceAt(LightPolygon polygon, float angle)
+    {
+        if (polygon.Count == 0)
+            return 0f;
+
+        if (polygon.Count == 1)
+            return polygon.Distances[0];
+
+        int last = polygon.Count - 1;
+
+        // Outside the stored range the two neighbours are the last ray and the first one, with the
+        // seam at +-pi between them. Handling it as its own case rather than by normalising every
+        // angle keeps the common path a plain search.
+        if (angle <= polygon.Angles[0] || angle >= polygon.Angles[last])
+            return WrapBoundary(polygon, angle, last);
+
+        int lo = 0;
+        int hi = last;
+
+        while (hi - lo > 1)
+        {
+            int mid = (lo + hi) / 2;
+
+            if (polygon.Angles[mid] <= angle)
+                lo = mid;
+            else
+                hi = mid;
+        }
+
+        return Lerp(
+            polygon.Angles[lo], polygon.Distances[lo],
+            polygon.Angles[hi], polygon.Distances[hi], angle);
+    }
+
+    private static float WrapBoundary(LightPolygon polygon, float angle, int last)
+    {
+        float span = (float)(2.0 * Math.PI) - (polygon.Angles[last] - polygon.Angles[0]);
+
+        if (span <= 0f)
+            return polygon.Distances[0];
+
+        // Measure the angle from the last ray, going forward through the seam. An angle below the
+        // first ray has come the whole way round, which is what adding a turn expresses.
+        float from = angle - polygon.Angles[last];
+
+        if (from < 0f)
+            from += (float)(2.0 * Math.PI);
+
+        float t = from / span;
+        return polygon.Distances[last] + (polygon.Distances[0] - polygon.Distances[last]) * Clamp01(t);
+    }
+
+    private static float Lerp(float x0, float y0, float x1, float y1, float x)
+    {
+        float dx = x1 - x0;
+
+        if (dx <= 0f)
+            return y0;
+
+        float t = Clamp01((x - x0) / dx);
+        return y0 + (y1 - y0) * t;
+    }
+
+    // What share of one map cell this light can actually see, in [0, 1].
+    //
+    // WHY A SHARE AND NOT A YES/NO. §27 phase 3 subtracts vanilla's own light back out of the cells
+    // its polygon says are shadowed, and it does that on the lighting overlay's mesh, whose finest
+    // unit is the cell. A binary test would quantise every shadow boundary to whole cells and make
+    // the edge a staircase; sampling the cell and reporting the fraction lit turns the same mesh
+    // into a bilinear ramp across the boundary cell instead, which is the difference between a
+    // visible stair and a soft edge roughly the width of the penumbra phase 2 already draws.
+    //
+    // The samples are cell-CENTRED on a sub-grid rather than placed on the cell's corners: a corner
+    // sample sits exactly on the boundary between two cells and on the wall faces the polygon is
+    // built from, which is the one place a point-in-polygon answer is least reliable.
+    public static float LitFraction(
+        LightPolygon polygon, float lightX, float lightZ, int cellX, int cellZ, int samplesPerAxis)
+    {
+        if (polygon.Count == 0 || samplesPerAxis < 1)
+            return 0f;
+
+        int lit = 0;
+        float step = 1f / samplesPerAxis;
+
+        for (int iz = 0; iz < samplesPerAxis; iz++)
+        {
+            for (int ix = 0; ix < samplesPerAxis; ix++)
+            {
+                float x = cellX + (ix + 0.5f) * step;
+                float z = cellZ + (iz + 0.5f) * step;
+
+                if (IsLit(polygon, lightX, lightZ, x, z))
+                    lit++;
+            }
+        }
+
+        return (float)lit / (samplesPerAxis * samplesPerAxis);
+    }
+
+    // Whether one point is inside the visibility polygon: nearer to the light than the polygon's
+    // boundary in that direction. The light's own position counts as lit, which is what the zero
+    // check is for rather than a guard against atan2.
+    public static bool IsLit(
+        LightPolygon polygon, float lightX, float lightZ, float x, float z)
+    {
+        float dx = x - lightX;
+        float dz = z - lightZ;
+        float distance = (float)Math.Sqrt(dx * dx + dz * dz);
+
+        if (distance <= 0f)
+            return true;
+
+        float angle = (float)Math.Atan2(dz, dx);
+        return distance <= BoundaryDistanceAt(polygon, angle);
+    }
+
     private static float Clamp01(float value)
     {
         if (value < 0f)
