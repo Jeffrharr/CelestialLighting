@@ -7659,13 +7659,135 @@ exactly, which matters more here than for most flags precisely because the featu
 half: with it false, `Patch_VectorLightSuppress` returns before touching the lighting overlay, so the
 baseline frame is the real pre-feature render rather than a picture of the lights being missing.
 
-**Not yet done, in the order it matters.** Soft edges — the user's own "edges can have some kind of
-soft drop-off after we implement the initial lighting system" — which is now a real option rather
-than a workaround, since custom shaders turn out to be a first-class path (`ShaderDatabase.LoadShader`
-falls through to mod asset bundles; it needs Unity 2022.3.35f1 and a `_linux`/`_mac`/`_win` suffix,
-and this box has 6000.2.6f1, so it is blocked on a toolchain rather than on the engine). Then the
-caster set beyond walls, roof and window openings as emitters (which would absorb issue #3's sun
-shafts into the same mechanism), and the lazy/pawn-range work that is the declared second phase.
+### Soft edges — a source with a size (`vector_light_penumbra`)
+
+Everything above treats each emitter as a *point*, and a point is the only thing that casts a
+perfectly hard shadow. Nothing in a colony is one: a torch, a standing lamp and a campfire all occupy
+about a cell, so every shadow they cast has a **penumbra** — a band at its edge where a receiver can
+still see part of the source. Phase 2 gives the emitter a radius (`DefaultSourceRadius`, half a cell
+for all of them, which is not worth a per-def lookup) and draws that band.
+
+**The shape, and why the wedge has bands.** With the source a disc of radius `s` and the occluding
+corner at distance `d0`, similar triangles put the penumbra's width at distance `d` at `s(d − d0)/d0`,
+so its *angular* half-width is `s(d − d0)/(d0·d)` — zero at the corner, asymptotic to `s/d0` far
+away. That radial dependence is the whole physical content of the model, and it is what rules out the
+obvious implementation. A single triangle fanned from the light gives a wedge of *constant* angular
+width, wrong by a full source width at every distance, and wrong in the worst available place: it
+softens a shadow exactly where it meets the wall casting it and is genuinely sharp. So each wedge is
+subdivided into `PenumbraBands` radial bands (4; eight is not distinguishable in the preview) with the
+half-width evaluated per band, putting a piecewise-linear approximation through that curve.
+
+**The ramp across the band is an S-curve, not a line.** Sliding a straight occluding edge across a
+disc does not uncover it evenly — it uncovers a circular segment, area `arccos(p) − p√(1−p²)` over π.
+A linear ramp passes both endpoints and still leaves a visible crease at each end of the band, where
+the gradient meets flat light and flat shadow at an angle rather than tangentially, reading as two
+faint extra edges in place of the one hard edge it was supposed to remove.
+
+**It only ever adds light, which is a deliberate error.** A real penumbra straddles the geometric
+boundary: the lit side should dim as much as the dark side brightens. This pass is additive, so it
+can put light into the shadow and has no way to take light back out of the lit region, and the
+alternative — rebuilding the fan so its boundary sits at the umbra instead — would make every shadow
+*wider*. §27's standing risk is that indirectly-lit rooms come out uncomfortably dark, so of the two
+available errors, reaching half a band too far into the shadow is the one that moves the safe way.
+The visible softening is the same either way, and the fan's own vertices come out untouched vertex
+for vertex, which `ASourceRadiusAddsWedgesBeyondTheFanAndLeavesTheFanAlone` pins.
+
+**No shader, and not for want of one.** This was carried on epic #145 as blocked on a custom shader,
+and the toolchain half of that is now resolved — Unity 2022.3.35f1 does build a bundle RimWorld
+loads, verified end to end on this box. The feature turns out not to need it. `falloff(u) · ramp(v)`
+is **separable**, so one bilinear sample of a 2-D gradient reproduces the product *exactly*, leaving
+a fragment program nothing to compute; a shader would have bought no fidelity and cost a compiled
+binary asset per platform, against §11a's standing "this repo ships no binary assets". What the
+toolchain being live does change is that the next thing to want a shader is no longer blocked, and
+that "we cannot build one" has stopped being a reason.
+
+That gradient is also what makes the flag cheap. Its **first row is the falloff curve unmodified**,
+so the off state is a source radius of zero and nothing else: no wedge geometry is emitted, every fan
+vertex already carries `V = 0`, and the draw samples that first row. Off is phase 1's mesh and phase
+1's texture lookup — the same objects, not a preserved copy of the code that used to build them —
+which is what `PenumbraGradientFirstRowIsTheFalloffCurve` and
+`ASourceRadiusOfZeroLeavesTheHardEdgedMeshUntouched` are for.
+
+**Rejected here.** A *second* additive pass for the soft band (doubles the draw calls to compute
+something the first pass's texture already carries). Vertex colours for the ramp (`MoteGlow` ignores
+them — the finding `CloudUnderlightOverlay` records). Clamping the wedge against other occluders
+further out (a penumbra grazing a second obstruction is a sub-cell error at the far end of a band
+already half a source wide, and the clip would cost a second ray cast per band per corner).
+
+**Verification.** Twenty offline tests, of which two carry the geometry: wedges must wind *with* the
+fan — they open clockwise or anticlockwise depending on which side of the corner the shadow falls on,
+so their index order has to flip with them, and a flipped face renders nothing at all on a
+backface-culling top-down camera while every numeric probe stays healthy. That test caught a real
+inversion on the first run. The fan must still tile the polygon exactly once, which needed
+`LightMesh.FanTriangleCount` to even state, since the wedges deliberately lie *outside* the polygon
+and would otherwise read as overlap. `Tools/VectorLightPreview` grew a hard-vs-soft pair per scene,
+both arms from the same call with a different source radius.
+
+### Performance (`Tests/Scenarios/vector_light_perf.json`)
+
+Epic #145 carried phase 5 with **nothing profiled at all** — phase 1's validation run was
+`--no-profiler`, so §16's budget was entirely unverified. It is now measured, on 23 emitters (20
+placed plus the three `minimal_colony.rws` already carries) each walled into its own room with
+doorways between, camera zoomed out far enough that every one of them is on screen. That last part
+is load-bearing: `VectorLightOverlay.Overlaps` culls against the view, so a tight zoom profiles the
+culling and reports a fraction of the cost as though it were all of it. Three windows of 600 frames:
+
+| window | `Patch_VectorLightDraw:Postfix` avg ms/frame | max ms/frame | share of a 60 fps frame |
+|---|---|---|---|
+| `gated` (`vector_lights` off) | **absent from the table** | — | 0% |
+| `hard_edges` (phase 1) | 0.0389 | 0.370 | 0.23% |
+| `soft_edges` (phase 2) | 0.0460 | 0.218 | 0.28% |
+
+So **soft edges cost 0.007 ms/frame**, and the whole subsystem costs 0.046 — a quarter of the
+≤0.20 ms/frame the epic asked for, with the switched-off path not appearing in the profile at all
+against a ≤0.01 ms target.
+
+Three things about that table are worth stating so it is not read for more than it says. The
+per-window **totals** (0.42 / 1.05 / 0.81 ms) are *not* comparable and in particular do not show
+soft edges being cheaper than hard ones: they are dominated by `Patch_IndoorSkyOcclusion`, whose
+46–77 ms maxima are section regenerates provoked by the feature flip itself, and the windows ran at
+52, 83 and 134 fps, so `PercentOfFrame` means something different in each. The per-patch row is the
+comparable number. `SectionLayerDrawCounters:NoteDraw` costs 0.09–0.12 ms and is a **probe**, not
+shipped. And the analyzer transplants timing calls into every patched method, so all of these are
+ceilings.
+
+### The flicker question, and what it turned out to be
+
+Watching a run, the light reads as though it flickers slightly.
+`Tests/Scenarios/vector_light_flicker.json` measures it rather than arguing about it: twenty ticks a
+frame over twenty-four frames, which keeps `CurSkyGlow` still while everything tick-driven still
+animates, swept three times — `vector_lights` off, phase 1, phase 2. Consecutive frames are then
+diffed and the question asked is *where* they differ and *by how much*, not whether they differ.
+
+| arm | peak channel diff outside the torch | px shifting >8 levels | of those, on the wall face |
+|---|---|---|---|
+| §27 off entirely | 60 | 65 | 59 |
+| hard edges | 71 | 70 | 58 |
+| soft edges | 75 | 71 | 56 |
+
+**The flicker is overwhelmingly vanilla's.** It has two sources, and neither is this subsystem. The
+bright one is the torch sprite: `TorchLamp` carries `CompProperties_FireOverlay`, which animates by
+design — its glower is a flat `glowRadius` 10 and never moves. The subtler one is a sub-pixel shimmer
+along every high-contrast edge in the scene, concentrated on the wall face the light stops against,
+and it is **present at essentially full strength with the mod switched off** (59 px, against 58 and
+56). §27 adds about 8% more high-amplitude pixels than vanilla alone; phase 2 adds one pixel over
+phase 1, and on the wall face slightly *reduces* it.
+
+That last part is not an accident but is smaller than it looks, and the reason is worth recording:
+the shimmering edge is where the light is **clipped by a wall face**, not where it is cut by a
+corner. Penumbra softens shadow boundaries, and a light terminating on the wall in front of it has no
+corner and so gets no wedge. Softening that edge too would mean treating a wall face as an occluder
+with a near limb, which is a different mechanism from this one.
+
+**Caveat on where this was measured.** The camera is static in this scenario. A run watched live is
+usually the *profiling* scenario, which sweeps at `superfast` with the clock racing — so
+`VectorLightMath.DaylightScale` ramps every lamp down through dawn, over a frame rate the same run
+measures at 52–134 fps with 46–77 ms section-rebuild spikes. Both of those read as the light pulsing,
+and neither is the geometry.
+
+**Not yet done, in the order it matters.** The caster set beyond walls, roof and window openings as
+emitters (which would absorb issue #3's sun shafts into the same mechanism), and the lazy/pawn-range
+work that is the declared second phase.
 
 ## Conflict risk
 

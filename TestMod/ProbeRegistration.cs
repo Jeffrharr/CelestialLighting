@@ -199,6 +199,8 @@ public static class ProbeRegistration
         ProbeRegistry.Register(
             new VectorLightProbe("vector_light_shadow_fraction", VectorLightProbe.Metric.ShadowFraction));
         ProbeRegistry.Register(new VectorLightProbe("vector_light_verts", VectorLightProbe.Metric.Vertices));
+        ProbeRegistry.Register(
+            new VectorLightProbe("vector_light_penumbra_area", VectorLightProbe.Metric.PenumbraArea));
         // Issue #80: the fixed near-door cell in ambient_light_compat.json.
         // ambient_ground_glow is the GAMEPLAY value (what Ambient Light's own readout reports);
         // ambient_sky_fraction is what SkyFalloffSource resolves for it, for §7b to cap occlusion with.
