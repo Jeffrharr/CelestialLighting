@@ -1,4 +1,5 @@
 using RimWorldTestHarness.Mod.Probes;
+using UnityEngine;
 using Verse;
 
 namespace CelestialLighting.Probes;
@@ -57,6 +58,32 @@ public sealed class VectorLightProbe : IProbe
         // with it on, so a flag that stopped reaching the mesh builder fails a scenario rather than
         // quietly producing two identical frames.
         PenumbraArea,
+
+        // Whether §27 phase 2b's shader actually loaded and compiled: 1 if the max composition can
+        // be drawn, 0 if the subsystem has fallen back to the crossfade.
+        //
+        // THIS IS THE ONE THAT CATCHES THE SILENT FAILURE. A missing or unloadable AssetBundle is
+        // not an error — by design, because a mod with no shader must still have light — so every
+        // other number in a max scenario stays perfectly healthy while the frames quietly show the
+        // crossfade. Pin this at 1 in any arm that claims to be measuring the max, and a bundle that
+        // did not ship fails the scenario instead of producing a plausible wrong measurement.
+        MaxAvailable,
+
+        // The mean of vanilla's own delivered glow, per mesh vertex, over every emitter — the
+        // quantity the fragment program subtracts. Read alongside MaxExcess: a zero here means the
+        // samples are not arriving, which would make the max composition silently identical to the
+        // unsuppressed hard-edged arm.
+        VanillaSample,
+
+        // The mean excess our straight-line geometry delivers over vanilla's geodesic flood, per
+        // mesh vertex — i.e. what the max composition actually ADDS, in vanilla's own glow units.
+        //
+        // THE NUMBER THAT SAYS THE FEATURE IS NOT A NO-OP. The standing objection to a max is that
+        // our lit region is a subset of vanilla's, so the max is just vanilla again; a zero here
+        // would mean exactly that, and would be grounds to drop the feature rather than debug it.
+        // Above zero says our polygon is reaching cells vanilla's flood only reached the long way
+        // round, which is the whole of §27's thesis expressed as one number.
+        MaxExcess,
     }
 
     private readonly Metric metric;
@@ -73,6 +100,12 @@ public sealed class VectorLightProbe : IProbe
     {
         if (map == null)
             return 0f;
+
+        if (metric == Metric.MaxAvailable)
+            return VectorLightShader.Available ? 1f : 0f;
+
+        if (metric == Metric.VanillaSample || metric == Metric.MaxExcess)
+            return Composition(map);
 
         float litArea = 0f;
         float openArea = 0f;
@@ -127,6 +160,81 @@ public sealed class VectorLightProbe : IProbe
             default:
                 return openArea <= 0f ? 0f : 1f - litArea / openArea;
         }
+    }
+
+    // Vanilla's glow, and our excess over it, averaged across every fan vertex of every emitter.
+    //
+    // RECOMPUTED RATHER THAN READ OFF THE UPLOADED UV1, per this file's convention and for its usual
+    // reason: an off-screen light has no mesh, so reading the render would report zero for half the
+    // colony depending on where the camera happened to be pointing. It walks the same pure functions
+    // VectorLightOverlay.UploadVanillaSamples walks — same mesh builder, same half-cell pull, same
+    // glow lookup — so it cannot agree with a composition the screen is not drawing.
+    //
+    // Fan vertices only. The penumbra wedges lie outside the polygon in the shadow, where our own
+    // value is near zero by construction, and averaging them in would dilute the number towards zero
+    // in proportion to how soft the edges are rather than to how much light the max is adding.
+    private float Composition(Map map)
+    {
+        float vanillaTotal = 0f;
+        float excessTotal = 0f;
+        int samples = 0;
+
+        foreach (VectorLightField.LightEntry entry in VectorLightField.LightsFor(map))
+            AccumulateComposition(map, entry, ref vanillaTotal, ref excessTotal, ref samples);
+
+        if (samples == 0)
+            return 0f;
+
+        float total = metric == Metric.VanillaSample ? vanillaTotal : excessTotal;
+
+        return total / samples;
+    }
+
+    private static void AccumulateComposition(
+        Map map, VectorLightField.LightEntry entry, ref float vanillaTotal, ref float excessTotal,
+        ref int samples)
+    {
+        float lightX = entry.Cell.x + 0.5f;
+        float lightZ = entry.Cell.z + 0.5f;
+
+        VectorLightMath.Segment[] segments =
+            VectorLightBlockers.SegmentsAround(map, entry.Cell, entry.Radius);
+
+        VectorLightMath.LightPolygon polygon = VectorLightMath.Build(
+            lightX, lightZ, entry.Radius, segments, VectorLightMath.DefaultBaseRayCount);
+
+        VectorLightMath.LightMesh mesh =
+            VectorLightMath.BuildMesh(lightX, lightZ, entry.Radius, polygon, sourceRadius: 0f);
+
+        // Vertex 0 is the apex, sitting on the light itself, where both models are saturated and the
+        // difference between them is meaningless. Skipping it keeps one guaranteed zero out of an
+        // average taken over a few dozen boundary vertices.
+        for (int i = 1; i < mesh.VertexCount; i++)
+        {
+            VectorLightMath.SampleTowardLight(
+                mesh.X[i], mesh.Z[i], lightX, lightZ, VectorLightMath.VanillaSamplePull,
+                out float sampleX, out float sampleZ);
+
+            Color32 glow = GlowAt(map, sampleX, sampleZ);
+
+            float vanilla = System.Math.Max(
+                VectorLightMath.GlowUnit(glow.r),
+                System.Math.Max(VectorLightMath.GlowUnit(glow.g), VectorLightMath.GlowUnit(glow.b)));
+
+            float ours = VectorLightMath.Falloff(mesh.U[i] * entry.Radius, entry.Radius);
+
+            vanillaTotal += vanilla;
+            excessTotal += VectorLightMath.MaxComposedChannel(ours, vanilla);
+            samples++;
+        }
+    }
+
+    private static Color32 GlowAt(Map map, float x, float z)
+    {
+        int cellX = System.Math.Min(System.Math.Max((int)System.Math.Floor(x), 0), map.Size.x - 1);
+        int cellZ = System.Math.Min(System.Math.Max((int)System.Math.Floor(z), 0), map.Size.z - 1);
+
+        return map.glowGrid.VisualGlowAt(new IntVec3(cellX, 0, cellZ));
     }
 
     // The area the soft edges cover, taken from the mesh the renderer would build for this light with

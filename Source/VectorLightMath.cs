@@ -865,6 +865,107 @@ public static class VectorLightMath
         return Clamp01(1f - Clamp01(curSkyGlow));
     }
 
+    // How far, in cells, a mesh vertex is pulled back towards the light before vanilla's glow is
+    // sampled for it. See SampleTowardLight for why this is not zero.
+    public const float VanillaSamplePull = 0.5f;
+
+    // Which share of vanilla's flood is left standing underneath us, given the two flags that can
+    // ask for one. Both the draw and the suppression patch go through this rather than each testing
+    // the flags themselves, because they have to agree exactly: the draw scales our contribution by
+    // what it believes vanilla kept, and the patch is what actually keeps it. A disagreement between
+    // the two is not a compile error and does not look like a bug — it reads as the room being the
+    // wrong brightness, which is indistinguishable from the calibration being off.
+    //
+    // The max takes precedence and asks for 1, i.e. vanilla entirely untouched, because subtracting
+    // vanilla per fragment only lands on max(vanilla, ours) if the vanilla being subtracted is the
+    // vanilla actually on screen. Halving one and not the other composes to neither model.
+    //
+    // `maxComposing` is the max flag AND its subtract instrument, not the flag alone. A shader told
+    // to subtract nothing has to be drawn over a suppressed vanilla or it simply sums with it, and
+    // that arm is the control the whole measurement rests on — see
+    // CelestialLightingFeatures.VectorLightMaxSubtract.
+    public static float VanillaFloorFor(bool maxComposing, bool blend)
+    {
+        if (maxComposing)
+            return 1f;
+
+        return blend ? DefaultVanillaFloor : 0f;
+    }
+
+    // Our own strength once the floor has taken its share — except under the max, where the floor is
+    // not a share of the level at all and our contribution is delivered whole.
+    //
+    // The two modes read the floor differently on purpose. Under the crossfade, floor is a fraction
+    // of the LEVEL: vanilla keeps half, so we deliver half, and the sum is unchanged. Under the max,
+    // vanilla keeps everything and we deliver everything, because the subtraction in the fragment
+    // program is what stops the two summing — the compensation happens per fragment, against the
+    // local value, instead of globally against a constant.
+    public static float StrengthFor(float strength, bool maxComposing, bool blend)
+    {
+        if (maxComposing)
+            return strength;
+
+        return BlendedStrength(strength, VanillaFloorFor(maxComposing: false, blend));
+    }
+
+    // Vanilla's glow byte in the units our own falloff curve produces. Both are the same physical
+    // quantity — that same Lerp(1 - d/R, 1/d^2, 0.4), evaluated on different distances — so the only
+    // conversion needed is the byte scale, and the comparison is meaningful rather than a units
+    // accident. This is the one line that makes MaxComposedChannel more than arithmetic.
+    public static float GlowUnit(byte channel)
+    {
+        return channel / 255f;
+    }
+
+    // What we add on top of vanilla's untouched render to land on max(vanilla, ours).
+    //
+    // Adding the difference rather than the max itself is the whole trick, and it is only correct
+    // because vanilla is still being drawn underneath: vanilla + max(0, ours - vanilla) is
+    // max(vanilla, ours), while vanilla + max(vanilla, ours) is the summing of two complete lighting
+    // models that epic #145 rejected as option 1 and that measured 6 L* over vanilla.
+    //
+    // Clamping at zero rather than allowing a negative is not a detail either. The pass is additive
+    // and has no way to remove light, so a negative would be silently dropped by the blend hardware;
+    // clamping here means the C# and the shader agree about a case the hardware would otherwise
+    // decide on its own.
+    public static float MaxComposedChannel(float oursGlow, float vanillaGlow)
+    {
+        float excess = oursGlow - vanillaGlow;
+        return excess > 0f ? excess : 0f;
+    }
+
+    // Where to sample vanilla's glow for a mesh vertex: the vertex itself, pulled `pull` cells back
+    // along the line to the light.
+    //
+    // WHY NOT AT THE VERTEX. Every boundary vertex of the visibility polygon sits ON the thing that
+    // stopped the ray, which is a wall — and a wall is a light blocker, so ComputeGlowGridsJob never
+    // floods it and its glow is zero. Sampling there would report that vanilla delivers NOTHING at
+    // the rim of every light, so we would subtract nothing and hand back the full hard-edged render
+    // in exactly the ring where the two models agree most closely. Half a cell is enough to land in
+    // the last open cell instead, and is small enough not to matter anywhere else.
+    //
+    // The apex is unaffected — it is already at the light, and pulling it towards itself is a no-op
+    // once the distance is below the pull, which the clamp below is there to make true rather than
+    // to guard a division.
+    public static void SampleTowardLight(
+        float x, float z, float lightX, float lightZ, float pull, out float sampleX, out float sampleZ)
+    {
+        float dx = lightX - x;
+        float dz = lightZ - z;
+        float distance = (float)Math.Sqrt(dx * dx + dz * dz);
+
+        if (distance <= pull || distance <= 0f)
+        {
+            sampleX = lightX;
+            sampleZ = lightZ;
+            return;
+        }
+
+        float step = pull / distance;
+        sampleX = x + dx * step;
+        sampleZ = z + dz * step;
+    }
+
     private static float Clamp01(float value)
     {
         if (value < 0f)

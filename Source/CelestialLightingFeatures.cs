@@ -622,6 +622,76 @@ public static class CelestialLightingFeatures
     // nothing is ever black. Off is §27 as originally designed — shadows reach full dark, at the
     // price of a room lit only by light bending around a corner losing all of it.
     public static bool VectorLightBlend = true;
+
+    // Feature key for VectorLightMax.
+    public const string VectorLightMaxKey = "vector_light_max";
+
+    // §27 phase 2b: compose the two lighting models as a per-cell max instead of crossfading them.
+    // Vanilla's flood is left rendering untouched and our pass adds only the EXCESS our own geometry
+    // delivers over it, so the frame lands at max(vanilla, ours) rather than at a blend of the two.
+    //
+    // WHY THIS IS NOT A NO-OP, which is the first thing anyone asks. The obvious objection is that
+    // our lit region is a subset of vanilla's, so a max would just be vanilla again. It is not, and
+    // the reason is the whole of §27: Verse.Glow.ComputeGlowGridsJob accumulates GEODESIC distance —
+    // the shortest path AROUND walls — while ours runs on the straight line through the opening. The
+    // falloff curve either side is otherwise identical, the same Lerp(1 - d/R, 1/d^2, 0.4). So in the
+    // beam through a doorway vanilla's light has travelled further and arrived dimmer than ours and
+    // the max takes ours; in the shadow ours is zero and the max takes vanilla's floor.
+    //
+    // WHY IT BEATS THE CROSSFADE IN PRINCIPLE. The crossfade buys its safety by dimming BOTH models
+    // everywhere — half of vanilla underneath, half of ours on top. The max gives up nothing in the
+    // beam, where our geometry is the better answer, while keeping a DEEPER floor in the shadow than
+    // the crossfade has, because vanilla is left whole there rather than halved.
+    //
+    // AND IT IS THE COMPATIBLE ONE, which is the argument that finally paid for the shader. The
+    // crossfade still SUPPRESSES half of vanilla's rendered artificial light, so light arriving by
+    // any route §27 cannot see — a mod's own section layer, a window passing sunlight, anything
+    // lighting cells without registering a glower — is still halved by us. Under the max nothing is
+    // suppressed at all: vanilla's render is left exactly as it was and we only ever add to it.
+    // Everything built on vanilla's lighting keeps working with no knowledge of us and no per-mod
+    // compat shim, which is the same conclusion §7c reached about the glow grid.
+    //
+    // REQUIRES THE SHADER, AND STANDS DOWN WITHOUT IT. The composition needs vanilla's glow as a
+    // third per-vertex quantity and MoteGlow has no channel left to carry one, so this is the only
+    // feature in the mod behind a compiled AssetBundle. VectorLightShader.Available is false when the
+    // bundle is missing or Shader.isSupported says no, and the subsystem falls back to the crossfade
+    // — a defined arm rather than an unknown one.
+    //
+    // SHIPS OFF, AND THE MEASUREMENT IS WHY. Everything above is the argument this was built on, and
+    // the live A/B did not support it — see DESIGN.md §27's "the max is very nearly vanilla" note.
+    // The premise was that our straight-line value beats vanilla's geodesic one in the beam. It does
+    // not, because §27 deliberately kept vanilla's own falloff CURVE: wherever our polygon can see a
+    // cell, the straight line IS the geodesic path, so the two models agree to within the grid
+    // metric's rounding and the max has nothing to take. Measured over the whole lit region: beyond
+    // the doorway +0.03 L* against vanilla, and in the shadow +0.00 — because a max cannot darken,
+    // and §27's shadows are the entire point of it.
+    //
+    // Kept, switchable and measured rather than deleted, because "the max composition is a no-op" is
+    // a claim someone will want to re-test rather than take on trust, and because the arm is what
+    // makes the crossfade's own value legible: the crossfade IS this max, computed analytically.
+    //
+    // OFF REPRODUCES THE CROSSFADE EXACTLY: the suppression patch and the strength floor both go back
+    // to reading VectorLightBlend, and the draw goes back to the stock MoteGlow material.
+    public static bool VectorLightMax = false;
+
+    // Feature key for VectorLightMaxSubtract.
+    public const string VectorLightMaxSubtractKey = "vector_light_max_subtract";
+
+    // Whether the max composition's fragment program actually subtracts vanilla's glow.
+    //
+    // THIS IS AN INSTRUMENT, NOT A TASTE KNOB, and it is the only flag here nobody should ever turn
+    // off in play. §27 phase 2b changes two things at once — the composition AND the shader the pass
+    // is drawn through — and a measurement that cannot separate them cannot say which one moved the
+    // frame. With this off the shader computes max(0, ours - 0), which is MoteGlow's output exactly,
+    // so the arm {max on, subtract off, suppress on, blend off} and the arm {max off, suppress on,
+    // blend off} must render the SAME frame. Any ΔE between those two is a difference in the shader,
+    // and would otherwise have been quietly attributed to the composition.
+    //
+    // The suppression follows it rather than the max flag, via VectorLightMath.VanillaFloorFor, so
+    // that control arm really is phase 1's render: a shader subtracting nothing must be drawn over a
+    // suppressed vanilla, or it composes against a flood that is still there and the arm measures
+    // the sum instead.
+    public static bool VectorLightMaxSubtract = true;
 }
 
 public enum SunClockMode

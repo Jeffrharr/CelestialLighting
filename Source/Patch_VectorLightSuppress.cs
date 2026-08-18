@@ -38,12 +38,22 @@ public static class Patch_VectorLightSuppress
         if (!CelestialLightingFeatures.VectorLights || !CelestialLightingFeatures.VectorLightSuppress)
             return;
 
-        // The crossfade keeps a fraction of vanilla's flood underneath instead of removing it. Zero
-        // is the original behaviour and is what the arithmetic below reduces to when the flag is off,
-        // so there is one code path rather than two.
-        float floor = CelestialLightingFeatures.VectorLightBlend
-            ? VectorLightMath.DefaultVanillaFloor
-            : 0f;
+        // How much of vanilla's flood survives, from the same pure function the draw scales itself
+        // by. The two have to agree exactly and nothing about C# makes them: the draw delivers what
+        // it believes vanilla kept, and this is what actually keeps it, so a disagreement reads as
+        // the room being the wrong brightness rather than as a bug.
+        //
+        // Under the max composition that answer is ONE — vanilla entirely untouched — and the loop
+        // below becomes a no-op it is not worth running, because the subtraction happens per fragment
+        // in the shader against the value actually on screen. This is also the compatibility win:
+        // with the max composing, §27 stops suppressing anybody's light at all, and a mod delivering
+        // light by a route we cannot see is simply unimproved rather than dimmed.
+        float floor = VectorLightMath.VanillaFloorFor(
+            maxComposing: VectorLightShader.MaxActive && CelestialLightingFeatures.VectorLightMaxSubtract,
+            CelestialLightingFeatures.VectorLightBlend);
+
+        if (floor >= 1f)
+            return;
 
         LayerSubMesh subMesh = __instance.GetSubMesh(MatBases.LightOverlay);
         Mesh mesh = subMesh?.mesh;

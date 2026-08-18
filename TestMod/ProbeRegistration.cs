@@ -201,6 +201,16 @@ public static class ProbeRegistration
         ProbeRegistry.Register(new VectorLightProbe("vector_light_verts", VectorLightProbe.Metric.Vertices));
         ProbeRegistry.Register(
             new VectorLightProbe("vector_light_penumbra_area", VectorLightProbe.Metric.PenumbraArea));
+        // §27 phase 2b. vector_light_max_available is the one to pin in every arm that claims to
+        // measure the max: the shader failing to load is BY DESIGN not an error — a mod with no
+        // shader must still have light — so without this pin a bundle that never shipped leaves every
+        // other number healthy and quietly renders the crossfade instead.
+        ProbeRegistry.Register(
+            new VectorLightProbe("vector_light_max_available", VectorLightProbe.Metric.MaxAvailable));
+        ProbeRegistry.Register(
+            new VectorLightProbe("vector_light_vanilla_sample", VectorLightProbe.Metric.VanillaSample));
+        ProbeRegistry.Register(
+            new VectorLightProbe("vector_light_max_excess", VectorLightProbe.Metric.MaxExcess));
         // Issue #80: the fixed near-door cell in ambient_light_compat.json.
         // ambient_ground_glow is the GAMEPLAY value (what Ambient Light's own readout reports);
         // ambient_sky_fraction is what SkyFalloffSource resolves for it, for §7b to cap occlusion with.
@@ -446,6 +456,31 @@ public static class ProbeRegistration
             enabled =>
             {
                 CelestialLightingFeatures.VectorLightBlend = enabled;
+                VectorLightRedraw.ForceRebuild();
+            });
+        // §27 phase 2b. THREE-arg overload with defaultEnabled: false, matching the shipped default,
+        // and for the same load-bearing reason vector_lights itself uses it: registered as true,
+        // FeatureRegistry.ResetAll() would switch the max composition on for every later scenario in
+        // a suite and quietly rewrite their lighting. ForceRebuild is needed for the usual baked
+        // reason and one extra: flipping this changes whether the suppression pass runs at all, and
+        // it changes what each light's UV1 has to carry, neither of which any player action dirties.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightMaxKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.VectorLightMax = enabled;
+                VectorLightRedraw.ForceRebuild();
+            },
+            defaultEnabled: false);
+        // The control instrument, not a taste knob — see CelestialLightingFeatures
+        // .VectorLightMaxSubtract. Registered so a scenario arm can render the max shader with its
+        // subtraction disabled, which is the only arm that can tell "the composition changed the
+        // frame" apart from "swapping MoteGlow for our own shader changed the frame".
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightMaxSubtractKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.VectorLightMaxSubtract = enabled;
                 VectorLightRedraw.ForceRebuild();
             });
         FeatureRegistry.Register(

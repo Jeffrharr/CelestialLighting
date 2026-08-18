@@ -649,6 +649,169 @@ public class VectorLightMathTests
         Assert.That(VectorLightMath.FlooredChannel(3, 0.5f), Is.EqualTo(2));
     }
 
+    // ---- the max composition (§27 phase 2b) ---------------------------------------------
+
+    // What the fragment program adds on top of a vanilla flood that is still being drawn. The
+    // endpoints are the contract: nothing to add where vanilla already matches or beats us, and our
+    // whole value where vanilla delivers nothing at all.
+    [TestCase(0f, 0f, 0f)]
+    [TestCase(0.8f, 0f, 0.8f)]
+    [TestCase(0f, 0.8f, 0f)]
+    [TestCase(0.8f, 0.8f, 0f)]
+    [TestCase(0.8f, 0.3f, 0.5f)]
+    [TestCase(0.3f, 0.8f, 0f)]
+    public void TheMaxAddsOnlyTheExcessOverVanilla(float ours, float vanilla, float expected)
+    {
+        Assert.That(
+            VectorLightMath.MaxComposedChannel(ours, vanilla), Is.EqualTo(expected).Within(Tolerance));
+    }
+
+    // The composition identity, stated as a test rather than as a comment: vanilla is still on
+    // screen, so vanilla + what we add has to BE the max. Getting this wrong in the other direction
+    // — adding the max itself rather than the excess — is epic #145's rejected option 1, which
+    // measured 6 L* over vanilla.
+    [TestCase(0.9f, 0.2f)]
+    [TestCase(0.2f, 0.9f)]
+    [TestCase(0.5f, 0.5f)]
+    [TestCase(0f, 0f)]
+    public void VanillaPlusTheExcessIsExactlyTheMax(float ours, float vanilla)
+    {
+        float composed = vanilla + VectorLightMath.MaxComposedChannel(ours, vanilla);
+
+        Assert.That(composed, Is.EqualTo(Math.Max(ours, vanilla)).Within(Tolerance));
+    }
+
+    // THE CLAIM THE WHOLE FEATURE RESTS ON, as arithmetic. The natural objection to a max is that
+    // our lit region is a subset of vanilla's, so the max is just vanilla and the feature is a
+    // no-op. It is not: both models run the SAME falloff curve, ours on the straight line through
+    // the opening and vanilla's on the geodesic path around the wall, and the geodesic path is
+    // longer everywhere a wall is in the way. A longer distance through a monotonically decreasing
+    // curve is a dimmer arrival, so ours is strictly the brighter of the two in every cell where
+    // light had to bend to arrive — which is precisely the beam through a doorway.
+    //
+    // If this test ever fails, the max really has become a no-op and the feature should be dropped
+    // rather than debugged.
+    [TestCase(4f, 6f)]
+    [TestCase(4f, 4.5f)]
+    [TestCase(8f, 14f)]
+    [TestCase(2f, 3f)]
+    public void OursBeatsVanillaWhereverTheLightHadToBend(float straightLine, float geodesic)
+    {
+        const float radius = 16f;
+
+        float ours = VectorLightMath.Falloff(straightLine, radius);
+        float vanilla = VectorLightMath.Falloff(geodesic, radius);
+
+        Assert.That(ours, Is.GreaterThan(vanilla));
+        Assert.That(VectorLightMath.MaxComposedChannel(ours, vanilla), Is.GreaterThan(0f));
+    }
+
+    // The other half of the same claim: with no wall between, the two distances are the same
+    // distance and the max adds nothing. This is what stops the feature from being a brightness
+    // increase in open ground, which is what a max composed against a DIFFERENT curve would be.
+    [TestCase(3f)]
+    [TestCase(7f)]
+    [TestCase(12f)]
+    public void TheMaxAddsNothingWhereNothingBlockedTheLight(float distance)
+    {
+        float glow = VectorLightMath.Falloff(distance, 16f);
+
+        Assert.That(VectorLightMath.MaxComposedChannel(glow, glow), Is.EqualTo(0f).Within(Tolerance));
+    }
+
+    // How much of vanilla's flood each mode leaves standing. The max asks for all of it — the
+    // subtraction is per fragment and only lands on max(vanilla, ours) if the vanilla it subtracts
+    // is the vanilla actually on screen.
+    [TestCase(true, true, 1f)]
+    [TestCase(true, false, 1f)]
+    [TestCase(false, true, 0.5f)]
+    [TestCase(false, false, 0f)]
+    public void TheFloorFollowsTheCompositionMode(bool maxComposing, bool blend, float expected)
+    {
+        Assert.That(
+            VectorLightMath.VanillaFloorFor(maxComposing, blend), Is.EqualTo(expected).Within(Tolerance));
+    }
+
+    // And what we deliver under each. The max delivers the whole of our strength precisely BECAUSE
+    // it leaves vanilla whole: the compensation happens per fragment against the local value rather
+    // than globally against a constant, so halving ourselves as well would dim the beam for nothing.
+    [TestCase(true, true, 0.35f)]
+    [TestCase(true, false, 0.35f)]
+    [TestCase(false, true, 0.175f)]
+    [TestCase(false, false, 0.35f)]
+    public void TheDeliveredStrengthFollowsTheCompositionMode(
+        bool maxComposing, bool blend, float expected)
+    {
+        Assert.That(
+            VectorLightMath.StrengthFor(0.35f, maxComposing, blend),
+            Is.EqualTo(expected).Within(Tolerance));
+    }
+
+    // The control arm's contract. With the max drawing but subtracting nothing, the floor and the
+    // strength must both be what the crossfade-off arm uses — otherwise the arm that is supposed to
+    // isolate "the shader changed the frame" is also changing the composition, and measures neither.
+    [Test]
+    public void TheSubtractionOffControlMatchesThePhaseOneArm()
+    {
+        Assert.That(
+            VectorLightMath.VanillaFloorFor(maxComposing: false, blend: false),
+            Is.EqualTo(0f).Within(Tolerance));
+        Assert.That(
+            VectorLightMath.StrengthFor(0.35f, maxComposing: false, blend: false),
+            Is.EqualTo(VectorLightMath.DefaultStrength).Within(Tolerance));
+    }
+
+    [TestCase((byte)0, 0f)]
+    [TestCase((byte)255, 1f)]
+    [TestCase((byte)128, 0.50196078f)]
+    public void TheGlowByteConvertsToTheCurvesOwnUnits(byte channel, float expected)
+    {
+        Assert.That(VectorLightMath.GlowUnit(channel), Is.EqualTo(expected).Within(Tolerance));
+    }
+
+    // Boundary vertices sit ON the wall that stopped the ray, and a wall is a light blocker that
+    // vanilla's flood never enters — so sampling there reports vanilla delivering nothing at the rim
+    // of every light, and we would subtract nothing in exactly the ring where the two models agree
+    // most closely. Half a cell back lands in the last open cell instead.
+    [Test]
+    public void TheSampleIsPulledBackTowardsTheLight()
+    {
+        VectorLightMath.SampleTowardLight(
+            14f, 8f, 8f, 8f, VectorLightMath.VanillaSamplePull, out float x, out float z);
+
+        Assert.That(x, Is.EqualTo(13.5f).Within(Tolerance));
+        Assert.That(z, Is.EqualTo(8f).Within(Tolerance));
+    }
+
+    // Diagonally, the pull is half a cell ALONG THE LINE rather than half a cell per axis. A
+    // per-axis version would pull 0.707 cells back on a diagonal and could cross a wall the light is
+    // standing behind.
+    [Test]
+    public void ThePullIsMeasuredAlongTheLineNotPerAxis()
+    {
+        VectorLightMath.SampleTowardLight(
+            8f + 3f, 8f + 4f, 8f, 8f, VectorLightMath.VanillaSamplePull, out float x, out float z);
+
+        float dx = x - 8f;
+        float dz = z - 8f;
+
+        Assert.That(Math.Sqrt(dx * dx + dz * dz), Is.EqualTo(4.5f).Within(Tolerance));
+    }
+
+    // The apex, and anything nearer than the pull itself, collapses onto the light rather than
+    // overshooting past it and sampling a cell on the far side.
+    [TestCase(8f, 8f)]
+    [TestCase(8.2f, 8f)]
+    [TestCase(8f, 8.25f)]
+    public void ASampleNearerThanThePullLandsOnTheLight(float x, float z)
+    {
+        VectorLightMath.SampleTowardLight(
+            x, z, 8f, 8f, VectorLightMath.VanillaSamplePull, out float sampleX, out float sampleZ);
+
+        Assert.That(sampleX, Is.EqualTo(8f).Within(Tolerance));
+        Assert.That(sampleZ, Is.EqualTo(8f).Within(Tolerance));
+    }
+
     // ---- daylight -----------------------------------------------------------------------
 
     [TestCase(0f, 1f)]
