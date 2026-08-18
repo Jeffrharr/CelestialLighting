@@ -1,7 +1,7 @@
 {
   "name": "vector_light_penumbra",
   "saveFile": "minimal_colony.rws",
-  "description": "\u00a727 phase 2, soft shadow edges. Holds vector_lights ON in both arms and toggles vector_light_penumbra, so the A/B isolates the penumbra from the mechanism that draws it \u2014 measured against vanilla instead, this would measure the whole of \u00a727 over again. The lamp sits in the left room with a doorway ahead of it and two free-standing blocks to either side, so one frame carries wedges opening both ways round the polygon.",
+  "description": "\u00a727 phase 2, soft shadow edges, captured in three arms from one scene: vanilla's flood fill, phase 1's hard-edged visibility polygons, and phase 2's penumbra. The soft-edge measurement is taken between the last two, which holds vector_lights on across both and so isolates the penumbra from the mechanism that draws it \u2014 measured against vanilla instead it would measure the whole of \u00a727 over again. The vanilla arm is here to show what the other two are departures FROM, since it is the only one of the three a player has actually seen. The lamp sits in the left room with a doorway ahead of it and two free-standing blocks either side, so one frame carries wedges opening both ways round the polygon.",
   "steps": [
     {
       "type": "SetTile",
@@ -94,6 +94,26 @@
       "type": "Screenshot",
       "args": {
         "fileName": "warmup_discard.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "penumbra_vanilla.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "true"
       }
     },
     {
