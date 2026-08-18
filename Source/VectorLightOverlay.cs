@@ -40,10 +40,13 @@ public static class VectorLightOverlay
         if (!CelestialLightingFeatures.VectorLights || map == null)
             return;
 
-        // §27 phase 3 expresses the same shadows by subtracting from vanilla's own lighting rather
-        // than by drawing over it, so this pass must not also run — together they would carve the
-        // shadow once and then light it again from above.
-        if (VectorLightMask.Active)
+        // §27 phase 3 expresses the shadow by subtracting from vanilla's own lighting rather than by
+        // drawing over it, so by default this pass stands down — together at full strength they would
+        // carve the shadow once and then light it again from above. The beam flag is the deliberate
+        // exception: it keeps this pass running at a reduced strength so the lit region gains the
+        // contrast the mask alone cannot produce, over a vanilla that has already had the bent light
+        // removed. See CelestialLightingFeatures.VectorLightMaskBeam.
+        if (VectorLightMask.Active && !CelestialLightingFeatures.VectorLightMaskBeam)
             return;
 
         Dictionary<object, VectorLightField.LightEntry>.ValueCollection lights =
@@ -103,6 +106,12 @@ public static class VectorLightOverlay
     {
         bool sheltered = map.roofGrid.Roofed(entry.Cell);
         float daylight = VectorLightMath.DaylightScale(sheltered ? 0f : skyGlow);
+
+        // Riding on top of phase 3's mask rather than over a suppressed vanilla. What is underneath
+        // is not a whole second lighting model — it is vanilla with the shadowed light already taken
+        // out — so the level is a lift on the lit region rather than a sum of two models.
+        if (VectorLightMask.Active)
+            return VectorLightMath.MaskBeamStrength * daylight;
 
         // Whatever share of the light the crossfade left vanilla holding, we do not also deliver —
         // otherwise the two models sum and the room lands 6 L* bright, which is the measured failure
