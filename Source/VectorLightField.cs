@@ -1,0 +1,238 @@
+using System.Collections.Generic;
+using UnityEngine;
+using Verse;
+
+namespace CelestialLighting;
+
+// §27's per-map registry: what is emitting light, and the mesh each emitter currently casts.
+//
+// TWO KINDS OF STALENESS, KEPT SEPARATE ON PURPOSE. A light's IDENTITY can change — one is built,
+// switched off, refuelled, recoloured — and its GEOMETRY can change under a light that never moved,
+// because somebody built a wall inside its radius. Collapsing those into one dirty flag means every
+// lamp toggle anywhere rebakes every polygon on the map, which is precisely the shape §16 records
+// killing the across-map tilt ramp over. So a glower registration marks the ROSTER dirty and a
+// blocker write marks only the polygons that cell can reach.
+//
+// NO TIMER, NO POLL, NO SELF-SCHEDULED WORK. Issue #48 states this outright — "if the design ends up
+// needing a timer, it is the wrong design" — and §16 has the measurement behind it:
+// MapComponent_SunShadowAxis cost only +3.4 microseconds per regenerate and still dominated the live
+// profile, purely by provoking ~720 whole-map rebakes a game day. Everything here is invalidated by
+// something the player did.
+//
+// Cached per map.uniqueID rather than in a MapComponent, following OpenSkyMask: Map.ExposeComponents
+// scribes a permanent node per component, so a component deleted later logs two red errors per map
+// forever (Source/MapComponent_SunShadowAxis.cs is the tombstone). For a prototype that may not
+// survive its own live A/B, leaving no save-file residue is the only responsible choice.
+public static class VectorLightField
+{
+    // One emitter and the polygon it currently throws. Position, radius and colour are snapshots,
+    // re-read on resync — the same thing Verse.Glow.GlowLight does, and for the same reason: a light
+    // that moves or recolours goes through deregister/reregister in vanilla, so a snapshot cannot go
+    // stale without the roster being marked dirty anyway.
+    public sealed class LightEntry
+    {
+        public IntVec3 Cell;
+        public float Radius;
+        public Color Color;
+        public Mesh Mesh;
+        public MaterialPropertyBlock Props;
+        public bool GeometryDirty = true;
+
+        // The polygon's area in square cells, kept for the probes: it is the one number that says
+        // "the lit region changed shape" without going anywhere near a pixel. Issue #3 records two
+        // wrong conclusions drawn from pixel measurement on exactly this kind of effect.
+        public float LitArea;
+    }
+
+    private sealed class MapLights
+    {
+        public readonly Dictionary<object, LightEntry> Entries = new Dictionary<object, LightEntry>();
+        public bool RosterDirty = true;
+    }
+
+    private static readonly Dictionary<int, MapLights> ByMap = new Dictionary<int, MapLights>();
+
+    public static void MarkRosterDirty(Map map)
+    {
+        if (map != null && ByMap.TryGetValue(map.uniqueID, out MapLights lights))
+            lights.RosterDirty = true;
+    }
+
+    // A blocker appeared or vanished at `cell`: every light that can see that cell now throws a
+    // different shape, and no other light is affected at all.
+    public static void MarkGeometryDirtyAround(Map map, IntVec3 cell)
+    {
+        if (map == null || !ByMap.TryGetValue(map.uniqueID, out MapLights lights))
+            return;
+
+        foreach (LightEntry entry in lights.Entries.Values)
+        {
+            // Squared distance against squared radius, so a wall built across the map costs one
+            // multiply per light rather than a square root.
+            float dx = entry.Cell.x - cell.x;
+            float dz = entry.Cell.z - cell.z;
+            float reach = entry.Radius + 1f;
+
+            if (dx * dx + dz * dz <= reach * reach)
+                entry.GeometryDirty = true;
+        }
+    }
+
+    // Everything currently emitting on this map, resynced from vanilla's own sets if anything has
+    // registered or deregistered since the last call.
+    public static Dictionary<object, LightEntry>.ValueCollection LightsFor(Map map)
+    {
+        MapLights lights = EnsureMap(map);
+
+        if (lights.RosterDirty)
+            Resync(map, lights);
+
+        return lights.Entries.Values;
+    }
+
+    // Drops every mesh on every map. Called when the feature is switched off, so an off run holds no
+    // GPU memory and — more importantly for the harness — leaves nothing behind that could still be
+    // drawn and quietly contaminate the A/B baseline.
+    public static void ClearAll()
+    {
+        foreach (MapLights lights in ByMap.Values)
+        {
+            foreach (LightEntry entry in lights.Entries.Values)
+                DestroyMesh(entry);
+
+            lights.Entries.Clear();
+            lights.RosterDirty = true;
+        }
+    }
+
+    private static MapLights EnsureMap(Map map)
+    {
+        if (!ByMap.TryGetValue(map.uniqueID, out MapLights lights))
+        {
+            lights = new MapLights();
+            ByMap[map.uniqueID] = lights;
+        }
+
+        return lights;
+    }
+
+    // Rebuilds the roster from GlowGrid's live sets, keeping the mesh of anything that has not moved
+    // or changed size. Keeping those is what makes a lamp toggle cost one polygon rather than all of
+    // them: the roster is dirty, but every other light's geometry is not.
+    private static void Resync(Map map, MapLights lights)
+    {
+        lights.RosterDirty = false;
+
+        HashSet<object> seen = new HashSet<object>();
+        AddGlowers(map, lights, seen);
+        AddTerrain(map, lights, seen);
+        RemoveUnseen(lights, seen);
+    }
+
+    private static void AddGlowers(Map map, MapLights lights, HashSet<object> seen)
+    {
+        HashSet<CompGlower> glowers = GlowGridAccess.LitGlowers(map.glowGrid);
+
+        if (glowers == null)
+            return;
+
+        foreach (CompGlower glower in glowers)
+        {
+            // A glower can be in the set while its parent is between maps (gravships) or mid-despawn.
+            // Filtering here rather than guarding at draw time keeps the roster to things that
+            // genuinely exist on this map.
+            if (BelongsTo(glower, map))
+            {
+                ColorInt glow = glower.GlowColor;
+                Upsert(lights, seen, glower.parent.thingIDNumber, glower.parent.Position,
+                    glower.GlowRadius, glow.r / 255f, glow.g / 255f, glow.b / 255f);
+            }
+        }
+    }
+
+    private static bool BelongsTo(CompGlower glower, Map map)
+    {
+        Thing parent = glower?.parent;
+        return parent != null && parent.Map == map;
+    }
+
+    // Glowing terrain is a separate registration path off TerrainDef.glowRadius, with no CompGlower
+    // anywhere. It has to be here because §27 suppresses vanilla's render of ALL artificial light:
+    // a version that only knew about glowers would put glowing moss out entirely the moment the
+    // feature was switched on, which is a regression rather than a missing feature.
+    private static void AddTerrain(Map map, MapLights lights, HashSet<object> seen)
+    {
+        HashSet<IntVec3> litTerrain = GlowGridAccess.LitTerrain(map.glowGrid);
+
+        if (litTerrain == null)
+            return;
+
+        foreach (IntVec3 cell in litTerrain)
+        {
+            TerrainDef terrain = map.terrainGrid.TerrainAt(cell);
+
+            if (terrain != null && terrain.glowRadius > 0f)
+            {
+                ColorInt glow = terrain.glowColor;
+                Upsert(lights, seen, cell, cell, terrain.glowRadius,
+                    glow.r / 255f, glow.g / 255f, glow.b / 255f);
+            }
+        }
+    }
+
+    private static void Upsert(
+        MapLights lights, HashSet<object> seen, object key,
+        IntVec3 cell, float radius, float r, float g, float b)
+    {
+        seen.Add(key);
+
+        if (!lights.Entries.TryGetValue(key, out LightEntry entry))
+        {
+            entry = new LightEntry { Props = new MaterialPropertyBlock() };
+            lights.Entries[key] = entry;
+        }
+
+        // Only a move or a resize invalidates the polygon. A recolour does not — the shape is
+        // identical and the colour rides on the material, so a colour-picker lamp being retinted
+        // costs nothing but a property block write.
+        if (entry.Cell != cell || entry.Radius != radius)
+            entry.GeometryDirty = true;
+
+        entry.Cell = cell;
+        entry.Radius = radius;
+
+        float scale = VectorLightMath.PeakScale(r, g, b);
+        entry.Color = new Color(r * scale, g * scale, b * scale, 1f);
+    }
+
+    private static void RemoveUnseen(MapLights lights, HashSet<object> seen)
+    {
+        List<object> gone = null;
+
+        foreach (KeyValuePair<object, LightEntry> pair in lights.Entries)
+        {
+            if (!seen.Contains(pair.Key))
+            {
+                gone = gone ?? new List<object>();
+                gone.Add(pair.Key);
+            }
+        }
+
+        if (gone == null)
+            return;
+
+        foreach (object key in gone)
+        {
+            DestroyMesh(lights.Entries[key]);
+            lights.Entries.Remove(key);
+        }
+    }
+
+    private static void DestroyMesh(LightEntry entry)
+    {
+        if (entry.Mesh != null)
+            Object.Destroy(entry.Mesh);
+
+        entry.Mesh = null;
+    }
+}
