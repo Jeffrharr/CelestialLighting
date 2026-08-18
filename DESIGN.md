@@ -8108,6 +8108,76 @@ the same reason the epic wanted the suppressing half droppable in the first plac
 Off remains §27 as originally designed, for anyone who wants shadows that reach full dark and accepts
 that a room lit only by light bending around a corner loses all of it.
 
+### Phase 3: the subtractive mask (`vector_light_mask`)
+
+Phases 1 and 2 drew a second lighting model over vanilla's; phase 2b tried to compose the two as a
+max and measured a no-op. Phase 3 gives up on composing two models and **edits vanilla's**, which is
+the only operator left once you notice that *§27's contribution is subtractive*: a shadow is light
+taken away, and nothing that only ever adds can express one.
+
+Per emitter, over the cells our polygon says that emitter cannot reach:
+
+```
+newGlow(c) = totalGlow(c) − Σ over our emitters of  own(e, c) · (1 − lit(e, c))
+```
+
+`own(e, c)` is vanilla's own per-emitter glow, read out of `GlowGrid`'s private per-light arrays
+(`GlowGridPerLight`) — `ComputeGlowGridsJob` fills them with `falloff(geodesic distance)`, which is
+exactly the light that bent around a corner. `lit(e, c)` is the share of the cell the visibility
+polygon covers (`VectorLightMath.LitFraction`).
+
+**What the shape buys.**
+
+- **The level stops needing calibration.** A cell the polygon can see subtracts nothing, so it reads
+  at exactly vanilla's own brightness. `DefaultStrength` existed to calibrate an additive pass
+  against vanilla's multiply and never quite landed; there is nothing left to calibrate.
+- **Daylight is free.** `DaylightScale` existed because the additive pass sat *above* the sky's
+  multiply, so an unattenuated torch outglowed noon. This edits the value the multiply consumes.
+- **Nothing we did not model is ever touched**, because we subtract a *named* emitter's own
+  contribution and nothing else. A mod passing sunlight through a window, drawing its own section
+  layer, or lighting cells without registering a glower is untouched *by construction* rather than
+  by a floor. That is the compatibility problem `vector_light_blend` exists to manage, dissolved.
+
+**Measured**, same scene and frame as the arms above:
+
+| arm | lit room L\* | shadow off the beam L\* | doorway beam L\* | beam contrast | masked ΔE vs vanilla | frame touched |
+|---|---|---|---|---|---|---|
+| vanilla | 9.61 | 12.58 | 15.54 | 1.17 | — | — |
+| crossfade @0.5 (shipped) | 9.72 | 10.73 | 15.76 | **1.38** | 0.95 | 6.27% |
+| **mask (phase 3)** | 9.51 | **9.07** | 13.34 | **1.37** | 1.35 | **2.80%** |
+| full §27, soft edges | 9.84 | 8.87 | 15.94 | **1.66** | 1.51 | 6.60% |
+
+**It ties the crossfade on contrast and gets there from the other side.** Beam contrast 1.37 against
+the crossfade's 1.38 — but the crossfade reaches it by *lifting the beam* above vanilla (15.76 vs
+15.54) while the mask reaches it by *dropping the surroundings* below it (beam 13.34, shadow 9.73).
+It gets §27's shadow depth almost exactly (9.07 against full §27's 8.87) while touching less than
+half as much of the frame.
+
+**What it cannot do is make a beam.** It only subtracts, so the light through a doorway can never be
+brighter than vanilla put there — and the cells immediately past a one-cell gap are only *partly*
+visible from the emitter, so they lose their unseen share and the beam comes out dimmer than
+vanilla's. That is physically right and dramatically weaker. Phase 2b was the mirror of this: the max
+kept vanilla's brightness and lost every shadow; the mask keeps every shadow and loses the beam. The
+crossfade is the only one of the three that has both, at half strength each, which is a better
+argument for the shipped default than the one originally written for it.
+
+**The resolution objection, re-tested rather than inherited.** DESIGN.md rejected cell resolution for
+§27 as "the resolution §27 exists to escape". At 4× zoom on a shadow edge
+(`Tests/Screenshots/vector_light_penumbra__mask_edge_zoom.png`) there is **no staircase** — the edge
+is a smooth ramp, because `LitFraction` reports a cell's covered *share* and the overlay's own
+bilinear interpolation spreads it. It is a visibly *broader* edge than the polygon arms draw, which
+is the good failure mode and the same direction phase 2 chose deliberately with a half-cell penumbra.
+
+**Known approximation.** The subtraction happens in the overlay's post-projection byte space, while
+`own` is read pre-projection. `ColorInt.ProjectToColor32` scales all channels by `255/max` once the
+brightest exceeds 255, so where several bright emitters overlap we over-subtract by that factor —
+always *darker*, never brighter. Single emitters are unaffected (a torch peaks at 172). The exact fix
+is to rebuild the vertex colour the way `GenerateLightingOverlay` does, summing *all* of vanilla's
+lights with our coverage applied only to the ones we modelled, and projecting once at the end;
+`GlowGridPerLight` already exposes everything that needs.
+
+**Ships off**, like every other §27 phase, and stands down when the per-emitter arrays cannot be read.
+
 ### Performance (`Tests/Scenarios/vector_light_perf.json`)
 
 Epic #145 carried phase 5 with **nothing profiled at all** — phase 1's validation run was
