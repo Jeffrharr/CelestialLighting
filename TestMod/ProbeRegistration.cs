@@ -438,16 +438,16 @@ public static class ProbeRegistration
                 CelestialLightingFeatures.VectorLightSuppress = enabled;
                 VectorLightRedraw.ForceRebuild();
             });
-        // THREE-arg overload with defaultEnabled false, like vector_lights itself: registered true it
-        // would switch itself on for every later scenario in a suite via FeatureRegistry.ResetAll.
+        // Two-arg overload, i.e. defaultEnabled true, matching the shipped default. Safe for the same
+        // reason as the penumbra flag: it is inert while vector_lights is off, which is what
+        // FeatureRegistry.ResetAll leaves that one at, so it cannot contaminate a later scenario.
         FeatureRegistry.Register(
             CelestialLightingFeatures.VectorLightBlendKey,
             enabled =>
             {
                 CelestialLightingFeatures.VectorLightBlend = enabled;
                 VectorLightRedraw.ForceRebuild();
-            },
-            defaultEnabled: false);
+            });
         FeatureRegistry.Register(
             CelestialLightingFeatures.CivilTwilightPersistenceKey,
             enabled => CelestialLightingFeatures.CivilTwilightPersistence = enabled);
