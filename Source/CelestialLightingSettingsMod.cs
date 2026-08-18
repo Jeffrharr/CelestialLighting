@@ -161,6 +161,7 @@ public class CelestialLightingSettingsMod : Mod
         // with no per-frame field regeneration, so it does not warrant the same warning in the label.
         listing.CheckboxLabeled("    Visible clouds", ref Settings.cloudSheet,
             "Draw the clouds themselves — soft-edged sheets of cloud drifting across the map above everything on it, more of them the cloudier it is, tinted by whatever light is on them (neutral at midday, orange and pink at sunset). Without this, cloud cover only ever shows as a change in the colour and brightness of the sky.\n\nDrifts around the clock, under any weather that has a cloud deck as well as during the partial cover above. Costs up to twelve draw calls a frame while clouds are on screen and nothing at all when the sky is clear; the cloud shapes are baked once when the game loads, not per frame.");
+        ShowExternalCloudSource(listing);
         listing.CheckboxLabeled("Sky colour-temperature", ref Settings.skyColorTemperature,
             "Warm the sky toward the horizon on a continuous, altitude-keyed curve.");
         listing.CheckboxLabeled("Polar night blue", ref Settings.polarNightBlue,
@@ -184,6 +185,33 @@ public class CelestialLightingSettingsMod : Mod
         DrawSunClockRadio(listing);
         listing.CheckboxLabeled("Blood-moon crimson (VRE – Sanguophage)", ref Settings.bloodMoon,
             "Recolour the moonlit night crimson while VRE – Sanguophage's blood-moon condition is active. Inert without that mod.");
+    }
+
+    // Reports that Clouds is drawing the deck, and therefore that the "Visible clouds" checkbox
+    // directly above has been overruled.
+    //
+    // WHY THIS IS A LABEL AND NOT A GREYED-OUT CHECKBOX. The setting is still live and still means
+    // something — it is what the mod goes back to the moment Clouds is uninstalled — so blanking it
+    // would throw away a preference to describe a temporary state. Same ruling as the axial-tilt line
+    // above: report which mod owns the thing, do not offer a switch whose only use is making two mods
+    // render the same object.
+    //
+    // Silent without Clouds installed, for the same reason ShowObliquitySource is: a line saying "our
+    // clouds are ours" is noise on a screen that is otherwise all decisions.
+    private void ShowExternalCloudSource(Listing_Standard listing)
+    {
+        if (!CloudsCompat.ModIsInstalled)
+            return;
+
+        listing.Label(
+            "    Clouds are drawn by the Clouds mod",
+            tooltip: "Clouds (by Brrainz) is installed, so it draws the clouds and this mod does not "
+                + "\u2014 \"Visible clouds\" above, the drifting cloud shadows, and the underlit-cloud "
+                + "layer all stand down while it is present. Two mods placing clouds independently "
+                + "would put shadows under clear sky and clouds that cast none.\n\nEverything else "
+                + "here is unaffected: the sky still greys and desaturates as cover builds, the "
+                + "\"- N% cloudy\" label still reads, and the sunset colour under a deck is still "
+                + "ours. Uninstall Clouds and this mod's own clouds come back on the setting above.");
     }
 
     // The three eclipse flavours (DESIGN.md §10). Only meaningful while "Eclipse effects" above is on
