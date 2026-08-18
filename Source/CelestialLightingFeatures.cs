@@ -564,6 +564,25 @@ public static class CelestialLightingFeatures
     // Gameplay light is untouched either way. map.glowGrid, GroundGlowAt, plant growth, work speed and
     // pawn vision are identical with this on or off — §27 changes only what is rendered.
     public static bool VectorLights = false;
+
+    // Feature key for VectorLightPenumbra.
+    public const string VectorLightPenumbraKey = "vector_light_penumbra";
+
+    // §27 phase 2, soft shadow edges. Every emitter is treated as a disc half a cell across rather
+    // than a point, so each shadow boundary gains a penumbra wedge that widens with distance from the
+    // corner casting it — the transition band a real light of finite size produces.
+    //
+    // SEPARATE FROM VectorLights ON PURPOSE, even though it is meaningless without it. The two are
+    // the only A/B that isolates the soft edge from the mechanism: with vector_lights on and this
+    // off, the frame is phase 1's hard-edged render, which is the baseline a softness measurement
+    // has to be taken against. Measuring against vanilla instead would measure the whole subsystem.
+    //
+    // OFF REPRODUCES PHASE 1 EXACTLY rather than approximately, and does it without a second draw
+    // path: off passes a source radius of zero, no wedge geometry is emitted at all, and every fan
+    // vertex already carries V = 0, which samples the row of the baked gradient that is the plain
+    // falloff curve. The hard-edged mesh and the hard-edged texture lookup are the same objects the
+    // soft version uses, not a preserved copy of them.
+    public static bool VectorLightPenumbra = true;
 }
 
 public enum SunClockMode

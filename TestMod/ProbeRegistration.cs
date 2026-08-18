@@ -413,6 +413,18 @@ public static class ProbeRegistration
                 VectorLightRedraw.ForceRebuild();
             },
             defaultEnabled: false);
+        // §27 phase 2. Registered with the two-arg overload, i.e. defaultEnabled true, because true
+        // IS its shipped default — it is a sub-flag of vector_lights and does nothing at all while
+        // that one is off, so it cannot contaminate a later scenario the way §27 itself could.
+        // ForceRebuild for the same reason as above: the wedge geometry is baked into each light's
+        // mesh, so flipping this changes nothing until something rebuilds it.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightPenumbraKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.VectorLightPenumbra = enabled;
+                VectorLightRedraw.ForceRebuild();
+            });
         FeatureRegistry.Register(
             CelestialLightingFeatures.CivilTwilightPersistenceKey,
             enabled => CelestialLightingFeatures.CivilTwilightPersistence = enabled);
