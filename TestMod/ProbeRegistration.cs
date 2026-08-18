@@ -673,6 +673,17 @@ public static class ProbeRegistration
                 VectorLightRedraw.ForceRebuild();
             },
             defaultEnabled: false);
+        // §27 phase 3's beam half. THREE-arg overload with defaultEnabled: false to match the
+        // shipped default; inert while vector_light_mask is off, but registered with the explicit
+        // default anyway so ResetAll cannot switch it on for a later scenario in a suite.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightMaskBeamKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.VectorLightMaskBeam = enabled;
+                VectorLightRedraw.ForceRebuild();
+            },
+            defaultEnabled: false);
         FeatureRegistry.Register(
             CelestialLightingFeatures.CivilTwilightPersistenceKey,
             enabled => CelestialLightingFeatures.CivilTwilightPersistence = enabled);

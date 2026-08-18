@@ -865,6 +865,28 @@ public static class VectorLightMath
         return Clamp01(1f - Clamp01(curSkyGlow));
     }
 
+    // What the additive pass delivers when it is riding ON TOP of §27 phase 3's mask rather than
+    // over a suppressed vanilla — the "combination" arm.
+    //
+    // WHY A BEAM IS NEEDED AT ALL ON TOP OF THE MASK. The mask can only subtract, so the light
+    // through a doorway can never exceed what vanilla put there, and the cells just past a one-cell
+    // gap are only PARTLY visible and lose their unseen share — so the beam comes out dimmer than
+    // vanilla's. Measured: doorway beam 13.34 L* against vanilla's 15.54. The mask has §27's shadows
+    // and none of its beam; this is the half that puts the beam back.
+    //
+    // WHY IT DOES NOT SUM THE WAY THE MIXED CASE DID. Epic #145's rejected option 1 drew our full
+    // model over vanilla's full model and landed 6 L* bright. This draws over a vanilla that has
+    // already had the bent light REMOVED, so the two are not two complete models: what is underneath
+    // is vanilla restricted to the cells we can see, and what goes on top is a fraction of the same
+    // shape. Their sum is (V + k*O) * lit, which with O ~ V is just vanilla scaled by (1 + k) inside
+    // the lit region and zero outside it — the shape §27 wanted, expressed on vanilla's own levels.
+    //
+    // 0.175 is DefaultStrength * (1 - DefaultVanillaFloor), i.e. exactly what the crossfade already
+    // delivers on top of the half of vanilla it keeps. Reusing that number rather than picking a new
+    // one means the beam's lift is a quantity already lived with rather than a fresh guess, and it
+    // makes the combination directly comparable to the crossfade it is trying to beat.
+    public const float MaskBeamStrength = DefaultStrength * (1f - DefaultVanillaFloor);
+
     // How many samples per axis the cell-coverage test takes. Four samples over a cell is enough to
     // resolve the quarter-cell steps the lighting overlay's own bilinear interpolation can express,
     // and a finer grid would be measuring a boundary the mesh cannot represent.
