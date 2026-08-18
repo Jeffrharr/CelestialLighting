@@ -865,6 +865,101 @@ public static class VectorLightMath
         return Clamp01(1f - Clamp01(curSkyGlow));
     }
 
+    // One emitter's cell coverage, baked once per polygon instead of per section.
+    //
+    // WHY THIS EXISTS: 239 MICROSECONDS PER SECTION. Phase 3 first asked LitFraction per cell per
+    // emitter during every section regenerate, which measured 239.3 us per section against the
+    // crossfade's 20.2 — 11.8x, and a 29.5 ms worst frame on a whole-map rebake. The waste was
+    // structural rather than a constant factor: coverage depends only on the polygon and the cell,
+    // and neither of those knows which section is being baked, so the same answer was recomputed
+    // once per section that happened to overlap the emitter, and four sample points and a binary
+    // search over a hundred rays were paid for each time.
+    //
+    // Baked here, the bake becomes an array index. The grid is rebuilt only when the polygon is —
+    // i.e. when somebody builds or removes a wall in range — which is the same cadence the polygon
+    // itself already had, and it costs one byte per cell of the emitter's square: 441 bytes for a
+    // radius-10 lamp.
+    //
+    // A BYTE RATHER THAN A FLOAT, deliberately. The consumer multiplies vanilla's glow bytes by
+    // (1 - coverage) and rounds, so a 1/255 quantisation of the coverage is finer than the thing it
+    // is modulating and cannot be seen. It also keeps a radius-14 emitter's grid under a kilobyte.
+    public static byte[] BuildCoverage(
+        LightPolygon polygon, int lightCellX, int lightCellZ, int radiusCells, int samplesPerAxis)
+    {
+        int span = radiusCells * 2 + 1;
+        byte[] grid = new byte[span * span];
+
+        if (polygon.Count == 0 || radiusCells < 0)
+            return grid;
+
+        float lightX = lightCellX + 0.5f;
+        float lightZ = lightCellZ + 0.5f;
+
+        for (int zi = 0; zi < span; zi++)
+        {
+            for (int xi = 0; xi < span; xi++)
+            {
+                float lit = LitFraction(
+                    polygon, lightX, lightZ,
+                    lightCellX - radiusCells + xi, lightCellZ - radiusCells + zi, samplesPerAxis);
+
+                grid[zi * span + xi] = (byte)Math.Round(Clamp01(lit) * 255f);
+            }
+        }
+
+        return grid;
+    }
+
+    // Coverage for one cell, or FULLY LIT for a cell outside the emitter's square.
+    //
+    // Outside the square is the right place to answer 255 rather than 0: the emitter delivers no
+    // light there at all, so the caller has nothing to subtract either way — but 0 would mean
+    // "wholly shadowed", and a caller that reached here with a non-zero glow would darken a cell the
+    // emitter never lit. Erring towards subtracting nothing keeps a bug in this lookup from removing
+    // somebody else's light.
+    public static byte CoverageAt(
+        byte[] grid, int lightCellX, int lightCellZ, int radiusCells, int cellX, int cellZ)
+    {
+        if (grid == null || grid.Length == 0)
+            return 255;
+
+        int span = radiusCells * 2 + 1;
+        int xi = cellX - lightCellX + radiusCells;
+        int zi = cellZ - lightCellZ + radiusCells;
+
+        if (xi < 0 || zi < 0 || xi >= span || zi >= span)
+            return 255;
+
+        return grid[zi * span + xi];
+    }
+
+    // Whether nothing blocks this emitter — every ray reached the full radius.
+    //
+    // Worth its own pass because the answer is usually YES in open ground and it makes the whole
+    // emitter free: an unobstructed lamp shadows nothing anywhere, so the bake can skip it outright
+    // rather than looking a grid up cell by cell to be told 255 each time.
+    //
+    // ASKED OF THE POLYGON, NOT OF THE GRID, and the difference matters. A grid covers the emitter's
+    // SQUARE while the polygon covers its circle, so the square's corners are outside the light
+    // whatever the geometry does and an all-255 grid is a state that essentially never occurs. The
+    // rim is the same story one cell in: the polygon is an inscribed 48-gon, so cells straddling the
+    // radius are partly outside it and read as partly shadowed even with nothing in the way. Both
+    // are discretisation, not shadow. A ray stopping short of the radius is shadow, and it is the
+    // only thing here that is.
+    public static bool IsUnobstructed(LightPolygon polygon, float radius)
+    {
+        if (polygon.Count == 0)
+            return false;
+
+        for (int i = 0; i < polygon.Count; i++)
+        {
+            if (polygon.Distances[i] < radius - CornerRayEpsilon)
+                return false;
+        }
+
+        return true;
+    }
+
     // What the additive pass delivers when it is riding ON TOP of §27 phase 3's mask rather than
     // over a suppressed vanilla — the "combination" arm.
     //

@@ -159,6 +159,62 @@
       }
     },
     {
+      "type": "Probe",
+      "args": {
+        "probeName": "circinus_apply_calls",
+        "expectedValue": "0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circinus_apply_total_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circinus_shadow_total_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circinus_corners_total_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circinus_centres_total_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circinus_reader_calls",
+        "expectedValue": "0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circinus_reader_total_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
       "type": "SetFeature",
       "args": {
         "featureName": "vector_light_penumbra",
@@ -201,6 +257,62 @@
       "type": "Probe",
       "args": {
         "probeName": "circinus_ours_max_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circinus_apply_calls",
+        "expectedValue": "0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circinus_apply_total_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circinus_shadow_total_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circinus_corners_total_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circinus_centres_total_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circinus_reader_calls",
+        "expectedValue": "0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circinus_reader_total_ms",
         "expectedValue": "0",
         "tolerance": "1000000000.0"
       }

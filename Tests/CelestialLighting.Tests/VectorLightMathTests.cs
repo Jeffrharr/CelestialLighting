@@ -792,6 +792,85 @@ public class VectorLightMathTests
         Assert.That(VectorLightMath.MaskBeamStrength, Is.LessThan(VectorLightMath.DefaultStrength));
     }
 
+    // THE TEST THAT MAKES THE CACHE A PURE OPTIMISATION. The baked grid replaced a per-cell
+    // LitFraction call that cost 239 us per section; it is only allowed to do that if it answers
+    // exactly what the call answered. Every cell of the emitter's square is checked rather than a
+    // sample of them, because an indexing error in a grid is precisely the sort of bug that is
+    // correct in the middle and wrong at one edge.
+    [Test]
+    public void TheBakedCoverageAgreesWithSamplingEveryCell()
+    {
+        VectorLightMath.LightPolygon polygon = WalledPolygon();
+        const int radius = 10;
+        byte[] grid = VectorLightMath.BuildCoverage(polygon, 8, 8, radius, 2);
+
+        for (int cz = 8 - radius; cz <= 8 + radius; cz++)
+        {
+            for (int cx = 8 - radius; cx <= 8 + radius; cx++)
+            {
+                float sampled = VectorLightMath.LitFraction(polygon, 8.5f, 8.5f, cx, cz, 2);
+                byte baked = VectorLightMath.CoverageAt(grid, 8, 8, radius, cx, cz);
+
+                Assert.That(
+                    baked / 255f, Is.EqualTo(sampled).Within(1f / 255f),
+                    "cell (" + cx + ", " + cz + ")");
+            }
+        }
+    }
+
+    // Outside the square the answer is FULLY LIT, not fully dark. The emitter delivers nothing
+    // there, so a caller has nothing to subtract either way — but 0 would mean "wholly shadowed",
+    // and a caller that arrived with a non-zero glow would darken a cell this emitter never lit.
+    // The safe direction is to subtract nothing.
+    [TestCase(-3, 8)]
+    [TestCase(8, 40)]
+    [TestCase(100, 100)]
+    public void CoverageOutsideTheSquareReadsFullyLit(int cellX, int cellZ)
+    {
+        byte[] grid = VectorLightMath.BuildCoverage(WalledPolygon(), 8, 8, 10, 2);
+
+        Assert.That(VectorLightMath.CoverageAt(grid, 8, 8, 10, cellX, cellZ), Is.EqualTo(255));
+    }
+
+    // The skip that makes an unobstructed emitter free. In open ground most emitters shadow nothing,
+    // and the bake drops them for the whole section rather than looking a grid up cell by cell.
+    //
+    // ASKED OF THE POLYGON RATHER THAN THE BAKED GRID, and an earlier version that asked the grid
+    // failed here for a reason worth keeping: a grid covers the emitter's SQUARE while the polygon
+    // covers its circle, so the corners are outside the light whatever the geometry does and an
+    // all-255 grid never occurs. A ray stopping short of the radius is shadow; discretisation is not.
+    [Test]
+    public void AnUnobstructedEmitterIsSkippableAndAWalledOneIsNot()
+    {
+        Assert.That(VectorLightMath.IsUnobstructed(OpenPolygon(10f), 10f), Is.True);
+        Assert.That(VectorLightMath.IsUnobstructed(WalledPolygon(), 10f), Is.False);
+    }
+
+    // And a degenerate polygon is NOT skippable. Returning true would mean "nothing is shadowed",
+    // which reads as the subsystem being off rather than as the polygon being broken.
+    [Test]
+    public void AnEmptyPolygonIsNotSkippable()
+    {
+        Assert.That(
+            VectorLightMath.IsUnobstructed(
+                new VectorLightMath.LightPolygon(new float[0], new float[0], 0), 10f),
+            Is.False);
+    }
+
+    // A degenerate polygon bakes to all-zero rather than all-lit, matching LitFraction's own answer
+    // for it — see AnEmptyPolygonLightsNothing. It must not read as "nothing is shadowed", which
+    // would silently disable the subsystem instead of failing.
+    [Test]
+    public void AnEmptyPolygonBakesToNoCoverage()
+    {
+        VectorLightMath.LightPolygon empty =
+            new VectorLightMath.LightPolygon(new float[0], new float[0], 0);
+        byte[] grid = VectorLightMath.BuildCoverage(empty, 8, 8, 4, 2);
+
+        Assert.That(grid.Length, Is.EqualTo(9 * 9));
+        Assert.That(VectorLightMath.CoverageAt(grid, 8, 8, 4, 8, 8), Is.EqualTo(0));
+    }
+
     private static VectorLightMath.LightPolygon OpenPolygon(float radius)
     {
         return VectorLightMath.Build(8.5f, 8.5f, radius, new VectorLightMath.Segment[0], 48);
