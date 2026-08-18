@@ -7723,6 +7723,35 @@ inversion on the first run. The fan must still tile the polygon exactly once, wh
 and would otherwise read as overlap. `Tools/VectorLightPreview` grew a hard-vs-soft pair per scene,
 both arms from the same call with a different source radius.
 
+### What publishing the vanilla arm showed
+
+`vector_light_penumbra.json` captures three arms from one scene — vanilla's flood, phase 1's hard
+edges, phase 2's penumbra — rather than the two an A/B needs. The soft-edge measurement is still
+taken between the last two, since holding `vector_lights` on across both is what isolates the
+penumbra from the mechanism drawing it. The vanilla arm is there because it is the only one of the
+three a player has actually seen, and putting it beside the others immediately showed something the
+two-arm pair had hidden for a whole phase:
+
+| arm | masked median ΔE vs vanilla | lit room mean L\* | room beyond the doorway |
+|---|---|---|---|
+| vanilla | — | 13.16 | 8.95 |
+| hard edges | 4.02 (over 6.38% of frame) | 15.23 | 8.99 |
+| soft edges | 3.99 (over 6.43% of frame) | 15.26 | 9.10 |
+
+**§27 currently reads about two L\* brighter in the lit room than vanilla does** — a ~16% lift in
+mean lightness that no A/B against phase 1 could ever have surfaced, because both of its arms
+contain it. That is phase 1's calibration and not phase 2's: soft edges move it by 0.03. §27 is
+meant to change the *shape* of light and not how bright a lamp is, so the level wants another look
+before any of this defaults on, and the additive pass's anchor to vanilla's 0.5 artificial cap is
+where to start.
+
+The same table quietly contradicts the epic's headline risk *in this geometry*: the room beyond the
+doorway is not darker under §27, it is marginally brighter (8.95 → 9.10), because the beam through
+the door reaches further than vanilla's flood bent around the jamb. That is not the risk being
+wrong — a room with **no** line of sight at all is where it bites, and this scene does not contain
+one — but it does mean the risk needs a scene built to show it rather than being assumed visible in
+any scene with a wall in it.
+
 ### Performance (`Tests/Scenarios/vector_light_perf.json`)
 
 Epic #145 carried phase 5 with **nothing profiled at all** — phase 1's validation run was
