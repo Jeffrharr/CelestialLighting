@@ -7813,9 +7813,10 @@ Writing it as `vanilla + max(0, ours − vanilla)` makes it expressible on an ad
 is what our pass already is. What it needs is a per-vertex "how much did vanilla deliver here"
 channel so the subtraction happens per fragment. `MoteGlow` has no way to carry one: vertex colour is
 ignored (`CloudUnderlightOverlay`'s finding), and both UV channels are already spent on the falloff
-and the penumbra ramp. **This is the first thing in §27 that genuinely needs the custom shader** —
-which, per the phase 2 note above, is now a working toolchain rather than a blocked one, pending the
-Windows and Mac Unity modules.
+and the penumbra ramp. **This is the first thing in §27 that genuinely needs the custom shader**, and
+as of 2026-08-18 nothing stands in its way: all three Unity build modules are installed and all three
+bundles build clean and stamped (see the phase 2 note above), so the max is now an implementation
+task rather than a toolchain one.
 
 **Caveat on the floor's value.** At 0.5 the crossfade measures ΔE **1.04** against vanilla, which is
 barely over the repo's own "under 1 is not shipped" line. It is safe and it is subtle, and those are
