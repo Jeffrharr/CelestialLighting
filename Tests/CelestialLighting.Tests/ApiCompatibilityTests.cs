@@ -2139,49 +2139,48 @@ public class ApiCompatibilityTests
     }
 
     [Test]
-    public void WeatherManager_DoWeatherGUI_MatchesTheBodyPatchCloudCoverLabelReplaces()
+    public void WeatherManager_DoWeatherGUI_StillHasTheLabelCapSeamPatchCloudCoverLabelTranspiles()
     {
-        // Patch_CloudCoverLabel is a full Prefix replacement (return false), the same technique
-        // Patch_SuppressRandomEclipse uses — see that patch's own header for why a small, stable
-        // vanilla method with no natural sub-hook gets reimplemented rather than transpiled. That
-        // means there is no compiler check that the copy is still faithful; this test is it. It pins
-        // the four vanilla members the replacement body itself calls, so a change to any of them fails
-        // here loudly instead of leaving Patch_CloudCoverLabel silently drawing a stale weather label.
+        // Patch_CloudCoverLabel is a Transpiler, and the seam it splices into is the single
+        // `callvirt Def::get_LabelCap` that DoWeatherGUI builds its Widgets.Label argument from. A
+        // transpiler that finds no seam does not throw — it silently emits the method unchanged, so
+        // the mod would ship with a feature that reads as enabled in the settings panel and never
+        // appears on screen. This test is the thing that fails instead.
+        //
+        // It also pins WHY the insert is safe next to another mod's inserts on the same seam: the
+        // getter returns TaggedString and Widgets.Label(Rect, TaggedString) consumes one, so our
+        // TaggedString-in/TaggedString-out call is stack-neutral and leaves the argument type the
+        // call site still expects. Uncompromising Fires transpiles this exact seam the same way (see
+        // that patch's header and About.xml's loadAfter entry); if either half of that shape moves,
+        // the composition is what breaks, and it breaks here rather than in a player's weather panel.
         var type = GetType("RimWorld.WeatherManager");
         Assert.That(type, Is.Not.Null, "RimWorld.WeatherManager no longer exists");
         var method = type!.Methods.SingleOrDefault(m => m.Name == "DoWeatherGUI" && m.Parameters.Count == 1);
         Assert.That(method, Is.Not.Null, "WeatherManager.DoWeatherGUI(Rect) no longer exists");
         Assert.That(method!.Parameters[0].ParameterType.FullName, Is.EqualTo("UnityEngine.Rect"));
 
+        var labelCapCalls = method.Body.Instructions
+            .Where(i => i.Operand is MethodReference m
+                && m.DeclaringType.FullName == "Verse.Def" && m.Name == "get_LabelCap")
+            .ToList();
+        Assert.That(labelCapCalls.Count, Is.EqualTo(1),
+            "DoWeatherGUI no longer calls Def.LabelCap exactly once — Patch_CloudCoverLabel's transpiler "
+            + "splices its cloud-cover suffix onto that single call and takes the first match");
+
+        Assert.That(((MethodReference)labelCapCalls[0].Operand!).ReturnType.FullName,
+            Is.EqualTo("Verse.TaggedString"),
+            "Def.LabelCap no longer returns TaggedString — Patch_CloudCoverLabel.WithCloudCover takes and "
+            + "returns one to keep the insert stack-neutral");
+
         var widgets = GetType("Verse.Widgets");
         Assert.That(widgets, Is.Not.Null, "Verse.Widgets no longer exists");
         Assert.That(
             widgets!.Methods.Any(m => m.Name == "Label" && m.Parameters.Count == 2
                 && m.Parameters[0].ParameterType.FullName == "UnityEngine.Rect"
-                && m.Parameters[1].ParameterType.FullName == "System.String"),
-            Is.True, "Widgets.Label(Rect, string) no longer exists — DoWeatherGUI's replacement body calls it");
-
-        // The call site passes a plain string, but the overload actually resolved is
-        // TipRegion(Rect, TipSignal) via TipSignal's implicit `string` conversion — so both halves of
-        // that are pinned, not just the method.
-        var tooltipHandler = GetType("Verse.TooltipHandler");
-        Assert.That(tooltipHandler, Is.Not.Null, "Verse.TooltipHandler no longer exists");
-        Assert.That(
-            tooltipHandler!.Methods.Any(m => m.Name == "TipRegion" && m.Parameters.Count == 2
-                && m.Parameters[0].ParameterType.FullName == "UnityEngine.Rect"
-                && m.Parameters[1].ParameterType.FullName == "Verse.TipSignal"),
+                && m.Parameters[1].ParameterType.FullName == "Verse.TaggedString"),
             Is.True,
-            "TooltipHandler.TipRegion(Rect, TipSignal) no longer exists — DoWeatherGUI's replacement body calls it");
-
-        var tipSignal = GetType("Verse.TipSignal");
-        Assert.That(tipSignal, Is.Not.Null, "Verse.TipSignal no longer exists");
-        Assert.That(
-            tipSignal!.Methods.Any(m => m.Name == "op_Implicit" && m.Parameters.Count == 1
-                && m.Parameters[0].ParameterType.FullName == "System.String"
-                && m.ReturnType.FullName == "Verse.TipSignal"),
-            Is.True,
-            "TipSignal's implicit string conversion no longer exists — DoWeatherGUI's replacement body "
-            + "passes a plain string to TipRegion and relies on it");
+            "Widgets.Label(Rect, TaggedString) no longer exists — it is what consumes the label our "
+            + "transpiler hands back, and the overload resolution is what keeps the insert type-preserving");
     }
 
     // --- helpers ---

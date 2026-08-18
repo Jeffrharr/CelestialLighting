@@ -1,0 +1,18 @@
+{
+  "name": "uf_dryness_interop",
+  "saveFile": "minimal_colony.rws",
+  "description": "Interop check against Uncompromising Fires (Fuu.UncompromisingFires, Workshop 2623963630), which transpiles the same WeatherManager.DoWeatherGUI seam we do to append its map-dryness readout to the weather label. Must be run twice from the same scenario file with the SAME mod set — once without --mod-overlay (main's Prefix replacement, where the dryness readout is absent) and once with it (the transpiler, where both readouts show) — because the thing under test is whether another mod's contribution survives ours, which no probe of ours can see. hideUi is false on purpose: the weather panel IS the measurement here, so the capture has to carry the HUD. The two Wait steps clear Uncompromising Fires' own 57-frame label-refresh gate; without them its guiDrynessLabel is still null and an inert capture would look identical to a broken one.",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "45" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "40" } },
+    { "type": "SetWeather", "args": { "weatherDef": "Clear", "instant": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "cloud_cover", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "cloud_cover_label", "enabled": "true" } },
+    { "type": "SetTime", "args": { "hour": "16" } },
+    { "type": "Wait", "args": { "frames": "120" } },
+    { "type": "Probe", "args": { "probeName": "cloud_cover_fraction", "expectedValue": "0.2710", "tolerance": "0.0005" } },
+    { "type": "Screenshot", "args": { "fileName": "uf_interop_hud.png", "hideUi": "false" } },
+    { "type": "Wait", "args": { "frames": "120" } },
+    { "type": "Screenshot", "args": { "fileName": "uf_interop.png", "hideUi": "false" } }
+  ]
+}
