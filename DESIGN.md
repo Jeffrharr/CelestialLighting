@@ -7779,6 +7779,51 @@ The flag is not only a demo. The epic asks for the suppressing half to be droppa
 the polygons — it is the risky one, since with it on anything §27 does not know about goes *black*
 rather than merely unimproved — and this is that escape hatch, now switchable rather than hypothetical.
 
+### The crossfade (`vector_light_blend`) — the mixed case, toned down
+
+The mixed case fails because it **sums** two complete lighting models. Keeping the arrangement but
+scaling both is a different proposition, and a better one. `vector_light_blend` keeps a fraction of
+vanilla's flood underneath (`DefaultVanillaFloor`, 0.5) and drops our own contribution by the same
+fraction, so the floor is a *redistribution* rather than an addition: at 0 it is §27 exactly, at 1 it
+is vanilla exactly, and in between the overall level barely moves while the **shape** crossfades from
+one model to the other.
+
+| arm | lit room mean L\* | vs vanilla | deepest shadow L\* | room beyond the doorway | ΔE vs vanilla |
+|---|---|---|---|---|---|
+| vanilla | 14.02 | — | 4.20 | 9.01 | — |
+| mixed, summed (rejected) | 20.23 | +6.21 | 4.20 | 9.52 | 7.34 |
+| **crossfade @ 0.5** | **14.18** | **+0.17** | **3.54** | **9.00** | **1.04** |
+| full §27, soft edges | 14.41 | +0.39 | 2.81 | 8.92–9.00 | 1.65 |
+
+The shadow column is the one that says what this buys. Vanilla has no real shadow at all (4.20 is
+just its dimmest corner); full §27 drives it to 2.81; the crossfade lands at **3.54**, between them
+by construction. So a shadow is *dim rather than black*, and — the part that matters for the epic's
+standing risk — **no room goes dark because §27 could not see into it**: the room beyond the doorway
+reads 9.00 against vanilla's 9.01. Every cliff in §27's behaviour becomes a slope, and none of it
+depends on the polygons having a complete picture of what emits light.
+
+**It is not a max, which is what it wants to be.** The right composition is `max(vanilla, ours)` per
+cell. That is not degenerate, and the reason is worth stating: vanilla's falloff runs on **geodesic**
+distance, so in a beam through a doorway its light has travelled the long way round and arrived
+dimmer than our straight-line value — a max would therefore take *our* beam exactly where we have
+something to say, and vanilla's floor everywhere we do not, with no compromise in either place. The
+crossfade instead dims both everywhere, which costs beam contrast that a max would have kept.
+
+Writing it as `vanilla + max(0, ours − vanilla)` makes it expressible on an additive pass, since that
+is what our pass already is. What it needs is a per-vertex "how much did vanilla deliver here"
+channel so the subtraction happens per fragment. `MoteGlow` has no way to carry one: vertex colour is
+ignored (`CloudUnderlightOverlay`'s finding), and both UV channels are already spent on the falloff
+and the penumbra ramp. **This is the first thing in §27 that genuinely needs the custom shader** —
+which, per the phase 2 note above, is now a working toolchain rather than a blocked one, pending the
+Windows and Mac Unity modules.
+
+**Caveat on the floor's value.** At 0.5 the crossfade measures ΔE **1.04** against vanilla, which is
+barely over the repo's own "under 1 is not shipped" line. It is safe and it is subtle, and those are
+the same fact. A lower floor buys back contrast at the cost of the safety — 0.3 would sit roughly
+two-thirds of the way toward full §27 — and the constant is the only thing that needs changing.
+
+**Ships off**, because it is a taste call between two defensible looks rather than a fix.
+
 ### Performance (`Tests/Scenarios/vector_light_perf.json`)
 
 Epic #145 carried phase 5 with **nothing profiled at all** — phase 1's validation run was
