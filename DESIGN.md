@@ -6469,9 +6469,14 @@ early return always fires while the weather is Clear, and `Patch_CloudCoverSky`'
 fires whenever it is not. Neither patch's output depends on whether the other ran.
 
 **The UI half.** `Patch_CloudCoverLabel` appends "- N% cloudy" to `WeatherManager.DoWeatherGUI`'s
-label whenever `CurWeatherPerceived` reads Clear (e.g. "Clear - 50% cloudy"), a full-body Prefix
-replacement rather than a transpiler — see that file's header for why this codebase prefers
-duplicating a short, stable vanilla method over an IL-shape patch across a RimWorld update. Gated on
+label whenever `CurWeatherPerceived` reads Clear (e.g. "Clear - 50% cloudy"), a transpiler splicing a
+`TaggedString`-in/`TaggedString`-out call onto the method's single `Def.LabelCap` call. It was
+originally a full-body Prefix replacement, on the argument that this codebase prefers duplicating a
+short, stable vanilla method over an IL-shape patch across a RimWorld update. That reasoning held
+only in a one-mod world and is now reversed: a Prefix returning false skips the *patched* original,
+so it silently deletes every other mod's work on the same method, transpilers included. See
+"Uncompromising Fires interop" below for the mod this actually broke and the measured before/after.
+Gated on
 `CurWeatherPerceived`, not `curWeather`: the label already tracks whichever weather WeatherManager
 judges visually dominant mid-transition, so the suffix asks the same question the label text itself
 is built from rather than the state-machine field `Patch_CloudCoverSky` gates on. Shown at every
@@ -6481,6 +6486,43 @@ this patch checks `CelestialLightingFeatures.CloudCover` directly rather than le
 `FractionForMap`'s own zero-return the way `Patch_CloudCoverSky` does: a calm-but-on 0% and an
 off 0% now read as visibly different strings ("Clear - 0% cloudy" vs plain "Clear"), so only an
 explicit flag check keeps "off" reproducing the pre-feature label exactly.
+
+### Uncompromising Fires interop
+
+Uncompromising Fires (`Fuu.UncompromisingFires`, Workshop 2623963630) transpiles
+`WeatherManager.DoWeatherGUI` off the same `Def.LabelCap` call we do, to append its map-dryness
+readout to the weather label, plus a second insert appending dryness detail to that label's tooltip.
+`Patch_CloudCoverLabel`'s original Prefix-returning-false erased **both**, and did so in every
+weather, not just Clear, and even with `cloud_cover_label` switched off — the replacement body ran
+unconditionally and never called the original. Nothing warns about this in either direction: their
+patch applies cleanly and simply never executes, so the failure looks to a player like the other mod
+being broken.
+
+Rewriting our half as a transpiler makes the two compose, because both inserts sit on the same seam
+and are both `TaggedString`-in/`TaggedString`-out, so whichever applies second wraps the other's
+result. Order is therefore a legibility choice, not a correctness one; `About.xml` declares
+`<loadAfter>Fuu.UncompromisingFires</loadAfter>` so we transpile second, land closest to the
+property, and read "Clear - 27% cloudy, Wet" rather than "Clear, Wet - 27% cloudy".
+
+Measured live, same scenario and same mod set both times, differing only in which
+`CelestialLighting.dll` was overlaid (`Tests/Scenarios/uf_dryness_interop.json`):
+
+| Before (Prefix replacement) | After (transpiler) |
+|---|---|
+| `Clear - 27% cloudy` | `Clear - 27% cloudy, Wet` |
+
+No ΔE is quoted because this is a text-presence result, not a colour one: the dryness readout is
+either drawn or it is not, and a median over the frame would round a two-word difference to nothing
+(see the "median ΔE hides bounded effects" trap). The captures are
+`Tests/Screenshots/uf_dryness_before.png` / `uf_dryness_after.png`.
+
+**Known limitation, not fixed here.** `GlobalControls` gives the weather label a fixed 230px rect and
+`Widgets.Label` word-wraps. Both readouts together fit comfortably at the measured widths, but a long
+weather name plus a long dryness bucket ("Very high dryness") plus "- 100% cloudy" could overflow to
+a second line and overlap the temperature row. That is a shared consequence of two mods appending to
+one fixed-width label, it already exists for Uncompromising Fires alone with long weather names, and
+shortening our own suffix would change the shipped label for every player to fix a case only the mod
+pairing produces. Left as-is, recorded so it is not rediscovered as a mystery.
 
 ### Settings and the feature gate
 

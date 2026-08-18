@@ -1,3 +1,6 @@
+using System.Collections.Generic;
+using System.Reflection;
+using System.Reflection.Emit;
 using HarmonyLib;
 using RimWorld;
 using UnityEngine;
@@ -13,15 +16,26 @@ namespace CelestialLighting;
 // actual game mechanics" scope and DESIGN.md §22 for the decision to append to the label directly
 // rather than push the number into the tooltip only.
 //
-// A FULL PREFIX REPLACEMENT, NOT A TRANSPILER. DoWeatherGUI builds its string and draws it in one
-// method with no seam to hook a suffix onto — the label text is a local expression
-// (`curWeatherPerceived.LabelCap`) consumed immediately by Widgets.Label, not a property or field this
-// mod could intercept on its own. A transpiler could splice the suffix in without duplicating the
-// method, but IL-shape patches are the more fragile of the two options across a RimWorld update (see
-// parent CLAUDE.md's silent-override pitfall on why signature/shape drift is the recurring failure
-// mode here); Patch_SuppressRandomEclipse already establishes the alternative — a Prefix that runs the
-// whole (12-line, stable) body itself and returns false — as an accepted pattern in this codebase, so
-// this follows it rather than introducing a second technique for one small method.
+// A TRANSPILER, NOT A PREFIX REPLACEMENT — AND THE REASON IS INTEROP, NOT TASTE. This patch used to
+// be a Prefix that ran a copy of the whole (12-line, stable) vanilla body and returned false, matching
+// Patch_SuppressRandomEclipse's technique, on the argument that IL-shape patches are the more fragile
+// option across a RimWorld update. That argument was sound in isolation and wrong in a mod ecosystem:
+// a Prefix returning false skips the *patched* original, so it silently deletes every other mod's
+// contribution to the same method — including transpilers, whose whole point is to compose. Uncompromising
+// Fires (Fuu.UncompromisingFires, Workshop 2623963630) transpiles exactly this method to append its map
+// dryness readout to the same label and its dryness detail to the same tooltip; our Prefix erased both
+// outright, in all weathers, and even with CloudCoverLabel switched off, because the replacement body
+// ran unconditionally. Nothing warns about this — the other mod's patch applies cleanly and simply
+// never executes.
+//
+// So the trade is: accept the IL-shape fragility (guarded by the Cecil pin in ApiCompatibilityTests,
+// which fails loudly if the seam moves) in exchange for being a well-behaved co-patcher. The seam is
+// the single `callvirt Def::get_LabelCap` that DoWeatherGUI's Widgets.Label call is built from; we
+// insert a call that takes the TaggedString the property just produced and returns a TaggedString, so
+// the insertion is stack-neutral and type-preserving. That composes with Uncompromising Fires in either
+// application order — its inserts sit on the same seam and are also TaggedString-in/TaggedString-out,
+// so whichever mod's transpiler runs second simply wraps the other's result. About.xml's loadAfter
+// entry pins the nicer of the two readings ("Clear - 50% cloudy, Moderate dryness").
 //
 // WHY THE SUFFIX IS NOT LOCALIZED. This mod ships with no Languages/ folder and no other
 // mod-authored string anywhere in Source — every existing `[MustTranslate]` reference here is the mod
@@ -41,11 +55,44 @@ namespace CelestialLighting;
 [HarmonyPatch(typeof(WeatherManager), nameof(WeatherManager.DoWeatherGUI))]
 public static class Patch_CloudCoverLabel
 {
-    static bool Prefix(WeatherManager __instance, Rect rect)
+    // The seam: DoWeatherGUI's only `curWeatherPerceived.LabelCap`, the value it hands to
+    // Widgets.Label(Rect, TaggedString). We append our call immediately after it so the suffix is
+    // applied to the label before anything else consumes it.
+    static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
     {
-        WeatherDef curWeatherPerceived = __instance.CurWeatherPerceived;
-        string label = curWeatherPerceived.LabelCap;
+        MethodInfo labelCap = AccessTools.PropertyGetter(typeof(Def), nameof(Def.LabelCap));
+        MethodInfo appender = AccessTools.Method(typeof(Patch_CloudCoverLabel), nameof(WithCloudCover));
 
+        bool inserted = false;
+        foreach (CodeInstruction instruction in instructions)
+        {
+            yield return instruction;
+
+            // Only the first match is ours; vanilla has exactly one, but another mod's transpiler may
+            // have already added more, and appending our percentage twice would be worse than missing
+            // it once. Ldarg_0 is DoWeatherGUI's `this` — the WeatherManager whose map we read.
+            bool isSeam = !inserted && instruction.Calls(labelCap);
+            if (isSeam)
+            {
+                inserted = true;
+                yield return new CodeInstruction(OpCodes.Ldarg_0);
+                yield return new CodeInstruction(OpCodes.Call, appender);
+            }
+        }
+
+        // A silent no-op would ship a dead feature that looks alive in the settings panel, so say so.
+        // Not thrown: the rest of the mod is unaffected and a missing suffix is not worth a hard
+        // failure at patch time. ApiCompatibilityTests is the check meant to catch this before a
+        // player ever sees it.
+        if (!inserted)
+            Log.Warning("[CelestialLighting] Could not find Def.LabelCap in WeatherManager.DoWeatherGUI; "
+                + "the cloud-cover weather label (§22) is disabled this session.");
+    }
+
+    // Stack-neutral, type-preserving: TaggedString in, TaggedString out. Anything else here would
+    // break whichever other mod's inserts happen to sit next to ours on the same seam.
+    public static TaggedString WithCloudCover(TaggedString label, WeatherManager manager)
+    {
         // Pocket maps and pre-game previews can carry a WeatherManager with no map yet — the same
         // null a live map never has, guarded the same way CloudCoverClock.FractionForMap itself
         // assumes it will not see.
@@ -60,29 +107,15 @@ public static class Patch_CloudCoverLabel
         // CloudCoverLabel is the separate UI-only sub-toggle (a player can want the sky tint without
         // the text); CloudCover is still checked too, matching AuroraCurtain's own relationship to
         // Aurora — the sub-toggle never draws with its master off.
-        if (__instance.map != null && curWeatherPerceived == WeatherDefOf.Clear
-            && CelestialLightingFeatures.CloudCover && CelestialLightingFeatures.CloudCoverLabel)
-        {
-            float cloudCover = CloudCoverClock.FractionForMap(__instance.map);
+        bool suffixApplies = manager?.map != null && manager.CurWeatherPerceived == WeatherDefOf.Clear
+            && CelestialLightingFeatures.CloudCover && CelestialLightingFeatures.CloudCoverLabel;
+        if (!suffixApplies)
+            return label;
 
-            // Always appended, including 0% — a player watching this label to confirm the feature is
-            // alive should see a stable readout every time it's Clear, not have it silently vanish at
-            // exactly the moments (a calm hour) that are most likely to prompt the question.
-            int percent = Mathf.RoundToInt(Mathf.Clamp01(cloudCover) * 100f);
-            label = $"{label} - {percent}% cloudy";
-        }
-
-        // Everything below is DoWeatherGUI's own body, unchanged, operating on `label` instead of
-        // `curWeatherPerceived.LabelCap` directly.
-        Text.Anchor = TextAnchor.MiddleRight;
-        Rect rect2 = new Rect(rect);
-        rect2.width -= 15f;
-        Text.Font = GameFont.Small;
-        Widgets.Label(rect2, label);
-        if (!curWeatherPerceived.description.NullOrEmpty())
-            TooltipHandler.TipRegion(rect, curWeatherPerceived.description);
-        Text.Anchor = TextAnchor.UpperLeft;
-
-        return false;
+        // Always appended, including 0% — a player watching this label to confirm the feature is
+        // alive should see a stable readout every time it's Clear, not have it silently vanish at
+        // exactly the moments (a calm hour) that are most likely to prompt the question.
+        int percent = Mathf.RoundToInt(Mathf.Clamp01(CloudCoverClock.FractionForMap(manager.map)) * 100f);
+        return label + $" - {percent}% cloudy";
     }
 }
