@@ -54,6 +54,12 @@
          them — see CloudCoverSky.cs's header for why reusing vanilla's own overcast destination
          palette is the point. -->
     <Compile Include="../../Source/CloudCoverSky.cs" Link="CloudCoverSky.cs" />
+    <!-- §22's weather-panel suffix: the percentage arithmetic, and the one-line fit rule that decides
+         whether the suffix is drawn at all when another mod has appended to the same label. The fit
+         rule is the half worth testing offline — Patch_CloudCoverLabel measures the string and this
+         decides, so every boundary (exact fit, one pixel over, an unmeasurable width) is reachable
+         here without a running game. -->
+    <Compile Include="../../Source/CloudCoverLabelMath.cs" Link="CloudCoverLabelMath.cs" />
     <Compile Include="../../Source/MapSkyMath.cs" Link="MapSkyMath.cs" />
     <!-- Subsystem 8 pure core. Depends on Formulas.AtmosphericRefractionDegrees, so Formulas.cs
          above must be linked too (it already is). -->

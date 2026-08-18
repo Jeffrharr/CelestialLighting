@@ -6470,7 +6470,7 @@ fires whenever it is not. Neither patch's output depends on whether the other ra
 
 **The UI half.** `Patch_CloudCoverLabel` appends "- N% cloudy" to `WeatherManager.DoWeatherGUI`'s
 label whenever `CurWeatherPerceived` reads Clear (e.g. "Clear - 50% cloudy"), a transpiler splicing a
-`TaggedString`-in/`TaggedString`-out call onto the method's single `Def.LabelCap` call. It was
+`TaggedString`-in/`TaggedString`-out call in front of the method's single `Widgets.Label` call. It was
 originally a full-body Prefix replacement, on the argument that this codebase prefers duplicating a
 short, stable vanilla method over an IL-shape patch across a RimWorld update. That reasoning held
 only in a one-mod world and is now reversed: a Prefix returning false skips the *patched* original,
@@ -6498,31 +6498,53 @@ unconditionally and never called the original. Nothing warns about this in eithe
 patch applies cleanly and simply never executes, so the failure looks to a player like the other mod
 being broken.
 
-Rewriting our half as a transpiler makes the two compose, because both inserts sit on the same seam
-and are both `TaggedString`-in/`TaggedString`-out, so whichever applies second wraps the other's
-result. Order is therefore a legibility choice, not a correctness one; `About.xml` declares
-`<loadAfter>Fuu.UncompromisingFires</loadAfter>` so we transpile second, land closest to the
-property, and read "Clear - 27% cloudy, Wet" rather than "Clear, Wet - 27% cloudy".
+Rewriting our half as a transpiler makes the two compose, because both inserts are
+`TaggedString`-in/`TaggedString`-out and neither disturbs the stack the other sits on.
+
+**Which seam we anchor on is the load-bearing choice.** The obvious anchor is the `Def.LabelCap` call
+the string is built from, and in vanilla IL that is adjacent to the `Widgets.Label` call that consumes
+it, so the two anchors emit identical code. They stop being equivalent as soon as another mod inserts
+*between* them — which is precisely what Uncompromising Fires does. Anchored on `LabelCap`, our call
+lands before their concatenation when they patch second and after it when they patch first: what we
+see depends on load order. Anchored on the `Widgets.Label` call, we are the last hand on the label
+before it is drawn, in either order. That is what the fit rule below needs, and it is why
+`<loadAfter>Fuu.UncompromisingFires</loadAfter>` is now declared for load-graph visibility rather than
+to buy an outcome. The reading is "Clear, Wet - 27% cloudy" — our suffix outermost, always.
 
 Measured live, same scenario and same mod set both times, differing only in which
 `CelestialLighting.dll` was overlaid (`Tests/Scenarios/uf_dryness_interop.json`):
 
 | Before (Prefix replacement) | After (transpiler) |
 |---|---|
-| `Clear - 27% cloudy` | `Clear - 27% cloudy, Wet` |
+| `Clear - 27% cloudy` | `Clear, Wet - 27% cloudy` |
 
 No ΔE is quoted because this is a text-presence result, not a colour one: the dryness readout is
 either drawn or it is not, and a median over the frame would round a two-word difference to nothing
 (see the "median ΔE hides bounded effects" trap). The captures are
 `Tests/Screenshots/uf_dryness_before.png` / `uf_dryness_after.png`.
 
-**Known limitation, not fixed here.** `GlobalControls` gives the weather label a fixed 230px rect and
-`Widgets.Label` word-wraps. Both readouts together fit comfortably at the measured widths, but a long
-weather name plus a long dryness bucket ("Very high dryness") plus "- 100% cloudy" could overflow to
-a second line and overlap the temperature row. That is a shared consequence of two mods appending to
-one fixed-width label, it already exists for Uncompromising Fires alone with long weather names, and
-shortening our own suffix would change the shipped label for every player to fix a case only the mod
-pairing produces. Left as-is, recorded so it is not rediscovered as a mystery.
+**When it does not fit, ours is what goes.** `GlobalControls` gives the weather label a fixed 230px
+rect and `Widgets.Label` word-wraps rather than clipping, so an overlong label becomes a second line
+inside a 26px rect, landing on the temperature readout above it. Both readouts fit comfortably at the
+measured widths, but a long weather name plus "Very high dryness" plus "- 100% cloudy" would not.
+`WithCloudCover` therefore measures the finished string with `Text.CalcSize` — the same string
+`Widgets.Label` is about to resolve and draw, in the font it is about to draw it in — and returns the
+label untouched when the total exceeds the rect's drawable width (`CloudCoverLabelMath.FitsOneLine`,
+mirroring vanilla's own 15px inset).
+
+Our suffix is the part that yields, not the shared budget's other claimants, for three reasons: it is
+the one we own; the same number is already legible on the sky itself, whereas the dryness readout has
+no other presentation; and the weather name is the label's actual subject. Being anchored on the draw
+call is what makes this decidable at all — we are measuring everyone's contribution, not just our own
+half, and the rule therefore applies to any future mod that appends here, not only to Uncompromising
+Fires.
+
+The failure direction is chosen too: an unmeasurable width (a font not yet loaded, a zero-size screen
+mid-resolution-change) counts as *fitting*, so a transient degrades to the old behaviour — draw it,
+possibly wrap — rather than dropping the suffix and leaving the feature looking broken long after the
+transient passed. `CloudCoverLabelMathTests` covers exact fit, one pixel over, NaN/infinite widths and
+a rect too narrow to hold anything; the live scenario covers composition, since the overflow case
+itself needs both a second mod and an in-game month of drying to reach naturally.
 
 ### Settings and the feature gate
 
