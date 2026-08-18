@@ -30,3 +30,7 @@ Tools/ShaderBundle/Project/UserSettings/
 Tools/ShaderBundle/Project/obj/
 Tools/ShaderBundle/Build/
 Tools/ShaderBundle/build.log
+# Offline preview output (Tools/VectorLightPreview), same reasoning as AuroraPreview's above: these
+# regenerate from the shipped pure core in well under a second, so they are working artifacts rather
+# than source. The three that were worth keeping are committed under Tests/Screenshots/ instead.
+Tools/VectorLightPreview/out/

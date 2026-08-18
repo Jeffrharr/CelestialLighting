@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <AssemblyName>VectorLightPreview</AssemblyName>
+    <RootNamespace>CelestialLighting.Tools</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Same premise as AuroraPreview and CloudPreview: the only question this tool answers is "what
+         does the SHIPPED geometry look like", so it links the shipped file as source. §27 is almost
+         entirely a look question, and a RimWorld boot costs ~3 minutes to answer one — this costs a
+         second, which is the difference between iterating on the shape and guessing at it. -->
+    <Compile Include="../../Source/VectorLightMath.cs" Link="VectorLightMath.cs" />
+    <!-- Borrowed wholesale from AuroraPreview, as CloudPreview does: a dependency-free PNG writer,
+         because System.Drawing is not available here. -->
+    <Compile Include="../AuroraPreview/Png.cs" Link="Png.cs" />
+  </ItemGroup>
+</Project>
