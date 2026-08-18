@@ -259,6 +259,32 @@ public static class ProbeRegistration
         // stand-down rather than an error, so an unpinned arm photographs the crossfade instead.
         ProbeRegistry.Register(
             new VectorLightProbe("vector_light_mask_available", VectorLightProbe.Metric.MaskAvailable));
+        // Performance, measured through Circinus rather than Dubs, because Circinus reports CALL
+        // COUNTS. §27 phase 3 does all its work inside a section regenerate, and the Dubs window that
+        // appeared to show it running three times cheaper than the feature-off baseline had simply
+        // not provoked a single regenerate — the patch was absent from the table rather than cheap.
+        // circinus_regen_calls is the guard against measuring an idle window again: pin it above zero
+        // in any arm that quotes a timing, or the timing is of nothing happening.
+        //
+        // The armed method is vanilla's Regenerate rather than our own postfix, so the row covers the
+        // whole bake and the cost of the mask is the DIFFERENCE between the feature-on and
+        // feature-off arms — the ratio-between-builds comparison Dubs' own report notes recommend.
+        //
+        // circinus_available and circinus_cycles are NOT registered here even though §27's own
+        // scenarios were written against them. §28's sweep below registers both under the same two
+        // names, and ProbeRegistry.Register is a dictionary write -- last registration wins, silently.
+        // Registering them twice would mean §27's bake scenarios read §28's arm (SkyManagerUpdate)
+        // while their comments claimed the overlay's, which is the kind of wrong number nothing
+        // catches. §28's circinus_available is identical (the metric takes no target), and no §27
+        // scenario pins circinus_cycles, so dropping both here costs nothing and removes the shadow.
+        const string overlay = "Verse.SectionLayer_LightingOverlay";
+        ProbeRegistry.Register(new CircinusProbe("circinus_regen_calls", CircinusProbe.Metric.Calls, overlay, "Regenerate"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_regen_avg_ms", CircinusProbe.Metric.AvgMs, overlay, "Regenerate"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_regen_max_ms", CircinusProbe.Metric.MaxMs, overlay, "Regenerate"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_regen_total_ms", CircinusProbe.Metric.TotalMs, overlay, "Regenerate"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_regen_max_calls", CircinusProbe.Metric.MaxCallsPerCycle, overlay, "Regenerate"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_regen_patched", CircinusProbe.Metric.Patched, overlay, "Regenerate"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_reset", CircinusProbe.Metric.Reset, overlay, "Regenerate"));
         // Issue #80: the fixed near-door cell in ambient_light_compat.json.
         // ambient_ground_glow is the GAMEPLAY value (what Ambient Light's own readout reports);
         // ambient_sky_fraction is what SkyFalloffSource resolves for it, for §7b to cap occlusion with.
