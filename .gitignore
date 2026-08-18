@@ -34,3 +34,14 @@ Tools/ShaderBundle/build.log
 # regenerate from the shipped pure core in well under a second, so they are working artifacts rather
 # than source. The three that were worth keeping are committed under Tests/Screenshots/ instead.
 Tools/VectorLightPreview/out/
+
+# Unity's own working directories for Tools/ShaderBundle. Library/ alone is hundreds of megabytes of
+# regenerable import cache, and it is rebuilt from Assets/ + ProjectSettings/ on the first headless
+# run. The three BUILT bundles under 1.6/AssetBundles/ ARE committed and deliberately not ignored:
+# they are what ships, and requiring a 20 GB Unity install to compile this mod is not a trade anyone
+# would take. See Tools/ShaderBundle/build.sh.
+Tools/ShaderBundle/Library/
+Tools/ShaderBundle/Logs/
+Tools/ShaderBundle/Temp/
+Tools/ShaderBundle/UserSettings/
+Tools/ShaderBundle/obj/
