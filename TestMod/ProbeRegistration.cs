@@ -226,6 +226,29 @@ public static class ProbeRegistration
         ProbeRegistry.Register(new CircinusProbe("circinus_regen_max_calls", CircinusProbe.Metric.MaxCallsPerCycle, overlay, "Regenerate"));
         ProbeRegistry.Register(new CircinusProbe("circinus_regen_patched", CircinusProbe.Metric.Patched, overlay, "Regenerate"));
         ProbeRegistry.Register(new CircinusProbe("circinus_reset", CircinusProbe.Metric.Reset, overlay, "Regenerate"));
+
+        // OUR OWN POSTFIX, armed directly. Arming vanilla's Regenerate measures the whole bake, of
+        // which §27 is a small share of a large number — 795 ms of vanilla for 112 sections. Harmony
+        // emits a call to the postfix rather than inlining it, so instrumenting the postfix itself
+        // isolates our cost from vanilla's and from every other mod patching the same method.
+        const string suppress = "CelestialLighting.Patch_VectorLightSuppress";
+        ProbeRegistry.Register(new CircinusProbe("circinus_ours_patched", CircinusProbe.Metric.Patched, suppress, "Postfix"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_ours_calls", CircinusProbe.Metric.Calls, suppress, "Postfix"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_ours_total_ms", CircinusProbe.Metric.TotalMs, suppress, "Postfix"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_ours_max_ms", CircinusProbe.Metric.MaxMs, suppress, "Postfix"));
+
+        // One recorded run per arm. The label is the only thing separating one run document from
+        // another, so there is a start probe per arm rather than one taking an argument — the
+        // scenario language has no way to pass a string, and an arm whose document is mislabelled is
+        // worse than one that was never recorded.
+        foreach (string armName in new[] { "gated", "crossfade", "mask", "combo" })
+        {
+            ProbeRegistry.Register(new CircinusProbe(
+                "circinus_run_start_" + armName, CircinusProbe.Metric.RunStart,
+                label: "celestiallighting-" + armName));
+        }
+
+        ProbeRegistry.Register(new CircinusProbe("circinus_run_stop", CircinusProbe.Metric.RunStop));
         // Issue #80: the fixed near-door cell in ambient_light_compat.json.
         // ambient_ground_glow is the GAMEPLAY value (what Ambient Light's own readout reports);
         // ambient_sky_fraction is what SkyFalloffSource resolves for it, for §7b to cap occlusion with.

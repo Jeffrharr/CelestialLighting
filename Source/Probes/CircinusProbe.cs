@@ -73,6 +73,21 @@ public sealed class CircinusProbe : IProbe
         // like a window in which nothing happened. Pin this at 1 next to any timing.
         Patched,
 
+        // Starts a recorded Circinus run under this probe's label, and reads back 1 when it took.
+        //
+        // ONE ARM PER RUN IS THE WHOLE POINT. Measuring four arms inside one process did not work:
+        // the flag flips stop dirtying the map after the first whole-map rebake, so arms after the
+        // first record nothing while the instrumentation stays live. Giving each arm its own process
+        // makes "exactly one whole-map rebake" true by construction rather than by hoping, and the
+        // comparison moves from probe readings inside a run to run DOCUMENTS across runs — which is
+        // what Circinus records for: samples with tps/fps/p95, per-mod and per-patch attribution, and
+        // a hardware calibration so the figures mean the same thing on another machine.
+        RunStart,
+
+        // Stops the recorded run, writing it to Circinus/Runs/. Reads back 1 when a document was
+        // produced. Without this the run is left open and saved only as "incomplete".
+        RunStop,
+
         // Zeroes the armed method's counters and reads back 0.
         //
         // A PROBE USED AS AN ACTION, which is not what probes are for and is done anyway because the
@@ -111,6 +126,12 @@ public sealed class CircinusProbe : IProbe
     private static readonly PropertyInfo CycleCountProp =
         RegistryType == null ? null : AccessTools.Property(RegistryType, "CycleCount");
 
+    private static readonly Type RecorderType =
+        AccessTools.TypeByName("Circinus.Session.RunRecorder");
+
+    private static readonly PropertyInfo CurrentRecorderProp =
+        RecorderType == null ? null : AccessTools.Property(RecorderType, "Current");
+
     public static bool Available =>
         ArmMethodInfo != null && FindInfo != null && EnabledField != null && RecordingField != null;
 
@@ -118,17 +139,24 @@ public sealed class CircinusProbe : IProbe
     private readonly string typeName;
     private readonly string methodName;
 
+    // The label the recorded run is filed under. One arm per run means this is the only thing
+    // distinguishing one run document from another, so it is the arm's name and nothing else.
+    private readonly string label;
+
     private MethodBase target;
     private bool armed;
 
     public string Name { get; }
 
-    public CircinusProbe(string name, Metric metric, string typeName = null, string methodName = null)
+    public CircinusProbe(
+        string name, Metric metric, string typeName = null, string methodName = null,
+        string label = null)
     {
         Name = name;
         this.metric = metric;
         this.typeName = typeName;
         this.methodName = methodName;
+        this.label = label;
     }
 
     public float Read(Map map)
@@ -138,6 +166,9 @@ public sealed class CircinusProbe : IProbe
 
         if (!Available)
             return 0f;
+
+        if (metric == Metric.RunStart || metric == Metric.RunStop)
+            return Record();
 
         // Armed on first read rather than at registration. Circinus resolves its own types during
         // startup and arming transpiles the target, neither of which should happen while the mod
@@ -194,6 +225,38 @@ public sealed class CircinusProbe : IProbe
         {
             Log.Warning("[CelestialLighting] Circinus probe could not arm " + methodName + ": " + ex.Message);
             target = null;
+        }
+    }
+
+    // Start or stop the recorded run. Both go through one method because both need the same
+    // reflection and both have the same failure mode — Circinus present but its recorder not yet
+    // constructed — which reads as 0 rather than throwing mid-scenario.
+    private float Record()
+    {
+        object recorder = CurrentRecorderProp?.GetValue(null);
+
+        if (recorder == null)
+            return 0f;
+
+        try
+        {
+            if (metric == Metric.RunStart)
+            {
+                // Recording has to be on before the run opens or the document is written with an
+                // empty patch table and no note that anything was missing.
+                EnabledField.SetValue(null, true);
+                RecordingField.SetValue(null, true);
+
+                MethodInfo start = AccessTools.Method(recorder.GetType(), "Start", new[] { typeof(string) });
+                return Convert.ToBoolean(start.Invoke(recorder, new object[] { label ?? "celestiallighting" })) ? 1f : 0f;
+            }
+
+            return AccessTools.Method(recorder.GetType(), "Stop").Invoke(recorder, null) == null ? 0f : 1f;
+        }
+        catch (Exception ex)
+        {
+            Log.Warning("[CelestialLighting] Circinus run recorder failed: " + ex.Message);
+            return 0f;
         }
     }
 
