@@ -1,7 +1,7 @@
 {
-  "name": "vector_light_penumbra",
+  "name": "vector_light_flicker",
   "saveFile": "minimal_colony.rws",
-  "description": "\u00a727 phase 2, soft shadow edges. Holds vector_lights ON in both arms and toggles vector_light_penumbra, so the A/B isolates the penumbra from the mechanism that draws it \u2014 measured against vanilla instead, this would measure the whole of \u00a727 over again. The lamp sits in the left room with a doorway ahead of it and two free-standing blocks to either side, so one frame carries wedges opening both ways round the polygon.",
+  "description": "Frame-to-frame stability of \u00a727, swept with the soft edges off and then on so the question is not 'do frames differ' but 'did phase 2 make them differ MORE'. Twenty ticks a frame keeps the clock still enough that CurSkyGlow cannot move while everything tick-driven still animates. Vanilla's CompFireOverlay flickers the torch sprite by design and shows up in both arms; anything along the shadow edges, or anything present in the second arm and not the first, would be ours. A third arm sweeps the same window with vector_lights off altogether, which is the control that separates '\u00a727's edges shimmer' from 'RimWorld's camera drifts a sub-pixel between frames and every high-contrast edge in the scene shimmers with it'.",
   "steps": [
     {
       "type": "SetTile",
@@ -76,51 +76,9 @@
       }
     },
     {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_count",
-        "expectedValue": "4",
-        "tolerance": "0"
-      }
-    },
-    {
       "type": "SetFeature",
       "args": {
         "featureName": "vector_lights",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "warmup_discard.png"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_penumbra",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_penumbra_area",
-        "expectedValue": "0",
-        "tolerance": "0"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "penumbra_off.png"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_penumbra",
         "enabled": "true"
       }
     },
@@ -133,9 +91,54 @@
       }
     },
     {
-      "type": "Screenshot",
+      "type": "SetFeature",
       "args": {
-        "fileName": "penumbra_on.png"
+        "featureName": "vector_light_penumbra",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "TickLapse",
+      "args": {
+        "ticks": "20",
+        "steps": "24",
+        "fileNamePrefix": "flickhard",
+        "settleFrames": "2",
+        "fps": "10"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "TickLapse",
+      "args": {
+        "ticks": "20",
+        "steps": "24",
+        "fileNamePrefix": "flicksoft",
+        "settleFrames": "2",
+        "fps": "10"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "TickLapse",
+      "args": {
+        "ticks": "20",
+        "steps": "24",
+        "fileNamePrefix": "flickoff",
+        "settleFrames": "2",
+        "fps": "10"
       }
     }
   ]
