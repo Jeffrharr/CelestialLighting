@@ -1,7 +1,7 @@
 {
   "name": "vector_light_perf",
   "saveFile": "minimal_colony.rws",
-  "description": "\u00a727's standing cost, in the three windows that mean different things, on 20 lamps each walled into its own room with doorways between \u2014 the geometry the subsystem is expensive on, rather than one torch in open ground. 'gated' is vector_lights off, which is the \u22640.01 ms/frame the epic asks of the switched-off path. 'hard_edges' is phase 1. 'soft_edges' adds phase 2's penumbra wedges, so the difference between the last two is what soft edges cost and nothing else. Camera is zoomed out far enough that every lamp is on screen: VectorLightOverlay culls against the view, so a tight zoom would profile the culling and report a fraction of the cost as if it were the whole of it.",
+  "description": "\u00a727's standing cost, in the three windows that mean different things, on 20 lamps each walled into its own room with doorways between \u2014 the geometry the subsystem is expensive on, rather than one torch in open ground. 'gated' is vector_lights off, which is the \u22640.01 ms/frame the epic asks of the switched-off path. 'hard_edges' is phase 1. 'soft_edges' adds phase 2's penumbra wedges, so the difference between the last two is what soft edges cost and nothing else. Camera is zoomed out far enough that every lamp is on screen: VectorLightOverlay culls against the view, so a tight zoom would profile the culling and report a fraction of the cost as if it were the whole of it. Pins vector_light_blend off explicitly: it ships on, and these numbers were measured without it, so leaving it implicit would silently change what is being profiled.",
   "steps": [
     {
       "type": "SetTile",
@@ -71,6 +71,13 @@
         "probeName": "vector_light_count",
         "expectedValue": "23",
         "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "false"
       }
     },
     {

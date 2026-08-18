@@ -1,7 +1,7 @@
 {
   "name": "vector_light_flicker",
   "saveFile": "minimal_colony.rws",
-  "description": "Frame-to-frame stability of \u00a727, swept with the soft edges off and then on so the question is not 'do frames differ' but 'did phase 2 make them differ MORE'. Twenty ticks a frame keeps the clock still enough that CurSkyGlow cannot move while everything tick-driven still animates. Vanilla's CompFireOverlay flickers the torch sprite by design and shows up in both arms; anything along the shadow edges, or anything present in the second arm and not the first, would be ours. A third arm sweeps the same window with vector_lights off altogether, which is the control that separates '\u00a727's edges shimmer' from 'RimWorld's camera drifts a sub-pixel between frames and every high-contrast edge in the scene shimmers with it'.",
+  "description": "Frame-to-frame stability of \u00a727, swept with the soft edges off and then on so the question is not 'do frames differ' but 'did phase 2 make them differ MORE'. Twenty ticks a frame keeps the clock still enough that CurSkyGlow cannot move while everything tick-driven still animates. Vanilla's CompFireOverlay flickers the torch sprite by design and shows up in both arms; anything along the shadow edges, or anything present in the second arm and not the first, would be ours. A third arm sweeps the same window with vector_lights off altogether, which is the control that separates '\u00a727's edges shimmer' from 'RimWorld's camera drifts a sub-pixel between frames and every high-contrast edge in the scene shimmers with it'. Pins vector_light_blend off explicitly: it ships on, and these numbers were measured without it, so leaving it implicit would silently change what is being flickerd.",
   "steps": [
     {
       "type": "SetTile",
@@ -73,6 +73,13 @@
       "args": {
         "offset": "0,45",
         "zoom": "22"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "false"
       }
     },
     {

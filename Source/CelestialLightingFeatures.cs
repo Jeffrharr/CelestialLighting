@@ -683,14 +683,19 @@ public static class CelestialLightingFeatures
     // underneath as a floor, and our own contribution drops by the same fraction so the overall level
     // does not move. See VectorLightMath.DefaultVanillaFloor for why it compensates rather than adds.
     //
-    // SHIPS OFF, because it is a taste call between two defensible looks and not a fix. Off is §27 as
-    // designed — shadows reach dark, and the price is that a room lit only by light bending around a
-    // corner loses it. On is the softer bargain: nothing is ever black, no room goes dark just
-    // because §27 could not see into it, and the price is that a shadow is dim rather than dark.
+    // ON BY DEFAULT whenever §27 itself is on, and the deciding argument is compatibility rather
+    // than taste. §27 knows about exactly what vanilla's GlowGrid tells it: registered glowers and
+    // glowing terrain. That covers any mod adding an ordinary CompGlower, and it does NOT cover light
+    // that arrives by some other route — a mod passing sunlight through a window, anything writing
+    // its own section layer, anything lighting cells without registering a glower. With the
+    // suppression total, every one of those goes BLACK rather than merely unimproved, and each would
+    // need finding and special-casing one at a time. With a floor under it, they are all simply dim,
+    // and the list of things §27 has to know about stops being load-bearing.
     //
-    // It is also the most likely answer to the epic's own standing risk, which is that the honest
-    // version is too uncomfortable to actually play with.
-    public static bool VectorLightBlend = false;
+    // The look is the same bargain seen from the other side: shadows are dim rather than dark, and
+    // nothing is ever black. Off is §27 as originally designed — shadows reach full dark, at the
+    // price of a room lit only by light bending around a corner losing all of it.
+    public static bool VectorLightBlend = true;
 }
 
 public enum SunClockMode

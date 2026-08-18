@@ -8094,7 +8094,18 @@ barely over the repo's own "under 1 is not shipped" line. It is safe and it is s
 the same fact. A lower floor buys back contrast at the cost of the safety — 0.3 would sit roughly
 two-thirds of the way toward full §27 — and the constant is the only thing that needs changing.
 
-**Ships off**, because it is a taste call between two defensible looks rather than a fix.
+**Ships on** whenever §27 itself is on, and the deciding argument is **compatibility rather than
+taste**. §27 knows about exactly what vanilla's `GlowGrid` tells it — registered glowers and glowing
+terrain — which covers any mod adding an ordinary `CompGlower` and does *not* cover light arriving by
+some other route: a mod passing sunlight through a window, anything drawing its own section layer,
+anything lighting cells without registering a glower. Under total suppression every one of those goes
+**black** rather than merely unimproved, and each has to be found and special-cased one at a time,
+forever, as mods change. Under a floor they are all simply dim, and the list of things §27 has to
+know about stops being load-bearing. That is worth more than the beam contrast it costs, and it is
+the same reason the epic wanted the suppressing half droppable in the first place.
+
+Off remains §27 as originally designed, for anyone who wants shadows that reach full dark and accepts
+that a room lit only by light bending around a corner loses all of it.
 
 ### Performance (`Tests/Scenarios/vector_light_perf.json`)
 
