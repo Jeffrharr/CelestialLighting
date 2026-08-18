@@ -622,6 +622,36 @@ public static class CelestialLightingFeatures
     // nothing is ever black. Off is §27 as originally designed — shadows reach full dark, at the
     // price of a room lit only by light bending around a corner losing all of it.
     public static bool VectorLightBlend = true;
+
+    // Feature key for VectorLightMask.
+    public const string VectorLightMaskKey = "vector_light_mask";
+
+    // §27 phase 3: stop drawing a second lighting model and start EDITING vanilla's, by subtracting
+    // each emitter's own light back out of the cells our polygons say it cannot reach.
+    //
+    // WHY THE OPERATOR HAD TO INVERT. Phase 1 replaced vanilla's render with an additive pass; phase
+    // 2b tried to compose the two as a max and measured a no-op. The reason generalises: our falloff
+    // IS vanilla's falloff, so the two models agree wherever both can see, and nothing that only ever
+    // ADDS can express a shadow — which is the whole of what §27 has to say. Subtracting is the only
+    // operator that can.
+    //
+    // WHAT IT BUYS BEYOND THE SHADOW. The level stops needing calibration, because a lit cell is left
+    // at exactly vanilla's own value rather than at an additive approximation of it; DaylightScale
+    // stops being needed, because we edit the value the sky's multiply consumes instead of drawing
+    // above it; and — the one that matters most — nothing we did not model is ever touched, because
+    // we subtract a NAMED emitter's own contribution and nothing else. That last property is the
+    // compatibility problem VectorLightBlend exists to manage, solved rather than tuned.
+    //
+    // WHAT IT COSTS. Resolution. The lighting overlay's mesh carries one vertex per cell corner and
+    // one per cell centre, so a boundary can only be placed to within a cell and is interpolated
+    // bilinearly between. VectorLightMath.LitFraction samples each cell and reports the share the
+    // polygon covers rather than a yes or no, which turns a staircase into a ramp — and phase 2
+    // already softens every edge to half a cell deliberately, so the two blurs are the same order.
+    //
+    // REQUIRES GlowGridPerLight, and stands down without it. Reading vanilla's per-emitter arrays is
+    // what makes the subtraction targeted; with them unreadable there is nothing to subtract, and
+    // VectorLightMask.Active goes false rather than the mask guessing.
+    public static bool VectorLightMask = false;
 }
 
 public enum SunClockMode

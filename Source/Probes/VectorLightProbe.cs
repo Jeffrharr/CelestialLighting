@@ -57,6 +57,16 @@ public sealed class VectorLightProbe : IProbe
         // with it on, so a flag that stopped reaching the mesh builder fails a scenario rather than
         // quietly producing two identical frames.
         PenumbraArea,
+
+        // Whether §27 phase 3's subtractive mask can run: 1 if vanilla's per-emitter glow arrays are
+        // readable, 0 if the mask has stood down to the crossfade.
+        //
+        // THIS IS THE ONE THAT CATCHES THE SILENT FAILURE, and it is not hypothetical: the arrays are
+        // private fields on a Burst-adjacent type, exactly the sort of thing a RimWorld update
+        // renames. Standing down is by design — a mod that cannot read them must still have light —
+        // so without a pin here every other number in a mask scenario stays healthy while the frames
+        // quietly show the crossfade instead.
+        MaskAvailable,
     }
 
     private readonly Metric metric;
@@ -71,6 +81,9 @@ public sealed class VectorLightProbe : IProbe
 
     public float Read(Map map)
     {
+        if (metric == Metric.MaskAvailable)
+            return VectorLightMask.Available ? 1f : 0f;
+
         if (map == null)
             return 0f;
 
