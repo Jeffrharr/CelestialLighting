@@ -7790,6 +7790,155 @@ quoting the mean alone would be exactly the mistake the parent CLAUDE.md warns a
 paused throughout, which does not affect a render-path cost but does mean nothing here speaks to
 tick-driven work; there is none in this lane.
 
+## 27. Vector light sources (`VectorLightMath` / `VectorLightOverlay`, issues #48 / #103)
+
+**Problem.** Artificial light has no direction. `Verse.Glow.ComputeGlowGridsJob` runs a Dijkstra
+flood per glower over an 8-neighbour lattice with 100/141 fixed-point costs, and the distance it
+accumulates is **geodesic** — the length of the shortest path *around* the walls, not the straight
+line. Three consequences, all visible:
+
+- Light bends around corners. A lamp behind a wall smears onto the far side.
+- A diagonal step is refused only when *both* flanking cardinals are blockers (`case 4`–`case 7` of
+  its neighbour switch), so a single diagonal gap leaks.
+- The grid records how *far* light travelled and never which *direction* it came from, so nothing
+  downstream can draw the dark side of anything. This is why issue #48 sat open from the start: a
+  pawn beside a brazier at midnight is lit on all sides and throws nothing.
+
+What was wanted instead is the question a photon would ask — from where the light is, what can it
+*see*? Everything visible is lit, everything else is dark, and the boundary between them is a
+straight line through a corner rather than a stairstep along a lattice. One mechanism then produces
+all three target behaviours at once: a widening wedge through a doorway, a hard shadow behind a
+rock, and firelight spilling out of a window.
+
+**Approach.** A visibility polygon per emitter, cast from the light's own cell centre.
+
+1. `SilhouetteSegments` turns the blocker cells within the light's reach into the **outline** of the
+   blocked regions: edges shared between two blocker cells are deleted, and collinear spans on the
+   same grid line are merged. A twelve-cell wall run comes back as four segments, not forty-eight.
+2. Three rays per segment endpoint, at θ−ε, θ and θ+ε. The middle ray stops *on* the corner while
+   its neighbours slip either side of it, and that pair **is** the shadow edge.
+3. A base ring of 48 evenly spaced rays, so an unobstructed light is still round (7.5° per step puts
+   the chord 0.03 cells inside the true circle at radius 14).
+4. Sort by angle; the polygon is the fan. `BuildMesh` emits it as a triangle fan with a per-vertex
+   radial texture coordinate.
+
+The blocker set is vanilla's own — `ThingDef.blockLight` on the edifice, which is exactly what
+`Verse.Building` writes into `GlowGrid`'s `lightBlockers` on spawn and despawn. Issue #48 names the
+failure this avoids: a drawn shadow appearing across a wall the glow grid itself passed through.
+Asking the same question of the same grid makes that disagreement impossible rather than unlikely.
+The one deliberate exception is the light's **own** cell, treated as open even if something on it
+blocks light, so a wall-mounted lamp is not sealed inside its own occluder.
+
+**Suppression is half the feature, and it is the risky half.** Without it both models draw at once
+and vanilla wins where it matters: its flood has already put light in every cell around the corner
+that §27 just carved a shadow into, so every shadow fills back in from underneath. There is no
+additive trick that removes light, so `Patch_VectorLightSuppress` zeroes the **RGB** of
+`SectionLayer_LightingOverlay`'s vertices and leaves the **alpha** alone. That split is what makes it
+safe: RGB is the artificial glow averaged from `VisualGlowAt`, alpha is the sky-cover term §7b owns.
+Zeroing RGB puts every cell into the state an *unlit* cell already has in vanilla — an existing,
+well-defined state rather than a novel one — so §7b's occlusion, §7c/§7d's falloff, §9's wash and the
+sky colour all keep working untouched.
+
+**Gameplay light is untouched.** `map.glowGrid` is never read, written or invalidated by the
+suppressing half. `GroundGlowAt` / `PsychGlowAt` / `VisualGlowAt` return what they always did, so
+plant growth, work speed, mood, `StatPart_Glow`, `DarklightUtility`, unnatural darkness and every mod
+reading them see no change. §27 is a render, which is the whole reason it is allowed to be this
+opinionated: being wrong here costs a look, not a save.
+
+**The two things the obvious choice got wrong.**
+
+- **Brightness travels as a texture coordinate, not a vertex colour.** The pass must be additive, and
+  §23b's header records the finding that settles it: nothing in this codebase has ever asked
+  `ShaderDatabase.MoteGlow` to honour a vertex colour, while §11a and §23b both put real structure
+  through it as a *texture*. So the falloff curve is baked into a 1-D gradient in the **alpha**
+  channel — where `AuroraCurtain` writes its own intensity — and the mesh carries only a radial `U`.
+  It is also better geometry: `U` is distance/radius and distance is linear in position along a ray,
+  so the GPU reproduces the curve **exactly**, where a ring-subdivided fan only approximated it at
+  six times the vertices. The residual error is across a wedge, not along one: a point on the chord
+  between two rays 7.5° apart is 0.2% nearer the light than its interpolated `U` claims.
+- **Level is anchored at vanilla's own 0.5 artificial cap.** At full strength the first live A/B
+  washed a 14-cell room out completely. An additive pass has neither vanilla's compositing under the
+  sky multiply nor `GroundGlowAt`'s clamp of ordinary artificial light to 0.5, so a torch delivered
+  visibly more light than the same torch does in vanilla. §27 is a change of *shape*; if brightness
+  moved as well there would be no way to read which of the two produced the difference on screen.
+
+**Falloff keeps vanilla's curve** — `lerp(1 − d/r, 1/d², 0.4)`, lifted from `SetGlowFromDist` — but
+evaluated on a **euclidean** distance rather than a geodesic one. This is the subsystem's real
+gameplay-adjacent consequence and belongs in the release notes rather than being discovered: cells
+vanilla lit by a path bending around a corner now get nothing, so indirectly-lit rooms are genuinely
+darker. That is the feature working, and it is also the most likely thing to need a compensation
+knob before this is comfortable to live with.
+
+**Daylight.** `DaylightScale` fades a light against the sky it competes with, keyed on whether the
+sky *reaches* it rather than on `CurSkyGlow` flat. Keying on the global value puts every indoor lamp
+out at noon — the one case where vanilla's lamp is most clearly visible, since a roofed cell renders
+at a fraction of the sky and the lamp is what lifts it back. §7c's `NativeSkyFalloffGrid` already
+answers "how much sky reaches this cell" properly and is the principled upgrade; the binary roof test
+is the prototype's version of it.
+
+**Invalidation, and why it is not a `MapMeshFlagDef`.** `GlowGrid.DirtyCell` raises `Roofs` *and*
+`GroundGlow`, which §16 measures as the most frequently raised flag in the game — a flag subscription
+would rebake every polygon on the map on every lamp toggle. So the four *actual writes* are patched
+instead (`RegisterGlower`, `DeRegisterGlower`, `LightBlockerAdded`, `LightBlockerRemoved`), the same
+conclusion `Patch_OpenSkyMaskInvalidation` reached for §24. Roster staleness and geometry staleness
+are kept as separate states for the same reason: registering an emitter changes *who* is lighting the
+map, while a blocker write changes the *shape* thrown by the handful of lights that can see that
+cell. There is no timer anywhere — issue #48 states the rule and §16 has the measurement behind it.
+
+`VectorLightField` reads `GlowGrid`'s own `litGlowers` and `litTerrain` rather than mirroring
+registration into a private collection, so the roster is vanilla's answer by construction and the
+patches shrink to setting one bool. `litTerrain` is **not** optional: suppression is total, so
+glowing terrain §27 did not know about would go black rather than merely unimproved.
+
+**Rejected.**
+
+1. **Additive polygons on top of vanilla's render.** Nothing can regress and it is the fastest thing
+   to look at, but shadows never actually get dark, because vanilla already lit those cells.
+2. **Rewriting the lighting overlay's RGB from a raycast field instead of drawing our own geometry.**
+   That lattice is one sample per cell corner plus one per centre, so every shadow edge smears over a
+   full cell — which is the resolution §27 exists to escape.
+3. **One rectangle per blocker cell rather than an outline.** Both describe the same obstruction, but
+   a per-cell rectangle set has interior edges where two wall cells abut, and a ray aimed at the
+   corner where four of them meet can slip *between* them on a rounding error: a one-pixel spike of
+   light through a solid wall, appearing and disappearing as the camera moves. Deleting shared edges
+   removes that by construction rather than by epsilon.
+4. **A ring-subdivided fan carrying brightness in vertex colours.** Superseded on both counts above.
+5. **Fading on global `CurSkyGlow`.** Puts every indoor lamp out at noon.
+
+**Verification.** Offline, 1879 tests pass, and two of them are the ones that matter — geometry has
+two failure modes no per-value assertion catches. `TrianglesTileThePolygonExactlyOnce` sums the
+triangle areas against the polygon's own fan area, catching overlap (which on an additive pass
+doubles the light where faces meet — §17 shipped that bug once) and gaps in one number.
+`EveryNonDegenerateTriangleWindsTheSameWay` catches a flipped face, which on a backface-culling
+top-down camera renders *nothing at all* while every numeric probe still reports healthy geometry.
+
+`Tools/VectorLightPreview` rasterises the same shipped core offline in about a second against three
+hand-authored layouts, which is how the geometry was iterated before any of it was booted. It earned
+that in the first sitting: the doorway scene appeared not to work, and the geometry was already
+correct — the light had been placed 10.5 cells from the door on a radius of 14, leaving under four
+cells of reach beyond it. A scene that starves an effect of range is indistinguishable from a broken
+one.
+
+Live A/B in `vector_light_door.json` and `vector_light_blockers.json`, pinned on measured values
+(`vector_light_shadow_fraction` 0.280 and 0.078 respectively). Median CIELAB ΔE **within the region
+the effect touches** is **4.12** (door) and **4.11** (blockers), p90 6.48 and 5.72. Whole-frame
+median is **0.00** for both — this is the bounded-effect case §25 documents, where only 6.6% and 8.6%
+of the frame changes at all, so a whole-frame median is the wrong instrument and a percentile or a
+masked median is the right one.
+
+**Ships off** (`vector_lights`, registered with `defaultEnabled: false`). Off reproduces vanilla
+exactly, which matters more here than for most flags precisely because the feature has a suppressing
+half: with it false, `Patch_VectorLightSuppress` returns before touching the lighting overlay, so the
+baseline frame is the real pre-feature render rather than a picture of the lights being missing.
+
+**Not yet done, in the order it matters.** Soft edges — the user's own "edges can have some kind of
+soft drop-off after we implement the initial lighting system" — which is now a real option rather
+than a workaround, since custom shaders turn out to be a first-class path (`ShaderDatabase.LoadShader`
+falls through to mod asset bundles; it needs Unity 2022.3.35f1 and a `_linux`/`_mac`/`_win` suffix,
+and this box has 6000.2.6f1, so it is blocked on a toolchain rather than on the engine). Then the
+caster set beyond walls, roof and window openings as emitters (which would absorb issue #3's sun
+shafts into the same mechanism), and the lazy/pawn-range work that is the declared second phase.
+
 ## Conflict risk
 
 Decompiled the user's local Dub's Skylights 1.6 copy (`Dubwise.DubsSkylights`) — its patches
