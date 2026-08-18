@@ -1,0 +1,142 @@
+{
+  "name": "vector_light_penumbra",
+  "saveFile": "minimal_colony.rws",
+  "description": "\u00a727 phase 2, soft shadow edges. Holds vector_lights ON in both arms and toggles vector_light_penumbra, so the A/B isolates the penumbra from the mechanism that draws it \u2014 measured against vanilla instead, this would measure the whole of \u00a727 over again. The lamp sits in the left room with a doorway ahead of it and two free-standing blocks to either side, so one frame carries wedges opening both ways round the polygon.",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Concrete",
+        "width": "40",
+        "height": "24",
+        "offset": "0,45",
+        "clear": "true"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "0,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "-13,-7; -13,-6; -13,-5; -13,-4; -13,-3; -13,-2; -13,-1; -13,0; -13,1; -13,2; -13,3; -13,4; -13,5; -13,6; -13,7; -12,-7; -12,7; -11,-7; -11,7; -10,-7; -10,7; -9,-7; -9,7; -8,-7; -8,7; -7,-7; -7,7; -6,-7; -6,7; -5,-7; -5,7; -4,-7; -4,7; -3,-7; -3,7; -2,-7; -2,7; -1,-7; -1,7; 0,-7; 0,-6; 0,-5; 0,-4; 0,-3; 0,-2; 0,-1; 0,1; 0,2; 0,3; 0,4; 0,5; 0,6; 0,7"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "0,45",
+        "layout": "cells",
+        "cells": "-8,-3; -8,-2; -6,3; -6,4"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "TorchLamp",
+        "offset": "0,45",
+        "layout": "cells",
+        "cells": "-3,0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "0"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "0,45",
+        "zoom": "22"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_count",
+        "expectedValue": "4",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "warmup_discard.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_verts",
+        "expectedValue": "0",
+        "tolerance": "100000"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "penumbra_off.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_verts",
+        "expectedValue": "0",
+        "tolerance": "100000"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "penumbra_on.png"
+      }
+    }
+  ]
+}

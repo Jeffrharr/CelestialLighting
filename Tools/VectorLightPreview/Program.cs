@@ -101,15 +101,21 @@ public static class Program
         // kind of measurement that reports a subsystem as free.
         double bakeMs = TimeBake(scene);
 
-        float[] vector = AccumulateVector(scene, out int rays, out int verts, out int tris);
+        // Both arms of the soft-edge A/B come from the same call with a different source radius,
+        // which is exactly how the shipped flag works — off is a point source, not a second path.
+        float[] hard = AccumulateVector(scene, 0f, out int _, out int hardVerts, out int hardTris);
+        float[] soft = AccumulateVector(
+            scene, VectorLightMath.DefaultSourceRadius, out int rays, out int verts, out int tris);
         float[] flood = AccumulateFlood(scene);
 
         Console.WriteLine(
-            $"{scene.Name,-10} bake {bakeMs,6:F3} ms  rays {rays,4}  verts {verts,5}  tris {tris,5}");
+            $"{scene.Name,-10} bake {bakeMs,6:F3} ms  rays {rays,4}  " +
+            $"verts {hardVerts,5}->{verts,5}  tris {hardTris,5}->{tris,5}");
 
-        Write(Path.Combine(outputDir, $"{scene.Name}_vector.png"), scene, vector);
+        Write(Path.Combine(outputDir, $"{scene.Name}_vector.png"), scene, soft);
         Write(Path.Combine(outputDir, $"{scene.Name}_flood.png"), scene, flood);
-        WritePair(Path.Combine(outputDir, $"{scene.Name}_ab.png"), scene, flood, vector);
+        WritePair(Path.Combine(outputDir, $"{scene.Name}_ab.png"), scene, flood, soft);
+        WritePair(Path.Combine(outputDir, $"{scene.Name}_soft_ab.png"), scene, hard, soft);
     }
 
     // One full bake of every light in the scene: silhouette extraction, visibility polygon, mesh.
@@ -127,7 +133,8 @@ public static class Program
 
                 VectorLightMath.LightPolygon polygon = VectorLightMath.Build(
                     source.X, source.Z, source.Radius, segments, VectorLightMath.DefaultBaseRayCount);
-                VectorLightMath.BuildMesh(source.X, source.Z, source.Radius, polygon);
+                VectorLightMath.BuildMesh(
+                    source.X, source.Z, source.Radius, polygon, VectorLightMath.DefaultSourceRadius);
             }
         }
 
@@ -136,7 +143,8 @@ public static class Program
 
     // ---- the shipped path ------------------------------------------------------------------
 
-    private static float[] AccumulateVector(Scene scene, out int rays, out int verts, out int tris)
+    private static float[] AccumulateVector(
+        Scene scene, float sourceRadius, out int rays, out int verts, out int tris)
     {
         int width = scene.Width * PixelsPerCell;
         int height = scene.Height * PixelsPerCell;
@@ -155,7 +163,7 @@ public static class Program
                 source.X, source.Z, source.Radius, segments, VectorLightMath.DefaultBaseRayCount);
 
             VectorLightMath.LightMesh mesh =
-                VectorLightMath.BuildMesh(source.X, source.Z, source.Radius, polygon);
+                VectorLightMath.BuildMesh(source.X, source.Z, source.Radius, polygon, sourceRadius);
 
             rays += polygon.Count;
             verts += mesh.VertexCount;
@@ -169,7 +177,11 @@ public static class Program
             // seam in the first cut: bright ones with an inclusive edge test, dark ones with a strict
             // one, and neither is anything the game would draw.
             Array.Clear(single, 0, single.Length);
-            RasterizeMesh(mesh, VectorLightMath.FalloffGradient(source.Radius, VectorLightMath.GradientSize), single, width, height);
+            RasterizeMesh(
+                mesh,
+                VectorLightMath.PenumbraGradient(
+                    source.Radius, VectorLightMath.GradientSize, VectorLightMath.PenumbraGradientSize),
+                single, width, height);
 
             for (int i = 0; i < light.Length; i++)
                 light[i] += single[i];
@@ -235,7 +247,8 @@ public static class Program
                     // order the GPU does it in. Interpolating brightness instead would silently
                     // linearise the falloff curve and make the preview flatter than the game.
                     float u = w0 * mesh.U[a] + w1 * mesh.U[b] + w2 * mesh.U[c];
-                    float value = Sample(gradient, u);
+                    float v = w0 * mesh.V[a] + w1 * mesh.V[b] + w2 * mesh.V[c];
+                    float value = Sample(gradient, u, v);
                     int index = py * width + px;
                     light[index] = Math.Max(light[index], value);
                 }
@@ -268,10 +281,18 @@ public static class Program
         return VectorLightMath.SilhouetteSegments(blocked, w, h, minX, minZ);
     }
 
-    private static float Sample(byte[] gradient, float u)
+    // Nearest-neighbour on both axes, matching what the 1-D version did. The GPU filters
+    // bilinearly and so comes out marginally smoother than this; erring the other way would let the
+    // preview flatter a banding artefact the game would actually show.
+    private static float Sample(byte[] gradient, float u, float v)
     {
-        int index = (int)Math.Round(Math.Clamp(u, 0f, 1f) * (gradient.Length - 1));
-        return gradient[index] / 255f;
+        int columns = VectorLightMath.GradientSize;
+        int rows = VectorLightMath.PenumbraGradientSize;
+
+        int column = (int)Math.Round(Math.Clamp(u, 0f, 1f) * (columns - 1));
+        int row = (int)Math.Round(Math.Clamp(v, 0f, 1f) * (rows - 1));
+
+        return gradient[row * columns + column] / 255f;
     }
 
     // ---- vanilla's flood, for the A/B ------------------------------------------------------
