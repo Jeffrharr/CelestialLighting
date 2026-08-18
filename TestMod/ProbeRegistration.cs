@@ -243,6 +243,15 @@ public static class ProbeRegistration
         ProbeRegistry.Register(new EaveCellProbe("eave_cells", EaveCellProbe.Metric.Eaves));
         ProbeRegistry.Register(
             new EaveCellProbe("roof_shadow_cells", EaveCellProbe.Metric.ShadowCasters));
+        // §27 vector lights. Four metrics off one class, and they are read together on purpose:
+        // vector_light_shadow_fraction is the claim ("walls are blocking light"), and the other three
+        // are what stop a zero in it being mistaken for a disproof — no emitters, no reach, or no mesh
+        // each produce the same 0 for entirely different reasons.
+        ProbeRegistry.Register(new VectorLightProbe("vector_light_count", VectorLightProbe.Metric.Count));
+        ProbeRegistry.Register(new VectorLightProbe("vector_light_lit_area", VectorLightProbe.Metric.LitArea));
+        ProbeRegistry.Register(
+            new VectorLightProbe("vector_light_shadow_fraction", VectorLightProbe.Metric.ShadowFraction));
+        ProbeRegistry.Register(new VectorLightProbe("vector_light_verts", VectorLightProbe.Metric.Vertices));
         // Issue #80: the fixed near-door cell in ambient_light_compat.json.
         // ambient_ground_glow is the GAMEPLAY value (what Ambient Light's own readout reports);
         // ambient_sky_fraction is what SkyFalloffSource resolves for it, for §7b to cap occlusion with.
@@ -592,6 +601,24 @@ public static class ProbeRegistration
         // Expose CelestialLighting's runtime feature flags to the harness's SetFeature step so a
         // scenario can screenshot an effect off then on. The setter just writes the shipped mod's
         // static flag; in production nothing calls it and the flag stays at its default (on).
+        // §27. Registered with the THREE-arg overload and defaultEnabled: false, which is
+        // load-bearing rather than tidiness: the two-arg overload assumes true, and
+        // FeatureRegistry.ResetAll() — which WorldStateReset runs between every pair of scenarios in a
+        // suite — calls every setter with its registered default. Registered as true, §27 would switch
+        // itself on for every later scenario in the file and rewrite their lighting, which is how
+        // weather_dimming_census came to fail in-suite while passing standalone.
+        //
+        // ForceRebuild is not optional here either: half of §27 is baked into the lighting overlay's
+        // vertex colours during a section regenerate, so flipping the flag alone changes nothing on
+        // screen until something else happens to dirty a section.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightsKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.VectorLights = enabled;
+                VectorLightRedraw.ForceRebuild();
+            },
+            defaultEnabled: false);
         FeatureRegistry.Register(
             CelestialLightingFeatures.CivilTwilightPersistenceKey,
             enabled => CelestialLightingFeatures.CivilTwilightPersistence = enabled);

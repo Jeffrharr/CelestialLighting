@@ -245,6 +245,10 @@
          sheet's Geometry depends on its placement and deck and on NOTHING else — is what makes
          CloudVolumeShader.Configure's per-slot write cache correct. -->
     <Compile Include="../../Source/CloudVolumeUniforms.cs" Link="CloudVolumeUniforms.cs" />
+    <!-- Subsystem 27 pure core (vector light sources). Verse-free and standalone — it depends on
+         nothing else here, since a visibility polygon is answered entirely from a blocker grid and a
+         light position. Tools/VectorLightPreview links the same file for offline look-dev. -->
+    <Compile Include="../../Source/VectorLightMath.cs" Link="VectorLightMath.cs" />
   </ItemGroup>
 
 </Project>
