@@ -116,6 +116,7 @@ public static class Program
         Write(Path.Combine(outputDir, $"{scene.Name}_flood.png"), scene, flood);
         WritePair(Path.Combine(outputDir, $"{scene.Name}_ab.png"), scene, flood, soft);
         WritePair(Path.Combine(outputDir, $"{scene.Name}_soft_ab.png"), scene, hard, soft);
+        WriteTriple(Path.Combine(outputDir, $"{scene.Name}_abc.png"), scene, flood, hard, soft);
     }
 
     // One full bake of every light in the scene: silhouette extraction, visibility polygon, mesh.
@@ -429,6 +430,33 @@ public static class Program
         }
 
         Png.Write(path, width * 2 + Gap, height, outPixels);
+    }
+
+    // Three arms in one strip, in the order they happened: vanilla's flood, then phase 1's
+    // visibility polygon, then phase 2's penumbra. Worth its own writer rather than two pairs,
+    // because the interesting comparison is not either step on its own — it is that the first step
+    // changes the SHAPE of the light and the second only softens where that shape ends.
+    private static void WriteTriple(
+        string path, Scene scene, float[] left, float[] middle, float[] right)
+    {
+        int width = scene.Width * PixelsPerCell;
+        int height = scene.Height * PixelsPerCell;
+        const int Gap = 8;
+
+        byte[][] panels = { Compose(scene, left, width, height), Compose(scene, middle, width, height),
+                            Compose(scene, right, width, height) };
+        int stride = width * 3 + Gap * 2;
+        byte[] outPixels = new byte[stride * height * 4];
+
+        for (int panel = 0; panel < panels.Length; panel++)
+        {
+            int offset = panel * (width + Gap);
+
+            for (int y = 0; y < height; y++)
+                Array.Copy(panels[panel], y * width * 4, outPixels, (y * stride + offset) * 4, width * 4);
+        }
+
+        Png.Write(path, stride, height, outPixels);
     }
 
     private static byte[] Compose(Scene scene, float[] light, int width, int height)
