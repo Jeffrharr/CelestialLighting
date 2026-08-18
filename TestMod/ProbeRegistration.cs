@@ -633,6 +633,17 @@ public static class ProbeRegistration
                 CelestialLightingFeatures.VectorLightPenumbra = enabled;
                 VectorLightRedraw.ForceRebuild();
             });
+        // Two-arg overload, i.e. defaultEnabled true, because true is the shipped default and the
+        // one that makes §27 mean anything. Like the penumbra flag it is inert while vector_lights
+        // is off, so it cannot contaminate a later scenario. ForceRebuild because the suppression is
+        // baked into the lighting overlay's vertex colours during a section regenerate.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightSuppressKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.VectorLightSuppress = enabled;
+                VectorLightRedraw.ForceRebuild();
+            });
         FeatureRegistry.Register(
             CelestialLightingFeatures.CivilTwilightPersistenceKey,
             enabled => CelestialLightingFeatures.CivilTwilightPersistence = enabled);
