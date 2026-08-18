@@ -7723,34 +7723,61 @@ inversion on the first run. The fan must still tile the polygon exactly once, wh
 and would otherwise read as overlap. `Tools/VectorLightPreview` grew a hard-vs-soft pair per scene,
 both arms from the same call with a different source radius.
 
-### What publishing the vanilla arm showed
+### What publishing the vanilla arm showed, and the level it corrected
 
-`vector_light_penumbra.json` captures three arms from one scene — vanilla's flood, phase 1's hard
-edges, phase 2's penumbra — rather than the two an A/B needs. The soft-edge measurement is still
-taken between the last two, since holding `vector_lights` on across both is what isolates the
-penumbra from the mechanism drawing it. The vanilla arm is there because it is the only one of the
-three a player has actually seen, and putting it beside the others immediately showed something the
-two-arm pair had hidden for a whole phase:
+`vector_light_penumbra.json` captures **four** arms from one scene rather than the two an A/B needs:
+vanilla's flood, the mixed case, phase 1's hard edges, phase 2's penumbra. The soft-edge measurement
+is still taken between the last two, since holding everything else constant is what isolates the
+penumbra from the mechanism drawing it. The extra arms exist because a two-arm A/B is blind to
+anything §27 does to *both* of its frames — which is how the overall level ran bright for a whole
+phase without anything catching it.
 
-| arm | masked median ΔE vs vanilla | lit room mean L\* | room beyond the doorway |
+**`DefaultStrength` was 0.5 by argument and is now 0.35 by measurement.** The old value anchored on
+vanilla's own `GlowGrid.GroundGlowAt` 0.5 cap, which is a reasonable-sounding derivation and came out
+about **3 L\* too bright**: a lit room read mean L\* 17.09 against vanilla's 14.02 on the same
+scene. The additive term is linear in that constant, so with the room's ambient floor taken from the
+darkest fifth of the shadowed frame it solves directly — `0.5 × (vanilla's contribution ÷ ours)` =
+0.3534. Measured back at 0.35:
+
+| arm | lit room mean L\* | vs vanilla | room beyond the doorway |
 |---|---|---|---|
-| vanilla | — | 13.16 | 8.95 |
-| hard edges | 4.02 (over 6.38% of frame) | 15.23 | 8.99 |
-| soft edges | 3.99 (over 6.43% of frame) | 15.26 | 9.10 |
+| vanilla | 14.02 | — | 9.01 |
+| mixed (suppression off) | 20.23 | **+6.21** | 9.52 |
+| hard edges @ 0.35 | 14.39 | **+0.37** | 8.92 |
+| soft edges @ 0.35 | 14.41 | +0.39 | 9.00 |
 
-**§27 currently reads about two L\* brighter in the lit room than vanilla does** — a ~16% lift in
-mean lightness that no A/B against phase 1 could ever have surfaced, because both of its arms
-contain it. That is phase 1's calibration and not phase 2's: soft edges move it by 0.03. §27 is
-meant to change the *shape* of light and not how bright a lamp is, so the level wants another look
-before any of this defaults on, and the additive pass's anchor to vanilla's 0.5 artificial cap is
-where to start.
+**The consequence is worth stating plainly, because it is not flattering.** Against vanilla, all of
+§27 now measures masked median CIELAB ΔE **1.62** — down from 4.02 at the old level. That is not a
+regression; it is the discovery that **most of what phase 1 measured was brightness rather than
+shape**. 1.62 is the shape change on its own, which is what §27 claims to be. Phase 2's soft edges
+likewise move from 1.80 to **1.38** for the same reason: a dimmer light has less contrast at its
+shadow edges to soften. Both still clear the repo's ΔE-1 floor, but with less room than before, and
+anyone raising the level again should expect both numbers to rise with it and should not read that
+rise as the subsystem having improved. The level is linear and predictable if it is ever revisited:
+0.30 → −0.88 L\*, 0.40 → +1.52, 0.45 → +2.60.
 
-The same table quietly contradicts the epic's headline risk *in this geometry*: the room beyond the
-doorway is not darker under §27, it is marginally brighter (8.95 → 9.10), because the beam through
-the door reaches further than vanilla's flood bent around the jamb. That is not the risk being
-wrong — a room with **no** line of sight at all is where it bites, and this scene does not contain
-one — but it does mean the risk needs a scene built to show it rather than being assumed visible in
-any scene with a wall in it.
+The far room also changes character at the corrected level. At 0.5 it came out *brighter* than
+vanilla (8.95 → 9.10) and appeared to contradict the epic's headline risk. At 0.35 hard edges land
+at **8.92 against vanilla's 9.01** — the predicted darkening finally showing, and small. Phase 2
+brings it back to 9.00, because the penumbra restores at the shadow edges some of what the hard
+boundary cut. That is a real argument for soft edges being on by default and not merely prettier.
+
+### The mixed case (`vector_light_suppress`)
+
+Epic #145 rejected "additive polygons on top of vanilla's render" on the argument that shadows never
+actually get dark, because vanilla has already lit those cells. `vector_light_suppress` makes that a
+photograph rather than a claim: with it off, `Patch_VectorLightSuppress` returns before touching the
+lighting overlay and our polygons are drawn over vanilla's untouched flood.
+
+It confirms the rejection twice over. The room goes to L\* **20.23**, half again as bright as
+vanilla, because two full lighting models are now summed — and the shadows, though visible, never
+reach dark, so the frame reads as a brightness increase with some structure in it rather than as
+directional light. Masked median ΔE against vanilla is **7.34**, the largest number anywhere in this
+section and the least desirable.
+
+The flag is not only a demo. The epic asks for the suppressing half to be droppable independently of
+the polygons — it is the risky one, since with it on anything §27 does not know about goes *black*
+rather than merely unimproved — and this is that escape hatch, now switchable rather than hypothetical.
 
 ### Performance (`Tests/Scenarios/vector_light_perf.json`)
 

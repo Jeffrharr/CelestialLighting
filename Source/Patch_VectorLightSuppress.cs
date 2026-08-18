@@ -35,7 +35,7 @@ public static class Patch_VectorLightSuppress
     [HarmonyPriority(Priority.Last)]
     static void Postfix(SectionLayer_LightingOverlay __instance)
     {
-        if (!CelestialLightingFeatures.VectorLights)
+        if (!CelestialLightingFeatures.VectorLights || !CelestialLightingFeatures.VectorLightSuppress)
             return;
 
         LayerSubMesh subMesh = __instance.GetSubMesh(MatBases.LightOverlay);
