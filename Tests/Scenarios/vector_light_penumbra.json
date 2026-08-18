@@ -1,7 +1,7 @@
 {
   "name": "vector_light_penumbra",
   "saveFile": "minimal_colony.rws",
-  "description": "\u00a727 in four arms from one scene: vanilla's flood, the mixed case (our polygons ON TOP of vanilla's flood, with the suppressing half off \u2014 epic #145's rejected option 1, kept capturable rather than only arguable), phase 1's hard-edged visibility polygons, and phase 2's penumbra. The soft-edge measurement is taken between the last two, which holds everything else constant and so isolates the penumbra from the mechanism drawing it. The vanilla arm is what the other three are departures FROM, and capturing it is what caught the overall level running bright \u2014 no A/B could, since \u00a727 was in both of its frames. A fifth arm captures the crossfade (vector_light_blend), which keeps half of vanilla's flood underneath and drops our own contribution by the same half \u2014 the tone-down of the mixed case, as against the mixed case's straight sum of two whole lighting models.",
+  "description": "\u00a727 in four arms from one scene: vanilla's flood, the mixed case (our polygons ON TOP of vanilla's flood, with the suppressing half off \u2014 epic #145's rejected option 1, kept capturable rather than only arguable), phase 1's hard-edged visibility polygons, and phase 2's penumbra. The soft-edge measurement is taken between the last two, which holds everything else constant and so isolates the penumbra from the mechanism drawing it. The vanilla arm is what the other three are departures FROM, and capturing it is what caught the overall level running bright \u2014 no A/B could, since \u00a727 was in both of its frames. A fifth arm captures the crossfade (vector_light_blend, which is now the shipped default, so the hard and soft arms turn it off explicitly rather than by omission), which keeps half of vanilla's flood underneath and drops our own contribution by the same half \u2014 the tone-down of the mixed case, as against the mixed case's straight sum of two whole lighting models.",
   "steps": [
     {
       "type": "SetTile",
@@ -119,6 +119,13 @@
     {
       "type": "SetFeature",
       "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
         "featureName": "vector_light_suppress",
         "enabled": "false"
       }
@@ -134,6 +141,13 @@
       "args": {
         "featureName": "vector_light_suppress",
         "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "false"
       }
     },
     {
