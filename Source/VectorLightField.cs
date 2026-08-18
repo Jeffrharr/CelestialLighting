@@ -56,6 +56,19 @@ public static class VectorLightField
         // at all. Both are set together wherever the world changes.
         public bool PolygonDirty = true;
 
+        // The polygon's cell coverage, baked with it. See VectorLightMath.BuildCoverage: computing
+        // this per section instead measured 239 us per section against the crossfade's 20.
+        public byte[] Coverage;
+
+        // Radius the coverage grid was baked at, in cells. Held rather than recomputed because the
+        // lookup needs it and Mathf.CeilToInt on every cell of every section is exactly the sort of
+        // per-cell arithmetic this cache exists to remove.
+        public int CoverageRadius;
+
+        // Whether this emitter shadows anything at all — no ray stopped short of the radius. The
+        // bake skips such an emitter outright rather than looking its grid up cell by cell.
+        public bool Unobstructed;
+
         // The polygon's area in square cells, kept for the probes: it is the one number that says
         // "the lit region changed shape" without going anywhere near a pixel. Issue #3 records two
         // wrong conclusions drawn from pixel measurement on exactly this kind of effect.
@@ -101,6 +114,43 @@ public static class VectorLightField
 
     // Everything currently emitting on this map, resynced from vanilla's own sets if anything has
     // registered or deregistered since the last call.
+    // Build every dirty polygon on this map, once per frame, OUTSIDE the section bake.
+    //
+    // WHY IT IS HOISTED. §27 phase 3 reads polygons during a section regenerate, and building one
+    // there put geometry construction inside the bake: a whole-map rebake measured 49 ms in
+    // VectorLightMask.Apply while everything Apply calls summed to 6, and the missing 43 was
+    // EnsurePolygon running under CollectReaching. The crossfade builds the same polygons in the
+    // DRAW path, so its own bake row never contained them — which made the two rows a comparison
+    // between different quantities rather than between two implementations.
+    //
+    // Called once per frame from the draw, so by the time any section bakes, every polygon it might
+    // ask for is already there. The work is not removed — it is the same builds on the same cadence
+    // — it simply stops being charged to, and serialised inside, the regenerate.
+    // Returns whether it built anything, because the caller has to act on that.
+    //
+    // A SECTION BAKED WHILE A POLYGON WAS STILL DIRTY SKIPPED THAT EMITTER, and nothing would ever
+    // dirty the section again — so "the mask catches up next frame" was permanently false and the
+    // feature rendered pixel-identical to vanilla with every probe healthy. Whoever builds the
+    // polygons has to re-dirty the map afterwards, once, so the sections bake again with them ready.
+    public static bool EnsurePolygons(Map map)
+    {
+        if (map == null)
+            return false;
+
+        bool built = false;
+
+        foreach (LightEntry entry in LightsFor(map))
+        {
+            if (entry.PolygonDirty || entry.Polygon.Count == 0)
+            {
+                EnsurePolygon(map, entry);
+                built = true;
+            }
+        }
+
+        return built;
+    }
+
     // The visibility polygon for one emitter, built if the world has changed under it since the last
     // time anybody asked. Shared by the draw and by §27 phase 3's mask so the two cannot disagree
     // about the shape of a shadow — a disagreement would show as the mask darkening cells the draw
@@ -116,6 +166,15 @@ public static class VectorLightField
         entry.Polygon = VectorLightMath.Build(
             entry.Cell.x + 0.5f, entry.Cell.z + 0.5f, entry.Radius, segments,
             VectorLightMath.DefaultBaseRayCount);
+
+        // Baked alongside the polygon, on the same cadence and for the same reason: both change only
+        // when somebody builds or removes a wall in range, and both are asked for once per cell of
+        // every section that overlaps this emitter.
+        entry.CoverageRadius = Mathf.CeilToInt(entry.Radius);
+        entry.Coverage = VectorLightMath.BuildCoverage(
+            entry.Polygon, entry.Cell.x, entry.Cell.z, entry.CoverageRadius,
+            VectorLightMath.DefaultCoverageSamples);
+        entry.Unobstructed = VectorLightMath.IsUnobstructed(entry.Polygon, entry.Radius);
 
         entry.PolygonDirty = false;
     }

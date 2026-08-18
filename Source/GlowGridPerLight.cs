@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using HarmonyLib;
 using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
 using Verse;
 using Verse.Glow;
@@ -78,9 +79,39 @@ public static class GlowGridPerLight
 
         public static long KeyFor(int id, bool isTerrain) => ((long)id << 1) | (isTerrain ? 1L : 0L);
 
+        // One emitter resolved ONCE, so the caller can then walk its cells with plain array
+        // arithmetic.
+        //
+        // WHY THIS EXISTS RATHER THAN TryGlowAt ALONE. Asking per cell measured 239 us per section:
+        // a dictionary lookup on a long key, a CellRect.Contains, and two native-container indexers,
+        // about eighteen hundred times per section. None of that depends on the cell except the last
+        // step. Resolving the emitter once and handing back its rect and its colour array turns the
+        // inner loop into an index and a compare, and lets the caller iterate only the cells the
+        // emitter actually reaches instead of every cell of the section.
+        public bool TryResolveEmitter(long key, out GlowLight light, out UnsafeList<Color32> colors)
+        {
+            light = default;
+            colors = default;
+
+            if (!indexByKey.TryGetValue(key, out int index))
+                return false;
+
+            light = lights[index];
+            LocalGlowArea area = pool[light.localGlowPoolIndex];
+
+            if (!area.colors.IsCreated)
+                return false;
+
+            colors = area.colors;
+            return true;
+        }
+
         // What this one emitter delivers to this one cell, in vanilla's own units. False when the
         // emitter is not vanilla's to begin with, or when the cell is outside its square — which is
         // not an error, just "this light does not reach here", and the caller wants a zero.
+        //
+        // Kept for the probes, which ask about a handful of cells and want the convenient form. The
+        // bake goes through TryResolveEmitter instead.
         public bool TryGlowAt(long key, IntVec3 cell, out Color32 glow)
         {
             glow = default;
@@ -107,10 +138,26 @@ public static class GlowGridPerLight
         }
     }
 
+    // The last Reader handed out, and the map and frame it was built for.
+    //
+    // A REGENERATE IS PER SECTION AND A REBAKE IS 112 OF THEM. Building a Reader costs three
+    // reflection GetValue calls — each of which boxes a NativeList — plus a dictionary built over
+    // every emitter on the map. Paying that per section was most of what made the first
+    // implementation slow, and none of it changes within a frame.
+    private static Reader cached;
+    private static int cachedMapId = -1;
+    private static int cachedFrame = -1;
+
     public static Reader For(Map map)
     {
         if (!Available || map?.glowGrid == null)
             return null;
+
+        // Time.frameCount rather than a tick: sections regenerate during the draw, and several
+        // sections of one rebake land in the same frame. A stale Reader across frames would hold
+        // native buffers that a glower registration may since have reallocated.
+        if (cached != null && cachedMapId == map.uniqueID && cachedFrame == Time.frameCount)
+            return cached;
 
         try
         {
@@ -125,7 +172,10 @@ public static class GlowGridPerLight
             if (!lights.IsCreated || !pool.IsCreated)
                 return null;
 
-            return new Reader(lights, pool);
+            cached = new Reader(lights, pool);
+            cachedMapId = map.uniqueID;
+            cachedFrame = Time.frameCount;
+            return cached;
         }
         catch (Exception ex)
         {
