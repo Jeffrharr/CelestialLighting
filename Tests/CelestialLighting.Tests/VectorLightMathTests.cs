@@ -766,6 +766,32 @@ public class VectorLightMathTests
             VectorLightMath.LitFraction(empty, 8.5f, 8.5f, 8, 8, 2), Is.EqualTo(0f).Within(Tolerance));
     }
 
+    // The beam that rides on top of phase 3's mask is exactly what the crossfade already delivers
+    // over the half of vanilla it keeps. Pinning the identity rather than the number keeps the two
+    // tied together: retuning DefaultStrength or DefaultVanillaFloor moves both, which is the point
+    // — the combination is meant to be comparable to the crossfade it is trying to beat, and a beam
+    // that quietly drifted away from that would make the comparison meaningless without failing.
+    [Test]
+    public void TheMaskBeamDeliversWhatTheCrossfadeAlreadyDoes()
+    {
+        Assert.That(
+            VectorLightMath.MaskBeamStrength,
+            Is.EqualTo(VectorLightMath.BlendedStrength(
+                VectorLightMath.DefaultStrength, VectorLightMath.DefaultVanillaFloor))
+                .Within(Tolerance));
+    }
+
+    // And it must be a genuine fraction of the full pass rather than all of it: drawing our whole
+    // model over a vanilla that is still rendering is epic #145's rejected option 1, which measured
+    // 6 L* bright. The mask removes the shadowed light before this lands, but it does not remove any
+    // of the lit light, so full strength here would still double the lit region.
+    [Test]
+    public void TheMaskBeamIsAFractionOfTheFullPass()
+    {
+        Assert.That(VectorLightMath.MaskBeamStrength, Is.GreaterThan(0f));
+        Assert.That(VectorLightMath.MaskBeamStrength, Is.LessThan(VectorLightMath.DefaultStrength));
+    }
+
     private static VectorLightMath.LightPolygon OpenPolygon(float radius)
     {
         return VectorLightMath.Build(8.5f, 8.5f, radius, new VectorLightMath.Segment[0], 48);

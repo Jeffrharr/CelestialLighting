@@ -652,6 +652,26 @@ public static class CelestialLightingFeatures
     // what makes the subtraction targeted; with them unreadable there is nothing to subtract, and
     // VectorLightMask.Active goes false rather than the mask guessing.
     public static bool VectorLightMask = false;
+
+    // Feature key for VectorLightMaskBeam.
+    public const string VectorLightMaskBeamKey = "vector_light_mask_beam";
+
+    // §27 phase 3's other half: keep the additive pass running ON TOP of the mask, at a reduced
+    // strength, so the lit region gains the beam the mask alone cannot produce.
+    //
+    // THE MASK AND THE BEAM FAIL IN OPPOSITE DIRECTIONS, which is why both exist. The mask only
+    // subtracts, so it delivers §27's shadows and a beam DIMMER than vanilla's. Phase 2b's max only
+    // added, so it delivered vanilla's brightness and no shadow at all. Running them together is the
+    // first arrangement in §27 that can have both: vanilla with the bent light taken out, plus a
+    // fraction of our own model put back over what remains.
+    //
+    // IT IS NOT THE MIXED CASE. Epic #145 rejected drawing our full model over vanilla's full model,
+    // measured at 6 L* bright. Here what is underneath has already had the shadowed light removed,
+    // so the sum is (V + k*O) * lit rather than V + k*O — vanilla scaled inside the lit region and
+    // zero outside it, instead of two complete lighting models added together.
+    //
+    // Inert unless VectorLightMask is on, so it cannot contaminate any other arm.
+    public static bool VectorLightMaskBeam = false;
 }
 
 public enum SunClockMode
