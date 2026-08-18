@@ -45,6 +45,21 @@ public static class VectorLightRedraw
         // GroundGlow rather than Roofs: it is the narrower of the two flags the lighting overlay
         // subscribes to, and unlike Roofs it is not also consumed by half the vanilla layers.
         for (int i = 0; i < maps.Count; i++)
+        {
+            // POLYGONS BEFORE THE DIRT, and the order is the whole point. §27 phase 3 bakes into the
+            // lighting overlay during a section regenerate and skips any emitter whose polygon is not
+            // ready — building one inside the bake charged 43 ms of geometry construction to a
+            // whole-map rebake. The draw path builds them and re-dirties, but that lands a frame
+            // later, and a toggle followed immediately by a screenshot photographs the frame in
+            // between: the mask measured pixel-identical to vanilla with every probe healthy.
+            //
+            // Building here costs the same work on the same cadence — a flag flip is rare — and it
+            // is synchronous, so the sections this method is about to dirty bake against polygons
+            // that already exist rather than against ones that are about to.
+            if (VectorLightMask.Active)
+                VectorLightField.EnsurePolygons(maps[i]);
+
             maps[i].mapDrawer?.WholeMapChanged((ulong)MapMeshFlagDefOf.GroundGlow);
+        }
     }
 }

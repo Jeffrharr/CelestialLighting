@@ -1,6 +1,9 @@
+using System;
 using System.Collections.Generic;
+using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
 using Verse;
+using Verse.Glow;
 
 namespace CelestialLighting;
 
@@ -109,13 +112,16 @@ public static class VectorLightMask
                 && entry.Cell.z + reach >= rect.minZ - 1
                 && entry.Cell.z - reach <= rect.maxZ;
 
-            if (overlaps)
-            {
-                VectorLightField.EnsurePolygon(map, entry);
-
-                if (entry.Polygon.Count > 0)
-                    Reaching.Add(entry);
-            }
+            // CONSUMED, NOT BUILT. Building a polygon here is what put 43 ms of geometry
+            // construction inside a whole-map rebake; VectorLightField.EnsurePolygons does it once
+            // per frame from the draw instead. An entry whose polygon is not ready yet is skipped
+            // for this frame and picked up on the next one, which costs one frame of a shadow that
+            // has only just come into existence.
+            //
+            // An emitter that shadows nothing is skipped outright rather than looked up cell by cell
+            // and found to subtract zero every time. In open ground that is most of them.
+            if (overlaps && !entry.PolygonDirty && entry.Polygon.Count > 0 && !entry.Unobstructed)
+                Reaching.Add(entry);
         }
     }
 
@@ -151,47 +157,77 @@ public static class VectorLightMask
         for (int i = 0; i < cells; i++)
             cellShadow[i] = default;
 
-        for (int z = rect.minZ - 1; z <= rect.maxZ + 1; z++)
-        {
-            for (int x = rect.minX - 1; x <= rect.maxX + 1; x++)
-            {
-                IntVec3 cell = new IntVec3(x, 0, z);
-
-                if (cell.InBounds(map))
-                    cellShadow[CellIndex(rect, x, z)] = ShadowAt(reader, cell);
-            }
-        }
-    }
-
-    private static ColorInt ShadowAt(GlowGridPerLight.Reader reader, IntVec3 cell)
-    {
-        ColorInt total = default;
-
+        // EMITTERS OUTER, CELLS INNER, and that ordering is the whole performance story. The first
+        // version walked every cell of the section and asked every reaching emitter about it: a
+        // dictionary lookup on a long key, a CellRect.Contains and two native-container indexers,
+        // about eighteen hundred times per section, for 239 us against the crossfade's 20.
+        //
+        // None of that per-cell work depended on the cell except the final array read. Resolving the
+        // emitter once and then walking only the cells inside its own square — intersected with the
+        // section — makes the inner loop an index, a compare and three multiplies, and visits each
+        // (emitter, cell) pair once instead of visiting every pair whether or not it overlaps.
         for (int i = 0; i < Reaching.Count; i++)
         {
             VectorLightField.LightEntry entry = Reaching[i];
 
-            if (!reader.TryGlowAt(entry.VanillaKey, cell, out Color32 own))
+            if (!reader.TryResolveEmitter(entry.VanillaKey, out GlowLight light, out UnsafeList<Color32> colors))
                 continue;
 
-            if (own.r == 0 && own.g == 0 && own.b == 0)
-                continue;
-
-            float lit = VectorLightMath.LitFraction(
-                entry.Polygon, entry.Cell.x + 0.5f, entry.Cell.z + 0.5f, cell.x, cell.z,
-                VectorLightMath.DefaultCoverageSamples);
-
-            float shadowed = 1f - lit;
-
-            if (shadowed <= 0f)
-                continue;
-
-            total.r += Mathf.RoundToInt(own.r * shadowed);
-            total.g += Mathf.RoundToInt(own.g * shadowed);
-            total.b += Mathf.RoundToInt(own.b * shadowed);
+            AccumulateEmitter(map, rect, entry, light, colors);
         }
+    }
 
-        return total;
+    private static void AccumulateEmitter(
+        Map map, CellRect rect, VectorLightField.LightEntry entry, GlowLight light,
+        UnsafeList<Color32> colors)
+    {
+        CellRect reach = light.AffectedRect;
+
+        // The cell grid spans the section plus one cell of margin on every side; the emitter spans
+        // its own square. Only their intersection can contribute, and clamping here is what stops
+        // the inner loop needing a bounds test per cell.
+        int minX = Math.Max(reach.minX, rect.minX - 1);
+        int maxX = Math.Min(reach.maxX, rect.maxX + 1);
+        int minZ = Math.Max(reach.minZ, rect.minZ - 1);
+        int maxZ = Math.Min(reach.maxZ, rect.maxZ + 1);
+
+        for (int z = minZ; z <= maxZ; z++)
+        {
+            for (int x = minX; x <= maxX; x++)
+            {
+                int coverage = VectorLightMath.CoverageAt(
+                    entry.Coverage, entry.Cell.x, entry.Cell.z, entry.CoverageRadius, x, z);
+
+                // Fully lit is the common case and costs one compare. Checked before the glow read
+                // because the array index is the dearer of the two.
+                if (coverage >= 255)
+                    continue;
+
+                IntVec3 cell = new IntVec3(x, 0, z);
+
+                if (!cell.InBounds(map))
+                    continue;
+
+                int local = light.WorldToLocalIndex(cell);
+
+                if (local < 0 || local >= colors.Length)
+                    continue;
+
+                Color32 own = colors[local];
+
+                if (own.r == 0 && own.g == 0 && own.b == 0)
+                    continue;
+
+                int shadowed = 255 - coverage;
+                int index = CellIndex(rect, x, z);
+
+                // Integer throughout: these are bytes scaled by a byte, so the float round-trip the
+                // first version did per channel bought nothing but conversions.
+                cellShadow[index].r += own.r * shadowed / 255;
+                cellShadow[index].g += own.g * shadowed / 255;
+                cellShadow[index].b += own.b * shadowed / 255;
+            }
+        }
     }
 
     // Corner vertices, mirroring GenerateLightingOverlay's own averaging exactly: the up-to-four

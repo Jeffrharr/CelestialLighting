@@ -249,6 +249,19 @@ public static class ProbeRegistration
         }
 
         ProbeRegistry.Register(new CircinusProbe("circinus_run_stop", CircinusProbe.Metric.RunStop));
+
+        // Sub-method breakdown of the bake. Registered after three speculative optimisations to the
+        // mask moved its cost by nothing at all — a coverage cache, a per-frame reader cache and a
+        // loop inversion, none of which touched the number. Guessing where the time goes has now
+        // cost more than measuring it would have, so this measures it.
+        const string mask = "CelestialLighting.VectorLightMask";
+        ProbeRegistry.Register(new CircinusProbe("circinus_apply_total_ms", CircinusProbe.Metric.TotalMs, mask, "Apply"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_apply_calls", CircinusProbe.Metric.Calls, mask, "Apply"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_shadow_total_ms", CircinusProbe.Metric.TotalMs, mask, "BuildCellShadow"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_corners_total_ms", CircinusProbe.Metric.TotalMs, mask, "ApplyToCorners"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_centres_total_ms", CircinusProbe.Metric.TotalMs, mask, "ApplyToCentres"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_reader_total_ms", CircinusProbe.Metric.TotalMs, "CelestialLighting.GlowGridPerLight", "For"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_reader_calls", CircinusProbe.Metric.Calls, "CelestialLighting.GlowGridPerLight", "For"));
         // Issue #80: the fixed near-door cell in ambient_light_compat.json.
         // ambient_ground_glow is the GAMEPLAY value (what Ambient Light's own readout reports);
         // ambient_sky_fraction is what SkyFalloffSource resolves for it, for §7b to cap occlusion with.
