@@ -810,6 +810,48 @@ public static class VectorLightMath
     // move: this is a fitted value and its inputs are all upstream of it.
     public const float DefaultStrength = 0.35f;
 
+    // How much of vanilla's own flood survives underneath §27, as a fraction — the CROSSFADE between
+    // the two lighting models rather than a choice of one.
+    //
+    // WHY THIS EXISTS. Suppressing vanilla outright is what lets a shadow actually reach dark, and it
+    // is also §27's most dangerous property: anything the polygons do not know about goes BLACK
+    // rather than merely unimproved, and a room lit only by light that bent around a corner loses all
+    // of it. Keeping vanilla's flood at a fraction turns both of those from cliffs into slopes. The
+    // shadow is no longer black, it is dimmer; the room §27 cannot see is no longer unlit, it is
+    // dimmer; and neither depends on §27 having a complete picture of what emits light.
+    //
+    // WHY IT COMPENSATES RATHER THAN ADDS. The naive version of this — leave vanilla alone and draw
+    // our polygons over it — is epic #145's rejected option 1, and the measured reason it fails is
+    // that it SUMS two complete lighting models and lands 6 L* above vanilla. Scaling our own
+    // contribution by (1 - floor) makes the floor a redistribution instead: at 0 this is §27 exactly,
+    // at 1 it is vanilla exactly, and in between the overall level barely moves while the SHAPE
+    // crossfades from one model to the other. That is the property that makes it a usable knob rather
+    // than a brightness control with a shape side effect.
+    //
+    // NOT A MAX, WHICH IS WHAT IT WANTS TO BE. The right composition is max(vanilla, ours) per cell —
+    // vanilla's falloff runs on GEODESIC distance, so in a beam through a doorway its light has
+    // travelled further and arrived dimmer than our straight-line value, and a max would take our
+    // beam exactly where we have something to say and vanilla's floor everywhere we do not. It needs
+    // a per-vertex "how much did vanilla deliver here" channel that MoteGlow has no way to carry, so
+    // it is a shader away rather than an edit away. See DESIGN.md §27.
+    public const float DefaultVanillaFloor = 0.5f;
+
+    // Our additive contribution once the crossfade has taken its share. Kept here rather than inline
+    // in the draw so the offline tests can pin that floor 0 and floor 1 are exactly §27 and exactly
+    // nothing, with no arithmetic drift at the endpoints.
+    public static float BlendedStrength(float strength, float vanillaFloor)
+    {
+        return strength * (1f - Clamp01(vanillaFloor));
+    }
+
+    // Vanilla's own light channel, scaled by the crossfade. Rounds rather than truncates: these are
+    // bytes, and truncation biases every channel down by half a level, which across a whole lighting
+    // overlay reads as the floor being dimmer than it was asked to be.
+    public static byte FlooredChannel(byte channel, float vanillaFloor)
+    {
+        return (byte)Math.Round(channel * Clamp01(vanillaFloor));
+    }
+
     // How much of a light's contribution survives the daylight around it.
     //
     // This exists because of what §27 changed about the draw. Vanilla paints artificial light into

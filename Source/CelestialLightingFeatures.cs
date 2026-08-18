@@ -675,6 +675,22 @@ public static class CelestialLightingFeatures
     // because with it on anything §27 does not know about goes BLACK rather than merely unimproved,
     // and it was always meant to be droppable independently of the polygons if that went wrong.
     public static bool VectorLightSuppress = true;
+
+    // Feature key for VectorLightBlend.
+    public const string VectorLightBlendKey = "vector_light_blend";
+
+    // §27 crossfaded with vanilla's flood rather than replacing it: a fraction of vanilla survives
+    // underneath as a floor, and our own contribution drops by the same fraction so the overall level
+    // does not move. See VectorLightMath.DefaultVanillaFloor for why it compensates rather than adds.
+    //
+    // SHIPS OFF, because it is a taste call between two defensible looks and not a fix. Off is §27 as
+    // designed — shadows reach dark, and the price is that a room lit only by light bending around a
+    // corner loses it. On is the softer bargain: nothing is ever black, no room goes dark just
+    // because §27 could not see into it, and the price is that a shadow is dim rather than dark.
+    //
+    // It is also the most likely answer to the epic's own standing risk, which is that the honest
+    // version is too uncomfortable to actually play with.
+    public static bool VectorLightBlend = false;
 }
 
 public enum SunClockMode

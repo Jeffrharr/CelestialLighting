@@ -96,7 +96,16 @@ public static class VectorLightOverlay
     private static float StrengthFor(Map map, VectorLightField.LightEntry entry, float skyGlow)
     {
         bool sheltered = map.roofGrid.Roofed(entry.Cell);
-        return VectorLightMath.DefaultStrength * VectorLightMath.DaylightScale(sheltered ? 0f : skyGlow);
+        float daylight = VectorLightMath.DaylightScale(sheltered ? 0f : skyGlow);
+
+        // Whatever share of the light the crossfade left vanilla holding, we do not also deliver —
+        // otherwise the two models sum and the room lands 6 L* bright, which is the measured failure
+        // of drawing over an unsuppressed flood.
+        float floor = CelestialLightingFeatures.VectorLightBlend
+            ? VectorLightMath.DefaultVanillaFloor
+            : 0f;
+
+        return VectorLightMath.BlendedStrength(VectorLightMath.DefaultStrength, floor) * daylight;
     }
 
     // Cull against the camera before doing anything else. A colony's lamps are overwhelmingly

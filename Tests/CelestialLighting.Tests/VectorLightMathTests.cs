@@ -598,6 +598,57 @@ public class VectorLightMathTests
         Assert.That(mesh.Triangles.Length, Is.EqualTo(mesh.FanTriangleCount));
     }
 
+    // ---- the vanilla crossfade ----------------------------------------------------------
+
+    // The endpoints are the whole contract: floor 0 must be §27 untouched and floor 1 must be
+    // nothing at all from us. Anything that drifted at either end would make the knob a brightness
+    // control rather than a redistribution, which is the exact failure the crossfade exists to avoid.
+    [Test]
+    public void TheCrossfadeEndpointsAreExactlyOnAndExactlyOff()
+    {
+        Assert.That(VectorLightMath.BlendedStrength(0.35f, 0f), Is.EqualTo(0.35f).Within(Tolerance));
+        Assert.That(VectorLightMath.BlendedStrength(0.35f, 1f), Is.EqualTo(0f).Within(Tolerance));
+    }
+
+    [TestCase(0.25f, 0.75f)]
+    [TestCase(0.5f, 0.5f)]
+    [TestCase(0.75f, 0.25f)]
+    public void TheCrossfadeGivesAwayExactlyTheShareItKeeps(float floor, float expectedShare)
+    {
+        Assert.That(
+            VectorLightMath.BlendedStrength(1f, floor), Is.EqualTo(expectedShare).Within(Tolerance));
+    }
+
+    // Out-of-range floors are clamped rather than allowed to invert our contribution. A negative one
+    // would make us brighter than unblended §27, which is the direction that washes a room out.
+    [TestCase(-1f, 1f)]
+    [TestCase(2f, 0f)]
+    public void TheCrossfadeClampsRatherThanInverting(float floor, float expected)
+    {
+        Assert.That(VectorLightMath.BlendedStrength(1f, floor), Is.EqualTo(expected).Within(Tolerance));
+    }
+
+    // Vanilla's own channel, scaled. Floor 0 must be a true zero — that is §27's suppression, and a
+    // floor that left 1 or 2 levels behind would put a faint wash into every shadow the subsystem
+    // just carved.
+    [TestCase((byte)200, 0f, (byte)0)]
+    [TestCase((byte)200, 1f, (byte)200)]
+    [TestCase((byte)200, 0.5f, (byte)100)]
+    [TestCase((byte)255, 0.5f, (byte)128)]
+    public void TheFlooredChannelScalesVanillasOwnLight(byte channel, float floor, byte expected)
+    {
+        Assert.That(VectorLightMath.FlooredChannel(channel, floor), Is.EqualTo(expected));
+    }
+
+    // Rounds rather than truncates. Truncation biases every channel down half a level, which across
+    // a whole lighting overlay reads as the floor being dimmer than it was asked for — and it is the
+    // sort of error that looks like the constant being wrong rather than the cast being wrong.
+    [Test]
+    public void TheFlooredChannelRoundsRatherThanTruncating()
+    {
+        Assert.That(VectorLightMath.FlooredChannel(3, 0.5f), Is.EqualTo(2));
+    }
+
     // ---- daylight -----------------------------------------------------------------------
 
     [TestCase(0f, 1f)]
