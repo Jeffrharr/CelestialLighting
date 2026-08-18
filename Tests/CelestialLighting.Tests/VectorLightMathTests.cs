@@ -649,6 +649,141 @@ public class VectorLightMathTests
         Assert.That(VectorLightMath.FlooredChannel(3, 0.5f), Is.EqualTo(2));
     }
 
+    // ---- the subtractive mask (§27 phase 3) ---------------------------------------------
+
+    // With nothing in the way the polygon is the inscribed 48-gon, so the boundary is the radius at
+    // every ray and a little under it between them. Both bounds matter: a boundary reading OVER the
+    // radius would light cells the mesh never reaches, and one reading far under would shadow cells
+    // that are in plain sight.
+    [TestCase(0f)]
+    [TestCase(0.7f)]
+    [TestCase(1.9f)]
+    [TestCase(-2.4f)]
+    [TestCase(3.1f)]
+    public void AnUnobstructedBoundaryIsTheRadiusInEveryDirection(float angle)
+    {
+        VectorLightMath.LightPolygon polygon = OpenPolygon(10f);
+        float boundary = VectorLightMath.BoundaryDistanceAt(polygon, angle);
+
+        Assert.That(boundary, Is.LessThanOrEqualTo(10f + Tolerance));
+        Assert.That(boundary, Is.GreaterThan(10f * 0.99f));
+    }
+
+    // The seam at +-pi is its own case in the search, and it is the one an off-by-one would leave
+    // returning the first ray's distance for a whole quadrant. A wall placed due WEST of the light
+    // straddles that seam, so this fails if the wrap is wrong and passes trivially if it is not
+    // exercised — which is why the wall is there rather than on an axis-aligned convenience.
+    [Test]
+    public void TheBoundaryWrapsAcrossTheSeamAtPi()
+    {
+        VectorLightMath.LightPolygon polygon = WalledPolygon();
+
+        float justUnder = VectorLightMath.BoundaryDistanceAt(polygon, (float)(-Math.PI + 0.001));
+        float justOver = VectorLightMath.BoundaryDistanceAt(polygon, (float)(Math.PI - 0.001));
+
+        Assert.That(justUnder, Is.GreaterThan(0f));
+        Assert.That(justOver, Is.GreaterThan(0f));
+
+        // Either side of the seam is the same direction to within a thousandth of a radian, so the
+        // two answers have to agree. They will not if one of them fell off the end of the array.
+        Assert.That(justUnder, Is.EqualTo(justOver).Within(0.25f));
+    }
+
+    // A cell the light plainly sees is fully lit, and one squarely behind a wall is fully dark. These
+    // are the two ends the mask subtracts nothing and everything at.
+    [Test]
+    public void CoverageIsOneInPlainSightAndZeroBehindAWall()
+    {
+        VectorLightMath.LightPolygon polygon = WalledPolygon();
+
+        Assert.That(
+            VectorLightMath.LitFraction(polygon, 8.5f, 8.5f, 10, 8, 2),
+            Is.EqualTo(1f).Within(Tolerance));
+        Assert.That(
+            VectorLightMath.LitFraction(polygon, 8.5f, 8.5f, 3, 8, 2),
+            Is.EqualTo(0f).Within(Tolerance));
+    }
+
+    // THE POINT OF SAMPLING THE CELL RATHER THAN ITS CENTRE. The lighting overlay can only place a
+    // boundary to within a cell, so the cell the shadow edge actually crosses has to report a
+    // FRACTION — that fraction is what turns a staircase into a ramp. A yes/no test would make this
+    // cell either 0 or 1 and there would be nothing between the lit region and the dark one.
+    [Test]
+    public void TheCellTheEdgeCrossesIsPartlyLit()
+    {
+        VectorLightMath.LightPolygon polygon = WalledPolygon();
+        bool foundPartial = false;
+
+        // Walk the column just past the wall and look for the cell the boundary runs through.
+        for (int z = 3; z <= 13 && !foundPartial; z++)
+        {
+            float lit = VectorLightMath.LitFraction(polygon, 8.5f, 8.5f, 3, z, 4);
+            foundPartial = lit > 0f && lit < 1f;
+        }
+
+        Assert.That(foundPartial, Is.True, "no cell straddled the shadow boundary");
+    }
+
+    // More samples must never turn a fully lit or fully dark cell into a partly lit one: the sample
+    // count controls how finely the EDGE is resolved and nothing else. A test that only checked the
+    // edge would not notice a sampling grid that had drifted off the cell.
+    [TestCase(1)]
+    [TestCase(2)]
+    [TestCase(4)]
+    [TestCase(8)]
+    public void TheSampleCountDoesNotMoveTheFullyLitOrFullyDarkCells(int samples)
+    {
+        VectorLightMath.LightPolygon polygon = WalledPolygon();
+
+        Assert.That(
+            VectorLightMath.LitFraction(polygon, 8.5f, 8.5f, 10, 8, samples),
+            Is.EqualTo(1f).Within(Tolerance));
+        Assert.That(
+            VectorLightMath.LitFraction(polygon, 8.5f, 8.5f, 3, 8, samples),
+            Is.EqualTo(0f).Within(Tolerance));
+    }
+
+    // The light's own position is lit whatever the geometry says, because the distance is zero and
+    // there is no direction to ask about. Without the zero check this is an atan2(0, 0) away from
+    // being whatever the boundary happens to be at angle zero.
+    [Test]
+    public void TheLightsOwnPositionIsAlwaysLit()
+    {
+        Assert.That(VectorLightMath.IsLit(WalledPolygon(), 8.5f, 8.5f, 8.5f, 8.5f), Is.True);
+    }
+
+    // A degenerate polygon reports nothing lit rather than everything. The mask scales by (1 - lit),
+    // so an empty polygon reading "fully lit" would silently disable the subsystem — the failure that
+    // looks like the feature being switched off rather than like a bug.
+    [Test]
+    public void AnEmptyPolygonLightsNothing()
+    {
+        VectorLightMath.LightPolygon empty =
+            new VectorLightMath.LightPolygon(new float[0], new float[0], 0);
+
+        Assert.That(VectorLightMath.BoundaryDistanceAt(empty, 1f), Is.EqualTo(0f).Within(Tolerance));
+        Assert.That(
+            VectorLightMath.LitFraction(empty, 8.5f, 8.5f, 8, 8, 2), Is.EqualTo(0f).Within(Tolerance));
+    }
+
+    private static VectorLightMath.LightPolygon OpenPolygon(float radius)
+    {
+        return VectorLightMath.Build(8.5f, 8.5f, radius, new VectorLightMath.Segment[0], 48);
+    }
+
+    // A light at the centre of a 16x16 field with a wall column due west of it, three cells long, so
+    // the shadow it throws crosses the +-pi seam of the angle space.
+    private static VectorLightMath.LightPolygon WalledPolygon()
+    {
+        bool[] blocked = new bool[16 * 16];
+        blocked[7 * 16 + 5] = true;
+        blocked[8 * 16 + 5] = true;
+        blocked[9 * 16 + 5] = true;
+
+        VectorLightMath.Segment[] segments = VectorLightMath.SilhouetteSegments(blocked, 16, 16, 0, 0);
+        return VectorLightMath.Build(8.5f, 8.5f, 10f, segments, 48);
+    }
+
     // ---- daylight -----------------------------------------------------------------------
 
     [TestCase(0f, 1f)]
