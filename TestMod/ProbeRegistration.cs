@@ -254,6 +254,11 @@ public static class ProbeRegistration
         ProbeRegistry.Register(new VectorLightProbe("vector_light_verts", VectorLightProbe.Metric.Vertices));
         ProbeRegistry.Register(
             new VectorLightProbe("vector_light_penumbra_area", VectorLightProbe.Metric.PenumbraArea));
+        // §27 phase 3. Pin this at 1 in any arm claiming to measure the mask: the per-emitter glow
+        // arrays are private fields read by reflection, and failing to read them is a defined
+        // stand-down rather than an error, so an unpinned arm photographs the crossfade instead.
+        ProbeRegistry.Register(
+            new VectorLightProbe("vector_light_mask_available", VectorLightProbe.Metric.MaskAvailable));
         // Issue #80: the fixed near-door cell in ambient_light_compat.json.
         // ambient_ground_glow is the GAMEPLAY value (what Ambient Light's own readout reports);
         // ambient_sky_fraction is what SkyFalloffSource resolves for it, for §7b to cap occlusion with.
@@ -640,6 +645,20 @@ public static class ProbeRegistration
                 CelestialLightingFeatures.VectorLightBlend = enabled;
                 VectorLightRedraw.ForceRebuild();
             });
+        // §27 phase 3. THREE-arg overload with defaultEnabled: false, matching the shipped default
+        // and load-bearing for the same reason vector_lights uses it — registered as true,
+        // FeatureRegistry.ResetAll() would switch the mask on for every later scenario in a suite.
+        // ForceRebuild because the mask is baked into the lighting overlay's vertex colours during a
+        // section regenerate, so flipping it changes nothing on screen until something else dirties a
+        // section.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightMaskKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.VectorLightMask = enabled;
+                VectorLightRedraw.ForceRebuild();
+            },
+            defaultEnabled: false);
         FeatureRegistry.Register(
             CelestialLightingFeatures.CivilTwilightPersistenceKey,
             enabled => CelestialLightingFeatures.CivilTwilightPersistence = enabled);

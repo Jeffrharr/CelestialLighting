@@ -40,6 +40,12 @@ public static class VectorLightOverlay
         if (!CelestialLightingFeatures.VectorLights || map == null)
             return;
 
+        // §27 phase 3 expresses the same shadows by subtracting from vanilla's own lighting rather
+        // than by drawing over it, so this pass must not also run — together they would carve the
+        // shadow once and then light it again from above.
+        if (VectorLightMask.Active)
+            return;
+
         Dictionary<object, VectorLightField.LightEntry>.ValueCollection lights =
             VectorLightField.LightsFor(map);
 

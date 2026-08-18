@@ -35,7 +35,17 @@ public static class Patch_VectorLightSuppress
     [HarmonyPriority(Priority.Last)]
     static void Postfix(SectionLayer_LightingOverlay __instance)
     {
-        if (!CelestialLightingFeatures.VectorLights || !CelestialLightingFeatures.VectorLightSuppress)
+        if (!CelestialLightingFeatures.VectorLights)
+            return;
+
+        // §27 phase 3 takes over this method entirely when it is on: it edits the same vertex colours
+        // rather than zeroing them, and the two must not both run. Handing over here rather than in a
+        // separate patch keeps a single writer for this mesh, which is what stops the ordering
+        // between them from being a live concern.
+        if (VectorLightMask.Active && ApplyMask(__instance))
+            return;
+
+        if (!CelestialLightingFeatures.VectorLightSuppress)
             return;
 
         // The crossfade keeps a fraction of vanilla's flood underneath instead of removing it. Zero
@@ -64,5 +74,27 @@ public static class Patch_VectorLightSuppress
         }
 
         mesh.colors32 = colors;
+    }
+
+    // The section's own cell rect, rebuilt the way vanilla builds it rather than reflected out of
+    // the private field that holds it: SectionLayer_LightingOverlay.Regenerate computes exactly this
+    // on the first regenerate and caches it, so recomputing costs nothing and reads without a
+    // FieldRef that a version change could quietly break.
+    private static bool ApplyMask(SectionLayer_LightingOverlay layer)
+    {
+        Section section = SectionLayerAccess.GetSection(layer);
+
+        if (section == null)
+            return false;
+
+        LayerSubMesh subMesh = layer.GetSubMesh(MatBases.LightOverlay);
+
+        if (subMesh?.mesh == null)
+            return false;
+
+        CellRect rect = new CellRect(section.botLeft.x, section.botLeft.z, 17, 17);
+        rect.ClipInsideMap(section.map);
+
+        return VectorLightMask.Apply(section.map, subMesh.mesh, subMesh.verts, rect);
     }
 }
