@@ -8409,3 +8409,51 @@ The settings screen instead prints a line under "Visible clouds" saying Clouds i
 report which mod owns the thing rather than offering a switch whose only use is making two mods
 render the same object. The checkbox itself stays live, because it is what the mod goes back to the
 moment Clouds is uninstalled.
+
+### Live verification (`Tests/Scenarios/clouds_mod_interop.json`)
+
+Run with Clouds actually activated — the scenario's own note and `core_design_suite.txt` both spell
+out the invocation, because this is a case where a missing `--mod` produces a *green* run. Latitude
+45, day 40, Cinematic, vanilla day length, Clear weather with §22's fraction forced to 0.35, noon —
+the same setup as `cloud_sheet_default.json`, so the two scenarios read as one A/B across two runs.
+
+| probe | Clouds installed (shipped) | interop suppressed (`clouds_interop` off) | `cloud_sheet_default.json`, no Clouds |
+|---|---|---|---|
+| `clouds_mod_active` | 1 | 0 | — |
+| `cloud_sheet_alpha` | **0** | 0.3500 | 0.3500 |
+| `cloud_shadow_alpha` | **0** | 0.1505 | — |
+| `cloud_underlight_layer` | 0 | — | — |
+| `cloud_underlight_cover` | **0.3500** | — | 0.3500 |
+
+The last row is the one that says the interop is a stand-down and not an amputation: §22's cloud
+fraction is still live and still driving the sky's colour while all three positional lanes read zero.
+The middle column is the pre-interop build measured in the same boot.
+
+**Median CIELAB ΔE 2.09 between the two frames, 85.1% of pixels changed** (masked median over the
+changed pixels 2.52, p90 6.39, p99 13.37) — `Tests/Screenshots/clouds_interop_on.png` against
+`clouds_interop_off.png`. That is the weight of what the interop removes: visible at a glance, and
+comfortably above the ΔE 1 bar this repo treats as "not shipped".
+
+**THE HARNESS PAUSES, AND CLOUDS IS TICK-DRIVEN.** The first two attempts at this scenario captured
+an empty sky for the mod supposedly drawing the clouds, which reads exactly like the interop having
+broken their mod. It had not: Clouds emits from a `ParticleSystem` advanced through
+`TickManager.DoSingleTick`, and a scenario that jumps the clock and leaves the game paused has never
+run a tick, so nothing has been emitted. The `FastForward` before the clock snap is what populates
+it, and the `SetTime` after puts the clock back so every pin stays comparable with the no-Clouds
+scenario. Anything measuring another mod's *particles* needs the same treatment.
+
+**What their clouds cost on a Clear day, measured rather than assumed.** Clouds derives its coverage
+from the `WeatherDef` alone (`WeatherCloudProfile`: accuracy multiplier, rain/snow/sand rate, sky
+saturation, lightning), so its `Cover` is ~0 on Clear. `Tests/Screenshots/clouds_mod_storm.png` shows
+what it draws under `RainyThunderstorm` — large soft masses across the whole map, unmistakable — and
+the same scenario under Overcast at 30 settled seconds shows very little. On Clear it shows nothing.
+
+So on a Clear day that §22 has drifted to 40% cover, the shipped interop means **nobody** draws
+cloud: theirs because the weather says Clear, ours because we stood down. Before the interop, ours
+drew. That is a real loss and it is the strongest argument for the alternative ruling, which is to
+key the stand-down on WHICH cloud source is live (§13's weather deck → theirs; §22's Clear-day
+fraction → ours) rather than on presence. Not taken, because it buys the Clear-day sheets at the
+price of the sky's clouds changing *style* with the weather — Pardeike's particles in the rain, our
+sheets when it clears — and a player who installed Clouds asked for its clouds, not for ours half the
+time. One predicate in `CloudsCompatMath.LaneIsPositional` is where that gets revisited if the frames
+ever argue otherwise.

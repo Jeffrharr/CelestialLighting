@@ -122,3 +122,17 @@ weather_dimming_census.json
 # running standalone after anything that touches §7b's cap terms, and worth running TWICE -- with and
 # without Ambient Light (f1995.ambientlight, 3574400467) -- because the assertion is that a lamp-lit
 # sealed room reports sky 0 whether or not an interior-brightening mod is present.
+
+# clouds_mod_interop.json is absent for glass_wall_leak.json's reason, not for a residue one: it needs
+# a mod this suite is not run with, and batched here it would fail SILENTLY in the direction that
+# matters. Every pin in its first half is a zero, and without Clouds loaded our own cloud lanes are
+# still zero at the moment it probes them for entirely unrelated reasons -- so the run would go green
+# having verified nothing about the interop. That is why the scenario also pins clouds_mod_active to
+# 1: the one assertion that cannot pass by accident. Run it with the mod it is about:
+#
+#   ../RimWorldTestHarness/Runner/run_test.sh Tests/Scenarios/clouds_mod_interop.json \
+#       --mod . --mod TestMod \
+#       --mod ~/.local/share/Steam/steamapps/workshop/content/294100/3039192325
+#
+# Its no-Clouds counterpart is cloud_sheet_default.json, which is in this list and shares its setup
+# exactly, so the pair reads as one A/B across the two runs.

@@ -158,6 +158,10 @@ public static class ProbeRegistration
             "cloud_shadow_alpha", CloudLayersProbe.Metric.ShadowAlpha));
         ProbeRegistry.Register(new CloudLayersProbe(
             "cloud_sheet_alpha", CloudLayersProbe.Metric.SheetAlpha));
+        // Whether the Clouds interop sees Clouds in the load order. Paired with the two alphas above
+        // rather than left implicit: a zero alpha alone cannot tell "we stood down for Clouds" from
+        // "Clouds never loaded" (CloudsActiveProbe's header).
+        ProbeRegistry.Register(new CloudsActiveProbe());
         // The three map-kind gates themselves, so a cavern scenario pins the DECISION and not just its
         // consequences — every gated effect also reads zero for unrelated reasons (wrong time of day,
         // no active condition), so the effect probes alone cannot say whether a gate actually fired.
@@ -466,6 +470,15 @@ public static class ProbeRegistration
         FeatureRegistry.Register(
             CelestialLightingFeatures.CloudSheetKey,
             enabled => CelestialLightingFeatures.CloudSheet = enabled);
+        // Not a CelestialLightingFeatures flag either, and the one whose OFF position is the interesting
+        // one: it suppresses the Clouds interop rather than one of our effects, so a run with Clouds
+        // loaded can measure "their clouds alone" against "their clouds and ours at once" out of one
+        // boot. Registered defaultEnabled TRUE because the resting state is the shipped behaviour —
+        // see CloudsCompatOverride's header for why that must be the real load-order read rather than
+        // a forced "installed".
+        FeatureRegistry.Register(
+            CloudsCompatOverride.FeatureKey,
+            enabled => CloudsCompatOverride.Set(enabled));
         // Not a CelestialLightingFeatures flag: forces CloudCoverClock.FractionForMap's result to a
         // fixed constant so a scenario gets a specific, reproducible cloud fraction on demand instead
         // of depending on which absolute year the harness's clock jump happened to land in (see
