@@ -1844,6 +1844,15 @@ at all. In favour of the CPU: the cost is bounded by *resolution*, and an aurora
 that loses nothing to blur. So the field is baked small — 192² for the shipping field — and drawn
 over the map as a small number of bounded quads (see *Sheet geometry* below).
 
+> **Half of this reasoning was overturned on 2026-08-18 and half of it still stands.** §27 phase 2b
+> ships a compiled `AssetBundle`, so "this repo ships no binary assets at all" is no longer true and
+> is no longer a reason to reject one. The *aurora's* conclusion is unaffected, and for the reason
+> given rather than by inheritance: a shader would buy the aurora no fidelity a bigger CPU field
+> cannot, because the cost there is bounded by resolution and the effect loses nothing to blur. §27's
+> case is the opposite — it needs a per-vertex channel `MoteGlow` will not read, which no amount of
+> CPU work can reach. The test to apply to the next candidate is therefore **"is a shader the only
+> way to get the data there"**, not "does this repo ship binaries".
+
 **Pure core / adapter split**, as everywhere else:
 
 - `Source/AuroraNoise.cs` — tileable value noise + fBm, with **separate X and Y periods**. Anisotropy
@@ -7835,6 +7844,97 @@ the same reason the epic wanted the suppressing half droppable in the first plac
 
 Off remains §27 as originally designed, for anyone who wants shadows that reach full dark and accepts
 that a room lit only by light bending around a corner loses all of it.
+
+### Phase 2b: `max(vanilla, ours)` — built, measured, and **near-degenerate** (`vector_light_max`)
+
+The crossfade note above says the composition "is not a max, which is what it wants to be", and
+issue #150 was written to build that max: leave vanilla's flood rendering untouched, and add only
+`max(0, ours − vanilla)` on top, so the frame lands at `max(vanilla, ours)`. It is built, it works,
+and **the premise it rests on turns out to be false**. This section records why, because the
+argument is more useful than the code.
+
+**How it is composed.** `Patch_VectorLightSuppress` stands down entirely (`VanillaFloorFor` returns
+1), our pass draws at full strength, and a custom fragment program subtracts vanilla's own delivered
+glow per fragment. Vanilla's glow reaches the shader as a **per-vertex attribute in UV1**, sampled
+from `GlowGrid.VisualGlowAt` at mesh-rebuild time and pulled half a cell back towards the light
+(`SampleTowardLight`) so a boundary vertex sitting on a wall does not report "vanilla delivers
+nothing here". This is the one thing in the mod that genuinely cannot be done with a stock shader:
+`MoteGlow` ignores vertex colour, and both of `UV0`'s channels are already spent on the falloff
+coordinate and the penumbra ramp.
+
+**Why it is a no-op, which is not the reason anyone expected.** The objection issue #150 pre-empted
+was "our lit region is a subset of vanilla's, so the max is just vanilla" — and it answered that
+vanilla accumulates *geodesic* distance, so its light arrives dimmer through a doorway than our
+straight-line value. That answer is right about the physics and wrong about the geometry:
+
+- Wherever our polygon **can** see a cell, the straight line **is** the shortest path, so the
+  geodesic distance equals the Euclidean one and the two models agree exactly — §27 deliberately
+  kept vanilla's own falloff curve, `Lerp(1 − d/R, 1/d², 0.4)`, precisely so a lamp would read at the
+  brightness it always had. Same curve, same distance, same answer: nothing for a max to take.
+- Wherever vanilla's light **did** bend around a corner, our polygon delivers zero, so the max takes
+  vanilla and again changes nothing.
+- What is left is only the residue between Euclidean distance and `ComputeGlowGridsJob`'s 100/141
+  grid metric — a few percent, and only close to the light where the curve is steep.
+
+**And a max can never carve a shadow.** `max(vanilla, ours) ≥ vanilla` everywhere, by definition. §27's
+entire visible contribution is *subtractive* — the shadow is the feature — so no composition that
+refuses to darken vanilla can deliver it. That is a structural result, not a tuning problem.
+
+**The crossfade already IS the max.** Put the two side by side with `O` our glow, `V` vanilla's and
+`f` the floor. The crossfade delivers `f·V` rendered plus `strength·(1−f)·O` added. The shader
+delivers `f·V` rendered plus `strength·max(0, O − f·V)` added. Where `O == V` — which is everywhere
+both models can see — `max(0, V − f·V) = (1−f)·O`, and the two are *identical expressions*. The
+crossfade's floor and the shader's vanilla weight are the same parameter, and `DefaultVanillaFloor`
+computes analytically what the fragment program computes per pixel.
+
+**Measured**, one scene, seven arms, `Tests/Scenarios/vector_light_penumbra.json`:
+
+| arm | lit room L\* | shadow off the beam L\* | beyond the doorway L\* | masked ΔE vs vanilla | frame touched |
+|---|---|---|---|---|---|
+| vanilla | 9.61 | 12.58 | 9.83 | — | — |
+| mixed, summed (rejected) | 11.67 | 12.58 | 10.52 | — | — |
+| full §27, hard edges | 9.83 | 8.87 | 9.31 | — | — |
+| full §27, soft edges | 9.84 | **8.87** | 9.43 | **1.51** | 6.60% |
+| crossfade @ 0.5 (shipped) | 9.72 | 10.73 | 9.63 | 0.95 | 6.27% |
+| **max (phase 2b)** | **9.66** | **12.58** | **9.86** | **1.03** | **0.91%** |
+| max shader, subtraction off | 9.84 | 8.87 | 9.43 | — | — |
+
+The shadow column is the verdict. The max leaves it at **12.58 — vanilla's own value, to two
+decimal places** — while the crossfade reaches 10.73 and full §27 reaches 8.87. Beyond the doorway,
+where the max was predicted to win outright, it lands **+0.03 L\*** against vanilla. It touches 0.91%
+of the frame against the crossfade's 6.27%, and what it touches is a patch around the lamp rather
+than the beam.
+
+**The last row is the control, and it is why any of the above can be believed.** It runs the custom
+shader with `_VanillaWeight` at 0, which makes it `MoteGlow` exactly, and it reproduces the soft-edge
+arm to **0.01 L\* in all three regions** (masked median ΔE 0.82 over 0.10% of the frame). Without it
+the first measurement of this feature would have been attributed to the composition when it was
+really the render queue — see below. Any change that swaps a shader *and* changes a formula needs
+this arm.
+
+**The render queue, which cost the most and reads as nothing.** Our first bundle declared the default
+`"Queue"="Transparent"` (3000). `MoteGlow` sits at **3151**. An additive pass is order-independent
+only against other additive passes, and the lighting overlay is a **multiply** — so at 3000 our light
+was drawn *under* it and attenuated by it, and in the arm where vanilla's own light was suppressed the
+multiply was nearly black and our pass all but vanished. It did not present as an ordering bug: the
+frame came out *dimmer than vanilla in exactly the place the composition was supposed to be adding
+light*, which reads as the maths being wrong. `VectorLightShader.NewMaterial` now copies
+`ShaderDatabase.MoteGlow.renderQueue` rather than declaring one, so we cannot drift from it and
+changing it needs no rebuild of the bundles.
+
+**Ships off.** The feature is kept, switchable and measured rather than deleted: "the max composition
+is a no-op" is a claim someone will want to re-test rather than take on trust, and the arm is what
+makes the crossfade's own value legible. `vector_light_max_subtract` is registered alongside it as an
+instrument, not a taste knob — it is the control arm above and nothing else.
+
+**What this cost, and what it bought.** It brought the repo its **first binary asset** (see §11a,
+whose rejection of asset bundles this reverses), a Unity project under `Tools/ShaderBundle/`, and
+three per-OS bundles under `1.6/AssetBundles/` which `publish.sh` stages automatically via
+`CONTENT_DIRS`. What it bought is the analysis above — that the crossfade is not an approximation of
+the right answer but an exact, cheaper form of it — plus a proven, working custom-shader path for
+anything later that genuinely needs one. The test to apply next time is **"is a shader the only way
+to get the data there"**, which was answered yes here and correctly; the mistake was upstream of the
+shader, in assuming the two models disagreed where they can both see.
 
 ### Performance (`Tests/Scenarios/vector_light_perf.json`)
 
