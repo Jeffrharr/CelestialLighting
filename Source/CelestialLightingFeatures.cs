@@ -541,6 +541,29 @@ public static class CelestialLightingFeatures
     // read, reproducing the pre-fix behaviour exactly (the mesh only updates from whatever else
     // dirties a section, same as before this file existed).
     public static bool SkyFalloffRedraw = true;
+
+    // Feature key for VectorLights.
+    public const string VectorLightsKey = "vector_lights";
+
+    // §27 vector light sources: artificial light rendered as a visibility polygon cast from each
+    // emitter — rays fired at the corners of the walls around it — instead of vanilla's flood-fill.
+    // This is what produces a beam through a doorway, a hard shadow behind a rock, and firelight
+    // spilling out of a window, none of which vanilla's grid can express: it records how far light
+    // travelled and never which direction it came from.
+    //
+    // SHIPS OFF. It is a prototype, and it is the most opinionated thing in the mod — turning it on
+    // makes indirectly-lit rooms genuinely darker, because light that vanilla delivered along a path
+    // bending around a corner no longer arrives at all. That is the feature working, and it is still
+    // a large enough taste call to be opt-in until it has been lived with.
+    //
+    // OFF REPRODUCES VANILLA EXACTLY, which matters more here than for most flags because the feature
+    // has a suppressing half: with this false, Patch_VectorLightSuppress returns before touching the
+    // lighting overlay and nothing is drawn, so the baseline frame is the real pre-feature render and
+    // not a picture of the lights being missing.
+    //
+    // Gameplay light is untouched either way. map.glowGrid, GroundGlowAt, plant growth, work speed and
+    // pawn vision are identical with this on or off — §27 changes only what is rendered.
+    public static bool VectorLights = false;
 }
 
 public enum SunClockMode
