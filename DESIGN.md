@@ -8176,30 +8176,47 @@ is to rebuild the vertex colour the way `GenerateLightingOverlay` does, summing 
 lights with our coverage applied only to the ones we modelled, and projecting once at the end;
 `GlowGridPerLight` already exposes everything that needs.
 
-**Performance is NOT yet measured, and the profile that looks like it measured it did not.** The
-`mask` window of `vector_light_perf.json` reports 0.3165 ms/frame against the gated window's 1.1273,
-which reads as a threefold win and is worth nothing: `Patch_VectorLightSuppress:Postfix` **does not
-appear in that window's table at all**, and neither does `Patch_IndoorSkyOcclusion:Postfix`, which
-patches the same method. Zero rows for two unrelated regenerate patches means **zero section
-regenerates happened** during the window, and the mask does all of its work in a regenerate. The
-window measured the mask doing nothing, which is the "zeros are not measurement" trap wearing a
-green number.
+**Performance: measured, and it is the problem.** The first attempt was not. Dubs' `mask` window
+reported 0.3165 ms/frame against the gated window's 1.1273 — a threefold win — while
+`Patch_VectorLightSuppress:Postfix` was absent from that window's table, as was
+`Patch_IndoorSkyOcclusion` on the same method. Two unrelated regenerate patches both missing means
+no regenerate ran, so the window timed the feature doing nothing. Only two of thirty-six rows were
+prefix-filtered, so the absence was real rather than a filter artifact — establishing which took
+reading `RowsBeforeFilter` against `RowsMatched`, and that is the forensics a call count makes
+unnecessary.
 
-What the same run *does* establish is the shape of the cost rather than its size:
+Re-measured through **Circinus** (`astryl.Circinus`), which reports call counts, with our own postfix
+armed directly rather than vanilla's `Regenerate` — Harmony emits a call to a postfix rather than
+inlining it, so the figure is §27's cost and not the ~795 ms vanilla already spends baking 112
+sections. **One arm per process**, because four arms in one process cannot be separated: the flag
+flips stop dirtying the map after the first whole-map rebake, so every later arm records zero calls
+with the instrumentation still live. Each run bakes 112 sections twice — 224 calls exactly, every
+time, so the arms are directly comparable rather than approximately so:
 
-| window | `Patch_VectorLightDraw:Postfix` avg ms/frame | `Patch_VectorLightSuppress:Postfix` | µs/call | max ms/frame |
+| arm | calls | total ms | **µs per section** | worst frame ms |
 |---|---|---|---|---|
-| gated | 0.0001 | 0.0000 | 0.0 | 0.005 |
-| hard edges | 0.0371 | 0.0125 | 13.4 | 1.53 |
-| soft edges | 0.0314 | 0.0165 | 22.1 | 4.42 |
-| mask | **0.0013** | *absent — no regenerates* | — | — |
+| gated (§27 off) | 224 | 0.10 | 0.4 | 0.09 |
+| crossfade @0.5 (shipped) | 224 | 4.53 | **20.2** | 2.34 |
+| **mask (phase 3)** | 224 | 53.60 | **239.3** | **29.46** |
+| mask + beam | 224 | 53.10 | 237.1 | 28.62 |
 
-The draw row collapsing to 0.0013 ms/frame is real and is the design working: phase 3 stands the
-additive pass down entirely, so there is **no per-frame cost at all**. Every cost moves into the
-bake, where the crossfade already spends 13–22 µs per regenerate with worst frames of 1.5–4.4 ms.
-The mask's bake is certainly dearer than that — it samples coverage per cell per emitter — and that
-number is the one that decides whether this can ship. Measuring it needs a profile window that
-provokes regenerates rather than one that happens not to, which the existing scenario does not do.
+**The mask costs 11.8× the crossfade in the bake**, and its worst single frame is 29.5 ms against
+2.3 ms — a dropped frame on its own, before vanilla's own 108–151 ms rebake is added to it. The beam
+is free by comparison, as expected: it is a draw-time cost and does not touch the bake at all, which
+is why the last two rows agree.
+
+Where it goes is not mysterious. `LitFraction` samples each cell `DefaultCoverageSamples²` = 4 times
+per emitter, and each sample is a binary search over a ~100-ray polygon; the crossfade's bake is a
+byte multiply per vertex. The obvious reductions, in order of expected return: cache coverage per
+(emitter, cell) across the sections that share it rather than recomputing per section, drop to one
+sample per cell and let the overlay's own bilinear interpolation do the softening, and skip emitters
+whose polygon is unobstructed, where coverage is 1 everywhere by construction and nothing needs
+sampling at all.
+
+**Until that work happens this is not shippable**, and the number to beat is 20.2 µs per section, not
+a share of a frame. `Tools/CircinusDiff/circinus_diff.py` differences the recorded runs; they are
+kept under `Circinus/Runs/` and are not rolled back by the harness ledger, so a retuned build can be
+diffed against these four directly.
 
 **Ships off**, like every other §27 phase, and stands down when the per-emitter arrays cannot be read.
 
