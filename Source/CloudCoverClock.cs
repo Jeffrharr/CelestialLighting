@@ -43,15 +43,24 @@ public static class CloudCoverClock
     // constant.
     private const float WetRateThreshold = 0.1f;
 
+    // WHAT IS CACHED IS THE SEASONAL MEAN, NOT THE FINISHED FRACTION, which is a change from how this
+    // file started and worth recording. The memo used to hold the hour's fraction, which made the
+    // shipped value a step function of the tick. That was invisible while §22 was only ever LOOKED at,
+    // and stopped being invisible when §25 turned the same number into a COUNT of drawn cloud sheets:
+    // every step at the top of an hour was a cloud appearing or vanishing in mid-sky (see
+    // CloudCoverDrift.FractionAt for the measurements). Caching one step earlier keeps the whole
+    // performance argument — SeasonalWetFractionFor is the expensive half and still runs once per tile
+    // per in-game hour — while the cheap half, three octaves of lattice noise, is evaluated where the
+    // tick actually is.
     private readonly struct CachedSample
     {
         public readonly int SampleIndex;
-        public readonly float Fraction;
+        public readonly float WetFraction;
 
-        public CachedSample(int sampleIndex, float fraction)
+        public CachedSample(int sampleIndex, float wetFraction)
         {
             SampleIndex = sampleIndex;
-            Fraction = fraction;
+            WetFraction = wetFraction;
         }
     }
 
@@ -66,12 +75,32 @@ public static class CloudCoverClock
     // .CloudCover is off, which is what makes "off" a faithful pre-feature baseline for both callers
     // at once — see the flag itself for why "off" must mean this, not "no effect this frame".
     //
+    // CONTINUOUS IN THE TICK, not stepped hourly — see CachedSample above for why that changed and
+    // CloudCoverDrift.FractionAt for what it costs. Values at the top of each hour are unchanged, so
+    // this is a refinement of the same curve rather than a different one.
+    //
     // PER-FRAME COST. Same shape as AerosolDriftClock.MultiplierForMap: on the overwhelming majority of
-    // calls this is a dictionary lookup plus one int compare. SeasonalWetFractionFor — the expensive
-    // half, since it walks the biome's whole weather list — only runs once per tile per in-game HOUR,
-    // the same cadence CloudCoverDrift's own noise is sampled at, so there is no reason to cache it any
-    // more finely than the value it feeds.
-    public static float FractionForMap(Map map)
+    // calls this is a dictionary lookup plus one int compare, and now three octaves of lattice noise
+    // on top — tens of flops, on a path that already walks MapSky. SeasonalWetFractionFor — the
+    // expensive half, since it walks the biome's whole weather list — still runs only once per tile
+    // per in-game HOUR.
+    public static float FractionForMap(Map map) => FractionForTick(map, Find.TickManager.TicksAbs);
+
+    // The same value AT AN ARBITRARY TICK, which is what lets §25 decide a cloud's existence from the
+    // cover at the moment that cloud entered the map rather than from the cover right now — see
+    // CloudSheetLayout.EntryTickFor for why that is the whole of "clouds drift off instead of
+    // vanishing", and why it needs no state to do it.
+    //
+    // THE SEASONAL MEAN IS TODAY'S, NOT THE PAST TICK'S, and that is a deliberate approximation
+    // rather than an oversight. The two terms move at wildly different rates: the noise is the fast
+    // one (a 2-hour fastest octave, which is exactly what §25 is reading back through), while the
+    // seasonal mean is a temperature curve that barely moves within a day. Evaluating the mean at the
+    // past tick too would mean SeasonalWetFractionFor — a walk of the biome's whole weather list —
+    // running once per SHEET per hour instead of once per tile per hour, to shift a latched cover by
+    // a few thousandths. What it costs is that a latched value is not perfectly frozen: it steps by
+    // the seasonal drift of one hour when the memo rolls over, which is far below the twelfth of
+    // cover that would add or drop a sheet.
+    public static float FractionForTick(Map map, int absTick)
     {
         // Gated here rather than in each caller, mirroring WeatherDimming.CloudOpacityFor: this is
         // the one place both Patch_CloudCoverSky and Patch_CloudCoverLabel actually call, so gating
@@ -81,19 +110,29 @@ public static class CloudCoverClock
             return 0f;
 
         int tileId = map.Tile.tileId;
+
+        // The tile id doubles as the noise seed, same as AerosolDriftClock — stable across save/load,
+        // independent between two colonies on one planet.
+        return CloudCoverDrift.FractionAt(
+            CloudCoverDrift.SampleIndex(absTick),
+            CloudCoverDrift.SamplePhase(absTick),
+            tileId,
+            SeasonalWetFractionNow(map, tileId));
+    }
+
+    // Today's seasonal mean for this tile, memoised on §22's own hourly cadence. Always read at the
+    // CURRENT tick, whatever tick the caller is asking the noise about — see FractionForTick.
+    private static float SeasonalWetFractionNow(Map map, int tileId)
+    {
         int absTick = Find.TickManager.TicksAbs;
         int sampleIndex = CloudCoverDrift.SampleIndex(absTick);
 
         if (Cache.TryGetValue(tileId, out CachedSample cached) && cached.SampleIndex == sampleIndex)
-            return cached.Fraction;
+            return cached.WetFraction;
 
         float wetFraction = SeasonalWetFractionFor(map, absTick);
-
-        // The tile id doubles as the noise seed, same as AerosolDriftClock — stable across save/load,
-        // independent between two colonies on one planet.
-        float fraction = CloudCoverDrift.Fraction(sampleIndex, tileId, wetFraction);
-        Cache[tileId] = new CachedSample(sampleIndex, fraction);
-        return fraction;
+        Cache[tileId] = new CachedSample(sampleIndex, wetFraction);
+        return wetFraction;
     }
 
     private static float SeasonalWetFractionFor(Map map, int absTick)

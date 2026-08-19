@@ -88,25 +88,61 @@ public static class CloudCoverDrift
     // this file reads the same shape as AerosolDrift.cs for anyone comparing the two side by side.
     public static int SampleIndex(int absoluteTicks) => LatticeDriftNoise.SampleIndex(absoluteTicks);
 
-    // The shipped fraction: today's seasonal mean, wobbled by right-now's noise on this tile.
+    // How far through that sample the tick sits, in [0, 1). Forwarded for the same reason as
+    // SampleIndex, and read by the live clock for the reason FractionAt records below.
+    public static float SamplePhase(int absoluteTicks) => LatticeDriftNoise.SamplePhase(absoluteTicks);
+
+    // The fraction AT a sample boundary: today's seasonal mean, wobbled by that hour's noise on this
+    // tile. This is the value every offline invariant is pinned against — the sequence's shape, its
+    // mean, its period — because those are properties of the hourly sequence itself.
+    //
+    // Live code goes through FractionAt instead. Keeping both, rather than folding the phase in here
+    // with a default of zero, is deliberate: the two answer different questions, and a defaulted
+    // phase is exactly how a caller ends up reading a stepped value without noticing.
     public static float Fraction(int sampleIndex, int tileSeed, float wetFraction) =>
         FractionWithAmplitude(sampleIndex, tileSeed, wetFraction, WobbleAmplitude);
+
+    // The shipped fraction, read continuously in time: the same curve as Fraction, evaluated where
+    // the tick actually is rather than at the top of the hour it fell in.
+    //
+    // WHY THE LIVE READ IS THE CONTINUOUS ONE. §22 began as a value that was only ever LOOKED AT — a
+    // sky tint and a HUD percentage — and for those the hourly step is imperceptible. §25 then turned
+    // the same number into a COUNT of drawn cloud sheets, one per twelfth of cover, and a step of a
+    // few hundredths at the top of an hour became a cloud appearing or vanishing in the middle of the
+    // sky. Measured over 30 in-game days on three tiles, the hourly step averages 0.03 and peaks at
+    // 0.13, which crosses a sheet threshold roughly every third hour and sometimes crosses two at
+    // once — so this was the common case, not an edge one.
+    //
+    // §25 no longer reads this value live — each sheet latches the cover at the tick it entered the
+    // map (CloudSheetLayout.EntryTickFor), which is a stronger guarantee than smoothness: a latched
+    // value cannot move at all while its cloud is on screen. The continuous read still matters for
+    // the two things that ARE live. A WEATHER CHANGE cross-fades §13's deck against this value over
+    // 4,000 ticks and would step at every hour boundary inside that window; and the sky tint, the HUD
+    // percentage and §21's cavity all read it directly, where an hourly step is a small, free-to-
+    // remove discontinuity. Keeping it here rather than smoothing per consumer is what keeps ONE
+    // field: everything that has an opinion about cloud reads the same number.
+    public static float FractionAt(int sampleIndex, float samplePhase, int tileSeed, float wetFraction) =>
+        FractionAtWithAmplitude(sampleIndex, samplePhase, tileSeed, wetFraction, WobbleAmplitude);
 
     // Fraction with the amplitude spelled out, so the shape of the invariants pinned against it in
     // CloudCoverDriftTests.cs does not silently stop meaning anything if WobbleAmplitude is retuned —
     // same reason AerosolDrift.MultiplierWithAmplitude exists alongside AerosolDrift.Multiplier.
-    public static float FractionWithAmplitude(int sampleIndex, int tileSeed, float wetFraction, float amplitude)
+    public static float FractionWithAmplitude(int sampleIndex, int tileSeed, float wetFraction, float amplitude) =>
+        FractionAtWithAmplitude(sampleIndex, 0f, tileSeed, wetFraction, amplitude);
+
+    public static float FractionAtWithAmplitude(
+        int sampleIndex, float samplePhase, int tileSeed, float wetFraction, float amplitude)
     {
         float clampedAmplitude = ClampAmplitude(amplitude);
-        float wobble = clampedAmplitude * (2f * Field(sampleIndex, tileSeed) - 1f);
+        float wobble = clampedAmplitude * (2f * Field(sampleIndex, samplePhase, tileSeed) - 1f);
         return Clamp01(Clamp01(wetFraction) + wobble);
     }
 
     // The raw noise field in [0, 1]. Forwards to LatticeDriftNoise.Field with this file's own cell
     // width/period/octave constants — see LatticeDriftNoise.cs's header for why the wrapping and the
     // AuroraNoise collapse to one dimension live there now, shared with AerosolDrift.
-    private static float Field(int sampleIndex, int tileSeed) =>
-        LatticeDriftNoise.Field(sampleIndex, tileSeed, SamplesPerCell, LatticeCells, Octaves);
+    private static float Field(int sampleIndex, float samplePhase, int tileSeed) =>
+        LatticeDriftNoise.Field(sampleIndex, samplePhase, tileSeed, SamplesPerCell, LatticeCells, Octaves);
 
     private static float ClampAmplitude(float amplitude)
     {

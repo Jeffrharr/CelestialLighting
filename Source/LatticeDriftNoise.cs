@@ -43,6 +43,27 @@ public static class LatticeDriftNoise
         return roundedTowardZeroFromBelow ? quotient - 1 : quotient;
     }
 
+    // How far through its own sample a tick sits, in [0, 1). The companion to SampleIndex: the pair
+    // locate a tick exactly, where the index alone only says which hour it fell in.
+    //
+    // WHY A CONSUMER WOULD WANT THIS. The hourly quantisation above is a cost decision, and for a
+    // value that is only ever READ — a haze multiplier, a sky tint — it is invisible: the field moves
+    // by a few hundredths at the top of each hour and nothing on screen has an edge to catch it on.
+    // It stops being invisible the moment a consumer turns the value into a COUNT of objects, because
+    // then a step of a few hundredths is an object appearing or vanishing in place. §25's cloud sheets
+    // are exactly that consumer, so §22 samples the field continuously — see CloudCoverClock — while
+    // §20c's aerosol, which nobody counts, still does not. (§25 has since gone further and reads the
+    // cover at each sheet's own arrival tick, which is why CloudCoverClock needs to answer for an
+    // arbitrary past tick as well as for now.)
+    //
+    // Paired with the floor division above, so a negative tick's phase runs forwards through its own
+    // bucket rather than backwards from the next one.
+    public static float SamplePhase(int absoluteTicks)
+    {
+        int within = absoluteTicks - SampleIndex(absoluteTicks) * TicksPerSample;
+        return within / (float)TicksPerSample;
+    }
+
     // Raw noise field in [0, 1] for a given hourly sample and tile seed, one-dimensional in time
     // (obtained from AuroraNoise's two-dimensional field by pinning y — see AuroraNoise.Fbm's own
     // header for why that collapses cleanly to one axis).
@@ -52,7 +73,23 @@ public static class LatticeDriftNoise
     // The caller owns all three, because they are what sets a consumer's correlation time and period —
     // AerosolDrift wants days, CloudCoverDrift wants hours, and neither should be able to move the
     // other's by editing a shared constant.
-    public static float Field(int sampleIndex, int tileSeed, int samplesPerCell, int latticeCells, int octaves)
+    public static float Field(int sampleIndex, int tileSeed, int samplesPerCell, int latticeCells, int octaves) =>
+        Field(sampleIndex, 0f, tileSeed, samplesPerCell, latticeCells, octaves);
+
+    // The same field read BETWEEN samples: `samplePhase` is where inside sample `sampleIndex` the
+    // reading is taken, in [0, 1), as SamplePhase returns it.
+    //
+    // This is not an interpolation between two sampled values — it is the same smootherstep lattice
+    // the integer overload reads, evaluated at a fractional coordinate. So Field(i, 0f, ...) is
+    // Field(i, ...) exactly (pinned in the tests), a consumer that moves to continuous sampling keeps
+    // every value it had at the top of each hour, and there is no second definition of the curve to
+    // drift from the first.
+    //
+    // The phase is folded in AFTER the integer wrap, which is what keeps the precision argument below
+    // intact: a colony 200 in-game years old still resolves the phase against a small wrapped index
+    // rather than against a sample count in the millions.
+    public static float Field(
+        int sampleIndex, float samplePhase, int tileSeed, int samplesPerCell, int latticeCells, int octaves)
     {
         // Integer wrap BEFORE divide, so precision is preserved the same way AerosolDrift's original
         // Field did it: a colony many in-game years old gets the same lattice resolution as a fresh
@@ -64,7 +101,12 @@ public static class LatticeDriftNoise
         if (wrapped < 0)
             wrapped += samplesPerPeriod;
 
-        float x = wrapped / (float)samplesPerCell;
+        // A NaN or out-of-range phase would put the read outside the wrapped period and index the hash
+        // lattice off the end of its own repeat, so it is clamped here rather than trusted — the same
+        // defensive posture CloudCoverDrift.ClampAmplitude takes toward a caller-supplied number.
+        float phase = samplePhase > 0f ? (samplePhase < 1f ? samplePhase : 1f) : 0f;
+
+        float x = (wrapped + phase) / samplesPerCell;
         return AuroraNoise.Fbm(x, 0f, latticeCells, 1, tileSeed, octaves);
     }
 }
