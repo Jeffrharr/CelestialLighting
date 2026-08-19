@@ -38,8 +38,19 @@ public static class Patch_NightDesaturationStrength
             return;
         }
 
+        // Through NightRadiance.VisualGlowFor rather than off CurSkyGlow directly, and for exactly the
+        // reason §7a does it: vanilla's eclipse drives glow to a flat 0 whatever the hour, so an
+        // eclipse at NIGHT was draining colour toward rod vision as though the sky had just gone from
+        // moonlit to black — when the light level had not changed at all, because the sun was already
+        // down. During DAYLIGHT the wash is untouched and colour still drains through a totality, which
+        // is the real effect this subsystem is about.
+        //
+        // The floor is visual-only and never reaches SkyTarget.glow, so an eclipse costs vanilla's
+        // solar output and vanilla's plant growth regardless of what this reads.
+        float visualGlow = NightRadiance.VisualGlowFor(current, __instance.CurSkyGlow);
+
         float glow = WeatherDimmingMath.ApparentGlow(
-            __instance.CurSkyGlow, WeatherDimming.DimmingFor(current));
+            visualGlow, WeatherDimming.DimmingFor(current));
 
         NightDesaturationOverlay.SetMapWash(
             PurkinjeMath.PurkinjeFactor(glow), PurkinjeSettings.TintStrength);

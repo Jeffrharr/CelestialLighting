@@ -217,6 +217,49 @@ public static class NightRadianceMath
         bool unnaturalDarknessActive, float configuredMinBrightness, float rawBrightnessFactor) =>
         unnaturalDarknessActive ? MathF.Min(configuredMinBrightness, rawBrightnessFactor) : configuredMinBrightness;
 
+    // The glow the mod's VISUAL-ONLY effects should read while an eclipse is live: never below this
+    // map's own night floor.
+    //
+    // THE ASYMMETRY THIS FIXES. Vanilla's eclipse target drives SkyTarget.glow to a flat 0, and
+    // SkyManager composes it through SkyTarget.LerpDarken — Lerp(A.glow, Min(A.glow, B.glow), t) — so
+    // the event does not darken by an amount, it drags glow DOWN TO ZERO from wherever it was, at any
+    // hour. Vanilla is immune to the consequence only by coincidence: vanilla's own night glow is
+    // already exactly 0, so Min(0, 0) is 0 and an eclipse after dark is an arithmetic no-op nobody ever
+    // noticed was being applied. §7 raised the night floor to real starlight, airglow and moonlight and
+    // removed the coincidence.
+    //
+    // Measured live at lat 20 / day 40 on a moonlit night (Tests/Scenarios/eclipse_night_floor.json):
+    // the un-eclipsed night renders at overlay 0.4412 and an eclipse took it to 0.2880 — a median
+    // CIELAB ΔE of 8.61, i.e. obvious, on a sky the sun had left ten hours earlier. An eclipse covers
+    // the SUN; after dark there is nothing for it to cover and the event must be invisible.
+    //
+    // WHY A GLOW FLOOR HERE RATHER THAN A FLOOR IN SkyTarget.glow ITSELF. Writing the floor into the
+    // sky target would fix the same numbers, but .glow is GAMEPLAY light — GlowGrid, plant growth,
+    // Dub's Skylights, and CompPowerPlantSolar which reads map.skyManager.CurSkyGlow directly — so it
+    // would quietly hand solar panels output during an eclipse and change what the event costs. This
+    // value never reaches any of that. It is consumed only by the two visual-only consumers named
+    // below, both of which merely re-read CurSkyGlow to decide how the screen should LOOK:
+    //
+    //   §7a  Patch_PitchBlackOverlay        — how far to pull MatBases.LightOverlay toward black
+    //   §9   Patch_NightDesaturationStrength — how far to drain colour toward rod vision
+    //
+    // Both had the same bug for the same reason, and both are fixed by reading through this instead of
+    // reading CurSkyGlow raw. Routing them through one function is the point: two subsystems deciding
+    // separately how dark an eclipse "really" is would be exactly the drift the shared night floor
+    // (#30) exists to prevent.
+    //
+    // Max rather than a replacement, so an eclipse during DAYLIGHT is untouched — glow 1 stays 1 while
+    // the disc slides in, and the ramp only stops once it would fall past night. The consistency this
+    // buys is worth stating: because the floor does not depend on the time of day, a totality bottoms
+    // out at the same rendered brightness at noon as at midnight. The event reads as "the sun is
+    // covered" rather than as two different events.
+    //
+    // `nightFloorGlow` is NightRadiance.FloorGlowFor(map), the same shared read §7 blends the night sky
+    // toward — so "as bright as night" means the mod's own night, tracking the moon, rather than a
+    // second constant that happens to match today.
+    public static float EclipseFlooredGlow(bool eclipseFloorApplies, float glow, float nightFloorGlow) =>
+        eclipseFloorApplies ? MathF.Max(glow, nightFloorGlow) : glow;
+
     private static float ToRadians(float degrees) => degrees * MathF.PI / 180f;
 
     private static float Clamp01(float v) => Clamp(v, 0f, 1f);

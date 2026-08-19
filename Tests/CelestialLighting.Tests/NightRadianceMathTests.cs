@@ -245,6 +245,90 @@ public class NightRadianceMathTests
         Assert.That(NightRadianceMath.OverlayBrightnessFactor(0f, 0f), Is.EqualTo(0f).Within(Tolerance));
     }
 
+    // --- EclipseFlooredGlow: an eclipse may not READ darker than night ---
+
+    // The live-measured values this rule exists for, at lat 20 / day 40 with the shipped Cinematic
+    // preset (Tests/Scenarios/eclipse_night_floor.json). A moonlit night sits at 0.1455 glow; vanilla's
+    // eclipse drives SkyTarget.glow to a flat 0 whatever the hour.
+    private const float MoonlitNightFloorGlow = 0.1455f;
+    private const float CinematicMinBrightness = 0.50f;
+
+    [Test]
+    public void EclipseFlooredGlow_NoEclipse_ReturnsGlowUnchanged()
+    {
+        // Pure addition: with the floor not applying this is the identity, so every other reason the
+        // sky is dark behaves exactly as it did before the rule existed. This is also the path taken
+        // during Anomaly's UnnaturalDarkness, which wins outright (NightRadiance.VisualGlowFor).
+        Assert.That(
+            NightRadianceMath.EclipseFlooredGlow(eclipseFloorApplies: false, glow: 0f, MoonlitNightFloorGlow),
+            Is.EqualTo(0f).Within(Tolerance));
+    }
+
+    [Test]
+    public void EclipseFlooredGlow_EclipseAtNight_IsAWholeNoOp()
+    {
+        // THE BUG, as an identity. Vanilla hands us glow 0; the floor puts it back to the night the sun
+        // already left, so every visual consumer sees precisely what it saw with no eclipse at all.
+        Assert.That(
+            NightRadianceMath.EclipseFlooredGlow(eclipseFloorApplies: true, glow: 0f, MoonlitNightFloorGlow),
+            Is.EqualTo(MoonlitNightFloorGlow).Within(Tolerance));
+
+        // Which is the same statement one level up, on the channel that actually reaches the screen.
+        Assert.That(
+            NightRadianceMath.OverlayBrightnessFactor(
+                NightRadianceMath.EclipseFlooredGlow(true, 0f, MoonlitNightFloorGlow), CinematicMinBrightness),
+            Is.EqualTo(NightRadianceMath.OverlayBrightnessFactor(MoonlitNightFloorGlow, CinematicMinBrightness))
+                .Within(Tolerance));
+    }
+
+    [TestCase(1.0f)]     // noon
+    [TestCase(0.6f)]     // late afternoon
+    [TestCase(0.2f)]     // civil twilight, still above the night floor
+    public void EclipseFlooredGlow_EclipseInDaylight_LeavesTheRampAlone(float daylightGlow)
+    {
+        // Max, not a replacement: the disc sliding over the sun still darkens daylight normally, and the
+        // floor only starts biting once the ramp would fall past night. Without this the whole effect
+        // would be clamped away in the one regime it is actually about.
+        Assert.That(
+            NightRadianceMath.EclipseFlooredGlow(eclipseFloorApplies: true, daylightGlow, MoonlitNightFloorGlow),
+            Is.EqualTo(daylightGlow).Within(Tolerance));
+    }
+
+    [Test]
+    public void EclipseFlooredGlow_TotalityBottomsOutTheSame_DayOrNight()
+    {
+        // The consistency claim, and the reason this is an absolute floor rather than a night-only
+        // stand-down: the floor does not depend on the time of day, so a totality lands on the same
+        // rendered brightness at noon as at midnight. A sun-elevation gate would instead put a seam at
+        // sunrise and need a second opinion about where "night" begins.
+        float fromNoon = NightRadianceMath.EclipseFlooredGlow(true, glow: 0f, MoonlitNightFloorGlow);
+        float fromNight = NightRadianceMath.EclipseFlooredGlow(true, glow: 0f, MoonlitNightFloorGlow);
+
+        Assert.That(fromNoon, Is.EqualTo(fromNight).Within(Tolerance));
+        Assert.That(fromNoon, Is.EqualTo(MoonlitNightFloorGlow).Within(Tolerance));
+    }
+
+    [Test]
+    public void EclipseFlooredGlow_NewMoonEclipse_FloorsAtTheStarlitNight()
+    {
+        // A solar eclipse happens at NEW MOON by definition, so the realistic floor is starlight plus
+        // airglow with no moonlight term: 0.04 glow, which the [0, 0.19] overlay ramp turns into 0.2105
+        // — BELOW the Cinematic preset's 0.50, so the player's own floor still governs and a daytime
+        // totality is left as dark as it always was. Worth pinning, because it is why this fix does not
+        // quietly brighten every eclipse to a moonlit level it has no reason to have.
+        const float newMoonFloorGlow =
+            NightRadianceMath.DefaultStarlightGlow + NightRadianceMath.DefaultAirglowGlow;
+
+        Assert.That(
+            NightRadianceMath.EclipseFlooredGlow(true, glow: 0f, newMoonFloorGlow),
+            Is.EqualTo(newMoonFloorGlow).Within(Tolerance));
+        Assert.That(NightRadianceMath.RawOverlayBrightnessFactor(newMoonFloorGlow),
+            Is.EqualTo(0.2105f).Within(0.001f));
+        Assert.That(
+            NightRadianceMath.OverlayBrightnessFactor(newMoonFloorGlow, CinematicMinBrightness),
+            Is.EqualTo(CinematicMinBrightness).Within(Tolerance));
+    }
+
     // --- RawOverlayBrightnessFactor / EffectiveMinNightBrightness: UnnaturalDarkness carve-out ---
 
     [Test]
