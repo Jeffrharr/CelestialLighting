@@ -58,6 +58,11 @@ namespace CelestialLighting;
 // uniqueID (a removed map cannot be kept alive) and its static-delegate calling convention, which
 // is what keeps a hit from allocating.
 //
+// All four gates that walk the GameConditionManager chain are memoised — HasSky and SkyBlackedOut
+// first, then the two narrow condition gates. The dividing line is the WALK, not the call count: a
+// chain walk is the expensive thing in this file, and any gate that does one is worth a stamp
+// compare however seldom it is asked.
+//
 // DrawsShadows is NOT memoised: it is two field reads and no loop, so a dictionary lookup and a
 // stamp compare would cost more than it does. IsEnclosed is not memoised either, because it is a
 // field read composed onto HasSky, and memoising HasSky already removes everything expensive
@@ -71,12 +76,24 @@ public static class MapSky
     private static readonly GeometryMemo<bool> HasSkyMemo = new GeometryMemo<bool>();
     private static readonly GeometryMemo<bool> BlackedOutMemo = new GeometryMemo<bool>();
 
+    // The two NARROW condition gates get the same treatment for the same reason, added after the
+    // first pair rather than with them because their call counts are an order of magnitude smaller
+    // and the case had to be made separately. What earns them a memo is not how often they are asked
+    // but what an ask COSTS: each is a full walk of the GameConditionManager chain -- the map's own
+    // conditions, then the world's -- and that walk is the identical work SkyBlackedOut was memoised
+    // to stop doing. A gate asked four times a frame that walks two lists is not in the same class
+    // as DrawsShadows' two field reads, which is the line this file already draws.
+    private static readonly GeometryMemo<bool> UnnaturalDarknessMemo = new GeometryMemo<bool>();
+    private static readonly GeometryMemo<bool> EclipseMemo = new GeometryMemo<bool>();
+
     // Held as static delegates for the reason GeometryMemo's own header gives: Get takes arg and
     // compute separately so a caller can hand it a delegate it already owns. Building the lambda at
     // the call site instead would allocate a closure per call, which on a 34-calls-a-frame path is
     // the cost this change exists to remove, reintroduced in a different shape.
     private static readonly Func<Map, bool> ComputeHasSky = ComputeHasSkyFor;
     private static readonly Func<Map, bool> ComputeBlackedOut = ComputeBlackedOutFor;
+    private static readonly Func<Map, bool> ComputeUnnaturalDarkness = ComputeUnnaturalDarknessFor;
+    private static readonly Func<Map, bool> ComputeEclipse = ComputeEclipseFor;
 
     // Whether weather can roll overhead — see MapSkyMath.HasSky. This is §13's question. If you are
     // reaching for it to decide whether a SKY effect applies, you want IsEnclosed below instead:
@@ -169,7 +186,20 @@ public static class MapSky
     // is not a call this mod should make for them. DarkenedSkies and SunBlocker get no such carve-out —
     // those are aesthetic, not a DLC's own set-piece, so the player's chosen floor is left to mean what
     // they set it to mean.
-    public static bool UnnaturalDarknessActive(Map map) => AnyCondition(map, ConditionTest.UnnaturalDarkness);
+    public static bool UnnaturalDarknessActive(Map map)
+    {
+        // Same bypass, and for the same two reasons, as HasSky's: no uniqueID to key a null map on,
+        // and FrameStamp.Current dereferences Find.TickManager, which is null everywhere outside a
+        // running game. Both fall through to the pre-memo path unchanged.
+        if (map == null || Find.TickManager == null)
+            return ComputeUnnaturalDarknessFor(map);
+
+        return UnnaturalDarknessMemo.Get(
+            map.uniqueID, FrameStamp.Current(), map, ComputeUnnaturalDarkness);
+    }
+
+    private static bool ComputeUnnaturalDarknessFor(Map map) =>
+        AnyCondition(map, ConditionTest.UnnaturalDarkness);
 
     // Whether vanilla's `Eclipse` specifically is live over this map right now — the same narrow shape
     // as UnnaturalDarknessActive above, and narrow for the same reason. SkyBlackedOut deliberately
@@ -190,7 +220,15 @@ public static class MapSky
     // SkyManager.CurrentSkyTarget applies when deciding whether a condition composes into the sky, so
     // this reports true on precisely the frames vanilla's own darkening happens — and it gets the
     // underground exclusion for free, since Eclipse sets allowUnderground false.
-    public static bool EclipseActive(Map map) => AnyCondition(map, ConditionTest.Eclipse);
+    public static bool EclipseActive(Map map)
+    {
+        if (map == null || Find.TickManager == null)
+            return ComputeEclipseFor(map);
+
+        return EclipseMemo.Get(map.uniqueID, FrameStamp.Current(), map, ComputeEclipse);
+    }
+
+    private static bool ComputeEclipseFor(Map map) => AnyCondition(map, ConditionTest.Eclipse);
 
     // Shared walk of the manager chain the same way vanilla's own GameConditionManager.
     // ElectricityDisabled does: a map's own conditions, then the world's, which is where quest- and

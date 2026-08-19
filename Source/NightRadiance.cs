@@ -87,6 +87,19 @@ public static class NightRadiance
     // NightRadianceMath.EffectiveMinNightBrightness's existing carve-out. When it is live the floor
     // stands down completely and this returns currentGlow untouched, so that path is bit-identical to
     // what it was before this rule existed.
+    // NOT ITSELF MEMOISED, and the reason is `currentGlow`. §28 caches per-frame answers on
+    // GeometryStamp, which keys on the map, the frame, the tick and the settings generation -- and on
+    // nothing a caller passes in. An argument outside the key is an argument a memo will ignore, so a
+    // stamp-keyed VisualGlowFor would hand the second caller of a frame the first caller's glow.
+    // Today both callers happen to source it from the same SkyManager.CurSkyGlow on the same postfix
+    // chain, which is exactly the kind of "true because of the order things run in" that
+    // GeometryStamp's Variant field exists to stop us depending on.
+    //
+    // Memoising UNDERNEATH it instead costs nothing and carries no such hazard: the two MapSky gates
+    // on the next line are the only expensive reads reachable from here and both are now per-frame
+    // memos, while FloorGlowFor's moon geometry is memoised by §12 and its cloud opacity by §28's
+    // weather pass. What is left in this method is a comparison and a lerp -- the DrawsShadows case,
+    // cheaper than the dictionary lookup that would cache it.
     public static float VisualGlowFor(Map map, float currentGlow)
     {
         bool eclipseFloorApplies = MapSky.EclipseActive(map) && !MapSky.UnnaturalDarknessActive(map);
