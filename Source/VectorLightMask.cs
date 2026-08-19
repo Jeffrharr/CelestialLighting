@@ -69,6 +69,23 @@ public static class VectorLightMask
         if (reader == null || mesh == null)
             return false;
 
+        CollectReaching(map, rect);
+
+        if (Reaching.Count == 0)
+            return true;
+
+        // DECIDE BEFORE TOUCHING THE MESH. `mesh.colors32` copies 613 Color32 out of native memory
+        // and the write-back copies them in again, and a section with no shadow anywhere in it
+        // changes not one of them. Doing the shadow accumulation first — which needs no mesh at all
+        // — means an unshadowed section pays the emitter scan and nothing else, where the crossfade
+        // pays the round trip plus a write to every vertex unconditionally.
+        bool anyShadow = BuildCellShadow(map, reader, rect);
+
+        Reaching.Clear();
+
+        if (!anyShadow)
+            return true;
+
         int width = rect.Width;
         int height = rect.Height;
         int corners = (width + 1) * (height + 1);
@@ -82,17 +99,10 @@ public static class VectorLightMask
         if (colors == null || colors.Length != expected || verts == null || verts.Count != expected)
             return false;
 
-        CollectReaching(map, rect);
-
-        if (Reaching.Count == 0)
-            return true;
-
-        BuildCellShadow(map, reader, rect);
         ApplyToCorners(map, colors, rect, corners);
         ApplyToCentres(colors, rect, corners);
 
         mesh.colors32 = colors;
-        Reaching.Clear();
         return true;
     }
 
@@ -149,13 +159,17 @@ public static class VectorLightMask
     private static int CellIndex(CellRect rect, int cellX, int cellZ) =>
         (cellZ - rect.minZ + 1) * CellsWide(rect) + (cellX - rect.minX + 1);
 
-    private static void BuildCellShadow(Map map, GlowGridPerLight.Reader reader, CellRect rect)
+    // Returns whether anything is shadowed at all, so Apply can leave the mesh untouched when
+    // nothing is.
+    private static bool BuildCellShadow(Map map, GlowGridPerLight.Reader reader, CellRect rect)
     {
         int cells = CellsWide(rect) * CellsHigh(rect);
         Grow(ref cellShadow, cells);
 
         for (int i = 0; i < cells; i++)
             cellShadow[i] = default;
+
+        bool any = false;
 
         // EMITTERS OUTER, CELLS INNER, and that ordering is the whole performance story. The first
         // version walked every cell of the section and asked every reaching emitter about it: a
@@ -173,14 +187,18 @@ public static class VectorLightMask
             if (!reader.TryResolveEmitter(entry.VanillaKey, out GlowLight light, out UnsafeList<Color32> colors))
                 continue;
 
-            AccumulateEmitter(map, rect, entry, light, colors);
+            any |= AccumulateEmitter(map, rect, entry, light, colors);
         }
+
+        return any;
     }
 
-    private static void AccumulateEmitter(
+    private static bool AccumulateEmitter(
         Map map, CellRect rect, VectorLightField.LightEntry entry, GlowLight light,
         UnsafeList<Color32> colors)
     {
+        bool any = false;
+
         CellRect reach = light.AffectedRect;
 
         // The cell grid spans the section plus one cell of margin on every side; the emitter spans
@@ -226,8 +244,11 @@ public static class VectorLightMask
                 cellShadow[index].r += own.r * shadowed / 255;
                 cellShadow[index].g += own.g * shadowed / 255;
                 cellShadow[index].b += own.b * shadowed / 255;
+                any = true;
             }
         }
+
+        return any;
     }
 
     // Corner vertices, mirroring GenerateLightingOverlay's own averaging exactly: the up-to-four
@@ -243,6 +264,19 @@ public static class VectorLightMask
         {
             for (int x = rect.minX; x <= rect.maxX + 1; x++)
             {
+                int index = (z - rect.minZ) * (rect.Width + 1) + (x - rect.minX);
+
+                // FOUR INTEGER COMPARES BEFORE ANYTHING ELSE. Most vertices of most sections have
+                // no shadow on any of their four cells — a lamp shadows a wedge, not a section —
+                // and the full path costs four IntVec3 constructions, four InBounds tests and four
+                // edificeGrid lookups to arrive at zero. Reading the accumulator first turns the
+                // common case into a handful of compares.
+                if (NoShadowAround(rect, x, z))
+                {
+                    cornerShadow[index] = default;
+                    continue;
+                }
+
                 ColorInt sum = default;
                 int counted = 0;
 
@@ -259,13 +293,30 @@ public static class VectorLightMask
                     counted++;
                 }
 
-                int index = (z - rect.minZ) * (rect.Width + 1) + (x - rect.minX);
                 ColorInt shadow = counted > 0 ? sum / counted : default;
 
                 cornerShadow[index] = shadow;
                 colors[index] = Subtract(colors[index], shadow);
             }
         }
+    }
+
+    // Whether all four cells meeting at this lattice point are unshadowed. Reads the accumulator
+    // rather than the map, so it costs four array reads and no game state at all — the point is to
+    // decide NOT to ask the map.
+    private static bool NoShadowAround(CellRect rect, int x, int z)
+    {
+        for (int corner = 0; corner < 4; corner++)
+        {
+            int cx = x - (corner % 2 == 0 ? 1 : 0);
+            int cz = z - (corner < 2 ? 1 : 0);
+            ColorInt shadow = cellShadow[CellIndex(rect, cx, cz)];
+
+            if (shadow.r != 0 || shadow.g != 0 || shadow.b != 0)
+                return false;
+        }
+
+        return true;
     }
 
     // Centre vertices are vanilla's own average of the four corners around them, so ours is the
@@ -285,6 +336,12 @@ public static class VectorLightMask
                 sum += cornerShadow[botLeft + 1];
                 sum += cornerShadow[botLeft + stride];
                 sum += cornerShadow[botLeft + stride + 1];
+
+                // Four unshadowed corners average to nothing, and subtracting nothing is a write
+                // that changes no pixel. Skipping it is the same saving as the corner pass's, on the
+                // same reasoning.
+                if (sum.r == 0 && sum.g == 0 && sum.b == 0)
+                    continue;
 
                 int index = corners + (z - rect.minZ) * rect.Width + (x - rect.minX);
                 colors[index] = Subtract(colors[index], sum / 4);
