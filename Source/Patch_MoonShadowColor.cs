@@ -1,4 +1,3 @@
-using HarmonyLib;
 using UnityEngine;
 using Verse;
 
@@ -36,10 +35,9 @@ namespace CelestialLighting;
 // Vanilla's daylight shadow colour is well-tuned only on Clear; §13a exists because every other
 // weather flattens it to a near-white 0.92 that caps a cloudy-day shadow at 8% darkening — the same
 // bug as this one, found at the other end of the day.
-[HarmonyPatch(typeof(WeatherWorker), nameof(WeatherWorker.CurSkyTarget))]
 public static class Patch_MoonShadowColor
 {
-    static void Postfix(Map map, ref SkyTarget __result)
+    internal static void Apply(Map map, ref SkyTarget target)
     {
         // Gated on the same flag as the moon shadows themselves: with MoonShadows off there is no moon
         // shadow to make visible, and darkening colors.shadow would only alter vanilla's own (fake,
@@ -97,6 +95,6 @@ public static class Patch_MoonShadowColor
 
         // Neutral grey rather than a blue-tinted "moonlight shadow": §9's low-light desaturation
         // already owns the night's colour cast, and a tint here would fight it for the same look.
-        __result.colors.shadow = new Color(value, value, value, __result.colors.shadow.a);
+        target.colors.shadow = new Color(value, value, value, target.colors.shadow.a);
     }
 }

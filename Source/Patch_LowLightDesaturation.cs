@@ -1,4 +1,3 @@
-using HarmonyLib;
 using UnityEngine;
 using Verse;
 
@@ -11,14 +10,13 @@ namespace CelestialLighting;
 //
 // Like §2 (Patch_TwilightColor) and the planned §8 colour-temperature curve, this is a COLOUR-ONLY
 // blend on WeatherWorker.CurSkyTarget — it touches SkyColorSet (sky/overlay tint + the saturation
-// multiplier) and deliberately never writes __result.glow. Keeping clear of glow is what lets it
+// multiplier) and deliberately never writes target.glow. Keeping clear of glow is what lets it
 // stack cleanly with those siblings and with anything downstream that reads brightness
 // (SkyManager.CurSkyGlow, GlowGrid, Dub's Skylights): we change how the existing light *reads*, not
 // how much of it there is.
 //
 // Multiple postfixes on CurSkyTarget coexist fine (Patch_TwilightColor already adds one); Harmony
 // runs them in sequence and each nudges the same struct.
-[HarmonyPatch(typeof(WeatherWorker), nameof(WeatherWorker.CurSkyTarget))]
 public static class Patch_LowLightDesaturation
 {
     // The colour rod-dominated night vision biases toward — a desaturated cool blue-grey. Real
@@ -43,7 +41,7 @@ public static class Patch_LowLightDesaturation
     private const float SkyBlendMax = 0.50f;
     private const float OverlayBlendMax = 0.35f;
 
-    static void Postfix(Map map, ref SkyTarget __result)
+    internal static void Apply(Map map, ref SkyTarget target)
     {
         // Feature gate (default on): when off, leave each WeatherDef's palette untouched — the
         // faithful pre-feature baseline. Sits before the glow read so "off" is a true no-op.
@@ -53,13 +51,23 @@ public static class Patch_LowLightDesaturation
         // Read the sky target's OWN glow, not GenCelestial.CurCelestialSunGlow. This is the opposite
         // choice from Patch_TwilightColor (which recomputes celestial glow because it wants twilight
         // timing anchored to true sun position): here we *want* the actual displayed brightness,
-        // because a darker scene genuinely pushes vision further into rod territory. By the time
-        // this runs, §7 has already replaced the below-horizon glow with its starlight + airglow +
-        // moonlight floor, so a full-moon night lands lower on the ramp (less shift) than a
-        // new-moon one.
+        // because a darker scene genuinely pushes vision further into rod territory.
+        //
+        // KNOWN WRONG ORDER, NOT YET FIXED. This comment used to continue "by the time this runs, §7
+        // has already replaced the below-horizon glow with its starlight + airglow + moonlight floor,
+        // so a full-moon night lands lower on the ramp (less shift) than a new-moon one". It has
+        // never been true in a shipped build. §7's night floor is applied by Patch_NightRadiance,
+        // which sorted AFTER this one under the alphabetical order the fourteen separate CurSkyTarget
+        // postfixes composed in, and Patch_SkyTargetComposite preserves that order exactly so the
+        // merge into one postfix could be provably inert. So what is read here is vanilla's raw
+        // below-horizon glow — near zero under every moon phase alike — and the moon-phase dependence
+        // described above simply is not present.
+        //
+        // Moving this stage after §7 is a real visual change at night and is owed its own measured
+        // A/B rather than a free ride on a refactor. See Patch_SkyTargetComposite's ordering note.
         //
         // Then attenuate by §13's weather dimming to get the APPARENT brightness — the seam that
-        // finally makes this patch's original promise true. It was written believing __result.glow
+        // finally makes this patch's original promise true. It was written believing target.glow
         // was "already clamped by the active WeatherDef's maxGlow", so an overcast night would
         // desaturate more than a clear one for free. It never did: maxGlow defaults to 1.0 and is
         // set exactly once across all vanilla XML (Odyssey's Overcast, 0.95), and even that is inert
@@ -67,13 +75,13 @@ public static class Patch_LowLightDesaturation
         // desaturated identically — precisely the opposite of "strongest on the darkest nights".
         //
         // The weather term comes from the shared WeatherDimming adapter rather than from a value
-        // §13's patch left behind on __result, so this carries no Harmony ordering dependency. That
-        // matters: [HarmonyAfter] takes owner IDs and every patch here shares the one
-        // "celestiallighting" owner, so it could never have expressed an intra-assembly order.
+        // §13's stage left behind on target, so this carries no ordering dependency on §13 at all —
+        // a shared adapter read instead of a sequencing assumption, which is what makes that coupling
+        // robust.
         //
         // Note §13 deliberately never writes .glow, so this stays purely perceptual: the gameplay
         // brightness driving plant growth and solar output is still the unweathered value.
-        float glow = WeatherDimmingMath.ApparentGlow(__result.glow, WeatherDimming.DimmingFor(map));
+        float glow = WeatherDimmingMath.ApparentGlow(target.glow, WeatherDimming.DimmingFor(map));
 
         float factor = PurkinjeMath.PurkinjeFactor(glow);
         if (factor <= 0f)
@@ -89,7 +97,7 @@ public static class Patch_LowLightDesaturation
         // interpolated across cell quads, so the drift lands on unlit ground and fades out smoothly
         // toward anything lit: the local behaviour the global multiplier could never express.
         float strength = PurkinjeSettings.TintStrength;
-        __result.colors.sky = Color.Lerp(__result.colors.sky, CoolNight, factor * SkyBlendMax * strength);
-        __result.colors.overlay = Color.Lerp(__result.colors.overlay, CoolNight, factor * OverlayBlendMax * strength);
+        target.colors.sky = Color.Lerp(target.colors.sky, CoolNight, factor * SkyBlendMax * strength);
+        target.colors.overlay = Color.Lerp(target.colors.overlay, CoolNight, factor * OverlayBlendMax * strength);
     }
 }

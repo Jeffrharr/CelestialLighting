@@ -1,4 +1,3 @@
-using HarmonyLib;
 using RimWorld;
 using UnityEngine;
 using Verse;
@@ -80,7 +79,6 @@ namespace CelestialLighting;
 //
 // The horizon test is Formulas.AtmosphericRefractionDegrees via the shared SolarPosition adapter;
 // the vacuum test is Vacuum.InVacuumForMap. Neither is re-derived anywhere.
-[HarmonyPatch(typeof(WeatherWorker), nameof(WeatherWorker.CurSkyTarget))]
 public static class Patch_WeatherShadowColor
 {
     // Fallback for the window before defs are loaded (and for a modded Clear that somehow lacks the
@@ -90,7 +88,7 @@ public static class Patch_WeatherShadowColor
     private static readonly Color ClearDayShadowFallback = new Color(
         ShadowFillMath.SeaLevelUmbraR, ShadowFillMath.SeaLevelUmbraG, ShadowFillMath.SeaLevelUmbraB);
 
-    static void Postfix(Map map, ref SkyTarget __result)
+    internal static void Apply(Map map, ref SkyTarget target)
     {
         // §18's shared gate, read exactly once and passed down as a bool (Source/Vacuum.cs's
         // convention). Two flags rather than one because the two halves of this patch are separate
@@ -156,15 +154,15 @@ public static class Patch_WeatherShadowColor
         // last daylight caller left on this path.
         float nightFloor = inVacuum ? NightRadiance.FloorGlowFor(map) : 0f;
 
-        // __result.glow is the lit ground this umbra is a multiply against, and it is vanilla's own
+        // target.glow is the lit ground this umbra is a multiply against, and it is vanilla's own
         // daylight here: the only patch of ours that writes .glow is §7's Patch_NightRadiance, which
         // returns before touching it above NightFloorStartElevation, and we are above the refraction
         // horizon, which is higher still.
         Color skyFill = ClearDayShadow();
         UmbraFill fill = ShadowFillMath.DaytimeUmbraFill(
-            skyFill.r, skyFill.g, skyFill.b, nightFloor, __result.glow, inVacuum);
+            skyFill.r, skyFill.g, skyFill.b, nightFloor, target.glow, inVacuum);
 
-        __result.colors.shadow = new Color(fill.R, fill.G, fill.B, __result.colors.shadow.a);
+        target.colors.shadow = new Color(fill.R, fill.G, fill.B, target.colors.shadow.a);
     }
 
     // Not cached in a static field: WeatherDefOf is populated after defs load, and a game can be

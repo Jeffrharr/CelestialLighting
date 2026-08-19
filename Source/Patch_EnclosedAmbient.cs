@@ -1,4 +1,3 @@
-using HarmonyLib;
 using RimWorld;
 using Verse;
 
@@ -18,20 +17,20 @@ namespace CelestialLighting;
 // — and it is deliberately a flat constant rather than any of the celestial models, because nothing
 // celestial reaches down here.
 //
-// ORDERING. Postfixes on WeatherWorker.CurSkyTarget compose by assignment, and this one assigns
-// glow outright rather than nudging it, so it must not be raced by another writer. In practice it
-// cannot be: §5 (Patch_NightRadiance) is the only other patch that writes SkyTarget.glow, and §17
-// already returns it early on exactly the maps this one acts on, so the two are disjoint by
-// construction rather than by priority. Every remaining CurSkyTarget postfix writes colours only.
+// ORDERING. Patch_SkyTargetComposite's stages compose by assignment, and this one assigns glow
+// outright rather than nudging it, so it must not be raced by another writer. In practice it cannot
+// be: §5 (Patch_NightRadiance) is the only other stage that writes SkyTarget.glow on a surface map,
+// and §17 already returns it early on exactly the maps this one acts on, so the two are disjoint by
+// construction rather than by sequence. (§18d's Patch_LimbRefraction also owns .glow, and only in
+// vacuum, which is disjoint from an enclosed map again.) Every remaining CurSkyTarget postfix writes colours only.
 //
 // Not separately toggleable, on purpose. This is not a new effect with its own taste dial — it is
 // the correction that makes "Minimum indoor brightness" mean one thing at all hours instead of
 // silently decaying to black overnight. Its level comes entirely from that existing slider by way
 // of §7b's cap, so a second switch would only let a user re-create the broken shape.
-[HarmonyPatch(typeof(WeatherWorker), nameof(WeatherWorker.CurSkyTarget))]
 public static class Patch_EnclosedAmbient
 {
-    static void Postfix(Map map, ref SkyTarget __result)
+    internal static void Apply(Map map, ref SkyTarget target)
     {
         // Gated on the indoor-occlusion feature rather than on a flag of its own: §7b's cap is what
         // turns this constant into a visible brightness, so with that feature off this has nothing
@@ -42,6 +41,6 @@ public static class Patch_EnclosedAmbient
         if (!MapSky.IsEnclosed(map))
             return;
 
-        __result.glow = MapSkyMath.AmbientGlow(enclosed: true, diurnalGlow: __result.glow);
+        target.glow = MapSkyMath.AmbientGlow(enclosed: true, diurnalGlow: target.glow);
     }
 }

@@ -1,4 +1,3 @@
-using HarmonyLib;
 using RimWorld;
 using Verse;
 
@@ -26,12 +25,11 @@ namespace CelestialLighting;
 // WeatherDimmingMath classifies Clear as opacity 0 on both its axes (palette identical to the
 // clear-family anchors, zero rainRate/snowRate/sandRate), so Patch_WeatherDimming's own early return
 // always fires while curWeather is Clear, and this patch's early return always fires whenever it is
-// not. Neither patch's output depends on whether the other ran, so Harmony's default (undeclared)
-// ordering between them is safe.
-[HarmonyPatch(typeof(WeatherWorker), nameof(WeatherWorker.CurSkyTarget))]
+// not. Neither stage's output depends on whether the other ran, so wherever Patch_SkyTargetComposite
+// happens to sequence the two is safe.
 public static class Patch_CloudCoverSky
 {
-    static void Postfix(Map map, ref SkyTarget __result)
+    internal static void Apply(Map map, ref SkyTarget target)
     {
         if (map.weatherManager.curWeather != WeatherDefOf.Clear)
             return;
@@ -47,14 +45,14 @@ public static class Patch_CloudCoverSky
         // carry §2's twilight warmth, §8's colour temperature or §11's aurora tint by the time this
         // postfix runs, and scaling preserves all of them rather than overwriting whichever ran first.
         float skyTint = CloudCoverSky.SkyTintFactor(cloudCover);
-        __result.colors.sky = ScaleRgb(__result.colors.sky, skyTint);
-        __result.colors.overlay = ScaleRgb(__result.colors.overlay, skyTint);
+        target.colors.sky = ScaleRgb(target.colors.sky, skyTint);
+        target.colors.overlay = ScaleRgb(target.colors.overlay, skyTint);
 
         // Read-then-multiply, matching Patch_LimbRefraction's and Patch_TwilightColor's own treatment
         // of this same field, rather than assigning an absolute saturation value.
-        __result.colors.saturation *= CloudCoverSky.SaturationTintFactor(cloudCover);
+        target.colors.saturation *= CloudCoverSky.SaturationTintFactor(cloudCover);
 
-        // __result.glow is deliberately NOT touched — see the header.
+        // target.glow is deliberately NOT touched — see the header.
     }
 
     // Scales RGB and leaves ALPHA ALONE — see Patch_WeatherDimming.ScaleRgb's header for why: Unity's

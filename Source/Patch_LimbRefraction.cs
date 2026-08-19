@@ -1,4 +1,3 @@
-using HarmonyLib;
 using RimWorld;
 using UnityEngine;
 using Verse;
@@ -27,10 +26,9 @@ namespace CelestialLighting;
 // NOT A GameCondition. This fires every game day on any vacuum map, purely as a function of sun
 // elevation. It is ordinary orbital night. §10a owns eclipses (moon transits the sun, once every few
 // game years) and the two never share a code path — see LimbRefractionMath's header for the boundary.
-[HarmonyPatch(typeof(WeatherWorker), nameof(WeatherWorker.CurSkyTarget))]
 public static class Patch_LimbRefraction
 {
-    static void Postfix(Map map, ref SkyTarget __result)
+    internal static void Apply(Map map, ref SkyTarget target)
     {
         // One read of map.Biome.inVacuum for the whole subsystem, per Vacuum.cs's convention, handed
         // down as a primitive. The "what does an orbital sunset look like" decision still belongs next
@@ -80,9 +78,9 @@ public static class Patch_LimbRefraction
         // call.
         LimbRefractionMath.BandSample band = LimbRefractionMath.SampleBand(sunElevation, inVacuum);
 
-        __result.glow = LimbRefractionMath.VacuumSkyGlow(band, __result.glow, planetshineFloor);
+        target.glow = LimbRefractionMath.VacuumSkyGlow(band, target.glow, planetshineFloor);
 
-        ApplyLimbTint(ref __result, band);
+        ApplyLimbTint(ref target, band);
     }
 
     // The colour half. Split out so the glow write above reads as one statement and so the "is there

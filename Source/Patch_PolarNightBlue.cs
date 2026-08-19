@@ -1,35 +1,32 @@
-using HarmonyLib;
 using UnityEngine;
 using Verse;
 
 namespace CelestialLighting;
 
 // Subsystem 19 (DESIGN.md §19): the deep blue cast of polar twilight, from ozone's Chappuis
-// absorption band. Like Patch_TwilightColor (§2) and Patch_SkyColorTemperature (§8) this is a
-// Postfix on WeatherWorker.CurSkyTarget that NUDGES (never replaces) the returned colours — here
+// absorption band. Like Patch_TwilightColor (§2) and Patch_SkyColorTemperature (§8) this is a stage
+// of Patch_SkyTargetComposite that NUDGES (never replaces) the returned colours — here
 // toward the transmitted spectrum of sunlight that has crossed a long near-horizontal slant path
 // through the ozone layer. Blending rather than overwriting preserves each WeatherDef's own palette,
 // so rain and fog stay distinct, just blued by however deep the sun is under the horizon.
 //
 // COLOUR ONLY, NEVER .glow — this stays in the exact same low-risk lane as §2 and §8: we only touch
-// __result.colors, so we do not disturb the brightness value (glow) that Dub's Skylights and other
+// target.colors, so we do not disturb the brightness value (glow) that Dub's Skylights and other
 // mods read. See DESIGN.md "Conflict risk". The one brightness concession §19 makes is expressed
 // entirely in §7a's terms (OzoneTwilight.OverlayFloorFor), which is visual-only by construction.
 //
 // Composition with §2 and §8: all three warm/cool the sky around dusk, and they overlap on purpose
 // in a 2-degree window. §8 dies at its NightFadeFloorDegrees (-6) and §2's civil-twilight
 // persistence dies at the same -6, while our blue starts at -4 — so for those two degrees a warm
-// band low in the west sits under an already-blue vault, which is what real dusk looks like. No
-// HarmonyPriority: successive Color.Lerps are not commutative, but the error is bounded by
-// a*b*(B - A) per channel, which WarmAndBlue_AreNeverBothAtFullStrength holds under 0.10 across the
-// whole overlap. (Intra-assembly Harmony order cannot be expressed anyway — all our patches share
-// one owner ID, so [HarmonyAfter] does not apply.)
+// band low in the west sits under an already-blue vault, which is what real dusk looks like. The
+// composite's sequence is not load-bearing here: successive Color.Lerps are not commutative, but the
+// error is bounded by a*b*(B - A) per channel, which WarmAndBlue_AreNeverBothAtFullStrength holds
+// under 0.10 across the whole overlap.
 //
 // Composition with §9: §19 stacks with the Purkinje cool-grey tint deliberately, with no
 // cross-subsystem suppression. They model different things — §9 is the eye losing colour
 // discrimination as rods take over, §19 is the sky genuinely being blue — and a real polar twilight
 // is both at once.
-[HarmonyPatch(typeof(WeatherWorker), nameof(WeatherWorker.CurSkyTarget))]
 public static class Patch_PolarNightBlue
 {
     // Per-channel maximum blend strengths. Higher than §8's 0.35/0.25 for a measured reason:
@@ -47,7 +44,7 @@ public static class Patch_PolarNightBlue
     internal const float SkyBlend = 0.45f;
     internal const float OverlayBlend = 0.30f;
 
-    private static void Postfix(Map map, ref SkyTarget __result)
+    internal static void Apply(Map map, ref SkyTarget target)
     {
         // One shared adapter call. Every gate — the feature toggle, the enclosed/blacked-out sky,
         // the reachability gate, the band envelope and §18's vacuum flag — lives behind this, so the
@@ -79,9 +76,9 @@ public static class Patch_PolarNightBlue
         // rise into a patch documented as colour-only. It would also be pointless: §7a runs later on
         // the composed material and lerps toward opaque black, so brightness added here is
         // multiplied away regardless. Brightness is OverlayFloorFor's job alone. See DESIGN.md §19.
-        __result.colors.sky = BlendTowardHue(__result.colors.sky, hue, tint * SkyBlend);
-        __result.colors.overlay = BlendTowardHue(__result.colors.overlay, hue, tint * OverlayBlend);
-        // Deliberately leave __result.colors.saturation and __result.glow untouched: saturation
+        target.colors.sky = BlendTowardHue(target.colors.sky, hue, tint * SkyBlend);
+        target.colors.overlay = BlendTowardHue(target.colors.overlay, hue, tint * OverlayBlend);
+        // Deliberately leave target.colors.saturation and target.glow untouched: saturation
         // shaping is Patch_TwilightColor's job (and §9 documents why the global saturation
         // post-process is the wrong lane for a per-cell effect), and glow is off-limits to the whole
         // colour-only lane.
