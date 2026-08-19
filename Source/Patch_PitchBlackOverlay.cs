@@ -84,11 +84,18 @@ public static class Patch_PitchBlackOverlay
         // why. This runs even on top of §19's raise: a polar-latitude UnnaturalDarkness event still
         // must not be washed back out. Every other reason the sky is dark keeps pass 1's value
         // unchanged.
-        float rawBrightness = NightRadianceMath.RawOverlayBrightnessFactor(__instance.CurSkyGlow);
+        // NOT CurSkyGlow directly. An eclipse drives that field to a flat 0 at any hour, so reading it
+        // raw let the event darken a night sky the sun had already left — measured at a median CIELAB
+        // ΔE of 8.61, i.e. obvious. NightRadiance.VisualGlowFor floors it at the night floor for
+        // visual purposes only; SkyTarget.glow itself is untouched, so nothing gameplay-facing moves.
+        // §9's Patch_NightDesaturationStrength reads the same function for the same reason.
+        float visualGlow = NightRadiance.VisualGlowFor(current, __instance.CurSkyGlow);
+
+        float rawBrightness = NightRadianceMath.RawOverlayBrightnessFactor(visualGlow);
         float minBrightness = NightRadianceMath.EffectiveMinNightBrightness(
             MapSky.UnnaturalDarknessActive(current), configuredMinBrightness, rawBrightness);
 
-        float keep = NightRadianceMath.OverlayBrightnessFactor(__instance.CurSkyGlow, minBrightness);
+        float keep = NightRadianceMath.OverlayBrightnessFactor(visualGlow, minBrightness);
 
         // keep == 1 is the daytime / bright-moon common case: nothing to darken, and it also skips the
         // day branch where the overlay is transparent white (1,1,1,0) and must be left alone.

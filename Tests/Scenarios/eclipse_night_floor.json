@@ -1,0 +1,239 @@
+{
+  "name": "eclipse_night_floor",
+  "saveFile": "minimal_colony.rws",
+  "description": "An eclipse must never make the sky READ darker than a normal night, and must land on the same look whatever hour it fires at. Four corners -- night/noon x eclipse/no-eclipse -- across the gameplay channel (sky_glow, which must stay vanilla) and both visual ones (sky_overlay_luminance, night_desaturation_wash). The night pair must MATCH on the visual channels while sky_glow still goes to 0.",
+  "steps": [
+    {
+      "_comment": "MUST RUN STANDALONE, not inside a suite. Two reasons, both of which fail silently rather than loudly: SunClock's per-map cache is latitude-blind, so a scenario that ran SetTile at another latitude first breaks the off-noon sun_elevation pins below; and this scenario deliberately leaves a GameCondition on the map, which contaminates whatever runs next. See core_design_suite.txt.",
+      "type": "SetTile",
+      "args": {
+        "latitude": "20"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "_comment": "Hour 2, and sun_elevation is pinned beside it precisely because the hour alone does not establish darkness. Realistic day length puts sunrise on this tile at about 04:15, so hour 5 -- the hour night_radiance.json uses -- is already 13 degrees of MORNING. If a clock change ever moves this step into daylight then an eclipse SHOULD darken things, every claim below goes vacuous, and only this pin fails loudly.",
+      "type": "SetTime",
+      "args": {
+        "hour": "2"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "-34.3992",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "_comment": "BASELINE A. 0.1455 rather than vanilla's 0 is \u00a77's night floor: starlight + airglow + a moon that is up at this hour.",
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_glow",
+        "expectedValue": "0.145526",
+        "tolerance": "0.002"
+      }
+    },
+    {
+      "_comment": "The same night on the channel the player actually sees -- MatBases.LightOverlay's composed colour, downstream of \u00a77a's overlay darkening.",
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_overlay_luminance",
+        "expectedValue": "0.441216",
+        "tolerance": "0.004"
+      }
+    },
+    {
+      "_comment": "And on \u00a79's colour channel: how far the Purkinje wash has drained toward rod vision.",
+      "type": "Probe",
+      "args": {
+        "probeName": "night_desaturation_wash",
+        "expectedValue": "0.114142",
+        "tolerance": "0.002"
+      }
+    },
+    {
+      "_comment": "Throwaway warm-up capture: the harness honours hideUi only from the SECOND screenshot on, so without this the A frame would silently carry HUD pixels into the delta-E.",
+      "type": "Screenshot",
+      "args": {
+        "fileName": "eclipse_night_floor_warmup.png",
+        "hideUi": "true"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "eclipse_night_floor_night_a.png",
+        "hideUi": "true"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "81.7200",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "_comment": "BASELINE B: full noon.",
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_glow",
+        "expectedValue": "1.0",
+        "tolerance": "0.002"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_overlay_luminance",
+        "expectedValue": "0.957731",
+        "tolerance": "0.004"
+      }
+    },
+    {
+      "_comment": "No wash in daylight.",
+      "type": "Probe",
+      "args": {
+        "probeName": "night_desaturation_wash",
+        "expectedValue": "0.0",
+        "tolerance": "0.002"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "eclipse_night_floor_day_a.png",
+        "hideUi": "true"
+      }
+    },
+    {
+      "_comment": "48 hours aged 24 so the +/-10 h clock move below stays inside \u00a710b's parked plateau (a 12% slide at each end puts the plateau at 5.8 h..42.2 h) rather than sliding into fly-out. eclipse_coverage is re-probed at BOTH hours to prove that rather than assume it.",
+      "type": "StartCondition",
+      "args": {
+        "conditionDef": "Eclipse",
+        "durationHours": "48",
+        "agedHours": "24"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "eclipse_coverage",
+        "expectedValue": "1.0",
+        "tolerance": "0.02"
+      }
+    },
+    {
+      "_comment": "VANILLA, AND DELIBERATELY SO. The fix never writes SkyTarget.glow -- .glow is gameplay light (GlowGrid, plant growth, Dub's Skylights, and CompPowerPlantSolar which reads CurSkyGlow directly), so an eclipse goes on costing exactly the solar output vanilla says it costs. The floor added by this change is visual-only and lives in NightRadiance.VisualGlowFor.",
+      "type": "Probe",
+      "args": {
+        "probeName": "eclipse_umbra_glow",
+        "expectedValue": "0.0",
+        "tolerance": "0.002"
+      }
+    },
+    {
+      "_comment": "Same: totality drives gameplay light to nothing, exactly as on main.",
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_glow",
+        "expectedValue": "0.0",
+        "tolerance": "0.002"
+      }
+    },
+    {
+      "_comment": "A DAYTIME TOTALITY IS UNCHANGED BY THIS FIX -- measured median CIELAB delta-E 0.00 against the same frame on main. A solar eclipse happens at new moon by definition, so the floor here is starlight + airglow only (0.04 glow -> 0.2105 on the overlay ramp), which sits BELOW the Cinematic preset's 0.50 MinNightBrightness and therefore never binds. The player's own floor still governs the day case.",
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_overlay_luminance",
+        "expectedValue": "0.2945",
+        "tolerance": "0.004"
+      }
+    },
+    {
+      "_comment": "And colour still drains through a daytime totality, which is the effect \u00a79 is actually about.",
+      "type": "Probe",
+      "args": {
+        "probeName": "night_desaturation_wash",
+        "expectedValue": "0.22",
+        "tolerance": "0.002"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "eclipse_night_floor_day_b.png",
+        "hideUi": "true"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "2"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "eclipse_coverage",
+        "expectedValue": "1.0",
+        "tolerance": "0.02"
+      }
+    },
+    {
+      "_comment": "Vanilla's blackout, untouched, on the gameplay channel -- at night too.",
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_glow",
+        "expectedValue": "0.0",
+        "tolerance": "0.002"
+      }
+    },
+    {
+      "_comment": "THE CLAIM, half one. Identical to baseline A: on screen, an eclipse at night is invisible. The sun set hours ago and there is nothing left for the moon to cover. Vanilla drives SkyTarget.glow to a flat 0 at any hour and SkyManager composes it as Min(sky, 0), so before this fix the event deleted \u00a77's night floor outright -- a median CIELAB delta-E of 8.61 against the no-eclipse night, i.e. obvious. Now 0.82, imperceptible; the residue is vanilla's wan umbral grey clipping the night sky's hue through SkyColorSet.LerpDarken's per-channel Min, which is below this repo's own ship threshold and left alone.",
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_overlay_luminance",
+        "expectedValue": "0.441216",
+        "tolerance": "0.004"
+      }
+    },
+    {
+      "_comment": "THE CLAIM, half two, and the reason the fix is a shared read rather than a patch-local clamp. \u00a79 re-derives its wash from CurSkyGlow independently of \u00a77a, so it had the identical bug: an eclipse at night drained colour toward rod vision as though the sky had just gone from moonlit to black. Both now read NightRadiance.VisualGlowFor and cannot disagree about how dark an eclipse really is.",
+      "type": "Probe",
+      "args": {
+        "probeName": "night_desaturation_wash",
+        "expectedValue": "0.114142",
+        "tolerance": "0.002"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "eclipse_night_floor_night_b.png",
+        "hideUi": "true"
+      }
+    }
+  ]
+}

@@ -1607,6 +1607,78 @@ geometry that drives a gradual partial → near-total darkening and the characte
 colour, replacing the vanilla flat dim. Only *what moves the discs together* and *how long they stay*
 differ.
 
+### 10c. An eclipse may not read darker than night (`NightRadiance.VisualGlowFor`)
+
+**Problem.** Vanilla's eclipse target is `SkyTarget(0f, EclipseSkyColors, 1f, 0f)` and
+`SkyManager.CurrentSkyTarget` composes it through `SkyTarget.LerpDarken`, i.e.
+`Lerp(A.glow, Min(A.glow, B.glow), t)`. That `Min` means the event is **not a relative darkening — it
+is an absolute floor of zero**, applied identically at every hour. Vanilla is immune to the
+consequence only by coincidence: vanilla's own night glow is already exactly `0`, so `Min(0, 0)` is
+`0` and an eclipse after dark is an arithmetic no-op nobody ever noticed was being applied.
+
+§7 removed the coincidence. Our night floor is real starlight, airglow and moonlight, so an eclipse
+was reaching down and taking it away again — darkening a sky the sun had already left. Measured at
+lat 20 / day 40 / 02:00 (sun −34.4°), moonlit: the night renders at overlay **0.4412** and the
+eclipse took it to **0.2880**, a median CIELAB **ΔE 8.61** — *obvious*. An eclipse covers the **sun**;
+after dark there is nothing for it to cover and the event must be invisible.
+
+**Two subsystems had it, for the same reason.** Both §7a (`Patch_PitchBlackOverlay`, how far to pull
+`MatBases.LightOverlay` toward black) and §9 (`Patch_NightDesaturationStrength`, how far to drain
+colour toward rod vision) re-derive their strength from `SkyManager.CurSkyGlow` — so both read the
+eclipse's flat `0` and both concluded the night had just gone black. §9's half is why fixing only the
+brightness left a residual ΔE 1.94 instead of 0.82: the frame was the right *brightness* and the wrong
+*hue*.
+
+**Approach.** One shared read, `NightRadiance.VisualGlowFor(map, currentGlow)`, wrapping the pure
+`NightRadianceMath.EclipseFlooredGlow` — `max(glow, nightFloorGlow)` while an eclipse is live. Both
+visual consumers read it instead of `CurSkyGlow`. Shared rather than duplicated for the reason
+`FloorGlowFor` is shared: the two run as separate postfixes on `SkyManagerUpdate` with no ordering
+between them, and two subsystems deciding separately how dark an eclipse "really" is would drift
+invisibly, since the symptom is a hue rather than a number anyone prints.
+
+**`SkyTarget.glow` is never written, and that is the point.** `.glow` is *gameplay* light — `GlowGrid`,
+plant growth, Dub's Skylights, and `CompPowerPlantSolar`, which reads `map.skyManager.CurSkyGlow`
+directly. A floor there would have quietly handed solar panels output during an eclipse and changed
+what the event costs. This floor reaches `MatBases.LightOverlay`, `FogOfWar` and §9's wash material
+and nothing else, so an eclipse goes on being exactly the blackout vanilla says it is. `sky_glow`
+still probes **0.0** at totality on both branches, and the scenario pins that deliberately.
+
+**`max`, not a replacement**, so the effect survives where it matters: an eclipse in *daylight* is
+untouched — glow 1 stays 1 as the disc slides in, and the floor only bites once the ramp would fall
+past night. It also buys the consistency the whole thing is about: the floor does not depend on the
+time of day, so a totality bottoms out at the same rendered brightness at noon as at midnight. Fixed
+here rather than by standing the ramp down below some sun elevation, which would put a seam at
+sunrise and need a second opinion about where "night" begins.
+
+**A daytime totality is measurably unchanged** — median CIELAB **ΔE 0.00** against `main`. A solar
+eclipse happens at *new moon* by definition, so the realistic floor is starlight + airglow only
+(`0.04` glow → `0.2105` on the `[0, 0.19]` overlay ramp), which sits *below* the Cinematic preset's
+`0.50` `MinNightBrightness` and therefore never binds. The player's own slider still governs the day
+case, exactly as before.
+
+**Anomaly's `UnnaturalDarkness` wins outright** over this floor, composed in `VisualGlowFor` rather
+than in the pure rule. That event is a gameplay-critical horror set-piece whose whole point is that
+you cannot see, and lifting it to "as bright as an ordinary night" is not a call this mod should
+make — the same reasoning and the same direction as `EffectiveMinNightBrightness`'s existing
+carve-out. While it is live the floor stands down and the path is bit-identical to before.
+
+**Measured.** `Tests/Scenarios/eclipse_night_floor.json`, four corners × three channels:
+
+| lat 20, day 40, Clear | `sky_glow` | overlay | §9 wash |
+|---|---|---|---|
+| night 02:00, no eclipse | 0.1455 | 0.4412 | 0.1141 |
+| noon 12:00, no eclipse | 1.0000 | 0.9577 | 0.0000 |
+| noon 12:00, totality | **0.0000** (vanilla) | 0.2945 — ΔE 0.00 vs `main` | 0.2200 |
+| night 02:00, totality | **0.0000** (vanilla) | **0.4412 — identical to the night** | **0.1141 — identical** |
+
+Night eclipse vs no-eclipse: **ΔE 8.61 → 0.82** (imperceptible). The residue is vanilla's wan umbral
+grey clipping the night sky's hue through `SkyColorSet.LerpDarken`'s per-channel `Min`, which is below
+this repo's own ship threshold and deliberately left alone. Every control frame — plain night, noon
+clear, noon totality — measures ΔE **0.00** against `main`, so the change does nothing except stop an
+eclipse darkening a night.
+
+![eclipse at night, before and after](Tests/Screenshots/ab_eclipse_night_floor.png)
+
 ### Eclipse mode (natural / unnatural / both)
 
 Natural (§10a) and unnatural (§10b) are independent — natural fires real geometric *events*,

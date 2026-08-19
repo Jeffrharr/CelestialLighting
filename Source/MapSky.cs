@@ -116,6 +116,28 @@ public static class MapSky
     public static bool UnnaturalDarknessActive(Map map) =>
         AnyCondition(map, condition => condition is GameCondition_UnnaturalDarkness && condition.CanApplyOnMap(map));
 
+    // Whether vanilla's `Eclipse` specifically is live over this map right now — the same narrow shape
+    // as UnnaturalDarknessActive above, and narrow for the same reason. SkyBlackedOut deliberately
+    // EXCLUDES the eclipse (see MapSkyMath.ConditionBlacksOutSky's carve-out: an eclipse covers the sun
+    // while leaving the sky transparent, which is why stars come out during a total one), so it cannot
+    // answer this and a caller must ask directly.
+    //
+    // Gated on the DEF, not the class. GameCondition_NoSunlight is also Royalty's SunBlocker machine and
+    // Odyssey's DarkenedSkies — an artificial blackout and a sulfur overcast respectively, neither of
+    // which has any claim to being "as bright as night". Only the celestial event does. This is the same
+    // technique, in the same direction, as Patch_EclipseDarkening's own `def != GameConditionDefOf.Eclipse`
+    // guard.
+    //
+    // §7a's MinNightBrightness floor (Patch_PitchBlackOverlay, via
+    // NightRadianceMath.EclipseFlooredMinNightBrightness) is the one caller.
+    //
+    // CanApplyOnMap for the same reason SkyBlackedOut uses it: it is exactly the filter
+    // SkyManager.CurrentSkyTarget applies when deciding whether a condition composes into the sky, so
+    // this reports true on precisely the frames vanilla's own darkening happens — and it gets the
+    // underground exclusion for free, since Eclipse sets allowUnderground false.
+    public static bool EclipseActive(Map map) =>
+        AnyCondition(map, condition => condition.def == GameConditionDefOf.Eclipse && condition.CanApplyOnMap(map));
+
     // Shared walk of the manager chain the same way vanilla's own GameConditionManager.
     // ElectricityDisabled does: a map's own conditions, then the world's, which is where quest- and
     // planet-scale conditions live. Reading map.gameConditionManager.ActiveConditions alone would miss

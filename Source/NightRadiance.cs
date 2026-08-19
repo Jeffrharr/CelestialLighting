@@ -63,4 +63,34 @@ public static class NightRadiance
         // through one function rather than through a branch each.
         return AlbedoCavityMath.AmplifiedGlow(floor, SurfaceBuildup.CavityGainFor(map));
     }
+
+    // The glow the mod's VISUAL-ONLY effects should read this frame — CurSkyGlow, except that an active
+    // eclipse may not drive it below the night floor above. See
+    // NightRadianceMath.EclipseFlooredGlow for the physics and the measured before/after; this is the
+    // Verse adapter that answers the two live questions the pure rule takes as bools.
+    //
+    // A SHARED READ for the same reason FloorGlowFor is one. Two visual subsystems need this — §7a's
+    // overlay darkening and §9's Purkinje wash — and they run as two separate postfixes on
+    // SkyManagerUpdate with no ordering between them. Each reading the same function cannot disagree;
+    // each deriving its own answer would drift the moment either was retuned, and would do it
+    // invisibly, since the symptom is a hue rather than a number anybody prints.
+    //
+    // NEVER WRITTEN BACK TO SkyTarget.glow. That field is gameplay light and stays exactly vanilla
+    // during an eclipse — solar panels, plant growth, GlowGrid and Dub's Skylights all go on seeing the
+    // blackout the event is supposed to be. This value only ever decides how the frame is drawn.
+    //
+    // ANOMALY'S UnnaturalDarkness WINS OUTRIGHT over this floor, which is why the gate is composed here
+    // rather than inside the pure rule. That event is a gameplay-critical horror set-piece whose whole
+    // point is that you cannot see ("stay in the light"; GameCondition_UnnaturalDarkness spawns
+    // DarknessExposure hediffs off the same darkness), and lifting it back to "as bright as an ordinary
+    // night" is not a call this mod should make — the same reasoning, and the same direction, as
+    // NightRadianceMath.EffectiveMinNightBrightness's existing carve-out. When it is live the floor
+    // stands down completely and this returns currentGlow untouched, so that path is bit-identical to
+    // what it was before this rule existed.
+    public static float VisualGlowFor(Map map, float currentGlow)
+    {
+        bool eclipseFloorApplies = MapSky.EclipseActive(map) && !MapSky.UnnaturalDarknessActive(map);
+
+        return NightRadianceMath.EclipseFlooredGlow(eclipseFloorApplies, currentGlow, FloorGlowFor(map));
+    }
 }
