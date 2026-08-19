@@ -929,6 +929,40 @@ public static class VectorLightMath
         return -(float)(Math.Atan2(dz, dx) * 180.0 / Math.PI);
     }
 
+    // Whether a pawn in this state casts a shadow at all — the POLICY half of issue #159's second
+    // question, kept separate from the four live reads that feed it so the disjunction can be tested
+    // without a Map.
+    //
+    // EVERY CLAUSE IS VANILLA'S, NOT OURS, and that is the entire argument for each. §27 renders a
+    // shadow vanilla does not in exactly one place — under a roof, because Graphic_Shadow bails on
+    // roofed cells and "sunlight does not get in" says nothing about a torch. These four are the
+    // suppressions that have nothing to do with sunlight, so declining to honour them was not a
+    // deliberate divergence the way the roof is; it was simply not asking.
+    //
+    //  - STANDING. PawnRenderer.RenderPawnAt only calls DrawShadowInternal when
+    //    `results.posture == PawnPosture.Standing`, and RenderShadowOnlyAt repeats the test. A pawn
+    //    lying in a bed or bleeding out on the floor is not a 1.2-cell-tall caster, and drawing them
+    //    as one puts a full-height shadow beside a body that is visibly flat.
+    //  - VISIBLE. `pawn.IsPsychologicallyInvisible()` is what sets PawnRenderFlags.Invisible, which
+    //    is the other half of that same test. A shadow is the one thing that gives an invisible pawn
+    //    away, so this clause is the one with actual GAMEPLAY consequence — §27 is a render-only
+    //    subsystem and handing the player a tell vanilla does not is exactly the sort of thing that
+    //    scope boundary exists to forbid.
+    //  - NOT SWIMMING. DrawShadowInternal returns before any shadow for `Swimming ||
+    //    DrawNonHumanlikeSwimmingGraphic`: the pawn is drawn part-submerged, and a full blob beside
+    //    them reads as floating.
+    //  - NOT FLYING. Vanilla does not suppress this one, it SUBSTITUTES — a soft circle at
+    //    AltitudeLayer.Filth, offset by the flight arc, rather than the extruded footprint. §27 has
+    //    no equivalent and inventing one is a different feature, so the honest answer is to draw
+    //    nothing rather than to stamp a ground-caster's shadow under a pawn who is in the air.
+    //
+    // Written as "all four must hold" rather than four early returns in the adapter so the policy is
+    // one expression that can be read at a glance and inverted in one place if it is ever wrong.
+    public static bool PawnCastsShadow(bool standing, bool invisible, bool swimming, bool flying)
+    {
+        return standing && !invisible && !swimming && !flying;
+    }
+
     // How far a caster's own footprint reaches along a direction, from the point the footprint is
     // centred on.
     //
