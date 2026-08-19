@@ -1,0 +1,109 @@
+using HarmonyLib;
+using RimWorld;
+using Verse;
+
+namespace CelestialLighting;
+
+// THE mod's single Postfix on WeatherWorker.CurSkyTarget.
+//
+// Fourteen subsystems contribute to the SkyTarget this method returns. Until now each one registered
+// its own [HarmonyPatch] on this same method, which meant the order they composed in was decided by
+// Harmony rather than by us — and, as the note below records, that order was not the one two of those
+// subsystems documented for themselves. This class replaces the fourteen registrations with one, and
+// spells the sequence out as fourteen ordinary static calls.
+//
+// WHAT THIS IS AND IS NOT WORTH. It is NOT a throughput optimisation, and the header should say so
+// plainly so nobody re-derives the wrong reason for it later. Harmony does not dispatch per patch:
+// MethodCreator.AddPostfixes emits a direct `call` to each postfix into ONE generated wrapper method,
+// so fourteen postfixes were already fourteen direct static calls, and routing them through this
+// class adds one more rather than removing thirteen. Measured cost of the change is nil either way.
+//
+// What it buys is legibility, in two specific places that had both gone wrong:
+//
+//   1. PROFILERS REPORT PER PATCHED METHOD. Dub's Performance Analyzer listed this mod as fourteen
+//      separate rows against one vanilla method, none of which was the mod's cost and all of which
+//      had to be added up by hand before the number meant anything. Anyone trying to answer "what
+//      does CelestialLighting cost me" — the question this repo gets asked most — started by
+//      reconstructing a total the tooling had taken apart. Now there is one row, and Circinus can
+//      still arm the individual stages when the breakdown is what you actually want (which is the
+//      right way round: parents to judge, children to find).
+//
+//   2. ORDER IS NOW WRITTEN DOWN. Fourteen same-priority postfixes tie-break on Harmony's
+//      `Patch.index` — registration order, which under PatchAll is assembly metadata type order,
+//      which Roslyn emits in file order, which is alphabetical. So the composition order of this
+//      mod's entire sky pipeline was a consequence of what the files happened to be CALLED. Renaming
+//      a file would have silently recomposed the sky. Several of the headers below reason carefully
+//      about ordering ("by the time this runs, §7 has already..."); none of them could enforce it,
+//      because [HarmonyAfter] takes owner IDs and every patch here shares the one "celestiallighting"
+//      owner — an intra-assembly order was not expressible at all.
+//
+// EACH STAGE KEEPS ITS OWN GATE, UNCHANGED. Every subsystem still owns its feature flag and its own
+// early-outs, in its own file, exactly as before — some check CelestialLightingFeatures directly
+// (§11 Aurora, §12 BloodMoon, §9 LowLightDesaturation, §6a MoonShadows, §7 NightRadiance, §8
+// SkyColorTemperature, §17b IndoorSkyOcclusion), others gate inside their shared adapter so the live
+// probe and the patch can never disagree (§2 TwilightWarmth.ForMap, §13 WeatherDimming.DimmingFor,
+// §19 OzoneTwilight.BandStrengthFor, §19c PurpleLight.WindowStrengthFor, §22
+// CloudCoverClock.FractionForMap). Nothing about "a flag off must reproduce the pre-feature
+// behaviour exactly" changes here; this class only decides who is asked, and in what order.
+//
+// The stage methods are `internal static Apply(Map, ref SkyTarget target)` rather than `Postfix`,
+// because they are now plain functions that nothing reflects over. The one-file-per-subsystem layout
+// is deliberately untouched: the reasoning for each effect stays next to that effect, and this file
+// holds only the sequence.
+//
+// THE POSTFIX PARAMETER BELOW MUST STAY NAMED `__result`. It is not a style choice and it is not
+// interchangeable with the `target` the stages take: `__result` is Harmony's magic name for the
+// patched method's return value, matched by STRING at patch time. Rename it and Harmony looks for a
+// real parameter of that name on `CurSkyTarget(Map map)`, does not find one, and throws
+// `Parameter "..." not found` out of PatchAll — which runs inside CelestialLightingMod's static
+// constructor, so the failure takes down EVERY patch in the mod plus the AxialTiltCompat and
+// MoonSeam wiring after it, not just this one.
+//
+// This was not hypothetical: it happened while writing this class, and the way it presented is the
+// reason it is documented here rather than left to be rediscovered. RimWorld swallows the static
+// constructor exception into the log and carries on, so the game ran, the harness scenario reported
+// pass=True, and three screenshots came out looking like a plausible sky — vanilla's sky. The only
+// signal was the frames measuring a median CIELAB deltaE of 4.23/11.74/3.45 against the baseline
+// when a pure refactor owed 0.00. A green scenario does not prove the mod loaded; grep Player.log
+// for "Error in static constructor" when a whole-mod A/B comes back surprising.
+[HarmonyPatch(typeof(WeatherWorker), nameof(WeatherWorker.CurSkyTarget))]
+public static class Patch_SkyTargetComposite
+{
+    // THE ORDER BELOW IS THE ORDER THAT SHIPPED, REPRODUCED EXACTLY.
+    //
+    // It is alphabetical by class name because that is what Harmony was doing, and it is preserved
+    // rather than corrected so that merging fourteen patches into one is a provably inert change with
+    // nothing else riding along — the same discipline §28's memoisation commits used. A straight-line
+    // sequence rather than a list of delegates: no allocation, and the order is readable as code.
+    //
+    // TWO STAGES ARE KNOWN TO SIT IN THE WRONG PLACE, and they are left wrong here ON PURPOSE, to be
+    // moved and measured on their own. Recording them rather than quietly fixing them is the point of
+    // writing the order down at all:
+    //
+    //   §9 LowLightDesaturation RUNS BEFORE §7 NightRadiance, and its header states the opposite. It
+    //   reads vanilla's raw below-horizon glow, so the moon-phase dependence that comment describes
+    //   has never been in a shipped build. A real visual bug, and moving it is a real visual change —
+    //   which is exactly why it does not belong in a commit whose whole claim is that nothing moved.
+    //
+    //   §19c PurpleLight RUNS BEFORE §8 SkyColorTemperature, though its header asks to run after both
+    //   §8 and §19. It gets §19 (which sorts earlier) but not §8, so §8 blends part of the correction
+    //   back down. That file's own analysis calls the early case "weaker, never wrong or
+    //   discontinuous" — a bounded degradation rather than a defect, but not what was intended.
+    static void Postfix(Map map, ref SkyTarget __result)
+    {
+        Patch_AuroraTint.Apply(map, ref __result);              // §11  night sky tint under an auroral event
+        Patch_BloodMoon.Apply(map, ref __result);               // §12  crimson night under a blood-moon condition
+        Patch_CloudCoverSky.Apply(map, ref __result);           // §22  partial cloud cover, Clear weather only
+        Patch_EnclosedAmbient.Apply(map, ref __result);         // §17b constant ambient glow in a cavern
+        Patch_LimbRefraction.Apply(map, ref __result);          // §18d orbital sunset; owns .glow in vacuum
+        Patch_LowLightDesaturation.Apply(map, ref __result);    // §9   Purkinje cool-grey drift  (see note: wants to be after §7)
+        Patch_MoonShadowColor.Apply(map, ref __result);         // §6a  colors.shadow below the horizon
+        Patch_NightRadiance.Apply(map, ref __result);           // §7   starlight/airglow/moonlight night floor on .glow
+        Patch_PolarNightBlue.Apply(map, ref __result);          // §19  ozone Chappuis band
+        Patch_PurpleLight.Apply(map, ref __result);             // §19c -6..-4 window correction  (see note: wants to be after §8)
+        Patch_SkyColorTemperature.Apply(map, ref __result);     // §8   blackbody curve, site altitude, aerosol
+        Patch_TwilightColor.Apply(map, ref __result);           // §2   warm nudge through civil twilight
+        Patch_WeatherDimming.Apply(map, ref __result);          // §13  storm darkening, colour-only
+        Patch_WeatherShadowColor.Apply(map, ref __result);      // §13a/§18c colors.shadow above the horizon
+    }
+}

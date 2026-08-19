@@ -1,4 +1,3 @@
-using HarmonyLib;
 using RimWorld;
 using UnityEngine;
 using Verse;
@@ -6,13 +5,13 @@ using Verse;
 namespace CelestialLighting;
 
 // Subsystem 19c (DESIGN.md §19c): the twilight PURPLE LIGHT — the lavender the western sky turns
-// roughly 15-25 minutes after sunset. Like §2, §8 and §19 this is a Postfix on
-// WeatherWorker.CurSkyTarget that NUDGES (never replaces) the returned colours, here toward the
+// roughly 15-25 minutes after sunset. Like §2, §8 and §19 this is a stage of
+// Patch_SkyTargetComposite that NUDGES (never replaces) the returned colours, here toward the
 // superposition of the reddened horizon band with the ozone-crossed vault. Blending rather than
 // overwriting preserves each WeatherDef's own palette, so rain and fog stay distinct.
 //
 // COLOUR ONLY, NEVER .glow — the same low-risk lane as §2, §8 and §19: we touch only
-// __result.colors, so we do not disturb the brightness value Dub's Skylights and other mods read.
+// target.colors, so we do not disturb the brightness value Dub's Skylights and other mods read.
 // See DESIGN.md "Conflict risk". Unlike §19 there is no brightness arm at all: the purple light sits
 // in civil twilight where there is still plenty of light, so §19's argument for an overlay floor
 // simply does not arise here.
@@ -24,13 +23,16 @@ namespace CelestialLighting;
 // extension of §8. A composition above both is the only place it fits.
 //
 // ORDERING. This must run AFTER §8 and §19, because it is a correction applied to what those two
-// left behind rather than an independent tint. Intra-assembly Harmony order cannot be expressed —
-// all our patches share one owner ID, so [HarmonyAfter] does not apply — so ordering is secured
-// structurally instead: the window envelope is exactly zero at both boundaries, and the nudge is a
-// lerp toward a hue rescaled to whatever colour it finds. If it ran first, §8 and §19 would simply
-// blend it back down; the effect would be weaker, never wrong or discontinuous. That is a much
-// weaker dependency than a priority attribute would be papering over.
-[HarmonyPatch(typeof(WeatherWorker), nameof(WeatherWorker.CurSkyTarget))]
+// left behind rather than an independent tint. IT CURRENTLY DOES NOT: Patch_SkyTargetComposite runs
+// this stage after §19 but before §8, reproducing the accidental alphabetical order the fourteen
+// separate postfixes used to compose in. See that file's note — the sequence was preserved exactly
+// so the merge could be a provably inert change, and moving this stage is a visual change owed its
+// own measurement.
+//
+// The dependency was always a weak one, which is why the wrong order is a degradation rather than a
+// defect: the window envelope is exactly zero at both boundaries, and the nudge is a lerp toward a
+// hue rescaled to whatever colour it finds. Running before §8 means §8 simply blends part of it back
+// down; the effect is weaker, never wrong or discontinuous.
 public static class Patch_PurpleLight
 {
     // Per-channel blend strengths, DERIVED from §8's and §19's rather than chosen.
@@ -51,7 +53,7 @@ public static class Patch_PurpleLight
     private const float OverlayBlend =
         1f - (1f - Patch_SkyColorTemperature.OverlayBlend) * (1f - Patch_PolarNightBlue.OverlayBlend);
 
-    private static void Postfix(Map map, ref SkyTarget __result)
+    internal static void Apply(Map map, ref SkyTarget target)
     {
         // One shared adapter call carrying every gate — the feature toggle, the enclosed/blacked-out
         // sky, the window envelope, §18's vacuum flag and the user's strength slider. Outside the
@@ -63,9 +65,9 @@ public static class Patch_PurpleLight
 
         SkyColorTemperature.Rgb hue = PurpleLight.ComposedHueFor(map);
 
-        __result.colors.sky = BlendTowardHue(__result.colors.sky, hue, window * SkyBlend);
-        __result.colors.overlay = BlendTowardHue(__result.colors.overlay, hue, window * OverlayBlend);
-        // Deliberately leave __result.colors.saturation and __result.glow untouched, exactly as §8
+        target.colors.sky = BlendTowardHue(target.colors.sky, hue, window * SkyBlend);
+        target.colors.overlay = BlendTowardHue(target.colors.overlay, hue, window * OverlayBlend);
+        // Deliberately leave target.colors.saturation and target.glow untouched, exactly as §8
         // and §19 do: saturation shaping is Patch_TwilightColor's job and glow is off-limits to the
         // whole colour-only lane. Purple is a HUE claim and nothing else — turning saturation up to
         // sell it would be a different subsystem making a different claim.

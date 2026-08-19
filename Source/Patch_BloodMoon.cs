@@ -1,4 +1,3 @@
-using HarmonyLib;
 using RimWorld;
 using UnityEngine;
 using Verse;
@@ -9,16 +8,16 @@ namespace CelestialLighting;
 // §12). A blood moon is a lunar eclipse — a full moon turned coppery-red — so instead of rendering
 // as an ordinary silver-blue moonlit night, we shift the sky's own colours toward crimson.
 //
-// Postfixes WeatherWorker.CurSkyTarget, the same low-risk seam Patch_TwilightColor uses: we touch
+// Runs as a stage of Patch_SkyTargetComposite's postfix on WeatherWorker.CurSkyTarget, the same
+// low-risk seam Patch_TwilightColor uses: we touch
 // only SkyColorSet's *colours*, never its .glow, so we don't disturb the brightness value other
 // mods read (e.g. Dub's Skylights reading SkyManager.CurSkyGlow) — this stays purely a recolour,
 // keeping the night "bright enough to still be a moonlit night, not darkness". At deep night
 // Patch_TwilightColor's own nudge has already faded to ~0 (its band centres on dusk glow ≈ 0.35),
 // so the two postfixes don't fight over the sky.
-[HarmonyPatch(typeof(WeatherWorker), nameof(WeatherWorker.CurSkyTarget))]
 public static class Patch_BloodMoon
 {
-    static void Postfix(Map map, ref SkyTarget __result)
+    internal static void Apply(Map map, ref SkyTarget target)
     {
         // Feature gate (default on): when off, leave the sky exactly as vanilla/§2 composed it — the
         // faithful pre-feature baseline. Sits before the condition lookup so "off" is a true no-op.
@@ -43,8 +42,8 @@ public static class Patch_BloodMoon
         if (strength <= 0f)
             return;
 
-        __result.colors.sky = TintTowardCrimson(__result.colors.sky, strength);
-        __result.colors.overlay = TintTowardCrimson(__result.colors.overlay, strength);
+        target.colors.sky = TintTowardCrimson(target.colors.sky, strength);
+        target.colors.overlay = TintTowardCrimson(target.colors.overlay, strength);
     }
 
     // Thin conversion boundary: unpack Unity's Color to primitives, let the pure BloodMoonMath core

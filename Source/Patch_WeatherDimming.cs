@@ -1,4 +1,3 @@
-using HarmonyLib;
 using Verse;
 
 namespace CelestialLighting;
@@ -23,16 +22,15 @@ namespace CelestialLighting;
 // ship skyColorsDay.sky = (1,1,1); every overcast/wet weather ships (0.8,0.8,0.8). We deepen that
 // existing 20% and make it scale with storm intensity rather than being a flat two-state step.
 //
-// ORDERING. Because this touches only .colors, it is order-independent against every other postfix
-// on CurSkyTarget and needs no HarmonyPriority: §7 writes .glow and never reads .colors; §2/§8/§11
+// ORDERING. Because this touches only .colors, it is order-independent against every other stage of
+// Patch_SkyTargetComposite: §7 writes .glow and never reads .colors; §2/§8/§11
 // blend .colors but recompute their own brightness from the solar simulator rather than reading
 // anything we write. §9 is the one patch that consumes our result, and it does so by calling
 // WeatherDimming.DimmingFor(map) itself rather than by observing a value we left behind — a shared
 // adapter read instead of an ordering dependency, which is what makes that coupling robust.
-[HarmonyPatch(typeof(WeatherWorker), nameof(WeatherWorker.CurSkyTarget))]
 public static class Patch_WeatherDimming
 {
-    static void Postfix(Map map, ref SkyTarget __result)
+    internal static void Apply(Map map, ref SkyTarget target)
     {
         // The feature gate lives inside WeatherDimming.DimmingFor, so "off" returns 0 here and the
         // early-return below makes it a true no-op — each WeatherDef's palette is left exactly as
@@ -45,10 +43,10 @@ public static class Patch_WeatherDimming
         // temperature and possibly §11's aurora or §12's blood-moon tint by now; scaling preserves
         // all of them and simply darkens whatever they produced, exactly as a cloud deck would.
         float tint = WeatherDimmingMath.SkyTintFactor(dimming);
-        __result.colors.sky = ScaleRgb(__result.colors.sky, tint);
-        __result.colors.overlay = ScaleRgb(__result.colors.overlay, tint);
+        target.colors.sky = ScaleRgb(target.colors.sky, tint);
+        target.colors.overlay = ScaleRgb(target.colors.overlay, tint);
 
-        // __result.glow is deliberately NOT touched — see the header. §9 gets its weather-aware
+        // target.glow is deliberately NOT touched — see the header. §9 gets its weather-aware
         // brightness from WeatherDimmingMath.ApparentGlow instead, which keeps the gameplay value
         // and the perceived value cleanly separate.
     }

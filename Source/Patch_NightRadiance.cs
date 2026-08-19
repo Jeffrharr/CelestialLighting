@@ -1,4 +1,3 @@
-using HarmonyLib;
 using RimWorld;
 using Verse;
 
@@ -13,7 +12,7 @@ namespace CelestialLighting;
 // so it composes cleanly under Patch_TwilightColor (§2), which warms .colors during the dusk/dawn
 // band *above* the horizon — the two never touch the same field in the same regime. Like §2, it
 // recomputes the sun's true elevation from our own shared simulator rather than reading
-// __result.glow, so night brightness tracks real celestial geometry rather than whatever an earlier
+// target.glow, so night brightness tracks real celestial geometry rather than whatever an earlier
 // postfix happened to leave in the field.
 //
 // Weather dimming genuinely is "a separate, later multiply on top", but not in the way an earlier
@@ -21,10 +20,9 @@ namespace CelestialLighting;
 // to 1.0 and is set exactly once across all vanilla XML (Odyssey's Overcast, 0.95) — see DESIGN.md
 // §13. §13 supplies that multiply on the COLOUR channel instead, deliberately leaving .glow alone so
 // gameplay lighting stays vanilla under every weather.
-[HarmonyPatch(typeof(WeatherWorker), nameof(WeatherWorker.CurSkyTarget))]
 public static class Patch_NightRadiance
 {
-    static void Postfix(Map map, ref SkyTarget __result)
+    internal static void Apply(Map map, ref SkyTarget target)
     {
         // Feature gate (default on): when off, leave vanilla's night glow floor untouched — the
         // faithful pre-feature baseline. Sits before the elevation lookup so "off" is a true no-op.
@@ -106,6 +104,6 @@ public static class Patch_NightRadiance
         // the moon as the dominant reflector) happen inside that read, so this patch needs no branch
         // of its own: it asks for the floor and blends toward it exactly as it always did.
         float nightGlow = NightRadiance.FloorGlowFor(map);
-        __result.glow = NightRadianceMath.ApplyNightFloor(__result.glow, sunElevation, nightGlow);
+        target.glow = NightRadianceMath.ApplyNightFloor(target.glow, sunElevation, nightGlow);
     }
 }

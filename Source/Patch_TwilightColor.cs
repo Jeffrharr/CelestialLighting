@@ -1,4 +1,3 @@
-using HarmonyLib;
 using RimWorld;
 using UnityEngine;
 using Verse;
@@ -21,12 +20,11 @@ namespace CelestialLighting;
 // through civil twilight (sun 0 to -6 degrees) the way real dusk does. Both pieces are colour-only
 // — this patch writes SkyTarget.colors and never SkyManager's glow, so night stays exactly as
 // dark as vanilla makes it (glow-reading mods such as Dub's Skylights see an unmodified value).
-[HarmonyPatch(typeof(WeatherWorker), nameof(WeatherWorker.CurSkyTarget))]
 public static class Patch_TwilightColor
 {
     private static readonly Color WarmTwilight = new Color(1f, 0.45f, 0.15f);
 
-    static void Postfix(Map map, ref SkyTarget __result)
+    internal static void Apply(Map map, ref SkyTarget target)
     {
         // Enclosed map (a Biomes! Caverns cavern, vanilla's undercave): there is no sky to
         // catch a sunset, so leave the def's palette exactly as its author wrote it. Sits before the
@@ -65,8 +63,8 @@ public static class Patch_TwilightColor
         if (twilightFactor <= 0f)
             return;
 
-        __result.colors.sky = Color.Lerp(__result.colors.sky, WarmTwilight, twilightFactor * 0.35f);
-        __result.colors.overlay = Color.Lerp(__result.colors.overlay, WarmTwilight, twilightFactor * 0.25f);
-        __result.colors.saturation = Mathf.Lerp(__result.colors.saturation, __result.colors.saturation * 1.4f, twilightFactor);
+        target.colors.sky = Color.Lerp(target.colors.sky, WarmTwilight, twilightFactor * 0.35f);
+        target.colors.overlay = Color.Lerp(target.colors.overlay, WarmTwilight, twilightFactor * 0.25f);
+        target.colors.saturation = Mathf.Lerp(target.colors.saturation, target.colors.saturation * 1.4f, twilightFactor);
     }
 }
