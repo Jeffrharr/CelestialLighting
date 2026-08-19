@@ -1,0 +1,647 @@
+{
+  "name": "perf_gates",
+  "saveFile": "minimal_colony.rws",
+  "requiredMods": {
+    "astryl.Circinus": "3773680130"
+  },
+  "description": "\u00a728 gate-memo measurement. Arms MapSky.AnyCondition -- the shared GameConditionManager chain walk under all four sky gates -- alongside the two narrow gates that sit on top of it and NightRadiance.VisualGlowFor, which is the caller that asks for both of them. The count on the WALK is the measurement; the counts on the gates are the control that says the callers did not stop asking. Wide tolerances on purpose: these pins exist to record a number in the report, not to assert one, because the value is what the A/B compares rather than a property to hold.",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "realistic_preset",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_cover_forced_overcast",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_sheet",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "15.0"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "anchor": "125,125",
+        "zoom": "38"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circinus_available",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "37",
+        "tolerance": "15"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_skyupdate_patched",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_skytarget_patched",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_clouddraw_patched",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_snowglare_patched",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_aurora_patched",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_lightoverlay_patched",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_sunshadows_patched",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_desat_patched",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_eaveshade_patched",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_blackedout_patched",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_hassky_patched",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_overlap_patched",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_dimming_patched",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_cloudopacity_patched",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_visualglow_patched",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_anycondition_patched",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_eclipseactive_patched",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_unnaturaldark_patched",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "TickLapse",
+      "args": {
+        "ticks": "10",
+        "steps": "120",
+        "fileNamePrefix": "perfgates",
+        "fps": "20"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circinus_cycles",
+        "expectedValue": "500",
+        "tolerance": "500"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_skyupdate_calls",
+        "expectedValue": "1000",
+        "tolerance": "1000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_skyupdate_total_ms",
+        "expectedValue": "500",
+        "tolerance": "500"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_skyupdate_max_ms",
+        "expectedValue": "50",
+        "tolerance": "50"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_skytarget_calls",
+        "expectedValue": "1000",
+        "tolerance": "1000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_skytarget_total_ms",
+        "expectedValue": "500",
+        "tolerance": "500"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_skytarget_max_ms",
+        "expectedValue": "50",
+        "tolerance": "50"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_clouddraw_calls",
+        "expectedValue": "1000",
+        "tolerance": "1000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_clouddraw_total_ms",
+        "expectedValue": "500",
+        "tolerance": "500"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_clouddraw_max_ms",
+        "expectedValue": "50",
+        "tolerance": "50"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_snowglare_calls",
+        "expectedValue": "1000",
+        "tolerance": "1000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_snowglare_total_ms",
+        "expectedValue": "500",
+        "tolerance": "500"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_snowglare_max_ms",
+        "expectedValue": "50",
+        "tolerance": "50"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_aurora_calls",
+        "expectedValue": "1000",
+        "tolerance": "1000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_aurora_total_ms",
+        "expectedValue": "500",
+        "tolerance": "500"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_aurora_max_ms",
+        "expectedValue": "50",
+        "tolerance": "50"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_lightoverlay_calls",
+        "expectedValue": "1000",
+        "tolerance": "1000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_lightoverlay_total_ms",
+        "expectedValue": "500",
+        "tolerance": "500"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_lightoverlay_max_ms",
+        "expectedValue": "50",
+        "tolerance": "50"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_sunshadows_calls",
+        "expectedValue": "1000",
+        "tolerance": "1000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_sunshadows_total_ms",
+        "expectedValue": "500",
+        "tolerance": "500"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_sunshadows_max_ms",
+        "expectedValue": "50",
+        "tolerance": "50"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_desat_calls",
+        "expectedValue": "1000",
+        "tolerance": "1000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_desat_total_ms",
+        "expectedValue": "500",
+        "tolerance": "500"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_desat_max_ms",
+        "expectedValue": "50",
+        "tolerance": "50"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_eaveshade_calls",
+        "expectedValue": "1000",
+        "tolerance": "1000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_eaveshade_total_ms",
+        "expectedValue": "500",
+        "tolerance": "500"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_eaveshade_max_ms",
+        "expectedValue": "50",
+        "tolerance": "50"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_blackedout_calls",
+        "expectedValue": "50000",
+        "tolerance": "50000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_blackedout_total_ms",
+        "expectedValue": "500",
+        "tolerance": "500"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_blackedout_max_ms",
+        "expectedValue": "50",
+        "tolerance": "50"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_hassky_calls",
+        "expectedValue": "50000",
+        "tolerance": "50000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_hassky_total_ms",
+        "expectedValue": "500",
+        "tolerance": "500"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_hassky_max_ms",
+        "expectedValue": "50",
+        "tolerance": "50"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_overlap_calls",
+        "expectedValue": "50000",
+        "tolerance": "50000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_overlap_total_ms",
+        "expectedValue": "500",
+        "tolerance": "500"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_overlap_max_ms",
+        "expectedValue": "50",
+        "tolerance": "50"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_dimming_calls",
+        "expectedValue": "50000",
+        "tolerance": "50000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_dimming_total_ms",
+        "expectedValue": "500",
+        "tolerance": "500"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_cloudopacity_calls",
+        "expectedValue": "50000",
+        "tolerance": "50000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_cloudopacity_total_ms",
+        "expectedValue": "500",
+        "tolerance": "500"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_visualglow_calls",
+        "expectedValue": "50000",
+        "tolerance": "50000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_visualglow_total_ms",
+        "expectedValue": "500",
+        "tolerance": "500"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_anycondition_calls",
+        "expectedValue": "50000",
+        "tolerance": "50000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_anycondition_total_ms",
+        "expectedValue": "500",
+        "tolerance": "500"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_eclipseactive_calls",
+        "expectedValue": "50000",
+        "tolerance": "50000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_eclipseactive_total_ms",
+        "expectedValue": "500",
+        "tolerance": "500"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_unnaturaldark_calls",
+        "expectedValue": "50000",
+        "tolerance": "50000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_unnaturaldark_total_ms",
+        "expectedValue": "500",
+        "tolerance": "500"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_visualglow_calls",
+        "expectedValue": "50000",
+        "tolerance": "50000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_visualglow_total_ms",
+        "expectedValue": "500",
+        "tolerance": "500"
+      }
+    }
+  ]
+}

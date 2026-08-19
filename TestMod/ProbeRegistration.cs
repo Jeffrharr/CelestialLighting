@@ -440,6 +440,20 @@ public static class ProbeRegistration
         ArmBank("circ_blackedout", "CelestialLighting.MapSky", "SkyBlackedOut");
         ArmBank("circ_hassky", "CelestialLighting.MapSky", "HasSky");
 
+        // The shared GameConditionManager chain walk itself, underneath all four gates. Armed because
+        // it is the only thing that can measure a memo ON a gate: memoising SkyBlackedOut or
+        // EclipseActive does not change how often the GATE is asked -- every caller still calls it --
+        // it changes how often the ask reaches the walk. An arm on the public gate would therefore
+        // report an unchanged call count across the exact change that removed the work, which reads
+        // as "the memo did nothing" and is the opposite of what happened.
+        //
+        // Private, and AccessTools.Method resolves it anyway. That is the reason to name the walk
+        // rather than the compute helpers above it: one arm covers all four gates, so the count is
+        // directly "chain walks this frame" and needs no summing across arms.
+        ArmBank("circ_anycondition", "CelestialLighting.MapSky", "AnyCondition");
+        ArmBank("circ_eclipseactive", "CelestialLighting.MapSky", "EclipseActive");
+        ArmBank("circ_unnaturaldark", "CelestialLighting.MapSky", "UnnaturalDarknessActive");
+
         // O(n^2) in sheet count, recomputed every frame from placements that only change once a TICK.
         // Cheap per call; the arm is here to say how many calls there are.
         ArmBank("circ_overlap", "CelestialLighting.CloudSheetLayout", "OverlapDepth");

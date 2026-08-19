@@ -1,6 +1,6 @@
 {
  "name": "perf_sweep",
- "saveFile": "minimal_colony.rws",
+ "saveFile": "minimal_colony.rws", "requiredMods": { "astryl.Circinus": "3773680130" },
  "description": "\u00a728 whole-mod cost sweep. Not a pass/fail test -- it is the BREAKDOWN that says which of our per-frame entry points is worth optimising, so almost every pin here is a wide-open tolerance whose only job is to record a number in the report. The three pins that are real: circinus_available 1, which fails the run loudly if Circinus is not in the mod list rather than reporting a table of zeros; sun_elevation, which fails if the clock moved under us and emptied the frames; and every *_patched 1, because Circinus sheds instrumentation on its own schedule and a shed arm reads zero calls exactly like an entry point that never ran. Driven by TickLapse rather than Profile or FastForward: a Circinus cycle is a RENDERED FRAME, so the window has to actually paint, and ticks have to elapse or the section bakes never re-dirty. Run with --no-profiler: Dubs instruments every Harmony patch in the load, which distorts exactly what this is trying to measure.",
  "steps": [
   {

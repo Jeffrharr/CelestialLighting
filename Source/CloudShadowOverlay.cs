@@ -56,6 +56,11 @@ public static class CloudShadowOverlay
         if (count <= 0)
             return;
 
+        // Built with the placements, once a tick, rather than by this lane for itself every
+        // frame -- see CloudSheetDraw.OverlapDepths. All three lanes read the same array, which
+        // is the same reason they read the same placements.
+        float[] depths = CloudSheetDraw.OverlapDepths;
+
         float altitude = AltitudeLayer.VisEffects.AltitudeFor();
 
         for (int i = 0; i < count; i++)
@@ -66,8 +71,7 @@ public static class CloudShadowOverlay
 
             // Stacked cloud casts a deeper shadow, capped — the same OverlapBoost §25 uses for its own
             // opacity, so a thick patch of sky and the dark patch under it come from one number.
-            float boost = CloudSheetMath.OverlapBoost(
-                CloudSheetLayout.OverlapDepth(placements, count, i));
+            float boost = CloudSheetMath.OverlapBoost(depths[i]);
 
             Material material = ShadowMats[i];
             material.mainTexture = CloudSheetOverlay.Atlas;

@@ -87,6 +87,11 @@ public static class CloudSheetOverlay
         if (count <= 0)
             return;
 
+        // Built with the placements, once a tick, rather than by this lane for itself every
+        // frame -- see CloudSheetDraw.OverlapDepths. All three lanes read the same array, which
+        // is the same reason they read the same placements.
+        float[] depths = CloudSheetDraw.OverlapDepths;
+
         // The colour ends and the gradient axis are read once per frame, not once per sheet: they are
         // properties of the sun, and every sheet is under the same one.
         SkyColorTemperature.Rgb hot = CloudLayers.HotTintFor(map);
@@ -137,8 +142,7 @@ public static class CloudSheetOverlay
 
             // Overlapping sheets read as thicker cloud rather than as one slightly more opaque one —
             // capped, or a busy sky becomes a white slab.
-            float boost = CloudSheetMath.OverlapBoost(
-                CloudSheetLayout.OverlapDepth(Placements, count, i));
+            float boost = CloudSheetMath.OverlapBoost(depths[i]);
 
             float underlit = CloudSheetMath.UnderlitFraction(
                 elevation, CloudDeckMath.ShadowEntryDegrees(placement.Deck));
