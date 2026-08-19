@@ -7951,6 +7951,51 @@ again, and the mask rendered **pixel-identical to vanilla with every probe healt
 the polygons must re-dirty the map afterwards. `EnsurePolygons` therefore reports whether it built
 anything, and both callers act on that.
 
+**Lamps and SUN shadows (`Tests/Scenarios/vector_light_sun_shadow.json`).** Whether a lamp lifts a
+sun shadow is decided entirely by draw order, and the answer differs per arm:
+
+| altitude | layer |
+|---|---|
+| 18 | `Shadows` — building sun shadows, baked into a section mesh |
+| 28 | `Pawn` |
+| 37 | `LightingOverlay` — what the mask edits |
+| 38 | `VisEffects` — where the beam draws |
+
+The beam sits above the shadow layer, so it lands on top of a sun shadow and lifts it. The mask
+cannot: it edits artificial light, and a sun shadow is not artificial light. Measured at dawn, a
+seven-cell wall throwing a long shadow with a torch inside it, averaged over a **fixed 9,449-pixel
+shadow set derived from the vanilla frame** so every arm is measured on the same pixels:
+
+| arm | shadow L\* | at the lamp | vs vanilla |
+|---|---|---|---|
+| vanilla | 26.69 | 27.19 | — |
+| crossfade @0.5 | 26.15 | 26.67 | **−0.54** |
+| mask alone | 26.67 | 27.19 | **−0.02** |
+| **mask + beam** | **29.31** | **29.94** | **+2.62** |
+
+So the combination gets this for free and neither of the others gets it at all — the mask does
+literally nothing (−0.02), and the crossfade makes the shadow slightly *darker*, because it halves
+vanilla's artificial light everywhere including inside the shadow while its own pass is too diffuse
+to make that back.
+
+**Pawns need nothing either, and for the same reason.** They draw at 28, *below* the lighting
+overlay, so the mask's per-cell edit lights them exactly as it lights the floor, and the beam at 38
+lifts a pawn standing in it. This is a property the additive-only arms never had: full §27 draws at
+38, **above** pawns, so its light lands on top of a pawn rather than lighting it.
+
+**The hour is measured, not chosen.** A sun shadow needs the sun up and the beam needs the sky down —
+`DaylightScale` is `1 − skyGlow` — so the two want opposite things. A quarter-hour survey put the
+usable window much wider than feared: at hour 4.5 the sun is 9.4° up and the beam still carries 71%
+of its strength. `limb_sun_elevation` is pinned at 9.40 next to the effect so a clock change fails
+loudly rather than quietly emptying the frames.
+
+**What this does not do** is make the shadow respond to *which* lamp can see it — the beam is simply
+additive light landing on top. A sun shadow that fades only where a lamp genuinely reaches needs the
+shadow's own shader to read a per-vertex light channel, because `Custom/Sun shadow`'s vertex alpha is
+the **extrusion length**, not darkness: writing a smaller alpha makes the shadow shorter, not
+lighter. That is a real feature and it needs #151's AssetBundle pipeline, and the mask is the only
+arm that could supply the per-cell occluded light figure it would consume.
+
 **Ships off**, like every other §27 phase, and stands down when the per-emitter arrays cannot be read.
 
 ### Performance (`Tests/Scenarios/vector_light_perf.json`)
