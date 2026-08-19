@@ -865,6 +865,70 @@ public static class VectorLightMath
         return Clamp01(1f - Clamp01(curSkyGlow));
     }
 
+    // How long a pawn's shadow is, in cells, when a lamp `distance` away lights it.
+    //
+    // GEOMETRY, NOT TASTE. A light of height h above the floor, a caster of height t, and a
+    // horizontal separation d put the shadow's tip at d * t / (h - t) — similar triangles, the same
+    // relation §27's penumbra wedges already use for source size. The lamp is treated as being
+    // LampHeight above the floor; closer than that and the shadow would invert through infinity,
+    // which is why the denominator is clamped rather than allowed to reach zero.
+    //
+    // The consequence is the thing that makes it read as light rather than as decoration: length
+    // grows with d, so a pawn standing under a lamp has almost no shadow and one at the edge of its
+    // reach throws a long one — the same relation that makes a low sun throw long shadows, which is
+    // why it looks right without anyone being told what it is doing. Vanilla's own pawn shadow
+    // cannot do this at all: its direction and length come from one global _CastVect that every
+    // shadow on the map shares.
+    public static float PawnShadowLength(float distance, float casterHeight, float lampHeight)
+    {
+        float headroom = lampHeight - casterHeight;
+
+        if (headroom < MinLampHeadroom)
+            headroom = MinLampHeadroom;
+
+        float length = distance * casterHeight / headroom;
+
+        return length > MaxPawnShadowLength ? MaxPawnShadowLength : length;
+    }
+
+    // How dark a pawn's shadow from this lamp is, in [0, 1].
+    //
+    // Three things multiply, and each is there for a reason a screenshot would otherwise ask about:
+    //
+    //  - The lamp's own falloff, so a shadow fades out exactly where the light that casts it does.
+    //    A shadow that stayed crisp to the rim of a lamp's reach reads as a decal.
+    //  - The share of the pawn's cell the lamp can actually SEE, which is §27's coverage grid. A
+    //    pawn behind a wall must not cast a shadow from a lamp that cannot reach it — and nothing
+    //    else in the mod can answer that question, which is why this feature wants the mask.
+    //  - Daylight, on the same reasoning as DaylightScale: a torch at noon casts nothing anyone can
+    //    see, and drawing it anyway is how an effect starts looking like a bug.
+    public static float PawnShadowOpacity(
+        float distance, float radius, float coverage, float curSkyGlow)
+    {
+        float lit = Falloff(distance, radius) * Clamp01(coverage) * DaylightScale(curSkyGlow);
+
+        return Clamp01(lit * PawnShadowStrength);
+    }
+
+    // Which way the shadow points: directly away from the lamp, in radians, ready for a rotation
+    // about Y. The mesh is baked extruded along +X, so this IS the transform — there is no
+    // per-frame mesh rebuild and no per-draw shader global, which there could not be anyway:
+    // Graphics.DrawMesh is deferred, so a global set between calls applies to whichever call
+    // resolves last. VectorLightOverlay's header records the same trap costing §17 a branch.
+    public static float PawnShadowAngleDegrees(float lightX, float lightZ, float pawnX, float pawnZ)
+    {
+        float dx = pawnX - lightX;
+        float dz = pawnZ - lightZ;
+
+        if (dx == 0f && dz == 0f)
+            return 0f;
+
+        // Negated because Unity's Y rotation runs clockwise from +Z while atan2 runs anticlockwise
+        // from +X. Getting this wrong points every shadow at its lamp instead of away from it, which
+        // looks deliberate enough to survive a glance.
+        return -(float)(Math.Atan2(dz, dx) * 180.0 / Math.PI);
+    }
+
     // One emitter's cell coverage, baked once per polygon instead of per section.
     //
     // WHY THIS EXISTS: 239 MICROSECONDS PER SECTION. Phase 3 first asked LitFraction per cell per
@@ -981,6 +1045,39 @@ public static class VectorLightMath
     // one means the beam's lift is a quantity already lived with rather than a fresh guess, and it
     // makes the combination directly comparable to the crossfade it is trying to beat.
     public const float MaskBeamStrength = DefaultStrength * (1f - DefaultVanillaFloor);
+
+    // How high a lamp sits above the floor, in cells, for shadow-length purposes. A torch is about
+    // a pawn and a half; the number is a look choice within a physical relation rather than a
+    // measurement, and it is the one knob that changes how dramatic these shadows are.
+    public const float DefaultLampHeight = 2.4f;
+
+    // A pawn's height as a caster, in cells.
+    public const float DefaultPawnHeight = 1.2f;
+
+    // Never divide by less than this. A pawn taller than the lamp would otherwise throw a shadow
+    // through infinity and back, which renders as a bar across the whole map for one frame.
+    public const float MinLampHeadroom = 0.35f;
+
+    // Shadows stop growing here however close the lamp gets. Without a cap, a pawn standing ON a
+    // lamp's cell casts an arbitrarily long shadow, and the cap is cheaper than special-casing it.
+    public const float MaxPawnShadowLength = 6f;
+
+    // How dark a fully lit, fully seen pawn shadow gets at most.
+    //
+    // CALIBRATED TWICE, IN OPPOSITE DIRECTIONS, which is worth recording because the first move was
+    // a reaction to the wrong cause. At 0.55 through MatBases.SunShadowFade this rendered as an
+    // opaque black box, so it was cut to 0.26 — but the box was the MATERIAL ignoring alpha, not the
+    // constant being too high. Once the draw moved to a solid-colour material that honours alpha,
+    // 0.26 read as barely there and the constant had to come most of the way back.
+    //
+    // The edge is still hard: a flat polygon has no gradient in it, and vertex colour cannot supply
+    // one here either — SolidColor ignores it, and the shadow material that reads it spends the
+    // alpha channel on extrusion. A genuinely soft edge needs a shader of our own, which is #151's
+    // bundle. Recorded rather than attempted.
+    //
+    // Still well under 1, because these stack one per lamp: two torches either side of a pawn should
+    // read as two soft shadows rather than as a black cross.
+    public const float PawnShadowStrength = 0.5f;
 
     // How many samples per axis the cell-coverage test takes. Four samples over a cell is enough to
     // resolve the quarter-cell steps the lighting overlay's own bilinear interpolation can express,

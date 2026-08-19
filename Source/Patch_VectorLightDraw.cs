@@ -43,5 +43,10 @@ public static class Patch_VectorLightDraw
             map.mapDrawer?.WholeMapChanged((ulong)MapMeshFlagDefOf.GroundGlow);
 
         VectorLightOverlay.Draw(map);
+
+        // After the light, and on the same hook for the same reason: this is a per-frame draw whose
+        // cost is proportional to what is on screen, and it needs the polygons the call above has
+        // just made sure exist.
+        VectorLightPawnShadows.Draw(map);
     }
 }
