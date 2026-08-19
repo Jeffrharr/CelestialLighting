@@ -1,0 +1,312 @@
+{
+  "name": "vector_light_sun_survey",
+  "saveFile": "minimal_colony.rws",
+  "description": "Dawn survey at quarter-hour resolution for the window where a sun shadow and a lamp are both visible. Sun shadows need the sun up; 27's beam fades on DaylightScale = 1 - skyGlow and is gone at full day, so the two want opposite things and the usable window is narrow. ambient_ground_glow stands in for skyGlow at an unroofed cell. An hourly grid would step straight over this.",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "2.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "ambient_ground_glow",
+        "expectedValue": "0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "2.25"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "ambient_ground_glow",
+        "expectedValue": "0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "2.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "ambient_ground_glow",
+        "expectedValue": "0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "2.75"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "ambient_ground_glow",
+        "expectedValue": "0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "3.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "ambient_ground_glow",
+        "expectedValue": "0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "3.25"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "ambient_ground_glow",
+        "expectedValue": "0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "3.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "ambient_ground_glow",
+        "expectedValue": "0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "3.75"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "ambient_ground_glow",
+        "expectedValue": "0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "4.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "ambient_ground_glow",
+        "expectedValue": "0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "4.25"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "ambient_ground_glow",
+        "expectedValue": "0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "4.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "ambient_ground_glow",
+        "expectedValue": "0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "4.75"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "ambient_ground_glow",
+        "expectedValue": "0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "5.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "limb_sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "ambient_ground_glow",
+        "expectedValue": "0",
+        "tolerance": "1000000000.0"
+      }
+    }
+  ]
+}
