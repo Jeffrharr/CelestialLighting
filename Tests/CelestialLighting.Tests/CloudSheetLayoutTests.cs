@@ -290,12 +290,11 @@ public class CloudSheetLayoutTests
         });
     }
 
-    // Both layouts draw sheets that span most of the map — which is the property BaseSizeFraction
-    // was chosen for, that a cloud whose edges leave the view reads as something overhead. §25d no
-    // longer changes it, so this now pins that the two AGREE, and the difference between them is
-    // entirely the count.
+    // §25d's sheet is smaller than §25b's but still large enough to feel overhead, which is the
+    // narrow band both failures sit outside of: at full size a few sheets overlap into one flat
+    // wash, and at a fifth they read as puffs rather than as weather.
     [Test]
-    public void BothLayoutsUseTheSameSheetSize()
+    public void APresentSheetIsSmallerButStillOverhead()
     {
         CloudSheetLayout.Placement shipped = CloudSheetLayout.PlacementFor(
             0, Seed, 0, MapX, MapZ, LowDeckOnly);
@@ -306,8 +305,9 @@ public class CloudSheetLayoutTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(present.Size, Is.EqualTo(shipped.Size).Within(1e-3f));
-            Assert.That(present.Size, Is.GreaterThan(shorter * 0.4f));
+            Assert.That(present.Size, Is.LessThan(shipped.Size));
+            Assert.That(present.Size, Is.GreaterThan(shorter * 0.25f),
+                "smaller than this and a cloud reads as a puff on the ground rather than weather above it");
         });
     }
 }

@@ -63,6 +63,11 @@ public class CelestialLightingSettings : ModSettings
     // riding the master. See CelestialLightingFeatures.CloudSheet.
     public bool cloudSheet = true;
 
+    // §25c: the volumetric renderer for the sheets above. Default true — see
+    // CelestialLightingFeatures.CloudVolume for why it ships on with the baked path as the
+    // performance option rather than the other way round.
+    public bool cloudVolume = true;
+
     public bool eaveShadows = true;
 
     // --- Night-radiance tunables (drive NightRadianceSettings.Current) ---
@@ -175,6 +180,7 @@ public class CelestialLightingSettings : ModSettings
         CelestialLightingFeatures.CloudCover = cloudCover;
         CelestialLightingFeatures.CloudCoverLabel = cloudCoverLabel;
         CelestialLightingFeatures.CloudSheet = cloudSheet;
+        CelestialLightingFeatures.CloudVolume = cloudVolume;
         CelestialLightingFeatures.EaveShadows = eaveShadows;
         // One player-facing switch drives both halves of §15 — the split flag exists only so the
         // harness can isolate them (see CelestialLightingFeatures.EaveShade). A shipped game must
@@ -244,6 +250,7 @@ public class CelestialLightingSettings : ModSettings
         Scribe_Values.Look(ref cloudCover, "cloudCover", true);
         Scribe_Values.Look(ref cloudCoverLabel, "cloudCoverLabel", true);
         Scribe_Values.Look(ref cloudSheet, "cloudSheet", true);
+        Scribe_Values.Look(ref cloudVolume, "cloudVolume", true);
         Scribe_Values.Look(ref skyColorTemperature, "skyColorTemperature", true);
         Scribe_Values.Look(ref polarNightBlue, "polarNightBlue", true);
         Scribe_Values.Look(ref polarNightBlueStrength, "polarNightBlueStrength", 1f);

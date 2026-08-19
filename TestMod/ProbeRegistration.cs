@@ -525,10 +525,12 @@ public static class ProbeRegistration
         // §25c's raymarched cloud volume. Registered with the THREE-arg overload and defaultEnabled
         // FALSE, because it ships off — the two-arg overload would leave every later scenario in a
         // suite running the shader after a ResetAll and quietly change what their frames cost.
+        // §25c now ships ON, so it takes the two-arg overload like every other shipped feature. A
+        // ResetAll between scenarios in a suite restores TRUE; registering it false would leave every
+        // later scenario measuring the flat renderer without saying so.
         FeatureRegistry.Register(
             CelestialLightingFeatures.CloudVolumeKey,
-            enabled => CelestialLightingFeatures.CloudVolume = enabled,
-            defaultEnabled: false);
+            enabled => CelestialLightingFeatures.CloudVolume = enabled);
         // §25d, which unlike §25c beside it ships ON — so it takes the two-arg overload, and a
         // ResetAll between scenarios in a suite restores TRUE. Getting that wrong would leave every
         // later scenario measuring the invisible pre-#144 cloud without saying so.

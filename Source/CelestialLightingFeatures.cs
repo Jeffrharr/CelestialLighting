@@ -515,19 +515,24 @@ public static class CelestialLightingFeatures
     // §25c (issue #144): whether the drawn cloud sheet is RAYMARCHED per pixel through a baked 3-D
     // density volume, or drawn as §25b's flat quad wearing a baked 2-D atlas.
     //
-    // SHIPS OFF, and it is the first flag here that is off because of what it COSTS rather than
-    // because of what it looks like. It is 192 volume fetches per fragment on a sheet that can cover
-    // a third of the screen, and it is the mod's only custom shader — so it needs a real GPU budget
-    // before it can be a default, and on a machine where the shader will not load it is unreachable
-    // anyway (CloudVolumeShader.Available is checked ahead of this flag, not after it).
+    // SHIPS ON, with the baked atlas as the PERFORMANCE OPTION behind it rather than as the default.
+    // The march is 192 volume fetches per fragment on the GPU, and the CPU it adds is eight uniform
+    // writes per sheet per frame, which the analyzer reports as approximately free. Frame time at
+    // 1080p measured inside the noise band across three alternating repeats at two zooms — though
+    // the frame is CPU-bound near 5 ms there, so that is a statement about this machine and not a
+    // promise about every card. A player who is GPU-bound turns it off and gets §25b.
     //
-    // OFF REPRODUCES §25b EXACTLY, byte for byte, and not merely "no clouds". Both paths take the
-    // same placements, the same deck, the same overlap boost, the same illumination and the same
-    // alpha — CloudSheetOverlay computes all of that before either renderer is chosen. The single
-    // difference between an on frame and an off frame is whether that one colour was multiplied into
-    // a baked texture or interpolated toward at every step of a march, which is what makes the A/B
-    // measure the renderer instead of measuring the cloud lane's existence.
-    public static bool CloudVolume = false;
+    // IT DEGRADES TO §25b ON ITS OWN, without this flag, wherever it cannot run: a missing
+    // AssetBundle, a shader the card will not compile, a graphics API without 3-D textures.
+    // CloudSheetOverlay checks CloudVolumeShader.Available AHEAD of this flag, so "on" never means
+    // an empty sky.
+    //
+    // OFF REPRODUCES §25b EXACTLY, and not merely "no clouds". Both paths take the same placements,
+    // deck, overlap boost, illumination and alpha — all of it computed before either renderer is
+    // chosen — and §25c's extinction is calibrated so its column alpha matches the atlas's deck for
+    // deck (1.03 / 0.95 / 0.98). So the flag switches the RENDERER and nothing else, which is what
+    // makes it a real A/B rather than a change of how much sky got covered.
+    public static bool CloudVolume = true;
 
     // Feature key for AxialTiltLunarGeometry (see CivilTwilightPersistenceKey for why it lives here).
     public const string AxialTiltLunarGeometryKey = "axial_tilt_lunar_geometry";
