@@ -497,6 +497,20 @@ public static class ProbeRegistration
         ArmBank("circ_sheetalpha", "CelestialLighting.CloudLayers", "SheetAlphaFor");
         ArmBank("circ_hottint", "CelestialLighting.CloudLayers", "HotTintFor");
 
+        // §28 step 5: the shader-uniform writer under VolumeSheet, and the one arm in this bank that
+        // is honest as an A/B rather than only as a share.
+        //
+        // The general objection to arming a child and then optimising it is that the optimisation
+        // removes CALLS, so the arm's own per-call transpile overhead falls with them and the fix is
+        // credited with deleting its own instrumentation. That does not apply here: the §28 memo
+        // inside Configure removes native `Material.Set*` calls from WITHIN the method and leaves the
+        // number of times Configure itself is entered exactly where it was, at one per drawn sheet
+        // per frame. Instrumentation cost per call is therefore identical between the two builds, and
+        // circ_configure_calls is the pin that says so -- an A/B where that number moved would be
+        // comparing two different amounts of instrumentation and its TotalMs delta would mean
+        // nothing.
+        ArmBank("circ_configure", "CelestialLighting.CloudVolumeShader", "Configure");
+
         // Inertness guard for the removed across-map shadow tilt (issues #11, #26). These three
         // originally asked "does §3's gradient actually render?"; now they assert it does NOT, at
         // both ends of the shadow axis. Still three probes because a ratio alone cannot say whether

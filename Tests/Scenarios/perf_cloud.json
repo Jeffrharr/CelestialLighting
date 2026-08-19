@@ -4,7 +4,7 @@
  "requiredMods": {
   "astryl.Circinus": "3773680130"
  },
- "description": "\u00a728 step 4: where CloudSheetOverlay.Draw's ~80 us/call goes. Shares, not absolutes -- eight simultaneous arms put Circinus's per-call transpile cost in every row. The parent arm is kept so the children can be summed against it; an unexplained gap is a finding in itself. REQUIREDMODS IS LOAD-BEARING HERE, and its absence is why this file could not measure anything as first committed: every arm in it is a Circinus arm, and with Circinus not in the run's mod list circinus_available reads 0, every timing reads 0, and the wide recording tolerances on the _calls and _total_ms pins let all of them PASS. Only circinus_available and the _patched pins fail, which is exactly what they are there for -- a table of zeros must not be readable as a fast mod. CIRC_DECKILLUM IS ALSO GONE, for a different reason. CloudSheetMath.DeckIllumination has two overloads, so AccessTools.Method by name alone throws Ambiguous match and Circinus can never arm it -- which made circ_deckillum_patched a pin that could not pass and this file therefore a scenario that always reported FAIL however healthy the run. A gate that always fails is a gate nobody reads. The arm stays registered in ProbeRegistration so it can be pinned again the day CircinusProbe learns to take parameter types; until then the cost it would have measured is still inside circ_clouddraw.",
+ "description": "\u00a728 step 4: where CloudSheetOverlay.Draw's ~80 us/call goes. Shares, not absolutes -- eight simultaneous arms put Circinus's per-call transpile cost in every row. The parent arm is kept so the children can be summed against it; an unexplained gap is a finding in itself. \u00a728 step 5 adds circ_configure, the shader-uniform writer under VolumeSheet. It is the one arm here that reads as an A/B and not only as a share: the memo it measures removes native Material.Set* calls from inside the method without changing how many times the method is entered, so Circinus's per-call overhead is identical between the two builds. Pin circ_configure_calls alongside the timing -- if the call count moved, the two runs carried different amounts of instrumentation and the TotalMs delta is not attributable. REQUIREDMODS IS LOAD-BEARING HERE, and its absence is why this file could not pass as first committed: every arm in it is a Circinus arm, and with Circinus not in the run's mod list circinus_available reads 0, every timing reads 0, and the wide tolerances on the _calls and _total_ms pins let all of them PASS while measuring nothing. Only circinus_available and the _patched pins fail, which is exactly what they are there for -- a table of zeros must not be readable as a fast mod. CIRC_DECKILLUM IS NOT PINNED HERE, and its absence is deliberate rather than an oversight. CloudSheetMath.DeckIllumination has two overloads, so AccessTools.Method by name alone throws Ambiguous match and Circinus can never arm it -- which made circ_deckillum_patched a pin that could not pass, and this file therefore a scenario that always reported FAIL however healthy the run. A gate that always fails is a gate nobody reads. The arm stays registered in ProbeRegistration so the day CircinusProbe learns to take parameter types it can be pinned again; until then the cost it would have measured is still inside circ_clouddraw.",
  "steps": [
   {
    "type": "SetTile",
@@ -142,6 +142,14 @@
    "type": "Probe",
    "args": {
     "probeName": "circ_overlap_patched",
+    "expectedValue": "1",
+    "tolerance": "0.001"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circ_configure_patched",
     "expectedValue": "1",
     "tolerance": "0.001"
    }
@@ -287,6 +295,22 @@
    "type": "Probe",
    "args": {
     "probeName": "circ_overlap_total_ms",
+    "expectedValue": "500",
+    "tolerance": "500"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circ_configure_calls",
+    "expectedValue": "50000",
+    "tolerance": "50000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circ_configure_total_ms",
     "expectedValue": "500",
     "tolerance": "500"
    }
