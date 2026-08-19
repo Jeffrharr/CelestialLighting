@@ -782,6 +782,57 @@ public static class CelestialLightingFeatures
     // new OBJECT rather than changing the colour of an existing one — the same reasoning that
     // gives §25's visible clouds their own switch rather than riding the master.
     public static bool VectorLightPawnShadows = true;
+
+    // Feature key for VectorLightOpenDoors.
+    public const string VectorLightOpenDoorsKey = "vector_light_open_doors";
+
+    // §27e: an OPEN door stops occluding §27's rays, so light spills through a doorway a pawn is
+    // standing in. Shut doors are untouched, and so is every wall.
+    //
+    // THIS IS A DELIBERATE DISAGREEMENT WITH GAMEPLAY LIGHT, and the only flag in the mod that is.
+    // RimWorld's glow grid never learns a door opened: Building.SpawnSetup writes def.blockLight into
+    // lightBlockers once at spawn, and Building_Door.DoorOpen touches the grid not at all. So with
+    // this on, we draw a beam through an open door that vanilla does not deliver — GroundGlowAt still
+    // reads dark there, plants still do not grow, pawns still cannot see.
+    //
+    // WHY THAT IS ALLOWED HERE. §27's contract is that it changes only what is RENDERED (see
+    // VectorLights above: gameplay light is identical with it on or off). This flag keeps that
+    // contract exactly — it takes no gameplay light away and adds none. It renders the visual half of
+    // a rule vanilla only ever implemented in the gameplay half, which is the same licence every
+    // other §27 phase runs on, applied to a term vanilla left out rather than to one it got coarse.
+    //
+    // AND WHY IT IS STILL OFF BY DEFAULT. §27's other knowing divergence — VectorLightBlockers
+    // treating a light's own cell as open — is static, one cell, and always keeps a lit thing lit.
+    // This one is beam-sized and blinks as pawns walk through, which is the most visible kind of
+    // disagreement there is. Issue #48 records the opposite sign of the same mistake. Whether it
+    // reads as "light spills out when the door opens" or as "the lighting is glitching" is a taste
+    // call that has to be lived with, so it is opt-in, and VectorLightDoorGlowBlocker below exists to
+    // measure the coherent alternative against it in the same boot.
+    public static bool VectorLightOpenDoors = false;
+
+    // Feature key for VectorLightDoorGlowBlocker.
+    public const string VectorLightDoorGlowBlockerKey = "vector_light_door_glow_blocker";
+
+    // The COMPARISON ARM for the flag above, and the line the rest of the mod does not cross: instead
+    // of drawing light vanilla does not deliver, make vanilla deliver it — call
+    // GlowGrid.LightBlockerRemoved when a door opens and LightBlockerAdded when it shuts, so the glow
+    // grid itself learns about open doors and gameplay light changes to match.
+    //
+    // THIS IS GAMEPLAY LIGHT. Plant growth, work speed, pawn vision and every mod reading
+    // GroundGlowAt all move with it. That is precisely why it exists as a separate flag rather than
+    // as an implementation detail of the one above: the two are alternative answers to "which
+    // authority wins", and the only honest way to choose is to render both and look.
+    //
+    // Requires vector_light_open_doors to be meaningful in a screenshot — on its own it changes
+    // vanilla's flood without changing our polygon, which is a third thing again, and worth being
+    // able to shoot too.
+    //
+    // KNOWN ROUGH EDGE, recorded rather than papered over: a door that was open when the game was
+    // saved comes back with openInt true but no DoorOpened event, so the blocker bit is whatever
+    // SpawnSetup wrote and the grid disagrees with the door until it is next used. lightBlockers is a
+    // bit array rather than a counter, so nothing accumulates and the state self-heals on the next
+    // open or close — acceptable for a flag that exists to be measured against, not shipped.
+    public static bool VectorLightDoorGlowBlocker = false;
 }
 
 public enum SunClockMode

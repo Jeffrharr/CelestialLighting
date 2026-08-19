@@ -1,3 +1,4 @@
+using RimWorld;
 using Verse;
 
 namespace CelestialLighting;
@@ -65,9 +66,27 @@ public static class VectorLightBlockers
         }
     }
 
+    // The per-cell occlusion question. The rule itself lives in DoorOcclusionMath so it can be
+    // exhausted offline; everything here is the reading of live state that a pure function cannot do.
+    //
+    // The Building_Door cast is the only new work per cell, and it is a type check on a reference we
+    // had already fetched — no grid lookup, no allocation. Building_Door rather than an interface or
+    // a def flag because `Open` is where vanilla itself keeps the answer, and every modded door worth
+    // supporting derives from it (Steve's Doors' Building_UnmirroredDoor does, so its glass doors and
+    // its opaque ones both answer correctly without a compat entry).
     private static bool BlocksLight(EdificeGrid edifices, IntVec3 cell)
     {
         Building edifice = edifices[cell];
-        return edifice != null && edifice.def != null && edifice.def.blockLight;
+        if (edifice == null || edifice.def == null)
+        {
+            return false;
+        }
+
+        Building_Door door = edifice as Building_Door;
+        return DoorOcclusionMath.Occludes(
+            edifice.def.blockLight,
+            door != null,
+            door != null && door.Open,
+            CelestialLightingFeatures.VectorLightOpenDoors);
     }
 }
