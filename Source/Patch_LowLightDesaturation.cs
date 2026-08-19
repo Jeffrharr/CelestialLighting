@@ -53,18 +53,21 @@ public static class Patch_LowLightDesaturation
         // timing anchored to true sun position): here we *want* the actual displayed brightness,
         // because a darker scene genuinely pushes vision further into rod territory.
         //
-        // KNOWN WRONG ORDER, NOT YET FIXED. This comment used to continue "by the time this runs, §7
-        // has already replaced the below-horizon glow with its starlight + airglow + moonlight floor,
-        // so a full-moon night lands lower on the ramp (less shift) than a new-moon one". It has
-        // never been true in a shipped build. §7's night floor is applied by Patch_NightRadiance,
-        // which sorted AFTER this one under the alphabetical order the fourteen separate CurSkyTarget
-        // postfixes composed in, and Patch_SkyTargetComposite preserves that order exactly so the
-        // merge into one postfix could be provably inert. So what is read here is vanilla's raw
-        // below-horizon glow — near zero under every moon phase alike — and the moon-phase dependence
-        // described above simply is not present.
+        // ORDER-DEPENDENT, AND THE DEPENDENCY IS ENFORCED BY Patch_SkyTargetComposite. By the time this
+        // runs, §7 has already replaced the below-horizon glow with its starlight + airglow + moonlight
+        // floor, so a full-moon night lands lower on the ramp (less shift) than a new-moon one. That is
+        // true because the composite calls this stage directly after Patch_NightRadiance and says so —
+        // it is NOT true of alphabetical order, which is what the fourteen separate CurSkyTarget
+        // postfixes used to compose in, and under which this ran BEFORE §7 and read vanilla's raw
+        // below-horizon glow. The moon-phase dependence described above did not exist in any shipped
+        // build before that move; see DESIGN.md §29 for the measurement.
         //
-        // Moving this stage after §7 is a real visual change at night and is owed its own measured
-        // A/B rather than a free ride on a refactor. See Patch_SkyTargetComposite's ordering note.
+        // Two other readers of this same quantity had always been on the correct side of §7 and so had
+        // been reporting a value this patch was not using: PurkinjeProbe and §9's own wash
+        // (Patch_NightDesaturationStrength) both read the FINAL composed glow off SkyManager. Sitting
+        // after §7 is what makes the patch, the probe and the wash agree — the shared-read discipline
+        // the rest of the mod uses, restored here by sequence because this one genuinely needs the
+        // composed value rather than an adapter's.
         //
         // Then attenuate by §13's weather dimming to get the APPARENT brightness — the seam that
         // finally makes this patch's original promise true. It was written believing target.glow

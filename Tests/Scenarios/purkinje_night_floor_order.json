@@ -1,0 +1,28 @@
+{
+  "name": "purkinje_night_floor_order",
+  "saveFile": "minimal_colony.rws",
+  "description": "§29's §9-after-§7 ordering fix. Patch_LowLightDesaturation keys its rod-vision ramp on __result.glow, and §7's Patch_NightRadiance is what writes the starlight+airglow+MOONLIGHT floor into that field. Under the alphabetical order the fourteen separate CurSkyTarget postfixes composed in, §9 ran BEFORE §7 and read vanilla's raw below-horizon glow -- near zero under every moon phase alike -- so the moon-phase dependence §9's own header describes never existed. Conditions are lifted from purkinje.json (latitude 20, day 40) because its pins already establish where the moon does and does not lift the floor: hour 2 reads purkinje 0.567, i.e. the moon is up and the floor is materially above zero, which is the ONLY regime where the two orders can differ. Hour 23 reads exactly 1.0 -- glow is at or below FullGlow with the floor either way -- and is carried as the control that MUST stay at deltaE 0, because an ordering fix that moved a frame where the ramp is saturated would mean something other than the ramp had moved. Realistic preset is set explicitly: Cinematic's minNightBrightness 0.50 dwarfs every night floor and would make both arms pixel-identical for the wrong reason.",
+  "steps": [
+    { "type": "SetTile",    "args": { "latitude": "20" } },
+    { "type": "SetSeason",  "args": { "dayOfYear": "40" } },
+    { "type": "SetFeature", "args": { "featureName": "realistic_preset", "enabled": "true" } },
+    { "type": "SetWeather", "args": { "weatherDef": "Clear", "instant": "true" } },
+    { "type": "LookAt",     "args": { "anchor": "125,125", "zoom": "38" } },
+
+    { "type": "SetTime",    "args": { "hour": "12" } },
+    { "type": "Wait",       "args": { "frames": "30" } },
+    { "type": "Screenshot", "args": { "fileName": "pnfo_discard_hud" } },
+
+    { "type": "SetTime",    "args": { "hour": "23" } },
+    { "type": "Wait",       "args": { "frames": "30" } },
+    { "type": "Probe",      "args": { "probeName": "sun_elevation", "expectedValue": "-50.9139", "tolerance": "0.05" } },
+    { "type": "Probe",      "args": { "probeName": "purkinje", "expectedValue": "1.0", "tolerance": "0.005" } },
+    { "type": "Screenshot", "args": { "fileName": "pnfo_control_h23" } },
+
+    { "type": "SetTime",    "args": { "hour": "2" } },
+    { "type": "Wait",       "args": { "frames": "30" } },
+    { "type": "Probe",      "args": { "probeName": "sun_elevation", "expectedValue": "-34.3992", "tolerance": "0.05" } },
+    { "type": "Probe",      "args": { "probeName": "purkinje", "expectedValue": "0.518829", "tolerance": "0.005" } },
+    { "type": "Screenshot", "args": { "fileName": "pnfo_moonlit_h02" } }
+  ]
+}
