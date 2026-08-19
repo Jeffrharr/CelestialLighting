@@ -8136,6 +8136,50 @@ predicted 10.9 at the same clock reading, so the sun clock is not a bare fractio
 predicted pin would have failed a correct build. `vector_light_pawn_anchor_z` and `vector_light_pawn_width` pin the
 rectangle itself — **both**, because they failed independently and either alone passes on half a fix.
 
+#### Which pawns cast at all (issue #159, second half)
+
+§27 renders a shadow vanilla does not in exactly one place — under a roof, because `Graphic_Shadow`
+bails on roofed cells and "sunlight does not get in" says nothing about a torch. That divergence is
+deliberate and is the point of the feature. The four *other* suppressions vanilla applies have
+nothing to do with sunlight, and skipping them was not a decision, it was simply not asking:
+
+- **Not standing.** `PawnRenderer.RenderPawnAt` only calls `DrawShadowInternal` when
+  `results.posture == PawnPosture.Standing`. A pawn bleeding out on the floor is not a 1.2-cell-tall
+  caster, and drawing them as one puts a full-height shadow beside a visibly flat body.
+- **Psychically invisible.** `pawn.IsPsychologicallyInvisible()` is what sets
+  `PawnRenderFlags.Invisible`, the other half of that same test. **This is the clause with actual
+  gameplay consequence**: a shadow is the one thing that gives an invisible pawn away, and §27 is
+  render-only by charter, so handing the player a tell vanilla does not is exactly what that scope
+  boundary forbids.
+- **Swimming.** `DrawShadowInternal` returns before any shadow for `Swimming ||
+  DrawNonHumanlikeSwimmingGraphic` — the pawn is drawn part-submerged and a full blob beside them
+  reads as floating.
+- **Flying.** Vanilla does not suppress this one, it *substitutes*: a soft circle at
+  `AltitudeLayer.Filth`, offset by the flight arc. §27 has no equivalent, and inventing one is a
+  different feature, so it draws nothing rather than stamping a ground-caster's shadow under a pawn
+  in the air.
+
+`VectorLightMath.PawnCastsShadow` is the policy as one expression; `VectorLightPawnShadows
+.CastsShadow` is the four live reads that feed it, each the read vanilla itself uses rather than
+something that merely correlates (`GetPosture()`, not `Downed`).
+
+**What a live capture can and cannot carry.** `vector_light_pawn_shadow_states.json` puts three
+colonists in one torch's reach with the sun up at 5.29°, which makes it a test of *agreement* rather
+than of absence: an upright colonist carries a sun shadow and a lamp shadow, and a downed one carries
+neither. Before the gate, the anaesthetised pawn threw a standing-height lamp shadow while vanilla
+gave them no sun shadow at all — the two subsystems visibly disagreeing about the same pawn in the
+same frame. Median CIELAB ΔE over the shadow that vanished is **5.78** (p90 6.10), and it goes from
+532 px to 0.
+
+The other three clauses are **offline only, and the invisibility one is worth saying why.** Applying
+`PsychicInvisibility` does not make a pawn invisible: `HediffComp_Invisibility` only flips over when
+something calls `BecomeInvisible()`, which is the psycast's job, and no number of ticks substitutes —
+`CompPostTick`'s own write to `lastBecameInvisibleTick` sits inside a branch that already requires
+the pawn to be invisible. The scenario keeps a pawn carrying that hediff anyway, as a **control**
+that must retain both shadows, which is what catches an implementation suppressing on the mere
+presence of a hediff. Swimming needs water plus a live job and flying needs a `PawnFlyer`, neither of
+which a paused scenario can hold still.
+
 **Measured, against the pre-fix build of the same branch.** The shadow strip, isolated within each
 run by differencing that run's own sun-only frame (which holds the pawn fixed — `SpawnPawn` generates
 a fresh colonist per run, so a naive frame diff measures the sprite, not the shadow):
