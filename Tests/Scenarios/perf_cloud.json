@@ -1,0 +1,316 @@
+{
+ "name": "perf_cloud",
+ "saveFile": "minimal_colony.rws",
+ "description": "\u00a728 step 4: where CloudSheetOverlay.Draw's ~80 us/call goes. Shares, not absolutes -- eight simultaneous arms put Circinus's per-call transpile cost in every row. The parent arm is kept so the children can be summed against it; an unexplained gap is a finding in itself.",
+ "steps": [
+  {
+   "type": "SetTile",
+   "args": {
+    "latitude": "45"
+   }
+  },
+  {
+   "type": "SetSeason",
+   "args": {
+    "dayOfYear": "40"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "realistic_preset",
+    "enabled": "false"
+   }
+  },
+  {
+   "type": "SetWeather",
+   "args": {
+    "weatherDef": "Clear",
+    "instant": "true"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "cloud_cover_forced_overcast",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "cloud_sheet",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "cloud_volume",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "SetTime",
+   "args": {
+    "hour": "15.0"
+   }
+  },
+  {
+   "type": "LookAt",
+   "args": {
+    "anchor": "125,125",
+    "zoom": "38"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circinus_available",
+    "expectedValue": "1",
+    "tolerance": "0.001"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "sun_elevation",
+    "expectedValue": "45.1",
+    "tolerance": "2"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circ_clouddraw_patched",
+    "expectedValue": "1",
+    "tolerance": "0.001"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circ_sheetcolour_patched",
+    "expectedValue": "1",
+    "tolerance": "0.001"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circ_bakedsheet_patched",
+    "expectedValue": "1",
+    "tolerance": "0.001"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circ_volumesheet_patched",
+    "expectedValue": "1",
+    "tolerance": "0.001"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circ_underlit_patched",
+    "expectedValue": "1",
+    "tolerance": "0.001"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circ_deckillum_patched",
+    "expectedValue": "1",
+    "tolerance": "0.001"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circ_sheetalpha_patched",
+    "expectedValue": "1",
+    "tolerance": "0.001"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circ_hottint_patched",
+    "expectedValue": "1",
+    "tolerance": "0.001"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circ_overlap_patched",
+    "expectedValue": "1",
+    "tolerance": "0.001"
+   }
+  },
+  {
+   "type": "TickLapse",
+   "args": {
+    "ticks": "10",
+    "steps": "120",
+    "fileNamePrefix": "perfcloud",
+    "fps": "20"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circinus_cycles",
+    "expectedValue": "540",
+    "tolerance": "400"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circ_clouddraw_calls",
+    "expectedValue": "50000",
+    "tolerance": "50000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circ_clouddraw_total_ms",
+    "expectedValue": "500",
+    "tolerance": "500"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circ_sheetcolour_calls",
+    "expectedValue": "50000",
+    "tolerance": "50000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circ_sheetcolour_total_ms",
+    "expectedValue": "500",
+    "tolerance": "500"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circ_bakedsheet_calls",
+    "expectedValue": "50000",
+    "tolerance": "50000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circ_bakedsheet_total_ms",
+    "expectedValue": "500",
+    "tolerance": "500"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circ_volumesheet_calls",
+    "expectedValue": "50000",
+    "tolerance": "50000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circ_volumesheet_total_ms",
+    "expectedValue": "500",
+    "tolerance": "500"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circ_underlit_calls",
+    "expectedValue": "50000",
+    "tolerance": "50000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circ_underlit_total_ms",
+    "expectedValue": "500",
+    "tolerance": "500"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circ_deckillum_calls",
+    "expectedValue": "50000",
+    "tolerance": "50000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circ_deckillum_total_ms",
+    "expectedValue": "500",
+    "tolerance": "500"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circ_sheetalpha_calls",
+    "expectedValue": "50000",
+    "tolerance": "50000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circ_sheetalpha_total_ms",
+    "expectedValue": "500",
+    "tolerance": "500"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circ_hottint_calls",
+    "expectedValue": "50000",
+    "tolerance": "50000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circ_hottint_total_ms",
+    "expectedValue": "500",
+    "tolerance": "500"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circ_overlap_calls",
+    "expectedValue": "50000",
+    "tolerance": "50000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circ_overlap_total_ms",
+    "expectedValue": "500",
+    "tolerance": "500"
+   }
+  }
+ ]
+}
