@@ -61,6 +61,7 @@ public static class CloudCoverFractionOverride
     private static bool active;
     private static bool overcast;
     private static bool installed;
+    private static bool logged;
 
     // Called once from ProbeRegistration's static constructor, mirroring GeometryEvalCounters'
     // Install(). Idempotent so a second call (there should never be one, but nothing enforces that)
@@ -72,14 +73,27 @@ public static class CloudCoverFractionOverride
 
         installed = true;
         Harmony harmony = new Harmony("celestiallighting.probes.cloudcoverfractionoverride");
+        // PATCHED ON FractionForTick, NOT FractionForMap, and the difference is load-bearing since §25
+        // started latching each sheet's cover at the tick it entered the map. FractionForMap now
+        // delegates to FractionForTick, so patching the primitive covers both callers; patching the
+        // wrapper instead would leave every sheet placing itself from the REAL drift while every probe
+        // reported the forced value — a scenario that looked pinned and photographed something else.
         harmony.Patch(
-            AccessTools.Method(typeof(CloudCoverClock), nameof(CloudCoverClock.FractionForMap)),
+            AccessTools.Method(typeof(CloudCoverClock), nameof(CloudCoverClock.FractionForTick)),
             postfix: new HarmonyMethod(AccessTools.Method(typeof(CloudCoverFractionOverride), nameof(Postfix))));
     }
 
-    public static void Set(bool enabled) => active = enabled;
+    public static void Set(bool enabled)
+    {
+        active = enabled;
+        logged = false;
+    }
 
-    public static void SetOvercast(bool enabled) => overcast = enabled;
+    public static void SetOvercast(bool enabled)
+    {
+        overcast = enabled;
+        logged = false;
+    }
 
     // Logged on every actual override, not only on failure -- see PlanetsmithTiltOverride's own
     // comment on why a silent test hook is worse than a noisy one: it is indistinguishable from the
@@ -94,8 +108,18 @@ public static class CloudCoverFractionOverride
         // keys exist precisely because the difference between them is the thing being controlled.
         float forced = overcast ? ForcedOvercastFraction : ForcedFraction;
 
-        Log.Message(
-            $"[CelestialLighting.Probes] Cloud cover fraction override: {__result} -> {forced}.");
+        // LOGGED ONCE PER ACTIVATION rather than once per call, which §25's per-sheet latch forced:
+        // this now runs a dozen times a tick rather than a handful of times a frame. The reason for
+        // logging at all is PlanetsmithTiltOverride's — a silent test hook is indistinguishable from
+        // the feature under test not working — and one line per flip still says that without burying
+        // the rest of the run's log.
+        if (!logged)
+        {
+            logged = true;
+            Log.Message(
+                $"[CelestialLighting.Probes] Cloud cover fraction override active: {__result} -> {forced}.");
+        }
+
         __result = forced;
     }
 }
