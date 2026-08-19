@@ -215,6 +215,14 @@ public static class ProbeRegistration
             new GlowGridCellProbe("door_outside_ground_glow", new IntVec3(1, 0, 45)));
         ProbeRegistry.Register(
             new GlowGridCellProbe("door_inside_ground_glow", new IntVec3(-1, 0, 45)));
+        // §27e phase 2, vector_light_door_aperture.json. The door sits at local (0, 0) of that
+        // scenario's room, i.e. offset (0, 45) from centre.
+        ProbeRegistry.Register(new DoorApertureProbe(
+            "door_aperture", DoorApertureProbe.Metric.Aperture, new IntVec3(0, 0, 45)));
+        ProbeRegistry.Register(new DoorApertureProbe(
+            "door_aperture_watched", DoorApertureProbe.Metric.Watched, IntVec3.Zero));
+        ProbeRegistry.Register(new DoorApertureProbe(
+            "door_aperture_bakes", DoorApertureProbe.Metric.DirtyRequests, IntVec3.Zero));
         // Performance, measured through Circinus rather than Dubs, because Circinus reports CALL
         // COUNTS. §27 phase 3 does all its work inside a section regenerate, and the Dubs window that
         // appeared to show it running three times cheaper than the feature-off baseline had simply
@@ -563,6 +571,17 @@ public static class ProbeRegistration
             enabled =>
             {
                 CelestialLightingFeatures.VectorLightDoorGlowBlocker = enabled;
+                VectorLightRedraw.ForceRebuild();
+            },
+            defaultEnabled: false);
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightDoorApertureKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.VectorLightDoorAperture = enabled;
+                // Clears the watched-door set AND the rebake counter, so each arm of a scenario
+                // counts its own bakes from zero rather than inheriting the previous arm's total.
+                GameComponent_DoorAperture.Reset();
                 VectorLightRedraw.ForceRebuild();
             },
             defaultEnabled: false);

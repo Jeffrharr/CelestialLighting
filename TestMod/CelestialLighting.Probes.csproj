@@ -63,10 +63,16 @@
     <!-- §27e: vanilla's gameplay light at a named cell, the only probe that can tell the drawn-only
          arm from the glow-grid-driven one, since our polygon is identical in both. -->
     <Compile Include="../Source/Probes/GlowGridCellProbe.cs" Link="GlowGridCellProbe.cs" />
+    <!-- §27e phase 2: aperture, watched-door count, and rebakes-per-swing. The last is the number
+         the performance claim rests on; a timing probe cannot see a call count change. -->
+    <Compile Include="../Source/Probes/DoorApertureProbe.cs" Link="DoorApertureProbe.cs" />
     <!-- §27e: the SetDoorOpen scenario step. Not a probe, but it belongs to the same dev-only
          assembly for the same reason: StepDiscovery scans loaded mod assemblies, and this must
          never reach the shipped DLL. -->
     <Compile Include="../Source/Probes/SetDoorOpenStep.cs" Link="SetDoorOpenStep.cs" />
+    <!-- §27e phase 2: unpauses the scenario clock so a door actually animates. TickLapse cannot do
+         this — its AdvanceTicks is a jump, and a door's slide is driven by its own Tick(). -->
+    <Compile Include="../Source/Probes/SetTimeSpeedStep.cs" Link="SetTimeSpeedStep.cs" />
     <Compile Include="../Source/Probes/CircinusProbe.cs" Link="CircinusProbe.cs" />
     <Compile Include="../Source/Probes/TwilightWarmthProbe.cs" Link="TwilightWarmthProbe.cs" />
     <Compile Include="../Source/Probes/PenumbraProbe.cs" Link="PenumbraProbe.cs" />
