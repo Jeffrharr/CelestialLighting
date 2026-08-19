@@ -929,6 +929,76 @@ public static class VectorLightMath
         return -(float)(Math.Atan2(dz, dx) * 180.0 / Math.PI);
     }
 
+    // Whether a pawn in this state casts a shadow at all — the POLICY half of issue #159's second
+    // question, kept separate from the four live reads that feed it so the disjunction can be tested
+    // without a Map.
+    //
+    // EVERY CLAUSE IS VANILLA'S, NOT OURS, and that is the entire argument for each. §27 renders a
+    // shadow vanilla does not in exactly one place — under a roof, because Graphic_Shadow bails on
+    // roofed cells and "sunlight does not get in" says nothing about a torch. These four are the
+    // suppressions that have nothing to do with sunlight, so declining to honour them was not a
+    // deliberate divergence the way the roof is; it was simply not asking.
+    //
+    //  - STANDING. PawnRenderer.RenderPawnAt only calls DrawShadowInternal when
+    //    `results.posture == PawnPosture.Standing`, and RenderShadowOnlyAt repeats the test. A pawn
+    //    lying in a bed or bleeding out on the floor is not a 1.2-cell-tall caster, and drawing them
+    //    as one puts a full-height shadow beside a body that is visibly flat.
+    //  - VISIBLE. `pawn.IsPsychologicallyInvisible()` is what sets PawnRenderFlags.Invisible, which
+    //    is the other half of that same test. A shadow is the one thing that gives an invisible pawn
+    //    away, so this clause is the one with actual GAMEPLAY consequence — §27 is a render-only
+    //    subsystem and handing the player a tell vanilla does not is exactly the sort of thing that
+    //    scope boundary exists to forbid.
+    //  - NOT SWIMMING. DrawShadowInternal returns before any shadow for `Swimming ||
+    //    DrawNonHumanlikeSwimmingGraphic`: the pawn is drawn part-submerged, and a full blob beside
+    //    them reads as floating.
+    //  - NOT FLYING. Vanilla does not suppress this one, it SUBSTITUTES — a soft circle at
+    //    AltitudeLayer.Filth, offset by the flight arc, rather than the extruded footprint. §27 has
+    //    no equivalent and inventing one is a different feature, so the honest answer is to draw
+    //    nothing rather than to stamp a ground-caster's shadow under a pawn who is in the air.
+    //
+    // Written as "all four must hold" rather than four early returns in the adapter so the policy is
+    // one expression that can be read at a glance and inverted in one place if it is ever wrong.
+    public static bool PawnCastsShadow(bool standing, bool invisible, bool swimming, bool flying)
+    {
+        return standing && !invisible && !swimming && !flying;
+    }
+
+    // How far a caster's own footprint reaches along a direction, from the point the footprint is
+    // centred on.
+    //
+    // WHY THIS IS THE WHOLE OF ISSUE #159. Vanilla describes a caster's shadow footprint as an
+    // AXIS-ALIGNED RECTANGLE — `ShadowData.volume`'s x and z, centred on `DrawPos + ShadowData
+    // .offset` — and then draws the shadow as that rectangle PLUS a skirt extruded from whichever
+    // edge faces away from the light. So vanilla's shadow leaves the caster's silhouette, and the
+    // silhouette is direction-dependent: a human's 0.3 x 0.4 blob presents 0.15 half-cells to a lamp
+    // due east and 0.20 to one due south. §27's own quad ignored all of this and started at the
+    // pawn's DrawPos, which is the pawn's TORSO — 0.3 cells north of where its sun shadow starts,
+    // and a rectangle's worth short of the edge. Two shadows on the same pawn visibly disagreeing
+    // about which part of them cast it is what the issue reported.
+    //
+    // The support function of a rectangle answers both halves of the fix with one call. Passed the
+    // shadow direction it gives the distance from the centre to the silhouette edge — how far to
+    // push the quad out so it leaves the caster rather than crossing it. Passed the PERPENDICULAR it
+    // gives the silhouette's half-width — how wide the quad's base should be. That is why this takes
+    // a direction rather than an angle: the caller already holds (pawn - lamp) in components, and an
+    // angle convention is one more thing to get backwards between here and the transform.
+    //
+    // A zero-length direction means the pawn is standing on the lamp's own cell, where there is no
+    // direction to be shadowed in. PawnShadowAngleDegrees resolves that same degeneracy to +X, so
+    // this does too — agreeing with it matters more than the arbitrary choice does.
+    public static float FootprintExtent(float halfX, float halfZ, float dirX, float dirZ)
+    {
+        float magnitude = (float)Math.Sqrt(dirX * dirX + dirZ * dirZ);
+
+        if (magnitude <= 0f)
+            return halfX;
+
+        float x = dirX / magnitude;
+        float z = dirZ / magnitude;
+
+        return halfX * Math.Abs(x) + halfZ * Math.Abs(z);
+    }
+
     // One emitter's cell coverage, baked once per polygon instead of per section.
     //
     // WHY THIS EXISTS: 239 MICROSECONDS PER SECTION. Phase 3 first asked LitFraction per cell per
@@ -1061,6 +1131,23 @@ public static class VectorLightMath
     // Shadows stop growing here however close the lamp gets. Without a cap, a pawn standing ON a
     // lamp's cell casts an arbitrarily long shadow, and the cap is cheaper than special-casing it.
     public const float MaxPawnShadowLength = 6f;
+
+    // The narrowest a pawn shadow's base is allowed to get, in cells from the centre line.
+    //
+    // A floor rather than a taste value: a def declaring a hairline `ShadowData.volume.x` would
+    // otherwise produce a quad thinner than the pixel that has to draw it, which shimmers rather
+    // than shades. It sits well BELOW every vanilla pawn (a human's silhouette runs 0.15 to 0.20
+    // half-cells as the lamp goes round it) on purpose — the floor's predecessor was 0.175 and
+    // clipped most of that range flat, which is the direction-dependence issue #159 is about.
+    public const float MinPawnShadowHalfWidth = 0.125f;
+
+    // The footprint assumed for a caster with no ShadowData of its own, as half-extents in cells.
+    //
+    // Vanilla draws no sun shadow at all in that case, and this deliberately still draws one: an
+    // absent blob is a decision about SUNlight — most things that lack one are small, flat or
+    // indoors — and a torch a cell away should still throw something. Square, because with no data
+    // there is no reason to prefer an axis.
+    public const float DefaultPawnShadowHalfExtent = 0.3f;
 
     // How dark a fully lit, fully seen pawn shadow gets at most.
     //

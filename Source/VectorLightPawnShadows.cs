@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using RimWorld;
 using UnityEngine;
 using Verse;
 
@@ -90,6 +91,13 @@ public static class VectorLightPawnShadows
             if (pawn == null || !pawn.Spawned || !view.Contains(pawn.Position))
                 continue;
 
+            // Then the states vanilla refuses to draw a shadow in, which are not about sunlight and
+            // so are not ours to diverge from — see VectorLightMath.PawnCastsShadow. Asked after the
+            // camera cull because it is the more expensive of the two (IsPsychologicallyInvisible
+            // walks the hediff set) and the cull rejects most of a colony.
+            if (!CastsShadow(pawn))
+                continue;
+
             DrawFor(map, pawn, lights, skyGlow, altitude);
         }
     }
@@ -99,7 +107,21 @@ public static class VectorLightPawnShadows
         float skyGlow, float altitude)
     {
         Vector3 centre = pawn.DrawPos;
-        float footprint = FootprintOf(pawn);
+        ShadowData shadow = ShadowDataOf(pawn);
+
+        // Where the caster's footprint actually sits, which is NOT where the pawn is drawn. Vanilla
+        // offsets it by ShadowData.offset — (0, 0, -0.3) for a human, i.e. at the feet — and both
+        // Graphic_Shadow.DrawWorker and Printer_Shadow.PrintShadow honour that. §27 anchored on
+        // DrawPos instead, so a colonist's lamp shadow left their torso while their sun shadow left
+        // their feet, 0.3 cells apart and both on screen at dusk (issue #159). The offset is applied
+        // unrotated for the same reason vanilla's dynamic path applies it unrotated: PawnRenderer
+        // draws pawn shadows as Rot4.North regardless of which way the pawn faces.
+        Vector3 anchor = shadow == null ? centre : centre + shadow.offset;
+
+        float halfX = shadow == null
+            ? VectorLightMath.DefaultPawnShadowHalfExtent : shadow.BaseX * 0.5f;
+        float halfZ = shadow == null
+            ? VectorLightMath.DefaultPawnShadowHalfExtent : shadow.BaseZ * 0.5f;
 
         foreach (VectorLightField.LightEntry entry in lights)
         {
@@ -129,7 +151,26 @@ public static class VectorLightPawnShadows
             float length = VectorLightMath.PawnShadowLength(
                 distance, VectorLightMath.DefaultPawnHeight, VectorLightMath.DefaultLampHeight);
 
-            Mesh mesh = MeshFor(footprint, length);
+            // The shadow's bearing as a unit vector, resolved once so the two footprint questions
+            // below and the push-out that follows all agree about which way "away from the lamp"
+            // points. A pawn standing on the lamp's own cell has no bearing at all, and +X is what
+            // PawnShadowAngleDegrees resolves that to — agreeing with it matters more than the
+            // choice does.
+            float ux = distance > 0f ? dx / distance : 1f;
+            float uz = distance > 0f ? dz / distance : 0f;
+
+            // The caster's silhouette as this lamp sees it: how wide across, and how far out its
+            // trailing edge is. Vanilla's shadow is the footprint rectangle PLUS a skirt extruded
+            // from the edge facing away from the light, so both numbers come from the same rectangle
+            // and both are direction-dependent — a human presents 0.15 half-cells to a lamp due east
+            // and 0.20 to one due south.
+            float half = Mathf.Max(
+                VectorLightMath.FootprintExtent(halfX, halfZ, -uz, ux),
+                VectorLightMath.MinPawnShadowHalfWidth);
+
+            float trailingEdge = VectorLightMath.FootprintExtent(halfX, halfZ, ux, uz);
+
+            Mesh mesh = MeshFor(half, length);
 
             if (mesh == null)
                 continue;
@@ -140,9 +181,14 @@ public static class VectorLightPawnShadows
             // deferred, so writing one shared material's colour between calls gives every shadow in
             // the frame whichever opacity was written last — the trap VectorLightOverlay's header
             // records §17 paying for. Distinct materials sidestep it without a property block.
+            // Started at the silhouette's trailing edge rather than at its centre, so the length
+            // computed above is length BEYOND the caster — the same thing it means for a sun shadow,
+            // whose skirt is extruded from that edge too. Pushing the transform rather than baking
+            // the offset into the mesh keeps the cache keyed on two numbers instead of three.
             Graphics.DrawMesh(
-                mesh, new Vector3(centre.x, altitude, centre.z), Quaternion.Euler(0f, angle, 0f),
-                MaterialFor(opacity), 0);
+                mesh,
+                new Vector3(anchor.x + ux * trailingEdge, altitude, anchor.z + uz * trailingEdge),
+                Quaternion.Euler(0f, angle, 0f), MaterialFor(opacity), 0);
         }
     }
 
@@ -165,27 +211,62 @@ public static class VectorLightPawnShadows
         return material;
     }
 
-    // The caster's footprint, from its own shadow data where it has some. A pawn without shadow data
-    // still casts one here — vanilla's absence of a blob is a decision about SUNlight, and a torch a
-    // cell away should still throw something.
-    private static float FootprintOf(Pawn pawn)
+    // The caster's own shadow data, read where vanilla reads it — which is two places, not one.
+    //
+    // PawnRenderer.DrawShadowInternal consults `race.specialShadowData` and the body graphic's
+    // `graphicData.shadowData`, and HUMANLIKES ONLY HAVE THE FIRST: Races_Humanlike.xml declares
+    // specialShadowData (volume 0.3, 0.8, 0.4 and offset 0, 0, -0.3) and no graphicData.shadowData
+    // at all. §27 read only the second, so this returned null for every colonist in the game and
+    // they all fell through to a hardcoded 0.6-wide square against a real width of 0.3 — twice the
+    // width of the sun shadow standing beside it, and with no offset (issue #159).
+    //
+    // Animals were unaffected, which is exactly why it survived being looked at: they declare theirs
+    // inside graphicData, so they were reading the right rectangle all along.
+    // The four live reads behind VectorLightMath.PawnCastsShadow, in one place. Public for the same
+    // reason ShadowDataOf is: the probe has to ask the function the renderer asks, or it can report
+    // a pawn as suppressed while the screen still draws them.
+    //
+    // Each read is the one vanilla itself uses, deliberately rather than a near-equivalent:
+    // GetPosture() is what PawnRenderer gates on, IsPsychologicallyInvisible() is what sets the
+    // PawnRenderFlags.Invisible it gates on alongside, and Swimming /
+    // DrawNonHumanlikeSwimmingGraphic / Flying are the three DrawShadowInternal itself branches on.
+    // Reaching for something that merely correlates — Downed instead of posture, say — would drift
+    // from vanilla the moment Ludeon changed one of them.
+    public static bool CastsShadow(Pawn pawn)
     {
-        ShadowData shadow = pawn.def?.graphicData?.shadowData;
+        if (pawn?.def == null)
+            return false;
 
-        return shadow == null ? 0.6f : Mathf.Max(shadow.BaseX, 0.35f);
+        return VectorLightMath.PawnCastsShadow(
+            standing:  pawn.GetPosture() == PawnPosture.Standing,
+            invisible: pawn.IsPsychologicallyInvisible(),
+            swimming:  pawn.Swimming || pawn.DrawNonHumanlikeSwimmingGraphic,
+            flying:    pawn.Flying);
     }
 
-    // The footprint extruded along +X, at alpha zero throughout so the shader leaves it where it is
-    // put. Direction comes from the transform; only the LENGTH is baked, which is what makes a
-    // couple of dozen cached meshes cover a whole colony.
-    private static Mesh MeshFor(float footprint, float length)
+    // Public because the probe asks THIS function rather than re-deriving the answer, which is the
+    // repo's probe convention (see EaveCellProbe): a probe that recomputes can agree with a formula
+    // the screen is not using, and this is precisely a bug about the screen using a different
+    // rectangle from the one anyone expected.
+    public static ShadowData ShadowDataOf(Pawn pawn) =>
+        pawn.def?.race?.specialShadowData ?? pawn.def?.graphicData?.shadowData;
+
+    // The silhouette extruded along +X, at alpha zero throughout so the shader leaves it where it is
+    // put. Direction and the push out to the trailing edge both come from the transform; only the
+    // half-width and the LENGTH are baked, which is what makes a couple of dozen cached meshes cover
+    // a whole colony.
+    //
+    // The half-width is bucketed at a THIRTY-SECOND of a cell where the length is bucketed at a
+    // quarter, and the asymmetry is the point: these widths are sub-cell (a human's silhouette runs
+    // 0.15 to 0.20) so quarter-cell buckets would round every one of them to the same 0.25 and throw
+    // away the direction-dependence this is here to express, while a length of 3.1 versus 3.25 cells
+    // is invisible. A human sweeps two buckets over a full circuit of the lamp.
+    private static Mesh MeshFor(float half, float length)
     {
-        long key = ((long)Mathf.RoundToInt(footprint * 4f) << 32) | (uint)Mathf.RoundToInt(length * 4f);
+        long key = ((long)Mathf.RoundToInt(half * 32f) << 32) | (uint)Mathf.RoundToInt(length * 4f);
 
         if (MeshCache.TryGetValue(key, out Mesh cached))
             return cached;
-
-        float half = footprint * 0.5f;
 
         Verts.Clear();
         Colors.Clear();

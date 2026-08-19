@@ -206,6 +206,18 @@ public static class ProbeRegistration
         // stand-down rather than an error, so an unpinned arm photographs the crossfade instead.
         ProbeRegistry.Register(
             new VectorLightProbe("vector_light_mask_available", VectorLightProbe.Metric.MaskAvailable));
+        // §27 phase 4 / issue #159. The rectangle a colonist's lamp shadow is actually built from,
+        // which has to be the one vanilla's sun shadow is built from or the two leave the pawn at
+        // different points. Pin BOTH in any arm that photographs a pawn shadow: they failed
+        // independently, and each is invisible in the other's number.
+        ProbeRegistry.Register(
+            new VectorLightProbe("vector_light_pawn_anchor_z", VectorLightProbe.Metric.PawnShadowAnchorZ));
+        ProbeRegistry.Register(
+            new VectorLightProbe("vector_light_pawn_width", VectorLightProbe.Metric.PawnShadowWidth));
+        // The other half of #159: not what shape the shadow is, but whether it is drawn at all.
+        // Vanilla refuses one for four non-sun reasons and §27 asked none of them.
+        ProbeRegistry.Register(
+            new VectorLightProbe("vector_light_pawn_casters", VectorLightProbe.Metric.PawnShadowCasters));
         // §27e, vector_light_open_door.json. Cells are local to that scenario's room at offset
         // (0, 45): the doorway is local (0, 0), so (1, 0) is the first cell OUTSIDE it and (-1, 0)
         // the first cell inside. Both read vanilla's gameplay light, not ours -- they are what

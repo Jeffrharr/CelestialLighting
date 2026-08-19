@@ -1,0 +1,51 @@
+{
+  "name": "vector_light_pawn_shadow_anchor",
+  "saveFile": "minimal_colony.rws",
+  "description": "27 phase 4 / issue #159: a lamp shadow and a sun shadow leaving the SAME pawn have to leave it from the same place. OUTDOORS AND ROOFLESS ON PURPOSE, which is the opposite of vector_light_pawn_shadows and the whole reason this file exists alongside it: vanilla's Graphic_Shadow bails on any roofed cell, so in that scenario's room there is no sun shadow to disagree with and the bug it was written to catch is invisible by construction. Here both are in frame at once. The torch sits two cells NORTH of the colonist so its shadow runs south, while the morning sun puts the sun shadow west — about ninety degrees apart, so where each one starts on the pawn can be read off rather than inferred. The hour is SURVEYED, not computed, and the survey moved it twice. A dayPercent of hour/24 predicted 10.9 degrees at hour 6.25; the live clock reads 23.94 there, so the sun clock is not a bare fraction of the day and pinning the prediction would have failed a correct build. 23.94 then turned out to be the wrong hour for a different reason — sky glow 0.71 leaves VectorLightMath.DaylightScale at 0.29, so the lamp shadow it is here to photograph was fading out at three quarters strength. Hour 4.0 is the surveyed answer: elevation 5.29 puts the sun shadow at about ten cells and glow 0.17 leaves the lamp shadow 0.83 of its strength, which is the pair of conditions this scenario needs at once. It is pinned beside the rest so a later clock change fails loudly instead of quietly emptying the frames. vector_light_count is 4 rather than 1 for the same reason: minimal_colony.rws already carries three glowers of its own, so a pin of 1 measures the fixture, not the torch. Two arms: sun only, then sun plus lamp.",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "45" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "40" } },
+    { "type": "SetWeather", "args": { "weatherDef": "Clear", "instant": "true" } },
+    { "type": "SetTerrain", "args": { "def": "Concrete", "width": "24", "height": "24", "offset": "0,45", "clear": "true" } },
+    { "type": "SetRoof", "args": { "def": "None", "width": "24", "height": "24", "offset": "0,45" } },
+    { "type": "PlaceThings", "args": { "def": "TorchLamp", "offset": "0,45", "layout": "cells", "cells": "0,2" } },
+    { "type": "SpawnPawn", "args": { "kind": "Colonist", "faction": "player", "count": "1", "offset": "0,45", "clear": "true" } },
+    { "type": "SetTime", "args": { "hour": "4.0" } },
+    { "type": "LookAt", "args": { "offset": "0,45", "zoom": "10" } },
+
+    { "type": "Probe", "args": { "probeName": "vector_light_count", "expectedValue": "4", "tolerance": "0" } },
+    { "type": "Probe", "args": { "probeName": "vector_light_mask_available", "expectedValue": "1", "tolerance": "0" } },
+
+    { "type": "Probe", "args": { "probeName": "limb_sun_elevation", "expectedValue": "5.29", "tolerance": "1.5" } },
+
+    { "type": "Probe", "args": { "probeName": "vector_light_pawn_anchor_z", "expectedValue": "-0.3", "tolerance": "0.001" } },
+    { "type": "Probe", "args": { "probeName": "vector_light_pawn_width", "expectedValue": "0.3", "tolerance": "0.001" } },
+
+    { "type": "SetFeature", "args": { "featureName": "vector_lights", "enabled": "false" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_penumbra", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_suppress", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_blend", "enabled": "false" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_mask", "enabled": "false" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_mask_beam", "enabled": "false" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_pawn_shadows", "enabled": "false" } },
+    { "type": "Screenshot", "args": { "fileName": "anchor_warmup_discard.png" } },
+
+    { "type": "SetFeature", "args": { "featureName": "vector_lights", "enabled": "false" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_penumbra", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_suppress", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_blend", "enabled": "false" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_mask", "enabled": "false" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_mask_beam", "enabled": "false" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_pawn_shadows", "enabled": "false" } },
+    { "type": "Screenshot", "args": { "fileName": "anchor_sun_only.png" } },
+
+    { "type": "SetFeature", "args": { "featureName": "vector_lights", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_penumbra", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_suppress", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_blend", "enabled": "false" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_mask", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_mask_beam", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_pawn_shadows", "enabled": "true" } },
+    { "type": "Screenshot", "args": { "fileName": "anchor_sun_and_lamp.png" } }
+  ]
+}

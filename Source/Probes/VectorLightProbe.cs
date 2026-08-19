@@ -67,6 +67,44 @@ public sealed class VectorLightProbe : IProbe
         // so without a pin here every other number in a mask scenario stays healthy while the frames
         // quietly show the crossfade instead.
         MaskAvailable,
+
+        // §27 phase 4, issue #159: where on a colonist the lamp shadow is anchored, as the z offset
+        // from DrawPos, and how wide that footprint is.
+        //
+        // TWO METRICS FOR ONE BUG BECAUSE IT HAD TWO HALVES, and each is invisible to the other. The
+        // shadow left the pawn's torso instead of their feet (this read 0 where vanilla's sun shadow
+        // uses -0.3) AND it was twice as wide (0.6 against a real 0.3), because the data was being
+        // read from `graphicData.shadowData`, which humanlikes do not have. Fixing only the offset
+        // would leave the width pinned wrong and vice versa, and a single "is it right" metric would
+        // pass on half a fix.
+        //
+        // These read VectorLightPawnShadows.ShadowDataOf — the same accessor the draw calls — rather
+        // than reaching into the def here. A probe with its own copy of the lookup would have agreed
+        // with the intended rectangle while the renderer used another one, which is the exact shape
+        // of the bug being pinned.
+        PawnShadowAnchorZ,
+        PawnShadowWidth,
+
+        // How many spawned pawns on the map §27 would actually draw a lamp shadow for.
+        //
+        // The counterpart to the two metrics above: they pin the SHAPE of a shadow that is drawn,
+        // this one pins WHETHER it is drawn at all. Vanilla suppresses a pawn shadow for four
+        // reasons that have nothing to do with sunlight — not standing, psychically invisible,
+        // swimming, flying — and §27 asked none of them, so a downed colonist threw a
+        // standing-height shadow from a torch.
+        //
+        // A COUNT RATHER THAN A PER-PAWN FLAG because that is what a scenario can pin without
+        // depending on spawn order, and because the failure it guards against is a clause being
+        // dropped rather than a pawn being misjudged: three colonists, one of them upright, has
+        // exactly one answer.
+        //
+        // SCOPED TO THE CAMERA VIEW RECT, which is the renderer's own cull and not a convenience.
+        // Counted map-wide it read 11 on minimal_colony.rws — the fixture's own colonists and
+        // animals swamped the three the scenario spawned, and 11 is consistent with the suppression
+        // working AND with it not working, which is the one thing a pin must never be. Sharing the
+        // renderer's cull also means the number answers the question a screenshot asks: of the pawns
+        // in this frame, how many are casting.
+        PawnShadowCasters,
     }
 
     private readonly Metric metric;
@@ -87,6 +125,12 @@ public sealed class VectorLightProbe : IProbe
         if (map == null)
             return 0f;
 
+        if (metric == Metric.PawnShadowAnchorZ || metric == Metric.PawnShadowWidth)
+            return ReadFootprint(map);
+
+        if (metric == Metric.PawnShadowCasters)
+            return CountCasters(map);
+
         float litArea = 0f;
         float openArea = 0f;
         float penumbraArea = 0f;
@@ -100,6 +144,43 @@ public sealed class VectorLightProbe : IProbe
         }
 
         return Report(count, litArea, openArea, vertices, penumbraArea);
+    }
+
+    // Asks VectorLightPawnShadows.CastsShadow, never its own copy of the four tests: a probe with a
+    // private reimplementation would agree with the intended policy while the renderer used another,
+    // which is the shape of the bug this whole pair of commits is about.
+    private static float CountCasters(Map map)
+    {
+        CellRect view = Find.CameraDriver.CurrentViewRect;
+        int casters = 0;
+
+        foreach (Pawn pawn in map.mapPawns.AllPawnsSpawned)
+        {
+            if (view.Contains(pawn.Position) && VectorLightPawnShadows.CastsShadow(pawn))
+                casters++;
+        }
+
+        return casters;
+    }
+
+    // The footprint of ONE colonist, chosen by lowest thing ID so a scenario with two of them pins a
+    // stable one across runs rather than whichever the spawn order happened to yield.
+    private float ReadFootprint(Map map)
+    {
+        Pawn subject = null;
+
+        foreach (Pawn pawn in map.mapPawns.FreeColonistsSpawned)
+        {
+            if (subject == null || pawn.thingIDNumber < subject.thingIDNumber)
+                subject = pawn;
+        }
+
+        ShadowData shadow = subject == null ? null : VectorLightPawnShadows.ShadowDataOf(subject);
+
+        if (shadow == null)
+            return 0f;
+
+        return metric == Metric.PawnShadowAnchorZ ? shadow.offset.z : shadow.BaseX;
     }
 
     private static void Accumulate(
