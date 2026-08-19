@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using RimWorld;
 using UnityEngine;
 using Verse;
@@ -30,10 +32,53 @@ namespace CelestialLighting;
 // private-field binding.
 public static class WeatherDimming
 {
+    // §28. Two memos and a def cache, all three added because a Circinus sweep counted the calls
+    // rather than because the code looked slow. Over a 540-frame window: CloudOpacityFor 12.7 times a
+    // frame, DimmingFor 4.9. Both are per-map answers that cannot change inside one frame, and
+    // DimmingFor sits on top of CloudOpacityFor, so the counts compound.
+    //
+    // Keyed on GeometryStamp, which carries the TICK as well as the frame. That is what makes this
+    // exact rather than approximately right: every live input here — TransitionLerpFactor, RainRate,
+    // SnowRate, SandRate, snow depth under CavityGainFor — moves on the tick, so a stamp that is
+    // still valid is a stamp across which none of them can have moved. The same argument MapSky's
+    // header sets out at length; see it for why this needs none of the invalidation hooks a
+    // subject-keyed cache would.
+    private static readonly GeometryMemo<float> CloudOpacityMemo = new GeometryMemo<float>();
+    private static readonly GeometryMemo<float> DimmingMemo = new GeometryMemo<float>();
+
+    private static readonly Func<Map, float> ComputeCloudOpacity = ComputeCloudOpacityFor;
+    private static readonly Func<Map, float> ComputeDimming = ComputeDimmingFor;
+
+    // OpacityOf is cached PERMANENTLY rather than per frame, and it is the one cache here that needs
+    // no stamp at all: it is a pure function of a WeatherDef's own immutable fields — its mod
+    // extension, its day sky colours and its three precipitation rates. None of those change after
+    // defs finish loading, so there is nothing for a frame key to protect against.
+    //
+    // Worth caching despite being small because of what it does: def.GetModExtension<T> walks the
+    // def's modExtensions list doing a type test per entry, and CloudOpacityFor asks for TWO defs
+    // (last and current weather) on every call, which is ~25 walks a frame before any of the memos
+    // above deduplicate them.
+    //
+    // Dictionary rather than a field on the def because the def is Ludeon's type; growth is bounded
+    // by the number of WeatherDefs the load carries (tens), so there is no eviction policy to tune.
+    private static readonly Dictionary<WeatherDef, float> OpacityByDef = new Dictionary<WeatherDef, float>();
+
     // How much of a cloud deck is overhead right now, in [0,1], blended across any in-flight weather
     // transition. 0 when the feature is off, when there is no weather manager (pocket maps during
     // generation), when the map has no sky over it, or under any clear / non-weather weather.
     public static float CloudOpacityFor(Map map)
+    {
+        // Null map and no-TickManager bypass the memo rather than caching under a made-up key: the
+        // first has no uniqueID, the second is every context outside a running game, where
+        // FrameStamp.Current would dereference a null Find.TickManager. Both fall through to exactly
+        // the pre-memo path — pocket maps during generation still read 0 the way they always did.
+        if (map == null || Find.TickManager == null)
+            return ComputeCloudOpacityFor(map);
+
+        return CloudOpacityMemo.Get(map.uniqueID, FrameStamp.Current(), map, ComputeCloudOpacity);
+    }
+
+    private static float ComputeCloudOpacityFor(Map map)
     {
         if (!CelestialLightingFeatures.WeatherDimming)
             return 0f;
@@ -79,6 +124,14 @@ public static class WeatherDimming
     // stays at exactly 0 too even though ReadDimmingAndGain now looks past it for §24's sake (see
     // that function's header for why the clamp, not a gate, is what holds that).
     public static float DimmingFor(Map map)
+    {
+        if (map == null || Find.TickManager == null)
+            return ComputeDimmingFor(map);
+
+        return DimmingMemo.Get(map.uniqueID, FrameStamp.Current(), map, ComputeDimming);
+    }
+
+    private static float ComputeDimmingFor(Map map)
     {
         if (!ReadDimmingAndGain(map, out float dimming, out float cavityGain))
             return 0f;
@@ -248,6 +301,16 @@ public static class WeatherDimming
         if (def == null)
             return 0f;
 
+        if (OpacityByDef.TryGetValue(def, out float cached))
+            return cached;
+
+        float opacity = ComputeOpacityOf(def);
+        OpacityByDef[def] = opacity;
+        return opacity;
+    }
+
+    private static float ComputeOpacityOf(WeatherDef def)
+    {
         // An explicit statement by the def beats anything we can infer from it. Checked first so the
         // escape hatch is unconditional: a mod author (or an XML patch) who says "this is not a cloud
         // deck" is not overruled by a palette that happens to look like one.
