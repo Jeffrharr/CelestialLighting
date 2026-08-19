@@ -193,6 +193,14 @@ public static class ProbeRegistration
             "cloud_volume_bake_ms", CloudVolumeShaderProbe.Metric.BakeMilliseconds));
         ProbeRegistry.Register(new CloudVolumeShaderProbe(
             "cloud_volume_format", CloudVolumeShaderProbe.Metric.FormatSupported));
+        ProbeRegistry.Register(new CloudVolumeShaderProbe(
+            "cloud_volume_shader_loaded", CloudVolumeShaderProbe.Metric.ShaderLoaded));
+        ProbeRegistry.Register(new CloudVolumeShaderProbe(
+            "cloud_volume_upload_ms", CloudVolumeShaderProbe.Metric.UploadMilliseconds));
+        ProbeRegistry.Register(new CloudVolumeShaderProbe(
+            "cloud_volume_baked", CloudVolumeShaderProbe.Metric.BakeFinished));
+        ProbeRegistry.Register(new CloudVolumeShaderProbe(
+            "cloud_atlas_bake_ms", CloudVolumeShaderProbe.Metric.AtlasBakeMilliseconds));
         // How much cloud is inside the CAMERA, not merely on the map. Pin cloud_sheets_in_view beside
         // any capture or fill-rate window of the cloud lane: three §25c runs produced healthy tables
         // and a full set of A/B frames for a patch of sky that had no cloud over it, and nothing in

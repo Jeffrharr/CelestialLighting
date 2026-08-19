@@ -1,0 +1,161 @@
+{
+  "name": "cloud_volume_bake",
+  "saveFile": "minimal_colony.rws",
+  "description": "§25e: the cloud bakes moved off the loading screen (issue #144). WHAT THIS HAS TO PROVE IS THAT NOTHING MOVED ON SCREEN. The volume is baked on a background thread and split across cores now, and the offline suite pins the bytes as identical band for band -- but identical bytes reach the GPU through a different path: the texture is uploaded on the first main-thread frame that asks for it rather than in the static constructor, and until that happens Available answers false and CloudSheetOverlay draws §25b. A run that captured one frame too early would show the baked atlas, which is a plausible-looking cloudy sky and the wrong renderer. So cloud_volume_shader is pinned at 1 beside cloud_volume_baked, and the frame is compared against the same scenario on main at ΔE. SETUP IS cloud_volume_ab's, TERM FOR TERM, because that is the frame the ΔE is against. Low but positive sun so the march has something to self-shadow, overcast so §25's sheets are large and few, and cloud_view_coverage pinned so a frame with no cloud in it fails rather than reporting a confident zero difference between two empty skies.",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "realistic_preset",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_cover_forced_overcast",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_sheet",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "19.60"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "8.5732",
+        "tolerance": "0.05"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_volume_format",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_volume_baked",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_volume_shader_loaded",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_volume_shader",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "anchor": "125,125",
+        "zoom": "38"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_view_coverage",
+        "expectedValue": "0.75",
+        "tolerance": "0.35"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "bake_warmup"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "anchor": "125,125",
+        "zoom": "38"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "bake_raymarched"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_volume_bake_ms",
+        "expectedValue": "328.25",
+        "tolerance": "200",
+        "pinnedUnder": "no-profiler"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_volume_upload_ms",
+        "expectedValue": "9.45",
+        "tolerance": "15",
+        "pinnedUnder": "no-profiler"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_atlas_bake_ms",
+        "expectedValue": "35.44",
+        "tolerance": "40",
+        "pinnedUnder": "no-profiler"
+      }
+    }
+  ]
+}

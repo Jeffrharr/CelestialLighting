@@ -52,6 +52,14 @@
     {
       "type": "Probe",
       "args": {
+        "probeName": "cloud_volume_shader_loaded",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
         "probeName": "cloud_volume_shader",
         "expectedValue": "1",
         "tolerance": "0.001"
@@ -69,8 +77,9 @@
       "type": "Probe",
       "args": {
         "probeName": "cloud_volume_bake_ms",
-        "expectedValue": "1300",
-        "tolerance": "1200"
+        "expectedValue": "372.39",
+        "tolerance": "220",
+        "pinnedUnder": "profiler"
       }
     },
     {

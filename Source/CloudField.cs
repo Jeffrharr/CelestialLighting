@@ -416,7 +416,23 @@ public static class CloudField
     public static void FillBlobAtlas(
         float[] intensity, int atlasSize, int blobsPerAxis, int seed, int octaves,
         float[] rowCut, float[] rowGain, float[] rowFrequencyU, float[] rowFrequencyV,
-        float coreFraction, float rimBite)
+        float coreFraction, float rimBite) =>
+        FillBlobAtlasRows(intensity, atlasSize, blobsPerAxis, seed, octaves,
+            rowCut, rowGain, rowFrequencyU, rowFrequencyV, coreFraction, rimBite,
+            yStart: 0, yEnd: atlasSize);
+
+    // ...and one horizontal BAND of it, so the bake can be split across cores. Row y writes only
+    // intensity[y * atlasSize .. (y + 1) * atlasSize) and reads only immutable input, so bands
+    // produce byte-for-byte what the whole range produces — the same argument
+    // CloudVolumeMath.FillBlobVolumeRows sets out at length, and pinned the same way.
+    //
+    // This one matters less than the volume's and is here anyway because the two atlases are baked
+    // TWICE — once plain and once with §25d's alpha curve — for the same 147k texels of the same
+    // fBm, so whatever the volume costs, this costs a fifth of it twice over.
+    public static void FillBlobAtlasRows(
+        float[] intensity, int atlasSize, int blobsPerAxis, int seed, int octaves,
+        float[] rowCut, float[] rowGain, float[] rowFrequencyU, float[] rowFrequencyV,
+        float coreFraction, float rimBite, int yStart, int yEnd)
     {
         if (intensity == null || atlasSize <= 0 || blobsPerAxis <= 0)
             return;
@@ -424,7 +440,7 @@ public static class CloudField
         int blobSize = atlasSize / blobsPerAxis;
         float half = blobSize * 0.5f;
 
-        for (int y = 0; y < atlasSize; y++)
+        for (int y = yStart; y < yEnd; y++)
         {
             int blobY = y / blobSize;
             int row = y * atlasSize;

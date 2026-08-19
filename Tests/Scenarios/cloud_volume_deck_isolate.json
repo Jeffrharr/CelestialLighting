@@ -1,0 +1,160 @@
+{
+  "name": "cloud_volume_deck_isolate",
+  "saveFile": "minimal_colony.rws",
+  "description": "Isolates WHICH cloud deck §25c marches to a solid white rectangle (issue #144). Shot at 14.0h, the hour cloud_volume_sweep found the blowout at, with cloud_deck_varieties as the only variable: off collapses every sheet onto deck 0, so a clean frame there and a white rectangle with it on names the thin decks rather than the renderer. Deck 2's view extinction is 0.467 against deck 0's 0.070 -- §25c normalises the view coefficient UP by thinness on purpose -- which is the hypothesis under test.",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "realistic_preset",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_cover_forced_fraction",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_sheet",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "14.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_volume_shader_loaded",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_volume_shader",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "51.10",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "zoom": "24"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "deck_warmup"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_deck_varieties",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "zoom": "24"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "deck_varieties_on"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_deck_varieties",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "zoom": "24"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "deck_varieties_off"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_deck_varieties",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "zoom": "24"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "deck_baked_reference"
+      }
+    }
+  ]
+}

@@ -1,4 +1,6 @@
+using System;
 using System.Diagnostics;
+using System.Threading.Tasks;
 using UnityEngine;
 using Verse;
 
@@ -9,8 +11,8 @@ namespace CelestialLighting;
 //
 // This is the thin adapter over CloudRaymarchMath the house style asks for, and the split falls in
 // an unusually clean place because the expensive half is not code that runs here at all — it is
-// HLSL. What is left is: bake a byte array (pure), hand it to the GPU once, and set eight uniforms
-// per sheet per frame.
+// HLSL. What is left is: bake a byte array (pure, and since §25e on a background thread), hand it to
+// the GPU once, and set eight uniforms per sheet per frame.
 //
 // THE FIRST CUSTOM SHADER THIS MOD HAS SHIPPED, and DESIGN.md §11a is on record rejecting one. That
 // rejection was a cost-and-precedent call — "this repo ships no binary assets" — not a technical
@@ -30,6 +32,23 @@ public static class CloudVolumeShader
     // bundles for exactly `Materials/<this>.shader`, and the bundle is built with the asset at
     // Assets/Data/joof.celestiallighting/Materials/CelestialCloudVolume.shader to match.
     public const string ShaderPath = "CelestialCloudVolume";
+
+    // The name the .shader file DECLARES, which is the only thing that tells a loaded shader apart
+    // from the one vanilla substitutes when loading fails.
+    //
+    // THE DEGRADE-TO-§25b PROMISE AT THE TOP OF THIS FILE WAS NOT KEPT, AND THIS IS THE REPAIR.
+    // `ShaderDatabase.LoadShader` does not return null for a missing shader: it logs
+    // "Could not load shader … Using default shader instead." and hands back the DEFAULT shader,
+    // which is non-null and `isSupported`. So the old `VolumeShader != null` test passed, `Available`
+    // said yes, and every sheet was drawn by a shader that knows nothing about `_Volume` — a flat
+    // opaque quad the size of the sheet. That is the white slab, and it is worse than the fallback
+    // this was supposed to have: a player with a missing or corrupt bundle got rectangles instead of
+    // §25b's clouds, and no probe could tell because `cloud_volume_shader` read 1 throughout.
+    //
+    // Checking the DECLARED name rather than comparing against ShaderDatabase's default on purpose:
+    // it asserts the shader we actually wanted, so it also catches a bundle that loaded some OTHER
+    // shader, and it does not depend on which fallback vanilla happens to choose this version.
+    public const string ShaderName = "CelestialLighting/CloudVolume";
 
     // A zero slice above and below the deck, so the hardware's clamped sampling FADES out of the
     // volume the way CloudRaymarchMath.Sample does instead of smearing the outermost slice outward
@@ -62,14 +81,50 @@ public static class CloudVolumeShader
 
     private static readonly Shader VolumeShader = ShaderDatabase.LoadShader(ShaderPath);
 
-    private static readonly Texture3D Volume = BuildVolume();
+    // Whether the shader that came back is OURS. See ShaderName: a failed load is not a null here,
+    // it is vanilla's default shader wearing the same slot, so this is the only honest test.
+    public static bool ShaderLoaded =>
+        VolumeShader != null && VolumeShader.isSupported && VolumeShader.name == ShaderName;
 
-    private static readonly Material[] SheetMats = BuildMaterials();
+    // THE BAKE RUNS ON A BACKGROUND THREAD AND THE MAIN THREAD NEVER WAITS FOR IT (§25e).
+    //
+    // What made that possible is a split that was already here: `FillBlobVolume` produces a plain
+    // `byte[]` and touches no Unity type at all, and only three lines of what used to sit beside it
+    // — the `new Texture3D`, `SetPixelData` and `Apply` now in `Upload` — have to be on Unity's
+    // thread. That is the house rule about pure cores and thin adapters paying out rather than luck.
+    // Measured in game, 328 ms of the bake moved and 9 ms of upload stayed.
+    //
+    // Started from the field initialiser, which runs inside [StaticConstructorOnStartup] on the main
+    // thread during load. `ShaderDatabase.LoadShader` above it must stay there — it is a Unity call
+    // — and it is also what decides whether to bake at all, which is why the ordering warning on the
+    // property ids applies to this line too.
+    private static readonly Task<Bake> BakeTask = StartBake();
 
-    // How long the bake took, in milliseconds, for the probe that reports it. Load-time cost, paid
-    // once, on a loading screen — but it is the number somebody will want when deciding whether to
-    // move it to a background Task, so it is measured rather than estimated.
+    // Assigned once, on the main thread, by Upload(). Null until the bake has finished AND something
+    // on the main thread has asked for it — see Available.
+    private static Texture3D volume;
+
+    private static Material[] sheetMats;
+
+    // Set to true once the bake has been collected, successfully or not, so a failed bake is not
+    // retried every frame for the rest of the session.
+    private static bool uploadAttempted;
+
+    // How long the bake took, in milliseconds, for the probe that reports it.
+    //
+    // STILL WORTH REPORTING NOW THAT NOBODY WAITS FOR IT, for two reasons. It is wall-clock across
+    // however many cores CloudBake gave it, so it is the number that says whether the parallel split
+    // is working on this machine — a value near the old serial one means it is not. And it bounds
+    // how long after load the volumetric path stays unavailable, which is the window in which a live
+    // A/B would capture §25b while believing it captured §25c.
     public static double BakeMilliseconds { get; private set; }
+
+    // How long the main thread spent uploading the finished bake, in milliseconds.
+    //
+    // This is the only part of §25c's load cost the player can still feel, and it is a single frame
+    // rather than a progress bar, so it is measured separately rather than folded into the bake: the
+    // whole claim of §25e is that this number is what is left of the other one.
+    public static double UploadMilliseconds { get; private set; }
 
     // Whether this machine takes the one-byte volume format, reported by a probe.
     //
@@ -82,7 +137,36 @@ public static class CloudVolumeShader
 
     // Whether this path can be used at all. Checked by the overlay ahead of the feature flag, so a
     // player who turns the feature on with no usable shader gets the baked cloud rather than nothing.
-    public static bool Available => VolumeShader != null && VolumeShader.isSupported && Volume != null;
+    //
+    // A PROPERTY WITH A SIDE EFFECT, DELIBERATELY, AND MAIN-THREAD ONLY. Since §25e the volume is
+    // baked on a background thread, and the resulting bytes have to be handed to Unity from Unity's
+    // own thread — so somebody on the main thread has to notice the bake finished. This is that
+    // somebody, because it is already the one question every caller asks first, and the alternative
+    // was a per-frame Harmony patch on a root update whose entire job would be to poll a bool.
+    //
+    // `Upload` is idempotent and returns immediately once it has run, so the cost of the check after
+    // the first frame is a null comparison.
+    public static bool Available
+    {
+        get
+        {
+            Upload();
+
+            // BOTH the texture and the materials, not just the texture. Upload assigns `volume`
+            // before `sheetMats`, so a throw in BuildMaterials between the two would leave this
+            // reporting a usable path whose material array is null — and the caller's very next act
+            // is to index it.
+            return ShaderLoaded && volume != null && sheetMats != null;
+        }
+    }
+
+    // Whether the background bake has finished, regardless of whether it has been uploaded yet.
+    //
+    // Separate from Available so a failure has two distinguishable shapes. A scenario that reads
+    // `ready = 1, available = 0` is looking at a texture Unity refused; one that reads `0, 0` at the
+    // same instant is simply early, and the fix is to wait rather than to go looking for a driver
+    // bug. Without the split those are the same reading.
+    public static bool BakeFinished => BakeTask != null && BakeTask.IsCompleted;
 
     // Sets everything that varies per sheet and returns the material to draw it with.
     //
@@ -95,7 +179,7 @@ public static class CloudVolumeShader
         Color litColour, Color shadowColour,
         float sunAzimuthDegrees, float sunElevationDegrees)
     {
-        Material material = SheetMats[slot];
+        Material material = sheetMats[slot];
 
         int blob = CloudSheetLayout.BlobFor(placement, atlasCells);
         int blobSize = atlasSize / atlasCells;
@@ -153,52 +237,126 @@ public static class CloudVolumeShader
         return material;
     }
 
-    private static Texture3D BuildVolume()
+    // The bake itself, and everything it returns. A plain array and a duration: no Unity type
+    // crosses the thread boundary, which is what makes the boundary safe to draw here at all.
+    private sealed class Bake
     {
-        if (VolumeShader == null || !VolumeShader.isSupported)
+        public byte[] Pixels;
+        public double Milliseconds;
+    }
+
+    private static Task<Bake> StartBake()
+    {
+        if (!ShaderLoaded)
             return null;
 
+        // Captured on the main thread and passed in, rather than read inside the task. Both are
+        // compile-time constants today, but reading a `static readonly` of another
+        // [StaticConstructorOnStartup] class from a worker thread is how a mod ends up running
+        // somebody's static constructor off the main thread, and that fails in ways that do not name
+        // this file.
         int size = CloudSheetOverlay.AtlasSize;
+        int cells = CloudSheetOverlay.AtlasCells;
+        int seed = CloudSheetOverlay.AtlasSeed;
         int layers = CloudVolumeMath.VolumeLayers;
+        int octaves = CloudField.SheetOctaves;
 
+        float[] rowCut = CloudDeckMath.PresentShapeCuts();
+        float[] rowGain = CloudDeckMath.ShapeGains();
+        float[] frequencyU = CloudDeckMath.FrequenciesU();
+        float[] frequencyV = CloudDeckMath.FrequenciesV();
+
+        // Task.Run rather than a raw Thread: this is a compute job that ends, the pool is already
+        // warm by the time mods load, and a Task carries its own exception rather than taking the
+        // process down with it — which for a cosmetic cloud renderer is the whole difference between
+        // a fallback and a crash report.
+        return Task.Run(() => RunBake(
+            size, cells, seed, layers, octaves, rowCut, rowGain, frequencyU, frequencyV));
+    }
+
+    private static Bake RunBake(
+        int size, int cells, int seed, int layers, int octaves,
+        float[] rowCut, float[] rowGain, float[] frequencyU, float[] frequencyV)
+    {
         Stopwatch watch = Stopwatch.StartNew();
 
-        byte[] volume = new byte[size * size * layers];
-        CloudVolumeMath.FillBlobVolume(
-            volume, size, CloudSheetOverlay.AtlasCells, layers,
-            seed: CloudSheetOverlay.AtlasSeed, octaves: CloudField.SheetOctaves,
+        byte[] density = new byte[size * size * layers];
+
+        // Split across cores by row — see CloudBake.Rows for why the row is the unit and
+        // CloudVolumeMath.FillBlobVolumeRows for why bands cannot collide.
+        //
+        // NESTED PARALLELISM INSIDE A Task.Run IS FINE AND IS THE POINT. The outer task is one pool
+        // thread that would otherwise sit on a 300 ms loop by itself; the inner Parallel.For fans
+        // that loop out across the rest, so the volume is ready sooner and the window in which
+        // Available answers false is shorter.
+        CloudBake.Rows(size, (yStart, yEnd) => CloudVolumeMath.FillBlobVolumeRows(
+            density, size, cells, layers, seed, octaves,
+            rowCut, rowGain, frequencyU, frequencyV,
             // §25d's shaping, so the marched cloud is the same cloud the baked one is. The volume is
             // baked once at load, before any flag can be read, so it takes the §25d shape
             // unconditionally: §25c is itself opt-in, and a player who has turned the raymarch on has
             // not asked to see the pre-#144 silhouette through it.
-            rowCut: CloudDeckMath.PresentShapeCuts(),
-            rowGain: CloudDeckMath.ShapeGains(),
-            rowFrequencyU: CloudDeckMath.FrequenciesU(),
-            rowFrequencyV: CloudDeckMath.FrequenciesV(),
             coreFraction: CloudField.PresentBlobCoreFraction,
             rimBite: CloudField.PresentRimBite,
-            densityGamma: CloudSheetMath.PresenceAlphaGamma);
-
-        watch.Stop();
-        BakeMilliseconds = watch.Elapsed.TotalMilliseconds;
+            densityGamma: CloudSheetMath.PresenceAlphaGamma,
+            yStart, yEnd));
 
         // TRANSPOSED on the way in. CloudVolumeMath stores a column's layers together, because both
         // of its own marches run down a column; a Texture3D wants slice-major, x fastest. Doing it
         // here rather than changing the layout keeps the CPU variants' access pattern intact — they
         // are still the fallback, and they are the ones that have to be fast on a CPU.
+        //
+        // Parallel over SLICES rather than rows, because a slice is what a destination row belongs
+        // to: the write target is `(layer + 1) * size * size + y * size + x`, so two threads on two
+        // layers are as disjoint as two threads on two bands were above.
         int padded = layers + PadSlices;
         byte[] pixels = new byte[size * size * padded];
 
-        for (int layer = 0; layer < layers; layer++)
+        CloudBake.Rows(layers, (first, last) =>
         {
-            int slice = (layer + 1) * size * size;
-            for (int y = 0; y < size; y++)
+            for (int layer = first; layer < last; layer++)
             {
-                int row = slice + y * size;
-                for (int x = 0; x < size; x++)
-                    pixels[row + x] = volume[CloudVolumeMath.VolumeIndex(x, y, layer, size, layers)];
+                int slice = (layer + 1) * size * size;
+                for (int y = 0; y < size; y++)
+                {
+                    int row = slice + y * size;
+                    for (int x = 0; x < size; x++)
+                        pixels[row + x] = density[CloudVolumeMath.VolumeIndex(x, y, layer, size, layers)];
+                }
             }
+        });
+
+        watch.Stop();
+        return new Bake { Pixels = pixels, Milliseconds = watch.Elapsed.TotalMilliseconds };
+    }
+
+    // Hands the finished bake to Unity. MAIN THREAD ONLY, idempotent, and cheap after the first
+    // successful call — see Available, which is the only caller and calls it every frame.
+    private static void Upload()
+    {
+        if (uploadAttempted || BakeTask == null || !BakeTask.IsCompleted)
+            return;
+
+        uploadAttempted = true;
+
+        // A bake that threw takes the whole path down to §25b rather than the game with it. There is
+        // nothing here that should throw, which is exactly why it is worth naming the file in the
+        // message if it ever does: the symptom otherwise is a sky that quietly renders one subsystem
+        // older than the settings screen claims.
+        if (BakeTask.IsFaulted)
+        {
+            Log.Error("[CelestialLighting] Cloud volume bake failed; falling back to the baked "
+                + $"atlas (§25b). {BakeTask.Exception?.GetBaseException()}");
+            return;
         }
+
+        Stopwatch watch = Stopwatch.StartNew();
+
+        Bake bake = BakeTask.Result;
+        BakeMilliseconds = bake.Milliseconds;
+
+        int size = CloudSheetOverlay.AtlasSize;
+        int padded = CloudVolumeMath.VolumeLayers + PadSlices;
 
         Texture3D texture = new Texture3D(size, size, padded, TextureFormat.Alpha8, mipChain: false)
         {
@@ -208,21 +366,23 @@ public static class CloudVolumeShader
             anisoLevel = 0,
         };
 
-        texture.SetPixelData(pixels, 0);
+        texture.SetPixelData(bake.Pixels, 0);
         texture.Apply(updateMipmaps: false, makeNoLongerReadable: true);
-        return texture;
+
+        volume = texture;
+        sheetMats = BuildMaterials(texture);
+
+        watch.Stop();
+        UploadMilliseconds = watch.Elapsed.TotalMilliseconds;
     }
 
-    private static Material[] BuildMaterials()
+    private static Material[] BuildMaterials(Texture3D texture)
     {
-        if (VolumeShader == null || !VolumeShader.isSupported || Volume == null)
-            return null;
-
         Material[] materials = new Material[CloudSheetLayout.MaxSheets];
         for (int i = 0; i < materials.Length; i++)
         {
             materials[i] = new Material(VolumeShader);
-            materials[i].SetTexture(TextureId, Volume);
+            materials[i].SetTexture(TextureId, texture);
         }
 
         return materials;
