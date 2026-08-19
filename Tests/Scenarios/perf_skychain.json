@@ -1,6 +1,6 @@
 {
  "name": "perf_skychain",
- "saveFile": "minimal_colony.rws",
+ "saveFile": "minimal_colony.rws", "requiredMods": { "astryl.Circinus": "3773680130" },
  "description": "\u00a728 step 2: WHERE inside CurSkyTarget the time goes, broken out per postfix. Shares only -- sixteen simultaneous arms inflate every row by Circinus's per-call transpile cost, so these numbers rank the postfixes against each other and must not be quoted as any one postfix's cost; perf_parents.json is the file for that. The parent arm is kept so the sum of the children can be checked against it: a large unexplained gap means the time is somewhere nobody armed, which is how \u00a727 lost three days to a lazily-built polygon set.",
  "steps": [
   {
