@@ -8176,47 +8176,52 @@ is to rebuild the vertex colour the way `GenerateLightingOverlay` does, summing 
 lights with our coverage applied only to the ones we modelled, and projecting once at the end;
 `GlowGridPerLight` already exposes everything that needs.
 
-**Performance: measured, and it is the problem.** The first attempt was not. Dubs' `mask` window
-reported 0.3165 ms/frame against the gated window's 1.1273 — a threefold win — while
-`Patch_VectorLightSuppress:Postfix` was absent from that window's table, as was
-`Patch_IndoorSkyOcclusion` on the same method. Two unrelated regenerate patches both missing means
-no regenerate ran, so the window timed the feature doing nothing. Only two of thirty-six rows were
-prefix-filtered, so the absence was real rather than a filter artifact — establishing which took
-reading `RowsBeforeFilter` against `RowsMatched`, and that is the forensics a call count makes
-unnecessary.
+**Performance: measured, then fixed, and the first measurement was not a comparison.** Dubs first
+reported the mask as three times *cheaper* than feature-off, having provoked no regenerate at all —
+the patch was absent from the table rather than fast. Re-measured through **Circinus**, which reports
+call counts, one arm per process, our own postfix armed directly. That gave 239 µs per section
+against the crossfade's 20.
 
-Re-measured through **Circinus** (`astryl.Circinus`), which reports call counts, with our own postfix
-armed directly rather than vanilla's `Regenerate` — Harmony emits a call to a postfix rather than
-inlining it, so the figure is §27's cost and not the ~795 ms vanilla already spends baking 112
-sections. **One arm per process**, because four arms in one process cannot be separated: the flag
-flips stop dirtying the map after the first whole-map rebake, so every later arm records zero calls
-with the instrumentation still live. Each run bakes 112 sections twice — 224 calls exactly, every
-time, so the arms are directly comparable rather than approximately so:
+That 11.8× was an artefact. The mask built its visibility polygons **lazily on first use, inside the
+section bake**; the crossfade builds the same polygons in the draw path, so its bake row never
+contained them. Found by arming the sub-methods: `Apply` read 49.2 ms while everything it calls
+summed to 6.0 — `BuildCellShadow` 1.17, `ApplyToCorners` 3.41, `ApplyToCentres` 1.21, the reader 0.21
+— and the missing 43 ms was `EnsurePolygon` under `CollectReaching`. **Three speculative
+optimisations before that measurement moved the number by nothing at all.**
 
-| arm | calls | total ms | **µs per section** | worst frame ms |
+Four changes, in the order they were made and with what each was worth:
+
+| change | mask ÷ crossfade |
+|---|---|
+| as first written | **11.8–15.3×** |
+| geometry build hoisted out of the bake | 2.37× |
+| unshadowed vertices skipped in both vertex passes | 1.76× |
+| unshadowed sections never touch the mesh at all | **1.51×** |
+
+Final, three interleaved repeats per arm (interleaving matters: scattered runs on this box swing 2–6×
+on identical code, interleaved ones hold to ±5%):
+
+| arm | median total | **µs per section** | worst frame | ÷ crossfade |
 |---|---|---|---|---|
-| gated (§27 off) | 224 | 0.10 | 0.4 | 0.09 |
-| crossfade @0.5 (shipped) | 224 | 4.53 | **20.2** | 2.34 |
-| **mask (phase 3)** | 224 | 53.60 | **239.3** | **29.46** |
-| mask + beam | 224 | 53.10 | 237.1 | 28.62 |
+| crossfade @0.5 (shipped) | 4.64 ms | **20.7** | 2.35 ms | — |
+| mask | 6.98 ms | **31.2** | 3.63 ms | **1.51×** |
+| mask + beam | 5.67 ms | **25.3** | 3.27 ms | **1.22×** |
 
-**The mask costs 11.8× the crossfade in the bake**, and its worst single frame is 29.5 ms against
-2.3 ms — a dropped frame on its own, before vanilla's own 108–151 ms rebake is added to it. The beam
-is free by comparison, as expected: it is a draw-time cost and does not touch the bake at all, which
-is why the last two rows agree.
+**It did not get below the crossfade, and on this scene it probably cannot.** The crossfade writes
+every vertex of every section and stops; the mask writes the same vertices *and* works out what to
+write. The two early-outs only pay where a section has no shadow, and `vector_light_perf.json` is a
+deliberately hostile case for that — 23 emitters in walled rooms with every one on screen. An
+ordinary colony, mostly unlit and unshadowed, is where the mask's skips actually fire, and the
+ordering there is untested.
 
-Where it goes is not mysterious. `LitFraction` samples each cell `DefaultCoverageSamples²` = 4 times
-per emitter, and each sample is a binary search over a ~100-ray polygon; the crossfade's bake is a
-byte multiply per vertex. The obvious reductions, in order of expected return: cache coverage per
-(emitter, cell) across the sections that share it rather than recomputing per section, drop to one
-sample per cell and let the overlay's own bilinear interpolation do the softening, and skip emitters
-whose polygon is unobstructed, where coverage is 1 everywhere by construction and nothing needs
-sampling at all.
+Every optimisation was verified behaviour-preserving on the live A/B rather than assumed: mask
+9.51 / 9.07 / 13.35 and combo 10.56 / 9.07 / 16.39 are unchanged from before any of this work.
 
-**Until that work happens this is not shippable**, and the number to beat is 20.2 µs per section, not
-a share of a frame. `Tools/CircinusDiff/circinus_diff.py` differences the recorded runs; they are
-kept under `Circinus/Runs/` and are not rolled back by the harness ledger, so a retuned build can be
-diffed against these four directly.
+**One trap is worth carrying forward.** Hoisting the geometry build out of the bake meant a section
+could bake while a polygon was still dirty; it skipped that emitter, nothing ever asked it to bake
+again, and the mask rendered **pixel-identical to vanilla with every probe healthy**. Whoever builds
+the polygons must re-dirty the map afterwards. `EnsurePolygons` therefore reports whether it built
+anything, and both callers act on that.
 
 **Ships off**, like every other §27 phase, and stands down when the per-emitter arrays cannot be read.
 
