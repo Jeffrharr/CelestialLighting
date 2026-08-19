@@ -23,16 +23,17 @@ namespace CelestialLighting;
 // extension of §8. A composition above both is the only place it fits.
 //
 // ORDERING. This must run AFTER §8 and §19, because it is a correction applied to what those two
-// left behind rather than an independent tint. IT CURRENTLY DOES NOT: Patch_SkyTargetComposite runs
-// this stage after §19 but before §8, reproducing the accidental alphabetical order the fourteen
-// separate postfixes used to compose in. See that file's note — the sequence was preserved exactly
-// so the merge could be a provably inert change, and moving this stage is a visual change owed its
-// own measurement.
+// left behind rather than an independent tint, and Patch_SkyTargetComposite is what guarantees it —
+// the stage is called there directly after Patch_SkyColorTemperature, out of alphabetical position
+// and commented as such.
 //
-// The dependency was always a weak one, which is why the wrong order is a degradation rather than a
-// defect: the window envelope is exactly zero at both boundaries, and the nudge is a lerp toward a
-// hue rescaled to whatever colour it finds. Running before §8 means §8 simply blends part of it back
-// down; the effect is weaker, never wrong or discontinuous.
+// It did NOT get that until §29. Under the alphabetical order the fourteen separate CurSkyTarget
+// postfixes composed in, this ran after §19 but before §8, so §8 ran afterwards and blended part of
+// the correction back down. The dependency was always a weak one — the window envelope is exactly
+// zero at both boundaries and the nudge is a lerp toward a hue rescaled to whatever colour it finds,
+// so running early made the effect weaker, never wrong or discontinuous. That is why it was a
+// bounded degradation rather than a defect, and why it was left alone until the merge that made
+// order expressible had landed and been measured on its own.
 public static class Patch_PurpleLight
 {
     // Per-channel blend strengths, DERIVED from §8's and §19's rather than chosen.

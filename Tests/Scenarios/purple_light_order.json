@@ -1,0 +1,28 @@
+{
+  "name": "purple_light_order",
+  "saveFile": "minimal_colony.rws",
+  "description": "§29's §19c-after-§8 ordering fix. Patch_PurpleLight is a CORRECTION applied to what §8 and §19 leave behind, not an independent tint, so it has to see their output. Under the alphabetical order the fourteen separate CurSkyTarget postfixes composed in it got §19 but not §8, and §8 then blended part of the correction back down. Hours are lifted from purple_light.json's own measured survey rather than guessed, because the window is only about 0.6 h wide at this latitude and an hourly grid straddles it entirely (see the parent CLAUDE.md's 'survey before you pick an hour'): at latitude 45 / day 11 the envelope peaks at hour 20.15 (sun -4.89 deg, purple_light 0.9882) and is exactly 0 by 20.25 (sun -6.58 deg). 20.25 is carried as the control that MUST stay at deltaE 0 -- outside the window this stage returns before touching anything, so the two orders are the same code path and any movement there would mean the move had disturbed something else. sun_elevation is pinned beside the effect probe so a clock change fails loudly instead of silently emptying the frames.",
+  "steps": [
+    { "type": "SetTile",    "args": { "latitude": "45" } },
+    { "type": "SetSeason",  "args": { "dayOfYear": "11" } },
+    { "type": "SetFeature", "args": { "featureName": "realistic_preset", "enabled": "false" } },
+    { "type": "SetWeather", "args": { "weatherDef": "Clear", "instant": "true" } },
+    { "type": "LookAt",     "args": { "anchor": "125,125", "zoom": "38" } },
+
+    { "type": "SetTime",    "args": { "hour": "12" } },
+    { "type": "Wait",       "args": { "frames": "30" } },
+    { "type": "Screenshot", "args": { "fileName": "plo_discard_hud" } },
+
+    { "type": "SetTime",    "args": { "hour": "20.25" } },
+    { "type": "Wait",       "args": { "frames": "30" } },
+    { "type": "Probe",      "args": { "probeName": "sun_elevation", "expectedValue": "-6.5767", "tolerance": "0.05" } },
+    { "type": "Probe",      "args": { "probeName": "purple_light", "expectedValue": "0.0", "tolerance": "0.005" } },
+    { "type": "Screenshot", "args": { "fileName": "plo_control_h2025" } },
+
+    { "type": "SetTime",    "args": { "hour": "20.15" } },
+    { "type": "Wait",       "args": { "frames": "30" } },
+    { "type": "Probe",      "args": { "probeName": "sun_elevation", "expectedValue": "-4.8913", "tolerance": "0.05" } },
+    { "type": "Probe",      "args": { "probeName": "purple_light", "expectedValue": "0.9882", "tolerance": "0.005" } },
+    { "type": "Screenshot", "args": { "fileName": "plo_peak_h2015" } }
+  ]
+}

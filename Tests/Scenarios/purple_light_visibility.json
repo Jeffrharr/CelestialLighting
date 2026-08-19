@@ -1,0 +1,30 @@
+{
+  "name": "purple_light_visibility",
+  "saveFile": "minimal_colony.rws",
+  "description": "How strong is §19c ON SCREEN, as opposed to in the SkyTarget? Asked because §19c is absent from the repo's measured deltaE set (CLAUDE.md lists §20c 0.36, §19b 1.48, §20 1.88, RP2 2.25, §21 6.06, §20b 6.79 -- no §19c), and because the §29 ordering fix that should have STRENGTHENED it measured a median deltaE of exactly 0.00. purple_light.json already pins the value side and shows it is large: at hour 20.15 the flag moves sky red 0.2662 -> 0.3271, a 23% rise. This scenario measures the same flag flip in PIXELS at the same hour, which is the number that decides whether the subsystem is doing anything a player can see. Hour 20.15 is the surveyed peak of the envelope (sun -4.89 deg, purple_light 0.9882) and also the hour with the largest OFF->ON red delta of the four purple_light.json samples, so this is §19c at its strongest, not a representative hour.",
+  "steps": [
+    { "type": "SetTile",    "args": { "latitude": "45" } },
+    { "type": "SetSeason",  "args": { "dayOfYear": "11" } },
+    { "type": "SetFeature", "args": { "featureName": "realistic_preset", "enabled": "false" } },
+    { "type": "SetWeather", "args": { "weatherDef": "Clear", "instant": "true" } },
+    { "type": "LookAt",     "args": { "anchor": "125,125", "zoom": "38" } },
+
+    { "type": "SetTime",    "args": { "hour": "12" } },
+    { "type": "Wait",       "args": { "frames": "30" } },
+    { "type": "Screenshot", "args": { "fileName": "plv_discard_hud" } },
+
+    { "type": "SetTime",    "args": { "hour": "20.15" } },
+    { "type": "Wait",       "args": { "frames": "30" } },
+    { "type": "Probe",      "args": { "probeName": "sun_elevation", "expectedValue": "-4.8913", "tolerance": "0.05" } },
+
+    { "type": "SetFeature", "args": { "featureName": "purple_light", "enabled": "false" } },
+    { "type": "Wait",       "args": { "frames": "10" } },
+    { "type": "Probe",      "args": { "probeName": "purple_sky_red", "expectedValue": "0.259737", "tolerance": "0.005" } },
+    { "type": "Screenshot", "args": { "fileName": "plv_off" } },
+
+    { "type": "SetFeature", "args": { "featureName": "purple_light", "enabled": "true" } },
+    { "type": "Wait",       "args": { "frames": "10" } },
+    { "type": "Probe",      "args": { "probeName": "purple_sky_red", "expectedValue": "0.298241", "tolerance": "0.005" } },
+    { "type": "Screenshot", "args": { "fileName": "plv_on" } }
+  ]
+}
