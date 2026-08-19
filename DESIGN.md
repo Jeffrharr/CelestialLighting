@@ -7996,7 +7996,16 @@ the **extrusion length**, not darkness: writing a smaller alpha makes the shadow
 lighter. That is a real feature and it needs #151's AssetBundle pipeline, and the mask is the only
 arm that could supply the per-cell occluded light figure it would consume.
 
-**Ships off**, like every other §27 phase, and stands down when the per-emitter arrays cannot be read.
+**What ships.** `vectorLights` is a settings toggle and still defaults **off** — §27 is the most
+opinionated thing in the mod, and light that vanilla delivered around a corner no longer arriving is
+a large enough taste call to be opt-in. `vectorLightPawnShadows` has its own switch beneath it, on by
+default, because it is the one part of §27 that draws a new OBJECT rather than recolouring an
+existing one — the same reasoning that gives §25's visible clouds their own switch.
+
+**The composition is deliberately not exposed.** Mask and beam are what §27 is designed around and
+both default on; the crossfade survives only as the fallback the code picks for itself when the
+per-emitter glow arrays cannot be read. A player has no way to judge that choice and no reason to be
+asked about it, and the flags remain switchable from the harness for measurement.
 
 ### Performance (`Tests/Scenarios/vector_light_perf.json`)
 
