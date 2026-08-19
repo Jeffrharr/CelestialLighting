@@ -1,0 +1,393 @@
+{
+  "name": "cloud_volume_sweep",
+  "saveFile": "minimal_colony.rws",
+  "description": "§25c against §25b at close zoom across the afternoon, both arms at every hour (issue #144). BUILT BECAUSE cloud_volume_perf's BLOWOUT LOOKED LIKE AN ACCUMULATION AND IS EQUALLY CONSISTENT WITH A SUN THAT MOVED. That scenario never re-issues SetTime and its seven 300-frame Profile windows each advance it, so its four volumetric arms were shot at four different unrecorded hours -- mean brightness rising 107/121/137/164 while the baked arms beside them rose only 111/109/115/122. Here the hour is STATED rather than inherited, sun_elevation is pinned beside every frame so a later clock change fails loudly instead of silently re-shooting the sweep somewhere else, and both renderers are captured at each hour so the DIVERGENCE is the measurement rather than either frame alone. No Profile steps.",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "realistic_preset",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_cover_forced_fraction",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_sheet",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_volume_shader_loaded",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_volume_shader",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "zoom": "24"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "sweep_warmup"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "90"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "zoom": "24"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "h12_0_baked"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "zoom": "24"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "h12_0_volumetric"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "14.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "90"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "zoom": "24"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "h14_0_baked"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "zoom": "24"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "h14_0_volumetric"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "16.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "90"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "zoom": "24"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "h16_0_baked"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "zoom": "24"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "h16_0_volumetric"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "17.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "90"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "zoom": "24"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "h17_0_baked"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "zoom": "24"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "h17_0_volumetric"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "18.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "90"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "zoom": "24"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "h18_0_baked"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "zoom": "24"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "h18_0_volumetric"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "19.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "90"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "zoom": "24"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "h19_0_baked"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "zoom": "24"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "h19_0_volumetric"
+      }
+    }
+  ]
+}

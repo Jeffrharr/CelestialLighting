@@ -189,6 +189,8 @@ public static class ProbeRegistration
         ProbeRegistry.Register(new CloudVolumeShaderProbe(
             "cloud_volume_format", CloudVolumeShaderProbe.Metric.FormatSupported));
         ProbeRegistry.Register(new CloudVolumeShaderProbe(
+            "cloud_volume_shader_loaded", CloudVolumeShaderProbe.Metric.ShaderLoaded));
+        ProbeRegistry.Register(new CloudVolumeShaderProbe(
             "cloud_volume_upload_ms", CloudVolumeShaderProbe.Metric.UploadMilliseconds));
         ProbeRegistry.Register(new CloudVolumeShaderProbe(
             "cloud_volume_baked", CloudVolumeShaderProbe.Metric.BakeFinished));

@@ -27,6 +27,17 @@ public sealed class CloudVolumeShaderProbe : IProbe
         // §25b instead.
         Available,
 
+        // 1 when the shader that came back is OURS rather than the default vanilla substitutes for a
+        // missing bundle.
+        //
+        // PIN THIS, NOT JUST Available, IN ANY SCENARIO THAT CLAIMS TO MEASURE THE RAYMARCH. It is
+        // the probe that would have caught the white slab: `LoadShader` never returns null, so for
+        // two PRs `cloud_volume_shader` read 1 while the frames were being drawn by vanilla's
+        // default shader as flat opaque quads. Available now depends on this, so the two agree
+        // today — they are reported separately because a run where they DISAGREE says the bundle
+        // loaded and the volume did not, which is a different repair.
+        ShaderLoaded,
+
         // What FillBlobVolume cost, in milliseconds. Since §25e that is WALL-CLOCK ON A BACKGROUND
         // THREAD, spread across cores, not main-thread time — the question it used to answer
         // ("should this move to a background Task") has been answered, and it now answers two
@@ -73,6 +84,9 @@ public sealed class CloudVolumeShaderProbe : IProbe
     {
         if (metric == Metric.Available)
             return CloudVolumeShader.Available ? 1f : 0f;
+
+        if (metric == Metric.ShaderLoaded)
+            return CloudVolumeShader.ShaderLoaded ? 1f : 0f;
 
         if (metric == Metric.FormatSupported)
             return CloudVolumeShader.VolumeFormatSupported ? 1f : 0f;

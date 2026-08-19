@@ -83,6 +83,14 @@
     {
       "type": "Probe",
       "args": {
+        "probeName": "cloud_volume_shader_loaded",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
         "probeName": "cloud_volume_shader",
         "expectedValue": "1",
         "tolerance": "0.001"

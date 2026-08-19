@@ -1,0 +1,119 @@
+{
+  "name": "cloud_volume_white",
+  "saveFile": "minimal_colony.rws",
+  "description": "Reproduces the solid pale rectangle §25c draws at close zoom (issue #144). Trimmed out of cloud_volume_perf so it runs in one minute instead of seven: same setup, same camera, no Profile windows -- the profiler is irrelevant to whether a quad is opaque, and its seven 300-frame windows are what made the original too slow to bisect against. Both arms shot at the SAME camera with the flag as the only difference, and cloud_volume_shader pinned at 1 so a run that quietly fell back to §25b cannot report the bug as absent.",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "realistic_preset",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_cover_forced_fraction",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_sheet",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_volume_shader_loaded",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_volume_shader",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "zoom": "24"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "white_warmup"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "zoom": "24"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "white_baked"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "zoom": "24"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "white_volumetric"
+      }
+    }
+  ]
+}

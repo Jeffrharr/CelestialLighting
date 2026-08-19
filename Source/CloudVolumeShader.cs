@@ -33,6 +33,23 @@ public static class CloudVolumeShader
     // Assets/Data/joof.celestiallighting/Materials/CelestialCloudVolume.shader to match.
     public const string ShaderPath = "CelestialCloudVolume";
 
+    // The name the .shader file DECLARES, which is the only thing that tells a loaded shader apart
+    // from the one vanilla substitutes when loading fails.
+    //
+    // THE DEGRADE-TO-§25b PROMISE AT THE TOP OF THIS FILE WAS NOT KEPT, AND THIS IS THE REPAIR.
+    // `ShaderDatabase.LoadShader` does not return null for a missing shader: it logs
+    // "Could not load shader … Using default shader instead." and hands back the DEFAULT shader,
+    // which is non-null and `isSupported`. So the old `VolumeShader != null` test passed, `Available`
+    // said yes, and every sheet was drawn by a shader that knows nothing about `_Volume` — a flat
+    // opaque quad the size of the sheet. That is the white slab, and it is worse than the fallback
+    // this was supposed to have: a player with a missing or corrupt bundle got rectangles instead of
+    // §25b's clouds, and no probe could tell because `cloud_volume_shader` read 1 throughout.
+    //
+    // Checking the DECLARED name rather than comparing against ShaderDatabase's default on purpose:
+    // it asserts the shader we actually wanted, so it also catches a bundle that loaded some OTHER
+    // shader, and it does not depend on which fallback vanilla happens to choose this version.
+    public const string ShaderName = "CelestialLighting/CloudVolume";
+
     // A zero slice above and below the deck, so the hardware's clamped sampling FADES out of the
     // volume the way CloudRaymarchMath.Sample does instead of smearing the outermost slice outward
     // forever. Two slices of 384x384 is 288 KB to avoid a branch in the hottest loop in the mod.
@@ -63,6 +80,11 @@ public static class CloudVolumeShader
             CloudDeckMath.DeckCount);
 
     private static readonly Shader VolumeShader = ShaderDatabase.LoadShader(ShaderPath);
+
+    // Whether the shader that came back is OURS. See ShaderName: a failed load is not a null here,
+    // it is vanilla's default shader wearing the same slot, so this is the only honest test.
+    public static bool ShaderLoaded =>
+        VolumeShader != null && VolumeShader.isSupported && VolumeShader.name == ShaderName;
 
     // THE BAKE RUNS ON A BACKGROUND THREAD AND THE MAIN THREAD NEVER WAITS FOR IT (§25e).
     //
@@ -129,7 +151,12 @@ public static class CloudVolumeShader
         get
         {
             Upload();
-            return VolumeShader != null && VolumeShader.isSupported && volume != null;
+
+            // BOTH the texture and the materials, not just the texture. Upload assigns `volume`
+            // before `sheetMats`, so a throw in BuildMaterials between the two would leave this
+            // reporting a usable path whose material array is null — and the caller's very next act
+            // is to index it.
+            return ShaderLoaded && volume != null && sheetMats != null;
         }
     }
 
@@ -220,7 +247,7 @@ public static class CloudVolumeShader
 
     private static Task<Bake> StartBake()
     {
-        if (VolumeShader == null || !VolumeShader.isSupported)
+        if (!ShaderLoaded)
             return null;
 
         // Captured on the main thread and passed in, rather than read inside the task. Both are

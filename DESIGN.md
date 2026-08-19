@@ -8892,6 +8892,48 @@ retrying every frame. `BakeFinished` is reported separately from `Available` so 
 distinguishable: `ready 1, available 0` is a texture Unity refused, while `0, 0` at the same instant
 is simply early and wants a wait, not a bug report.
 
+### The degrade-to-§25b promise was not being kept
+
+§25c's header has always claimed that every failure in its load path lands on `Available == false`
+and draws §25b instead. **It did not, and the repair belongs here because §25e is where the load path
+was being read closely.**
+
+`ShaderDatabase.LoadShader` does **not** return null for a shader it cannot find. It logs
+`Could not load shader … Using default shader instead.` and hands back vanilla's default shader,
+which is non-null and `isSupported`. So the old `VolumeShader != null` test passed, `Available` said
+yes, and every cloud sheet was drawn by a shader that has never heard of `_Volume` — a flat opaque
+quad the exact size and shape of the sheet. **A razor-edged white rectangle across the sky, which is
+strictly worse than the fallback it was supposed to have.**
+
+Nothing caught it, and it is worth being precise about why:
+
+- `cloud_volume_shader` read **1** throughout, because it reports `Available`.
+- The frames were captured — `cloud_volume_perf` takes nine — and never looked at, because the
+  scenario asserts only numbers.
+- It reproduced **identically on `main` and on the branch**, which is exactly what a genuine
+  pre-existing bug looks like, so it survived a deliberate A/B against `main`.
+
+`ShaderLoaded` now checks the shader's **declared** name (`CelestialLighting/CloudVolume`) rather
+than its nullness, and `Available` depends on it. Checking the declared name rather than comparing
+against whatever vanilla's default happens to be also catches a bundle that loaded some *other*
+shader, and does not depend on which fallback a future RimWorld picks.
+
+`cloud_volume_shader_loaded` is a separate probe from `cloud_volume_shader` and every scenario that
+claims to measure the raymarch now pins both. They agree today, by construction; a run where they
+**disagree** says the bundle loaded and the volume did not, which is a different repair.
+
+Measured, at 14.0h / sun 51.10° / zoom 24, mean red channel and hard vertical seams in the
+volumetric frame:
+
+| | before | after |
+|---|---|---|
+| vs baked atlas | **+23** | −5 |
+| hard seams | **1 (x=1080)** | none |
+
+and across the whole `cloud_volume_sweep` hour grid, six hours, **no seam at any of them**, with the
+raymarch now reading 0 to 8 counts *darker* than the flat atlas — the direction self-shadowing should
+push it.
+
 ### What stayed on the main thread, and why
 
 **The two 2-D atlases were made faster in place rather than moved.** A `Texture2D` and the materials
