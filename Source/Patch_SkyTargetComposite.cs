@@ -69,26 +69,27 @@ namespace CelestialLighting;
 [HarmonyPatch(typeof(WeatherWorker), nameof(WeatherWorker.CurSkyTarget))]
 public static class Patch_SkyTargetComposite
 {
-    // THE ORDER BELOW IS THE ORDER THAT SHIPPED, REPRODUCED EXACTLY.
+    // THE ORDER BELOW IS ALPHABETICAL BY CLASS NAME, WHICH IS WHAT HARMONY WAS DOING — with the
+    // documented exceptions called out inline. A straight-line sequence rather than a list of
+    // delegates: no allocation, and the order is readable as code.
     //
-    // It is alphabetical by class name because that is what Harmony was doing, and it is preserved
-    // rather than corrected so that merging fourteen patches into one is a provably inert change with
-    // nothing else riding along — the same discipline §28's memoisation commits used. A straight-line
-    // sequence rather than a list of delegates: no allocation, and the order is readable as code.
+    // The composite landed first reproducing the alphabetical order EXACTLY, so that merging fourteen
+    // patches into one was a provably inert change with nothing riding along (§28's discipline), and
+    // the order was then corrected in its own commit with its own measurement. That sequencing is why
+    // §29 in DESIGN.md can quote a deltaE for the merge and a separate one for each move.
     //
-    // TWO STAGES ARE KNOWN TO SIT IN THE WRONG PLACE, and they are left wrong here ON PURPOSE, to be
-    // moved and measured on their own. Recording them rather than quietly fixing them is the point of
-    // writing the order down at all:
+    //   §9 LowLightDesaturation IS DELIBERATELY OUT OF ALPHABETICAL POSITION, moved to sit directly
+    //   after §7 NightRadiance. It reads `__result.glow` to key the rod-vision ramp, and §7 is what
+    //   puts the starlight + airglow + MOONLIGHT floor into that field. Alphabetically §9 sorts before
+    //   §7, so for the whole life of the mod it read vanilla's raw below-horizon glow — near zero
+    //   under every moon phase alike — and the moon-phase dependence its own header describes did not
+    //   exist. Moving it also makes the patch agree with PurkinjeProbe and with §9's own wash
+    //   (Patch_NightDesaturationStrength), both of which read the FINAL composed glow off SkyManager
+    //   and so had always been reporting the post-§7 value the patch was not using.
     //
-    //   §9 LowLightDesaturation RUNS BEFORE §7 NightRadiance, and its header states the opposite. It
-    //   reads vanilla's raw below-horizon glow, so the moon-phase dependence that comment describes
-    //   has never been in a shipped build. A real visual bug, and moving it is a real visual change —
-    //   which is exactly why it does not belong in a commit whose whole claim is that nothing moved.
-    //
-    //   §19c PurpleLight RUNS BEFORE §8 SkyColorTemperature, though its header asks to run after both
-    //   §8 and §19. It gets §19 (which sorts earlier) but not §8, so §8 blends part of the correction
-    //   back down. That file's own analysis calls the early case "weaker, never wrong or
-    //   discontinuous" — a bounded degradation rather than a defect, but not what was intended.
+    //   §19c PurpleLight STILL RUNS BEFORE §8 SkyColorTemperature, though its header asks to run
+    //   after both §8 and §19. It gets §19 (which sorts earlier) but not §8, so §8 blends part of the
+    //   correction back down. Left for the next commit, which measures it on its own.
     static void Postfix(Map map, ref SkyTarget __result)
     {
         Patch_AuroraTint.Apply(map, ref __result);              // §11  night sky tint under an auroral event
@@ -96,9 +97,9 @@ public static class Patch_SkyTargetComposite
         Patch_CloudCoverSky.Apply(map, ref __result);           // §22  partial cloud cover, Clear weather only
         Patch_EnclosedAmbient.Apply(map, ref __result);         // §17b constant ambient glow in a cavern
         Patch_LimbRefraction.Apply(map, ref __result);          // §18d orbital sunset; owns .glow in vacuum
-        Patch_LowLightDesaturation.Apply(map, ref __result);    // §9   Purkinje cool-grey drift  (see note: wants to be after §7)
         Patch_MoonShadowColor.Apply(map, ref __result);         // §6a  colors.shadow below the horizon
         Patch_NightRadiance.Apply(map, ref __result);           // §7   starlight/airglow/moonlight night floor on .glow
+        Patch_LowLightDesaturation.Apply(map, ref __result);    // §9   Purkinje cool-grey drift — MUST follow §7, see note
         Patch_PolarNightBlue.Apply(map, ref __result);          // §19  ozone Chappuis band
         Patch_PurpleLight.Apply(map, ref __result);             // §19c -6..-4 window correction  (see note: wants to be after §8)
         Patch_SkyColorTemperature.Apply(map, ref __result);     // §8   blackbody curve, site altitude, aerosol
