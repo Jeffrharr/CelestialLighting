@@ -43,16 +43,17 @@ public static class CloudSheetLayout
     public const int ShippedSheetCap = 12;
 
     // §25d's cap (issue #144). Many more, because they are much smaller — see PresentSizeFraction.
-    // FIVE, and this is the term doing the work now that the size is back to §25b's.
+    // ELEVEN, which is five sheets' worth of sky in smaller pieces.
     //
-    // It moves opposite the size and always has to: a sheet's footprint goes with the SQUARE of its
-    // size, so the two together are what decides whether a sky is clouds or a tint. At a fifth the
-    // size this was 40; at full size it is 5, against §25b's 12.
+    // The cap moves opposite the size and always must: a sheet's footprint goes with the SQUARE of
+    // its size, so the two together are what decide whether a sky reads as clouds or as a tint.
+    // Two thirds the size is 0.44 of the area, so holding total coverage where five full-size sheets
+    // put it takes 5 / 0.44 ~ 11.
     //
     // Note what a CAP is: SheetCount rounds `fraction * cap` up, so this is the count of a fully
-    // overcast sky and an ordinary partly-cloudy one gets two or three. That is the intended shape —
-    // an overcast sky should be covered, and a fair day should have a few clouds crossing it.
-    public const int PresentSheetCap = 5;
+    // overcast sky and an ordinary partly-cloudy one gets three or four. That is the intended shape —
+    // an overcast sky should be covered, a fair day should have a few clouds crossing it.
+    public const int PresentSheetCap = 11;
 
     // A sheet's size as a fraction of the map's smaller axis, before per-sheet variation. Deliberately
     // large: a cloud that fits comfortably on screen reads as a smudge on the ground, while one whose
@@ -78,20 +79,20 @@ public static class CloudSheetLayout
     //
     // 0.20 is 50 cells on a 250-cell map: big enough to be weather rather than a puff, small enough
     // that a colony sees whole clouds with sky between them, which is what makes them clouds.
-    // §25d keeps §25b's sheet SIZE and changes the COUNT instead.
+    // Two thirds of §25b's sheet — 110 cells on a 250-cell map against its 165.
     //
-    // THE WASH WAS SIZE TIMES COUNT, NOT SIZE. §25b puts twelve sheets of two-thirds the map into
-    // the sky, and differenced against a cloudless frame that measured as a flat lift over ~70% of
-    // the screen with the terrain's own texture showing through it — a global tint with one soft
-    // edge, no shape anywhere. Shrinking the sheets to a fifth of that fixed it and proved the
-    // diagnosis, but a sky of small clouds reads as a scattering of puffs rather than as weather.
+    // BOTH ENDS OF THIS RANGE HAVE BEEN LOOKED AT, WHICH IS THE ONLY WAY IT COULD HAVE BEEN SET.
+    // §25b's full size puts a sheet across two thirds of the map, and with several up they overlap
+    // into the single flat wash that made §25 invisible: differenced against a cloudless frame it is
+    // a uniform lift over most of the screen with the terrain's own texture through it, no shape
+    // anywhere. A fifth of it fixed that completely and read as a scattering of puffs rather than as
+    // weather. Two thirds keeps a cloud big enough to feel overhead — the property BaseSizeFraction's
+    // own note is about, that a sheet whose edges leave the view reads as something ABOVE you — while
+    // being small enough that several fit in a sky with gaps between them.
     //
-    // Cutting the COUNT instead keeps a cloud big enough to be overhead — the property
-    // BaseSizeFraction's own note is about, that a sheet whose edges run off the view reads as
-    // something above you rather than a smudge on the ground — while leaving sky between them for
-    // them to be separate objects in. Same constant as §25b, so a §25d cloud is the size a §25
-    // cloud always was.
-    public const float PresentSizeFraction = BaseSizeFraction;
+    // The per-sheet variation on top of this is deliberately left alone: the complaint was that every
+    // cloud came out too big, not that they came out too alike.
+    public const float PresentSizeFraction = BaseSizeFraction * (2f / 3f);
 
     // How much a sheet's size may vary from the base, either way. Enough that no two are obviously the
     // same object; not so much that the small ones read as a different phenomenon.

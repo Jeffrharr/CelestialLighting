@@ -161,6 +161,14 @@ public class CelestialLightingSettingsMod : Mod
         // with no per-frame field regeneration, so it does not warrant the same warning in the label.
         listing.CheckboxLabeled("    Visible clouds", ref Settings.cloudSheet,
             "Draw the clouds themselves — soft-edged sheets of cloud drifting across the map above everything on it, more of them the cloudier it is, tinted by whatever light is on them (neutral at midday, orange and pink at sunset). Without this, cloud cover only ever shows as a change in the colour and brightness of the sky.\n\nDrifts around the clock, under any weather that has a cloud deck as well as during the partial cover above. Costs up to twelve draw calls a frame while clouds are on screen and nothing at all when the sky is clear; the cloud shapes are baked once when the game loads, not per frame.");
+        // §25c's renderer, nested under "Visible clouds" because it is a property of the clouds that
+        // switch draws rather than a lane of its own — with it off the same clouds are still there,
+        // drawn the flat way. THE PERFORMANCE NOTE IS IN THE LABEL, unlike the switch above it: this
+        // one is per-fragment GPU work over whatever part of the screen has cloud on it, which is a
+        // different kind of cost from a dozen draw calls of a baked texture, and it is the switch a
+        // player hunting for frames should find first.
+        listing.CheckboxLabeled("      Volumetric clouds (GPU)", ref Settings.cloudVolume,
+            "Light the clouds by marching through a real 3-D model of them instead of tinting a flat picture. Each cloud shadows its own underside, so a low sun lights the tops while the bulk beneath stays dark, and the shape of that shading changes through the day rather than just its brightness.\n\nTurn this OFF if you are short of frames: it is the one cloud setting whose cost is on the graphics card, and it scales with how much of the screen has cloud on it. With it off the same clouds are drawn the flat way, which is what earlier versions did. It also switches itself off automatically on hardware that cannot run it, so nothing disappears.");
         ShowExternalCloudSource(listing);
         listing.CheckboxLabeled("Sky colour-temperature", ref Settings.skyColorTemperature,
             "Warm the sky toward the horizon on a continuous, altitude-keyed curve.");
