@@ -174,67 +174,155 @@ public static class CloudVolumeShader
     // into `material.color` — and `shadowRatio` the per-channel fraction of it that reaches a part
     // the beam never gets to. The shader interpolates between them, so the two of them together are
     // the entire colour model and neither is a modulation of a texture.
+    //
+    // §28: WRITES ONLY WHAT CHANGED. This used to make seven native `Material.Set*` calls per sheet
+    // unconditionally, which at MaxSheets is 280 a frame and measured ~31 us — the largest single
+    // item left in §28's sweep. Most of them rewrote a byte-for-byte identical value: a slot keeps
+    // its material for the whole session, and thirteen of the sixteen numbers involved are decided
+    // by the sheet's placement and deck, which change once a crossing rather than once a frame.
+    //
+    // So each slot now remembers what was last written to it and the write is skipped when the value
+    // has not moved. The cadence split lives in CloudVolumeUniforms, and the reason it lives there
+    // rather than here is that "this group does not depend on the sun or the light" is a claim about
+    // arithmetic — testable offline, and false the moment somebody adds a sun term to Geometry
+    // without noticing. See that file's header.
+    //
+    // NOT AN APPROXIMATION. The comparisons are exact float equality, and a miss writes exactly what
+    // the old code wrote, so the material state handed to the GPU is identical in every frame rather
+    // than merely close. A ΔE of 0.00 is the expected result here, not a weak one.
     public static Material Configure(
         int slot, in CloudSheetLayout.Placement placement, int atlasCells, int atlasSize,
         Color litColour, Color shadowColour,
         float sunAzimuthDegrees, float sunElevationDegrees)
     {
         Material material = sheetMats[slot];
-
-        int blob = CloudSheetLayout.BlobFor(placement, atlasCells);
-        int blobSize = atlasSize / atlasCells;
-        int blobX = blob % atlasCells;
-        int blobY = blob / atlasCells;
-
-        float cell = 1f / atlasCells;
-        float scaleU = placement.FlipU ? -cell : cell;
-        float scaleV = placement.FlipV ? -cell : cell;
-
-        material.SetTextureScale(TextureId, new Vector2(scaleU, scaleV));
-        material.SetTextureOffset(TextureId, new Vector2(
-            (blobX + (placement.FlipU ? 1 : 0)) * cell,
-            (blobY + (placement.FlipV ? 1 : 0)) * cell));
-
-        material.SetColor(ColorId, litColour);
-        material.SetColor(ShadowColorId, shadowColour);
+        ref SheetState state = ref sheetStates[slot];
 
         // The deck's own vertical extent, which is what makes cirrus a flat sheet that barely
         // shadows itself and cumulus a tower that does. A2 records the same intent in its comments
         // and never wired it through; here each deck is already its own draw call, so it is free.
         float peakTexels = PeakTexels[placement.Deck];
-        float layerTexels = peakTexels / CloudVolumeMath.VolumeLayers;
 
-        material.SetVector(VolumeParamsId, new Vector4(
-            atlasSize, CloudVolumeMath.VolumeLayers + PadSlices, peakTexels, layerTexels));
+        CloudVolumeUniforms.Geometry geometry = CloudVolumeUniforms.GeometryFor(
+            CloudSheetLayout.BlobFor(placement, atlasCells), atlasCells, atlasSize,
+            placement.FlipU, placement.FlipV,
+            peakTexels, PeakTexels[0], CloudVolumeMath.VolumeLayers, PadSlices);
 
-        material.SetVector(CellBoundsId, new Vector4(
-            blobX * blobSize, blobY * blobSize,
-            blobX * blobSize + blobSize - 1, blobY * blobSize + blobSize - 1));
+        // `!state.Written` rather than a sentinel Geometry value: there is no value of these
+        // sixteen floats that cannot legitimately occur, so "nothing has been written to this slot
+        // yet" has to be its own flag. It is also what makes the array safe to reuse if the
+        // materials are ever rebuilt — see BuildMaterials, which clears it.
+        if (!state.Written || !geometry.Equals(state.Geometry))
+        {
+            material.SetTextureScale(TextureId, new Vector2(geometry.ScaleU, geometry.ScaleV));
+            material.SetTextureOffset(TextureId, new Vector2(geometry.OffsetU, geometry.OffsetV));
 
-        CloudRaymarchMath.SunVector(sunAzimuthDegrees, sunElevationDegrees,
-            out float lu, out float lv, out float lh);
+            material.SetVector(VolumeParamsId, new Vector4(
+                geometry.AtlasSize, geometry.PaddedLayers, geometry.PeakTexels, geometry.LayerTexels));
 
-        // MIRRORED WITH THE TEXTURE, and this is the one correctness win that comes free with a
-        // shader. A sheet drawn with a negative texture scale reads the atlas backwards, so a BAKED
-        // lit side arrives on the wrong flank — half the sky lit from the east — and the only fix
-        // available to a bake is to stop mirroring, which costs the sheets their variety. Flipping
-        // the light direction alongside the texture keeps both.
-        material.SetVector(SunDirId, new Vector4(
-            placement.FlipU ? -lu : lu,
-            placement.FlipV ? -lv : lv,
-            lh, 0f));
+            material.SetVector(CellBoundsId, new Vector4(
+                geometry.MinX, geometry.MinY, geometry.MaxX, geometry.MaxY));
 
-        // w is the LIGHT ray's coefficient, scaled by this deck's own thickness — see
-        // CloudRaymarchMath.LightExtinctionFor. Without it a thin deck at a grazing sun is fully
-        // self-occluded and renders at the ambient floor, which is the opposite of the sunset §25b's
-        // deck windows exist to draw.
-        material.SetVector(MarchParamsId, new Vector4(
-            CloudRaymarchMath.ViewExtinctionFor(peakTexels, PeakTexels[0]),
-            CloudRaymarchMath.AmbientWrap,
-            blobSize * 0.667f,
-            CloudRaymarchMath.LightExtinctionFor(peakTexels, PeakTexels[0])));
+            // w is the LIGHT ray's coefficient, scaled by this deck's own thickness — see
+            // CloudRaymarchMath.LightExtinctionFor. Without it a thin deck at a grazing sun is fully
+            // self-occluded and renders at the ambient floor, which is the opposite of the sunset
+            // §25b's deck windows exist to draw.
+            material.SetVector(MarchParamsId, new Vector4(
+                geometry.ViewExtinction, geometry.AmbientWrap,
+                geometry.ShadowReach, geometry.LightExtinction));
 
+            state.Geometry = geometry;
+        }
+
+        // Expected to change every frame — the sky moves — but compared anyway, because a paused
+        // colony and a still sky are common and four float comparisons are cheaper than the
+        // managed-to-native call they might avoid.
+        if (!state.Written || !Same(litColour, state.Lit))
+        {
+            material.SetColor(ColorId, litColour);
+            state.Lit = litColour;
+        }
+
+        if (!state.Written || !Same(shadowColour, state.Shadow))
+        {
+            material.SetColor(ShadowColorId, shadowColour);
+            state.Shadow = shadowColour;
+        }
+
+        // The sun is the same for every sheet in the frame, so its trigonometry is done once and
+        // reused — this used to run MaxSheets times a frame for one answer. Memoised on the exact
+        // arguments rather than on FrameStamp: the pair IS the input, so an equal pair cannot
+        // disagree, and it stays correct if a caller ever configures two maps in one frame.
+        SunVectorFor(sunAzimuthDegrees, sunElevationDegrees, out float lu, out float lv, out float lh);
+
+        CloudVolumeUniforms.SunDirection(
+            lu, lv, lh, placement.FlipU, placement.FlipV,
+            out float u, out float v, out float h);
+
+        Vector4 sunDir = new Vector4(u, v, h, 0f);
+        if (!state.Written || !Same(sunDir, state.SunDir))
+        {
+            material.SetVector(SunDirId, sunDir);
+            state.SunDir = sunDir;
+        }
+
+        state.Written = true;
         return material;
+    }
+
+    // COMPONENTWISE, NOT `==`, and this is not a style preference. Unity's `==` on Color and Vector4
+    // is APPROXIMATE: it subtracts and tests sqrMagnitude against 1e-10, so two values within about
+    // 1e-5 compare equal. Used as a cache test that turns "close enough" into "do not write", which
+    // is a different thing from "did not change" — a value drifting by less than the epsilon every
+    // frame would be held at whatever was written when the cache was last missed. The error that
+    // buys is far below anything visible, and it would still be a claim of exactness that was not
+    // true, in a file whose whole argument is that the frames are identical rather than similar.
+    //
+    // Four float comparisons are also cheaper than the operator, which builds two Vector4s and a
+    // subtraction to answer the same question.
+    private static bool Same(in Color a, in Color b) =>
+        a.r == b.r && a.g == b.g && a.b == b.b && a.a == b.a;
+
+    private static bool Same(in Vector4 a, in Vector4 b) =>
+        a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w;
+
+    // What was last written to one slot's material, so an unchanged value costs a compare instead of
+    // a native setter. Grouped by cadence, not by shader property: see CloudVolumeUniforms.
+    private struct SheetState
+    {
+        public bool Written;
+        public CloudVolumeUniforms.Geometry Geometry;
+        public Color Lit;
+        public Color Shadow;
+        public Vector4 SunDir;
+    }
+
+    private static SheetState[] sheetStates;
+
+    // The sun's unit vector, computed once per distinct sun rather than once per sheet.
+    private static float lastAzimuth = float.NaN;
+    private static float lastElevation = float.NaN;
+    private static float lastSunU;
+    private static float lastSunV;
+    private static float lastSunH;
+
+    private static void SunVectorFor(
+        float azimuthDegrees, float elevationDegrees, out float lu, out float lv, out float lh)
+    {
+        // NaN seeds, so the first call always misses: NaN != NaN, which is the one place that rule
+        // is useful rather than a trap. A zeroed seed would collide with a genuine sun straight
+        // overhead at due north.
+        if (azimuthDegrees != lastAzimuth || elevationDegrees != lastElevation)
+        {
+            CloudRaymarchMath.SunVector(azimuthDegrees, elevationDegrees,
+                out lastSunU, out lastSunV, out lastSunH);
+            lastAzimuth = azimuthDegrees;
+            lastElevation = elevationDegrees;
+        }
+
+        lu = lastSunU;
+        lv = lastSunV;
+        lh = lastSunH;
     }
 
     // The bake itself, and everything it returns. A plain array and a duration: no Unity type
@@ -384,6 +472,13 @@ public static class CloudVolumeShader
             materials[i] = new Material(VolumeShader);
             materials[i].SetTexture(TextureId, texture);
         }
+
+        // Cleared alongside the materials it describes, and assigned BEFORE `sheetMats` reaches
+        // `Available` — a cache that outlived the materials it was a record of would have Configure
+        // skip every write against a brand-new material, and a brand-new material has none of them.
+        // Nothing rebuilds these today; this is here so that the day something does, it is not a
+        // silent white slab.
+        sheetStates = new SheetState[materials.Length];
 
         return materials;
     }

@@ -238,6 +238,13 @@
          thicknesses rather than restating them, so it must come after it. -->
     <Compile Include="../../Source/CloudVolumeMath.cs" Link="CloudVolumeMath.cs" />
     <Compile Include="../../Source/CloudRaymarchMath.cs" Link="CloudRaymarchMath.cs" />
+    <!-- §28's cadence split for the volumetric sheet's shader uniforms. Last of the cloud files:
+         it reads CloudRaymarchMath's two extinction coefficients and its ambient wrap directly, so
+         it must come after that, and it also needs CloudSheetLayout above for the atlas-cell
+         geometry its callers hand it. Linked because the claim the tests exist to pin — that a
+         sheet's Geometry depends on its placement and deck and on NOTHING else — is what makes
+         CloudVolumeShader.Configure's per-slot write cache correct. -->
+    <Compile Include="../../Source/CloudVolumeUniforms.cs" Link="CloudVolumeUniforms.cs" />
   </ItemGroup>
 
 </Project>

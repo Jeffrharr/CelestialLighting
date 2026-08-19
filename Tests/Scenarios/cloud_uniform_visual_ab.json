@@ -1,0 +1,155 @@
+{
+ "name": "cloud_uniform_visual_ab",
+ "saveFile": "minimal_colony.rws",
+ "description": "\u00a728 step 5's visual-inertness proof: the per-slot write cache in CloudVolumeShader.Configure is claimed to change NOTHING a player can see, and this is the file that makes the claim falsifiable. The same scenario runs on the pre-\u00a728-step-5 build and the cached one and the frames are compared with Tools/FrameDelta; the expected result is median CIELAB deltaE 0.00, not merely a small number, because the cache compares exactly and a miss writes precisely what the old code wrote. SEPARATE FROM perf_visual_ab.json ON PURPOSE, and not only to avoid two agents' runs overwriting each other's captures in Runner/reports. That file proves the \u00a728 MEMOS inert and is built around the sky postfixes; this one has to put the VOLUMETRIC CLOUD in frame, which means forced overcast with cloud_volume on and the shader probes pinned first -- a run where the shader failed to load would compare two \u00a725b frames and report a perfect deltaE for a renderer that never ran. THE THREE HOURS EXERCISE THE THREE CADENCES. 15.0 is full day, where the sun barely moves between frames and the Geometry group is doing all the skipping. 19.6 is the golden-hour angle \u00a725's own playtest scenario uses, where the lit and shadow colours change fastest -- if the colour half of the cache wrongly held, a stale sunset is exactly where it would show. 21.5 is past sunset, where the sun direction has crossed the horizon and the deck windows close. sun_elevation is pinned beside each capture so a later clock change fails loudly instead of silently moving all three shots into the same lighting.",
+ "steps": [
+  {
+   "type": "SetTile",
+   "args": {
+    "latitude": "45"
+   }
+  },
+  {
+   "type": "SetSeason",
+   "args": {
+    "dayOfYear": "40"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "realistic_preset",
+    "enabled": "false"
+   }
+  },
+  {
+   "type": "SetWeather",
+   "args": {
+    "weatherDef": "Clear",
+    "instant": "true"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "cloud_cover_forced_overcast",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "cloud_sheet",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "cloud_volume",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "LookAt",
+   "args": {
+    "anchor": "125,125",
+    "zoom": "38"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "cloud_volume_shader",
+    "expectedValue": "1",
+    "tolerance": "0.001"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "cloud_volume_shader_loaded",
+    "expectedValue": "1",
+    "tolerance": "0.001"
+   }
+  },
+  {
+   "type": "SetTime",
+   "args": {
+    "hour": "15.0"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "30"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "sun_elevation",
+    "expectedValue": "45.1",
+    "tolerance": "6"
+   }
+  },
+  {
+   "type": "Screenshot",
+   "args": {
+    "fileName": "cuvis_day"
+   }
+  },
+  {
+   "type": "SetTime",
+   "args": {
+    "hour": "19.6"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "30"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "sun_elevation",
+    "expectedValue": "3.0",
+    "tolerance": "6"
+   }
+  },
+  {
+   "type": "Screenshot",
+   "args": {
+    "fileName": "cuvis_golden"
+   }
+  },
+  {
+   "type": "SetTime",
+   "args": {
+    "hour": "21.5"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "30"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "sun_elevation",
+    "expectedValue": "-14.0",
+    "tolerance": "6"
+   }
+  },
+  {
+   "type": "Screenshot",
+   "args": {
+    "fileName": "cuvis_dusk"
+   }
+  }
+ ]
+}
