@@ -186,6 +186,14 @@ public static class CloudSheetLayout
             ShapeSeed = shapeSeed;
             Deck = deck;
         }
+
+        // The same sheet, thinner. Used for the coverage weight (see CoverageAlpha) and kept as a
+        // method on Placement so the scaling cannot be applied by one lane and forgotten by another:
+        // all three cloud lanes read Alpha off the placement they are handed, so a sheet half faded
+        // out of the sky is half faded out of its own shadow and its own underlight.
+        public Placement WithAlphaScale(float scale) =>
+            new Placement(
+                CenterX, CenterZ, Size, FlipU, FlipV, Alpha * Clamp01(scale), ShapeSeed, Deck);
     }
 
     // Which cell of the blob atlas this sheet wears: its DECK picks the row and its shape seed picks
@@ -295,6 +303,39 @@ public static class CloudSheetLayout
         return count > limit ? limit : count;
     }
 
+    // How much of sheet `index` this much cloud actually buys, in [0, 1] — the per-sheet form of the
+    // count above, and the one the renderer actually asks. Every sheet below the last is fully there,
+    // and the last is however far into its own share the cover has got: at 0.30 cover on a cap of 12,
+    // three full sheets and a fourth at 60%.
+    //
+    // WHICH COVER IS ASKED IS THE CALLER'S BUSINESS, and it is where the behaviour actually lives.
+    // CloudSheetDraw hands in the cover AT THE TICK THAT SHEET ENTERED THE MAP (EntryTickFor), not the
+    // cover now — so a sheet's weight is fixed for the whole time it is visible, and the only instant
+    // it can change is the wrap, which happens off-map. Handing in the live cover instead is what made
+    // clouds vanish in mid-sky, and this function cannot tell the difference: it is the same ramp
+    // either way.
+    //
+    // The partial band still matters under a latched cover, for two reasons. A sky at 3.4 sheets'
+    // worth of cloud puts a thin fourth cloud up rather than rounding to three or four, so cover reads
+    // as a continuum rather than as a dozen discrete states. And on the one path that IS live — a
+    // weather change, where §13's deck reaches every sheet at once — the ramp is what makes the front
+    // cross-fade instead of stepping.
+    //
+    // Takes the same cap as SheetCount, and must: §25d's sheets are a fortieth of the area §25b's
+    // were, so "one sheet per twelfth" and "one sheet per eleventh" are different skies and the two
+    // functions have to be answering about the same one.
+    public static float CoverageAlpha(int index, float cloudFraction, int cap)
+    {
+        if (index < 0)
+            return 0f;
+
+        int limit = cap < MaxSheets ? cap : MaxSheets;
+        if (index >= limit)
+            return 0f;
+
+        return Clamp01(Clamp01(cloudFraction) * limit - index);
+    }
+
     // Where sheet `index` is at `ticks`, on a map of this size.
     //
     // A PURE FUNCTION OF THE TICK, not an accumulated position, for the reason AuroraSheetSpec.PanU
@@ -363,7 +404,7 @@ public static class CloudSheetLayout
         // each end. The deck's scale divides rather than multiplies because this is a duration: a
         // cirrus sheet at 2.1x the speed takes 1/2.1 of the time to cross.
         float span = mapX + size * 2f;
-        float crossingTicks = BaseCrossingTicks * (1f - SpeedVariation * speedNoise) / spec.SpeedScale;
+        float crossingTicks = CrossingTicksFor(index, seed, deckWeights);
         float travelled = phaseNoise + ticks / crossingTicks;
 
         // How many complete crossings this sheet has made. Everything that should differ between one
@@ -395,6 +436,52 @@ public static class CloudSheetLayout
             (0.55f + 0.45f * alphaNoise) * spec.Opacity,
             (int)(Hash01(index, seed + crossing * 104729, 9) * 1024f),
             deck);
+    }
+
+    // How long one crossing takes this sheet, in ticks. Extracted rather than inlined because
+    // EntryTickFor has to derive the same number from the same inputs — a latch keyed on a crossing
+    // length that had drifted from the one the sheet is actually flying would fire mid-map.
+    //
+    // Deck-dependent, so it takes the mixture: the deck sets a sheet's speed scale, and the scale
+    // divides rather than multiplies because this is a duration (see PlacementFor).
+    private static float CrossingTicksFor(int index, int seed, float[] deckWeights)
+    {
+        float speedNoise = Hash01(index, seed, 2);
+        CloudDeckMath.Deck spec = CloudDeckMath.DeckAt(CloudDeckMath.DeckFor(deckWeights, Hash01(index, seed, 10)));
+
+        return BaseCrossingTicks * (1f - SpeedVariation * speedNoise) / spec.SpeedScale;
+    }
+
+    // The absolute tick at which sheet `index` began the crossing it is on at `ticks` — i.e. the
+    // moment it was last a full sheet-width off the left edge, about to come in.
+    //
+    // WHY ANYTHING WANTS THIS. §25's population is decided by cloud cover, and cover moves while a
+    // sheet is on screen. Deciding a sheet's existence from the cover RIGHT NOW means the decision can
+    // change while it is in view, which is a cloud vanishing in mid-sky. Deciding it from the cover at
+    // the moment it entered means the answer is fixed for as long as it is visible: it drifts off the
+    // far edge the way it came in, and the only instant its existence can change is the wrap — which
+    // EverySheetIsFullyOffMapAtBothEndsOfItsCrossing already pins as entirely off-map.
+    //
+    // So this is the whole "no state" trick behind that behaviour. A renderer that remembered which
+    // clouds it drew last frame could keep a departing one alive; this codebase cannot, because the
+    // sky at tick N has to be a pure function of N (see PlacementFor). Reading the cover at a past
+    // tick gets the same result out of a function that still has no memory — §22's cover is itself a
+    // pure function of (tile, tick), so "what was it when this cloud arrived" is answerable at any
+    // time, from nothing.
+    //
+    // Mirrors PlacementFor's own arithmetic through CrossingTicksFor rather than approximating it: the
+    // entry tick is where `travelled` last crossed an integer, so the two must derive the crossing
+    // length and the phase offset the same way or a sheet's latch and its position would be talking
+    // about different crossings.
+    public static int EntryTickFor(int index, int seed, int ticks, float[] deckWeights)
+    {
+        float phaseNoise = Hash01(index, seed, 4);
+        float crossingTicks = CrossingTicksFor(index, seed, deckWeights);
+
+        float travelled = phaseNoise + ticks / crossingTicks;
+        int crossing = (int)MathF.Floor(travelled);
+
+        return (int)MathF.Floor((crossing - phaseNoise) * crossingTicks);
     }
 
     // Whether this sheet is currently within drawing distance of the map at all.

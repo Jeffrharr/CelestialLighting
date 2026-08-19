@@ -1,3 +1,5 @@
+using System;
+
 namespace CelestialLighting.Tests;
 
 // Offline coverage for §25's sheet placement (Source/CloudSheetLayout.cs) — where the bounded cloud
@@ -309,5 +311,164 @@ public class CloudSheetLayoutTests
             Assert.That(present.Size, Is.GreaterThan(shorter * 0.25f),
                 "smaller than this and a cloud reads as a puff on the ground rather than weather above it");
         });
+    }
+
+    // --- The coverage weight and the entry latch: what stops a cloud vanishing where it stands ---
+
+    // Every sheet below the marginal one is fully there, and the marginal one is however far into its
+    // own share the cover has got. This is the count restated as a continuous quantity, so the two
+    // must agree: CoverageAlpha is only allowed to be partial on the LAST sheet SheetCount returns.
+    [TestCase(CloudSheetLayout.ShippedSheetCap)]
+    [TestCase(CloudSheetLayout.PresentSheetCap)]
+    public void OnlyTheMarginalSheetIsPartial(int cap)
+    {
+        for (float fraction = 0f; fraction <= 1f; fraction += 0.017f)
+        {
+            int count = CloudSheetLayout.SheetCount(fraction, cap);
+            for (int index = 0; index < count - 1; index++)
+            {
+                Assert.That(CloudSheetLayout.CoverageAlpha(index, fraction, cap), Is.EqualTo(1f),
+                    $"sheet {index} should be whole at {fraction} (cap {cap})");
+            }
+
+            if (count > 0)
+            {
+                Assert.That(CloudSheetLayout.CoverageAlpha(count - 1, fraction, cap),
+                    Is.GreaterThan(0f).And.LessThanOrEqualTo(1f),
+                    $"the marginal sheet should be present but may be partial at {fraction}");
+            }
+
+            Assert.That(CloudSheetLayout.CoverageAlpha(count, fraction, cap), Is.EqualTo(0f),
+                $"a sheet past the count should not be drawn at {fraction}");
+        }
+    }
+
+    // THE POP THIS EXISTS TO REMOVE. Crossing a sheet's share of the cover used to delete a whole
+    // cloud from the sky in one step, wherever it was — and sheets spend most of their crossing over
+    // the map, so "wherever it was" was usually mid-screen. Across the threshold the drawn amount must
+    // be continuous: a small change in cover may only make a small change to any one sheet.
+    [Test]
+    public void CrossingASheetThresholdIsContinuous()
+    {
+        int cap = CloudSheetLayout.ShippedSheetCap;
+        for (int boundary = 1; boundary < cap; boundary++)
+        {
+            float threshold = boundary / (float)cap;
+            for (int index = 0; index < cap; index++)
+            {
+                float below = CloudSheetLayout.CoverageAlpha(index, threshold - 1e-4f, cap);
+                float above = CloudSheetLayout.CoverageAlpha(index, threshold + 1e-4f, cap);
+                Assert.That(Math.Abs(above - below), Is.LessThan(0.01f),
+                    $"sheet {index} jumped across the {boundary}/{cap} threshold");
+            }
+        }
+    }
+
+    // The weight is reversible and drives all three lanes at once, which is the point of putting it on
+    // the placement rather than in any one renderer: a sheet half-faded out of the sky is half-faded
+    // out of its own shadow and its own underlight, because all three read this one number.
+    [Test]
+    public void ScalingAPlacementsAlphaLeavesEverythingElseWhereItWas()
+    {
+        CloudSheetLayout.Placement placement = Place(3, 12345);
+        CloudSheetLayout.Placement faded = placement.WithAlphaScale(0.25f);
+
+        Assert.That(faded.CenterX, Is.EqualTo(placement.CenterX));
+        Assert.That(faded.CenterZ, Is.EqualTo(placement.CenterZ));
+        Assert.That(faded.Size, Is.EqualTo(placement.Size));
+        Assert.That(faded.FlipU, Is.EqualTo(placement.FlipU));
+        Assert.That(faded.FlipV, Is.EqualTo(placement.FlipV));
+        Assert.That(faded.ShapeSeed, Is.EqualTo(placement.ShapeSeed));
+        Assert.That(faded.Deck, Is.EqualTo(placement.Deck));
+        Assert.That(faded.Alpha, Is.EqualTo(placement.Alpha * 0.25f).Within(1e-6f));
+
+        // Nonsense in, nothing drawn — the same defensive posture the rest of the layout takes toward
+        // a caller-supplied number, since this one is multiplied straight into a material colour.
+        Assert.That(placement.WithAlphaScale(float.NaN).Alpha, Is.EqualTo(0f));
+        Assert.That(placement.WithAlphaScale(-1f).Alpha, Is.EqualTo(0f));
+        Assert.That(placement.WithAlphaScale(5f).Alpha, Is.EqualTo(placement.Alpha));
+    }
+
+    // Nonsense cover is answered the same way SheetCount answers it, rather than each having its own
+    // opinion about a NaN that reached them from a modded biome's data.
+    [Test]
+    public void NonsenseCoverDrawsNothing()
+    {
+        int cap = CloudSheetLayout.ShippedSheetCap;
+        Assert.That(CloudSheetLayout.CoverageAlpha(0, float.NaN, cap), Is.EqualTo(0f));
+        Assert.That(CloudSheetLayout.CoverageAlpha(0, -1f, cap), Is.EqualTo(0f));
+        Assert.That(CloudSheetLayout.CoverageAlpha(-1, 0.5f, cap), Is.EqualTo(0f));
+        Assert.That(CloudSheetLayout.CoverageAlpha(0, 5f, cap), Is.EqualTo(1f));
+        Assert.That(CloudSheetLayout.CoverageAlpha(cap, 1f, cap), Is.EqualTo(0f));
+    }
+
+    // The tick a sheet entered on is in the past, and stays put for as long as the sheet is on its
+    // current crossing. If it moved, the cover read through it would move too, and a cloud's existence
+    // would be back to being decided while it is on screen.
+    [Test]
+    public void TheEntryTickIsFixedForAWholeCrossing()
+    {
+        for (int index = 0; index < CloudSheetLayout.ShippedSheetCap; index++)
+        {
+            int entry = CloudSheetLayout.EntryTickFor(index, Seed, 500000, LowDeckOnly);
+            Assert.That(entry, Is.LessThanOrEqualTo(500000), $"sheet {index} entered in the future");
+
+            int previousEntry = entry;
+            float previousX = Place(index, 500000).CenterX;
+            for (int ticks = 500001; ticks < 500000 + CloudSheetLayout.BaseCrossingTicks * 2; ticks += 7)
+            {
+                int now = CloudSheetLayout.EntryTickFor(index, Seed, ticks, LowDeckOnly);
+                float x = Place(index, ticks).CenterX;
+                bool wrapped = x < previousX;
+
+                Assert.That(now == previousEntry || wrapped, Is.True,
+                    $"sheet {index} changed entry tick at {ticks} without wrapping");
+
+                previousEntry = now;
+                previousX = x;
+            }
+        }
+    }
+
+    // THE PROPERTY THE WHOLE LATCH EXISTS FOR: with cover read at the entry tick, a sheet's coverage
+    // weight can only change while that sheet is entirely off the map. Driven by a deliberately
+    // vicious cover signal — one that swings across every threshold several times a crossing —
+    // because a gentle one would pass even if the latch were not there.
+    [Test]
+    public void ACoverChangeCanOnlyTakeEffectWhileTheSheetIsOffMap()
+    {
+        static float CoverAt(int tick) =>
+            0.5f + 0.5f * MathF.Sin(tick * 0.0013f) * MathF.Cos(tick * 0.00021f);
+
+        int cap = CloudSheetLayout.ShippedSheetCap;
+        int changes = 0;
+
+        for (int index = 0; index < cap; index++)
+        {
+            float previous = CloudSheetLayout.CoverageAlpha(
+                index, CoverAt(CloudSheetLayout.EntryTickFor(index, Seed, 0, LowDeckOnly)), cap);
+
+            for (int ticks = 1; ticks < CloudSheetLayout.BaseCrossingTicks * 3; ticks++)
+            {
+                float now = CloudSheetLayout.CoverageAlpha(
+                    index, CoverAt(CloudSheetLayout.EntryTickFor(index, Seed, ticks, LowDeckOnly)), cap);
+
+                if (now != previous)
+                {
+                    changes++;
+                    CloudSheetLayout.Placement placement = Place(index, ticks);
+                    Assert.That(CloudSheetLayout.OnScreen(placement, MapX, MapZ), Is.False,
+                        $"sheet {index} changed weight at tick {ticks} while on screen "
+                        + $"({previous} -> {now}, centre {placement.CenterX})");
+                }
+
+                previous = now;
+            }
+        }
+
+        // Otherwise the assertion above is satisfied by a signal that never moved: a latch that froze
+        // every sheet's weight forever would pass a test that only checks WHERE changes happen.
+        Assert.That(changes, Is.GreaterThan(cap),
+            "the cover signal never reached the sheets, so nothing was actually tested");
     }
 }

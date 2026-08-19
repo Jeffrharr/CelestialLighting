@@ -49,10 +49,29 @@ public static class CloudSheetDraw
     private static int _placedTick = int.MinValue;
     private static int _placedMapId = -1;
     private static int _placedCount;
+    private static float _placedCover;
     private static int _mixtureFrame = -1;
 
     // How many sheets are up over this map right now, placing them if this frame has not already.
-    public static int PlaceSheets(Map map, out CloudSheetLayout.Placement[] placements)
+    public static int PlaceSheets(Map map, out CloudSheetLayout.Placement[] placements) =>
+        PlaceSheets(map, out placements, out _);
+
+    // EACH SHEET ASKS ABOUT ITS OWN ARRIVAL, NOT ABOUT NOW. A sheet's coverage weight comes from the
+    // cloud cover at the tick it came over the edge of the map (CloudSheetLayout.EntryTickFor), which
+    // is a fixed number for as long as it is on screen. So a sky that clouds over does not grow a
+    // cloud in the middle of the view, and a sky that clears does not delete one: the population only
+    // changes at a wrap, and a wrap happens with the sheet entirely off-map.
+    //
+    // The exception, and it is deliberate, is a WEATHER change. CloudFractionAtTick only time-shifts
+    // §22's Clear-sky half; §13's deck is read live, so a front moving in reaches every sheet at once
+    // and cross-fades them over vanilla's own 4,000 ticks rather than waiting up to a crossing for
+    // each one to come round. Weather is global and abrupt, and cloud drifting about a clear sky is
+    // neither.
+    //
+    // `cover` reports the heaviest cover any placed sheet is holding, which is what the lane alpha
+    // wants: it is a gate ("is there cloud at all"), and the live cover is the wrong answer to that
+    // question while a latched sheet is still finishing its crossing.
+    public static int PlaceSheets(Map map, out CloudSheetLayout.Placement[] placements, out float cover)
     {
         placements = Placements;
 
@@ -78,6 +97,7 @@ public static class CloudSheetDraw
         if (ticks == _placedTick && mapId == _placedMapId && !mixtureMoved
             && present == _placedPresent)
         {
+            cover = _placedCover;
             return _placedCount;
         }
 
@@ -95,17 +115,49 @@ public static class CloudSheetDraw
             ? CloudSheetLayout.PresentSizeFraction
             : CloudSheetLayout.BaseSizeFraction;
 
-        int count = CloudSheetLayout.SheetCount(CloudLayers.CloudFractionFor(map), cap);
-        for (int i = 0; i < count; i++)
+        // The weather half of the cover is the same for every sheet this tick; only §22's drift is
+        // asked per sheet. Read once — see CloudLayers.ReadCoverBlend for why one read per sheet would
+        // be one walk of MapSky's uncached gates per sheet.
+        CloudLayers.ReadCoverBlend(map, out float offset, out float scale);
+
+        int seed = map.Tile.tileId;
+        int count = 0;
+        float heaviest = 0f;
+
+        for (int i = 0; i < cap; i++)
         {
-            Placements[i] = CloudSheetLayout.PlacementFor(
-                i, map.Tile.tileId, ticks, map.Size.x, map.Size.z, DeckWeights, sizeFraction);
+            float sheetCover = CloudLayers.CoverFrom(
+                map, offset, scale, CloudSheetLayout.EntryTickFor(i, seed, ticks, DeckWeights));
+
+            // The coverage weight is folded into the placement's own alpha rather than applied by each
+            // lane, so the cloud, its shadow and its underlight cannot disagree about how much of a
+            // sheet is there — see CloudSheetLayout.CoverageAlpha for why the marginal one is partial
+            // rather than either wholly present or wholly absent.
+            float coverage = CloudSheetLayout.CoverageAlpha(i, sheetCover, cap);
+            if (coverage > 0f)
+            {
+                // Compacted rather than left in place: the population is no longer a prefix of the
+                // slot order, because a sheet that arrived under heavy cloud can sit beside a gap
+                // where a lighter one never arrived. The array is a list of what IS up, so the three
+                // lanes iterate it without each learning to skip holes; slots carry no state between
+                // frames — every material is fully re-specified each pass — so which slot a sheet
+                // lands in does not matter.
+                Placements[count] = CloudSheetLayout
+                    .PlacementFor(i, seed, ticks, map.Size.x, map.Size.z, DeckWeights, sizeFraction)
+                    .WithAlphaScale(coverage);
+                count++;
+
+                if (sheetCover > heaviest)
+                    heaviest = sheetCover;
+            }
         }
 
         _placedTick = ticks;
         _placedMapId = mapId;
         _placedCount = count;
         _placedPresent = present;
+        _placedCover = heaviest;
+        cover = heaviest;
         return count;
     }
 

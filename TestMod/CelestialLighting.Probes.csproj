@@ -113,6 +113,9 @@
     <Compile Include="../Source/Probes/CloudLayersProbe.cs" Link="CloudLayersProbe.cs" />
     <Compile Include="../Source/Probes/CloudVolumeShaderProbe.cs" Link="CloudVolumeShaderProbe.cs" />
     <Compile Include="../Source/Probes/CloudSheetViewProbe.cs" Link="CloudSheetViewProbe.cs" />
+    <!-- §25's placed-sheet mass, the one cloud reading that moves when a sheet appears or vanishes —
+         see CloudSheetMassProbe.cs for why it sums the placements' alphas rather than counting them. -->
+    <Compile Include="../Source/Probes/CloudSheetMassProbe.cs" Link="CloudSheetMassProbe.cs" />
     <Compile Include="../Source/Probes/SkyGlowProbe.cs" Link="SkyGlowProbe.cs" />
     <Compile Include="../Source/Probes/SkyOverlayWarmthProbe.cs" Link="SkyOverlayWarmthProbe.cs" />
     <Compile Include="../Source/Probes/SkyOverlayLuminanceProbe.cs" Link="SkyOverlayLuminanceProbe.cs" />

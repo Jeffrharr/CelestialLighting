@@ -239,4 +239,90 @@ public class CloudCoverDriftTests
             }
         }
     }
+
+    // --- Continuity in the tick: §25's cloud sheets count this value, so it may not step ---
+
+    // The hourly sequence is a sampling of the continuous one, not a different curve. If these ever
+    // came apart, every value this file's other tests pin would be about a sequence nothing reads.
+    [Test]
+    public void ReadingAtPhaseZero_IsExactlyTheHourlySample()
+    {
+        foreach (int seed in Seeds)
+        {
+            foreach (float wetFraction in WetFractions)
+            {
+                for (int sampleIndex = -50; sampleIndex < 200; sampleIndex++)
+                {
+                    Assert.That(CloudCoverDrift.FractionAt(sampleIndex, 0f, seed, wetFraction),
+                        Is.EqualTo(CloudCoverDrift.Fraction(sampleIndex, seed, wetFraction)),
+                        $"phase 0 must be the sample itself (sample {sampleIndex}, seed {seed})");
+                }
+            }
+        }
+    }
+
+    // The end of one hour is the start of the next. A gap here would be a step in exactly the place
+    // the continuous read exists to remove, so it is pinned rather than assumed from the arithmetic.
+    [Test]
+    public void TheEndOfOneSampleMeetsTheStartOfTheNext()
+    {
+        foreach (int seed in Seeds)
+        {
+            for (int sampleIndex = -20; sampleIndex < 200; sampleIndex++)
+            {
+                Assert.That(CloudCoverDrift.FractionAt(sampleIndex, 0.9999f, seed, 0.5f),
+                    Is.EqualTo(CloudCoverDrift.FractionAt(sampleIndex + 1, 0f, seed, 0.5f)).Within(2e-4f),
+                    $"seam at sample {sampleIndex}, seed {seed}");
+            }
+        }
+    }
+
+    // THE REGRESSION THIS WHOLE READ EXISTS FOR, stated in the units that broke. §25 draws one cloud
+    // sheet per twelfth of cover, so a change of 1/12 in one tick is a cloud appearing or vanishing in
+    // mid-sky. Measured on the old hourly-stepped read, the value moved by 0.03 on average and 0.13 at
+    // worst at the top of each hour — one to two whole sheets, instantly. Sampled continuously the
+    // largest per-tick move must be far below a twelfth; the bound below is roughly a thousandth of a
+    // sheet, and the real figure is smaller still.
+    [Test]
+    public void NoSingleTickMovesTheCoverEnoughToAddOrDropASheet()
+    {
+        const int TicksPerDay = 60000;
+        float sheetWidth = 1f / 12f;
+
+        foreach (int seed in Seeds)
+        {
+            float previous = FractionAtTick(0, seed);
+            for (int tick = 1; tick <= TicksPerDay * 3; tick++)
+            {
+                float now = FractionAtTick(tick, seed);
+                Assert.That(Math.Abs(now - previous), Is.LessThan(sheetWidth / 1000f),
+                    $"cover jumped at tick {tick} (seed {seed})");
+                previous = now;
+            }
+        }
+    }
+
+    // The phase is where in its own hour a tick sits — 0 at the top of the hour, approaching 1 at the
+    // end of it, and never outside that whichever side of zero the tick is on. Negative absolute ticks
+    // do not occur in play, but the sample index above is floor-divided for them and the phase has to
+    // agree with that or the pair would locate a tick in two different places.
+    [TestCase(0, 0f)]
+    [TestCase(625, 0.25f)]
+    [TestCase(1250, 0.5f)]
+    [TestCase(2499, 0.9996f)]
+    [TestCase(2500, 0f)]
+    [TestCase(-1, 0.9996f)]
+    [TestCase(-2500, 0f)]
+    [TestCase(-2501, 0.9996f)]
+    public void ThePhaseRunsForwardsThroughItsOwnSample(int absoluteTicks, float expected)
+    {
+        Assert.That(CloudCoverDrift.SamplePhase(absoluteTicks), Is.EqualTo(expected).Within(1e-4f));
+    }
+
+    private static float FractionAtTick(int absoluteTicks, int seed) =>
+        CloudCoverDrift.FractionAt(
+            CloudCoverDrift.SampleIndex(absoluteTicks),
+            CloudCoverDrift.SamplePhase(absoluteTicks),
+            seed,
+            0.5f);
 }

@@ -1,0 +1,587 @@
+{
+  "name": "cloud_drift",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "realistic_preset",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "realistic_day_length",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Soil",
+        "width": "128",
+        "height": "128",
+        "anchor": "64,64"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Soil",
+        "width": "128",
+        "height": "128",
+        "anchor": "64,186"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Soil",
+        "width": "128",
+        "height": "128",
+        "anchor": "186,64"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Soil",
+        "width": "128",
+        "height": "128",
+        "anchor": "186,186"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_cover",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_sheet",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_shadow",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_underlight_layer",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_deck_varieties",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_presence",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cd_warmup.png"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "56.7200",
+        "tolerance": "0.02"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_cover_fraction",
+        "expectedValue": "0.2113",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheet_mass",
+        "expectedValue": "1.0243",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cd_f00.png"
+      }
+    },
+    {
+      "type": "FastForward",
+      "args": {
+        "ticks": "1500"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_cover_fraction",
+        "expectedValue": "0",
+        "tolerance": "99"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheet_mass",
+        "expectedValue": "0",
+        "tolerance": "99"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cd_f01.png"
+      }
+    },
+    {
+      "type": "FastForward",
+      "args": {
+        "ticks": "1500"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_cover_fraction",
+        "expectedValue": "0",
+        "tolerance": "99"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheet_mass",
+        "expectedValue": "0",
+        "tolerance": "99"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cd_f02.png"
+      }
+    },
+    {
+      "type": "FastForward",
+      "args": {
+        "ticks": "1500"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_cover_fraction",
+        "expectedValue": "0",
+        "tolerance": "99"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheet_mass",
+        "expectedValue": "0",
+        "tolerance": "99"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cd_f03.png"
+      }
+    },
+    {
+      "type": "FastForward",
+      "args": {
+        "ticks": "1500"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_cover_fraction",
+        "expectedValue": "0",
+        "tolerance": "99"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheet_mass",
+        "expectedValue": "0",
+        "tolerance": "99"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cd_f04.png"
+      }
+    },
+    {
+      "type": "FastForward",
+      "args": {
+        "ticks": "1500"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_cover_fraction",
+        "expectedValue": "0",
+        "tolerance": "99"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheet_mass",
+        "expectedValue": "0",
+        "tolerance": "99"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cd_f05.png"
+      }
+    },
+    {
+      "type": "FastForward",
+      "args": {
+        "ticks": "1500"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_cover_fraction",
+        "expectedValue": "0",
+        "tolerance": "99"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheet_mass",
+        "expectedValue": "0",
+        "tolerance": "99"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cd_f06.png"
+      }
+    },
+    {
+      "type": "FastForward",
+      "args": {
+        "ticks": "1500"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_cover_fraction",
+        "expectedValue": "0",
+        "tolerance": "99"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheet_mass",
+        "expectedValue": "0",
+        "tolerance": "99"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cd_f07.png"
+      }
+    },
+    {
+      "type": "FastForward",
+      "args": {
+        "ticks": "1500"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_cover_fraction",
+        "expectedValue": "0",
+        "tolerance": "99"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheet_mass",
+        "expectedValue": "0",
+        "tolerance": "99"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cd_f08.png"
+      }
+    },
+    {
+      "type": "FastForward",
+      "args": {
+        "ticks": "1500"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_cover_fraction",
+        "expectedValue": "0",
+        "tolerance": "99"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheet_mass",
+        "expectedValue": "0",
+        "tolerance": "99"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cd_f09.png"
+      }
+    },
+    {
+      "type": "FastForward",
+      "args": {
+        "ticks": "1500"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_cover_fraction",
+        "expectedValue": "0",
+        "tolerance": "99"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheet_mass",
+        "expectedValue": "0",
+        "tolerance": "99"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cd_f10.png"
+      }
+    },
+    {
+      "type": "FastForward",
+      "args": {
+        "ticks": "1500"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_cover_fraction",
+        "expectedValue": "0",
+        "tolerance": "99"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheet_mass",
+        "expectedValue": "0",
+        "tolerance": "99"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cd_f11.png"
+      }
+    },
+    {
+      "type": "FastForward",
+      "args": {
+        "ticks": "1500"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_cover_fraction",
+        "expectedValue": "0",
+        "tolerance": "99"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheet_mass",
+        "expectedValue": "0",
+        "tolerance": "99"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cd_f12.png"
+      }
+    },
+    {
+      "type": "FastForward",
+      "args": {
+        "ticks": "1500"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_cover_fraction",
+        "expectedValue": "0",
+        "tolerance": "99"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheet_mass",
+        "expectedValue": "0",
+        "tolerance": "99"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cd_f13.png"
+      }
+    },
+    {
+      "type": "FastForward",
+      "args": {
+        "ticks": "1500"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_cover_fraction",
+        "expectedValue": "0",
+        "tolerance": "99"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheet_mass",
+        "expectedValue": "0",
+        "tolerance": "99"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cd_f14.png"
+      }
+    },
+    {
+      "type": "FastForward",
+      "args": {
+        "ticks": "1500"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_cover_fraction",
+        "expectedValue": "0",
+        "tolerance": "99"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheet_mass",
+        "expectedValue": "0",
+        "tolerance": "99"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cd_f15.png"
+      }
+    }
+  ],
+  "saveFile": "minimal_colony.rws",
+  "description": "Clear weather left alone for about nine in-game hours, to show that \u00a725's cloud population is decoupled from the instantaneous cover: a sheet keeps the cover it entered under until it has drifted off the map (CloudSheetLayout.EntryTickFor). MEASURED SERIES, 16 frames 1,500 ticks apart -- cover wandered 0.211 -> 0.271 -> 0.000, crossing a sheet threshold five times; the drawn mass changed three times, each at a wrap. The last two frames are the ones worth looking at: cover is exactly 0.0000 and the sky still has cloud in it, because two sheets are finishing their crossings. Before the latch, cover reaching zero emptied the sky in one tick, wherever the clouds happened to be. ONLY THE FIRST FRAME IS PINNED: every later one sits after a FastForward, which overshoots its target by a frame-rate-dependent margin, so those readings are not reproducible between runs. They are recorded in the report to be read, not asserted on."
+}
