@@ -125,6 +125,11 @@ public static class VectorLightDoorEvents
         if (CelestialLightingFeatures.VectorLightOpenDoors)
         {
             VectorLightField.MarkGeometryDirtyAround(map, door.Position);
+
+            // Phase 2: the notification only fires at the START of the slide, so hand the door to the
+            // component that will keep dirtying it, once per quantisation step, until the leaves stop
+            // moving. Registered on close as well as open — an interrupted door animates back down.
+            GameComponent_DoorAperture.Watch(door);
         }
 
         // The comparison arm: move vanilla's own blocker bit, so gameplay light agrees with the
