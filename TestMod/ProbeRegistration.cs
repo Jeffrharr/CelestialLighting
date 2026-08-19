@@ -483,6 +483,20 @@ public static class ProbeRegistration
         ArmBank("circ_cloudopacity", "CelestialLighting.WeatherDimming", "CloudOpacityFor");
         ArmBank("circ_visualglow", "CelestialLighting.NightRadiance", "VisualGlowFor");
 
+        // §28 step 4: inside CloudSheetOverlay.Draw, the largest single per-frame method we own at
+        // ~80 us/call. Same shares-not-absolutes caveat as the postfix bank above. The sum is checked
+        // against the parent deliberately: §27's lesson was that a large gap between a parent and its
+        // armed children is itself the finding -- there the missing 43 ms was a polygon set being
+        // built lazily inside the timed scope, and no amount of optimising the children would have
+        // touched it.
+        ArmBank("circ_sheetcolour", "CelestialLighting.CloudSheetOverlay", "SheetColour");
+        ArmBank("circ_bakedsheet", "CelestialLighting.CloudSheetOverlay", "BakedSheet");
+        ArmBank("circ_volumesheet", "CelestialLighting.CloudSheetOverlay", "VolumeSheet");
+        ArmBank("circ_underlit", "CelestialLighting.CloudSheetMath", "UnderlitFraction");
+        ArmBank("circ_deckillum", "CelestialLighting.CloudSheetMath", "DeckIllumination");
+        ArmBank("circ_sheetalpha", "CelestialLighting.CloudLayers", "SheetAlphaFor");
+        ArmBank("circ_hottint", "CelestialLighting.CloudLayers", "HotTintFor");
+
         // Inertness guard for the removed across-map shadow tilt (issues #11, #26). These three
         // originally asked "does §3's gradient actually render?"; now they assert it does NOT, at
         // both ends of the shadow axis. Still three probes because a ratio alone cannot say whether
