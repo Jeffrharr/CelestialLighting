@@ -871,6 +871,93 @@ public class VectorLightMathTests
         Assert.That(VectorLightMath.CoverageAt(grid, 8, 8, 4, 8, 8), Is.EqualTo(0));
     }
 
+    // ---- pawn shadows cast by lamps (§27 phase 4) ---------------------------------------
+
+    // Similar triangles: a caster of height t at horizontal distance d from a lamp of height h puts
+    // the shadow's tip d*t/(h-t) beyond it. With the shipped constants the headroom is exactly the
+    // pawn's height, so the shadow is the distance — which makes these cases readable by eye.
+    [TestCase(1f, 1f)]
+    [TestCase(2f, 2f)]
+    [TestCase(4f, 4f)]
+    public void APawnShadowLengthensWithDistanceFromTheLamp(float distance, float expected)
+    {
+        Assert.That(
+            VectorLightMath.PawnShadowLength(distance, 1.2f, 2.4f),
+            Is.EqualTo(expected).Within(Tolerance));
+    }
+
+    // THE DIRECTION THE PHYSICS ACTUALLY RUNS, stated as a test because the intuition goes the other
+    // way often enough to be worth pinning. Standing under a lamp gives almost no shadow; walking
+    // away lengthens it, exactly as a sinking sun does.
+    [Test]
+    public void StandingUnderTheLampCastsAlmostNothing()
+    {
+        float near = VectorLightMath.PawnShadowLength(0.2f, 1.2f, 2.4f);
+        float far = VectorLightMath.PawnShadowLength(5f, 1.2f, 2.4f);
+
+        Assert.That(near, Is.LessThan(0.5f));
+        Assert.That(far, Is.GreaterThan(near));
+    }
+
+    // A caster as tall as the lamp would divide by zero and throw its shadow through infinity, which
+    // renders as a bar across the whole map for one frame. The clamp is what stops a modded def
+    // doing that, and the cap is what stops a pawn standing on the lamp's own cell doing it.
+    [TestCase(3f, 2.4f, 2.4f)]
+    [TestCase(3f, 5f, 2.4f)]
+    public void AnImpossibleCasterIsClampedRatherThanInfinite(float d, float caster, float lamp)
+    {
+        float length = VectorLightMath.PawnShadowLength(d, caster, lamp);
+
+        Assert.That(length, Is.LessThanOrEqualTo(VectorLightMath.MaxPawnShadowLength));
+        Assert.That(length, Is.GreaterThan(0f));
+    }
+
+    // Away from the lamp, in Unity's clockwise-from-+Z Y rotation. The mesh is baked extruded along
+    // +X, so this angle IS the transform. Getting the sign wrong points every shadow AT its lamp,
+    // which looks deliberate enough to survive a glance — hence a test per quadrant axis.
+    [TestCase(1f, 0f, 0f)]      // pawn due east of the lamp -> shadow east
+    [TestCase(0f, 1f, -90f)]    // pawn due north -> shadow north
+    [TestCase(-1f, 0f, -180f)]  // pawn due west -> shadow west
+    [TestCase(0f, -1f, 90f)]    // pawn due south -> shadow south
+    public void TheShadowPointsAwayFromTheLamp(float dx, float dz, float expected)
+    {
+        Assert.That(
+            VectorLightMath.PawnShadowAngleDegrees(8f, 8f, 8f + dx, 8f + dz),
+            Is.EqualTo(expected).Within(0.01f));
+    }
+
+    // A pawn standing exactly on the lamp has no direction to be shadowed in, and atan2(0, 0) is
+    // not the place to find that out.
+    [Test]
+    public void APawnOnTheLampHasNoDirection()
+    {
+        Assert.That(
+            VectorLightMath.PawnShadowAngleDegrees(8f, 8f, 8f, 8f), Is.EqualTo(0f).Within(Tolerance));
+    }
+
+    // Each of the three factors can veto the shadow on its own: a lamp that cannot see the pawn, a
+    // pawn beyond the lamp's reach, and broad daylight. Any one of them reaching zero has to take
+    // the whole thing to zero, or a shadow appears where its light does not.
+    [TestCase(0f, 0f, "the lamp cannot see the pawn")]
+    [TestCase(1f, 1f, "broad daylight")]
+    public void AnyOneFactorCanVetoTheShadow(float coverage, float skyGlow, string why)
+    {
+        Assert.That(
+            VectorLightMath.PawnShadowOpacity(3f, 10f, coverage, skyGlow),
+            Is.EqualTo(0f).Within(Tolerance), why);
+    }
+
+    // And with all three favourable it is visible but never opaque — these stack one per lamp, and
+    // two torches either side of a pawn should read as two soft shadows rather than a black cross.
+    [Test]
+    public void AFullyLitShadowIsVisibleButNotOpaque()
+    {
+        float opacity = VectorLightMath.PawnShadowOpacity(2f, 10f, 1f, 0f);
+
+        Assert.That(opacity, Is.GreaterThan(0.05f));
+        Assert.That(opacity, Is.LessThanOrEqualTo(VectorLightMath.PawnShadowStrength));
+    }
+
     private static VectorLightMath.LightPolygon OpenPolygon(float radius)
     {
         return VectorLightMath.Build(8.5f, 8.5f, radius, new VectorLightMath.Segment[0], 48);
