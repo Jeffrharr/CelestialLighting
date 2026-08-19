@@ -8475,6 +8475,67 @@ and neither is the geometry.
 emitters (which would absorb issue #3's sun shafts into the same mechanism), and the lazy/pawn-range
 work that is the declared second phase.
 
+### Phase 4: pawns cast shadows away from the lamps that light them (`vector_light_pawn_shadows`)
+
+Vanilla cannot do this, and it is not a gap in vanilla. Its pawn shadow leans on `_CastVect`, the
+shader global `SkyManager` sets once a frame (§3), so *every* shadow on the map points the same way —
+right for a sun, meaningless for a torch. So this is built as a **caster** problem rather than an
+occlusion one: each pawn draws one quad per lamp in range, offset radially away from it, at
+`pawns_in_view x lamps_in_range` rather than the ~1.9 ms per emitter that putting pawns into
+`VectorLightBlockers` would cost every time one *stepped*. Phase 3's coverage grid supplies the one
+thing the cheap version still has to get right — a pawn behind a wall must not throw a shadow from a
+lamp that cannot see it — in a single array lookup.
+
+Roofs and eaves are deliberately **not** skipped, against vanilla's own rule: `Graphic_Shadow` bails
+on any roofed cell because sunlight does not get in, which is exactly backwards for a lamp.
+
+#### Which rectangle the shadow leaves from (issue #159)
+
+The first implementation anchored its quad on `pawn.DrawPos` and took a single scalar footprint. Both
+were wrong, and the two faults were independent:
+
+- **`ShadowData.offset` was not applied.** Vanilla anchors a pawn's shadow at `DrawPos + offset`
+  (`Graphic_Shadow.DrawWorker`, and `Printer_Shadow.PrintShadow` for the printed path), and Human's
+  `race.specialShadowData` declares `(0, 0, -0.3)` — at the feet. So a colonist's lamp shadow left
+  their **torso** while their sun shadow left their **feet**, 0.3 cells apart.
+- **The footprint was read from the field humanlikes do not have.** It asked
+  `graphicData.shadowData`; `Races_Humanlike.xml` puts it in `race.specialShadowData`, which is where
+  `PawnRenderer.DrawShadowInternal` reads it from. Every colonist in the game therefore fell through
+  to a hardcoded `0.6` against a real `BaseX` of `0.3` — twice as wide as the sun shadow beside it.
+  **Animals were unaffected**, declaring theirs inside `graphicData`, which is exactly why this
+  survived being looked at.
+
+The fix reads the same data vanilla reads (`race.specialShadowData ?? graphicData.shadowData`) and
+spends it through one pure function, `VectorLightMath.FootprintExtent` — the **support function** of
+the footprint rectangle. Passed the shadow's bearing it gives the distance from the anchor to the
+silhouette's trailing edge, which is where the quad starts; passed the perpendicular it gives the
+silhouette's half-width. That is one call answering both, and it is what makes the shadow
+direction-dependent the way vanilla's is: a human presents 0.15 half-cells to a lamp due east and
+0.20 to one due south. The push-out goes into the *transform* rather than the baked mesh, so the mesh
+cache stays keyed on two numbers.
+
+Two consequences worth stating because they are not obvious from the diff:
+
+- **Starting at the trailing edge is what makes `PawnShadowLength` mean the same thing it means for a
+  sun shadow** — length *beyond* the caster. Vanilla's shadow is the footprint quad *plus* a skirt
+  extruded from the edge facing away from the light (§3), so measuring from the centre was short by
+  half a footprint and overlapped the pawn's own blob.
+- **The half-width bucket is a thirty-second of a cell where the length bucket is a quarter.** These
+  widths are sub-cell, so quarter-cell buckets round every one of them to the same 0.25 and throw
+  away the direction-dependence this exists to express. A length of 3.1 against 3.25 cells is
+  invisible; a width of 0.15 against 0.25 is most of the shadow.
+
+`MinPawnShadowHalfWidth` (0.125) is a floor against a def declaring a hairline `volume.x`, not a look
+value, and it sits deliberately below every vanilla pawn — its predecessor was 0.175 and clipped a
+human's whole 0.15–0.20 range flat, which is the same mistake in a different place.
+
+**Verified where the bug lives.** `Tests/Scenarios/vector_light_pawn_shadows.json` cannot see any of
+this: it is roofed on purpose, so `Graphic_Shadow` draws no sun shadow at all and there is nothing
+for the lamp shadow to disagree with. `vector_light_pawn_shadow_anchor.json` is roofless with the
+torch two cells north and a 10.9-degree morning sun to the east, putting the two shadows about ninety
+degrees apart on one pawn. `vector_light_pawn_anchor_z` and `vector_light_pawn_width` pin the
+rectangle itself — **both**, because they failed independently and either alone passes on half a fix.
+
 ## Conflict risk
 
 Decompiled the user's local Dub's Skylights 1.6 copy (`Dubwise.DubsSkylights`) — its patches

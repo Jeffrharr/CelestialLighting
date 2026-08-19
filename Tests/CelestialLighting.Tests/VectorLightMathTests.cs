@@ -958,6 +958,88 @@ public class VectorLightMathTests
         Assert.That(opacity, Is.LessThanOrEqualTo(VectorLightMath.PawnShadowStrength));
     }
 
+    // ---- where on the caster the shadow starts (§27 phase 4, issue #159) -----------------
+
+    // The support function of the caster's footprint rectangle, on its two axes. These are the
+    // numbers a human's shipped `specialShadowData` (volume 0.3, 0.8, 0.4) actually produces, so a
+    // change to the formula that happened to keep the shape but move the scale fails here.
+    [TestCase(1f, 0f, 0.15f)]    // lamp due west  -> silhouette is the 0.3-wide face
+    [TestCase(-1f, 0f, 0.15f)]   // and the same from the other side
+    [TestCase(0f, 1f, 0.2f)]     // lamp due south -> the 0.4-deep face
+    [TestCase(0f, -1f, 0.2f)]
+    public void TheFootprintPresentsItsOwnAxisToAnAxisAlignedLamp(float dx, float dz, float expected)
+    {
+        Assert.That(
+            VectorLightMath.FootprintExtent(0.15f, 0.2f, dx, dz),
+            Is.EqualTo(expected).Within(Tolerance));
+    }
+
+    // Off-axis it is the sum of both projections, not either one and not their mean — a rectangle
+    // seen corner-on is WIDER than it is on either face, which is the whole reason this is a support
+    // function rather than a lerp between the two half-extents.
+    [Test]
+    public void CornerOnIsWiderThanEitherFace()
+    {
+        float diagonal = VectorLightMath.FootprintExtent(0.15f, 0.2f, 1f, 1f);
+
+        Assert.That(diagonal, Is.EqualTo((0.15f + 0.2f) / (float)Math.Sqrt(2)).Within(Tolerance));
+        Assert.That(diagonal, Is.GreaterThan(0.2f));
+    }
+
+    // Direction is a bearing, so its magnitude must not leak into the answer. The adapter passes a
+    // normalised vector, but it also passes the PERPENDICULAR (-uz, ux) built by hand, and a missing
+    // normalisation there would scale every shadow's width by the distance to its lamp.
+    [TestCase(0.5f)]
+    [TestCase(1f)]
+    [TestCase(17f)]
+    public void OnlyTheBearingMatters(float scale)
+    {
+        Assert.That(
+            VectorLightMath.FootprintExtent(0.15f, 0.2f, 0.6f * scale, 0.8f * scale),
+            Is.EqualTo(VectorLightMath.FootprintExtent(0.15f, 0.2f, 0.6f, 0.8f)).Within(Tolerance));
+    }
+
+    // A pawn standing on the lamp's own cell has no bearing, and this resolves it the same way
+    // PawnShadowAngleDegrees does — to +X. The two disagreeing would push the quad out along one
+    // direction and rotate it along another, which is a shadow detached from its pawn.
+    [Test]
+    public void APawnOnTheLampFallsBackToTheSameAxisTheAngleDoes()
+    {
+        Assert.That(
+            VectorLightMath.FootprintExtent(0.15f, 0.2f, 0f, 0f),
+            Is.EqualTo(VectorLightMath.FootprintExtent(0.15f, 0.2f, 1f, 0f)).Within(Tolerance));
+    }
+
+    // The bug this all exists to stop, stated as the property that failed: the shadow's width and
+    // the distance it starts out at come from the SAME rectangle, so as a lamp circles a pawn the
+    // pair must swap rather than both grow. A single scalar footprint — what §27 had — cannot
+    // express that, and reported a human as 0.6 wide in every direction.
+    [Test]
+    public void WidthAndStartSwapAsTheLampCirclesThePawn()
+    {
+        // Lamp due west: the pawn presents its narrow face, and the shadow starts a shallow 0.15 out.
+        float widthFromWest = VectorLightMath.FootprintExtent(0.15f, 0.2f, 0f, 1f);
+        float startFromWest = VectorLightMath.FootprintExtent(0.15f, 0.2f, 1f, 0f);
+
+        // Lamp due south: the same two, exchanged.
+        float widthFromSouth = VectorLightMath.FootprintExtent(0.15f, 0.2f, -1f, 0f);
+        float startFromSouth = VectorLightMath.FootprintExtent(0.15f, 0.2f, 0f, 1f);
+
+        Assert.That(widthFromWest, Is.EqualTo(startFromSouth).Within(Tolerance));
+        Assert.That(startFromWest, Is.EqualTo(widthFromSouth).Within(Tolerance));
+        Assert.That(widthFromWest, Is.Not.EqualTo(startFromWest).Within(Tolerance));
+    }
+
+    // The floor has to sit below every vanilla pawn or it flattens the variation above. A human is
+    // the narrowest silhouette that matters, so it is the one worth pinning against.
+    [Test]
+    public void TheWidthFloorSitsBelowARealPawn()
+    {
+        Assert.That(
+            VectorLightMath.FootprintExtent(0.15f, 0.2f, 1f, 0f),
+            Is.GreaterThan(VectorLightMath.MinPawnShadowHalfWidth));
+    }
+
     private static VectorLightMath.LightPolygon OpenPolygon(float radius)
     {
         return VectorLightMath.Build(8.5f, 8.5f, radius, new VectorLightMath.Segment[0], 48);
