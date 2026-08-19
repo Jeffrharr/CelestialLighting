@@ -372,6 +372,78 @@ public static class ProbeRegistration
         ProbeRegistry.Register(new SectionRegenerateTimingProbe(
             "regen_us_eave_shade", "CelestialLighting.SectionLayer_EaveShade"));
 
+        // §28: whole-mod performance sweep, measured through Circinus rather than Dubs because the
+        // question driving it is "which of our per-frame entry points actually costs anything", and
+        // Dubs omits a row entirely when a method was never called -- an absent row and a cheap row
+        // read identically. Circinus reports Calls directly, so an arm that measured nothing says so.
+        //
+        // ARMED AS A BANK, NOT ONE PER RUN. §27's one-arm-per-run rule exists because flag flips stop
+        // dirtying the map after the first whole-map rebake, so a second arm in the same process
+        // records nothing. That failure is specific to comparing ONE method across two feature
+        // states. These are DISTINCT methods, each with its own DevProfiler, read at the same
+        // instant -- a breakdown of one frame budget, not an A/B -- so simultaneous arming is sound
+        // and is the only way to get shares that sum against a parent.
+        //
+        // Each target gets Calls + TotalMs + MaxMs + Patched. Calls and Patched are not optional
+        // detail: TotalMs is meaningless while Calls is zero, and Circinus sheds instrumentation on
+        // its own schedule, so an arm that shed mid-run reads zero and looks exactly like an entry
+        // point that never ran. Per-call cost is TotalMs/Calls, never AvgMs -- AvgMs is per CYCLE,
+        // and a frame that entered the method twice divides by the wrong thing.
+        void ArmBank(string prefix, string type, string method)
+        {
+            ProbeRegistry.Register(new CircinusProbe(
+                prefix + "_calls", CircinusProbe.Metric.Calls, type, method));
+            ProbeRegistry.Register(new CircinusProbe(
+                prefix + "_total_ms", CircinusProbe.Metric.TotalMs, type, method));
+            ProbeRegistry.Register(new CircinusProbe(
+                prefix + "_max_ms", CircinusProbe.Metric.MaxMs, type, method));
+            ProbeRegistry.Register(new CircinusProbe(
+                prefix + "_patched", CircinusProbe.Metric.Patched, type, method));
+        }
+
+        ProbeRegistry.Register(new CircinusProbe("circinus_available", CircinusProbe.Metric.Available));
+        ProbeRegistry.Register(new CircinusProbe("circinus_cycles", CircinusProbe.Metric.Cycles,
+            "Verse.SkyManager", "SkyManagerUpdate"));
+
+        // The two vanilla parents. Nearly every patch we own hangs off one of these, so they are the
+        // denominators: an arm on one of our own methods is only interesting as a share of these.
+        ArmBank("circ_skyupdate", "Verse.SkyManager", "SkyManagerUpdate");
+        ArmBank("circ_skytarget", "Verse.WeatherWorker", "CurSkyTarget");
+
+        // Our per-frame draw entry points, each the postfix that vanilla actually calls. Harmony
+        // emits a call rather than inlining, so these isolate our cost from vanilla's.
+        ArmBank("circ_clouddraw", "CelestialLighting.CloudSheetOverlay", "Draw");
+        // NOT CloudSheetDraw.PlaceSheets: it has two overloads, so AccessTools.Method by name alone
+        // throws Ambiguous match. No loss -- it is cached per TICK, so its per-frame cost is a
+        // dictionary-free field compare, and circ_clouddraw already contains whatever it does spend.
+        ArmBank("circ_snowglare", "CelestialLighting.SnowGlareOverlay", "Draw");
+        ArmBank("circ_aurora", "CelestialLighting.AuroraCurtainOverlay", "Advance");
+
+        // Section bakes. Ours and the two vanilla layers we patch, so a regression in our postfix is
+        // separable from the bake it rides on.
+        ArmBank("circ_lightoverlay", "Verse.SectionLayer_LightingOverlay", "Regenerate");
+        ArmBank("circ_sunshadows", "Verse.SectionLayer_SunShadows", "Regenerate");
+        ArmBank("circ_desat", "CelestialLighting.SectionLayer_NightDesaturation", "Regenerate");
+        ArmBank("circ_eaveshade", "CelestialLighting.SectionLayer_EaveShade", "Regenerate");
+
+        // Named suspects, armed for their CALL COUNT rather than their duration. Each is individually
+        // trivial and none would ever show up as a Dubs row; the question is how many times a frame
+        // they run, which is the number Dubs cannot give and Circinus can.
+        //
+        // MapSky's two condition gates walk the GameConditionManager chain behind a lambda that
+        // captures `map`, so each call allocates a closure and a delegate. That is invisible in a
+        // duration column and expensive in aggregate if the count is per-frame-per-call-site: there
+        // are 15 SkyBlackedOut call sites and 14 HasSky ones, and HasSky additionally walks the
+        // biome's weather commonality list every time. MapSky's own header records a decision NOT to
+        // cache these on the grounds that it "would buy nothing measurable" -- this arm is what
+        // checks that decision against a measurement rather than assuming it still holds.
+        ArmBank("circ_blackedout", "CelestialLighting.MapSky", "SkyBlackedOut");
+        ArmBank("circ_hassky", "CelestialLighting.MapSky", "HasSky");
+
+        // O(n^2) in sheet count, recomputed every frame from placements that only change once a TICK.
+        // Cheap per call; the arm is here to say how many calls there are.
+        ArmBank("circ_overlap", "CelestialLighting.CloudSheetLayout", "OverlapDepth");
+
         // Inertness guard for the removed across-map shadow tilt (issues #11, #26). These three
         // originally asked "does §3's gradient actually render?"; now they assert it does NOT, at
         // both ends of the shadow axis. Still three probes because a ratio alone cannot say whether
