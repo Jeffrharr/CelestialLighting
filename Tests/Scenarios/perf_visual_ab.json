@@ -1,0 +1,115 @@
+{
+ "name": "perf_visual_ab",
+ "saveFile": "minimal_colony.rws",
+ "description": "\u00a728 visual-inertness proof. The two \u00a728 memos are claimed to change NOTHING a player can see -- they cache a value inside the frame in which it is computed -- and this is the file that has to make that claim falsifiable rather than asserted. Same scenario is run on the pre-\u00a728 build and the memoised one, and the frames are compared with Tools/FrameDelta; anything above median CIELAB deltaE 1 would mean a memo is serving a stale answer somewhere. Hours and weather are chosen to put every subsystem the memos feed into the frame at once: MapSky's gates and WeatherDimming's reads drive sky tint (\u00a78), weather dimming (\u00a713), the cloud lanes (\u00a725) and the low-light desaturation wash (\u00a79), and several of those are defined to zero at noon -- so noon alone would compare two frames in which most of the changed code never ran. 15.0 is full day with the sun high, 19.6 is the golden-hour angle \u00a725's own playtest scenario uses, and 21.5 is past sunset where the night floor and desaturation take over. Overcast rather than Clear because DimmingFor returns exactly 0 under Clear, which would test the memo by not using it.",
+ "steps": [
+  {
+   "type": "SetTile",
+   "args": {
+    "latitude": "45"
+   }
+  },
+  {
+   "type": "SetSeason",
+   "args": {
+    "dayOfYear": "40"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "realistic_preset",
+    "enabled": "false"
+   }
+  },
+  {
+   "type": "SetWeather",
+   "args": {
+    "weatherDef": "Fog",
+    "instant": "true"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "cloud_cover_forced_overcast",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "cloud_sheet",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "cloud_volume",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "LookAt",
+   "args": {
+    "anchor": "125,125",
+    "zoom": "38"
+   }
+  },
+  {
+   "type": "SetTime",
+   "args": {
+    "hour": "15.0"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "30"
+   }
+  },
+  {
+   "type": "Screenshot",
+   "args": {
+    "fileName": "vis_day"
+   }
+  },
+  {
+   "type": "SetTime",
+   "args": {
+    "hour": "19.6"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "30"
+   }
+  },
+  {
+   "type": "Screenshot",
+   "args": {
+    "fileName": "vis_golden"
+   }
+  },
+  {
+   "type": "SetTime",
+   "args": {
+    "hour": "21.5"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "30"
+   }
+  },
+  {
+   "type": "Screenshot",
+   "args": {
+    "fileName": "vis_dusk"
+   }
+  }
+ ]
+}
