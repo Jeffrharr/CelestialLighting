@@ -206,6 +206,15 @@ public static class ProbeRegistration
         // stand-down rather than an error, so an unpinned arm photographs the crossfade instead.
         ProbeRegistry.Register(
             new VectorLightProbe("vector_light_mask_available", VectorLightProbe.Metric.MaskAvailable));
+        // §27e, vector_light_open_door.json. Cells are local to that scenario's room at offset
+        // (0, 45): the doorway is local (0, 0), so (1, 0) is the first cell OUTSIDE it and (-1, 0)
+        // the first cell inside. Both read vanilla's gameplay light, not ours -- they are what
+        // separates "we drew a beam" from "we moved the glow grid", which no vector_light_* probe
+        // can do because the drawn polygon is identical in both arms.
+        ProbeRegistry.Register(
+            new GlowGridCellProbe("door_outside_ground_glow", new IntVec3(1, 0, 45)));
+        ProbeRegistry.Register(
+            new GlowGridCellProbe("door_inside_ground_glow", new IntVec3(-1, 0, 45)));
         // Performance, measured through Circinus rather than Dubs, because Circinus reports CALL
         // COUNTS. §27 phase 3 does all its work inside a section regenerate, and the Dubs window that
         // appeared to show it running three times cheaper than the feature-off baseline had simply
@@ -536,6 +545,27 @@ public static class ProbeRegistration
         FeatureRegistry.Register(
             CelestialLightingFeatures.VectorLightPawnShadowsKey,
             enabled => CelestialLightingFeatures.VectorLightPawnShadows = enabled);
+        // §27e. THREE-arg overload with defaultEnabled: false -- both of these ship off, and the
+        // two-arg overload would let ResetAll switch them on for a later scenario in a suite, which
+        // for the glow-blocker one would silently change gameplay light under an unrelated test.
+        // ForceRebuild on both: the occlusion answer changes for every light near a door, and unlike
+        // a door actually opening there is no MapEvents notification to provoke the rebake.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightOpenDoorsKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.VectorLightOpenDoors = enabled;
+                VectorLightRedraw.ForceRebuild();
+            },
+            defaultEnabled: false);
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightDoorGlowBlockerKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.VectorLightDoorGlowBlocker = enabled;
+                VectorLightRedraw.ForceRebuild();
+            },
+            defaultEnabled: false);
         // Two-arg overload, matching its shipped default of true, and inert while vector_lights is
         // off for the same reason as the mask above.
         FeatureRegistry.Register(

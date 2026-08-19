@@ -60,6 +60,13 @@
     <!-- §27's four metrics. Recomputes the visibility polygon from the pure core rather than reading
          the cached render, so it reports the same number whether or not the light was on camera. -->
     <Compile Include="../Source/Probes/VectorLightProbe.cs" Link="VectorLightProbe.cs" />
+    <!-- §27e: vanilla's gameplay light at a named cell, the only probe that can tell the drawn-only
+         arm from the glow-grid-driven one, since our polygon is identical in both. -->
+    <Compile Include="../Source/Probes/GlowGridCellProbe.cs" Link="GlowGridCellProbe.cs" />
+    <!-- §27e: the SetDoorOpen scenario step. Not a probe, but it belongs to the same dev-only
+         assembly for the same reason: StepDiscovery scans loaded mod assemblies, and this must
+         never reach the shipped DLL. -->
+    <Compile Include="../Source/Probes/SetDoorOpenStep.cs" Link="SetDoorOpenStep.cs" />
     <Compile Include="../Source/Probes/CircinusProbe.cs" Link="CircinusProbe.cs" />
     <Compile Include="../Source/Probes/TwilightWarmthProbe.cs" Link="TwilightWarmthProbe.cs" />
     <Compile Include="../Source/Probes/PenumbraProbe.cs" Link="PenumbraProbe.cs" />
