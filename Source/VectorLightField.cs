@@ -38,6 +38,37 @@ public static class VectorLightField
         public MaterialPropertyBlock Props;
         public bool GeometryDirty = true;
 
+        // How vanilla's own GlowGrid identifies this same emitter — a thing id for a glower, a cell
+        // index for glowing terrain, with the terrain flag folded in because the two number spaces
+        // overlap. §27 phase 3 needs it to ask what THIS light delivers to a cell, as opposed to what
+        // everything delivers, which is the difference between subtracting our own lamp back out and
+        // subtracting somebody else's mod along with it.
+        public long VanillaKey;
+
+        // The visibility polygon, cached so the two consumers can share one build. §27 phase 3 reads
+        // it during a section regenerate, where no mesh is being built at all, so it cannot ride on
+        // the mesh the way it used to.
+        public VectorLightMath.LightPolygon Polygon;
+
+        // Kept separate from GeometryDirty rather than folded into it because the two are consumed
+        // by different subsystems at different times: the draw clears GeometryDirty when it rebuilds
+        // a mesh, and a mask running with the draw switched off would then never rebuild the polygon
+        // at all. Both are set together wherever the world changes.
+        public bool PolygonDirty = true;
+
+        // The polygon's cell coverage, baked with it. See VectorLightMath.BuildCoverage: computing
+        // this per section instead measured 239 us per section against the crossfade's 20.
+        public byte[] Coverage;
+
+        // Radius the coverage grid was baked at, in cells. Held rather than recomputed because the
+        // lookup needs it and Mathf.CeilToInt on every cell of every section is exactly the sort of
+        // per-cell arithmetic this cache exists to remove.
+        public int CoverageRadius;
+
+        // Whether this emitter shadows anything at all — no ray stopped short of the radius. The
+        // bake skips such an emitter outright rather than looking its grid up cell by cell.
+        public bool Unobstructed;
+
         // The polygon's area in square cells, kept for the probes: it is the one number that says
         // "the lit region changed shape" without going anywhere near a pixel. Issue #3 records two
         // wrong conclusions drawn from pixel measurement on exactly this kind of effect.
@@ -74,12 +105,80 @@ public static class VectorLightField
             float reach = entry.Radius + 1f;
 
             if (dx * dx + dz * dz <= reach * reach)
+            {
                 entry.GeometryDirty = true;
+                entry.PolygonDirty = true;
+            }
         }
     }
 
     // Everything currently emitting on this map, resynced from vanilla's own sets if anything has
     // registered or deregistered since the last call.
+    // Build every dirty polygon on this map, once per frame, OUTSIDE the section bake.
+    //
+    // WHY IT IS HOISTED. §27 phase 3 reads polygons during a section regenerate, and building one
+    // there put geometry construction inside the bake: a whole-map rebake measured 49 ms in
+    // VectorLightMask.Apply while everything Apply calls summed to 6, and the missing 43 was
+    // EnsurePolygon running under CollectReaching. The crossfade builds the same polygons in the
+    // DRAW path, so its own bake row never contained them — which made the two rows a comparison
+    // between different quantities rather than between two implementations.
+    //
+    // Called once per frame from the draw, so by the time any section bakes, every polygon it might
+    // ask for is already there. The work is not removed — it is the same builds on the same cadence
+    // — it simply stops being charged to, and serialised inside, the regenerate.
+    // Returns whether it built anything, because the caller has to act on that.
+    //
+    // A SECTION BAKED WHILE A POLYGON WAS STILL DIRTY SKIPPED THAT EMITTER, and nothing would ever
+    // dirty the section again — so "the mask catches up next frame" was permanently false and the
+    // feature rendered pixel-identical to vanilla with every probe healthy. Whoever builds the
+    // polygons has to re-dirty the map afterwards, once, so the sections bake again with them ready.
+    public static bool EnsurePolygons(Map map)
+    {
+        if (map == null)
+            return false;
+
+        bool built = false;
+
+        foreach (LightEntry entry in LightsFor(map))
+        {
+            if (entry.PolygonDirty || entry.Polygon.Count == 0)
+            {
+                EnsurePolygon(map, entry);
+                built = true;
+            }
+        }
+
+        return built;
+    }
+
+    // The visibility polygon for one emitter, built if the world has changed under it since the last
+    // time anybody asked. Shared by the draw and by §27 phase 3's mask so the two cannot disagree
+    // about the shape of a shadow — a disagreement would show as the mask darkening cells the draw
+    // had just lit.
+    public static void EnsurePolygon(Map map, LightEntry entry)
+    {
+        if (!entry.PolygonDirty && entry.Polygon.Count > 0)
+            return;
+
+        VectorLightMath.Segment[] segments =
+            VectorLightBlockers.SegmentsAround(map, entry.Cell, entry.Radius);
+
+        entry.Polygon = VectorLightMath.Build(
+            entry.Cell.x + 0.5f, entry.Cell.z + 0.5f, entry.Radius, segments,
+            VectorLightMath.DefaultBaseRayCount);
+
+        // Baked alongside the polygon, on the same cadence and for the same reason: both change only
+        // when somebody builds or removes a wall in range, and both are asked for once per cell of
+        // every section that overlaps this emitter.
+        entry.CoverageRadius = Mathf.CeilToInt(entry.Radius);
+        entry.Coverage = VectorLightMath.BuildCoverage(
+            entry.Polygon, entry.Cell.x, entry.Cell.z, entry.CoverageRadius,
+            VectorLightMath.DefaultCoverageSamples);
+        entry.Unobstructed = VectorLightMath.IsUnobstructed(entry.Polygon, entry.Radius);
+
+        entry.PolygonDirty = false;
+    }
+
     public static Dictionary<object, LightEntry>.ValueCollection LightsFor(Map map)
     {
         MapLights lights = EnsureMap(map);
@@ -145,7 +244,8 @@ public static class VectorLightField
             {
                 ColorInt glow = glower.GlowColor;
                 Upsert(lights, seen, glower.parent.thingIDNumber, glower.parent.Position,
-                    glower.GlowRadius, glow.r / 255f, glow.g / 255f, glow.b / 255f);
+                    glower.GlowRadius, glow.r / 255f, glow.g / 255f, glow.b / 255f,
+                    GlowGridPerLight.Reader.KeyFor(glower.parent.thingIDNumber, isTerrain: false));
             }
         }
     }
@@ -175,14 +275,15 @@ public static class VectorLightField
             {
                 ColorInt glow = terrain.glowColor;
                 Upsert(lights, seen, cell, cell, terrain.glowRadius,
-                    glow.r / 255f, glow.g / 255f, glow.b / 255f);
+                    glow.r / 255f, glow.g / 255f, glow.b / 255f,
+                    GlowGridPerLight.Reader.KeyFor(map.cellIndices.CellToIndex(cell), isTerrain: true));
             }
         }
     }
 
     private static void Upsert(
         MapLights lights, HashSet<object> seen, object key,
-        IntVec3 cell, float radius, float r, float g, float b)
+        IntVec3 cell, float radius, float r, float g, float b, long vanillaKey)
     {
         seen.Add(key);
 
@@ -196,10 +297,14 @@ public static class VectorLightField
         // identical and the colour rides on the material, so a colour-picker lamp being retinted
         // costs nothing but a property block write.
         if (entry.Cell != cell || entry.Radius != radius)
+        {
             entry.GeometryDirty = true;
+            entry.PolygonDirty = true;
+        }
 
         entry.Cell = cell;
         entry.Radius = radius;
+        entry.VanillaKey = vanillaKey;
 
         float scale = VectorLightMath.PeakScale(r, g, b);
         entry.Color = new Color(r * scale, g * scale, b * scale, 1f);

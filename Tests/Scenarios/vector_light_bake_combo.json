@@ -1,7 +1,7 @@
 {
-  "name": "vector_light_perf",
+  "name": "vector_light_bake_combo",
   "saveFile": "minimal_colony.rws",
-  "description": "\u00a727's standing cost, in the three windows that mean different things, on 20 lamps each walled into its own room with doorways between \u2014 the geometry the subsystem is expensive on, rather than one torch in open ground. 'gated' is vector_lights off, which is the \u22640.01 ms/frame the epic asks of the switched-off path. 'hard_edges' is phase 1. 'soft_edges' adds phase 2's penumbra wedges, so the difference between the last two is what soft edges cost and nothing else. Camera is zoomed out far enough that every lamp is on screen: VectorLightOverlay culls against the view, so a tight zoom would profile the culling and report a fraction of the cost as if it were the whole of it. Pins vector_light_blend off explicitly: it ships on, and these numbers were measured without it, so leaving it implicit would silently change what is being profiled.",
+  "description": "ONE ARM PER RUN: the 'combo' arm of 27's bake cost, recorded as a Circinus run document under the label celestiallighting-combo. Four arms inside one process did not work \u2014 the flag flips stop dirtying the map after the first whole-map rebake, so every arm after the first recorded nothing while the instrumentation stayed live. A process per arm makes 'exactly one rebake' true by construction. The arm's flags are set BEFORE the recorder opens; the measured rebake is a single penumbra toggle off and back on, which returns the arm to the same state so what is timed is a rebake OF this arm rather than a transition between two. circinus_ours_* arms our own postfix rather than vanilla's Regenerate, so the figure is 27's cost and not the 795 ms vanilla already spends baking 112 sections. Compare the run documents in Circinus/Runs/, not readings within one run.",
   "steps": [
     {
       "type": "SetTile",
@@ -84,65 +84,39 @@
       }
     },
     {
+      "type": "Probe",
+      "args": {
+        "probeName": "circinus_available",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_suppress",
+        "enabled": "true"
+      }
+    },
+    {
       "type": "SetFeature",
       "args": {
         "featureName": "vector_light_blend",
         "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_lights",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "Profile",
-      "args": {
-        "name": "gated",
-        "prefix": "CelestialLighting",
-        "frames": "600",
-        "timeSpeed": "superfast"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_lights",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_penumbra",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "Profile",
-      "args": {
-        "name": "hard_edges",
-        "prefix": "CelestialLighting",
-        "frames": "600",
-        "timeSpeed": "superfast"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_penumbra",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "Profile",
-      "args": {
-        "name": "soft_edges",
-        "prefix": "CelestialLighting",
-        "frames": "600",
-        "timeSpeed": "superfast"
       }
     },
     {
@@ -153,12 +127,106 @@
       }
     },
     {
-      "type": "Profile",
+      "type": "SetFeature",
       "args": {
-        "name": "mask",
-        "prefix": "CelestialLighting",
-        "frames": "600",
-        "timeSpeed": "superfast"
+        "featureName": "vector_light_mask_beam",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "TickLapse",
+      "args": {
+        "ticks": "6",
+        "steps": "8",
+        "fps": "20",
+        "fileNamePrefix": "settle_discard"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circinus_run_start_combo",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circinus_ours_patched",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "TickLapse",
+      "args": {
+        "ticks": "6",
+        "steps": "24",
+        "fps": "20",
+        "fileNamePrefix": "bake_discard"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circinus_ours_calls",
+        "expectedValue": "0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circinus_ours_total_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circinus_ours_max_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circinus_regen_calls",
+        "expectedValue": "0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circinus_regen_total_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circinus_run_stop",
+        "expectedValue": "1",
+        "tolerance": "0"
       }
     }
   ]

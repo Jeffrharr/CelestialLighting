@@ -31,6 +31,22 @@ public static class Patch_VectorLightDraw
         if (map == null || map.gameConditionManager != __instance)
             return;
 
+        // Polygons are built HERE, once per frame, and never inside a section bake. §27 phase 3
+        // reads them during a regenerate, and building one there charged 43 ms of geometry
+        // construction to a whole-map rebake — the crossfade builds the same polygons on this path,
+        // so its bake row never contained them and the two were not comparable. Doing it before the
+        // draw also means the mask never has to wait a frame for a shadow it could have had now.
+        // Re-dirtying after a build is not optional: a section that baked while a polygon was still
+        // dirty skipped that emitter, and without this nothing would ever ask it to bake again. It
+        // terminates on its own — the next frame builds nothing and so dirties nothing.
+        if (VectorLightMask.Active && VectorLightField.EnsurePolygons(map))
+            map.mapDrawer?.WholeMapChanged((ulong)MapMeshFlagDefOf.GroundGlow);
+
         VectorLightOverlay.Draw(map);
+
+        // After the light, and on the same hook for the same reason: this is a per-frame draw whose
+        // cost is proportional to what is on screen, and it needs the polygons the call above has
+        // just made sure exist.
+        VectorLightPawnShadows.Draw(map);
     }
 }

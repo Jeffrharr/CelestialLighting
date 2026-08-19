@@ -649,6 +649,333 @@ public class VectorLightMathTests
         Assert.That(VectorLightMath.FlooredChannel(3, 0.5f), Is.EqualTo(2));
     }
 
+    // ---- the subtractive mask (§27 phase 3) ---------------------------------------------
+
+    // With nothing in the way the polygon is the inscribed 48-gon, so the boundary is the radius at
+    // every ray and a little under it between them. Both bounds matter: a boundary reading OVER the
+    // radius would light cells the mesh never reaches, and one reading far under would shadow cells
+    // that are in plain sight.
+    [TestCase(0f)]
+    [TestCase(0.7f)]
+    [TestCase(1.9f)]
+    [TestCase(-2.4f)]
+    [TestCase(3.1f)]
+    public void AnUnobstructedBoundaryIsTheRadiusInEveryDirection(float angle)
+    {
+        VectorLightMath.LightPolygon polygon = OpenPolygon(10f);
+        float boundary = VectorLightMath.BoundaryDistanceAt(polygon, angle);
+
+        Assert.That(boundary, Is.LessThanOrEqualTo(10f + Tolerance));
+        Assert.That(boundary, Is.GreaterThan(10f * 0.99f));
+    }
+
+    // The seam at +-pi is its own case in the search, and it is the one an off-by-one would leave
+    // returning the first ray's distance for a whole quadrant. A wall placed due WEST of the light
+    // straddles that seam, so this fails if the wrap is wrong and passes trivially if it is not
+    // exercised — which is why the wall is there rather than on an axis-aligned convenience.
+    [Test]
+    public void TheBoundaryWrapsAcrossTheSeamAtPi()
+    {
+        VectorLightMath.LightPolygon polygon = WalledPolygon();
+
+        float justUnder = VectorLightMath.BoundaryDistanceAt(polygon, (float)(-Math.PI + 0.001));
+        float justOver = VectorLightMath.BoundaryDistanceAt(polygon, (float)(Math.PI - 0.001));
+
+        Assert.That(justUnder, Is.GreaterThan(0f));
+        Assert.That(justOver, Is.GreaterThan(0f));
+
+        // Either side of the seam is the same direction to within a thousandth of a radian, so the
+        // two answers have to agree. They will not if one of them fell off the end of the array.
+        Assert.That(justUnder, Is.EqualTo(justOver).Within(0.25f));
+    }
+
+    // A cell the light plainly sees is fully lit, and one squarely behind a wall is fully dark. These
+    // are the two ends the mask subtracts nothing and everything at.
+    [Test]
+    public void CoverageIsOneInPlainSightAndZeroBehindAWall()
+    {
+        VectorLightMath.LightPolygon polygon = WalledPolygon();
+
+        Assert.That(
+            VectorLightMath.LitFraction(polygon, 8.5f, 8.5f, 10, 8, 2),
+            Is.EqualTo(1f).Within(Tolerance));
+        Assert.That(
+            VectorLightMath.LitFraction(polygon, 8.5f, 8.5f, 3, 8, 2),
+            Is.EqualTo(0f).Within(Tolerance));
+    }
+
+    // THE POINT OF SAMPLING THE CELL RATHER THAN ITS CENTRE. The lighting overlay can only place a
+    // boundary to within a cell, so the cell the shadow edge actually crosses has to report a
+    // FRACTION — that fraction is what turns a staircase into a ramp. A yes/no test would make this
+    // cell either 0 or 1 and there would be nothing between the lit region and the dark one.
+    [Test]
+    public void TheCellTheEdgeCrossesIsPartlyLit()
+    {
+        VectorLightMath.LightPolygon polygon = WalledPolygon();
+        bool foundPartial = false;
+
+        // Walk the column just past the wall and look for the cell the boundary runs through.
+        for (int z = 3; z <= 13 && !foundPartial; z++)
+        {
+            float lit = VectorLightMath.LitFraction(polygon, 8.5f, 8.5f, 3, z, 4);
+            foundPartial = lit > 0f && lit < 1f;
+        }
+
+        Assert.That(foundPartial, Is.True, "no cell straddled the shadow boundary");
+    }
+
+    // More samples must never turn a fully lit or fully dark cell into a partly lit one: the sample
+    // count controls how finely the EDGE is resolved and nothing else. A test that only checked the
+    // edge would not notice a sampling grid that had drifted off the cell.
+    [TestCase(1)]
+    [TestCase(2)]
+    [TestCase(4)]
+    [TestCase(8)]
+    public void TheSampleCountDoesNotMoveTheFullyLitOrFullyDarkCells(int samples)
+    {
+        VectorLightMath.LightPolygon polygon = WalledPolygon();
+
+        Assert.That(
+            VectorLightMath.LitFraction(polygon, 8.5f, 8.5f, 10, 8, samples),
+            Is.EqualTo(1f).Within(Tolerance));
+        Assert.That(
+            VectorLightMath.LitFraction(polygon, 8.5f, 8.5f, 3, 8, samples),
+            Is.EqualTo(0f).Within(Tolerance));
+    }
+
+    // The light's own position is lit whatever the geometry says, because the distance is zero and
+    // there is no direction to ask about. Without the zero check this is an atan2(0, 0) away from
+    // being whatever the boundary happens to be at angle zero.
+    [Test]
+    public void TheLightsOwnPositionIsAlwaysLit()
+    {
+        Assert.That(VectorLightMath.IsLit(WalledPolygon(), 8.5f, 8.5f, 8.5f, 8.5f), Is.True);
+    }
+
+    // A degenerate polygon reports nothing lit rather than everything. The mask scales by (1 - lit),
+    // so an empty polygon reading "fully lit" would silently disable the subsystem — the failure that
+    // looks like the feature being switched off rather than like a bug.
+    [Test]
+    public void AnEmptyPolygonLightsNothing()
+    {
+        VectorLightMath.LightPolygon empty =
+            new VectorLightMath.LightPolygon(new float[0], new float[0], 0);
+
+        Assert.That(VectorLightMath.BoundaryDistanceAt(empty, 1f), Is.EqualTo(0f).Within(Tolerance));
+        Assert.That(
+            VectorLightMath.LitFraction(empty, 8.5f, 8.5f, 8, 8, 2), Is.EqualTo(0f).Within(Tolerance));
+    }
+
+    // The beam that rides on top of phase 3's mask is exactly what the crossfade already delivers
+    // over the half of vanilla it keeps. Pinning the identity rather than the number keeps the two
+    // tied together: retuning DefaultStrength or DefaultVanillaFloor moves both, which is the point
+    // — the combination is meant to be comparable to the crossfade it is trying to beat, and a beam
+    // that quietly drifted away from that would make the comparison meaningless without failing.
+    [Test]
+    public void TheMaskBeamDeliversWhatTheCrossfadeAlreadyDoes()
+    {
+        Assert.That(
+            VectorLightMath.MaskBeamStrength,
+            Is.EqualTo(VectorLightMath.BlendedStrength(
+                VectorLightMath.DefaultStrength, VectorLightMath.DefaultVanillaFloor))
+                .Within(Tolerance));
+    }
+
+    // And it must be a genuine fraction of the full pass rather than all of it: drawing our whole
+    // model over a vanilla that is still rendering is epic #145's rejected option 1, which measured
+    // 6 L* bright. The mask removes the shadowed light before this lands, but it does not remove any
+    // of the lit light, so full strength here would still double the lit region.
+    [Test]
+    public void TheMaskBeamIsAFractionOfTheFullPass()
+    {
+        Assert.That(VectorLightMath.MaskBeamStrength, Is.GreaterThan(0f));
+        Assert.That(VectorLightMath.MaskBeamStrength, Is.LessThan(VectorLightMath.DefaultStrength));
+    }
+
+    // THE TEST THAT MAKES THE CACHE A PURE OPTIMISATION. The baked grid replaced a per-cell
+    // LitFraction call that cost 239 us per section; it is only allowed to do that if it answers
+    // exactly what the call answered. Every cell of the emitter's square is checked rather than a
+    // sample of them, because an indexing error in a grid is precisely the sort of bug that is
+    // correct in the middle and wrong at one edge.
+    [Test]
+    public void TheBakedCoverageAgreesWithSamplingEveryCell()
+    {
+        VectorLightMath.LightPolygon polygon = WalledPolygon();
+        const int radius = 10;
+        byte[] grid = VectorLightMath.BuildCoverage(polygon, 8, 8, radius, 2);
+
+        for (int cz = 8 - radius; cz <= 8 + radius; cz++)
+        {
+            for (int cx = 8 - radius; cx <= 8 + radius; cx++)
+            {
+                float sampled = VectorLightMath.LitFraction(polygon, 8.5f, 8.5f, cx, cz, 2);
+                byte baked = VectorLightMath.CoverageAt(grid, 8, 8, radius, cx, cz);
+
+                Assert.That(
+                    baked / 255f, Is.EqualTo(sampled).Within(1f / 255f),
+                    "cell (" + cx + ", " + cz + ")");
+            }
+        }
+    }
+
+    // Outside the square the answer is FULLY LIT, not fully dark. The emitter delivers nothing
+    // there, so a caller has nothing to subtract either way — but 0 would mean "wholly shadowed",
+    // and a caller that arrived with a non-zero glow would darken a cell this emitter never lit.
+    // The safe direction is to subtract nothing.
+    [TestCase(-3, 8)]
+    [TestCase(8, 40)]
+    [TestCase(100, 100)]
+    public void CoverageOutsideTheSquareReadsFullyLit(int cellX, int cellZ)
+    {
+        byte[] grid = VectorLightMath.BuildCoverage(WalledPolygon(), 8, 8, 10, 2);
+
+        Assert.That(VectorLightMath.CoverageAt(grid, 8, 8, 10, cellX, cellZ), Is.EqualTo(255));
+    }
+
+    // The skip that makes an unobstructed emitter free. In open ground most emitters shadow nothing,
+    // and the bake drops them for the whole section rather than looking a grid up cell by cell.
+    //
+    // ASKED OF THE POLYGON RATHER THAN THE BAKED GRID, and an earlier version that asked the grid
+    // failed here for a reason worth keeping: a grid covers the emitter's SQUARE while the polygon
+    // covers its circle, so the corners are outside the light whatever the geometry does and an
+    // all-255 grid never occurs. A ray stopping short of the radius is shadow; discretisation is not.
+    [Test]
+    public void AnUnobstructedEmitterIsSkippableAndAWalledOneIsNot()
+    {
+        Assert.That(VectorLightMath.IsUnobstructed(OpenPolygon(10f), 10f), Is.True);
+        Assert.That(VectorLightMath.IsUnobstructed(WalledPolygon(), 10f), Is.False);
+    }
+
+    // And a degenerate polygon is NOT skippable. Returning true would mean "nothing is shadowed",
+    // which reads as the subsystem being off rather than as the polygon being broken.
+    [Test]
+    public void AnEmptyPolygonIsNotSkippable()
+    {
+        Assert.That(
+            VectorLightMath.IsUnobstructed(
+                new VectorLightMath.LightPolygon(new float[0], new float[0], 0), 10f),
+            Is.False);
+    }
+
+    // A degenerate polygon bakes to all-zero rather than all-lit, matching LitFraction's own answer
+    // for it — see AnEmptyPolygonLightsNothing. It must not read as "nothing is shadowed", which
+    // would silently disable the subsystem instead of failing.
+    [Test]
+    public void AnEmptyPolygonBakesToNoCoverage()
+    {
+        VectorLightMath.LightPolygon empty =
+            new VectorLightMath.LightPolygon(new float[0], new float[0], 0);
+        byte[] grid = VectorLightMath.BuildCoverage(empty, 8, 8, 4, 2);
+
+        Assert.That(grid.Length, Is.EqualTo(9 * 9));
+        Assert.That(VectorLightMath.CoverageAt(grid, 8, 8, 4, 8, 8), Is.EqualTo(0));
+    }
+
+    // ---- pawn shadows cast by lamps (§27 phase 4) ---------------------------------------
+
+    // Similar triangles: a caster of height t at horizontal distance d from a lamp of height h puts
+    // the shadow's tip d*t/(h-t) beyond it. With the shipped constants the headroom is exactly the
+    // pawn's height, so the shadow is the distance — which makes these cases readable by eye.
+    [TestCase(1f, 1f)]
+    [TestCase(2f, 2f)]
+    [TestCase(4f, 4f)]
+    public void APawnShadowLengthensWithDistanceFromTheLamp(float distance, float expected)
+    {
+        Assert.That(
+            VectorLightMath.PawnShadowLength(distance, 1.2f, 2.4f),
+            Is.EqualTo(expected).Within(Tolerance));
+    }
+
+    // THE DIRECTION THE PHYSICS ACTUALLY RUNS, stated as a test because the intuition goes the other
+    // way often enough to be worth pinning. Standing under a lamp gives almost no shadow; walking
+    // away lengthens it, exactly as a sinking sun does.
+    [Test]
+    public void StandingUnderTheLampCastsAlmostNothing()
+    {
+        float near = VectorLightMath.PawnShadowLength(0.2f, 1.2f, 2.4f);
+        float far = VectorLightMath.PawnShadowLength(5f, 1.2f, 2.4f);
+
+        Assert.That(near, Is.LessThan(0.5f));
+        Assert.That(far, Is.GreaterThan(near));
+    }
+
+    // A caster as tall as the lamp would divide by zero and throw its shadow through infinity, which
+    // renders as a bar across the whole map for one frame. The clamp is what stops a modded def
+    // doing that, and the cap is what stops a pawn standing on the lamp's own cell doing it.
+    [TestCase(3f, 2.4f, 2.4f)]
+    [TestCase(3f, 5f, 2.4f)]
+    public void AnImpossibleCasterIsClampedRatherThanInfinite(float d, float caster, float lamp)
+    {
+        float length = VectorLightMath.PawnShadowLength(d, caster, lamp);
+
+        Assert.That(length, Is.LessThanOrEqualTo(VectorLightMath.MaxPawnShadowLength));
+        Assert.That(length, Is.GreaterThan(0f));
+    }
+
+    // Away from the lamp, in Unity's clockwise-from-+Z Y rotation. The mesh is baked extruded along
+    // +X, so this angle IS the transform. Getting the sign wrong points every shadow AT its lamp,
+    // which looks deliberate enough to survive a glance — hence a test per quadrant axis.
+    [TestCase(1f, 0f, 0f)]      // pawn due east of the lamp -> shadow east
+    [TestCase(0f, 1f, -90f)]    // pawn due north -> shadow north
+    [TestCase(-1f, 0f, -180f)]  // pawn due west -> shadow west
+    [TestCase(0f, -1f, 90f)]    // pawn due south -> shadow south
+    public void TheShadowPointsAwayFromTheLamp(float dx, float dz, float expected)
+    {
+        Assert.That(
+            VectorLightMath.PawnShadowAngleDegrees(8f, 8f, 8f + dx, 8f + dz),
+            Is.EqualTo(expected).Within(0.01f));
+    }
+
+    // A pawn standing exactly on the lamp has no direction to be shadowed in, and atan2(0, 0) is
+    // not the place to find that out.
+    [Test]
+    public void APawnOnTheLampHasNoDirection()
+    {
+        Assert.That(
+            VectorLightMath.PawnShadowAngleDegrees(8f, 8f, 8f, 8f), Is.EqualTo(0f).Within(Tolerance));
+    }
+
+    // Each of the three factors can veto the shadow on its own: a lamp that cannot see the pawn, a
+    // pawn beyond the lamp's reach, and broad daylight. Any one of them reaching zero has to take
+    // the whole thing to zero, or a shadow appears where its light does not.
+    [TestCase(0f, 0f, "the lamp cannot see the pawn")]
+    [TestCase(1f, 1f, "broad daylight")]
+    public void AnyOneFactorCanVetoTheShadow(float coverage, float skyGlow, string why)
+    {
+        Assert.That(
+            VectorLightMath.PawnShadowOpacity(3f, 10f, coverage, skyGlow),
+            Is.EqualTo(0f).Within(Tolerance), why);
+    }
+
+    // And with all three favourable it is visible but never opaque — these stack one per lamp, and
+    // two torches either side of a pawn should read as two soft shadows rather than a black cross.
+    [Test]
+    public void AFullyLitShadowIsVisibleButNotOpaque()
+    {
+        float opacity = VectorLightMath.PawnShadowOpacity(2f, 10f, 1f, 0f);
+
+        Assert.That(opacity, Is.GreaterThan(0.05f));
+        Assert.That(opacity, Is.LessThanOrEqualTo(VectorLightMath.PawnShadowStrength));
+    }
+
+    private static VectorLightMath.LightPolygon OpenPolygon(float radius)
+    {
+        return VectorLightMath.Build(8.5f, 8.5f, radius, new VectorLightMath.Segment[0], 48);
+    }
+
+    // A light at the centre of a 16x16 field with a wall column due west of it, three cells long, so
+    // the shadow it throws crosses the +-pi seam of the angle space.
+    private static VectorLightMath.LightPolygon WalledPolygon()
+    {
+        bool[] blocked = new bool[16 * 16];
+        blocked[7 * 16 + 5] = true;
+        blocked[8 * 16 + 5] = true;
+        blocked[9 * 16 + 5] = true;
+
+        VectorLightMath.Segment[] segments = VectorLightMath.SilhouetteSegments(blocked, 16, 16, 0, 0);
+        return VectorLightMath.Build(8.5f, 8.5f, 10f, segments, 48);
+    }
+
     // ---- daylight -----------------------------------------------------------------------
 
     [TestCase(0f, 1f)]

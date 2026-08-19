@@ -1,7 +1,7 @@
 {
-  "name": "vector_light_penumbra",
+  "name": "vector_light_pawn_shadows",
   "saveFile": "minimal_colony.rws",
-  "description": "\u00a727 in four arms from one scene: vanilla's flood, the mixed case (our polygons ON TOP of vanilla's flood, with the suppressing half off \u2014 epic #145's rejected option 1, kept capturable rather than only arguable), phase 1's hard-edged visibility polygons, and phase 2's penumbra. The soft-edge measurement is taken between the last two, which holds everything else constant and so isolates the penumbra from the mechanism drawing it. The vanilla arm is what the other three are departures FROM, and capturing it is what caught the overall level running bright \u2014 no A/B could, since \u00a727 was in both of its frames. A fifth arm captures the crossfade (vector_light_blend, which is now the shipped default, so the hard and soft arms turn it off explicitly rather than by omission), which keeps half of vanilla's flood underneath and drops our own contribution by the same half \u2014 the tone-down of the mixed case, as against the mixed case's straight sum of two whole lighting models. A sixth arm is \u00a727 phase 3's subtractive mask, which inverts the operator: instead of drawing a second lighting model over vanilla's, it subtracts each emitter's own light back out of the cells the polygon says that emitter cannot reach, leaving everything it did not model untouched. Its edges come from the lighting overlay's own cell-resolution bilinear interpolation rather than from a penumbra mesh, which is the one thing the arm is really being measured on.",
+  "description": "27 phase 4: a pawn throws a shadow away from the lamp that lights it. ROOFED ON PURPOSE \u2014 vanilla's Graphic_Shadow bails on any roofed cell because sunlight does not get in, so inside this room vanilla draws no pawn shadow at all and every shadow in the frame is ours. Two colonists: one four cells from the torch with clear line of sight, one behind a five-cell stub the torch cannot see past. The second must cast NOTHING, which is the property only the mask can supply \u2014 its coverage grid is what answers 'can this lamp see that cell', and vanilla's own glow grid would answer yes because its light bends around corners. Three arms: vanilla, mask + beam without pawn shadows, and with them, so the shadows can be told apart from the light that motivates them. The lit pawn stands TWO cells from the torch, not four: a shadow needs lit ground to fall on, and at four cells the floor is already near black, so the shadow was geometrically correct and invisible \u2014 a 9% darkening of near-black rounds to nothing.",
   "steps": [
     {
       "type": "SetTile",
@@ -26,7 +26,7 @@
       "type": "SetTerrain",
       "args": {
         "def": "Concrete",
-        "width": "40",
+        "width": "30",
         "height": "24",
         "offset": "0,45",
         "clear": "true"
@@ -40,7 +40,7 @@
         "offset": "0,45",
         "layout": "cells",
         "clear": "true",
-        "cells": "-13,-7; -13,-6; -13,-5; -13,-4; -13,-3; -13,-2; -13,-1; -13,0; -13,1; -13,2; -13,3; -13,4; -13,5; -13,6; -13,7; -12,-7; -12,7; -11,-7; -11,7; -10,-7; -10,7; -9,-7; -9,7; -8,-7; -8,7; -7,-7; -7,7; -6,-7; -6,7; -5,-7; -5,7; -4,-7; -4,7; -3,-7; -3,7; -2,-7; -2,7; -1,-7; -1,7; 0,-7; 0,-6; 0,-5; 0,-4; 0,-3; 0,-2; 0,-1; 0,1; 0,2; 0,3; 0,4; 0,5; 0,6; 0,7"
+        "cells": "-9,-7; -9,7; -8,-7; -8,7; -7,-7; -7,7; -6,-7; -6,7; -5,-7; -5,7; -4,-7; -4,7; -3,-7; -3,7; -2,-7; -2,7; -1,-7; -1,7; 0,-7; 0,7; 1,-7; 1,7; 2,-7; 2,7; 3,-7; 3,7; 4,-7; 4,7; 5,-7; 5,7; 6,-7; 6,7; 7,-7; 7,7; 8,-7; 8,7; 9,-7; 9,7; -9,-6; 9,-6; -9,-5; 9,-5; -9,-4; 9,-4; -9,-3; 9,-3; -9,-2; 9,-2; -9,-1; 9,-1; -9,0; 9,0; -9,1; 9,1; -9,2; 9,2; -9,3; 9,3; -9,4; 9,4; -9,5; 9,5; -9,6; 9,6"
       }
     },
     {
@@ -50,7 +50,16 @@
         "stuff": "BlocksGranite",
         "offset": "0,45",
         "layout": "cells",
-        "cells": "-8,-3; -8,-2; -6,3; -6,4"
+        "cells": "3,-2; 3,-1; 3,0; 3,1; 3,2"
+      }
+    },
+    {
+      "type": "SetRoof",
+      "args": {
+        "def": "RoofConstructed",
+        "width": "19",
+        "height": "15",
+        "offset": "0,45"
       }
     },
     {
@@ -59,7 +68,27 @@
         "def": "TorchLamp",
         "offset": "0,45",
         "layout": "cells",
-        "cells": "-3,0"
+        "cells": "-6,0"
+      }
+    },
+    {
+      "type": "SpawnPawn",
+      "args": {
+        "kind": "Colonist",
+        "faction": "player",
+        "count": "1",
+        "offset": "-4,45",
+        "clear": "true"
+      }
+    },
+    {
+      "type": "SpawnPawn",
+      "args": {
+        "kind": "Colonist",
+        "faction": "player",
+        "count": "1",
+        "offset": "5,45",
+        "clear": "true"
       }
     },
     {
@@ -72,7 +101,7 @@
       "type": "LookAt",
       "args": {
         "offset": "0,45",
-        "zoom": "22"
+        "zoom": "14"
       }
     },
     {
@@ -84,219 +113,6 @@
       }
     },
     {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_lights",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "warmup_discard.png"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_lights",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "penumbra_vanilla.png"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_lights",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_blend",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_suppress",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_beam",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "penumbra_mixed.png"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_suppress",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_blend",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_penumbra",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_penumbra_area",
-        "expectedValue": "0",
-        "tolerance": "0"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_beam",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "penumbra_off.png"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_penumbra",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_penumbra_area",
-        "expectedValue": "11.8912582",
-        "tolerance": "0.05"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_beam",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "penumbra_on.png"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_blend",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_beam",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "penumbra_blend.png"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_lights",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_penumbra",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_suppress",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_blend",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask",
-        "enabled": "true"
-      }
-    },
-    {
       "type": "Probe",
       "args": {
         "probeName": "vector_light_mask_available",
@@ -305,11 +121,38 @@
       }
     },
     {
-      "type": "Probe",
+      "type": "SetFeature",
       "args": {
-        "probeName": "vector_light_penumbra_area",
-        "expectedValue": "11.8912582",
-        "tolerance": "0.05"
+        "featureName": "vector_lights",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_suppress",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask",
+        "enabled": "false"
       }
     },
     {
@@ -320,9 +163,71 @@
       }
     },
     {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_pawn_shadows",
+        "enabled": "false"
+      }
+    },
+    {
       "type": "Screenshot",
       "args": {
-        "fileName": "penumbra_mask.png"
+        "fileName": "pawnshadow_warmup_discard.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_suppress",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_beam",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_pawn_shadows",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "pawnshadow_vanilla.png"
       }
     },
     {
@@ -368,17 +273,71 @@
       }
     },
     {
-      "type": "Probe",
+      "type": "SetFeature",
       "args": {
-        "probeName": "vector_light_mask_available",
-        "expectedValue": "1",
-        "tolerance": "0"
+        "featureName": "vector_light_pawn_shadows",
+        "enabled": "false"
       }
     },
     {
       "type": "Screenshot",
       "args": {
-        "fileName": "penumbra_combo.png"
+        "fileName": "pawnshadow_combo.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_suppress",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_beam",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_pawn_shadows",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "pawnshadow_shadows.png"
       }
     }
   ]

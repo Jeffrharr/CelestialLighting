@@ -7836,6 +7836,177 @@ the same reason the epic wanted the suppressing half droppable in the first plac
 Off remains §27 as originally designed, for anyone who wants shadows that reach full dark and accepts
 that a room lit only by light bending around a corner loses all of it.
 
+### Phase 3: the subtractive mask (`vector_light_mask`)
+
+Phases 1 and 2 drew a second lighting model over vanilla's; phase 2b tried to compose the two as a
+max and measured a no-op. Phase 3 gives up on composing two models and **edits vanilla's**, which is
+the only operator left once you notice that *§27's contribution is subtractive*: a shadow is light
+taken away, and nothing that only ever adds can express one.
+
+Per emitter, over the cells our polygon says that emitter cannot reach:
+
+```
+newGlow(c) = totalGlow(c) − Σ over our emitters of  own(e, c) · (1 − lit(e, c))
+```
+
+`own(e, c)` is vanilla's own per-emitter glow, read out of `GlowGrid`'s private per-light arrays
+(`GlowGridPerLight`) — `ComputeGlowGridsJob` fills them with `falloff(geodesic distance)`, which is
+exactly the light that bent around a corner. `lit(e, c)` is the share of the cell the visibility
+polygon covers (`VectorLightMath.LitFraction`).
+
+**What the shape buys.**
+
+- **The level stops needing calibration.** A cell the polygon can see subtracts nothing, so it reads
+  at exactly vanilla's own brightness. `DefaultStrength` existed to calibrate an additive pass
+  against vanilla's multiply and never quite landed; there is nothing left to calibrate.
+- **Daylight is free.** `DaylightScale` existed because the additive pass sat *above* the sky's
+  multiply, so an unattenuated torch outglowed noon. This edits the value the multiply consumes.
+- **Nothing we did not model is ever touched**, because we subtract a *named* emitter's own
+  contribution and nothing else. A mod passing sunlight through a window, drawing its own section
+  layer, or lighting cells without registering a glower is untouched *by construction* rather than
+  by a floor. That is the compatibility problem `vector_light_blend` exists to manage, dissolved.
+
+**Measured**, same scene and frame as the arms above:
+
+| arm | lit room L\* | shadow off the beam L\* | doorway beam L\* | beam contrast | masked ΔE vs vanilla | frame touched |
+|---|---|---|---|---|---|---|
+| vanilla | 9.61 | 12.58 | 15.54 | 1.17 | — | — |
+| crossfade @0.5 (shipped) | 9.72 | 10.73 | 15.76 | **1.38** | 0.95 | 6.27% |
+| **mask (phase 3)** | 9.51 | **9.07** | 13.34 | **1.37** | 1.35 | **2.80%** |
+| full §27, soft edges | 9.84 | 8.87 | 15.94 | **1.66** | 1.51 | 6.60% |
+
+**It ties the crossfade on contrast and gets there from the other side.** Beam contrast 1.37 against
+the crossfade's 1.38 — but the crossfade reaches it by *lifting the beam* above vanilla (15.76 vs
+15.54) while the mask reaches it by *dropping the surroundings* below it (beam 13.34, shadow 9.73).
+It gets §27's shadow depth almost exactly (9.07 against full §27's 8.87) while touching less than
+half as much of the frame.
+
+**What it cannot do is make a beam.** It only subtracts, so the light through a doorway can never be
+brighter than vanilla put there — and the cells immediately past a one-cell gap are only *partly*
+visible from the emitter, so they lose their unseen share and the beam comes out dimmer than
+vanilla's. That is physically right and dramatically weaker. Phase 2b was the mirror of this: the max
+kept vanilla's brightness and lost every shadow; the mask keeps every shadow and loses the beam. The
+crossfade is the only one of the three that has both, at half strength each, which is a better
+argument for the shipped default than the one originally written for it.
+
+**The resolution objection, re-tested rather than inherited.** DESIGN.md rejected cell resolution for
+§27 as "the resolution §27 exists to escape". At 4× zoom on a shadow edge
+(`Tests/Screenshots/vector_light_penumbra__mask_edge_zoom.png`) there is **no staircase** — the edge
+is a smooth ramp, because `LitFraction` reports a cell's covered *share* and the overlay's own
+bilinear interpolation spreads it. It is a visibly *broader* edge than the polygon arms draw, which
+is the good failure mode and the same direction phase 2 chose deliberately with a half-cell penumbra.
+
+**Known approximation.** The subtraction happens in the overlay's post-projection byte space, while
+`own` is read pre-projection. `ColorInt.ProjectToColor32` scales all channels by `255/max` once the
+brightest exceeds 255, so where several bright emitters overlap we over-subtract by that factor —
+always *darker*, never brighter. Single emitters are unaffected (a torch peaks at 172). The exact fix
+is to rebuild the vertex colour the way `GenerateLightingOverlay` does, summing *all* of vanilla's
+lights with our coverage applied only to the ones we modelled, and projecting once at the end;
+`GlowGridPerLight` already exposes everything that needs.
+
+**Performance: measured, then fixed, and the first measurement was not a comparison.** Dubs first
+reported the mask as three times *cheaper* than feature-off, having provoked no regenerate at all —
+the patch was absent from the table rather than fast. Re-measured through **Circinus**, which reports
+call counts, one arm per process, our own postfix armed directly. That gave 239 µs per section
+against the crossfade's 20.
+
+That 11.8× was an artefact. The mask built its visibility polygons **lazily on first use, inside the
+section bake**; the crossfade builds the same polygons in the draw path, so its bake row never
+contained them. Found by arming the sub-methods: `Apply` read 49.2 ms while everything it calls
+summed to 6.0 — `BuildCellShadow` 1.17, `ApplyToCorners` 3.41, `ApplyToCentres` 1.21, the reader 0.21
+— and the missing 43 ms was `EnsurePolygon` under `CollectReaching`. **Three speculative
+optimisations before that measurement moved the number by nothing at all.**
+
+Four changes, in the order they were made and with what each was worth:
+
+| change | mask ÷ crossfade |
+|---|---|
+| as first written | **11.8–15.3×** |
+| geometry build hoisted out of the bake | 2.37× |
+| unshadowed vertices skipped in both vertex passes | 1.76× |
+| unshadowed sections never touch the mesh at all | **1.51×** |
+
+Final, three interleaved repeats per arm (interleaving matters: scattered runs on this box swing 2–6×
+on identical code, interleaved ones hold to ±5%):
+
+| arm | median total | **µs per section** | worst frame | ÷ crossfade |
+|---|---|---|---|---|
+| crossfade @0.5 (shipped) | 4.64 ms | **20.7** | 2.35 ms | — |
+| mask | 6.98 ms | **31.2** | 3.63 ms | **1.51×** |
+| mask + beam | 5.67 ms | **25.3** | 3.27 ms | **1.22×** |
+
+**It did not get below the crossfade, and on this scene it probably cannot.** The crossfade writes
+every vertex of every section and stops; the mask writes the same vertices *and* works out what to
+write. The two early-outs only pay where a section has no shadow, and `vector_light_perf.json` is a
+deliberately hostile case for that — 23 emitters in walled rooms with every one on screen. An
+ordinary colony, mostly unlit and unshadowed, is where the mask's skips actually fire, and the
+ordering there is untested.
+
+Every optimisation was verified behaviour-preserving on the live A/B rather than assumed: mask
+9.51 / 9.07 / 13.35 and combo 10.56 / 9.07 / 16.39 are unchanged from before any of this work.
+
+**One trap is worth carrying forward.** Hoisting the geometry build out of the bake meant a section
+could bake while a polygon was still dirty; it skipped that emitter, nothing ever asked it to bake
+again, and the mask rendered **pixel-identical to vanilla with every probe healthy**. Whoever builds
+the polygons must re-dirty the map afterwards. `EnsurePolygons` therefore reports whether it built
+anything, and both callers act on that.
+
+**Lamps and SUN shadows (`Tests/Scenarios/vector_light_sun_shadow.json`).** Whether a lamp lifts a
+sun shadow is decided entirely by draw order, and the answer differs per arm:
+
+| altitude | layer |
+|---|---|
+| 18 | `Shadows` — building sun shadows, baked into a section mesh |
+| 28 | `Pawn` |
+| 37 | `LightingOverlay` — what the mask edits |
+| 38 | `VisEffects` — where the beam draws |
+
+The beam sits above the shadow layer, so it lands on top of a sun shadow and lifts it. The mask
+cannot: it edits artificial light, and a sun shadow is not artificial light. Measured at dawn, a
+seven-cell wall throwing a long shadow with a torch inside it, averaged over a **fixed 9,449-pixel
+shadow set derived from the vanilla frame** so every arm is measured on the same pixels:
+
+| arm | shadow L\* | at the lamp | vs vanilla |
+|---|---|---|---|
+| vanilla | 26.69 | 27.19 | — |
+| crossfade @0.5 | 26.15 | 26.67 | **−0.54** |
+| mask alone | 26.67 | 27.19 | **−0.02** |
+| **mask + beam** | **29.31** | **29.94** | **+2.62** |
+
+So the combination gets this for free and neither of the others gets it at all — the mask does
+literally nothing (−0.02), and the crossfade makes the shadow slightly *darker*, because it halves
+vanilla's artificial light everywhere including inside the shadow while its own pass is too diffuse
+to make that back.
+
+**Pawns need nothing either, and for the same reason.** They draw at 28, *below* the lighting
+overlay, so the mask's per-cell edit lights them exactly as it lights the floor, and the beam at 38
+lifts a pawn standing in it. This is a property the additive-only arms never had: full §27 draws at
+38, **above** pawns, so its light lands on top of a pawn rather than lighting it.
+
+**The hour is measured, not chosen.** A sun shadow needs the sun up and the beam needs the sky down —
+`DaylightScale` is `1 − skyGlow` — so the two want opposite things. A quarter-hour survey put the
+usable window much wider than feared: at hour 4.5 the sun is 9.4° up and the beam still carries 71%
+of its strength. `limb_sun_elevation` is pinned at 9.40 next to the effect so a clock change fails
+loudly rather than quietly emptying the frames.
+
+**What this does not do** is make the shadow respond to *which* lamp can see it — the beam is simply
+additive light landing on top. A sun shadow that fades only where a lamp genuinely reaches needs the
+shadow's own shader to read a per-vertex light channel, because `Custom/Sun shadow`'s vertex alpha is
+the **extrusion length**, not darkness: writing a smaller alpha makes the shadow shorter, not
+lighter. That is a real feature and it needs #151's AssetBundle pipeline, and the mask is the only
+arm that could supply the per-cell occluded light figure it would consume.
+
+**What ships.** `vectorLights` is a settings toggle and still defaults **off** — §27 is the most
+opinionated thing in the mod, and light that vanilla delivered around a corner no longer arriving is
+a large enough taste call to be opt-in. `vectorLightPawnShadows` has its own switch beneath it, on by
+default, because it is the one part of §27 that draws a new OBJECT rather than recolouring an
+existing one — the same reasoning that gives §25's visible clouds their own switch.
+
+**The composition is deliberately not exposed.** Mask and beam are what §27 is designed around and
+both default on; the crossfade survives only as the fallback the code picks for itself when the
+per-emitter glow arrays cannot be read. A player has no way to judge that choice and no reason to be
+asked about it, and the flags remain switchable from the harness for measurement.
+
 ### Performance (`Tests/Scenarios/vector_light_perf.json`)
 
 Epic #145 carried phase 5 with **nothing profiled at all** — phase 1's validation run was

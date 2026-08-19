@@ -201,6 +201,67 @@ public static class ProbeRegistration
         ProbeRegistry.Register(new VectorLightProbe("vector_light_verts", VectorLightProbe.Metric.Vertices));
         ProbeRegistry.Register(
             new VectorLightProbe("vector_light_penumbra_area", VectorLightProbe.Metric.PenumbraArea));
+        // §27 phase 3. Pin this at 1 in any arm claiming to measure the mask: the per-emitter glow
+        // arrays are private fields read by reflection, and failing to read them is a defined
+        // stand-down rather than an error, so an unpinned arm photographs the crossfade instead.
+        ProbeRegistry.Register(
+            new VectorLightProbe("vector_light_mask_available", VectorLightProbe.Metric.MaskAvailable));
+        // Performance, measured through Circinus rather than Dubs, because Circinus reports CALL
+        // COUNTS. §27 phase 3 does all its work inside a section regenerate, and the Dubs window that
+        // appeared to show it running three times cheaper than the feature-off baseline had simply
+        // not provoked a single regenerate — the patch was absent from the table rather than cheap.
+        // circinus_regen_calls is the guard against measuring an idle window again: pin it above zero
+        // in any arm that quotes a timing, or the timing is of nothing happening.
+        //
+        // The armed method is vanilla's Regenerate rather than our own postfix, so the row covers the
+        // whole bake and the cost of the mask is the DIFFERENCE between the feature-on and
+        // feature-off arms — the ratio-between-builds comparison Dubs' own report notes recommend.
+        const string overlay = "Verse.SectionLayer_LightingOverlay";
+        ProbeRegistry.Register(new CircinusProbe("circinus_available", CircinusProbe.Metric.Available));
+        ProbeRegistry.Register(new CircinusProbe("circinus_cycles", CircinusProbe.Metric.Cycles, overlay, "Regenerate"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_regen_calls", CircinusProbe.Metric.Calls, overlay, "Regenerate"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_regen_avg_ms", CircinusProbe.Metric.AvgMs, overlay, "Regenerate"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_regen_max_ms", CircinusProbe.Metric.MaxMs, overlay, "Regenerate"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_regen_total_ms", CircinusProbe.Metric.TotalMs, overlay, "Regenerate"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_regen_max_calls", CircinusProbe.Metric.MaxCallsPerCycle, overlay, "Regenerate"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_regen_patched", CircinusProbe.Metric.Patched, overlay, "Regenerate"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_reset", CircinusProbe.Metric.Reset, overlay, "Regenerate"));
+
+        // OUR OWN POSTFIX, armed directly. Arming vanilla's Regenerate measures the whole bake, of
+        // which §27 is a small share of a large number — 795 ms of vanilla for 112 sections. Harmony
+        // emits a call to the postfix rather than inlining it, so instrumenting the postfix itself
+        // isolates our cost from vanilla's and from every other mod patching the same method.
+        const string suppress = "CelestialLighting.Patch_VectorLightSuppress";
+        ProbeRegistry.Register(new CircinusProbe("circinus_ours_patched", CircinusProbe.Metric.Patched, suppress, "Postfix"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_ours_calls", CircinusProbe.Metric.Calls, suppress, "Postfix"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_ours_total_ms", CircinusProbe.Metric.TotalMs, suppress, "Postfix"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_ours_max_ms", CircinusProbe.Metric.MaxMs, suppress, "Postfix"));
+
+        // One recorded run per arm. The label is the only thing separating one run document from
+        // another, so there is a start probe per arm rather than one taking an argument — the
+        // scenario language has no way to pass a string, and an arm whose document is mislabelled is
+        // worse than one that was never recorded.
+        foreach (string armName in new[] { "gated", "crossfade", "mask", "combo" })
+        {
+            ProbeRegistry.Register(new CircinusProbe(
+                "circinus_run_start_" + armName, CircinusProbe.Metric.RunStart,
+                label: "celestiallighting-" + armName));
+        }
+
+        ProbeRegistry.Register(new CircinusProbe("circinus_run_stop", CircinusProbe.Metric.RunStop));
+
+        // Sub-method breakdown of the bake. Registered after three speculative optimisations to the
+        // mask moved its cost by nothing at all — a coverage cache, a per-frame reader cache and a
+        // loop inversion, none of which touched the number. Guessing where the time goes has now
+        // cost more than measuring it would have, so this measures it.
+        const string mask = "CelestialLighting.VectorLightMask";
+        ProbeRegistry.Register(new CircinusProbe("circinus_apply_total_ms", CircinusProbe.Metric.TotalMs, mask, "Apply"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_apply_calls", CircinusProbe.Metric.Calls, mask, "Apply"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_shadow_total_ms", CircinusProbe.Metric.TotalMs, mask, "BuildCellShadow"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_corners_total_ms", CircinusProbe.Metric.TotalMs, mask, "ApplyToCorners"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_centres_total_ms", CircinusProbe.Metric.TotalMs, mask, "ApplyToCentres"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_reader_total_ms", CircinusProbe.Metric.TotalMs, "CelestialLighting.GlowGridPerLight", "For"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_reader_calls", CircinusProbe.Metric.Calls, "CelestialLighting.GlowGridPerLight", "For"));
         // Issue #80: the fixed near-door cell in ambient_light_compat.json.
         // ambient_ground_glow is the GAMEPLAY value (what Ambient Light's own readout reports);
         // ambient_sky_fraction is what SkyFalloffSource resolves for it, for §7b to cap occlusion with.
@@ -446,6 +507,42 @@ public static class ProbeRegistration
             enabled =>
             {
                 CelestialLightingFeatures.VectorLightBlend = enabled;
+                VectorLightRedraw.ForceRebuild();
+            });
+        // §27 phase 3. THREE-arg overload with defaultEnabled: false, matching the shipped default
+        // and load-bearing for the same reason vector_lights uses it — registered as true,
+        // FeatureRegistry.ResetAll() would switch the mask on for every later scenario in a suite.
+        // ForceRebuild because the mask is baked into the lighting overlay's vertex colours during a
+        // section regenerate, so flipping it changes nothing on screen until something else dirties a
+        // section.
+        // TWO-arg overload now, i.e. defaultEnabled true, because true IS the shipped default since
+        // the mask became what §27 composes with. Safe for the reason the penumbra flag is safe and
+        // vector_lights itself is not: it is inert while vector_lights is off, which is what
+        // FeatureRegistry.ResetAll leaves that one at, so it cannot contaminate a later scenario.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightMaskKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.VectorLightMask = enabled;
+                VectorLightRedraw.ForceRebuild();
+            });
+        // §27 phase 3's beam half. THREE-arg overload with defaultEnabled: false to match the
+        // shipped default; inert while vector_light_mask is off, but registered with the explicit
+        // default anyway so ResetAll cannot switch it on for a later scenario in a suite.
+        // §27 phase 4. Registered off, like every other §27 flag, and inert unless the mask is
+        // composing — it asks the mask's coverage grid whether a lamp can see the pawn.
+        // Two-arg overload, matching its shipped default of true. Inert while vector_lights is off,
+        // and it draws nothing at all unless the mask is composing.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightPawnShadowsKey,
+            enabled => CelestialLightingFeatures.VectorLightPawnShadows = enabled);
+        // Two-arg overload, matching its shipped default of true, and inert while vector_lights is
+        // off for the same reason as the mask above.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightMaskBeamKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.VectorLightMaskBeam = enabled;
                 VectorLightRedraw.ForceRebuild();
             });
         FeatureRegistry.Register(

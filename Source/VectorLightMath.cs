@@ -865,6 +865,353 @@ public static class VectorLightMath
         return Clamp01(1f - Clamp01(curSkyGlow));
     }
 
+    // How long a pawn's shadow is, in cells, when a lamp `distance` away lights it.
+    //
+    // GEOMETRY, NOT TASTE. A light of height h above the floor, a caster of height t, and a
+    // horizontal separation d put the shadow's tip at d * t / (h - t) — similar triangles, the same
+    // relation §27's penumbra wedges already use for source size. The lamp is treated as being
+    // LampHeight above the floor; closer than that and the shadow would invert through infinity,
+    // which is why the denominator is clamped rather than allowed to reach zero.
+    //
+    // The consequence is the thing that makes it read as light rather than as decoration: length
+    // grows with d, so a pawn standing under a lamp has almost no shadow and one at the edge of its
+    // reach throws a long one — the same relation that makes a low sun throw long shadows, which is
+    // why it looks right without anyone being told what it is doing. Vanilla's own pawn shadow
+    // cannot do this at all: its direction and length come from one global _CastVect that every
+    // shadow on the map shares.
+    public static float PawnShadowLength(float distance, float casterHeight, float lampHeight)
+    {
+        float headroom = lampHeight - casterHeight;
+
+        if (headroom < MinLampHeadroom)
+            headroom = MinLampHeadroom;
+
+        float length = distance * casterHeight / headroom;
+
+        return length > MaxPawnShadowLength ? MaxPawnShadowLength : length;
+    }
+
+    // How dark a pawn's shadow from this lamp is, in [0, 1].
+    //
+    // Three things multiply, and each is there for a reason a screenshot would otherwise ask about:
+    //
+    //  - The lamp's own falloff, so a shadow fades out exactly where the light that casts it does.
+    //    A shadow that stayed crisp to the rim of a lamp's reach reads as a decal.
+    //  - The share of the pawn's cell the lamp can actually SEE, which is §27's coverage grid. A
+    //    pawn behind a wall must not cast a shadow from a lamp that cannot reach it — and nothing
+    //    else in the mod can answer that question, which is why this feature wants the mask.
+    //  - Daylight, on the same reasoning as DaylightScale: a torch at noon casts nothing anyone can
+    //    see, and drawing it anyway is how an effect starts looking like a bug.
+    public static float PawnShadowOpacity(
+        float distance, float radius, float coverage, float curSkyGlow)
+    {
+        float lit = Falloff(distance, radius) * Clamp01(coverage) * DaylightScale(curSkyGlow);
+
+        return Clamp01(lit * PawnShadowStrength);
+    }
+
+    // Which way the shadow points: directly away from the lamp, in radians, ready for a rotation
+    // about Y. The mesh is baked extruded along +X, so this IS the transform — there is no
+    // per-frame mesh rebuild and no per-draw shader global, which there could not be anyway:
+    // Graphics.DrawMesh is deferred, so a global set between calls applies to whichever call
+    // resolves last. VectorLightOverlay's header records the same trap costing §17 a branch.
+    public static float PawnShadowAngleDegrees(float lightX, float lightZ, float pawnX, float pawnZ)
+    {
+        float dx = pawnX - lightX;
+        float dz = pawnZ - lightZ;
+
+        if (dx == 0f && dz == 0f)
+            return 0f;
+
+        // Negated because Unity's Y rotation runs clockwise from +Z while atan2 runs anticlockwise
+        // from +X. Getting this wrong points every shadow at its lamp instead of away from it, which
+        // looks deliberate enough to survive a glance.
+        return -(float)(Math.Atan2(dz, dx) * 180.0 / Math.PI);
+    }
+
+    // One emitter's cell coverage, baked once per polygon instead of per section.
+    //
+    // WHY THIS EXISTS: 239 MICROSECONDS PER SECTION. Phase 3 first asked LitFraction per cell per
+    // emitter during every section regenerate, which measured 239.3 us per section against the
+    // crossfade's 20.2 — 11.8x, and a 29.5 ms worst frame on a whole-map rebake. The waste was
+    // structural rather than a constant factor: coverage depends only on the polygon and the cell,
+    // and neither of those knows which section is being baked, so the same answer was recomputed
+    // once per section that happened to overlap the emitter, and four sample points and a binary
+    // search over a hundred rays were paid for each time.
+    //
+    // Baked here, the bake becomes an array index. The grid is rebuilt only when the polygon is —
+    // i.e. when somebody builds or removes a wall in range — which is the same cadence the polygon
+    // itself already had, and it costs one byte per cell of the emitter's square: 441 bytes for a
+    // radius-10 lamp.
+    //
+    // A BYTE RATHER THAN A FLOAT, deliberately. The consumer multiplies vanilla's glow bytes by
+    // (1 - coverage) and rounds, so a 1/255 quantisation of the coverage is finer than the thing it
+    // is modulating and cannot be seen. It also keeps a radius-14 emitter's grid under a kilobyte.
+    public static byte[] BuildCoverage(
+        LightPolygon polygon, int lightCellX, int lightCellZ, int radiusCells, int samplesPerAxis)
+    {
+        int span = radiusCells * 2 + 1;
+        byte[] grid = new byte[span * span];
+
+        if (polygon.Count == 0 || radiusCells < 0)
+            return grid;
+
+        float lightX = lightCellX + 0.5f;
+        float lightZ = lightCellZ + 0.5f;
+
+        for (int zi = 0; zi < span; zi++)
+        {
+            for (int xi = 0; xi < span; xi++)
+            {
+                float lit = LitFraction(
+                    polygon, lightX, lightZ,
+                    lightCellX - radiusCells + xi, lightCellZ - radiusCells + zi, samplesPerAxis);
+
+                grid[zi * span + xi] = (byte)Math.Round(Clamp01(lit) * 255f);
+            }
+        }
+
+        return grid;
+    }
+
+    // Coverage for one cell, or FULLY LIT for a cell outside the emitter's square.
+    //
+    // Outside the square is the right place to answer 255 rather than 0: the emitter delivers no
+    // light there at all, so the caller has nothing to subtract either way — but 0 would mean
+    // "wholly shadowed", and a caller that reached here with a non-zero glow would darken a cell the
+    // emitter never lit. Erring towards subtracting nothing keeps a bug in this lookup from removing
+    // somebody else's light.
+    public static byte CoverageAt(
+        byte[] grid, int lightCellX, int lightCellZ, int radiusCells, int cellX, int cellZ)
+    {
+        if (grid == null || grid.Length == 0)
+            return 255;
+
+        int span = radiusCells * 2 + 1;
+        int xi = cellX - lightCellX + radiusCells;
+        int zi = cellZ - lightCellZ + radiusCells;
+
+        if (xi < 0 || zi < 0 || xi >= span || zi >= span)
+            return 255;
+
+        return grid[zi * span + xi];
+    }
+
+    // Whether nothing blocks this emitter — every ray reached the full radius.
+    //
+    // Worth its own pass because the answer is usually YES in open ground and it makes the whole
+    // emitter free: an unobstructed lamp shadows nothing anywhere, so the bake can skip it outright
+    // rather than looking a grid up cell by cell to be told 255 each time.
+    //
+    // ASKED OF THE POLYGON, NOT OF THE GRID, and the difference matters. A grid covers the emitter's
+    // SQUARE while the polygon covers its circle, so the square's corners are outside the light
+    // whatever the geometry does and an all-255 grid is a state that essentially never occurs. The
+    // rim is the same story one cell in: the polygon is an inscribed 48-gon, so cells straddling the
+    // radius are partly outside it and read as partly shadowed even with nothing in the way. Both
+    // are discretisation, not shadow. A ray stopping short of the radius is shadow, and it is the
+    // only thing here that is.
+    public static bool IsUnobstructed(LightPolygon polygon, float radius)
+    {
+        if (polygon.Count == 0)
+            return false;
+
+        for (int i = 0; i < polygon.Count; i++)
+        {
+            if (polygon.Distances[i] < radius - CornerRayEpsilon)
+                return false;
+        }
+
+        return true;
+    }
+
+    // What the additive pass delivers when it is riding ON TOP of §27 phase 3's mask rather than
+    // over a suppressed vanilla — the "combination" arm.
+    //
+    // WHY A BEAM IS NEEDED AT ALL ON TOP OF THE MASK. The mask can only subtract, so the light
+    // through a doorway can never exceed what vanilla put there, and the cells just past a one-cell
+    // gap are only PARTLY visible and lose their unseen share — so the beam comes out dimmer than
+    // vanilla's. Measured: doorway beam 13.34 L* against vanilla's 15.54. The mask has §27's shadows
+    // and none of its beam; this is the half that puts the beam back.
+    //
+    // WHY IT DOES NOT SUM THE WAY THE MIXED CASE DID. Epic #145's rejected option 1 drew our full
+    // model over vanilla's full model and landed 6 L* bright. This draws over a vanilla that has
+    // already had the bent light REMOVED, so the two are not two complete models: what is underneath
+    // is vanilla restricted to the cells we can see, and what goes on top is a fraction of the same
+    // shape. Their sum is (V + k*O) * lit, which with O ~ V is just vanilla scaled by (1 + k) inside
+    // the lit region and zero outside it — the shape §27 wanted, expressed on vanilla's own levels.
+    //
+    // 0.175 is DefaultStrength * (1 - DefaultVanillaFloor), i.e. exactly what the crossfade already
+    // delivers on top of the half of vanilla it keeps. Reusing that number rather than picking a new
+    // one means the beam's lift is a quantity already lived with rather than a fresh guess, and it
+    // makes the combination directly comparable to the crossfade it is trying to beat.
+    public const float MaskBeamStrength = DefaultStrength * (1f - DefaultVanillaFloor);
+
+    // How high a lamp sits above the floor, in cells, for shadow-length purposes. A torch is about
+    // a pawn and a half; the number is a look choice within a physical relation rather than a
+    // measurement, and it is the one knob that changes how dramatic these shadows are.
+    public const float DefaultLampHeight = 2.4f;
+
+    // A pawn's height as a caster, in cells.
+    public const float DefaultPawnHeight = 1.2f;
+
+    // Never divide by less than this. A pawn taller than the lamp would otherwise throw a shadow
+    // through infinity and back, which renders as a bar across the whole map for one frame.
+    public const float MinLampHeadroom = 0.35f;
+
+    // Shadows stop growing here however close the lamp gets. Without a cap, a pawn standing ON a
+    // lamp's cell casts an arbitrarily long shadow, and the cap is cheaper than special-casing it.
+    public const float MaxPawnShadowLength = 6f;
+
+    // How dark a fully lit, fully seen pawn shadow gets at most.
+    //
+    // CALIBRATED TWICE, IN OPPOSITE DIRECTIONS, which is worth recording because the first move was
+    // a reaction to the wrong cause. At 0.55 through MatBases.SunShadowFade this rendered as an
+    // opaque black box, so it was cut to 0.26 — but the box was the MATERIAL ignoring alpha, not the
+    // constant being too high. Once the draw moved to a solid-colour material that honours alpha,
+    // 0.26 read as barely there and the constant had to come most of the way back.
+    //
+    // The edge is still hard: a flat polygon has no gradient in it, and vertex colour cannot supply
+    // one here either — SolidColor ignores it, and the shadow material that reads it spends the
+    // alpha channel on extrusion. A genuinely soft edge needs a shader of our own, which is #151's
+    // bundle. Recorded rather than attempted.
+    //
+    // Still well under 1, because these stack one per lamp: two torches either side of a pawn should
+    // read as two soft shadows rather than as a black cross.
+    public const float PawnShadowStrength = 0.5f;
+
+    // How many samples per axis the cell-coverage test takes. Four samples over a cell is enough to
+    // resolve the quarter-cell steps the lighting overlay's own bilinear interpolation can express,
+    // and a finer grid would be measuring a boundary the mesh cannot represent.
+    public const int DefaultCoverageSamples = 2;
+
+    // How far the visibility polygon reaches at a given angle.
+    //
+    // The polygon is stored as parallel sorted arrays rather than as points, which makes this a
+    // binary search plus one lerp instead of a walk. That matters because §27 phase 3 asks this
+    // question a few thousand times per section regenerate rather than once per ray.
+    //
+    // LERPING ACROSS A SHADOW EDGE IS CORRECT, not an approximation. AddCornerRay leaves a pair of
+    // rays a CornerRayEpsilon apart with wildly different distances — one stopping on the corner and
+    // one slipping past it — so interpolating between them reproduces a step, which is what a hard
+    // shadow boundary is. The same lerp across two ordinary base rays 7.5 degrees apart reproduces
+    // the chord the mesh actually draws, so this answers "what does the polygon look like here"
+    // rather than "what would a fresh raycast say", and those differ by up to 0.2% near a wall.
+    public static float BoundaryDistanceAt(LightPolygon polygon, float angle)
+    {
+        if (polygon.Count == 0)
+            return 0f;
+
+        if (polygon.Count == 1)
+            return polygon.Distances[0];
+
+        int last = polygon.Count - 1;
+
+        // Outside the stored range the two neighbours are the last ray and the first one, with the
+        // seam at +-pi between them. Handling it as its own case rather than by normalising every
+        // angle keeps the common path a plain search.
+        if (angle <= polygon.Angles[0] || angle >= polygon.Angles[last])
+            return WrapBoundary(polygon, angle, last);
+
+        int lo = 0;
+        int hi = last;
+
+        while (hi - lo > 1)
+        {
+            int mid = (lo + hi) / 2;
+
+            if (polygon.Angles[mid] <= angle)
+                lo = mid;
+            else
+                hi = mid;
+        }
+
+        return Lerp(
+            polygon.Angles[lo], polygon.Distances[lo],
+            polygon.Angles[hi], polygon.Distances[hi], angle);
+    }
+
+    private static float WrapBoundary(LightPolygon polygon, float angle, int last)
+    {
+        float span = (float)(2.0 * Math.PI) - (polygon.Angles[last] - polygon.Angles[0]);
+
+        if (span <= 0f)
+            return polygon.Distances[0];
+
+        // Measure the angle from the last ray, going forward through the seam. An angle below the
+        // first ray has come the whole way round, which is what adding a turn expresses.
+        float from = angle - polygon.Angles[last];
+
+        if (from < 0f)
+            from += (float)(2.0 * Math.PI);
+
+        float t = from / span;
+        return polygon.Distances[last] + (polygon.Distances[0] - polygon.Distances[last]) * Clamp01(t);
+    }
+
+    private static float Lerp(float x0, float y0, float x1, float y1, float x)
+    {
+        float dx = x1 - x0;
+
+        if (dx <= 0f)
+            return y0;
+
+        float t = Clamp01((x - x0) / dx);
+        return y0 + (y1 - y0) * t;
+    }
+
+    // What share of one map cell this light can actually see, in [0, 1].
+    //
+    // WHY A SHARE AND NOT A YES/NO. §27 phase 3 subtracts vanilla's own light back out of the cells
+    // its polygon says are shadowed, and it does that on the lighting overlay's mesh, whose finest
+    // unit is the cell. A binary test would quantise every shadow boundary to whole cells and make
+    // the edge a staircase; sampling the cell and reporting the fraction lit turns the same mesh
+    // into a bilinear ramp across the boundary cell instead, which is the difference between a
+    // visible stair and a soft edge roughly the width of the penumbra phase 2 already draws.
+    //
+    // The samples are cell-CENTRED on a sub-grid rather than placed on the cell's corners: a corner
+    // sample sits exactly on the boundary between two cells and on the wall faces the polygon is
+    // built from, which is the one place a point-in-polygon answer is least reliable.
+    public static float LitFraction(
+        LightPolygon polygon, float lightX, float lightZ, int cellX, int cellZ, int samplesPerAxis)
+    {
+        if (polygon.Count == 0 || samplesPerAxis < 1)
+            return 0f;
+
+        int lit = 0;
+        float step = 1f / samplesPerAxis;
+
+        for (int iz = 0; iz < samplesPerAxis; iz++)
+        {
+            for (int ix = 0; ix < samplesPerAxis; ix++)
+            {
+                float x = cellX + (ix + 0.5f) * step;
+                float z = cellZ + (iz + 0.5f) * step;
+
+                if (IsLit(polygon, lightX, lightZ, x, z))
+                    lit++;
+            }
+        }
+
+        return (float)lit / (samplesPerAxis * samplesPerAxis);
+    }
+
+    // Whether one point is inside the visibility polygon: nearer to the light than the polygon's
+    // boundary in that direction. The light's own position counts as lit, which is what the zero
+    // check is for rather than a guard against atan2.
+    public static bool IsLit(
+        LightPolygon polygon, float lightX, float lightZ, float x, float z)
+    {
+        float dx = x - lightX;
+        float dz = z - lightZ;
+        float distance = (float)Math.Sqrt(dx * dx + dz * dz);
+
+        if (distance <= 0f)
+            return true;
+
+        float angle = (float)Math.Atan2(dz, dx);
+        return distance <= BoundaryDistanceAt(polygon, angle);
+    }
+
     private static float Clamp01(float value)
     {
         if (value < 0f)

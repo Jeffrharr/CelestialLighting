@@ -622,6 +622,92 @@ public static class CelestialLightingFeatures
     // nothing is ever black. Off is §27 as originally designed — shadows reach full dark, at the
     // price of a room lit only by light bending around a corner losing all of it.
     public static bool VectorLightBlend = true;
+
+    // Feature key for VectorLightMask.
+    public const string VectorLightMaskKey = "vector_light_mask";
+
+    // §27 phase 3: stop drawing a second lighting model and start EDITING vanilla's, by subtracting
+    // each emitter's own light back out of the cells our polygons say it cannot reach.
+    //
+    // WHY THE OPERATOR HAD TO INVERT. Phase 1 replaced vanilla's render with an additive pass; phase
+    // 2b tried to compose the two as a max and measured a no-op. The reason generalises: our falloff
+    // IS vanilla's falloff, so the two models agree wherever both can see, and nothing that only ever
+    // ADDS can express a shadow — which is the whole of what §27 has to say. Subtracting is the only
+    // operator that can.
+    //
+    // WHAT IT BUYS BEYOND THE SHADOW. The level stops needing calibration, because a lit cell is left
+    // at exactly vanilla's own value rather than at an additive approximation of it; DaylightScale
+    // stops being needed, because we edit the value the sky's multiply consumes instead of drawing
+    // above it; and — the one that matters most — nothing we did not model is ever touched, because
+    // we subtract a NAMED emitter's own contribution and nothing else. That last property is the
+    // compatibility problem VectorLightBlend exists to manage, solved rather than tuned.
+    //
+    // WHAT IT COSTS. Resolution. The lighting overlay's mesh carries one vertex per cell corner and
+    // one per cell centre, so a boundary can only be placed to within a cell and is interpolated
+    // bilinearly between. VectorLightMath.LitFraction samples each cell and reports the share the
+    // polygon covers rather than a yes or no, which turns a staircase into a ramp — and phase 2
+    // already softens every edge to half a cell deliberately, so the two blurs are the same order.
+    //
+    // REQUIRES GlowGridPerLight, and stands down without it. Reading vanilla's per-emitter arrays is
+    // what makes the subtraction targeted; with them unreadable there is nothing to subtract, and
+    // VectorLightMask.Active goes false rather than the mask guessing.
+    //
+    // ON, AND IT IS WHAT §27 SHIPS AS. The crossfade stays reachable by turning this off, but
+    // the mask is what the subsystem is designed around now: it is the only composition that
+    // carves a real shadow without suppressing anybody else's light, and two later features are
+    // built on it — the beam below, and phase 4's pawn shadows, which ask its coverage grid
+    // whether a lamp can see a pawn at all. Inert unless VectorLights is on, which ships OFF.
+    public static bool VectorLightMask = true;
+
+    // Feature key for VectorLightMaskBeam.
+    public const string VectorLightMaskBeamKey = "vector_light_mask_beam";
+
+    // §27 phase 3's other half: keep the additive pass running ON TOP of the mask, at a reduced
+    // strength, so the lit region gains the beam the mask alone cannot produce.
+    //
+    // THE MASK AND THE BEAM FAIL IN OPPOSITE DIRECTIONS, which is why both exist. The mask only
+    // subtracts, so it delivers §27's shadows and a beam DIMMER than vanilla's. Phase 2b's max only
+    // added, so it delivered vanilla's brightness and no shadow at all. Running them together is the
+    // first arrangement in §27 that can have both: vanilla with the bent light taken out, plus a
+    // fraction of our own model put back over what remains.
+    //
+    // IT IS NOT THE MIXED CASE. Epic #145 rejected drawing our full model over vanilla's full model,
+    // measured at 6 L* bright. Here what is underneath has already had the shadowed light removed,
+    // so the sum is (V + k*O) * lit rather than V + k*O — vanilla scaled inside the lit region and
+    // zero outside it, instead of two complete lighting models added together.
+    //
+    // Inert unless VectorLightMask is on, so it cannot contaminate any other arm.
+    //
+    // ON, alongside the mask. The two fail in opposite directions and only together have both
+    // halves: measured, the mask alone reaches shadow 9.07 with the doorway beam DIMMER than
+    // vanilla's at 13.34, while the pair keeps that shadow and takes the beam to 16.38 — the
+    // best contrast of any arm at 1.68, against full §27's 1.66 and the crossfade's 1.38.
+    public static bool VectorLightMaskBeam = true;
+
+    // Feature key for VectorLightPawnShadows.
+    public const string VectorLightPawnShadowsKey = "vector_light_pawn_shadows";
+
+    // §27 phase 4: a pawn throws a shadow away from each lamp that lights it.
+    //
+    // VANILLA CANNOT DO THIS AND IT IS NOT A GAP IN VANILLA. Its pawn shadow leans on `_CastVect`, a
+    // shader global the sky manager sets once a frame, so every shadow on the map points the same
+    // way. That is exactly right for a sun and meaningless for a torch, and per-lamp direction is
+    // unreachable through that material — see VectorLightPawnShadows for how the extrusion is baked
+    // into the mesh instead.
+    //
+    // REQUIRES THE MASK, and not merely for tidiness. A pawn behind a wall must not throw a shadow
+    // from a lamp that cannot see it, and phase 3's coverage grid is the only thing in the mod that
+    // can say so — the crossfade knows one global constant, and vanilla's own glow grid would answer
+    // yes, because its light bends around corners.
+    //
+    // ROOFS AND EAVES ARE NOT SKIPPED, deliberately and against vanilla's own rule: Graphic_Shadow
+    // bails on any roofed cell because sunlight does not get in, and a lamp indoors is the entire
+    // point of this. §15's eaves are a sun concept too and have no bearing on a torch.
+    //
+    // On by default and separately switchable, because it is the one part of §27 that draws a
+    // new OBJECT rather than changing the colour of an existing one — the same reasoning that
+    // gives §25's visible clouds their own switch rather than riding the master.
+    public static bool VectorLightPawnShadows = true;
 }
 
 public enum SunClockMode
