@@ -9249,3 +9249,163 @@ price of the sky's clouds changing *style* with the weather — Pardeike's parti
 sheets when it clears — and a player who installed Clouds asked for its clouds, not for ours half the
 time. One predicate in `CloudsCompatMath.LaneIsPositional` is where that gets revisited if the frames
 ever argue otherwise.
+
+## 29. One postfix on `CurSkyTarget` (`Patch_SkyTargetComposite`)
+
+**Problem.** Fourteen subsystems write to the `SkyTarget` that `WeatherWorker.CurSkyTarget` returns,
+and until now each registered its own `[HarmonyPatch]` on that one method: §2 twilight, §6a moon
+shadow colour, §7 night radiance, §8 colour temperature, §9 low-light desaturation, §11 aurora tint,
+§12 blood moon, §13 weather dimming, §13a/§18c weather shadow colour, §17b enclosed ambient, §18d
+limb refraction, §19 ozone, §19c purple light, §22 cloud cover. Two things were wrong with that, and
+neither was throughput.
+
+**The order was decided by filenames.** Harmony sorts same-priority patches by `Patch.index`, which
+is registration order; under `PatchAll` that is assembly metadata type order, which Roslyn emits in
+file order, which is alphabetical. None of the fourteen declared a priority, so the composition
+order of the mod's entire sky pipeline was a consequence of what the files happened to be *called* —
+renaming one would have silently recomposed the sky. Several headers reasoned carefully about
+ordering anyway ("by the time this runs, §7 has already…"), and none of them could enforce it:
+`[HarmonyAfter]` takes owner IDs, and all fourteen shared the one `celestiallighting` owner, so an
+intra-assembly order was not expressible at all.
+
+**Profilers report per patched method.** Dub's Performance Analyzer listed the mod as fourteen rows
+against one vanilla method, none of which was the mod's cost, all of which had to be summed by hand.
+"What does CelestialLighting cost me" is the question this repo is asked most often, and answering it
+began with reassembling a total the tooling had taken apart.
+
+**Approach.** One `[HarmonyPatch]`, whose `Postfix` calls fourteen `internal static Apply(Map, ref
+SkyTarget)` methods in a written-down order. Each subsystem keeps its own file, its own header, its
+own feature flag and its own early-outs — the one-file-per-subsystem layout is untouched, and this
+class holds only the sequence. Circinus can still arm the individual stages when a breakdown is what
+is wanted, which is the right way round (parents to judge, children to find).
+
+**This is explicitly NOT a performance optimisation, and the section says so to stop the wrong reason
+being re-derived later.** Harmony does not dispatch per patch: `MethodCreator.AddPostfixes` emits a
+direct `call` to each postfix into one generated wrapper, so fourteen postfixes were already fourteen
+direct static calls. The composite adds one call rather than removing thirteen.
+
+**The shipped order was preserved exactly rather than corrected**, so that the merge is a single
+logical change with nothing riding along — the discipline §28's memoisation commits used. Writing the
+order down immediately exposed two stages sitting in the wrong place, and both are deliberately left
+wrong, recorded in the composite's ordering note, to be moved and measured on their own:
+
+- **§9 `LowLightDesaturation` ran before §7 `NightRadiance`** — FIXED, see below. Its header claimed
+  the opposite: that §7's starlight/airglow/moonlight floor is already in `.glow` by the time it reads
+  it, so a full-moon night lands lower on the Purkinje ramp than a new-moon one. That had never been
+  true in a shipped build, because §7 sorts *after* §9 alphabetically, so §9 read vanilla's raw
+  below-horizon glow — near zero under every moon phase alike, giving a Purkinje factor of exactly 1.0
+  every night regardless of the moon.
+
+  Two independent readers of the same quantity had always been on the correct side of §7 and had
+  therefore been reporting a value the patch was not using: `PurkinjeProbe` reads
+  `map.skyManager.CurSkyGlow` (the final composed glow, and its header says moon phase comes through
+  "for free"), and §9's own wash `Patch_NightDesaturationStrength` reads `__instance.CurSkyGlow` off
+  `SkyManagerUpdate`. So the probe, the wash and the patch disagreed, and the scenario pins measured
+  the two that were right. Moving §9 to sit directly after §7 makes all three agree.
+
+  The move changes only the glow §9 reads, not its place in the colour chain: the two stages it now
+  runs after write `colors.shadow` (§6a) and `.glow` (§7) and neither touches `colors.sky` or
+  `colors.overlay`.
+- **§19c `PurpleLight` ran before §8 `SkyColorTemperature`** — also FIXED; see below.
+  Its header asks to run after both §8 and §19 because it is a *correction applied to what those two
+  leave behind* rather than an independent tint. Alphabetically it got §19 and not §8, so §8 ran
+  afterwards and blended part of the correction back down. That file already argued the early case is
+  "weaker, never wrong or discontinuous" — a bounded degradation rather than a defect.
+
+**Verification, part 1: the merge is inert.** `perf_visual_ab` (§28's inertness scenario) run on
+baseline and branch, compared with `Tools/FrameDelta`. The residual is identical to the scenario's own
+run-to-run noise floor, measured by running the *same* build twice:
+
+| frame | control (same build, two runs) | baseline vs branch |
+|---|---|---|
+| 15.0 full day | median 0.00, mean 0.45, 13.7% px | median 0.00, mean 0.45, 13.6% px |
+| 19.6 golden hour | median 0.00, mean 0.16, 12.6% px | median 0.00, mean 0.16, 12.5% px |
+| 21.5 past sunset | median 0.00, mean 0.04, 6.8% px | median 0.00, mean 0.04, 6.8% px |
+
+The branch differs from the baseline by exactly as much as the baseline differs from itself.
+
+**WHICH PRESET A FRAME IS SHOT ON DECIDES WHETHER A SUBSYSTEM IS MEASURABLE AT ALL, and getting it
+wrong produces a confident zero rather than an obvious failure.** This bit both moves below, in
+opposite directions, so it is stated once here rather than twice underneath.
+
+The mod ships on **Cinematic** (`CelestialLightingSettings`), whose `minNightBrightness` is 0.50 and
+whose `desaturation` slider is 0.4. **Realistic** sets both brightness floors to 0 and desaturation to
+0.85. So:
+
+- A **night-floor** effect (§7, and §9 which keys off it) is *damped* on Cinematic, because a 0.50
+  floor dwarfs the floor being measured and the 0.4 slider scales the tint to roughly half of
+  Realistic's. Shoot these on Realistic to see the mechanism, and on Cinematic to see what ships.
+- A **twilight-colour** effect (§19c, and §8/§19 with it) is *erased* on Realistic, because with no
+  brightness floor the civil-twilight sky is crushed nearly to black and a hue nudge has nothing to
+  land on. Measured at hour 20.15, `purple_sky_red` reads **0.2597 on Cinematic and 0.0448 on
+  Realistic** — a factor of 5.8 — and the frame mean falls to rgb(4, 2, 2).
+
+§19c's ordering move was first measured on Realistic and came back at a median ΔE of exactly 0.00,
+which was written up here as "correct but visually inert" on the §20c precedent. That was wrong, and
+it was wrong in the most dangerous direction: a real, frame-wide effect reported as an absence. The
+number was not noise and it was not a threshold problem — it was a frame with no light in it.
+
+**Verification, part 2: the §9 move.** `purkinje_night_floor_order` (Realistic) and
+`purkinje_night_floor_order_cinematic` (shipped default), latitude 20 / day 40 / Clear. Conditions are
+lifted from `purkinje.json` because its pins already establish where the moon does and does not lift
+the floor. Measured against `main`, which the inertness result above licenses as a stand-in for the
+unfixed order:
+
+| frame | sun elevation | purkinje | Realistic | Cinematic (ships) |
+|---|---|---|---|---|
+| hour 23 — control | −50.91° | 1.0 (saturated) | **0.00** | **0.00** |
+| hour 2 — moonlit | −34.40° | 0.5188 | **1.22** (97.1% px) | **0.60** (85.4% px) |
+
+The control carries the argument. Where the ramp is already saturated at 1.0 the floor cannot move the
+factor, so the two orders must agree exactly — a non-zero ΔE there would mean something other than the
+ramp had moved. Where the moon lifts the floor, the factor drops from 1.0 to 0.5188 and the cool-grey
+tint is applied at just over half its former strength: the fix *reduces* an over-applied effect rather
+than adding one.
+
+The Purkinje factor itself reads identically on both presets (1.0 and 0.518829), so the gap between
+the two columns is entirely the `desaturation` slider scaling the tint — 0.4 against 0.85, which
+predicts 1.22 × 0.47 ≈ 0.57 against the 0.60 measured. On the shipped preset the fix therefore lands
+under the ΔE 1 threshold, and that is worth stating plainly rather than quoting only the Realistic
+number: most players will not see this change, they will simply stop being shown a night that claimed
+a moon-phase response it did not have.
+
+**Verification, part 3: the §19c move.** `purple_light_order`, latitude 45 / day 11, Clear, shipped
+Cinematic preset. Hours are taken from `purple_light.json`'s own measured survey rather than guessed —
+the window is only ~0.6 h wide here and an hourly grid straddles it entirely.
+
+| frame | sun elevation | purple_light | median ΔE | touched |
+|---|---|---|---|---|
+| hour 20.25 — control | −6.58° | 0.0 (outside window) | **0.00** | 7.1% (noise floor) |
+| hour 20.15 — peak | −4.89° | 0.9882 | **1.12** | 99.2% |
+
+Outside the window this stage returns before touching anything, so both orders are the same code path
+and the control must be — and is — flat. At the peak the move is frame-wide and lands at "visible on
+close inspection".
+
+**What that 1.12 is a fraction of** is the point, and it needed its own measurement, because §19c had
+never appeared in this repo's quoted ΔE set at all. `purple_light_visibility` flips the feature flag at
+the same hour and preset: §19c OFF → ON measures a median ΔE of **4.01** over 100% of pixels, with Duv
+moving −0.018, i.e. the frame genuinely crosses to the purple/magenta side of the Planckian locus —
+the hue claim the subsystem is named for, confirmed in pixels for the first time. The ordering fix is
+therefore roughly a 28% strengthening of a clearly visible effect, which is exactly the shape "§8 was
+blending part of the correction back down" predicts.
+
+A noise floor was established before any of these numbers were trusted: running the *same* build twice
+moves ~5–8% of pixels at a masked median of ~0.6–0.9 (pawn and animal animation, fire flicker). Every
+control above lands on that floor.
+
+**`__result` is load-bearing and cost a full A/B to learn.** The composite's postfix parameter must
+stay named `__result`; it is Harmony's magic name, matched by string at patch time. Renaming it to
+match the `target` the stages take — the natural tidy-up — makes Harmony look for a real parameter of
+that name on `CurSkyTarget(Map map)`, fail, and throw `Parameter "target" not found` out of
+`PatchAll`. `PatchAll` runs inside `CelestialLightingMod`'s static constructor, so the throw took down
+*every* patch in the mod plus the `AxialTiltCompat` and `MoonSeam` wiring after it.
+
+How that presented is why it is written down here rather than left to be rediscovered: RimWorld
+swallows the static-constructor exception into `Player.log` and carries on, so the game ran, the
+harness reported `pass=True`, and three screenshots came out looking like a perfectly plausible sky —
+vanilla's sky. The only signal was the frames measuring median ΔE 4.23 / 11.74 / 3.45 where a pure
+refactor owed 0.00, and the diagnosis only landed after a reversed-order build produced byte-identical
+output, which is impossible if fourteen non-commutative lerps are actually running. **A green scenario
+does not prove the mod loaded.** `SkyTargetCompositeTests` now pins the parameter name, that every
+defined stage is called exactly once, and that nothing else patches `CurSkyTarget`.

@@ -87,9 +87,16 @@ public static class Patch_SkyTargetComposite
     //   (Patch_NightDesaturationStrength), both of which read the FINAL composed glow off SkyManager
     //   and so had always been reporting the post-§7 value the patch was not using.
     //
-    //   §19c PurpleLight STILL RUNS BEFORE §8 SkyColorTemperature, though its header asks to run
-    //   after both §8 and §19. It gets §19 (which sorts earlier) but not §8, so §8 blends part of the
-    //   correction back down. Left for the next commit, which measures it on its own.
+    //   §19c PurpleLight IS ALSO DELIBERATELY OUT OF ALPHABETICAL POSITION, moved to sit after §8
+    //   SkyColorTemperature. It is a CORRECTION APPLIED TO WHAT §8 AND §19 LEFT BEHIND rather than an
+    //   independent tint — the whole subsystem exists because those two model the -6..-4 handoff as
+    //   substituting for one another when both sources are physically present at once — so it has to
+    //   see their output. Alphabetically it got §19 (which sorts earlier) but not §8, so §8 ran
+    //   afterwards and blended part of the correction back down. That was a bounded degradation rather
+    //   than a defect, exactly as this file's own header argued: the window envelope is zero at both
+    //   boundaries and the nudge is a lerp toward a rescaled hue, so running early made the effect
+    //   WEAKER, never wrong or discontinuous. Moved anyway, because "weaker than designed everywhere
+    //   it applies" is not a property worth keeping once the order is expressible.
     static void Postfix(Map map, ref SkyTarget __result)
     {
         Patch_AuroraTint.Apply(map, ref __result);              // §11  night sky tint under an auroral event
@@ -101,8 +108,8 @@ public static class Patch_SkyTargetComposite
         Patch_NightRadiance.Apply(map, ref __result);           // §7   starlight/airglow/moonlight night floor on .glow
         Patch_LowLightDesaturation.Apply(map, ref __result);    // §9   Purkinje cool-grey drift — MUST follow §7, see note
         Patch_PolarNightBlue.Apply(map, ref __result);          // §19  ozone Chappuis band
-        Patch_PurpleLight.Apply(map, ref __result);             // §19c -6..-4 window correction  (see note: wants to be after §8)
         Patch_SkyColorTemperature.Apply(map, ref __result);     // §8   blackbody curve, site altitude, aerosol
+        Patch_PurpleLight.Apply(map, ref __result);             // §19c -6..-4 window correction — MUST follow §8 and §19, see note
         Patch_TwilightColor.Apply(map, ref __result);           // §2   warm nudge through civil twilight
         Patch_WeatherDimming.Apply(map, ref __result);          // §13  storm darkening, colour-only
         Patch_WeatherShadowColor.Apply(map, ref __result);      // §13a/§18c colors.shadow above the horizon
