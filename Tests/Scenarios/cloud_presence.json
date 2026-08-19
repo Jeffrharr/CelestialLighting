@@ -1,0 +1,288 @@
+{
+  "name": "cloud_presence",
+  "saveFile": "minimal_colony.rws",
+  "description": "§25d (issue #144): whether the drawn cloud is visible at all, at noon and at sunset. THE SUBSYSTEM'S OUTPUT WAS BEING MULTIPLIED AWAY BEFORE IT REACHED THE SCREEN, which is what this recalibration is for and what these frames have to show. Measured before it: at noon the brightest part of a cloud moved the frame by about seven parts in 255 and most of it by two or three, because 0.35 amplitude times a 0.86 grey lands almost exactly on lit desert sand; at -2.44 degrees §25c's raymarch and §25b's bake measured a mean 0.19/255 apart with not one pixel differing by more than 2, two renderers agreeing because neither had anything to draw. Three frames per hour rather than two: the shipped lane, the recalibration on the SAME baked renderer, and then §25c on top, so 'the cloud is visible now' and 'the raymarch is what you are looking at' stay separate claims. cloud_sheets_in_view is pinned beside each pair because CloudSheetLayout.OnScreen means 'on the MAP' — a sheet passes it while sitting outside a zoomed camera, and three earlier runs produced healthy reports for empty sky.",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "realistic_preset",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_cover_forced_fraction",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_sheet",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_volume_shader",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "anchor": "125,125",
+        "zoom": "48"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cvp_warmup"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "56.7200",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "anchor": "125,125",
+        "zoom": "48"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheets_in_view",
+        "expectedValue": "4",
+        "tolerance": "3"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_presence",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "anchor": "125,125",
+        "zoom": "48"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cvp_noon_a_shipped"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_presence",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "anchor": "125,125",
+        "zoom": "48"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cvp_noon_b_present"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_presence",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "anchor": "125,125",
+        "zoom": "48"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cvp_noon_c_volume"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "20.86"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "-2.44172692",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "anchor": "125,125",
+        "zoom": "48"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheets_in_view",
+        "expectedValue": "4",
+        "tolerance": "3"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_presence",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "anchor": "125,125",
+        "zoom": "48"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cvp_sunset_a_shipped"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_presence",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "anchor": "125,125",
+        "zoom": "48"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cvp_sunset_b_present"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_presence",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "anchor": "125,125",
+        "zoom": "48"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cvp_sunset_c_volume"
+      }
+    }
+  ]
+}

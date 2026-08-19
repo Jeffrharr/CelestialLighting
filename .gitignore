@@ -19,3 +19,14 @@ dist/
 # in history is permanent, and the field it shows is not. Keep them here while iterating; attach the
 # two or three that matter to the PR instead of committing them.
 Tools/AuroraPreview/renders/
+
+# Unity's own working directories for the shader-bundle project (Tools/ShaderBundle/Project). Library/
+# is a multi-GB regenerable cache; Build/ is the bundle output that build.sh copies into
+# 1.6/AssetBundles/, which is the copy that ships and the copy that is tracked.
+Tools/ShaderBundle/Project/Library/
+Tools/ShaderBundle/Project/Logs/
+Tools/ShaderBundle/Project/Temp/
+Tools/ShaderBundle/Project/UserSettings/
+Tools/ShaderBundle/Project/obj/
+Tools/ShaderBundle/Build/
+Tools/ShaderBundle/build.log

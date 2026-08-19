@@ -1,0 +1,198 @@
+{
+  "name": "cloud_volume_matrix",
+  "saveFile": "minimal_colony.rws",
+  "description": "§25c and §25d against each other and against §25b, at the sunset elevation both exist for (issue #144). A 2x2 RATHER THAN AN A/B, and the reason is a measurement. §25c's raymarch and §25b's bake were shot at this same elevation and differed by a mean of 0.19/255 with not one pixel moving by more than 2 — which reads as 'the renderer does nothing' and is not what it means. §25b couples the sheet's alpha to how lit the ground is, so a sunlit deck at -2.44 degrees lands near 0.075 effective alpha over near-black terrain: there is barely any cloud drawn for EITHER renderer to render. One flag each separates the two claims, and only the fourth frame is the thing #144 asks for. Hour and elevation are measured, not chosen: 20.86 h is where cloud_deck_varieties.json pins sun_elevation at -2.4417, and that elevation is pinned here beside it so a clock change fails loudly instead of quietly emptying the frames.",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "realistic_preset",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_cover_forced_fraction",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_sheet",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "20.86"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "-2.44172692",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_volume_shader",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "anchor": "125,125",
+        "zoom": "48"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheets_in_view",
+        "expectedValue": "4",
+        "tolerance": "3"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cvq_warmup"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_presence",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "anchor": "125,125",
+        "zoom": "48"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cvq_a_shipped"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_presence",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "anchor": "125,125",
+        "zoom": "48"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cvq_b_sunlit"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_presence",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "anchor": "125,125",
+        "zoom": "48"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cvq_c_volume"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_presence",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "anchor": "125,125",
+        "zoom": "48"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cvq_d_volume_sunlit"
+      }
+    }
+  ]
+}

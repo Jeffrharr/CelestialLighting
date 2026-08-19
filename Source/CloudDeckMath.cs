@@ -180,6 +180,36 @@ public static class CloudDeckMath
 
     public static float[] FrequenciesV() => Column(3);
 
+    // §25d's shaping for the drawn sheet, which fills the two thin decks in (issue #144).
+    //
+    // WHY ONLY THE CUT, AND ONLY THESE TWO ROWS. The cut is the threshold the noise has to clear to
+    // count as cloud, so lowering it makes a blob COVER more of its own cell without touching the
+    // gain that sets how hard its edges are — the streak keeps its shape and stops being a few
+    // wisps with gaps between them. Measured on the shipped atlas, the high row averages 0.098
+    // density with 4.8% of its texels above half, against the low row's 0.160 and 10.4%: the cirrus
+    // that §25b's own deck notes call "the deck that lingers longest" is the one you can least see.
+    //
+    // The LOW row is left exactly where it is. It is the reference the whole table was calibrated
+    // against, and it was never the row that read as too sheer.
+    //
+    // Used only for the sheet's own PresentAtlas, so §23b's underlight and §23c's shadows keep
+    // drawing from the shipped shaping. That is a real seam and worth naming: a denser drawn cirrus
+    // now casts a slightly sparser shadow than itself. It is the lesser of the two errors — the
+    // three lanes still share one set of PLACEMENTS and one silhouette, so a cloud is still over its
+    // own shadow, and only the fill within it differs.
+    public static float[] PresentShapeCuts()
+    {
+        float[] cuts = ShapeCuts();
+
+        if (cuts.Length > 1)
+            cuts[1] -= 0.06f;
+
+        if (cuts.Length > 2)
+            cuts[2] -= 0.10f;
+
+        return cuts;
+    }
+
     private static float[] Column(int which)
     {
         float[] values = new float[DeckCount];

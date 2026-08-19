@@ -111,6 +111,8 @@
     <!-- §23b (issue #88, option 2). Three metrics off one class — the claim is a conjunction, see
          CloudLayersProbe.cs's own header. -->
     <Compile Include="../Source/Probes/CloudLayersProbe.cs" Link="CloudLayersProbe.cs" />
+    <Compile Include="../Source/Probes/CloudVolumeShaderProbe.cs" Link="CloudVolumeShaderProbe.cs" />
+    <Compile Include="../Source/Probes/CloudSheetViewProbe.cs" Link="CloudSheetViewProbe.cs" />
     <Compile Include="../Source/Probes/SkyGlowProbe.cs" Link="SkyGlowProbe.cs" />
     <Compile Include="../Source/Probes/SkyOverlayWarmthProbe.cs" Link="SkyOverlayWarmthProbe.cs" />
     <Compile Include="../Source/Probes/SkyOverlayLuminanceProbe.cs" Link="SkyOverlayLuminanceProbe.cs" />

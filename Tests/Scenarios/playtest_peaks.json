@@ -1,0 +1,25 @@
+{
+  "name": "playtest_peaks",
+  "saveFile": "minimal_colony.rws",
+  "description": "Not a test — the install step for a hands-on session aimed at the convective-top look: bright fluffy peaks over a dark self-shadowed body, §25c's raymarch on, run with --hold. THREE THINGS THIS FIXES ABOUT THE PREVIOUS SESSION, all of which made it show nothing. (1) It was shot at -2.44 degrees, BELOW the horizon, where the light ray descends through the cloud and essentially everything is shadowed by definition — the lit-peaks read needs a low but POSITIVE sun, so this uses late afternoon. (2) §25's sheets are large and few, so the shipped mid-range cloud fraction put two of them on a 250-cell map and the camera was looking at neither: cloud_cover_forced_overcast fills the sky instead, and cloud_sheets_in_view is pinned so a cloudless frame fails loudly rather than handing over an empty one. (3) The volume was a pancake — 22 texels tall on a 128-texel blob — with no vertical relief for anything to shadow; CloudRaymarchMath.MaxHeightFraction now stands a cloud about as tall as it is broad. Run with --no-profiler and Circinus alone: Dubs instruments every Harmony patch in the load, which distorts what Circinus measures.",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "45" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "40" } },
+    { "type": "SetFeature", "args": { "featureName": "realistic_preset", "enabled": "false" } },
+    { "type": "SetWeather", "args": { "weatherDef": "Clear", "instant": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "cloud_cover_forced_overcast", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "cloud_sheet", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "cloud_volume", "enabled": "true" } },
+
+    { "type": "SetTime", "args": { "hour": "19.60" } },
+    { "type": "Probe", "args": { "probeName": "sun_elevation", "expectedValue": "12", "tolerance": "12" } },
+    { "type": "Probe", "args": { "probeName": "cloud_volume_shader", "expectedValue": "1", "tolerance": "0.001" } },
+
+    { "type": "LookAt", "args": { "anchor": "125,125", "zoom": "38" } },
+    { "type": "Probe", "args": { "probeName": "cloud_sheets_in_view", "expectedValue": "3", "tolerance": "2.5" } },
+    { "type": "Probe", "args": { "probeName": "cloud_view_coverage", "expectedValue": "0.75", "tolerance": "0.35" } },
+
+    { "type": "Screenshot", "args": { "fileName": "peaks_warmup" } },
+    { "type": "Screenshot", "args": { "fileName": "peaks_goldenhour" } }
+  ]
+}

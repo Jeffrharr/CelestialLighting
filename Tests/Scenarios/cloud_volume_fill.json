@@ -1,0 +1,262 @@
+{
+  "name": "cloud_volume_fill",
+  "saveFile": "minimal_colony.rws",
+  "description": "§25c (issue #144): the raymarch's FILL cost, at the zoom where cloud covers most of the frame. Split off from cloud_volume_perf, which establishes the whole-map case, because the two want opposite things from the camera and neither can be answered by the per-patch table -- §25c's cost is 192 volume fetches per fragment, so it lands in frameMs and scales with covered screen area, and the C# it adds is eight uniform writes per sheet that the analyzer correctly reports as free. Camera anchored, not merely zoomed: LookAt with a zoom alone leaves the position free, the view drifts between windows, and both the captures and the coverage they were supposed to establish become pictures of a scrolling map. Read the per-row MAX before believing any average: this box shares its memory with other work, and a window carrying a several-hundred-millisecond max inside a trivial postfix has measured a system stall, not a renderer.",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "realistic_preset",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_cover_forced_fraction",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_sheet",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_volume_shader",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_volume_format",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_volume_bake_ms",
+        "expectedValue": "1300",
+        "tolerance": "1200"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "anchor": "125,125",
+        "zoom": "24"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cv2_warmup"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "anchor": "125,125",
+        "zoom": "24"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cv2_ab_baked"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "anchor": "125,125",
+        "zoom": "24"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cv2_ab_volumetric"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "anchor": "125,125",
+        "zoom": "24"
+      }
+    },
+    {
+      "type": "Profile",
+      "args": {
+        "name": "baked_1",
+        "prefix": "CelestialLighting",
+        "frames": "300"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "anchor": "125,125",
+        "zoom": "24"
+      }
+    },
+    {
+      "type": "Profile",
+      "args": {
+        "name": "volumetric_1",
+        "prefix": "CelestialLighting",
+        "frames": "300"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "anchor": "125,125",
+        "zoom": "24"
+      }
+    },
+    {
+      "type": "Profile",
+      "args": {
+        "name": "baked_2",
+        "prefix": "CelestialLighting",
+        "frames": "300"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "anchor": "125,125",
+        "zoom": "24"
+      }
+    },
+    {
+      "type": "Profile",
+      "args": {
+        "name": "volumetric_2",
+        "prefix": "CelestialLighting",
+        "frames": "300"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "anchor": "125,125",
+        "zoom": "24"
+      }
+    },
+    {
+      "type": "Profile",
+      "args": {
+        "name": "baked_3",
+        "prefix": "CelestialLighting",
+        "frames": "300"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "anchor": "125,125",
+        "zoom": "24"
+      }
+    },
+    {
+      "type": "Profile",
+      "args": {
+        "name": "volumetric_3",
+        "prefix": "CelestialLighting",
+        "frames": "300"
+      }
+    }
+  ]
+}

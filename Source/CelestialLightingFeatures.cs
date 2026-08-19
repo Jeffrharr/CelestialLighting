@@ -482,6 +482,53 @@ public static class CelestialLightingFeatures
     // an A/B could only compare §25b-on against §25-absent and would measure both at once.
     public static bool CloudDeckVarieties = true;
 
+    // Feature key for CloudPresence (see CivilTwilightPersistenceKey for why it lives here).
+    public const string CloudPresenceKey = "cloud_presence";
+
+    // §25d (issue #144): the recalibration that makes §25's drawn cloud actually visible.
+    //
+    // FOUR TERMS, ONE FLAG, because they are one decision and splitting them would let a build exist
+    // that nobody has looked at:
+    //   * the lane's amplitude, 0.35 -> 0.55 (CloudSheetMath.PresentSheetAmplitude)
+    //   * the daylight cloud colour, a 0.86 grey -> near-white (CloudSheetOverlay.PresentDayColour)
+    //   * opacity decoupled from how lit the GROUND is (CloudSheetMath.DeckOpacity)
+    //   * the direct-lit ceiling, 0.55 -> 1.0 (CloudSheetMath.SunlitDeckCeiling)
+    //
+    // WHY IT IS A RECALIBRATION AND NOT A LANE. Nothing here computes anything new. §25 and §25b
+    // already draw the cloud, place it, deck it and colour it correctly — the measured failure was
+    // that every one of those answers was multiplied down to somewhere between two and seven parts in
+    // 255 before it reached the screen. At -2.44 degrees §25c's raymarch and §25b's bake measured a
+    // mean 0.19/255 apart with not one pixel differing by more than 2: two renderers agreeing because
+    // neither had anything to draw. This is the term that gives them something.
+    //
+    // SHIPS ON, unlike §25c beside it. §25c adds a cost and a binary asset and needs a GPU budget
+    // before it can be a default; this costs nothing, needs nothing, and the alternative is
+    // continuing to ship a cloud subsystem whose whole output is invisible.
+    //
+    // OFF REPRODUCES §25b EXACTLY, all four terms, which is what keeps every §25/§25b scenario pin in
+    // the repo meaningful and gives the A/B a real baseline rather than a picture of no clouds.
+    public static bool CloudPresence = true;
+
+    // Feature key for CloudVolume (see CivilTwilightPersistenceKey for why it lives here).
+    public const string CloudVolumeKey = "cloud_volume";
+
+    // §25c (issue #144): whether the drawn cloud sheet is RAYMARCHED per pixel through a baked 3-D
+    // density volume, or drawn as §25b's flat quad wearing a baked 2-D atlas.
+    //
+    // SHIPS OFF, and it is the first flag here that is off because of what it COSTS rather than
+    // because of what it looks like. It is 192 volume fetches per fragment on a sheet that can cover
+    // a third of the screen, and it is the mod's only custom shader — so it needs a real GPU budget
+    // before it can be a default, and on a machine where the shader will not load it is unreachable
+    // anyway (CloudVolumeShader.Available is checked ahead of this flag, not after it).
+    //
+    // OFF REPRODUCES §25b EXACTLY, byte for byte, and not merely "no clouds". Both paths take the
+    // same placements, the same deck, the same overlap boost, the same illumination and the same
+    // alpha — CloudSheetOverlay computes all of that before either renderer is chosen. The single
+    // difference between an on frame and an off frame is whether that one colour was multiplied into
+    // a baked texture or interpolated toward at every step of a march, which is what makes the A/B
+    // measure the renderer instead of measuring the cloud lane's existence.
+    public static bool CloudVolume = false;
+
     // Feature key for AxialTiltLunarGeometry (see CivilTwilightPersistenceKey for why it lives here).
     public const string AxialTiltLunarGeometryKey = "axial_tilt_lunar_geometry";
 

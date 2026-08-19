@@ -225,6 +225,14 @@
          CloudSheetLayoutTests drives it alongside CloudSheetMath's overlap cap, because the two
          halves of "overlapping clouds read as thicker" live one in each file. -->
     <Compile Include="../../Source/CloudSheetLayout.cs" Link="CloudSheetLayout.cs" />
+    <!-- §25c's volumetric cloud (issue #144), in dependency order: the baked volume and its constants
+         first, then the view-ray march that reads them. CloudVolumeMath needs CloudField above for
+         the UNSTRETCHED coverage its vertical profile is carved from — the whole correction over the
+         height field it replaced — and AuroraNoise for the 3-D fBm that erodes it, both already
+         linked. CloudRaymarchMath then shares that file's volume layout, extinction and deck
+         thicknesses rather than restating them, so it must come after it. -->
+    <Compile Include="../../Source/CloudVolumeMath.cs" Link="CloudVolumeMath.cs" />
+    <Compile Include="../../Source/CloudRaymarchMath.cs" Link="CloudRaymarchMath.cs" />
   </ItemGroup>
 
 </Project>

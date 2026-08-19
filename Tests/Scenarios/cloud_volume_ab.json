@@ -1,0 +1,26 @@
+{
+  "name": "cloud_volume_ab",
+  "saveFile": "minimal_colony.rws",
+  "description": "§25c's raymarch against §25b's bake, once the two draw the same amount of cloud (issue #144). THE POINT OF THE CALIBRATION IS THAT THIS A/B MEANS SOMETHING. The march derives its alpha from the baked volume and the bake reads a 2-D atlas, and those disagreed by deck — 1.46 / 1.02 / 0.61 low to high — so flipping the flag changed how much sky was covered as well as how it was shaded, and no frame difference could be attributed to the renderer. With the view coefficient normalised by deck thickness the two now match at 1.03 / 0.95 / 0.98, so what is left in the frame is shading. Shot at a low but POSITIVE sun: below the horizon the light ray descends through the cloud and everything is shadowed by definition, which is not a test of self-shadowing. Overcast is forced because §25's sheets are large and few, and cloud_view_coverage is pinned so a frame with no cloud in it fails rather than reporting a confident zero.",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "45" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "40" } },
+    { "type": "SetFeature", "args": { "featureName": "realistic_preset", "enabled": "false" } },
+    { "type": "SetWeather", "args": { "weatherDef": "Clear", "instant": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "cloud_cover_forced_overcast", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "cloud_sheet", "enabled": "true" } },
+    { "type": "SetTime", "args": { "hour": "19.60" } },
+    { "type": "Probe", "args": { "probeName": "sun_elevation", "expectedValue": "8.5732", "tolerance": "0.05" } },
+    { "type": "Probe", "args": { "probeName": "cloud_volume_shader", "expectedValue": "1", "tolerance": "0.001" } },
+    { "type": "LookAt", "args": { "anchor": "125,125", "zoom": "38" } },
+    { "type": "Probe", "args": { "probeName": "cloud_view_coverage", "expectedValue": "0.75", "tolerance": "0.35" } },
+    { "type": "Screenshot", "args": { "fileName": "ab_warmup" } },
+
+    { "type": "SetFeature", "args": { "featureName": "cloud_volume", "enabled": "false" } },
+    { "type": "LookAt", "args": { "anchor": "125,125", "zoom": "38" } },
+    { "type": "Screenshot", "args": { "fileName": "ab_baked" } },
+    { "type": "SetFeature", "args": { "featureName": "cloud_volume", "enabled": "true" } },
+    { "type": "LookAt", "args": { "anchor": "125,125", "zoom": "38" } },
+    { "type": "Screenshot", "args": { "fileName": "ab_raymarched" } }
+  ]
+}

@@ -39,6 +39,13 @@ public static class CloudSheetDraw
     // and three lanes ask for it.
     private static readonly float[] DeckWeights = new float[CloudDeckMath.DeckCount];
 
+    // Whether the cached placements were built under §25d's layout. Part of the cache KEY, not just
+    // a note: the placements are cached per tick, a harness scenario flips this flag between two
+    // frames of a paused colony, and a paused colony's tick does not move — so without this the
+    // second frame would silently redraw the first frame's layout and the A/B would compare a build
+    // against itself while looking perfectly healthy.
+    private static bool _placedPresent;
+
     private static int _placedTick = int.MinValue;
     private static int _placedMapId = -1;
     private static int _placedCount;
@@ -66,19 +73,39 @@ public static class CloudSheetDraw
         // draw at all, because the game was paused and the cache never expired.
         bool mixtureMoved = ResolveMixture(map, mapId);
 
-        if (ticks == _placedTick && mapId == _placedMapId && !mixtureMoved)
-            return _placedCount;
+        bool present = CelestialLightingFeatures.CloudPresence;
 
-        int count = CloudSheetLayout.SheetCount(CloudLayers.CloudFractionFor(map));
+        if (ticks == _placedTick && mapId == _placedMapId && !mixtureMoved
+            && present == _placedPresent)
+        {
+            return _placedCount;
+        }
+
+        // §25d's layout: many small clouds rather than a few map-sized ones. Both the cap and the
+        // size move together — see CloudSheetLayout.PresentSizeFraction for the difference map that
+        // says a five-sheet sky of two-thirds-map sheets can only ever render as one flat wash.
+        //
+        // Chosen HERE rather than per lane on purpose: §23b's underlight, §23c's shadows and §25's
+        // sheets all read these same placements, and that shared layout is the whole reason a bright
+        // patch of ground sits under a gap by construction. A flag that moved the clouds for one lane
+        // and not the others would put the sky and the ground back to disagreeing about where the
+        // cloud is, which is the failure this file exists to have fixed.
+        int cap = present ? CloudSheetLayout.PresentSheetCap : CloudSheetLayout.ShippedSheetCap;
+        float sizeFraction = present
+            ? CloudSheetLayout.PresentSizeFraction
+            : CloudSheetLayout.BaseSizeFraction;
+
+        int count = CloudSheetLayout.SheetCount(CloudLayers.CloudFractionFor(map), cap);
         for (int i = 0; i < count; i++)
         {
             Placements[i] = CloudSheetLayout.PlacementFor(
-                i, map.Tile.tileId, ticks, map.Size.x, map.Size.z, DeckWeights);
+                i, map.Tile.tileId, ticks, map.Size.x, map.Size.z, DeckWeights, sizeFraction);
         }
 
         _placedTick = ticks;
         _placedMapId = mapId;
         _placedCount = count;
+        _placedPresent = present;
         return count;
     }
 
