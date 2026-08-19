@@ -114,6 +114,103 @@ public static class AuroraNoise
         return sum / norm;
     }
 
+    // --- the 3-D pair, added for §25c's cloud volume (issue #144) ---
+    //
+    // WHY 3-D AT ALL, WHEN §11a AND §23b ARE FLAT. Those two draw fields that ARE flat: an auroral
+    // contour and the light bounced off a deck are both surfaces, and a third axis would be an
+    // invention. A cloud is not — it has an inside, and the thing §25c is trying to render is what
+    // happens to a light ray THROUGH that inside when the sun is grazing. §25c's first attempt
+    // compressed the volume to a height field and it read as flat, for a reason worth recording: the
+    // density field it took its heights from is contrast-stretched and CLIPS at 1, so the whole core
+    // of every blob came out at the same peak height and self-shadowed like a mesa rather than a
+    // cloud. A real third axis is the fix; a cleverer compression of the same 2-D field is not.
+    //
+    // Same hash, same fade, same wrap, same per-octave seed offset as the 2-D pair above — this is
+    // deliberately the same noise with one more axis, not a second noise.
+    private static float Hash01(int x, int y, int z, int seed)
+    {
+        unchecked
+        {
+            uint h = (uint)(x * 374761393 + y * 668265263 + z * 1440662683 + seed * 1274126177);
+            h = (h ^ (h >> 13)) * 1274126177u;
+            h ^= h >> 16;
+            return (h & 0xFFFFFF) * (1f / 16777216f);
+        }
+    }
+
+    // Trilinearly interpolated value noise, wrapping on all three axes.
+    //
+    // The z period is separate from the other two for the same reason x and y are separate from each
+    // other, and it matters more here: a cloud deck is far wider than it is deep, so the vertical
+    // axis wants FEW lattice cells across the whole thickness. Giving z the same period as x would
+    // put the same number of features through 300 m of cirrus as across kilometres of sky, and the
+    // result reads as static rather than as cloud.
+    public static float Value(float x, float y, float z, int xPeriod, int yPeriod, int zPeriod, int seed)
+    {
+        if (xPeriod < 1)
+            xPeriod = 1;
+        if (yPeriod < 1)
+            yPeriod = 1;
+        if (zPeriod < 1)
+            zPeriod = 1;
+
+        int xi = FloorToInt(x);
+        int yi = FloorToInt(y);
+        int zi = FloorToInt(z);
+        float fx = Fade(x - xi);
+        float fy = Fade(y - yi);
+        float fz = Fade(z - zi);
+
+        int x0 = Wrap(xi, xPeriod);
+        int y0 = Wrap(yi, yPeriod);
+        int z0 = Wrap(zi, zPeriod);
+        int x1 = Wrap(xi + 1, xPeriod);
+        int y1 = Wrap(yi + 1, yPeriod);
+        int z1 = Wrap(zi + 1, zPeriod);
+
+        float v000 = Hash01(x0, y0, z0, seed);
+        float v100 = Hash01(x1, y0, z0, seed);
+        float v010 = Hash01(x0, y1, z0, seed);
+        float v110 = Hash01(x1, y1, z0, seed);
+        float v001 = Hash01(x0, y0, z1, seed);
+        float v101 = Hash01(x1, y0, z1, seed);
+        float v011 = Hash01(x0, y1, z1, seed);
+        float v111 = Hash01(x1, y1, z1, seed);
+
+        float near = Lerp(Lerp(v000, v100, fx), Lerp(v010, v110, fx), fy);
+        float far = Lerp(Lerp(v001, v101, fx), Lerp(v011, v111, fx), fy);
+        return Lerp(near, far, fz);
+    }
+
+    public static float Fbm(
+        float x, float y, float z, int xPeriod, int yPeriod, int zPeriod, int seed, int octaves)
+    {
+        if (octaves < 1)
+            octaves = 1;
+
+        float sum = 0f;
+        float norm = 0f;
+        float amplitude = 1f;
+        float frequency = 1f;
+        int px = xPeriod < 1 ? 1 : xPeriod;
+        int py = yPeriod < 1 ? 1 : yPeriod;
+        int pz = zPeriod < 1 ? 1 : zPeriod;
+
+        for (int octave = 0; octave < octaves; octave++)
+        {
+            sum += amplitude * Value(
+                x * frequency, y * frequency, z * frequency, px, py, pz, seed + octave * 1013);
+            norm += amplitude;
+            amplitude *= 0.5f;
+            frequency *= 2f;
+            px *= 2;
+            py *= 2;
+            pz *= 2;
+        }
+
+        return sum / norm;
+    }
+
     // Floor-toward-negative-infinity, which is what a lattice index needs: C#'s (int) cast truncates
     // toward zero, so a coordinate of -0.3 would land in cell 0 alongside +0.3 and mirror the field
     // about the origin. Sampling never goes negative from a texture coordinate, but the drift and

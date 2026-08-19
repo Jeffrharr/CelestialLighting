@@ -1,0 +1,16 @@
+{
+  "name": "playtest_setup",
+  "saveFile": "minimal_colony.rws",
+  "description": "Not a test — the install step for a hands-on play session. Run with --no-teardown so the branch assemblies, the shader bundles, the mod list and Saves/autostart.rws all stay in place after the harness exits; the game is then launched separately, because run_test.sh always kills the RimWorld it started. Roll the claims back afterwards with run_test.sh --recover-only, which also restores the real ModsConfig.xml.",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "45" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "40" } },
+    { "type": "SetFeature", "args": { "featureName": "realistic_preset", "enabled": "false" } },
+    { "type": "SetTime", "args": { "hour": "12.0" } },
+    { "type": "Probe", "args": { "probeName": "cloud_volume_shader", "expectedValue": "1", "tolerance": "0.001" } },
+    { "type": "Probe", "args": { "probeName": "cloud_sheets_placed", "expectedValue": "20", "tolerance": "20" } },
+    { "type": "LookAt", "args": { "anchor": "125,125", "zoom": "48" } },
+    { "type": "Screenshot", "args": { "fileName": "playtest_warmup" } },
+    { "type": "Screenshot", "args": { "fileName": "playtest_clouds" } }
+  ]
+}

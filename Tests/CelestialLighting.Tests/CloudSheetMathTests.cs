@@ -238,4 +238,97 @@ public class CloudSheetMathTests
         Assert.That(CloudSheetMath.DeckIllumination(0.5f, float.NaN),
             Is.EqualTo(CloudSheetMath.SheetBrightness(0.5f)).Within(Tolerance));
     }
+
+    // ---------------------------------------------------------------------------------------------
+    // §25d: the sunlit deck keeps its own opacity and its full brightness (issue #144)
+    // ---------------------------------------------------------------------------------------------
+
+    // The two-argument form must keep returning exactly what it returned before the ceiling was
+    // exposed, or "§25d off" stops being §25b and every A/B built on that flag is comparing two
+    // changed things.
+    [TestCase(0f, 0f)]
+    [TestCase(0.3f, 0.5f)]
+    [TestCase(1f, 1f)]
+    [TestCase(0.05f, 0.9f)]
+    public void DeckIllumination_two_arg_form_is_the_shipped_ceiling(float glow, float underlit)
+    {
+        Assert.That(
+            CloudSheetMath.DeckIllumination(glow, underlit),
+            Is.EqualTo(CloudSheetMath.DeckIllumination(glow, underlit, CloudSheetMath.UnderlitDeckFloor))
+                .Within(1e-6f));
+    }
+
+    // A deck in full sun is brighter under §25d than under §25b, and by exactly the ratio of the two
+    // ceilings. Stated as a ratio rather than an absolute so it survives a recalibration of either.
+    [Test]
+    public void A_sunlit_deck_is_brighter_under_the_raised_ceiling()
+    {
+        const float DarkGround = 0f;
+
+        float shipped = CloudSheetMath.DeckIllumination(
+            DarkGround, 1f, CloudSheetMath.UnderlitDeckFloor);
+        float raised = CloudSheetMath.DeckIllumination(
+            DarkGround, 1f, CloudSheetMath.SunlitDeckCeiling);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(raised, Is.GreaterThan(shipped));
+            Assert.That(raised / shipped,
+                Is.EqualTo(CloudSheetMath.SunlitDeckCeiling / CloudSheetMath.UnderlitDeckFloor)
+                    .Within(1e-5f));
+        });
+    }
+
+    // The ceiling must not reach a deck that has no direct light: raising how bright a SUNLIT cloud
+    // is has no business changing an overcast noon, which is almost every frame of almost every save.
+    [TestCase(0.2f)]
+    [TestCase(0.6f)]
+    [TestCase(1f)]
+    public void The_raised_ceiling_does_nothing_to_a_deck_with_no_direct_light(float glow)
+    {
+        Assert.That(
+            CloudSheetMath.DeckIllumination(glow, 0f, CloudSheetMath.SunlitDeckCeiling),
+            Is.EqualTo(CloudSheetMath.DeckIllumination(glow, 0f)).Within(1e-6f));
+    }
+
+    // Opacity takes the underlit fraction RAW. The 0.55 floor is a brightness calibration and has no
+    // business deciding how much water is in the way, so a fully sunlit deck is fully opaque whatever
+    // that constant is set to.
+    [Test]
+    public void A_sunlit_deck_keeps_its_own_opacity()
+    {
+        Assert.Multiple(() =>
+        {
+            Assert.That(CloudSheetMath.DeckOpacity(0f, 1f), Is.EqualTo(1f).Within(1e-6f));
+            Assert.That(CloudSheetMath.DeckOpacity(0f, 1f),
+                Is.GreaterThan(CloudSheetMath.DeckIllumination(0f, 1f)));
+        });
+    }
+
+    // ...and an UNLIT one does not. A cloud nobody can see should not sit on the map at full
+    // strength, which is the half of the shipped coupling that was right and is kept.
+    [TestCase(0f)]
+    [TestCase(0.25f)]
+    [TestCase(1f)]
+    public void An_unlit_deck_still_fades_with_the_sky(float glow)
+    {
+        Assert.That(
+            CloudSheetMath.DeckOpacity(glow, 0f),
+            Is.EqualTo(CloudSheetMath.SheetBrightness(glow)).Within(1e-6f));
+    }
+
+    // Opacity is never below illumination, at any combination of the two inputs — so §25d can only
+    // ever make cloud more present, never less. Pinned because "off must reproduce the old
+    // behaviour" is checked above, and this is the matching guarantee for "on".
+    [TestCase(0f, 0f)]
+    [TestCase(0f, 0.5f)]
+    [TestCase(0.4f, 0.2f)]
+    [TestCase(0.9f, 1f)]
+    [TestCase(0.1f, 0.75f)]
+    public void Decoupled_opacity_never_makes_a_deck_sheerer(float glow, float underlit)
+    {
+        Assert.That(
+            CloudSheetMath.DeckOpacity(glow, underlit),
+            Is.GreaterThanOrEqualTo(CloudSheetMath.DeckIllumination(glow, underlit) - 1e-6f));
+    }
 }

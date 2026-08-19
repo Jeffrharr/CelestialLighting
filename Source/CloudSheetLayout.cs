@@ -35,13 +35,63 @@ public static class CloudSheetLayout
     // How many sheets a fully covered sky gets. The ceiling exists because every sheet is a draw call
     // and a material — the same reason AuroraSheetLayout.MaxSheets does — and because past a certain
     // count they stop being distinguishable and the sky is just covered.
-    public const int MaxSheets = 12;
+    // Sized for the LARGER of the two layouts below, because it is the capacity of the shared
+    // placement array every lane reads.
+    public const int MaxSheets = 40;
+
+    // §25b's cap: twelve map-sized sheets.
+    public const int ShippedSheetCap = 12;
+
+    // §25d's cap (issue #144). Many more, because they are much smaller — see PresentSizeFraction.
+    // FIVE, and this is the term doing the work now that the size is back to §25b's.
+    //
+    // It moves opposite the size and always has to: a sheet's footprint goes with the SQUARE of its
+    // size, so the two together are what decides whether a sky is clouds or a tint. At a fifth the
+    // size this was 40; at full size it is 5, against §25b's 12.
+    //
+    // Note what a CAP is: SheetCount rounds `fraction * cap` up, so this is the count of a fully
+    // overcast sky and an ordinary partly-cloudy one gets two or three. That is the intended shape —
+    // an overcast sky should be covered, and a fair day should have a few clouds crossing it.
+    public const int PresentSheetCap = 5;
 
     // A sheet's size as a fraction of the map's smaller axis, before per-sheet variation. Deliberately
     // large: a cloud that fits comfortably on screen reads as a smudge on the ground, while one whose
     // edges run off the view reads as something overhead. Two-thirds of the map means a colony
     // typically sees part of two or three sheets rather than all of any.
     public const float BaseSizeFraction = 0.66f;
+
+    // §25d's sheet size, and THE reason §25's cloud could not be seen (issue #144).
+    //
+    // WHAT THE DIFFERENCE MAP SHOWED. At 0.66 a sheet is two-thirds of the map's shorter axis — 165
+    // cells on a 250-cell map — and a cloud fraction of 0.35 puts five of them up. Five objects of
+    // 165 cells on a 250-cell map do not read as five clouds; they blanket the view and overlap, and
+    // since each one is a smooth radial falloff the sum is a single almost-uniform wash. Differenced
+    // against a cloudless frame at 8x, that is exactly what it looks like: a flat lift over about
+    // 70% of the screen showing the TERRAIN's own texture through it, one soft diagonal edge where
+    // the outermost sheet stops, and pure black beyond. A global tint, not a cloud.
+    //
+    // Every other term is downstream of that and none of them could fix it. Raising the alpha makes
+    // the wash stronger; whitening the colour makes it whiter; §25c's raymarch resolves
+    // self-shadowing detail at a scale nothing on screen was ever going to show. The paragraph above
+    // this constant argues that a cloud whose edges run off the view "reads as something overhead",
+    // and that is true of ONE cloud — it stops being true when there are five and they tile the sky.
+    //
+    // 0.20 is 50 cells on a 250-cell map: big enough to be weather rather than a puff, small enough
+    // that a colony sees whole clouds with sky between them, which is what makes them clouds.
+    // §25d keeps §25b's sheet SIZE and changes the COUNT instead.
+    //
+    // THE WASH WAS SIZE TIMES COUNT, NOT SIZE. §25b puts twelve sheets of two-thirds the map into
+    // the sky, and differenced against a cloudless frame that measured as a flat lift over ~70% of
+    // the screen with the terrain's own texture showing through it — a global tint with one soft
+    // edge, no shape anywhere. Shrinking the sheets to a fifth of that fixed it and proved the
+    // diagnosis, but a sky of small clouds reads as a scattering of puffs rather than as weather.
+    //
+    // Cutting the COUNT instead keeps a cloud big enough to be overhead — the property
+    // BaseSizeFraction's own note is about, that a sheet whose edges run off the view reads as
+    // something above you rather than a smudge on the ground — while leaving sky between them for
+    // them to be separate objects in. Same constant as §25b, so a §25d cloud is the size a §25
+    // cloud always was.
+    public const float PresentSizeFraction = BaseSizeFraction;
 
     // How much a sheet's size may vary from the base, either way. Enough that no two are obviously the
     // same object; not so much that the small ones read as a different phenomenon.
@@ -226,14 +276,22 @@ public static class CloudSheetLayout
 
     // How many sheets this much cloud gets. Rounds UP off zero, so any cloud at all puts at least one
     // sheet in the sky rather than rounding a thin morning away to nothing.
-    public static int SheetCount(float cloudFraction)
+    public static int SheetCount(float cloudFraction) =>
+        SheetCount(cloudFraction, ShippedSheetCap);
+
+    // The same with the cap given, so §25d can put up many small clouds where §25b put up a few
+    // enormous ones. The cap is what turns a cloud FRACTION into a cloud COUNT, so it has to move
+    // with the size or the sky empties out: at a fortieth of the area each, twelve sheets would cover
+    // a twelfth of what they used to.
+    public static int SheetCount(float cloudFraction, int cap)
     {
         float fraction = Clamp01(cloudFraction);
         if (fraction <= 0f)
             return 0;
 
-        int count = (int)MathF.Ceiling(fraction * MaxSheets);
-        return count > MaxSheets ? MaxSheets : count;
+        int limit = cap < MaxSheets ? cap : MaxSheets;
+        int count = (int)MathF.Ceiling(fraction * limit);
+        return count > limit ? limit : count;
     }
 
     // Where sheet `index` is at `ticks`, on a map of this size.
@@ -264,7 +322,13 @@ public static class CloudSheetLayout
     // null or empty mixture puts every sheet on the low deck, which is exactly what §25 drew before
     // decks existed.
     public static Placement PlacementFor(
-        int index, int seed, int ticks, int mapX, int mapZ, float[] deckWeights)
+        int index, int seed, int ticks, int mapX, int mapZ, float[] deckWeights) =>
+        PlacementFor(index, seed, ticks, mapX, mapZ, deckWeights, BaseSizeFraction);
+
+    // The same with the size fraction given; see PresentSizeFraction for why §25d shrinks it.
+    public static Placement PlacementFor(
+        int index, int seed, int ticks, int mapX, int mapZ, float[] deckWeights,
+        float sizeFraction)
     {
         float sizeNoise = Hash01(index, seed, 1);
         float speedNoise = Hash01(index, seed, 2);
@@ -291,7 +355,7 @@ public static class CloudSheetLayout
         CloudDeckMath.Deck spec = CloudDeckMath.DeckAt(deck);
 
         int shorterAxis = mapX < mapZ ? mapX : mapZ;
-        float size = shorterAxis * BaseSizeFraction * spec.SizeScale
+        float size = shorterAxis * sizeFraction * spec.SizeScale
             * (1f + SizeVariation * (2f * sizeNoise - 1f));
 
         // Speed varies per sheet AND per deck; the crossing distance is the map plus a whole sheet at

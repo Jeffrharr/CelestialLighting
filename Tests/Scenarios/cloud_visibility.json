@@ -1,0 +1,334 @@
+{
+  "name": "cloud_visibility",
+  "saveFile": "minimal_colony.rws",
+  "description": "What actually makes §25's drawn cloud legible from a top-down camera: the cloud's own body (§25d's recalibration) or the SHADOW it casts (§23c, which ships off). Asked because raising the body alone runs into a ceiling that is a property of the art rather than of the calibration — a cloud is near-white, RimWorld's lit desert sand is about 0.78 white, and no alpha can put more than about 46/255 of red between them. A shadow has no such ceiling: it darkens ground that is already bright, which is the direction with room in it, and it is how a cloud is legible in any real top-down view. Four frames per hour so 'the cloud has a body now' and 'the ground under it went dark' stay separate claims, and so the combination can be judged rather than assumed to be the sum.",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "realistic_preset",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_cover_forced_fraction",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_sheet",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "anchor": "125,125",
+        "zoom": "48"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cvw_warmup"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "56.7200",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "anchor": "125,125",
+        "zoom": "48"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheets_in_view",
+        "expectedValue": "4",
+        "tolerance": "3"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_presence",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_shadow",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "anchor": "125,125",
+        "zoom": "48"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cvw_noon_a_shipped"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_presence",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_shadow",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "anchor": "125,125",
+        "zoom": "48"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cvw_noon_b_present"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_presence",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_shadow",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "anchor": "125,125",
+        "zoom": "48"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cvw_noon_c_shadow"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_presence",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_shadow",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "anchor": "125,125",
+        "zoom": "48"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cvw_noon_d_present_shadow"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "20.86"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "-2.44172692",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "anchor": "125,125",
+        "zoom": "48"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheets_in_view",
+        "expectedValue": "4",
+        "tolerance": "3"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_presence",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_shadow",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "anchor": "125,125",
+        "zoom": "48"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cvw_sunset_a_shipped"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_presence",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_shadow",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "anchor": "125,125",
+        "zoom": "48"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cvw_sunset_b_present"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_presence",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_shadow",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "anchor": "125,125",
+        "zoom": "48"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cvw_sunset_c_shadow"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_presence",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_shadow",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "anchor": "125,125",
+        "zoom": "48"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cvw_sunset_d_present_shadow"
+      }
+    }
+  ]
+}

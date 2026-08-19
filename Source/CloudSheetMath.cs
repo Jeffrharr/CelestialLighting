@@ -30,6 +30,32 @@ public static class CloudSheetMath
     // to be cloud, sheer enough to play under.
     public const float SheetAmplitude = 0.35f;
 
+    // §25d's replacement for it (issue #144), and the reason is that 0.35 was answering the wrong
+    // half of the trade.
+    //
+    // WHAT THE MEASUREMENT SHOWED. At noon over desert the shipped chain is
+    // 0.35 amplitude x 1.00 deck opacity x 1.0 illumination x a blob density averaging about 0.3,
+    // and the sheet's colour is a 0.86 grey against lit sand at about 0.78. So the brightest part of
+    // a cloud moved the frame by roughly seven parts in 255, and most of it by two or three. At
+    // -2.44 degrees it was worse: an effective alpha near 0.075 over near-black terrain, where §25c's
+    // raymarch and §25b's bake measured a mean 0.19/255 apart with NOT ONE pixel differing by more
+    // than 2 — two renderers agreeing because neither had anything to draw.
+    //
+    // 0.55 rather than 0.80, and the ceiling is why. The overlap boost reaches 1.35, and a blob's
+    // core density reaches 1, so the alpha actually written is amplitude x 1.35 at the middle of a
+    // stack of sheets. At 0.80 that clamps at 1 and puts an opaque white lid over the colony, which
+    // is exactly the failure the original constant was set low to avoid. 0.55 peaks at 0.74 — the
+    // base stays readable through the densest cloud on the map.
+    //
+    // Most of the visibility is bought by the COLOUR rather than by this (see
+    // CloudSheetOverlay.PresentDayColour): a near-white cloud at moderate alpha reads as cloud, where
+    // a mid-grey one at high alpha reads as haze whatever its opacity.
+    public const float PresentSheetAmplitude = 0.75f;
+
+    // §25d's gamma on the atlas alpha. See CloudField.WriteBlobRgba for the measurement — the shipped
+    // blob is 84% thin wisp, and this is what makes that 84% draw at all.
+    public const float PresenceAlphaGamma = 0.55f;
+
     // How dark the sheet goes at night, as a fraction of its daylight colour. Not zero: cloud is
     // visible on a moonlit night as a darker mass against the sky, and a sheet that vanished entirely
     // at dusk would pop out of existence at the exact moment §23b starts drawing. Kept low so night
@@ -161,10 +187,50 @@ public static class CloudSheetMath
     // and the floor has overridden it. Wrong, rare, and much the lesser of the two errors — the
     // alternative is the sunset being invisible every single evening to avoid being wrong on the few
     // minutes an eclipse and a sunset ever coincide.
-    public static float DeckIllumination(float skyGlow, float underlitFraction)
+    public static float DeckIllumination(float skyGlow, float underlitFraction) =>
+        DeckIllumination(skyGlow, underlitFraction, UnderlitDeckFloor);
+
+    // The same thing with the direct-light ceiling exposed, for §25d (issue #144).
+    //
+    // WHY 0.55 IS NOT THE END OF THE ARGUMENT ABOVE. That constant caps a deck in FULL SUN at a bit
+    // over half brightness, and it was set when this term did double duty as the alpha — a cap that
+    // kept a dark sheet from blacking the colony out. Read as what it now is, a statement about how
+    // bright a sunlit cloud is, it says a cloud catching direct sunlight after the ground has gone
+    // dark is dimmer than the twilight around it, which is the opposite of the observation the whole
+    // paragraph above is built on. §25d raises it; the two-argument form keeps the shipped value so
+    // that turning §25d off reproduces §25b exactly.
+    public static float DeckIllumination(float skyGlow, float underlitFraction, float directCeiling)
     {
         float ambient = SheetBrightness(skyGlow);
-        float direct = UnderlitDeckFloor * Clamp01(underlitFraction);
+        float direct = directCeiling * Clamp01(underlitFraction);
+        return direct > ambient ? direct : ambient;
+    }
+
+    // How bright a deck in full sun is allowed to be, under §25d. One, because a sunlit cloud at
+    // sunset is the brightest object in the sky and there is no reason for this lane to insist it is
+    // darker than the sheet's own colour.
+    public const float SunlitDeckCeiling = 1f;
+
+    // How OPAQUE the deck is, which under §25d is no longer the same question as how lit it is.
+    //
+    // THE COUPLING IS THE REASON #144 COULD NOT BE FIXED BY SHADING. §25b multiplies one
+    // `DeckIllumination` into the sheet's colour AND its alpha, so at -2.44 degrees a sunlit deck
+    // lands at 0.35 amplitude x 0.72 opacity x 0.55 illumination = 0.139, times a blob density
+    // averaging about 0.3, for an effective alpha near 0.075 over near-black terrain. Measured in
+    // game at that elevation, §25c's raymarch and §25b's bake differ by a mean of 0.19/255 with NOT
+    // ONE pixel moving by more than 2 — not because the renderers agree but because there is
+    // essentially no cloud drawn for either of them to render.
+    //
+    // Opacity is a fact about the cloud — how much water is in the way — and not about the light
+    // falling on it. So the ambient term still fades toward night, because an unlit cloud in the dark
+    // should not sit on the map at full strength, but a deck in DIRECT sun keeps its own opacity.
+    //
+    // Note this takes `underlitFraction` RAW rather than through the ceiling above: that ceiling is a
+    // brightness calibration and has no business deciding how much water is in the way.
+    public static float DeckOpacity(float skyGlow, float underlitFraction)
+    {
+        float ambient = SheetBrightness(skyGlow);
+        float direct = Clamp01(underlitFraction);
         return direct > ambient ? direct : ambient;
     }
 

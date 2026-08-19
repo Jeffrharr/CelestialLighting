@@ -24,14 +24,29 @@ public class CloudSheetLayoutTests
     public void MoreCloudIsMoreClouds()
     {
         Assert.That(CloudSheetLayout.SheetCount(0f), Is.EqualTo(0));
-        Assert.That(CloudSheetLayout.SheetCount(1f), Is.EqualTo(CloudSheetLayout.MaxSheets));
+
+        // ShippedSheetCap, NOT MaxSheets. §25d made the two different things and the distinction is
+        // worth stating rather than inferring: MaxSheets is now the capacity of the placement array
+        // both layouts share, while the CAP is how many sheets a given layout puts up — twelve big
+        // ones for §25b, forty small ones for §25d. This assertion read EqualTo(MaxSheets) and caught
+        // the change, which is the only reason the two names got separated properly.
+        Assert.That(CloudSheetLayout.SheetCount(1f),
+            Is.EqualTo(CloudSheetLayout.ShippedSheetCap));
+        Assert.That(CloudSheetLayout.SheetCount(1f, CloudSheetLayout.PresentSheetCap),
+            Is.EqualTo(CloudSheetLayout.PresentSheetCap));
+
+        // Neither layout may ask for more placements than the shared array can hold.
+        Assert.That(CloudSheetLayout.ShippedSheetCap,
+            Is.LessThanOrEqualTo(CloudSheetLayout.MaxSheets));
+        Assert.That(CloudSheetLayout.PresentSheetCap,
+            Is.LessThanOrEqualTo(CloudSheetLayout.MaxSheets));
 
         int previous = 0;
         for (float fraction = 0f; fraction <= 1f; fraction += 0.05f)
         {
             int count = CloudSheetLayout.SheetCount(fraction);
             Assert.That(count, Is.GreaterThanOrEqualTo(previous), $"went backwards at {fraction}");
-            Assert.That(count, Is.LessThanOrEqualTo(CloudSheetLayout.MaxSheets));
+            Assert.That(count, Is.LessThanOrEqualTo(CloudSheetLayout.ShippedSheetCap));
             previous = count;
         }
     }
@@ -220,5 +235,79 @@ public class CloudSheetLayoutTests
         Assert.That(CloudSheetMath.OverlapBoost(100f),
             Is.EqualTo(CloudSheetMath.MaxOverlapBoost).Within(1e-4f));
         Assert.That(CloudSheetMath.OverlapBoost(float.NaN), Is.EqualTo(1f));
+    }
+
+    // §25d keeps §25b's sheet size and cuts the COUNT instead (issue #144).
+    //
+    // WHAT THIS PINS IS THE PAIRING, because the failure was never size alone. Twelve sheets of
+    // two-thirds the map blanket the view and overlap into one flat wash — differenced against a
+    // cloudless frame it measured as a uniform lift over most of the screen showing the terrain's own
+    // texture, with one soft edge and no shape anywhere. A sheet's footprint goes with the SQUARE of
+    // its size, so size and count are one decision; whichever way the size goes, the count has to go
+    // the other way. This asserts that relationship rather than either number, so a later change to
+    // one that forgets the other fails here.
+    [Test]
+    public void PresentLayoutTradesCountForSize()
+    {
+        Assert.Multiple(() =>
+        {
+            Assert.That(CloudSheetLayout.PresentSheetCap,
+                Is.LessThan(CloudSheetLayout.ShippedSheetCap),
+                "§25d's sheets are not smaller than §25b's, so there must be fewer of them");
+
+            // Expected footprint of a full sky, as a multiple of the map. Both layouts are allowed to
+            // overlap — clouds do — but neither may ask for so much that overlap is all there is.
+            float shipped = ShippedSheetCap_Coverage();
+            float present = PresentCoverage();
+
+            Assert.That(present, Is.LessThan(shipped),
+                "§25d must cover less sky at full cloud than the wash it replaced");
+        });
+
+        float ShippedSheetCap_Coverage() =>
+            CloudSheetLayout.ShippedSheetCap
+            * CloudSheetLayout.BaseSizeFraction * CloudSheetLayout.BaseSizeFraction;
+
+        float PresentCoverage() =>
+            CloudSheetLayout.PresentSheetCap
+            * CloudSheetLayout.PresentSizeFraction * CloudSheetLayout.PresentSizeFraction;
+    }
+
+    // A partly-cloudy sky gets a HANDFUL, not the cap: SheetCount rounds `fraction * cap` up, so the
+    // cap is the count of a full overcast. Pinned because "five clouds" is the intent and it is easy
+    // to read the cap as the number always drawn.
+    [Test]
+    public void PresentLayoutGivesAFairDayAFewClouds()
+    {
+        int fair = CloudSheetLayout.SheetCount(0.35f, CloudSheetLayout.PresentSheetCap);
+        int overcast = CloudSheetLayout.SheetCount(1f, CloudSheetLayout.PresentSheetCap);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(fair, Is.InRange(1, CloudSheetLayout.PresentSheetCap));
+            Assert.That(fair, Is.LessThan(overcast));
+            Assert.That(overcast, Is.EqualTo(CloudSheetLayout.PresentSheetCap));
+        });
+    }
+
+    // Both layouts draw sheets that span most of the map — which is the property BaseSizeFraction
+    // was chosen for, that a cloud whose edges leave the view reads as something overhead. §25d no
+    // longer changes it, so this now pins that the two AGREE, and the difference between them is
+    // entirely the count.
+    [Test]
+    public void BothLayoutsUseTheSameSheetSize()
+    {
+        CloudSheetLayout.Placement shipped = CloudSheetLayout.PlacementFor(
+            0, Seed, 0, MapX, MapZ, LowDeckOnly);
+        CloudSheetLayout.Placement present = CloudSheetLayout.PlacementFor(
+            0, Seed, 0, MapX, MapZ, LowDeckOnly, CloudSheetLayout.PresentSizeFraction);
+
+        int shorter = MapX < MapZ ? MapX : MapZ;
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(present.Size, Is.EqualTo(shipped.Size).Within(1e-3f));
+            Assert.That(present.Size, Is.GreaterThan(shorter * 0.4f));
+        });
     }
 }

@@ -46,9 +46,25 @@ public static class CloudSheetOverlay
     // 384 = 3 x 128, so a blob keeps the 128 px it had at 2x2 rather than being squeezed to 85 to
     // fit an extra row into the old 256. The bake is 2.25x the texels it was, which is paid ONCE in
     // the static constructor below and never again — see FillBlobAtlas's "baked once, ever" note.
-    private const int AtlasSize = 384;
+    //
+    // PUBLIC because §25c's volume has to be baked at exactly this size, from exactly this seed, or
+    // the 3-D shape the shader marches and the 2-D silhouette everything else draws are two
+    // different clouds. All three cloud lanes share one set of shapes; that invariant is the reason
+    // these are constants somewhere other subsystems can read rather than local literals.
+    public const int AtlasSize = 384;
 
-    public static readonly Texture2D Atlas = BuildAtlas();
+    public const int AtlasSeed = 20260810;
+
+    public static readonly Texture2D Atlas = BuildAtlas(1f);
+
+    // §25d's atlas: the same shapes with the alpha curve applied (issue #144).
+    //
+    // A SECOND TEXTURE RATHER THAN A CURVE AT DRAW TIME, for one structural reason: this atlas is
+    // baked in a static constructor at load, and the feature flags it would have to consult are set
+    // afterwards — by the settings screen, or mid-scenario by the harness. Baking both costs 590 KB
+    // and a few milliseconds once, and it is what lets the flag be flipped between two frames of one
+    // live A/B, which is the only way the two get compared under identical everything else.
+    public static readonly Texture2D PresentAtlas = BuildAtlas(CloudSheetMath.PresenceAlphaGamma);
 
     // One material per sheet slot, allocated up front. Materials cannot be re-tinted between
     // Graphics.DrawMesh calls in a frame — the call is deferred, so a later colour write would reach
@@ -88,6 +104,27 @@ public static class CloudSheetOverlay
 
         float altitude = AltitudeLayer.FogOfWar.AltitudeFor() + Altitudes.AltInc;
 
+        // §25c: whether this frame raymarches the cloud volume per pixel or draws §25b's baked
+        // atlas. Decided ONCE, not per sheet — a frame with some sheets marched and some baked would
+        // show two different cloud models side by side in one sky.
+        //
+        // `Available` is checked ahead of the flag rather than after it, so a player who turns the
+        // feature on where the shader cannot run gets the baked cloud instead of an empty sky. That
+        // is not a defensive habit: only Linux bundles are built today.
+        bool volumetric = CelestialLightingFeatures.CloudVolume && CloudVolumeShader.Available;
+
+        // §25d, read once per frame for the same reason the tints are: it is a property of the build,
+        // not of a sheet. Off leaves every term exactly where §25b put it.
+        bool sunlitOpacity = CelestialLightingFeatures.CloudPresence;
+        float directCeiling = sunlitOpacity
+            ? CloudSheetMath.SunlitDeckCeiling
+            : CloudSheetMath.UnderlitDeckFloor;
+
+        // The sun's own geometry, read once per frame for the same reason the tints are: every sheet
+        // is under one sun. Only the volumetric path uses it, and SolarPosition is memoised per
+        // frame anyway (issue #12), but reading it here keeps the per-sheet body free of live state.
+        float azimuth = volumetric ? CloudLayers.SunAzimuthFor(map) : 0f;
+
         for (int i = 0; i < count; i++)
         {
             CloudSheetLayout.Placement placement = Placements[i];
@@ -111,11 +148,28 @@ public static class CloudSheetOverlay
             // darker AND sheerer (a dark sheet at full alpha would black the colony out wholesale,
             // which is a lighting change rather than a cloud) — and, the other way round, a deck still
             // catching the sun stays opaque enough to read while everything under it fades.
-            float illumination = CloudSheetMath.DeckIllumination(skyGlow, underlit);
+            //
+            // §25d splits the two apart: see CloudSheetMath.DeckOpacity for why a cloud's opacity is
+            // a fact about the cloud and not about the light on it, and for the measurement that says
+            // the coupling — not the renderer — is what makes a sunset cloud invisible.
+            float illumination = CloudSheetMath.DeckIllumination(skyGlow, underlit, directCeiling);
+            float opacity = sunlitOpacity
+                ? CloudSheetMath.DeckOpacity(skyGlow, underlit)
+                : illumination;
 
-            SetSheet(i, placement, hot, cool, axisU, axisV, underlit,
+            Color colour = SheetColour(
+                placement, hot, cool, axisU, axisV, underlit,
                 Mathf.Min(illumination * boost, 1f),
-                Mathf.Min(alpha * illumination * placement.Alpha * boost, 1f), map);
+                Mathf.Min(alpha * opacity * placement.Alpha * boost, 1f), map);
+
+            // The two renderers take the SAME colour and the SAME alpha. That is what makes the
+            // feature flag an honest A/B: everything upstream of the renderer — placement, deck,
+            // overlap, illumination, opacity — is identical between the two frames, and the only
+            // difference is whether that colour was multiplied into a baked texture or interpolated
+            // toward at every step of a march.
+            Material material = volumetric
+                ? VolumeSheet(i, placement, colour, hot, cool, azimuth, elevation)
+                : BakedSheet(i, placement, colour, sunlitOpacity);
 
             // NO OPEN-SKY MASK, deliberately. §23b and §23c mask to unroofed cells because they are
             // light reaching the GROUND, which a roof stops. A cloud is above the roof and should draw
@@ -127,17 +181,24 @@ public static class CloudSheetOverlay
                     new Vector3(placement.CenterX, altitude, placement.CenterZ),
                     Quaternion.identity,
                     new Vector3(placement.Size, 1f, placement.Size)),
-                SheetMats[i],
+                material,
                 0);
         }
     }
 
-    private static void SetSheet(
-        int slot, in CloudSheetLayout.Placement placement,
-        in SkyColorTemperature.Rgb hot, in SkyColorTemperature.Rgb cool,
-        int axisU, int axisV, float underlit, float brightness, float alpha, Map map)
+    // §25b's baked path, unchanged: the atlas cell, the mirroring and the tint go onto the slot's
+    // Transparent material and it draws.
+    private static Material BakedSheet(
+        int slot, in CloudSheetLayout.Placement placement, Color colour, bool present)
     {
         Material material = SheetMats[slot];
+
+        // Which of the two atlases this frame wears. Written every frame rather than cached: it is
+        // one reference assignment against a colour write that already happens here, and caching it
+        // would mean a flag flipped between two frames of an A/B did not take until the next reload.
+        Texture2D atlas = present ? PresentAtlas : Atlas;
+        if (!ReferenceEquals(material.mainTexture, atlas))
+            material.mainTexture = atlas;
 
         // Which of the atlas's blobs this sheet is wearing: its deck picks the row and its ShapeSeed
         // the column. The seed changes once per crossing — so a sheet keeps its silhouette for the
@@ -156,10 +217,56 @@ public static class CloudSheetOverlay
             ((blob % AtlasCells) + (placement.FlipU ? 1 : 0)) * cell,
             ((blob / AtlasCells) + (placement.FlipV ? 1 : 0)) * cell);
 
-        // ONE COLOUR PER SHEET, sampled from the map-space gradient at that sheet's own centre. The
-        // tiled version baked this per texel; a bounded sheet is one place, so it takes one colour —
-        // which is cheaper AND is what makes a sky of sheets show its warm side and its cool side at
-        // once, since the sheets are in different places.
+        // Colour carries the alpha, so a single write covers both.
+        material.color = colour;
+        LastAlpha[slot] = colour.a;
+        return material;
+    }
+
+    // §25c's volumetric path: the same placement and the same colour, handed to the raymarch shader
+    // along with the colour a part of this cloud the sun never reaches should be.
+    //
+    // THE SHADOW COLOUR IS AN ABSOLUTE RADIANCE, NOT A HUE, and getting that wrong is the trap this
+    // subsystem has already paid for once. §19c's ComposedHue — `cool` here — is normalised to a
+    // peak channel of 1 because it exists to carry hue and nothing else. Handed over raw it makes
+    // every shadow/lit channel ratio clamp at 1, so the shadows come out as flat dimming with no
+    // colour shift at all. Scaling it by AmbientSkyFraction first is what gives a shaded flank the
+    // blue of the sky above it instead of a grey of its own.
+    private static Material VolumeSheet(
+        int slot, in CloudSheetLayout.Placement placement, Color colour,
+        in SkyColorTemperature.Rgb hot, in SkyColorTemperature.Rgb cool,
+        float azimuth, float elevation)
+    {
+        Color shadow = new Color(
+            colour.r * ShadowRatio(hot.R, cool.R),
+            colour.g * ShadowRatio(hot.G, cool.G),
+            colour.b * ShadowRatio(hot.B, cool.B),
+            colour.a);
+
+        return CloudVolumeShader.Configure(
+            slot, placement, AtlasCells, AtlasSize, colour, shadow, azimuth, elevation);
+    }
+
+    // The shaded side's brightness as a fraction of the lit side's, per channel. Guarded against a
+    // lit channel that has gone to nearly zero, which §8's blue genuinely does at the horizon, and
+    // capped at 1 because a shadow that is brighter than the light is not a shadow.
+    private static float ShadowRatio(float lit, float hue)
+    {
+        if (lit <= 1e-4f)
+            return 1f;
+
+        return Mathf.Min(1f, hue * CloudVolumeMath.AmbientSkyFraction / lit);
+    }
+
+    // ONE COLOUR PER SHEET, sampled from the map-space gradient at that sheet's own centre. The
+    // tiled version baked this per texel; a bounded sheet is one place, so it takes one colour —
+    // which is cheaper AND is what makes a sky of sheets show its warm side and its cool side at
+    // once, since the sheets are in different places.
+    private static Color SheetColour(
+        in CloudSheetLayout.Placement placement,
+        in SkyColorTemperature.Rgb hot, in SkyColorTemperature.Rgb cool,
+        int axisU, int axisV, float underlit, float brightness, float alpha, Map map)
+    {
         float warmth = CloudField.GradientWarmth(
             placement.CenterX / map.Size.x, placement.CenterZ / map.Size.z, axisU, axisV);
 
@@ -182,24 +289,17 @@ public static class CloudSheetOverlay
         float peak = Mathf.Max(hot.R, Mathf.Max(hot.G, hot.B));
         float scale = peak > 0.001f ? 1f / peak : 1f;
 
-        float dayR = DayColour.r * hot.R * scale;
-        float dayG = DayColour.g * hot.G * scale;
-        float dayB = DayColour.b * hot.B * scale;
+        Color day = CelestialLightingFeatures.CloudPresence ? PresentDayColour : DayColour;
 
-        Color colour = new Color(
+        float dayR = day.r * hot.R * scale;
+        float dayG = day.g * hot.G * scale;
+        float dayB = day.b * hot.B * scale;
+
+        return new Color(
             Mix(dayR, sunsetR, underlit) * brightness,
             Mix(dayG, sunsetG, underlit) * brightness,
             Mix(dayB, sunsetB, underlit) * brightness,
             alpha);
-
-        // Colour carries the alpha, so a single equality check covers both — but only the alpha is
-        // cached, because it is the one that is usually still. A colour that has moved with a
-        // stationary alpha still needs the write, which is why the comparison is not the gate for it.
-        if (alpha != LastAlpha[slot] || true)
-        {
-            material.color = colour;
-            LastAlpha[slot] = alpha;
-        }
     }
 
     // Daylight cloud colour: a bright neutral grey, not white. White reads as snow or as a blown-out
@@ -208,9 +308,28 @@ public static class CloudSheetOverlay
     // lit colony.
     private static readonly Color DayColour = new Color(0.86f, 0.87f, 0.90f);
 
+    // §25d's daylight cloud colour (issue #144), and the single biggest reason the shipped one could
+    // not be seen.
+    //
+    // 0.86 grey is very close to what lit terrain already is — RimWorld's desert sand sits near 0.78,
+    // temperate soil and stone not far below it — so an alpha blend toward it converges on the
+    // ground's own brightness and the cloud reads as a faint desaturating haze rather than as an
+    // object. Raising the ALPHA does not fix that: a mid-grey at high opacity is still mid-grey, and
+    // it costs the player the ability to see their base through it.
+    //
+    // A real cloud top under direct sun is close to white and slightly BLUE-white — it is lit by the
+    // whole sky as well as by the sun — and near-white is what separates it from every terrain in the
+    // game except snow. Under snow it correctly nearly vanishes, which is what happens when you look
+    // down at cloud over an ice sheet.
+    //
+    // Still not 1.0: the multiply by §8's normalised sun colour happens after this, and a cloud
+    // pinned at pure white would clip that hue away at exactly the hours §25b's deck windows exist to
+    // colour.
+    private static readonly Color PresentDayColour = new Color(0.96f, 0.97f, 1.00f);
+
     private static float Mix(float a, float b, float t) => a + (b - a) * t;
 
-    private static Texture2D BuildAtlas()
+    private static Texture2D BuildAtlas(float alphaGamma)
     {
         float[] intensity = new float[AtlasSize * AtlasSize];
         byte[] pixels = new byte[AtlasSize * AtlasSize * 4];
@@ -219,15 +338,31 @@ public static class CloudSheetOverlay
         // before decks existed, so a sky that draws only low cloud draws exactly what §25 drew.
         CloudField.FillBlobAtlas(
             intensity, AtlasSize, AtlasCells, seed: 20260810, octaves: CloudField.SheetOctaves,
-            rowCut: CloudDeckMath.ShapeCuts(),
+            // §25d fills the two thin decks in — see CloudDeckMath.PresentShapeCuts. Keyed off the
+            // same gamma that already distinguishes the two bakes, so one thing decides which atlas
+            // this is rather than two that could disagree.
+            rowCut: alphaGamma == 1f
+                ? CloudDeckMath.ShapeCuts()
+                : CloudDeckMath.PresentShapeCuts(),
             rowGain: CloudDeckMath.ShapeGains(),
             rowFrequencyU: CloudDeckMath.FrequenciesU(),
-            rowFrequencyV: CloudDeckMath.FrequenciesV());
-        CloudField.WriteBlobRgba(pixels, intensity, intensity.Length);
+            rowFrequencyV: CloudDeckMath.FrequenciesV(),
+            // §25d narrows the falloff band so a cloud has a BORDER. See
+            // CloudField.PresentBlobCoreFraction: at the shipped 0.35 two thirds of every blob is a
+            // smooth ramp, which reads fine at noon on brightness alone and fails at sunset, when the
+            // cloud and the ground are lit by the same warm light and an edge is the only thing left
+            // that can separate them.
+            coreFraction: alphaGamma == 1f
+                ? CloudField.BlobCoreFraction
+                : CloudField.PresentBlobCoreFraction,
+            rimBite: alphaGamma == 1f ? 0f : CloudField.PresentRimBite);
+        CloudField.WriteBlobRgba(pixels, intensity, intensity.Length, alphaGamma);
 
         Texture2D texture = new Texture2D(AtlasSize, AtlasSize, TextureFormat.RGBA32, mipChain: false)
         {
-            name = "CelestialLighting_CloudSheetAtlas",
+            name = alphaGamma == 1f
+                ? "CelestialLighting_CloudSheetAtlas"
+                : "CelestialLighting_CloudSheetAtlasPresent",
             // CLAMP, not Repeat — the opposite of the tiled version and the whole point. Each blob's
             // alpha already reaches zero inside its own cell, so nothing wraps and nothing repeats.
             wrapMode = TextureWrapMode.Clamp,

@@ -8619,6 +8619,169 @@ first cut of the A/B measured ΔE 0.00 across the whole sunset for exactly that 
 surveyed and the clouds were not. *Surveying the sun tells you when to look; it does not tell you
 where.*
 
+## 25c. Raymarched cloud volume (`CloudRaymarchMath` / `CelestialCloudVolume.shader`, issue #144)
+
+**Problem.** §25b gives each deck its own sunset window and the arithmetic is right — the probes read
+`underlit_low` 0.000 against `underlit_high` 1.000, the "cirrus is the last thing burning" sequence
+they were built for. The frame renders nothing. A flat quad tinted ONE colour has no mechanism to
+express what makes a sunset cloud worth looking at, because the thing that makes it worth looking at
+is that a single cloud is NOT one colour: the sun grazes its top while its own bulk keeps the light
+off everything below that.
+
+**Approach.** A density volume baked once at load (384×384×20 voxels, uploaded as a `Texture3D`) and
+integrated per fragment on the GPU. Down the view ray, front to back: at every sample take the
+density, march THAT sample toward the sun for its own transmittance, and accumulate colour weighted
+by how much of the pixel the sample still owns. What comes out is a premultiplied radiance and an
+alpha that is a real optical depth.
+
+The light march steps along the **3-D** sun vector — azimuth and elevation both — so a cloud's own
+bulk shadows its lower and leeward parts, and the view march computes a separate light transmittance
+at every depth. Sky ambient is occluded by the accumulated downward transmittance, which is free:
+the camera and the sky are both overhead, so the value the compositing loop already carries IS the
+fraction of sky a sample can see.
+
+**Why §11a's rejection of raymarching does not apply.** §11a dropped a raymarcher for the aurora
+because a fixed top-down orthographic camera gives no parallax to smear along the view ray. That is
+still true and this does not pretend otherwise: the view ray is straight down and produces no
+parallax whatsoever. What it produces is the INTEGRAL, which is visible from any angle including
+straight down. The march is worth its cost for what it accumulates, not the direction it accumulates
+along.
+
+**Three things a bake could not reach**, all properties of baking rather than of the model:
+
+1. **It shades at atlas resolution.** A blob is 128 texels drawn across several hundred screen
+   pixels, so the one part of the picture with fine structure is the part resampled hardest. Visible
+   at noon as stippled contour artefacts from the integer surface-layer pick.
+2. **It lights one depth per pixel**, keeping the two endpoints of the gradient that is the whole
+   effect and throwing away the band between them.
+3. **It can only darken.** `ShaderDatabase.Transparent` multiplies an 8-bit texture into
+   `material.color`, and a silver lining is by definition brighter than the cloud it edges.
+   `Blend One OneMinusSrcAlpha` gives that headroom back.
+
+### The two extinction coefficients, and why that is a fiat
+
+One coefficient is the honest model: how opaque a column is and how far the sun reaches into it are
+the same physical quantity. It cannot survive the deck table. A cirrus deck is 7 texels thick against
+cumulus at 48, so a grazing sunset ray stays inside it for ~80 texels of horizontal travel — and at
+the density needed to make the deck VISIBLE from above, that path is fully occluded. Measured: the
+deck §25b calls "the one that lingers longest" rendered at the ambient floor, the darkest thing in
+frame, at exactly the elevations its sunset window exists for.
+
+Real cirrus escapes this by being genuinely thin, and a deck that thin cannot be seen from above at
+all. The 2-D lane already resolves the same tension by fiat — a density gamma and a per-deck opacity
+— so this is that fiat spelled out where it can be read:
+
+- **View coefficient**, normalised UP by thinness, so every deck's column reaches the same optical
+  depth and alpha is decided by the density field alone (as the atlas does, with deck thinness
+  expressed downstream by `CloudDeckMath`'s per-deck `Opacity`).
+- **Light coefficient**, scaled DOWN by thinness, so a thin deck stays translucent to a low sun.
+
+Both directions are needed at once, which is why there are two. Measured litness at −2.44°
+(0.30 = ambient floor, 1.0 = full beam): **0.49 / 0.52 / 0.66** low to high — the high deck is now
+the brightest, an ordering the single-coefficient version inverted.
+
+### Calibration is against the bake, not against taste
+
+`ExtinctionPerTexel` is set so the marched column's alpha MATCHES the 2-D atlas's, deck for deck:
+measured **1.03 / 0.95 / 0.98**, from **1.46 / 1.02 / 0.61** before normalisation. That target is
+what makes the feature flag an honest A/B — with both lanes drawing the same amount of cloud, the
+flag switches the renderer and nothing else, and a frame difference is a difference in shading rather
+than in how much sky got covered. Before it, flipping the flag changed both at once and no difference
+could be attributed to anything.
+
+**Height is what makes the shading possible at all.** The volume stood 22 texels tall on a 128-texel
+blob — six times wider than tall, a pancake with nowhere for light to fall from — and the convective
+read was absent however the shading was tuned. `MaxHeightFraction` is 0.75 here rather than the
+height field's 0.35: that ceiling existed because a 2-D surface smears into shadow above ~0.5, and a
+marched volume resolves occlusion in three dimensions and does not have that failure.
+
+**What is still not 3-D**, recorded rather than left to be discovered: no view parallax (orthographic
+camera); clouds cannot shadow each other, because each march is clamped to its own blob cell and
+neighbouring atlas cells are different clouds stored side by side; the ground shadow is §23c's, drawn
+from the 2-D atlas, so it does not know the volume's structure; and single scattering only, with the
+ambient wrap standing in for the many bounces that make a real cloud bright.
+
+**Cost.** 24 view steps × 8 light steps = 192 volume fetches per fragment, on the GPU. The CPU pays
+one bake at load (~1.25 s, main thread — this should move to a background `Task`) and eight uniform
+writes per sheet per frame, which the analyzer correctly reports as approximately free. Frame time at
+1080p measured inside the noise band across three alternating repeats at two zooms; the frame is
+CPU-bound around 5 ms there, so a GPU cost under ~1 ms is structurally invisible and this is NOT a
+claim that it is free on all hardware.
+
+**Ships off** (`cloud_volume`). It adds a cost and the repo's first binary asset, and needs a GPU
+budget on real hardware before it can be a default.
+
+## 25d. Making the drawn cloud visible at all (`cloud_presence`, issue #144)
+
+**Problem.** Everything upstream was right and was being multiplied away before it reached the
+screen. Measured on the shipped build: at noon over desert the brightest part of a cloud moved the
+frame by about seven parts in 255 and most of it by two or three. At −2.44° §25c's raymarch and
+§25b's bake measured a mean 0.19/255 apart with **not one pixel differing by more than 2** — two
+renderers agreeing because neither had anything to draw.
+
+**The root cause was geometry, not opacity.** `BaseSizeFraction` is 0.66 — each sheet is two-thirds
+of the map's shorter axis, 165 cells on a 250-cell map — and twelve of them blanket the view and
+overlap. Differenced at 8× against a cloudless frame, that is a **uniform lift over ~70% of the
+screen showing the terrain's own texture through it**, one soft diagonal edge where the outermost
+sheet stops, and black beyond. A global tint with no shape anywhere. Raising alpha made the tint
+stronger; whitening the colour made it whiter; the raymarch resolved self-shadowing detail at a scale
+nothing on screen was going to show.
+
+**Approach.** Six terms, one flag, because they are one decision:
+
+| term | from | to |
+|---|---|---|
+| sheet count at full overcast | 12 | **5** |
+| lane amplitude | 0.35 | 0.75 |
+| daylight cloud colour | 0.86 grey | near-white |
+| opacity | scaled by ground illumination | decoupled |
+| direct-lit ceiling | 0.55 | 1.0 |
+| atlas alpha / voxel density | — | gamma 0.55 |
+| falloff start / rim bite | 0.35 / none | 0.72 / 0.30 |
+
+**Size × count, not size.** Sheet size is unchanged from §25b — a cloud whose edges run off the view
+reads as something overhead, which is what that constant was chosen for. A sheet's footprint goes
+with the SQUARE of its size, so the two are one decision and whichever way one goes the other must go
+the other way. Shrinking sheets to a fifth fixed the wash and proved the diagnosis, but read as a
+scattering of puffs rather than as weather; cutting the count keeps the cloud big and leaves sky
+between them.
+
+**The gamma, not a bigger multiplier.** The shipped atlas averages 0.16 density with only 2.7% of
+texels above 0.8 — a blob is 84% thin wisp and a few percent solid core. Scaling the lane's amplitude
+scales both together, so by the time the wisps are visible the cores clamp into an opaque lid over
+the colony, which is the failure the low amplitude was chosen to avoid. A gamma below 1 lifts the
+thin end hard and the solid end barely (0.10 → 0.30, but 0.90 → 0.94).
+
+**The rim bite, and the disc it exists to prevent.** Tightening the falloff to give a cloud a border
+gives it the FALLOFF's border — a clean circle, three per row, bubbles in the sky. Rendered offline
+and rejected on sight. So the falloff raises the noise THRESHOLD with distance instead of scaling the
+result: whether a texel is cloud is still decided by the noise, so the boundary follows a noise
+contour and comes out ragged. Measured, low deck: mean density 0.160 → 0.244, edge texels 24.9% →
+33.7%; high deck 0.098 → 0.261 and 4.4% → 17.6%.
+
+**Colour matters more than opacity here.** A 0.86 grey is very close to lit terrain — RimWorld's
+desert sand sits near 0.78 — so an alpha blend toward it converges on the ground's own brightness and
+the cloud reads as haze. Raising alpha does not fix that: a mid-grey at high opacity is still
+mid-grey, and it costs the player the ability to see their base through it.
+
+**Ships ON**, unlike §25c beside it. It costs nothing, needs nothing, and the alternative is
+continuing to ship a cloud subsystem whose whole output is invisible. Off reproduces §25b exactly,
+all six terms, which keeps every existing §25/§25b scenario pin meaningful.
+
+### What this cost in wasted runs, recorded so it is not repeated
+
+Three live runs produced complete reports, healthy per-patch tables and full sets of A/B captures —
+**of sky with no cloud in it.** `CloudSheetLayout.OnScreen` means "on the MAP", so a sheet passes it
+and draws while sitting entirely outside a zoomed camera. Nothing failed. Two further sessions were
+shot at −2.44°, BELOW the horizon, where the light ray descends through the cloud and everything is
+shadowed by definition — not a test of self-shadowing at all.
+
+`CloudSheetViewProbe` exists because of this: pin `cloud_sheets_in_view` or `cloud_view_coverage`
+beside any capture or fill-rate window of the cloud lane, so "there was nothing to see" fails loudly
+instead of being reported as "the effect is subtle". Note `cloud_view_coverage` is a bounding-square
+measure and OVERSTATES real coverage — it reported 0.84 for a frame whose cloud was one sheer high
+deck.
+
 ## Interop: Clouds (`Source/CloudsCompat.cs` / `CloudsCompatMath.cs`)
 
 **Clouds** (`brrainz.clouds`, Andreas Pardeike, Workshop 3039192325) hangs a Unity `ParticleSystem`

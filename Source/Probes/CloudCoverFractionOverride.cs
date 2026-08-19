@@ -44,7 +44,22 @@ public static class CloudCoverFractionOverride
     // magnitude only coincidentally -- picked as "a plainly mid-range fraction", not derived from it.
     public const float ForcedFraction = 0.35f;
 
+    // A second key that forces a near-full sky instead of a mid-range one.
+    //
+    // SEPARATE KEY RATHER THAN A DIFFERENT VALUE ON THE FIRST, because 0.35 is pinned into other
+    // scenarios' expected values and moving it would silently rewrite what they measure. This one
+    // exists for the case the mid-range fraction cannot serve: §25's sheets are large and few, so at
+    // 0.35 a 250-cell map gets two of them and the camera is quite likely to be looking at neither —
+    // which produces a healthy-looking run, a full report, and frames with no cloud in them. When
+    // the question is "what does the cloud look like", the sky has to have some.
+    public const string OvercastFeatureKey = "cloud_cover_forced_overcast";
+
+    // Not 1.0: a value at the clamp boundary would mask a clamping bug, the same reason ForcedFraction
+    // is not 0 or 1.
+    public const float ForcedOvercastFraction = 0.92f;
+
     private static bool active;
+    private static bool overcast;
     private static bool installed;
 
     // Called once from ProbeRegistration's static constructor, mirroring GeometryEvalCounters'
@@ -64,16 +79,23 @@ public static class CloudCoverFractionOverride
 
     public static void Set(bool enabled) => active = enabled;
 
+    public static void SetOvercast(bool enabled) => overcast = enabled;
+
     // Logged on every actual override, not only on failure -- see PlanetsmithTiltOverride's own
     // comment on why a silent test hook is worse than a noisy one: it is indistinguishable from the
     // feature under test simply not working.
     private static void Postfix(ref float __result)
     {
-        if (!active)
+        if (!active && !overcast)
             return;
 
+        // Overcast wins when both are on. Stated rather than left to argument order: a scenario that
+        // set both would otherwise get whichever this method happened to check first, and the two
+        // keys exist precisely because the difference between them is the thing being controlled.
+        float forced = overcast ? ForcedOvercastFraction : ForcedFraction;
+
         Log.Message(
-            $"[CelestialLighting.Probes] Cloud cover fraction override: {__result} -> {ForcedFraction}.");
-        __result = ForcedFraction;
+            $"[CelestialLighting.Probes] Cloud cover fraction override: {__result} -> {forced}.");
+        __result = forced;
     }
 }

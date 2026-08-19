@@ -1,0 +1,19 @@
+{
+  "name": "playtest_raymarch",
+  "saveFile": "minimal_colony.rws",
+  "description": "Not a test — the install step for a hands-on session with §25c's RAYMARCHED cloud volume switched on, run with --hold so the game is handed over rather than quit. cloud_volume_shader is pinned at 1 because every failure in the §25c load path degrades to §25b's baked atlas on purpose: without the pin, a session where the AssetBundle failed to load would hand over a perfectly playable game drawing the wrong renderer, and nothing would say so. Roll the install back afterwards with run_test.sh --recover-only.",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "45" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "40" } },
+    { "type": "SetFeature", "args": { "featureName": "realistic_preset", "enabled": "false" } },
+    { "type": "SetFeature", "args": { "featureName": "cloud_sheet", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "cloud_volume", "enabled": "true" } },
+    { "type": "SetTime", "args": { "hour": "12.0" } },
+    { "type": "Probe", "args": { "probeName": "cloud_volume_shader", "expectedValue": "1", "tolerance": "0.001" } },
+    { "type": "Probe", "args": { "probeName": "cloud_volume_format", "expectedValue": "1", "tolerance": "0.001" } },
+    { "type": "Probe", "args": { "probeName": "cloud_sheets_placed", "expectedValue": "20", "tolerance": "20" } },
+    { "type": "LookAt", "args": { "anchor": "125,125", "zoom": "48" } },
+    { "type": "Screenshot", "args": { "fileName": "raymarch_warmup" } },
+    { "type": "Screenshot", "args": { "fileName": "raymarch_clouds" } }
+  ]
+}

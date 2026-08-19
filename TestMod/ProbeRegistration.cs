@@ -179,6 +179,25 @@ public static class ProbeRegistration
             "cloud_deck_underlit_low", CloudLayersProbe.Metric.UnderlitLow));
         ProbeRegistry.Register(new CloudLayersProbe(
             "cloud_deck_underlit_high", CloudLayersProbe.Metric.UnderlitHigh));
+        // §25c. Pin `cloud_volume_shader` at 1 in any scenario that claims to measure the raymarch:
+        // every failure in its load path degrades to §25b's baked atlas on purpose, so without this
+        // a run that never loaded the shader still produces a full, healthy-looking profiler table.
+        ProbeRegistry.Register(new CloudVolumeShaderProbe(
+            "cloud_volume_shader", CloudVolumeShaderProbe.Metric.Available));
+        ProbeRegistry.Register(new CloudVolumeShaderProbe(
+            "cloud_volume_bake_ms", CloudVolumeShaderProbe.Metric.BakeMilliseconds));
+        ProbeRegistry.Register(new CloudVolumeShaderProbe(
+            "cloud_volume_format", CloudVolumeShaderProbe.Metric.FormatSupported));
+        // How much cloud is inside the CAMERA, not merely on the map. Pin cloud_sheets_in_view beside
+        // any capture or fill-rate window of the cloud lane: three §25c runs produced healthy tables
+        // and a full set of A/B frames for a patch of sky that had no cloud over it, and nothing in
+        // the report said so.
+        ProbeRegistry.Register(new CloudSheetViewProbe(
+            "cloud_sheets_placed", CloudSheetViewProbe.Metric.Placed));
+        ProbeRegistry.Register(new CloudSheetViewProbe(
+            "cloud_sheets_in_view", CloudSheetViewProbe.Metric.InView));
+        ProbeRegistry.Register(new CloudSheetViewProbe(
+            "cloud_view_coverage", CloudSheetViewProbe.Metric.ViewCoverage));
         // The three map-kind gates themselves, so a cavern scenario pins the DECISION and not just its
         // consequences — every gated effect also reads zero for unrelated reasons (wrong time of day,
         // no active condition), so the effect probes alone cannot say whether a gate actually fired.
@@ -503,12 +522,31 @@ public static class ProbeRegistration
         FeatureRegistry.Register(
             CelestialLightingFeatures.CloudDeckVarietiesKey,
             enabled => CelestialLightingFeatures.CloudDeckVarieties = enabled);
+        // §25c's raymarched cloud volume. Registered with the THREE-arg overload and defaultEnabled
+        // FALSE, because it ships off — the two-arg overload would leave every later scenario in a
+        // suite running the shader after a ResetAll and quietly change what their frames cost.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.CloudVolumeKey,
+            enabled => CelestialLightingFeatures.CloudVolume = enabled,
+            defaultEnabled: false);
+        // §25d, which unlike §25c beside it ships ON — so it takes the two-arg overload, and a
+        // ResetAll between scenarios in a suite restores TRUE. Getting that wrong would leave every
+        // later scenario measuring the invisible pre-#144 cloud without saying so.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.CloudPresenceKey,
+            enabled => CelestialLightingFeatures.CloudPresence = enabled);
         // Not a CelestialLightingFeatures flag: forces CloudCoverClock.FractionForMap's result to a
         // fixed constant so a scenario gets a specific, reproducible cloud fraction on demand instead
         // of depending on which absolute year the harness's clock jump happened to land in (see
         // CloudCoverFractionOverride's header). Registered with defaultEnabled FALSE for the same
         // reason PlanetsmithTiltOverride is — the resting state is "leave the real drift alone".
         CloudCoverFractionOverride.Install();
+        // The near-full sky, for the case the mid-range fraction cannot answer: §25's sheets are
+        // large and few, so at 0.35 the camera is quite likely to be looking at no cloud at all.
+        FeatureRegistry.Register(
+            CloudCoverFractionOverride.OvercastFeatureKey,
+            enabled => CloudCoverFractionOverride.SetOvercast(enabled),
+            defaultEnabled: false);
         FeatureRegistry.Register(
             CloudCoverFractionOverride.FeatureKey,
             enabled => CloudCoverFractionOverride.Set(enabled),

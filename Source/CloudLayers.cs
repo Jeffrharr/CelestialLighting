@@ -178,8 +178,16 @@ public static class CloudLayers
         // is lit by whichever deck it is on, and at 2.4 degrees below the horizon those differ by the
         // entire range. The overlay applies CloudSheetMath.DeckIllumination per sheet; this is the
         // lane's ceiling, and the probe on it reports the gate rather than what reaches a pixel.
+        // §25d raises the lane's amplitude; see CloudSheetMath.PresentSheetAmplitude for the
+        // measurement that says 0.35 was too low to see and 0.80 too high to play under.
+        // SheetAmplitudeScale stays the §25b value AND the dev knob for that path, so turning the
+        // feature off reproduces the shipped lane exactly rather than approximately.
+        float amplitude = CelestialLightingFeatures.CloudPresence
+            ? CloudSheetMath.PresentSheetAmplitude
+            : SheetAmplitudeScale;
+
         return CloudSheetMath.SheetAlphaWithAmplitude(
-            fraction, SheetAmplitudeScale, Vacuum.InVacuumForMap(map));
+            fraction, amplitude, Vacuum.InVacuumForMap(map));
     }
 
     // The SUNWARD end of the layer's colour: §8's own target colour at this elevation, not a second
@@ -223,13 +231,20 @@ public static class CloudLayers
     // Which way the sun lies, as the tiling axis CloudField's colour gradient runs along.
     // Read through the same SolarPosition.InputsForMap the shadow direction uses (§1), so the colour
     // gradient and the shadows on the ground agree about where the sun is.
-    public static void GradientAxisFor(Map map, out int axisU, out int axisV)
+    public static void GradientAxisFor(Map map, out int axisU, out int axisV) =>
+        CloudField.GradientAxis(SunAzimuthFor(map), out axisU, out axisV);
+
+    // Where the sun is, in degrees clockwise from north. Read through the same
+    // SolarPosition.InputsForMap the shadow direction uses (§1), so everything this file hands out —
+    // the colour gradient's axis, and §25c's light direction — agrees with the shadows on the ground
+    // about where the sun is. Both callers go through here rather than deriving it twice: two
+    // derivations is two chances for the cloud tops and the shadows under them to disagree.
+    public static float SunAzimuthFor(Map map)
     {
         SolarPosition.Inputs inputs = SolarPosition.InputsForMap(map);
         float elevation = SolarPosition.ElevationForMap(map);
-        float azimuth = Formulas.SolarAzimuthDegrees(
-            inputs.Latitude, inputs.Declination, elevation, inputs.DayPercent);
 
-        CloudField.GradientAxis(azimuth, out axisU, out axisV);
+        return Formulas.SolarAzimuthDegrees(
+            inputs.Latitude, inputs.Declination, elevation, inputs.DayPercent);
     }
 }

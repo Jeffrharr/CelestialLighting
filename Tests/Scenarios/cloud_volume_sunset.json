@@ -1,0 +1,261 @@
+{
+  "name": "cloud_volume_sunset",
+  "saveFile": "minimal_colony.rws",
+  "description": "§25c (issue #144): where the cloud actually is, and what the raymarch looks like against §25b's bake at the sunset elevation the whole subsystem exists for. Two jobs in one run because the first is what the second kept getting wrong. Every earlier §25c capture was aimed at the map centre and came back with no cloud in the frame -- CloudSheetLayout.OnScreen means 'on the MAP', so a sheet passes it and draws while sitting entirely outside a zoomed camera, and the run reports nothing amiss. The anchor sweep here reads cloud_sheets_in_view and cloud_view_coverage at five points so a later capture can be AIMED; the pair at the end is shot at whole-map zoom where cloud is on screen by construction. Noon was the other mistake: a sheer white cloud over bright desert at a high sun is nearly invisible by design, so this shoots at -2.44 degrees, where §25b's own numbers and §25c's offline film are quoted.",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "realistic_preset",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_cover_forced_fraction",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_sheet",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "20.86"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "-2.44172692",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_volume_shader",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheets_placed",
+        "expectedValue": "0",
+        "tolerance": "1000"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "anchor": "62,62",
+        "zoom": "24"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheets_in_view",
+        "expectedValue": "0",
+        "tolerance": "1000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_view_coverage",
+        "expectedValue": "0",
+        "tolerance": "1000"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "anchor": "62,188",
+        "zoom": "24"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheets_in_view",
+        "expectedValue": "0",
+        "tolerance": "1000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_view_coverage",
+        "expectedValue": "0",
+        "tolerance": "1000"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "anchor": "125,125",
+        "zoom": "24"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheets_in_view",
+        "expectedValue": "0",
+        "tolerance": "1000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_view_coverage",
+        "expectedValue": "0",
+        "tolerance": "1000"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "anchor": "188,62",
+        "zoom": "24"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheets_in_view",
+        "expectedValue": "0",
+        "tolerance": "1000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_view_coverage",
+        "expectedValue": "0",
+        "tolerance": "1000"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "anchor": "188,188",
+        "zoom": "24"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheets_in_view",
+        "expectedValue": "0",
+        "tolerance": "1000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_view_coverage",
+        "expectedValue": "0",
+        "tolerance": "1000"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "anchor": "125,125",
+        "zoom": "48"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cvs_warmup"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheets_in_view",
+        "expectedValue": "0",
+        "tolerance": "1000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_view_coverage",
+        "expectedValue": "0",
+        "tolerance": "1000"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "anchor": "125,125",
+        "zoom": "48"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cvs_sunset_baked"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "anchor": "125,125",
+        "zoom": "48"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cvs_sunset_volumetric"
+      }
+    }
+  ]
+}

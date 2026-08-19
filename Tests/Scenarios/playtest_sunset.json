@@ -1,0 +1,108 @@
+{
+  "name": "playtest_sunset",
+  "saveFile": "minimal_colony.rws",
+  "description": "Not a test — the install step for a hands-on session at SUNSET with §25c's RAYMARCH ON, run with --hold. The raymarch now carries §25d's shaping rather than bypassing it: the volume is baked with the same narrowed falloff, the same rim bite that keeps the border ragged instead of circular, the same filled-in thin decks and the same density gamma, because its alpha is this volume's optical depth and it never reads the 2-D atlas. It also has a separate LIGHT extinction (see CloudRaymarchMath.LightExtinctionFor): at the density that makes a 3.4-texel cirrus deck visible from above, a grazing sunset ray stays inside it for ~80 texels and is fully occluded, which rendered the deck that should be last-lit as the darkest. Measured after the split, deck litness runs 0.52 / 0.56 / 0.76 low-to-high, so the high deck is now the brightest. THE HOUR IS MEASURED: cloud_deck_varieties.json pins sun_elevation at -2.4417 at 20.86 h and the deck windows run ~20.74-20.94, about twelve game minutes — so this hands over at 20.70, just before the window, rather than spending it on the loading screen.",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "realistic_preset",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_sheet",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "20.86"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "-2.44172692",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_volume_shader",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "anchor": "125,125",
+        "zoom": "48"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheets_in_view",
+        "expectedValue": "4",
+        "tolerance": "4"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "sunset_warmup"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "sunset_peak"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "20.70"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "sunset_handover"
+      }
+    }
+  ]
+}

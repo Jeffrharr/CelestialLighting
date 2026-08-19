@@ -31,6 +31,18 @@
     <Compile Include="../../Source/CloudUnderlightMath.cs" Link="CloudUnderlightMath.cs" />
     <Compile Include="../../Source/CloudDeckMath.cs" Link="CloudDeckMath.cs" />
     <Compile Include="../../Source/CloudSheetMath.cs" Link="CloudSheetMath.cs" />
+    <!-- §25c's volumetric shading (issue #144), and the two cores that give it its two colours: §8's
+         direct-sun colour for the lit tops and §19c's composed hue for the shaded sides. Both were
+         already reachable — PurpleLightMath and OzoneTwilightMath depend only on Formulas and
+         SkyColorTemperature, which the chain above already pays for. -->
+    <Compile Include="../../Source/OzoneTwilightMath.cs" Link="OzoneTwilightMath.cs" />
+    <Compile Include="../../Source/PurpleLightMath.cs" Link="PurpleLightMath.cs" />
+    <Compile Include="../../Source/CloudVolumeMath.cs" Link="CloudVolumeMath.cs" />
+    <!-- §25c variant D: the same volume, integrated along the view ray per pixel instead of baked.
+         It links AFTER CloudVolumeMath because it shares that file's volume layout, its extinction
+         constant and its deck thickness table rather than restating them — the volume D marches is
+         byte-for-byte the volume A2 bakes, which is what makes the two comparable at all. -->
+    <Compile Include="../../Source/CloudRaymarchMath.cs" Link="CloudRaymarchMath.cs" />
     <!-- Borrowed wholesale from AuroraPreview: a dependency-free PNG writer, because System.Drawing is
          not available here and this tool is not worth a package reference. -->
     <Compile Include="../AuroraPreview/Png.cs" Link="Png.cs" />

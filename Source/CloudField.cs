@@ -338,6 +338,34 @@ public static class CloudField
     // alpha reaches exactly zero before the quad does, so nothing about the quad is visible.
     public const float BlobCoreFraction = 0.35f;
 
+    // §25d's falloff, and the fix for "I cannot tell the cloud from the ground" (issue #144).
+    //
+    // AT 0.35 TWO THIRDS OF EVERY CLOUD IS A GRADIENT. The fade runs from this fraction of the
+    // radius out to the rim, so a blob is a small solid middle inside a very wide smooth ramp — and
+    // a ramp has no edge anywhere along it. That is survivable at noon, where the cloud is much
+    // brighter than the ground and brightness alone separates them, and it fails completely at
+    // sunset: the sheet takes the same warm light the terrain does, so colour stops distinguishing
+    // them and the only thing left to do it is a border the cloud does not have.
+    //
+    // 0.72 keeps the rim soft enough that nothing shows the quad it is drawn on — the property the
+    // falloff exists for — while turning the other two thirds back into cloud. The band is still
+    // 28% of the radius, which at a 128-texel blob is about 18 texels of fade.
+    public const float PresentBlobCoreFraction = 0.72f;
+
+    // How much harder the noise has to work to count as cloud out at the rim, under §25d.
+    //
+    // WITHOUT THIS, A NARROW FALLOFF DRAWS A CIRCLE. The shipped shape multiplies the noise by a
+    // radial fade, so tightening the fade to give the cloud a border gives it the FADE's border —
+    // a clean disc, three of them per row, which reads as bubbles in the sky and is a worse artefact
+    // than the haze it was meant to fix. Rendered offline and rejected on sight.
+    //
+    // So the falloff biases the THRESHOLD instead of scaling the result: out near the rim the noise
+    // has to clear a higher cut, so whether a texel is cloud is still decided by the noise and the
+    // boundary follows a noise contour. Same amount of cloud, ragged edge instead of a compass one.
+    // The rim is still forced to zero over the last 8% of the radius (see FillBlobAtlas) so nothing
+    // can ever show the quad.
+    public const float PresentRimBite = 0.30f;
+
     // Fills a square atlas of `blobsPerAxis` x `blobsPerAxis` cloud blobs, each one noise shaped by a
     // radial falloff to zero at its own edge.
     //
@@ -370,7 +398,25 @@ public static class CloudField
 
     public static void FillBlobAtlas(
         float[] intensity, int atlasSize, int blobsPerAxis, int seed, int octaves,
-        float[] rowCut, float[] rowGain, float[] rowFrequencyU, float[] rowFrequencyV)
+        float[] rowCut, float[] rowGain, float[] rowFrequencyU, float[] rowFrequencyV) =>
+        FillBlobAtlas(intensity, atlasSize, blobsPerAxis, seed, octaves,
+            rowCut, rowGain, rowFrequencyU, rowFrequencyV, BlobCoreFraction);
+
+    // The same with the falloff's start given; see PresentBlobCoreFraction for why §25d moves it.
+    public static void FillBlobAtlas(
+        float[] intensity, int atlasSize, int blobsPerAxis, int seed, int octaves,
+        float[] rowCut, float[] rowGain, float[] rowFrequencyU, float[] rowFrequencyV,
+        float coreFraction) =>
+        FillBlobAtlas(intensity, atlasSize, blobsPerAxis, seed, octaves,
+            rowCut, rowGain, rowFrequencyU, rowFrequencyV, coreFraction, 0f);
+
+    // ...and with the rim bite, which is what keeps a tight falloff from drawing a disc. See
+    // PresentRimBite. A bite of zero is the shipped behaviour exactly: the fade multiplies the shape
+    // and nothing touches the cut.
+    public static void FillBlobAtlas(
+        float[] intensity, int atlasSize, int blobsPerAxis, int seed, int octaves,
+        float[] rowCut, float[] rowGain, float[] rowFrequencyU, float[] rowFrequencyV,
+        float coreFraction, float rimBite)
     {
         if (intensity == null || atlasSize <= 0 || blobsPerAxis <= 0)
             return;
@@ -400,7 +446,7 @@ public static class CloudField
                 // Radial falloff, smoothstepped so the rim has no crease. Zero at and beyond the
                 // inscribed circle, which is what keeps the quad's corners empty and its edges
                 // invisible.
-                float fade = 1f - InverseLerpClamped(BlobCoreFraction, 1f, radius);
+                float fade = 1f - InverseLerpClamped(coreFraction, 1f, radius);
                 fade = fade * fade * (3f - 2f * fade);
 
                 if (fade <= 0f)
@@ -439,9 +485,19 @@ public static class CloudField
                 // varying them per row is what turns it into a PARTICULAR cloud, since a high cut
                 // with a high gain has hard edges and solid middles while a high cut with a low gain
                 // never fills in at all.
-                float shaped = Clamp01((coverage - cut) * gain);
+                // The rim bite raises the CUT with distance from the centre rather than scaling the
+                // result, so the boundary is a contour of the noise instead of a circle. At bite 0
+                // this is the shipped expression term for term.
+                float shaped = Clamp01((coverage - (cut + (1f - fade) * rimBite)) * gain);
 
-                intensity[row + x] = fade * shaped;
+                // Whatever the bite did, the outermost sliver still goes to nothing, so the quad's
+                // own edge can never appear. Narrow enough not to be the border the eye reads —
+                // that job belongs to the noise contour above.
+                float outer = rimBite > 0f
+                    ? 1f - InverseLerpClamped(0.92f, 1f, radius)
+                    : fade;
+
+                intensity[row + x] = outer * shaped;
             }
         }
     }
@@ -470,7 +526,24 @@ public static class CloudField
     // material tint rather than baked, because every sheet on screen wants a different one (they sit
     // at different points of the sunset's colour gradient) and because a tint that changes every frame
     // must not imply a re-bake.
-    public static void WriteBlobRgba(byte[] rgba, float[] intensity, int count)
+    public static void WriteBlobRgba(byte[] rgba, float[] intensity, int count) =>
+        WriteBlobRgba(rgba, intensity, count, 1f);
+
+    // §25d: the same write with a GAMMA on the alpha (issue #144).
+    //
+    // WHY A CURVE RATHER THAN A BIGGER MULTIPLIER, and this is the measurement that decided it. The
+    // shipped atlas has a mean density of 0.16 with only 2.7% of its texels above 0.8 — a blob is
+    // 84% thin wisp and a few percent solid core. So the cloud that reaches the screen is almost
+    // entirely made of texels at alpha 0.1-0.2, and scaling the LANE's amplitude scales those and the
+    // cores together: by the time the wisps are visible the cores have clamped to a flat opaque lid
+    // over the colony, which is the exact failure the low amplitude was chosen to avoid.
+    //
+    // A gamma below 1 lifts the thin end hard and the solid end barely — 0.10 becomes 0.30 at 0.55,
+    // while 0.90 becomes 0.94 — so it buys visibility precisely where the cloud is currently
+    // invisible and changes nothing where it was already reading. The silhouette is untouched: zero
+    // maps to zero, so the blob's edge still reaches exactly nothing before the quad does and the
+    // shape all three cloud lanes share is the same shape.
+    public static void WriteBlobRgba(byte[] rgba, float[] intensity, int count, float alphaGamma)
     {
         if (rgba == null || intensity == null)
             return;
@@ -481,7 +554,10 @@ public static class CloudField
             rgba[o + 0] = 255;
             rgba[o + 1] = 255;
             rgba[o + 2] = 255;
-            rgba[o + 3] = ToByte(intensity[i]);
+
+            float alpha = intensity[i];
+            rgba[o + 3] = ToByte(
+                alphaGamma == 1f || alpha <= 0f ? alpha : MathF.Pow(Clamp01(alpha), alphaGamma));
         }
     }
 
