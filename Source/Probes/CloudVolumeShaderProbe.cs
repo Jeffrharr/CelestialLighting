@@ -27,10 +27,29 @@ public sealed class CloudVolumeShaderProbe : IProbe
         // §25b instead.
         Available,
 
-        // What FillBlobVolume cost, in milliseconds, on the main thread during load. Reported so the
-        // "should this move to a background Task" question has a measured answer on real hardware
-        // rather than an offline one from a different machine.
+        // What FillBlobVolume cost, in milliseconds. Since §25e that is WALL-CLOCK ON A BACKGROUND
+        // THREAD, spread across cores, not main-thread time — the question it used to answer
+        // ("should this move to a background Task") has been answered, and it now answers two
+        // others: whether the parallel split is working on this machine (a value near the old serial
+        // number means it is not), and how long after load the volumetric path stays unavailable.
         BakeMilliseconds,
+
+        // What the main thread spent handing the finished bake to Unity, in milliseconds. §25e's
+        // whole claim is that this is all that is left of BakeMilliseconds on the critical path, so
+        // it is measured separately rather than folded in.
+        UploadMilliseconds,
+
+        // What §25's two 2-D atlas bakes cost the MAIN thread at load, summed. The one part of the
+        // cloud load path §25e made faster in place rather than moving, so this is the number that
+        // says whether leaving it there is still defensible.
+        AtlasBakeMilliseconds,
+
+        // 1 once the background bake has finished, whether or not it has been uploaded yet.
+        //
+        // Pin this NEXT TO Available, not instead of it. `ready 1, available 0` is a texture Unity
+        // refused; `0, 0` at the same instant is simply early and wants a wait, not a bug report.
+        // Without the pair those read identically.
+        BakeFinished,
 
         // Whether the driver takes the one-byte volume format. An unsupported format is the OTHER
         // way this path draws solid rectangles — the march reads a density of 1 everywhere — and it
@@ -57,6 +76,15 @@ public sealed class CloudVolumeShaderProbe : IProbe
 
         if (metric == Metric.FormatSupported)
             return CloudVolumeShader.VolumeFormatSupported ? 1f : 0f;
+
+        if (metric == Metric.BakeFinished)
+            return CloudVolumeShader.BakeFinished ? 1f : 0f;
+
+        if (metric == Metric.UploadMilliseconds)
+            return (float)CloudVolumeShader.UploadMilliseconds;
+
+        if (metric == Metric.AtlasBakeMilliseconds)
+            return (float)CloudSheetOverlay.AtlasBakeMilliseconds;
 
         return (float)CloudVolumeShader.BakeMilliseconds;
     }

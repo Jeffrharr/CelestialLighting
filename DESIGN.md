@@ -8782,6 +8782,151 @@ instead of being reported as "the effect is subtle". Note `cloud_view_coverage` 
 measure and OVERSTATES real coverage — it reported 0.84 for a frame whose cloud was one sheer high
 deck.
 
+## 25e. Getting the cloud bakes off the loading screen (`CloudBake`, issue #144)
+
+Nothing in §25 is per-frame CPU work. The atlas and the volume are baked once in a static
+constructor and never touched again — that is the whole point of the bounded-sheet design, and
+`CloudSheetOverlay`'s header records the 7 ms per-frame bake the tiled version paid and this one
+deleted. But *once* turned out to be measured in seconds. Three noise fields over the same 384×384
+atlas, one of them 20 layers deep with a 3-D fBm per voxel, all of it on Unity's main thread while
+the player watches a progress bar:
+
+| Bake | Main-thread cost at load |
+|---|---|
+| §25 atlas + §25d atlas | 128.51 ms |
+| §25c volume (2.9 M voxels) | 1221.88 ms |
+| **Total** | **1350.39 ms** |
+
+Measured in game on a Steam Deck (4 cores / 8 threads) via `cloud_volume_bake_ms` and
+`cloud_atlas_bake_ms`, `--no-profiler`. §25c's line is the one that grew: it is nearly ten times the
+atlas's because a volume is twenty of them, and the probe that reports it was added in §25c
+specifically to answer "should this move to a background `Task`". This is that answer.
+
+### Two independent wins, and they multiply
+
+**Spreading a bake across cores makes it finish sooner. Running it off the main thread means the
+main thread never waits for it at all.** Neither substitutes for the other, and it is worth being
+precise about why, because doing only one of them looks like doing the job:
+
+- A bake that is four times faster still stalls the load for its duration. 1221 ms → 328 ms is a
+  better loading screen, not an absent one.
+- A bake moved to a background thread still has to be *finished* before the first cloud draws. Until
+  it is, `CloudVolumeShader.Available` answers false and §25b's baked atlas draws instead — correct,
+  invisible to a player, and a silent lie to a live A/B that captured a frame inside that window.
+
+So §25c does both, and the 2-D atlases do only the first — see "what stayed on the main thread"
+below.
+
+### The split was already there
+
+`FillBlobVolume` produces a plain `byte[]` and touches no Unity type at all. Only the last three
+lines of the old `BuildVolume` — `new Texture3D`, `SetPixelData`, `Apply` — have to be on Unity's
+thread. That is not luck; it is the house rule about pure cores and thin adapters paying out. The
+expensive 97% moved wholesale and what is left is an upload.
+
+The bake starts from a field initialiser inside `[StaticConstructorOnStartup]`, which runs on the
+main thread during load, and everything it needs is captured *there* and passed in rather than read
+inside the task. The constants are `const` and inline at compile time, but the deck tables are method
+calls on another `[StaticConstructorOnStartup]` class, and reading one of those from a worker thread
+is how a mod ends up running somebody's static constructor off the main thread — a failure that does
+not name the file it came from.
+
+### Rows are the unit, and dynamically partitioned
+
+`CloudVolumeMath.VolumeIndex` is `((y * atlasSize) + x) * layers + layer`, so **row y owns the
+contiguous span `[y·atlasSize·layers, (y+1)·atlasSize·layers)` outright** and touches nothing else.
+Everything the loop reads — the deck table, the seed, the noise — is immutable input. Two threads on
+two bands therefore produce byte-for-byte what one thread on the whole range produces, with no
+ordering to preserve and nothing to lock. The same argument holds for the 2-D atlas a row at a time.
+
+That is an argument, so it is pinned rather than trusted:
+`CloudBakeTests.FillBlobVolumeBandsMatchWhole` and `FillBlobAtlasBandsMatchWhole` bake both ways and
+assert equality of the whole array, at 1, 3 and 8 workers. **A race in a bake is not a wrong answer,
+it is a wrong answer sometimes**, and the rest of the suite — which pins values the bake produces —
+is not built to catch that: it would fail only on the tester's machine, on that run, with that
+scheduling.
+
+Rows are handed out **one at a time by `Parallel.For`'s partitioner rather than sliced into N equal
+blocks up front**, because the cost of a row is wildly uneven. A row that lands between two blobs is
+all radial falloff and skips the 3-D noise entirely; a row through three cloud cores pays for every
+voxel. An even split by *count* is an uneven split by *work*, and a static partition finishes when
+its unluckiest block does.
+
+**One core is left for the game.** `CloudBake.WorkerCount` is `ProcessorCount − 1`, because RimWorld
+is parsing XML on the main thread at exactly the moment this runs — taking every core would buy the
+bake its last worker by slowing down the load it exists to get out of the way of. At two cores or
+fewer it returns 1 and `Rows` runs the body inline: `Parallel.For` with one worker is strictly worse
+than a `for`, and the partitioning cost is not zero.
+
+Measured scaling of the volume bake offline (.NET 8, same machine, so the absolute numbers are not
+the game's — the shape is):
+
+| Workers | 1 | 2 | 3 | 4 | 6 | 8 |
+|---|---|---|---|---|---|---|
+| ms | 295 | 138 | 95 | 87 | 80 | 69 |
+
+Four physical cores, so the knee at 4 is the machine and the rest is SMT.
+
+### The upload, and why `Available` has a side effect
+
+Somebody on the main thread has to notice the bake finished, because the bytes can only be handed to
+Unity from Unity's own thread. `CloudVolumeShader.Available` is that somebody: it is already the
+question every caller asks first, and the alternative was a per-frame Harmony patch on a root update
+whose entire job would be to poll a bool. `Upload()` is idempotent and returns on a null comparison
+after the first frame.
+
+A **property with a side effect, main-thread only**, is worth flagging rather than hiding, and it is
+the one piece of this that a reader could reasonably object to. The upload costs **9.45 ms**, once,
+on the first frame that draws cloud — one frame rather than a progress bar, which is the entire claim
+of §25e:
+
+| | main | §25e |
+|---|---|---|
+| §25c volume | 1221.88 ms, main thread | 328.25 ms, **background thread** |
+| §25c upload | — | 9.45 ms, main thread |
+| §25/§25d atlases | 128.51 ms, main thread | 35.44 ms, main thread |
+| **main-thread total** | **1350.39 ms** | **44.89 ms** |
+
+A failed bake logs once, names the file, and leaves the path on §25b for the session rather than
+retrying every frame. `BakeFinished` is reported separately from `Available` so the two failures are
+distinguishable: `ready 1, available 0` is a texture Unity refused, while `0, 0` at the same instant
+is simply early and wants a wait, not a bug report.
+
+### What stayed on the main thread, and why
+
+**The two 2-D atlases were made faster in place rather than moved.** A `Texture2D` and the materials
+that carry it are Unity objects, and three separate subsystems — §23b's underlight, §23c's shadows
+and §25's sheets — read this atlas the instant a map opens. Deferring it would mean gating three
+draw lanes on a readiness check to save 35 ms, and a lane that drew nothing for a frame because it
+lost that race is a worse bug than the one being fixed. Parallelising alone took the pair from
+128.51 ms to 35.44 ms, and `cloud_atlas_bake_ms` exists so that "still defensible" stays a
+measurement rather than a claim.
+
+An unmeasured exception is just an assertion, which is why the probe was added at the same time as
+the decision.
+
+### Live verification (`Tests/Scenarios/cloud_volume_bake.json`)
+
+The thing this has to prove is that **nothing moved on screen**. The offline suite pins the bytes as
+identical band for band, but identical bytes now reach the GPU through a different path, and a run
+that captured one frame too early would show §25b — a plausible-looking cloudy sky and the wrong
+renderer.
+
+So `cloud_volume_shader` is pinned at 1 beside `cloud_volume_baked`, and the frame is differenced
+against the same scenario on `main`. Setup is `cloud_volume_ab`'s term for term, because that is the
+frame the ΔE is against: low but positive sun so the march has something to self-shadow, overcast so
+§25's sheets are large and few, and `cloud_view_coverage` pinned so a frame with no cloud in it fails
+rather than reporting a confident zero difference between two empty skies.
+
+**Median CIELAB ΔE 0.00** (mean 0.19, p90 0.62, p99 2.00, 12.9% of pixels changed — pawns and motes
+between two separate game loads). `cloud_view_coverage` read 0.650390625 on both sides, identically.
+That is the intended result and the only acceptable one: §25e is a change to *when* work happens, not
+to what it produces.
+
+The three timing probes declare `pinnedUnder: no-profiler`, because profiling changes what a
+stopwatch sees and a duration pinned under one mode and compared under the other is wrong in a way
+nothing else here catches.
+
 ## Interop: Clouds (`Source/CloudsCompat.cs` / `CloudsCompatMath.cs`)
 
 **Clouds** (`brrainz.clouds`, Andreas Pardeike, Workshop 3039192325) hangs a Unity `ParticleSystem`

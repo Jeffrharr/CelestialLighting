@@ -206,6 +206,11 @@
     <!-- §23b's underlit-cloud field (issue #88, option 2). Depends on AuroraNoise, already linked
          above for §11a — the same tileable value noise, deliberately not a second copy of it. -->
     <Compile Include="../../Source/CloudField.cs" Link="CloudField.cs" />
+    <!-- §25e's parallel-bake helper. Linked here rather than left to the live build because the
+         one thing worth asserting about a parallel bake is that it produces what the serial one
+         produced, and that assertion has to be able to call it. It is BCL-only for exactly this
+         reason — no UnityEngine, no Verse — despite living beside the adapters. -->
+    <Compile Include="../../Source/CloudBake.cs" Link="CloudBake.cs" />
     <!-- §23c's daylight cloud shadows and §25's drawn sheet — the other two consumers of the field
          above. Neither depends on the other; both are here rather than beside their own tests because
          this list is ordered by dependency, and their only dependency is CloudField. -->

@@ -516,7 +516,34 @@ public static class CloudVolumeMath
     public static void FillBlobVolume(
         byte[] volume, int atlasSize, int blobsPerAxis, int layers, int seed, int octaves,
         float[] rowCut, float[] rowGain, float[] rowFrequencyU, float[] rowFrequencyV,
-        float coreFraction, float rimBite, float densityGamma)
+        float coreFraction, float rimBite, float densityGamma) =>
+        FillBlobVolumeRows(volume, atlasSize, blobsPerAxis, layers, seed, octaves,
+            rowCut, rowGain, rowFrequencyU, rowFrequencyV, coreFraction, rimBite, densityGamma,
+            yStart: 0, yEnd: atlasSize);
+
+    // ...and one horizontal BAND of it, which is what lets the bake be split across cores.
+    //
+    // THE SPLIT IS BY ROW BECAUSE A ROW OWNS ITS OUTPUT OUTRIGHT. VolumeIndex is
+    // ((y * atlasSize) + x) * layers + layer, so row y writes exactly the contiguous span
+    // [y * atlasSize * layers, (y + 1) * atlasSize * layers) and touches nothing else; everything
+    // else the loop reads — the deck table, the seed, the noise — is immutable input. Two threads on
+    // two bands therefore produce byte-for-byte what one thread on the whole range produces, with no
+    // ordering to preserve and nothing to lock. `CloudVolumeMathTests.FillBlobVolumeBandsMatchWhole`
+    // pins that rather than trusting the argument.
+    //
+    // THE THREADS THEMSELVES LIVE IN THE ADAPTER, NOT HERE. A pure core that decides on its own to
+    // occupy every core on the machine is a policy this file has no business setting — the offline
+    // tools link it too, and one of them renders a hundred previews in a loop where per-bake
+    // parallelism is exactly wrong. So this exposes the seam and CloudVolumeShader decides how wide
+    // to open it.
+    //
+    // Rows are the right grain to hand a work queue as well as the safe one: a row of blank sky
+    // skips the 3-D noise entirely and costs almost nothing, so a static split into N equal blocks
+    // finishes as slowly as its unluckiest block. Partition dynamically.
+    public static void FillBlobVolumeRows(
+        byte[] volume, int atlasSize, int blobsPerAxis, int layers, int seed, int octaves,
+        float[] rowCut, float[] rowGain, float[] rowFrequencyU, float[] rowFrequencyV,
+        float coreFraction, float rimBite, float densityGamma, int yStart, int yEnd)
     {
         if (volume == null || atlasSize <= 0 || blobsPerAxis <= 0 || layers <= 0)
             return;
@@ -524,7 +551,7 @@ public static class CloudVolumeMath
         int blobSize = atlasSize / blobsPerAxis;
         float half = blobSize * 0.5f;
 
-        for (int y = 0; y < atlasSize; y++)
+        for (int y = yStart; y < yEnd; y++)
         {
             int blobY = y / blobSize;
             float cut = RowValue(rowCut, blobY, CloudField.DefaultShapeCut);

@@ -329,33 +329,52 @@ public static class CloudSheetOverlay
 
     private static float Mix(float a, float b, float t) => a + (b - a) * t;
 
+    // What both atlas bakes cost the main thread during load, in milliseconds, summed.
+    //
+    // MEASURED BECAUSE §25e LEFT THIS ONE HERE ON PURPOSE and an unmeasured exception is just a
+    // claim. §25c's volume moved to a background thread; these two did not, because a Texture2D and
+    // the materials that carry it are Unity objects and three separate subsystems (§23b, §23c, §25)
+    // read this atlas the instant a map opens. So they were made faster instead, and this is the
+    // number that says by how much — and the number that would justify moving them too if it stayed
+    // large.
+    public static double AtlasBakeMilliseconds { get; private set; }
+
     private static Texture2D BuildAtlas(float alphaGamma)
     {
+        System.Diagnostics.Stopwatch watch = System.Diagnostics.Stopwatch.StartNew();
+
         float[] intensity = new float[AtlasSize * AtlasSize];
         byte[] pixels = new byte[AtlasSize * AtlasSize * 4];
 
         // The per-row shaping is §25b's deck table: row 0 keeps the single curve this atlas baked
         // before decks existed, so a sky that draws only low cloud draws exactly what §25 drew.
-        CloudField.FillBlobAtlas(
-            intensity, AtlasSize, AtlasCells, seed: 20260810, octaves: CloudField.SheetOctaves,
-            // §25d fills the two thin decks in — see CloudDeckMath.PresentShapeCuts. Keyed off the
-            // same gamma that already distinguishes the two bakes, so one thing decides which atlas
-            // this is rather than two that could disagree.
-            rowCut: alphaGamma == 1f
-                ? CloudDeckMath.ShapeCuts()
-                : CloudDeckMath.PresentShapeCuts(),
-            rowGain: CloudDeckMath.ShapeGains(),
-            rowFrequencyU: CloudDeckMath.FrequenciesU(),
-            rowFrequencyV: CloudDeckMath.FrequenciesV(),
-            // §25d narrows the falloff band so a cloud has a BORDER. See
-            // CloudField.PresentBlobCoreFraction: at the shipped 0.35 two thirds of every blob is a
-            // smooth ramp, which reads fine at noon on brightness alone and fails at sunset, when the
-            // cloud and the ground are lit by the same warm light and an edge is the only thing left
-            // that can separate them.
-            coreFraction: alphaGamma == 1f
-                ? CloudField.BlobCoreFraction
-                : CloudField.PresentBlobCoreFraction,
-            rimBite: alphaGamma == 1f ? 0f : CloudField.PresentRimBite);
+        // SPLIT ACROSS CORES (§25e). This is one of THREE bakes of the same 384x384 field at
+        // load — this atlas, the §25d one beside it, and §25c's 20-layer volume — and it is the
+        // only one still on the main thread, because a Texture2D and the materials that carry it
+        // are Unity objects and three separate subsystems read this atlas the moment a map opens.
+        // So it is made faster rather than moved: see CloudBake.Rows, and
+        // CloudField.FillBlobAtlasRows for why two threads on two bands cannot collide.
+        CloudBake.Rows(AtlasSize, (yStart, yEnd) => CloudField.FillBlobAtlasRows(
+                intensity, AtlasSize, AtlasCells, seed: 20260810, octaves: CloudField.SheetOctaves,
+                // §25d fills the two thin decks in — see CloudDeckMath.PresentShapeCuts. Keyed off the
+                // same gamma that already distinguishes the two bakes, so one thing decides which atlas
+                // this is rather than two that could disagree.
+                rowCut: alphaGamma == 1f
+                    ? CloudDeckMath.ShapeCuts()
+                    : CloudDeckMath.PresentShapeCuts(),
+                rowGain: CloudDeckMath.ShapeGains(),
+                rowFrequencyU: CloudDeckMath.FrequenciesU(),
+                rowFrequencyV: CloudDeckMath.FrequenciesV(),
+                // §25d narrows the falloff band so a cloud has a BORDER. See
+                // CloudField.PresentBlobCoreFraction: at the shipped 0.35 two thirds of every blob is a
+                // smooth ramp, which reads fine at noon on brightness alone and fails at sunset, when the
+                // cloud and the ground are lit by the same warm light and an edge is the only thing left
+                // that can separate them.
+                coreFraction: alphaGamma == 1f
+                    ? CloudField.BlobCoreFraction
+                    : CloudField.PresentBlobCoreFraction,
+                rimBite: alphaGamma == 1f ? 0f : CloudField.PresentRimBite,
+            yStart, yEnd));
         CloudField.WriteBlobRgba(pixels, intensity, intensity.Length, alphaGamma);
 
         Texture2D texture = new Texture2D(AtlasSize, AtlasSize, TextureFormat.RGBA32, mipChain: false)
@@ -371,6 +390,13 @@ public static class CloudSheetOverlay
 
         texture.LoadRawTextureData(pixels);
         texture.Apply(false);
+
+        // SUMMED, NOT ASSIGNED. BuildAtlas runs twice — once plain, once with §25d's alpha curve —
+        // and what the loading screen actually pays is the pair, so reporting the second alone would
+        // halve the cost this claims to have reduced.
+        watch.Stop();
+        AtlasBakeMilliseconds += watch.Elapsed.TotalMilliseconds;
+
         return texture;
     }
 
