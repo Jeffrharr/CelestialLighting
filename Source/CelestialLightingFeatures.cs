@@ -725,7 +725,13 @@ public static class CelestialLightingFeatures
     // REQUIRES GlowGridPerLight, and stands down without it. Reading vanilla's per-emitter arrays is
     // what makes the subtraction targeted; with them unreadable there is nothing to subtract, and
     // VectorLightMask.Active goes false rather than the mask guessing.
-    public static bool VectorLightMask = false;
+    //
+    // ON, AND IT IS WHAT §27 SHIPS AS. The crossfade stays reachable by turning this off, but
+    // the mask is what the subsystem is designed around now: it is the only composition that
+    // carves a real shadow without suppressing anybody else's light, and two later features are
+    // built on it — the beam below, and phase 4's pawn shadows, which ask its coverage grid
+    // whether a lamp can see a pawn at all. Inert unless VectorLights is on, which ships OFF.
+    public static bool VectorLightMask = true;
 
     // Feature key for VectorLightMaskBeam.
     public const string VectorLightMaskBeamKey = "vector_light_mask_beam";
@@ -745,7 +751,12 @@ public static class CelestialLightingFeatures
     // zero outside it, instead of two complete lighting models added together.
     //
     // Inert unless VectorLightMask is on, so it cannot contaminate any other arm.
-    public static bool VectorLightMaskBeam = false;
+    //
+    // ON, alongside the mask. The two fail in opposite directions and only together have both
+    // halves: measured, the mask alone reaches shadow 9.07 with the doorway beam DIMMER than
+    // vanilla's at 13.34, while the pair keeps that shadow and takes the beam to 16.38 — the
+    // best contrast of any arm at 1.68, against full §27's 1.66 and the crossfade's 1.38.
+    public static bool VectorLightMaskBeam = true;
 
     // Feature key for VectorLightPawnShadows.
     public const string VectorLightPawnShadowsKey = "vector_light_pawn_shadows";
@@ -766,7 +777,11 @@ public static class CelestialLightingFeatures
     // ROOFS AND EAVES ARE NOT SKIPPED, deliberately and against vanilla's own rule: Graphic_Shadow
     // bails on any roofed cell because sunlight does not get in, and a lamp indoors is the entire
     // point of this. §15's eaves are a sun concept too and have no bearing on a torch.
-    public static bool VectorLightPawnShadows = false;
+    //
+    // On by default and separately switchable, because it is the one part of §27 that draws a
+    // new OBJECT rather than changing the colour of an existing one — the same reasoning that
+    // gives §25's visible clouds their own switch rather than riding the master.
+    public static bool VectorLightPawnShadows = true;
 }
 
 public enum SunClockMode

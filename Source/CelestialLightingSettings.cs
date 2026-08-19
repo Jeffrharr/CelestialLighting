@@ -70,6 +70,22 @@ public class CelestialLightingSettings : ModSettings
 
     public bool eaveShadows = true;
 
+    // §27 vector light sources. SHIPS OFF: it is the most opinionated thing in the mod, because
+    // light vanilla delivered around a corner no longer arrives at all and indirectly lit rooms are
+    // genuinely darker. That is the feature working, and it is still a large enough taste call to be
+    // opt-in until it has been lived with.
+    //
+    // The composition underneath is deliberately NOT exposed. Mask and beam are what §27 is designed
+    // around, and the crossfade survives only as the fallback the code picks for itself when the
+    // per-emitter glow arrays cannot be read — a player has no way to judge that choice and no
+    // reason to be asked about it.
+    public bool vectorLights = false;
+
+    // The one part of §27 that draws a new OBJECT rather than recolouring an existing one, which is
+    // why it gets its own switch rather than riding the master — the same reasoning as §25's visible
+    // clouds. Inert while vectorLights is off.
+    public bool vectorLightPawnShadows = true;
+
     // --- Night-radiance tunables (drive NightRadianceSettings.Current) ---
     // The atmospheric starlight+airglow floor ("true pitch-black" when off), and the pitch-black
     // overlay's minimum-brightness clamp (0 == genuinely black nights; raise it for playability).
@@ -188,6 +204,15 @@ public class CelestialLightingSettings : ModSettings
         CelestialLightingFeatures.CloudCoverLabel = cloudCoverLabel;
         CelestialLightingFeatures.CloudSheet = cloudSheet;
         CelestialLightingFeatures.CloudVolume = cloudVolume;
+
+        // SyncTo rather than a plain assignment, and the order matters: half of §27 is BAKED into
+        // the lighting overlay's vertex colours during a section regenerate, so flipping the switch
+        // changes what should be on screen without changing anything that would provoke a rebake.
+        // The map would keep rendering the previous answer until the player happened to build
+        // something — which for a settings screen means the toggle looks broken.
+        CelestialLightingFeatures.VectorLightPawnShadows = vectorLightPawnShadows;
+        VectorLightRedraw.SyncTo(vectorLights);
+        CelestialLightingFeatures.VectorLights = vectorLights;
         CelestialLightingFeatures.EaveShadows = eaveShadows;
         // One player-facing switch drives both halves of §15 — the split flag exists only so the
         // harness can isolate them (see CelestialLightingFeatures.EaveShade). A shipped game must
@@ -258,6 +283,8 @@ public class CelestialLightingSettings : ModSettings
         Scribe_Values.Look(ref cloudCoverLabel, "cloudCoverLabel", true);
         Scribe_Values.Look(ref cloudSheet, "cloudSheet", true);
         Scribe_Values.Look(ref cloudVolume, "cloudVolume", true);
+        Scribe_Values.Look(ref vectorLights, "vectorLights", false);
+        Scribe_Values.Look(ref vectorLightPawnShadows, "vectorLightPawnShadows", true);
         Scribe_Values.Look(ref skyColorTemperature, "skyColorTemperature", true);
         Scribe_Values.Look(ref polarNightBlue, "polarNightBlue", true);
         Scribe_Values.Look(ref polarNightBlueStrength, "polarNightBlueStrength", 1f);
