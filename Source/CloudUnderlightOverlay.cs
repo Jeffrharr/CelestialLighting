@@ -70,6 +70,11 @@ public static class CloudUnderlightOverlay
         if (count <= 0)
             return;
 
+        // Built with the placements, once a tick, rather than by this lane for itself every
+        // frame -- see CloudSheetDraw.OverlapDepths. All three lanes read the same array, which
+        // is the same reason they read the same placements.
+        float[] depths = CloudSheetDraw.OverlapDepths;
+
         SkyColorTemperature.Rgb hot = CloudLayers.HotTintFor(map);
         SkyColorTemperature.Rgb cool = CloudLayers.CoolTintFor(map);
         CloudLayers.GradientAxisFor(map, out int axisU, out int axisV);
@@ -85,8 +90,7 @@ public static class CloudUnderlightOverlay
 
             // Stacked cloud bounces more light down, capped — the same OverlapBoost §25 uses for its
             // opacity and §23c for its shadow depth, so all three read one number about one sky.
-            float boost = CloudSheetMath.OverlapBoost(
-                CloudSheetLayout.OverlapDepth(placements, count, i));
+            float boost = CloudSheetMath.OverlapBoost(depths[i]);
 
             Material material = LayerMats[i];
             material.mainTexture = CloudSheetOverlay.Atlas;

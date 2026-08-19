@@ -35,6 +35,10 @@ public static class CloudSheetDraw
     private static readonly CloudSheetLayout.Placement[] Placements =
         new CloudSheetLayout.Placement[CloudSheetLayout.MaxSheets];
 
+    // How much other cloud sits on top of each placed sheet, parallel to Placements and filled in the
+    // same breath — see OverlapDepths below for why this is stored rather than asked for.
+    private static readonly float[] Depths = new float[CloudSheetLayout.MaxSheets];
+
     // §25b's deck mixture. Reused for the same reason the placements are: it is one answer per map,
     // and three lanes ask for it.
     private static readonly float[] DeckWeights = new float[CloudDeckMath.DeckCount];
@@ -55,6 +59,17 @@ public static class CloudSheetDraw
     // How many sheets are up over this map right now, placing them if this frame has not already.
     public static int PlaceSheets(Map map, out CloudSheetLayout.Placement[] placements) =>
         PlaceSheets(map, out placements, out _);
+
+    // The overlap depth of each placed sheet, indexed the same way the placements a PlaceSheets call
+    // just handed out are.
+    //
+    // A PROPERTY RATHER THAN A THIRD `out`, because PlaceSheets already has two overloads and a third
+    // parameter would mean a third: ProbeRegistration's comment on circ_clouddraw records that
+    // AccessTools.Method by name alone already throws Ambiguous match on this method, so adding
+    // overloads costs the ability to arm it. The lifetime contract is exactly the one Placements
+    // itself has -- both are shared arrays valid for the count the last PlaceSheets returned -- so
+    // this adds no rule a caller did not already have to follow.
+    public static float[] OverlapDepths => Depths;
 
     // EACH SHEET ASKS ABOUT ITS OWN ARRIVAL, NOT ABOUT NOW. A sheet's coverage weight comes from the
     // cloud cover at the tick it came over the edge of the map (CloudSheetLayout.EntryTickFor), which
@@ -151,6 +166,21 @@ public static class CloudSheetDraw
                     heaviest = sheetCover;
             }
         }
+
+        // The overlap depths, computed HERE rather than per sheet per lane per frame. This is not a
+        // new cache and deliberately has no key of its own: a depth is a pure function of the placed
+        // sheets, so filling the array in the block that rebuilds them makes it stale exactly never,
+        // by construction. Anything that can move a depth has already had to move a placement to do
+        // it, and that is what this block is.
+        //
+        // Worth the move because of the SHAPE, not the size. OverlapDepth is O(n^2) in sheet count
+        // and all three lanes -- §23b's underlight, §23c's shadows and §25's sheets -- ran the full
+        // n^2 independently every frame, so a twelve-sheet sky was doing 432 distance calculations a
+        // frame to answer a question that changes once a tick. It is small in milliseconds either
+        // way; see this commit's message for the measured call counts and for why the timing is
+        // reported as unresolvable rather than as a win.
+        for (int i = 0; i < count; i++)
+            Depths[i] = CloudSheetLayout.OverlapDepth(Placements, count, i);
 
         _placedTick = ticks;
         _placedMapId = mapId;
