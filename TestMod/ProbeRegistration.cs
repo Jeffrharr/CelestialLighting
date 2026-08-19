@@ -206,6 +206,14 @@ public static class ProbeRegistration
         // stand-down rather than an error, so an unpinned arm photographs the crossfade instead.
         ProbeRegistry.Register(
             new VectorLightProbe("vector_light_mask_available", VectorLightProbe.Metric.MaskAvailable));
+        // §27 phase 4 / issue #159. The rectangle a colonist's lamp shadow is actually built from,
+        // which has to be the one vanilla's sun shadow is built from or the two leave the pawn at
+        // different points. Pin BOTH in any arm that photographs a pawn shadow: they failed
+        // independently, and each is invisible in the other's number.
+        ProbeRegistry.Register(
+            new VectorLightProbe("vector_light_pawn_anchor_z", VectorLightProbe.Metric.PawnShadowAnchorZ));
+        ProbeRegistry.Register(
+            new VectorLightProbe("vector_light_pawn_width", VectorLightProbe.Metric.PawnShadowWidth));
         // Performance, measured through Circinus rather than Dubs, because Circinus reports CALL
         // COUNTS. §27 phase 3 does all its work inside a section regenerate, and the Dubs window that
         // appeared to show it running three times cheaper than the feature-off baseline had simply
