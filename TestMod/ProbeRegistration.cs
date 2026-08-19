@@ -444,6 +444,45 @@ public static class ProbeRegistration
         // Cheap per call; the arm is here to say how many calls there are.
         ArmBank("circ_overlap", "CelestialLighting.CloudSheetLayout", "OverlapDepth");
 
+        // §28 step 2: the sixteen postfixes hanging off WeatherWorker.CurSkyTarget, armed
+        // individually. CurSkyTarget is the largest child of the frame budget and is entirely made of
+        // these, so the breakdown is the only way to know which one to open -- the parent row says
+        // how much, never where.
+        //
+        // Read as SHARES, not as absolute milliseconds. Sixteen simultaneous arms put Circinus's
+        // per-call transpile cost into all sixteen rows, so each is inflated by roughly the same
+        // fixed amount and the sum overshoots the parent measured alone. That is fine for the
+        // question being asked (which of these is the big one) and wrong for the question it must not
+        // be used for (what does this one cost), which is what perf_parents.json exists for.
+        // Checking the sum against an unarmed parent is also the guard from §27's lesson: a large gap
+        // between parent and the sum of its children means the time is somewhere nobody armed.
+        ArmBank("circ_pf_auroracurtaindraw", "CelestialLighting.Patch_AuroraCurtainDraw", "Postfix");
+        ArmBank("circ_pf_cloudcoversky", "CelestialLighting.Patch_CloudCoverSky", "Postfix");
+        ArmBank("circ_pf_lowlightdesaturation", "CelestialLighting.Patch_LowLightDesaturation", "Postfix");
+        ArmBank("circ_pf_auroratint", "CelestialLighting.Patch_AuroraTint", "Postfix");
+        ArmBank("circ_pf_purplelight", "CelestialLighting.Patch_PurpleLight", "Postfix");
+        ArmBank("circ_pf_moonshadowcolor", "CelestialLighting.Patch_MoonShadowColor", "Postfix");
+        ArmBank("circ_pf_limbrefraction", "CelestialLighting.Patch_LimbRefraction", "Postfix");
+        ArmBank("circ_pf_bloodmoon", "CelestialLighting.Patch_BloodMoon", "Postfix");
+        ArmBank("circ_pf_nightdesaturationstrength", "CelestialLighting.Patch_NightDesaturationStrength", "Postfix");
+        ArmBank("circ_pf_enclosedambient", "CelestialLighting.Patch_EnclosedAmbient", "Postfix");
+        ArmBank("circ_pf_polarnightblue", "CelestialLighting.Patch_PolarNightBlue", "Postfix");
+        ArmBank("circ_pf_weatherdimming", "CelestialLighting.Patch_WeatherDimming", "Postfix");
+        ArmBank("circ_pf_nightradiance", "CelestialLighting.Patch_NightRadiance", "Postfix");
+        ArmBank("circ_pf_twilightcolor", "CelestialLighting.Patch_TwilightColor", "Postfix");
+        ArmBank("circ_pf_skycolortemperature", "CelestialLighting.Patch_SkyColorTemperature", "Postfix");
+        ArmBank("circ_pf_weathershadowcolor", "CelestialLighting.Patch_WeatherShadowColor", "Postfix");
+
+        // §28 step 3: the shared weather/glow reads underneath the sky postfixes. Same technique that
+        // found the MapSky gates -- arm for CALL COUNT and see whether one answer is being rebuilt
+        // many times a frame. WeatherDimming.DimmingFor has eight call sites and CloudSheetDraw's own
+        // header already notes that the read behind it "walks the weather pair, resolves a mod
+        // extension on each and lerps them, which is small but not free", so the count is the
+        // question.
+        ArmBank("circ_dimming", "CelestialLighting.WeatherDimming", "DimmingFor");
+        ArmBank("circ_cloudopacity", "CelestialLighting.WeatherDimming", "CloudOpacityFor");
+        ArmBank("circ_visualglow", "CelestialLighting.NightRadiance", "VisualGlowFor");
+
         // Inertness guard for the removed across-map shadow tilt (issues #11, #26). These three
         // originally asked "does §3's gradient actually render?"; now they assert it does NOT, at
         // both ends of the shadow axis. Still three probes because a ratio alone cannot say whether

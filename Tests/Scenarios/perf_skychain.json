@@ -1,7 +1,7 @@
 {
- "name": "perf_sweep",
+ "name": "perf_skychain",
  "saveFile": "minimal_colony.rws",
- "description": "\u00a728 whole-mod cost sweep. Not a pass/fail test -- it is the BREAKDOWN that says which of our per-frame entry points is worth optimising, so almost every pin here is a wide-open tolerance whose only job is to record a number in the report. The three pins that are real: circinus_available 1, which fails the run loudly if Circinus is not in the mod list rather than reporting a table of zeros; sun_elevation, which fails if the clock moved under us and emptied the frames; and every *_patched 1, because Circinus sheds instrumentation on its own schedule and a shed arm reads zero calls exactly like an entry point that never ran. Driven by TickLapse rather than Profile or FastForward: a Circinus cycle is a RENDERED FRAME, so the window has to actually paint, and ticks have to elapse or the section bakes never re-dirty. Run with --no-profiler: Dubs instruments every Harmony patch in the load, which distorts exactly what this is trying to measure.",
+ "description": "\u00a728 step 2: WHERE inside CurSkyTarget the time goes, broken out per postfix. Shares only -- sixteen simultaneous arms inflate every row by Circinus's per-call transpile cost, so these numbers rank the postfixes against each other and must not be quoted as any one postfix's cost; perf_parents.json is the file for that. The parent arm is kept so the sum of the children can be checked against it: a large unexplained gap means the time is somewhere nobody armed, which is how \u00a727 lost three days to a lazily-built polygon set.",
  "steps": [
   {
    "type": "SetTile",
@@ -75,16 +75,8 @@
    "type": "Probe",
    "args": {
     "probeName": "sun_elevation",
-    "expectedValue": "37",
-    "tolerance": "15"
-   }
-  },
-  {
-   "type": "Probe",
-   "args": {
-    "probeName": "circ_skyupdate_patched",
-    "expectedValue": "1",
-    "tolerance": "0.001"
+    "expectedValue": "45.1",
+    "tolerance": "2"
    }
   },
   {
@@ -98,7 +90,7 @@
   {
    "type": "Probe",
    "args": {
-    "probeName": "circ_clouddraw_patched",
+    "probeName": "circ_pf_auroracurtaindraw_patched",
     "expectedValue": "1",
     "tolerance": "0.001"
    }
@@ -106,7 +98,7 @@
   {
    "type": "Probe",
    "args": {
-    "probeName": "circ_snowglare_patched",
+    "probeName": "circ_pf_cloudcoversky_patched",
     "expectedValue": "1",
     "tolerance": "0.001"
    }
@@ -114,7 +106,7 @@
   {
    "type": "Probe",
    "args": {
-    "probeName": "circ_aurora_patched",
+    "probeName": "circ_pf_lowlightdesaturation_patched",
     "expectedValue": "1",
     "tolerance": "0.001"
    }
@@ -122,7 +114,7 @@
   {
    "type": "Probe",
    "args": {
-    "probeName": "circ_lightoverlay_patched",
+    "probeName": "circ_pf_auroratint_patched",
     "expectedValue": "1",
     "tolerance": "0.001"
    }
@@ -130,7 +122,7 @@
   {
    "type": "Probe",
    "args": {
-    "probeName": "circ_sunshadows_patched",
+    "probeName": "circ_pf_purplelight_patched",
     "expectedValue": "1",
     "tolerance": "0.001"
    }
@@ -138,7 +130,7 @@
   {
    "type": "Probe",
    "args": {
-    "probeName": "circ_desat_patched",
+    "probeName": "circ_pf_moonshadowcolor_patched",
     "expectedValue": "1",
     "tolerance": "0.001"
    }
@@ -146,7 +138,7 @@
   {
    "type": "Probe",
    "args": {
-    "probeName": "circ_eaveshade_patched",
+    "probeName": "circ_pf_limbrefraction_patched",
     "expectedValue": "1",
     "tolerance": "0.001"
    }
@@ -154,7 +146,7 @@
   {
    "type": "Probe",
    "args": {
-    "probeName": "circ_blackedout_patched",
+    "probeName": "circ_pf_bloodmoon_patched",
     "expectedValue": "1",
     "tolerance": "0.001"
    }
@@ -162,7 +154,7 @@
   {
    "type": "Probe",
    "args": {
-    "probeName": "circ_hassky_patched",
+    "probeName": "circ_pf_nightdesaturationstrength_patched",
     "expectedValue": "1",
     "tolerance": "0.001"
    }
@@ -170,7 +162,7 @@
   {
    "type": "Probe",
    "args": {
-    "probeName": "circ_overlap_patched",
+    "probeName": "circ_pf_enclosedambient_patched",
     "expectedValue": "1",
     "tolerance": "0.001"
    }
@@ -178,7 +170,7 @@
   {
    "type": "Probe",
    "args": {
-    "probeName": "circ_dimming_patched",
+    "probeName": "circ_pf_polarnightblue_patched",
     "expectedValue": "1",
     "tolerance": "0.001"
    }
@@ -186,7 +178,7 @@
   {
    "type": "Probe",
    "args": {
-    "probeName": "circ_cloudopacity_patched",
+    "probeName": "circ_pf_weatherdimming_patched",
     "expectedValue": "1",
     "tolerance": "0.001"
    }
@@ -194,7 +186,31 @@
   {
    "type": "Probe",
    "args": {
-    "probeName": "circ_visualglow_patched",
+    "probeName": "circ_pf_nightradiance_patched",
+    "expectedValue": "1",
+    "tolerance": "0.001"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circ_pf_twilightcolor_patched",
+    "expectedValue": "1",
+    "tolerance": "0.001"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circ_pf_skycolortemperature_patched",
+    "expectedValue": "1",
+    "tolerance": "0.001"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circ_pf_weathershadowcolor_patched",
     "expectedValue": "1",
     "tolerance": "0.001"
    }
@@ -204,7 +220,7 @@
    "args": {
     "ticks": "10",
     "steps": "120",
-    "fileNamePrefix": "perfsweep",
+    "fileNamePrefix": "perfchain",
     "fps": "20"
    }
   },
@@ -212,32 +228,8 @@
    "type": "Probe",
    "args": {
     "probeName": "circinus_cycles",
-    "expectedValue": "500",
-    "tolerance": "500"
-   }
-  },
-  {
-   "type": "Probe",
-   "args": {
-    "probeName": "circ_skyupdate_calls",
-    "expectedValue": "1000",
-    "tolerance": "1000"
-   }
-  },
-  {
-   "type": "Probe",
-   "args": {
-    "probeName": "circ_skyupdate_total_ms",
-    "expectedValue": "500",
-    "tolerance": "500"
-   }
-  },
-  {
-   "type": "Probe",
-   "args": {
-    "probeName": "circ_skyupdate_max_ms",
-    "expectedValue": "50",
-    "tolerance": "50"
+    "expectedValue": "540",
+    "tolerance": "400"
    }
   },
   {
@@ -259,15 +251,7 @@
   {
    "type": "Probe",
    "args": {
-    "probeName": "circ_skytarget_max_ms",
-    "expectedValue": "50",
-    "tolerance": "50"
-   }
-  },
-  {
-   "type": "Probe",
-   "args": {
-    "probeName": "circ_clouddraw_calls",
+    "probeName": "circ_pf_auroracurtaindraw_calls",
     "expectedValue": "1000",
     "tolerance": "1000"
    }
@@ -275,7 +259,7 @@
   {
    "type": "Probe",
    "args": {
-    "probeName": "circ_clouddraw_total_ms",
+    "probeName": "circ_pf_auroracurtaindraw_total_ms",
     "expectedValue": "500",
     "tolerance": "500"
    }
@@ -283,15 +267,7 @@
   {
    "type": "Probe",
    "args": {
-    "probeName": "circ_clouddraw_max_ms",
-    "expectedValue": "50",
-    "tolerance": "50"
-   }
-  },
-  {
-   "type": "Probe",
-   "args": {
-    "probeName": "circ_snowglare_calls",
+    "probeName": "circ_pf_cloudcoversky_calls",
     "expectedValue": "1000",
     "tolerance": "1000"
    }
@@ -299,7 +275,7 @@
   {
    "type": "Probe",
    "args": {
-    "probeName": "circ_snowglare_total_ms",
+    "probeName": "circ_pf_cloudcoversky_total_ms",
     "expectedValue": "500",
     "tolerance": "500"
    }
@@ -307,15 +283,7 @@
   {
    "type": "Probe",
    "args": {
-    "probeName": "circ_snowglare_max_ms",
-    "expectedValue": "50",
-    "tolerance": "50"
-   }
-  },
-  {
-   "type": "Probe",
-   "args": {
-    "probeName": "circ_aurora_calls",
+    "probeName": "circ_pf_lowlightdesaturation_calls",
     "expectedValue": "1000",
     "tolerance": "1000"
    }
@@ -323,7 +291,7 @@
   {
    "type": "Probe",
    "args": {
-    "probeName": "circ_aurora_total_ms",
+    "probeName": "circ_pf_lowlightdesaturation_total_ms",
     "expectedValue": "500",
     "tolerance": "500"
    }
@@ -331,15 +299,7 @@
   {
    "type": "Probe",
    "args": {
-    "probeName": "circ_aurora_max_ms",
-    "expectedValue": "50",
-    "tolerance": "50"
-   }
-  },
-  {
-   "type": "Probe",
-   "args": {
-    "probeName": "circ_lightoverlay_calls",
+    "probeName": "circ_pf_auroratint_calls",
     "expectedValue": "1000",
     "tolerance": "1000"
    }
@@ -347,7 +307,7 @@
   {
    "type": "Probe",
    "args": {
-    "probeName": "circ_lightoverlay_total_ms",
+    "probeName": "circ_pf_auroratint_total_ms",
     "expectedValue": "500",
     "tolerance": "500"
    }
@@ -355,15 +315,7 @@
   {
    "type": "Probe",
    "args": {
-    "probeName": "circ_lightoverlay_max_ms",
-    "expectedValue": "50",
-    "tolerance": "50"
-   }
-  },
-  {
-   "type": "Probe",
-   "args": {
-    "probeName": "circ_sunshadows_calls",
+    "probeName": "circ_pf_purplelight_calls",
     "expectedValue": "1000",
     "tolerance": "1000"
    }
@@ -371,7 +323,7 @@
   {
    "type": "Probe",
    "args": {
-    "probeName": "circ_sunshadows_total_ms",
+    "probeName": "circ_pf_purplelight_total_ms",
     "expectedValue": "500",
     "tolerance": "500"
    }
@@ -379,15 +331,7 @@
   {
    "type": "Probe",
    "args": {
-    "probeName": "circ_sunshadows_max_ms",
-    "expectedValue": "50",
-    "tolerance": "50"
-   }
-  },
-  {
-   "type": "Probe",
-   "args": {
-    "probeName": "circ_desat_calls",
+    "probeName": "circ_pf_moonshadowcolor_calls",
     "expectedValue": "1000",
     "tolerance": "1000"
    }
@@ -395,7 +339,7 @@
   {
    "type": "Probe",
    "args": {
-    "probeName": "circ_desat_total_ms",
+    "probeName": "circ_pf_moonshadowcolor_total_ms",
     "expectedValue": "500",
     "tolerance": "500"
    }
@@ -403,15 +347,7 @@
   {
    "type": "Probe",
    "args": {
-    "probeName": "circ_desat_max_ms",
-    "expectedValue": "50",
-    "tolerance": "50"
-   }
-  },
-  {
-   "type": "Probe",
-   "args": {
-    "probeName": "circ_eaveshade_calls",
+    "probeName": "circ_pf_limbrefraction_calls",
     "expectedValue": "1000",
     "tolerance": "1000"
    }
@@ -419,7 +355,7 @@
   {
    "type": "Probe",
    "args": {
-    "probeName": "circ_eaveshade_total_ms",
+    "probeName": "circ_pf_limbrefraction_total_ms",
     "expectedValue": "500",
     "tolerance": "500"
    }
@@ -427,23 +363,15 @@
   {
    "type": "Probe",
    "args": {
-    "probeName": "circ_eaveshade_max_ms",
-    "expectedValue": "50",
-    "tolerance": "50"
+    "probeName": "circ_pf_bloodmoon_calls",
+    "expectedValue": "1000",
+    "tolerance": "1000"
    }
   },
   {
    "type": "Probe",
    "args": {
-    "probeName": "circ_blackedout_calls",
-    "expectedValue": "50000",
-    "tolerance": "50000"
-   }
-  },
-  {
-   "type": "Probe",
-   "args": {
-    "probeName": "circ_blackedout_total_ms",
+    "probeName": "circ_pf_bloodmoon_total_ms",
     "expectedValue": "500",
     "tolerance": "500"
    }
@@ -451,23 +379,15 @@
   {
    "type": "Probe",
    "args": {
-    "probeName": "circ_blackedout_max_ms",
-    "expectedValue": "50",
-    "tolerance": "50"
+    "probeName": "circ_pf_nightdesaturationstrength_calls",
+    "expectedValue": "1000",
+    "tolerance": "1000"
    }
   },
   {
    "type": "Probe",
    "args": {
-    "probeName": "circ_hassky_calls",
-    "expectedValue": "50000",
-    "tolerance": "50000"
-   }
-  },
-  {
-   "type": "Probe",
-   "args": {
-    "probeName": "circ_hassky_total_ms",
+    "probeName": "circ_pf_nightdesaturationstrength_total_ms",
     "expectedValue": "500",
     "tolerance": "500"
    }
@@ -475,23 +395,15 @@
   {
    "type": "Probe",
    "args": {
-    "probeName": "circ_hassky_max_ms",
-    "expectedValue": "50",
-    "tolerance": "50"
+    "probeName": "circ_pf_enclosedambient_calls",
+    "expectedValue": "1000",
+    "tolerance": "1000"
    }
   },
   {
    "type": "Probe",
    "args": {
-    "probeName": "circ_overlap_calls",
-    "expectedValue": "50000",
-    "tolerance": "50000"
-   }
-  },
-  {
-   "type": "Probe",
-   "args": {
-    "probeName": "circ_overlap_total_ms",
+    "probeName": "circ_pf_enclosedambient_total_ms",
     "expectedValue": "500",
     "tolerance": "500"
    }
@@ -499,23 +411,15 @@
   {
    "type": "Probe",
    "args": {
-    "probeName": "circ_overlap_max_ms",
-    "expectedValue": "50",
-    "tolerance": "50"
+    "probeName": "circ_pf_polarnightblue_calls",
+    "expectedValue": "1000",
+    "tolerance": "1000"
    }
   },
   {
    "type": "Probe",
    "args": {
-    "probeName": "circ_dimming_calls",
-    "expectedValue": "50000",
-    "tolerance": "50000"
-   }
-  },
-  {
-   "type": "Probe",
-   "args": {
-    "probeName": "circ_dimming_total_ms",
+    "probeName": "circ_pf_polarnightblue_total_ms",
     "expectedValue": "500",
     "tolerance": "500"
    }
@@ -523,15 +427,15 @@
   {
    "type": "Probe",
    "args": {
-    "probeName": "circ_cloudopacity_calls",
-    "expectedValue": "50000",
-    "tolerance": "50000"
+    "probeName": "circ_pf_weatherdimming_calls",
+    "expectedValue": "1000",
+    "tolerance": "1000"
    }
   },
   {
    "type": "Probe",
    "args": {
-    "probeName": "circ_cloudopacity_total_ms",
+    "probeName": "circ_pf_weatherdimming_total_ms",
     "expectedValue": "500",
     "tolerance": "500"
    }
@@ -539,15 +443,63 @@
   {
    "type": "Probe",
    "args": {
-    "probeName": "circ_visualglow_calls",
-    "expectedValue": "50000",
-    "tolerance": "50000"
+    "probeName": "circ_pf_nightradiance_calls",
+    "expectedValue": "1000",
+    "tolerance": "1000"
    }
   },
   {
    "type": "Probe",
    "args": {
-    "probeName": "circ_visualglow_total_ms",
+    "probeName": "circ_pf_nightradiance_total_ms",
+    "expectedValue": "500",
+    "tolerance": "500"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circ_pf_twilightcolor_calls",
+    "expectedValue": "1000",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circ_pf_twilightcolor_total_ms",
+    "expectedValue": "500",
+    "tolerance": "500"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circ_pf_skycolortemperature_calls",
+    "expectedValue": "1000",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circ_pf_skycolortemperature_total_ms",
+    "expectedValue": "500",
+    "tolerance": "500"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circ_pf_weathershadowcolor_calls",
+    "expectedValue": "1000",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circ_pf_weathershadowcolor_total_ms",
     "expectedValue": "500",
     "tolerance": "500"
    }
