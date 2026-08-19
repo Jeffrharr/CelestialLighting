@@ -6521,6 +6521,14 @@ octaves occasionally align to produce a faster net swing than any one layer alon
 "usually drifts, but can shift within an afternoon" character, falling out of the noise shape rather
 than a special case.
 
+**Sampled hourly, read continuously.** The lattice is *defined* on in-game hours (that is what sets
+the correlation time), but the shipped read is `CloudCoverDrift.FractionAt`, which evaluates the same
+smootherstep field where the tick actually is. The hourly memo moved down a level accordingly —
+`CloudCoverClock` caches the expensive seasonal mean, not the finished fraction. This was invisible
+while §22 was only ever *looked at*, and stopped being invisible when §25 turned the same number into
+a count of drawn clouds: see §25's "Nothing appears or vanishes in view" for the measurements and for
+why the fix belongs here rather than in the renderer.
+
 **The colour contribution lerps toward vanilla's own overcast anchors, not a bespoke palette.**
 `CloudCoverSky.SkyTintFactor`/`SaturationTintFactor` interpolate from 1 (no change) at cloud cover 0
 to `WeatherDimmingMath`'s existing Overcast/Clear luminance and saturation ratios (0.8 and 0.72) at
@@ -7522,6 +7530,134 @@ busy sky a white slab, which is the tiled version's failure reached from the oth
 **One cloud type.** The atlas holds four shapes of the same character; variety comes from shape,
 mirroring, size, speed and position. A second *type* — thin high cirrus against fat cumulus — would be
 a different shaping curve in `FillBlobAtlas` plus a second atlas, and is deliberately not attempted.
+
+### Nothing appears or vanishes in view (issue: cloud billboards popping)
+
+**The reported symptom.** A cloud sheet disappearing outright during a cloudiness change, rather than
+drifting off the edge of the map. The layout's own header promises the opposite — a sheet's travel
+runs from a full sheet-width off one edge to a full sheet-width off the other, so it is entirely
+outside the map at both ends of its journey — and that promise is kept *for motion*. It was never
+kept for **coverage**, which is the other thing that decides whether a sheet exists.
+
+**Coverage is a count, and a count is an integer.** `SheetCount` is `ceil(cover x cap)` — a cap of
+12 on the shipped layout, 11 under §25d's smaller sheets — so cover crossing a sheet's share of it
+adds or removes a whole cloud in one tick, wherever that cloud happens to be —
+and sheets spend most of their crossing over the map, so "wherever it happens to be" is usually
+mid-screen. Three separate things stepped the cover:
+
+| Source | Step | How often |
+|---|---|---|
+| §22's drift memo, cached per in-game hour | 0.03 mean, 0.13 worst (30 days x 3 tiles, offline) | every hour, crossing a sheet threshold roughly every third one |
+| The §13-deck / §22-cover handoff at a weather change | the whole of §22's cover, to zero | every transition into or out of Clear |
+| `SheetCount` itself | one whole sheet | at every 1/cap of cover |
+
+The middle one is the loud one, and it is the one the report was about. `CloudFractionFor` used to
+read §13's blended deck opacity and fall back to §22 only when that was *exactly* zero. At the tick a
+Clear day turns to rain, `curWeather` is already Rain while the lerp factor is still 0, so the blend
+is Clear's own zero: measured on `main`, the cover went **0.211 → 0.000 in one tick** and did not
+climb back past a single sheet's worth for ~400 ticks. Every cloud on the map vanished at once and
+then popped back in one at a time.
+
+**The fix: a sheet decides its existence once, before anybody can see it.**
+
+1. **The entry latch.** `CloudSheetLayout.EntryTickFor` gives the absolute tick at which a sheet
+   began the crossing it is currently on, and `CloudSheetDraw.PlaceSheets` reads the cloud cover *at
+   that tick* rather than now. A sheet's coverage weight is therefore constant for as long as it is
+   visible: cover rising or falling cannot add or remove a cloud in view, and the only instant the
+   population can change is the wrap — which `EverySheetIsFullyOffMapAtBothEndsOfItsCrossing` already
+   pins as fully off-map. A cloud that is no longer wanted simply drifts off the far edge and does not
+   come back; a cloud that is newly wanted arrives over the edge like any other.
+
+   **This is why it needs no state.** A renderer that remembered what it drew last frame could keep a
+   departing cloud alive, and the layout's whole premise is that it remembers nothing — the sky at
+   tick N is a pure function of N. Reading the cover at a *past* tick buys the same behaviour out of a
+   memoryless function, because §22's cover is itself a pure function of (tile, tick). Nothing is
+   spawned, nothing is despawned, nothing is persisted, and two harness runs of one scenario still
+   produce identical frames.
+
+   Cost, stated plainly: the sky lags. A cover change reaches each sheet only when that sheet next
+   comes round, so the population converges over up to one crossing (~8 in-game hours), sheet by
+   sheet, at twelve different times because they travel at twelve different speeds. That is the
+   trade the behaviour is: a sky that responds instantly is a sky where clouds appear out of nowhere.
+
+2. **The marginal sheet is still partial** (`CloudSheetLayout.CoverageAlpha`, which takes the same
+   cap `SheetCount` does). Cover is a count, but 3.4 sheets' worth of cloud should read as a thin
+   fourth cloud rather than rounding to a whole one.
+   Under the latch this is a per-sheet constant, so it varies the sky rather than animating anything.
+
+3. **A weather change is the exception, and fades.** `CloudLayers.CloudFractionAtTick` time-shifts
+   §22's Clear-sky half only; §13's deck is always read live. §22's cover is a property of the *air*,
+   so "what was it when this cloud arrived" is a sensible question — a deck is a property of the
+   *weather*, a global state vanilla cross-fades over 4,000 ticks, and a sheet that latched "it was
+   raining when I arrived" would go on raining after the storm ended. So a front reaches every sheet
+   at once and cross-fades them together over vanilla's own transition, rather than each waiting up to
+   a crossing to notice. Weather is global and abrupt; cloud drifting about a clear sky is neither.
+
+4. **The cover feeding all of it is continuous in the tick** (`CloudCoverDrift.FractionAt`), because
+   the weather cross-fade in (3) is a live read and would otherwise step at the top of each hour. It
+   is the same smootherstep field evaluated at a fractional coordinate rather than an interpolation
+   between samples, so every value at an hour boundary is unchanged and there is no second definition
+   of the curve to drift from the first. `CloudCoverClock` memoises the seasonal mean instead of the
+   finished fraction, which keeps the expensive half — the biome walk — hourly; measured in the
+   harness, `Patch_CloudCoverSky` stayed at 0.0007 ms/frame.
+
+**Two gates had to move with it.** `CloudLayers.SheetAlphaFor` used to ask the live cover whether
+there was any cloud, and `CloudSheetMath.SheetAlphaWithAmplitude` still takes a cover as a gate. Both
+now read the heaviest cover any *placed* sheet is holding (`PlaceSheets`' `cover` out-parameter),
+because once sheets outlive the cover they entered under, the live value says "no cloud" about a sky
+that visibly has one — which would have blanked the whole lane mid-crossing and reintroduced the pop
+one level up.
+
+**Measured, Clear weather left alone for nine in-game hours** (`Tests/Scenarios/cloud_drift.json`,
+16 frames 1,500 ticks apart, cap 11 under §25d):
+
+| | cover | `ceil(11 x cover)` — what a live read would draw | drawn mass |
+|---|---|---|---|
+| f00 | 0.2113 | 3 | 1.024 |
+| f03 | 0.2173 | 3 | **0.834** |
+| f08 | 0.2303 | 3 | **0.997** |
+| f11 | 0.0843 | **1** | **0.743** |
+| f13 | 0.0369 | 1 | **0.270** |
+| f15 | **0.0000** | **0** | **0.174** — cover is zero and the sky still has cloud in it |
+
+**The count of changes is not the measurement; where they happen is.** The live read changes the
+population 3 times across this window and each one lands wherever the cloud happened to be. The
+latched population changes 6 times — more often, because eleven slots re-latch at eleven different
+moments — and every one of them happens with that sheet off the map, which
+`ACoverChangeCanOnlyTakeEffectWhileTheSheetIsOffMap` pins offline against a cover signal built to
+break it. The last row is the one to look at: cover has reached zero, and
+`Tests/Screenshots/cloud_drift_cover_zero.png` still has cloud on it, because a sheet has not
+finished crossing yet.
+
+**Measured, a Clear sky turning to rain.** Staged twice — once on §22's own cover, once with the
+`cloud_cover_forced_overcast` key at 0.92, which exists precisely because a 0.21 sky can leave the
+camera looking at no cloud at all:
+
+| | cover, `main` | lane alpha, `main` | cover, latched | lane alpha, latched |
+|---|---|---|---|---|
+| Clear 0.92, noon | 0.9200 | 0.7500 | 0.9200 | 0.7500 |
+| +1 tick into the cross-fade | **0.0000** | **0.0000** | 0.9200 | 0.7500 |
+| Clear 0.21, noon | 0.2113 | 0.7500 | 0.2113 | 0.7500 |
+| +1 tick | **0.0000** | **0.0000** | 0.2113 | 0.7500 |
+| settled Rain | 1.0000 | 0.7500 | 1.0000 | 0.7500 |
+
+The lane alpha is the whole story in one number: on `main` the cover gate closes and §25 stops drawing
+entirely for the first ~400 ticks of every transition out of Clear. Across that single tick the frame
+moves **median ΔE 42.54** on `main` and **2.71** on this branch (the residue being the weather
+genuinely changing), and the two builds differ by **42.27** at the same instant, 98.4% of pixels.
+On natural 0.21 cover the same comparison is median 0.00 whole-frame and **0.70 masked** over the
+10.5% of pixels the two visible sheets touch — the honest reminder that a structural pop is not a
+large-area one, and that a whole-frame median understates it.
+
+`Tests/Screenshots/cloud_pop_before.png` (main, Clear) and `cloud_pop_t0_fixed.png` (this branch, one
+tick later) are near-identical frames; `cloud_pop_t0_main.png` is the same instant on `main`, with the
+sky empty.
+
+**What is deliberately NOT blended: §22's sky tint.** `Patch_CloudCoverSky` still gates strictly on
+`curWeather == Clear` with no transition blend, for the reason recorded in §22 above. The asymmetry
+is intentional rather than an oversight: a colour multiplier that snaps by a few percent at the start
+of a transition is a change nobody can point at, and an object that stops existing is. If the tint
+snap is ever worth fixing it is its own change, measured on its own.
 
 ### All three lanes draw the same sheets
 

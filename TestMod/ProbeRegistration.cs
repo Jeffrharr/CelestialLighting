@@ -158,6 +158,11 @@ public static class ProbeRegistration
             "cloud_shadow_alpha", CloudLayersProbe.Metric.ShadowAlpha));
         ProbeRegistry.Register(new CloudLayersProbe(
             "cloud_sheet_alpha", CloudLayersProbe.Metric.SheetAlpha));
+        // How much sheet is actually PLACED, as opposed to how opaque a placed one is. The pair is
+        // what makes a cloud pop measurable: cloud_sheet_alpha is flat across a threshold crossing
+        // because the lane's opacity never depended on the count, so only this one moves when a sheet
+        // appears or vanishes — see CloudSheetMassProbe for why it sums alphas rather than counting.
+        ProbeRegistry.Register(new CloudSheetMassProbe());
         // Whether the Clouds interop sees Clouds in the load order. Paired with the two alphas above
         // rather than left implicit: a zero alpha alone cannot tell "we stood down for Clouds" from
         // "Clouds never loaded" (CloudsActiveProbe's header).
