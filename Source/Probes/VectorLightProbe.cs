@@ -67,6 +67,23 @@ public sealed class VectorLightProbe : IProbe
         // so without a pin here every other number in a mask scenario stays healthy while the frames
         // quietly show the crossfade instead.
         MaskAvailable,
+
+        // §27 phase 4, issue #159: where on a colonist the lamp shadow is anchored, as the z offset
+        // from DrawPos, and how wide that footprint is.
+        //
+        // TWO METRICS FOR ONE BUG BECAUSE IT HAD TWO HALVES, and each is invisible to the other. The
+        // shadow left the pawn's torso instead of their feet (this read 0 where vanilla's sun shadow
+        // uses -0.3) AND it was twice as wide (0.6 against a real 0.3), because the data was being
+        // read from `graphicData.shadowData`, which humanlikes do not have. Fixing only the offset
+        // would leave the width pinned wrong and vice versa, and a single "is it right" metric would
+        // pass on half a fix.
+        //
+        // These read VectorLightPawnShadows.ShadowDataOf — the same accessor the draw calls — rather
+        // than reaching into the def here. A probe with its own copy of the lookup would have agreed
+        // with the intended rectangle while the renderer used another one, which is the exact shape
+        // of the bug being pinned.
+        PawnShadowAnchorZ,
+        PawnShadowWidth,
     }
 
     private readonly Metric metric;
@@ -87,6 +104,9 @@ public sealed class VectorLightProbe : IProbe
         if (map == null)
             return 0f;
 
+        if (metric == Metric.PawnShadowAnchorZ || metric == Metric.PawnShadowWidth)
+            return ReadFootprint(map);
+
         float litArea = 0f;
         float openArea = 0f;
         float penumbraArea = 0f;
@@ -100,6 +120,26 @@ public sealed class VectorLightProbe : IProbe
         }
 
         return Report(count, litArea, openArea, vertices, penumbraArea);
+    }
+
+    // The footprint of ONE colonist, chosen by lowest thing ID so a scenario with two of them pins a
+    // stable one across runs rather than whichever the spawn order happened to yield.
+    private float ReadFootprint(Map map)
+    {
+        Pawn subject = null;
+
+        foreach (Pawn pawn in map.mapPawns.FreeColonistsSpawned)
+        {
+            if (subject == null || pawn.thingIDNumber < subject.thingIDNumber)
+                subject = pawn;
+        }
+
+        ShadowData shadow = subject == null ? null : VectorLightPawnShadows.ShadowDataOf(subject);
+
+        if (shadow == null)
+            return 0f;
+
+        return metric == Metric.PawnShadowAnchorZ ? shadow.offset.z : shadow.BaseX;
     }
 
     private static void Accumulate(
