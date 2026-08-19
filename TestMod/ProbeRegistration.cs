@@ -284,6 +284,10 @@ public static class ProbeRegistration
             new VectorLightProbe("vector_light_pawn_anchor_z", VectorLightProbe.Metric.PawnShadowAnchorZ));
         ProbeRegistry.Register(
             new VectorLightProbe("vector_light_pawn_width", VectorLightProbe.Metric.PawnShadowWidth));
+        // The other half of #159: not what shape the shadow is, but whether it is drawn at all.
+        // Vanilla refuses one for four non-sun reasons and §27 asked none of them.
+        ProbeRegistry.Register(
+            new VectorLightProbe("vector_light_pawn_casters", VectorLightProbe.Metric.PawnShadowCasters));
         // Performance, measured through Circinus rather than Dubs, because Circinus reports CALL
         // COUNTS. §27 phase 3 does all its work inside a section regenerate, and the Dubs window that
         // appeared to show it running three times cheaper than the feature-off baseline had simply

@@ -958,6 +958,35 @@ public class VectorLightMathTests
         Assert.That(opacity, Is.LessThanOrEqualTo(VectorLightMath.PawnShadowStrength));
     }
 
+    // ---- which pawns cast at all (§27 phase 4, issue #159) --------------------------------
+
+    // Every clause vetoes on its own, and only the all-clear casts. Written one case per clause
+    // rather than as a truth table because the failure being guarded against is a clause going
+    // MISSING — and a dropped `&& !swimming` passes any test that only ever checks the all-clear
+    // and the all-fail.
+    [TestCase(true,  false, false, false, true,  "standing, visible, dry, on the ground")]
+    [TestCase(false, false, false, false, false, "lying down is not a 1.2-cell caster")]
+    [TestCase(true,  true,  false, false, false, "a shadow would give an invisible pawn away")]
+    [TestCase(true,  false, true,  false, false, "half-submerged, so a full blob reads as floating")]
+    [TestCase(true,  false, false, true,  false, "in the air, where a ground caster's shadow is a lie")]
+    public void OnlyAnUprightVisibleGroundedPawnCasts(
+        bool standing, bool invisible, bool swimming, bool flying, bool expected, string why)
+    {
+        Assert.That(
+            VectorLightMath.PawnCastsShadow(standing, invisible, swimming, flying),
+            Is.EqualTo(expected), why);
+    }
+
+    // Standing is the only clause that has to be TRUE, and the asymmetry is worth a test of its own:
+    // it is the one an inverted sign would flip into "only downed pawns cast", which is a state a
+    // scenario full of upright colonists never visits.
+    [Test]
+    public void StandingIsRequiredRatherThanMerelyNotVetoing()
+    {
+        Assert.That(VectorLightMath.PawnCastsShadow(false, false, false, false), Is.False,
+            "a pawn who is doing nothing else wrong still must be standing");
+    }
+
     // ---- where on the caster the shadow starts (§27 phase 4, issue #159) -----------------
 
     // The support function of the caster's footprint rectangle, on its two axes. These are the

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using RimWorld;
 using UnityEngine;
 using Verse;
 
@@ -88,6 +89,13 @@ public static class VectorLightPawnShadows
             // Culled against the camera first, for the same reason VectorLightOverlay culls: a
             // colony's pawns are mostly off screen and this runs every frame.
             if (pawn == null || !pawn.Spawned || !view.Contains(pawn.Position))
+                continue;
+
+            // Then the states vanilla refuses to draw a shadow in, which are not about sunlight and
+            // so are not ours to diverge from — see VectorLightMath.PawnCastsShadow. Asked after the
+            // camera cull because it is the more expensive of the two (IsPsychologicallyInvisible
+            // walks the hediff set) and the cull rejects most of a colony.
+            if (!CastsShadow(pawn))
                 continue;
 
             DrawFor(map, pawn, lights, skyGlow, altitude);
@@ -214,6 +222,28 @@ public static class VectorLightPawnShadows
     //
     // Animals were unaffected, which is exactly why it survived being looked at: they declare theirs
     // inside graphicData, so they were reading the right rectangle all along.
+    // The four live reads behind VectorLightMath.PawnCastsShadow, in one place. Public for the same
+    // reason ShadowDataOf is: the probe has to ask the function the renderer asks, or it can report
+    // a pawn as suppressed while the screen still draws them.
+    //
+    // Each read is the one vanilla itself uses, deliberately rather than a near-equivalent:
+    // GetPosture() is what PawnRenderer gates on, IsPsychologicallyInvisible() is what sets the
+    // PawnRenderFlags.Invisible it gates on alongside, and Swimming /
+    // DrawNonHumanlikeSwimmingGraphic / Flying are the three DrawShadowInternal itself branches on.
+    // Reaching for something that merely correlates — Downed instead of posture, say — would drift
+    // from vanilla the moment Ludeon changed one of them.
+    public static bool CastsShadow(Pawn pawn)
+    {
+        if (pawn?.def == null)
+            return false;
+
+        return VectorLightMath.PawnCastsShadow(
+            standing:  pawn.GetPosture() == PawnPosture.Standing,
+            invisible: pawn.IsPsychologicallyInvisible(),
+            swimming:  pawn.Swimming || pawn.DrawNonHumanlikeSwimmingGraphic,
+            flying:    pawn.Flying);
+    }
+
     // Public because the probe asks THIS function rather than re-deriving the answer, which is the
     // repo's probe convention (see EaveCellProbe): a probe that recomputes can agree with a formula
     // the screen is not using, and this is precisely a bug about the screen using a different

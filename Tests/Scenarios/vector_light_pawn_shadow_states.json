@@ -1,0 +1,51 @@
+{
+  "name": "vector_light_pawn_shadow_states",
+  "saveFile": "minimal_colony.rws",
+  "description": "27 phase 4 / issue #159, second half: WHICH pawns cast a lamp shadow, as against what shape it is. Vanilla refuses a pawn shadow for four reasons that have nothing to do with sunlight — not standing, psychically invisible, swimming, flying — and 27 asked none of them, so a downed colonist threw a standing-height shadow from a torch. Three colonists in one torch's reach: one upright, one anaesthetised (posture is Laying, so vanilla draws it no sun shadow either), one carrying PsychicInvisibility as a CONTROL. That third pawn is not actually invisible and is not meant to be: the hediff alone never makes a pawn invisible, because HediffComp_Invisibility only flips over when something calls BecomeInvisible(), which is the psycast's job and not the hediff's, and no number of ticks does it — CompPostTick's own write to lastBecameInvisibleTick sits inside a branch that already requires the pawn to be invisible. So the invisibility clause is verified OFFLINE, and this pawn's job here is the opposite one: to catch an implementation that suppressed on the mere presence of the hediff. It must keep both its shadows, which is why the caster pin is 2 rather than 1. The sun is deliberately up at 5.29 degrees, which makes this a test of AGREEMENT rather than of absence: the upright colonist carries a sun shadow and a lamp shadow, and the other two carry neither, so a frame where 27 disagrees with vanilla is a frame where a pawn has exactly one of the two. Swimming, flying and invisibility are covered offline only — staging them needs water plus a live job, a PawnFlyer, or a psycast, none of which a paused scenario can hold still. Posture is the clause a live capture can carry, and it is also the one an ordinary colony hits every time somebody is downed.",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "45" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "40" } },
+    { "type": "SetWeather", "args": { "weatherDef": "Clear", "instant": "true" } },
+    { "type": "SetTerrain", "args": { "def": "Concrete", "width": "30", "height": "24", "offset": "0,45", "clear": "true" } },
+    { "type": "SetRoof", "args": { "def": "None", "width": "30", "height": "24", "offset": "0,45" } },
+    { "type": "PlaceThings", "args": { "def": "TorchLamp", "offset": "0,45", "layout": "cells", "cells": "0,3" } },
+
+    { "type": "SpawnPawn", "args": { "kind": "Colonist", "faction": "player", "count": "1", "offset": "-3,45", "clear": "true" } },
+    { "type": "SpawnPawn", "args": { "kind": "Colonist", "faction": "player", "count": "1", "offset": "0,45", "clear": "true", "hediffs": "Anesthetic:1.0" } },
+    { "type": "SpawnPawn", "args": { "kind": "Colonist", "faction": "player", "count": "1", "offset": "3,45", "clear": "true", "hediffs": "PsychicInvisibility" } },
+
+    { "type": "SetTime", "args": { "hour": "4.0" } },
+    { "type": "LookAt", "args": { "offset": "0,45", "zoom": "12" } },
+
+    { "type": "Probe", "args": { "probeName": "vector_light_mask_available", "expectedValue": "1", "tolerance": "0" } },
+    { "type": "Probe", "args": { "probeName": "limb_sun_elevation", "expectedValue": "5.29", "tolerance": "1.5" } },
+    { "type": "Probe", "args": { "probeName": "vector_light_pawn_casters", "expectedValue": "2", "tolerance": "0" } },
+
+    { "type": "SetFeature", "args": { "featureName": "vector_lights", "enabled": "false" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_penumbra", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_suppress", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_blend", "enabled": "false" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_mask", "enabled": "false" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_mask_beam", "enabled": "false" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_pawn_shadows", "enabled": "false" } },
+    { "type": "Screenshot", "args": { "fileName": "states_warmup_discard.png" } },
+
+    { "type": "SetFeature", "args": { "featureName": "vector_lights", "enabled": "false" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_penumbra", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_suppress", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_blend", "enabled": "false" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_mask", "enabled": "false" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_mask_beam", "enabled": "false" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_pawn_shadows", "enabled": "false" } },
+    { "type": "Screenshot", "args": { "fileName": "states_sun_only.png" } },
+
+    { "type": "SetFeature", "args": { "featureName": "vector_lights", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_penumbra", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_suppress", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_blend", "enabled": "false" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_mask", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_mask_beam", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_pawn_shadows", "enabled": "true" } },
+    { "type": "Screenshot", "args": { "fileName": "states_sun_and_lamp.png" } }
+  ]
+}
