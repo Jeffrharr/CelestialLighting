@@ -8130,9 +8130,27 @@ human's whole 0.15–0.20 range flat, which is the same mistake in a different p
 **Verified where the bug lives.** `Tests/Scenarios/vector_light_pawn_shadows.json` cannot see any of
 this: it is roofed on purpose, so `Graphic_Shadow` draws no sun shadow at all and there is nothing
 for the lamp shadow to disagree with. `vector_light_pawn_shadow_anchor.json` is roofless with the
-torch two cells north and a 10.9-degree morning sun to the east, putting the two shadows about ninety
-degrees apart on one pawn. `vector_light_pawn_anchor_z` and `vector_light_pawn_width` pin the
+torch two cells north and a 23.9-degree morning sun to the east, putting the two shadows about ninety
+degrees apart on one pawn. That elevation is measured rather than computed — `dayPercent = hour/24`
+predicted 10.9 at the same clock reading, so the sun clock is not a bare fraction of the day and the
+predicted pin would have failed a correct build. `vector_light_pawn_anchor_z` and `vector_light_pawn_width` pin the
 rectangle itself — **both**, because they failed independently and either alone passes on half a fix.
+
+**Measured, against the pre-fix build of the same branch.** The shadow strip, isolated within each
+run by differencing that run's own sun-only frame (which holds the pawn fixed — `SpawnPawn` generates
+a fresh colonist per run, so a naive frame diff measures the sprite, not the shadow):
+
+| | before | after | predicted |
+|---|---|---|---|
+| strip width | 32 px | 16 px | 0.6 → 0.3 cells |
+| leading edge | y 543 | y 567 | 0.5 cells south (0.3 offset + 0.2 trailing edge) |
+| strip length | 105 px | 108 px | unchanged |
+
+At the 52.5 px/cell this scene renders at, that is 0.61 → 0.30 cells wide and 0.46 cells south —
+both within a pixel of what the geometry says. Where the two arms' shadows disagree, median CIELAB
+ΔE is **8.55** (p90 9.04, max 9.64); over the union of the two strips the median is 0.00, because
+more than half of it is overlap where both arms draw the same shadow, and the whole-frame median is
+0.00 for the usual reason a bounded object gives one.
 
 ## Conflict risk
 
