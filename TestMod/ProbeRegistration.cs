@@ -713,31 +713,36 @@ public static class ProbeRegistration
         // ForceRebuild because the mask is baked into the lighting overlay's vertex colours during a
         // section regenerate, so flipping it changes nothing on screen until something else dirties a
         // section.
+        // TWO-arg overload now, i.e. defaultEnabled true, because true IS the shipped default since
+        // the mask became what §27 composes with. Safe for the reason the penumbra flag is safe and
+        // vector_lights itself is not: it is inert while vector_lights is off, which is what
+        // FeatureRegistry.ResetAll leaves that one at, so it cannot contaminate a later scenario.
         FeatureRegistry.Register(
             CelestialLightingFeatures.VectorLightMaskKey,
             enabled =>
             {
                 CelestialLightingFeatures.VectorLightMask = enabled;
                 VectorLightRedraw.ForceRebuild();
-            },
-            defaultEnabled: false);
+            });
         // §27 phase 3's beam half. THREE-arg overload with defaultEnabled: false to match the
         // shipped default; inert while vector_light_mask is off, but registered with the explicit
         // default anyway so ResetAll cannot switch it on for a later scenario in a suite.
         // §27 phase 4. Registered off, like every other §27 flag, and inert unless the mask is
         // composing — it asks the mask's coverage grid whether a lamp can see the pawn.
+        // Two-arg overload, matching its shipped default of true. Inert while vector_lights is off,
+        // and it draws nothing at all unless the mask is composing.
         FeatureRegistry.Register(
             CelestialLightingFeatures.VectorLightPawnShadowsKey,
-            enabled => CelestialLightingFeatures.VectorLightPawnShadows = enabled,
-            defaultEnabled: false);
+            enabled => CelestialLightingFeatures.VectorLightPawnShadows = enabled);
+        // Two-arg overload, matching its shipped default of true, and inert while vector_lights is
+        // off for the same reason as the mask above.
         FeatureRegistry.Register(
             CelestialLightingFeatures.VectorLightMaskBeamKey,
             enabled =>
             {
                 CelestialLightingFeatures.VectorLightMaskBeam = enabled;
                 VectorLightRedraw.ForceRebuild();
-            },
-            defaultEnabled: false);
+            });
         FeatureRegistry.Register(
             CelestialLightingFeatures.CivilTwilightPersistenceKey,
             enabled => CelestialLightingFeatures.CivilTwilightPersistence = enabled);

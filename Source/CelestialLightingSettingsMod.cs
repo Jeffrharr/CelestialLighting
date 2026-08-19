@@ -170,6 +170,14 @@ public class CelestialLightingSettingsMod : Mod
         listing.CheckboxLabeled("      Volumetric clouds (GPU)", ref Settings.cloudVolume,
             "Light the clouds by marching through a real 3-D model of them instead of tinting a flat picture. Each cloud shadows its own underside, so a low sun lights the tops while the bulk beneath stays dark, and the shape of that shading changes through the day rather than just its brightness.\n\nTurn this OFF if you are short of frames: it is the one cloud setting whose cost is on the graphics card, and it scales with how much of the screen has cloud on it. With it off the same clouds are drawn the flat way, which is what earlier versions did. It also switches itself off automatically on hardware that cannot run it, so nothing disappears.");
         ShowExternalCloudSource(listing);
+        // §27. The label says "experimental" because the tooltip cannot be read from the mod list,
+        // and this is the one switch on this screen that changes how a colony is LIT rather than
+        // what colour the sky is — a player who turns it on and dislikes it should be able to find
+        // their way back without reading anything.
+        listing.CheckboxLabeled("Vector light sources (experimental)", ref Settings.vectorLights,
+            "Render artificial light as a shape cast from each lamp rather than as vanilla's flood fill: a beam through a doorway, a hard shadow behind a rock, firelight spilling out of a window. Vanilla's lighting records how far light travelled and never which direction it came from, so none of those can exist in it.\n\nThe trade is that light which reached a room only by bending around a corner no longer arrives, so indirectly lit rooms are genuinely darker than you are used to. Gameplay light is untouched — plant growth, work speed, pawn vision and mood read exactly the same numbers with this on or off. Visual only.");
+        listing.CheckboxLabeled("    Pawn shadows from lamps", ref Settings.vectorLightPawnShadows,
+            "Pawns throw a shadow away from each lamp lighting them, lengthening with distance the way a shadow does as the sun sinks. Vanilla cannot do this: its pawn shadow takes its direction from a single value shared by every shadow on the map, which is right for the sun and meaningless for a torch.\n\nDrawn indoors and under eaves too, unlike vanilla's, since a lamp indoors is the whole point. A pawn a lamp cannot actually see — behind a wall — casts nothing from it. Costs one quad per pawn per nearby lamp, the same order as vanilla's own pawn shadows.");
         listing.CheckboxLabeled("Sky colour-temperature", ref Settings.skyColorTemperature,
             "Warm the sky toward the horizon on a continuous, altitude-keyed curve.");
         listing.CheckboxLabeled("Polar night blue", ref Settings.polarNightBlue,
