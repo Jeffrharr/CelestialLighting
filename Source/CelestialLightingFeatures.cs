@@ -708,6 +708,84 @@ public static class CelestialLightingFeatures
     // new OBJECT rather than changing the colour of an existing one — the same reasoning that
     // gives §25's visible clouds their own switch rather than riding the master.
     public static bool VectorLightPawnShadows = true;
+
+    // Feature key for VectorLightOpenDoors.
+    public const string VectorLightOpenDoorsKey = "vector_light_open_doors";
+
+    // §27e: an OPEN door stops occluding §27's rays, so light spills through a doorway a pawn is
+    // standing in. Shut doors are untouched, and so is every wall.
+    //
+    // THIS IS A DELIBERATE DISAGREEMENT WITH GAMEPLAY LIGHT, and the only flag in the mod that is.
+    // RimWorld's glow grid never learns a door opened: Building.SpawnSetup writes def.blockLight into
+    // lightBlockers once at spawn, and Building_Door.DoorOpen touches the grid not at all. So with
+    // this on, we draw a beam through an open door that vanilla does not deliver — GroundGlowAt still
+    // reads dark there, plants still do not grow, pawns still cannot see.
+    //
+    // WHY THAT IS ALLOWED HERE. §27's contract is that it changes only what is RENDERED (see
+    // VectorLights above: gameplay light is identical with it on or off). This flag keeps that
+    // contract exactly — it takes no gameplay light away and adds none. It renders the visual half of
+    // a rule vanilla only ever implemented in the gameplay half, which is the same licence every
+    // other §27 phase runs on, applied to a term vanilla left out rather than to one it got coarse.
+    //
+    // AND WHY IT IS STILL OFF BY DEFAULT. §27's other knowing divergence — VectorLightBlockers
+    // treating a light's own cell as open — is static, one cell, and always keeps a lit thing lit.
+    // This one is beam-sized and blinks as pawns walk through, which is the most visible kind of
+    // disagreement there is. Issue #48 records the opposite sign of the same mistake. Whether it
+    // reads as "light spills out when the door opens" or as "the lighting is glitching" is a taste
+    // call that has to be lived with, so it is opt-in, and VectorLightDoorGlowBlocker below exists to
+    // measure the coherent alternative against it in the same boot.
+    public static bool VectorLightOpenDoors = false;
+
+    // Feature key for VectorLightDoorGlowBlocker.
+    public const string VectorLightDoorGlowBlockerKey = "vector_light_door_glow_blocker";
+
+    // The COMPARISON ARM for the flag above, and the line the rest of the mod does not cross: instead
+    // of drawing light vanilla does not deliver, make vanilla deliver it — call
+    // GlowGrid.LightBlockerRemoved when a door opens and LightBlockerAdded when it shuts, so the glow
+    // grid itself learns about open doors and gameplay light changes to match.
+    //
+    // THIS IS GAMEPLAY LIGHT. Plant growth, work speed, pawn vision and every mod reading
+    // GroundGlowAt all move with it. That is precisely why it exists as a separate flag rather than
+    // as an implementation detail of the one above: the two are alternative answers to "which
+    // authority wins", and the only honest way to choose is to render both and look.
+    //
+    // Requires vector_light_open_doors to be meaningful in a screenshot — on its own it changes
+    // vanilla's flood without changing our polygon, which is a third thing again, and worth being
+    // able to shoot too.
+    //
+    // KNOWN ROUGH EDGE, recorded rather than papered over: a door that was open when the game was
+    // saved comes back with openInt true but no DoorOpened event, so the blocker bit is whatever
+    // SpawnSetup wrote and the grid disagrees with the door until it is next used. lightBlockers is a
+    // bit array rather than a counter, so nothing accumulates and the state self-heals on the next
+    // open or close — acceptable for a flag that exists to be measured against, not shipped.
+    public static bool VectorLightDoorGlowBlocker = false;
+
+    // Feature key for VectorLightDoorAperture.
+    public const string VectorLightDoorApertureKey = "vector_light_door_aperture";
+
+    // §27e phase 2: the beam TRACKS the door's slide instead of appearing at full width the instant
+    // the door is declared open.
+    //
+    // WHY THE BOOLEAN WAS NOT ENOUGH. Building_Door.Open flips to true on the first tick of the
+    // swing, while the leaves take tens of ticks to finish sliding. So phase 1 put a full-width beam
+    // on screen over a door the player can still see closing — the aperture and the artwork
+    // disagreeing for the whole animation, which is the most conspicuous moment there is to disagree.
+    //
+    // HOW. DoorApertureMath places the two leaves along the wall axis from OpenPct, and
+    // VectorLightBlockers hands them to Build as ordinary segments beside the silhouette. Build
+    // already fires a corner ray at every segment endpoint, so the beam narrows to exactly the gap
+    // and the penumbra follows the leaf edges without any new concept.
+    //
+    // THE COST, AND THE KNOB THAT BOUNDS IT. OpenPct changes every tick, and every distinct value is
+    // a fresh bake for the lights near that door — tens per swing where §27's cost model assumed
+    // geometry changes when a player builds something. DoorApertureMath.Quantise snaps it to eight
+    // steps, which caps the bakes per swing regardless of door speed or game speed and is finer than
+    // a sub-second animation reads. That knob is the whole reason this is affordable; see DESIGN.md
+    // §27e phase 2 for the filmed comparison and the measured bake counts.
+    //
+    // Requires vector_light_open_doors. Off with that flag on reproduces phase 1 exactly — a beam
+    // that pops — which is what makes the two filmable against each other.
+    public static bool VectorLightDoorAperture = false;
 }
 
 public enum SunClockMode

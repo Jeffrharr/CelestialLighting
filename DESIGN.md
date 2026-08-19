@@ -8007,6 +8007,133 @@ both default on; the crossfade survives only as the fallback the code picks for 
 per-emitter glow arrays cannot be read. A player has no way to judge that choice and no reason to be
 asked about it, and the flags remain switchable from the harness for measurement.
 
+### §27e: open doors (`vector_light_open_doors`, `Tests/Scenarios/vector_light_open_door.json`)
+
+**Problem.** A pawn stands in an open doorway with a torch behind them and the doorway is black. §27
+draws a beam through a *bare* gap in a wall — that is its headline result — but put an ordinary
+wooden door in the same gap and the beam never comes back, however wide the door is standing.
+
+**Why vanilla looks that way, which is the whole design constraint.** RimWorld's glow grid never
+learns that a door opened. `Verse.Building.SpawnSetup` writes `def.blockLight` into `GlowGrid`'s
+`lightBlockers` bit array once, at spawn (`Building.cs:140`), `DeSpawn` clears it (`:242`), and
+`Building_Door.DoorOpen` sets `openInt`, clears the reachability cache, raises
+`Map.events.Notify_DoorOpened` — and touches the glow grid not at all. A vanilla door blocks light
+open or shut. §27 inherited that for free by asking `blockLight` and nothing else, which is exactly
+why glass doors already work (see `vector_light_glass_door`) and exactly why open ones do not.
+
+So there is **no vanilla behaviour to mirror here**. Every other §27 rule is a restatement of one of
+vanilla's; this is the first that is not, and that is what makes it a taste call rather than a fix.
+
+**Approach.** `DoorOcclusionMath.Occludes(blocksLight, isDoor, doorOpen, openDoorsPassLight)` — four
+booleans, tested exhaustively offline. `blockLight` is tested first so transparency is unaffected,
+the flag second so off returns exactly the pre-feature expression, `isDoor` third because only a door
+has an open state. `VectorLightBlockers` reads `Building_Door.Open` off the edifice it had already
+fetched. Invalidation hangs off `MapEvents.Notify_DoorOpened`/`Closed` rather than
+`Building_Door.DoorOpen`, which is `protected virtual` and gets overridden without `base` by exactly
+the modded door classes this is for.
+
+**This knowingly disagrees with gameplay light, and that is the point of contention.** With the flag
+on we draw a beam vanilla does not deliver: `GroundGlowAt` still reads dark outside the door, plants
+still do not grow, pawns still cannot see. It is permitted because §27's contract is that it changes
+only what is *rendered* — but unlike §27's other divergence (a light's own cell treated as open:
+static, one cell, always keeps a lit thing lit) this one is beam-sized and blinks as pawns walk
+through. Issue #48 records the opposite sign of the same mistake. Hence: opt-in, off by default.
+
+**What was measured, and why the second arm matters more than the third.** Four arms, one wooden
+door, midnight, one torch:
+
+| arm | `lit_area` | `shadow_frac` | `verts` | `glow_out` |
+|---|---|---|---|---|
+| 1 door shut | 455.4963 | 0.300943 | 440 | 0.095115 |
+| 2 door open, flag **off** | 455.4963 | 0.300943 | 440 | 0.095115 |
+| 3 door open, **drawn only** | 468.8965 | 0.280377 | 452 | 0.095115 |
+| 4 door open, **glow grid driven** | 468.8965 | 0.280377 | 452 | **0.500000** |
+
+Arm 2 is the control and it is **pixel-identical** to arm 1 — zero pixels differ — which is the live
+proof that vanilla really is blind to open state and that our off path reproduces it exactly. Arm 3's
+polygon lands on 468.896484 / 0.280377477 / 452, which is `vector_light_glass_door`'s **bare
+doorway** to the last decimal: an open door now measures as the hole it visibly is. Arm 3 leaves
+`glow_out` untouched, which is the contract holding; arm 4 moves it 0.095 → 0.500, which is the
+contract deliberately broken.
+
+Visually, against the shut door: the drawn-only arm touches **0.48%** of frame at masked median
+**ΔE 1.74** (p90 4.87), the glow-grid arm **1.63%** at **ΔE 1.95** (p90 7.63). The footprints are the
+interesting half rather than the medians — our polygon is a *beam* and vanilla's flood is a *wash*,
+so the coherent option is three times the area for a fifth more contrast. Whether the beam or the
+wash is what a doorway should look like is precisely the judgement the two flags exist to let
+someone make by looking, which is why the rejected option is shipped alongside rather than described.
+
+**`vector_light_door_glow_blocker` is the comparison arm, not a feature.** It moves vanilla's own
+blocker bit on open/close, so gameplay light agrees. Known rough edge, recorded rather than papered
+over: a door open at save time comes back with `openInt` true and no notification, so the grid
+disagrees until the door is next used. `lightBlockers` is a bit array rather than a counter, so
+nothing accumulates and it self-heals — acceptable for a flag that exists to be measured against.
+
+#### Phase 2: tracking the slide (`vector_light_door_aperture`)
+
+**Problem with phase 1.** `Building_Door.Open` flips true on the first tick of the swing, while the
+leaves take tens of ticks to finish sliding. So phase 1 put a **full-width beam over a door the
+player can still see closed** — the aperture and the artwork disagreeing for the whole animation,
+which is the most conspicuous moment there is to disagree.
+
+**Approach.** `DoorApertureMath` places the two leaves along the wall axis from `OpenPct`: each holds
+half the cell when shut and recedes to its own side as the door opens, leaving a centred gap of
+exactly `openPct` cells. `VectorLightBlockers` drops the door cell from the bool grid and hands those
+two leaves to `Build` as ordinary segments.
+
+**No new concept was needed for that**, which is the pleasing part. `SilhouetteSegments` can only
+carry whole cells, but `Build` takes an arbitrary `Segment[]` and fires a corner ray at every
+endpoint it is handed — it has no idea the other segments came from a grid. So sub-cell occlusion
+rides alongside the silhouette, and because the corner rays land on the leaf edges, **the penumbra
+tracks the leaves for free**.
+
+**It models an illusion, knowingly.** Vanilla draws two movers, each a full 1×1 quad slid ±0.45·`OpenPct`
+(`Building_Door.DrawAt` → `DrawMovers`). Two 1-wide quads sliding 0.45 cannot geometrically clear a
+1-wide cell, so the visible opening comes from the door *artwork* inside those quads, not from the
+quads' extents — there is no exact occluder outline to copy, only an apparent one. Modelling the
+apparent thing is the appropriate kind of wrong for a feature whose whole claim is that the beam
+looks like it tracks the door. Both ends are exact regardless: shut reproduces the closed-door
+occluder, fully open reproduces a bare doorway, and both are pinned against measurements taken
+before this existed.
+
+**The cost, and the knob that bounds it.** `OpenPct` changes every tick, and every distinct value is a
+fresh bake for the lights near that door — where §27's cost model assumed geometry changes when a
+player *builds* something. `DoorApertureMath.Quantise` snaps it to eight steps, so a swing costs a
+fixed number of bakes however slow the door or the game speed. Measured live:
+
+| | rebakes per swing |
+|---|---|
+| tracking every tick (a 45-tick wooden door) | 45 |
+| **quantised to 8 steps (shipped)** | **9** |
+| phase 1, no tracking | 1 |
+
+Nine, pinned at tolerance 0, and `door_aperture_watched` returns to **0** after the swing — the
+watch set drains, so the sweep does not grow with the size of the base. The offline test states the
+bound as a property rather than an example: however many distinct values `OpenPct` takes, the
+quantised sequence takes at most `steps + 1` of them.
+
+**Filmed, because a still cannot show this.** Two sweeps over the same wooden door's swing, differing
+only in the flag. Integrated beam brightness in the yard outside the door, per captured frame:
+
+```
+aperture on    31.2  35.4  52.6  68.5  68.6 ... 79.0 ... 88.7      a ramp
+aperture off   80.9  83.9  85.0  85.4  ...                        already there by frame 1
+```
+
+Phase 1 arrives at ~80 on the first captured frame — full width over a door still visibly shut.
+Phase 2 starts at 31.2 and climbs to 88.7 across the swing.
+
+**The instrument had to change to film it at all, and the first cut was a false pass.** TickLapse's
+`AdvanceTicks` is a *jump*: it moves `TicksGame` without simulating, which is right for an effect that
+reads the tick counter and wrong for one driven by a `Thing`'s own `Tick()`. A door's slide is the
+second kind — `Building_Door.Tick` increments `ticksSinceOpen` and `OpenPct` is a ratio of it — so the
+first film came back with the aperture pinned at 0 for all thirty frames, `door_aperture_bakes` at 0,
+**and the scenario passing**. `SetTimeSpeed` (dev-only, in the probe bridge) unpauses the clock so the
+door actually moves; the frames are hand-rolled `Wait`/`Screenshot` pairs because a jump cannot film
+a simulated animation. Recorded here because a green run over a film of nothing is the exact failure
+this repo's verification bar exists to catch, and it caught it only because a probe was pinned to a
+value that had to *move*.
+
 ### Performance (`Tests/Scenarios/vector_light_perf.json`)
 
 Epic #145 carried phase 5 with **nothing profiled at all** — phase 1's validation run was

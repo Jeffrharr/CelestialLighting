@@ -147,6 +147,17 @@
          deliberately not extra BFS distance, see the file's own header. Its own file and its own
          formula for the same reason NativeSkyFalloffMath is not shared with IndoorOcclusionMath. -->
     <Compile Include="../../Source/DoorLeakMath.cs" Link="DoorLeakMath.cs" />
+    <!-- §27e pure core (does an edifice occlude §27's rays): the same blockLight test §27 always
+         used, plus an open-door term. Unrelated to DoorLeakMath above despite both being about doors
+         — that one dims §7c's sky flood by door STRENGTH and is blind to open state, this one is a
+         binary occlude/don't for a visibility polygon, which cannot express partial transmittance at
+         all. Depends on nothing. -->
+    <Compile Include="../../Source/DoorOcclusionMath.cs" Link="DoorOcclusionMath.cs" />
+    <!-- §27e phase 2 pure core (where the two door leaves stand mid-slide, plus the quantisation
+         that caps bakes per swing). Separate from DoorOcclusionMath above because that one answers a
+         binary question about a whole cell and this one places sub-cell geometry; the boolean is
+         still the rule at both ends of the slide. Depends on nothing. -->
+    <Compile Include="../../Source/DoorApertureMath.cs" Link="DoorApertureMath.cs" />
     <!-- §7b staleness-fix pure core: has a map's CurSkyGlow drifted far enough from what its lighting
          meshes were last baked against to justify another whole-map rebuild. See
          GameComponent_SkyFalloffRedraw for the live half and why this is a drift gate, not a clock. -->
