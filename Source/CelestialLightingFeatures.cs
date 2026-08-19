@@ -746,6 +746,27 @@ public static class CelestialLightingFeatures
     //
     // Inert unless VectorLightMask is on, so it cannot contaminate any other arm.
     public static bool VectorLightMaskBeam = false;
+
+    // Feature key for VectorLightPawnShadows.
+    public const string VectorLightPawnShadowsKey = "vector_light_pawn_shadows";
+
+    // §27 phase 4: a pawn throws a shadow away from each lamp that lights it.
+    //
+    // VANILLA CANNOT DO THIS AND IT IS NOT A GAP IN VANILLA. Its pawn shadow leans on `_CastVect`, a
+    // shader global the sky manager sets once a frame, so every shadow on the map points the same
+    // way. That is exactly right for a sun and meaningless for a torch, and per-lamp direction is
+    // unreachable through that material — see VectorLightPawnShadows for how the extrusion is baked
+    // into the mesh instead.
+    //
+    // REQUIRES THE MASK, and not merely for tidiness. A pawn behind a wall must not throw a shadow
+    // from a lamp that cannot see it, and phase 3's coverage grid is the only thing in the mod that
+    // can say so — the crossfade knows one global constant, and vanilla's own glow grid would answer
+    // yes, because its light bends around corners.
+    //
+    // ROOFS AND EAVES ARE NOT SKIPPED, deliberately and against vanilla's own rule: Graphic_Shadow
+    // bails on any roofed cell because sunlight does not get in, and a lamp indoors is the entire
+    // point of this. §15's eaves are a sun concept too and have no bearing on a torch.
+    public static bool VectorLightPawnShadows = false;
 }
 
 public enum SunClockMode
