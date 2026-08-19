@@ -160,6 +160,13 @@ public class CelestialLightingSettings : ModSettings
     // the settings window changes/closes, so a toggle takes effect immediately and survives reload.
     public void ApplyToRuntime()
     {
+        // Retires every cached per-frame geometry answer, because the values written just below are
+        // inputs to several of them. Unconditional and first, so nothing can read a value derived
+        // from the settings this call is in the middle of replacing. A no-op at today's one-frame
+        // memo span — see SettingsGeneration for why it is wired up anyway, and why it is not
+        // change-detected the way the redraw hooks are.
+        SettingsGeneration.Bump();
+
         CelestialLightingFeatures.CivilTwilightPersistence = civilTwilightPersistence;
         CelestialLightingFeatures.PenumbraContrast = penumbraContrast;
         CelestialLightingFeatures.MoonShadows = moonShadows;

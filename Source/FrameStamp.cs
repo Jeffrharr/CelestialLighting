@@ -20,6 +20,10 @@ public static class FrameStamp
     private const int WarpMoonClockBit = 1 << 1;
     private const int SunClockModeShift = 2;
 
+    // The settings generation occupies the high bits, well clear of the mode fields below it, so a
+    // settings write and a mode flip can never alias into the same key.
+    private const int SettingsGenerationShift = 8;
+
     // Time.frameCount, not Time.renderedFrameCount: frameCount advances once per Update, which is the
     // pass every one of our callers runs in (Game.UpdatePlay -> MapUpdate -> SkyManagerUpdate, the
     // WeatherWorker.CurSkyTarget postfixes underneath it, and the harness's own Root_Play.Update
@@ -37,6 +41,12 @@ public static class FrameStamp
         int variant = SunClockAdapter.WarpEnabled ? WarpEnabledBit : 0;
         variant |= MoonPosition.WarpMoonClock ? WarpMoonClockBit : 0;
         variant |= (int)CelestialLightingFeatures.SunClock << SunClockModeShift;
+
+        // Every other slider and toggle the settings screen owns, folded in as one counter rather
+        // than named individually. Redundant while the memo span is one frame — Time.frameCount
+        // already expires the entry — and deliberately present so that "settings are an input to
+        // this key" is written down rather than left true by accident. See SettingsGeneration.
+        variant |= SettingsGeneration.Current << SettingsGenerationShift;
         return variant;
     }
 }
