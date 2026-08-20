@@ -266,7 +266,13 @@ public static class VectorLightMask
                 {
                     // Vanilla's own origin, so the two distances cannot disagree about where the
                     // lamp is; near the lamp its 1/(d*d) term makes a one-cell error enormous.
-                    float straight = VectorLightMath.OctileDistance(
+                    //
+                    // AND VANILLA'S OWN ORIGIN FOR THE DISTANCE ITSELF, which is the fix that made
+                    // this term finally net to zero. ComputeGlowGridsJob seeds the emitter's own cell
+                    // at intDist 100 rather than 0, so the curve is evaluated at octile + 1 and the
+                    // raw octile distance samples it a cell too close — inventing a debt at every
+                    // unobstructed cell and lifting the whole room. See VanillaGlowDistance.
+                    float straight = VectorLightMath.VanillaGlowDistance(
                         x - light.position.x, z - light.position.z);
                     float falloff = VectorLightMath.VanillaFalloff(straight, light.glowRadius);
 

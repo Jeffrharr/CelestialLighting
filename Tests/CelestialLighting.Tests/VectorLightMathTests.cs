@@ -1441,20 +1441,204 @@ public class VectorLightMathTests
         Assert.That((r, g, b), Is.EqualTo((200, 100, 40)));
     }
 
-    // THE ROOM. Vanilla reached the cell by the straight path, so it already delivered the whole
-    // straight-line value and owes nothing — at any distance, which is what stops the room lifting.
-    [TestCase(1f)]
-    [TestCase(2.41f)]
-    [TestCase(6f)]
-    [TestCase(11f)]
-    public void OwedLight_IsZeroWhereVanillaAlreadyDelivered(float d)
-    {
-        float f = VectorLightMath.VanillaFalloff(d, 12f);
-        VectorLightMath.ProjectLikeVanilla((int)(217 * f), (int)(190 * f), (int)(140 * f),
-            out int r, out _, out _);
+    // ---- §27 phase 3c: the vanilla oracle ------------------------------------------------------
 
-        Assert.That(VectorLightMath.OwedLightChannel(r, r, 255), Is.Zero);
+    // Verse.Glow.ComputeGlowGridsJob reproduced for ONE unobstructed cell, transcribed from vanilla's
+    // source rather than expressed in terms of ours. This is an ORACLE, and writing it was the whole
+    // fix: the test it replaced asserted project(C * F(d)) - project(C * F(d)) == 0 with BOTH halves
+    // computed by the code under test, so it was a tautology that passed at every distance while the
+    // shipped build lifted the room by a fifth. A differential can only be tested against an
+    // independent statement of what it is differencing.
+    //
+    // Nothing in here calls VectorLightMath, including the projection, so a regression in any part of
+    // the modelled chain fails rather than cancelling.
+    //
+    // INTEGER DISTANCE ON PURPOSE. Vanilla accumulates intDist in hundredths of a cell and divides
+    // once at the end, so 141 per diagonal step is exact where a running float 1.41 would drift.
+    private static void VanillaStoredGlow(
+        int dx, int dz, int cr, int cg, int cb, float radius,
+        out int r, out int g, out int b)
+    {
+        r = 0;
+        g = 0;
+        b = 0;
+
+        // PrepareFill SEEDS THE EMITTER'S OWN CELL AT 100, not 0 — the line this whole section
+        // exists because of — and Flood charges 100 a cardinal step and 141 a diagonal one on top.
+        int ax = dx < 0 ? -dx : dx;
+        int az = dz < 0 ? -dz : dz;
+        int min = ax < az ? ax : az;
+        int max = ax < az ? az : ax;
+        int intDist = 100 + 141 * min + 100 * (max - min);
+
+        float d = intDist / 100f;
+
+        // SetGlowFromDist leaves its ColorInt at default beyond the radius, so nothing is stored.
+        if (d > radius)
+            return;
+
+        float lerpFrom = 1f + (-1f / radius) * d;
+        float lerpTo = 1f / (d * d);
+        float mix = lerpFrom + (lerpTo - lerpFrom) * 0.4f;
+
+        // ColorInt operator *(float) truncates per channel.
+        int mr = (int)(cr * mix);
+        int mg = (int)(cg * mix);
+        int mb = (int)(cb * mix);
+
+        // `if (colorInt.r > 0 || colorInt.g > 0 || colorInt.b > 0)` — a triple that survived nothing
+        // is never written, leaving the memcleared zero.
+        if (mr <= 0 && mg <= 0 && mb <= 0)
+            return;
+
+        // ClampToNonNegative, then ProjectToColor32Fast — inlined rather than delegated so this
+        // oracle shares no code at all with the thing it is judging.
+        mr = mr < 0 ? 0 : mr;
+        mg = mg < 0 ? 0 : mg;
+        mb = mb < 0 ? 0 : mb;
+
+        int peak = mr;
+
+        if (mg > peak)
+            peak = mg;
+
+        if (mb > peak)
+            peak = mb;
+
+        if (peak > 255)
+        {
+            r = mr * 255 / peak;
+            g = mg * 255 / peak;
+            b = mb * 255 / peak;
+            return;
+        }
+
+        r = mr;
+        g = mg;
+        b = mb;
     }
+
+    // Vanilla's flood never evaluates its curve at zero: the source cell is seeded at 100 hundredths
+    // and every step adds to that, so the distance is the octile distance PLUS ONE.
+    [TestCase(0, 0, 1f)]
+    [TestCase(1, 0, 2f)]
+    [TestCase(0, 4, 5f)]
+    [TestCase(2, 2, 3.82f)]
+    [TestCase(3, 1, 4.41f)]
+    public void VanillaGlowDistance_IsOctilePlusTheSourceCellSeed(int dx, int dz, float expected)
+    {
+        Assert.That(VectorLightMath.VanillaGlowDistance(dx, dz), Is.EqualTo(expected).Within(1e-4f));
+    }
+
+    // THE ROOM, measured against the oracle. Vanilla reached the cell by the straight path, so it
+    // already delivered the whole straight-line value and owes nothing — at every distance, which is
+    // what stops the room lifting. Asserted as EQUALITY of the triples rather than as a zero on one
+    // channel: an owed of zero is also what a term that under-claims produces, and the room only
+    // stays put if the two agree exactly.
+    //
+    // TorchLamp's own colour and radius, so the numbers are the ones the live scenario photographs.
+    [TestCase(0, 0)]
+    [TestCase(1, 0)]
+    [TestCase(0, 3)]
+    [TestCase(2, 2)]
+    [TestCase(3, 1)]
+    [TestCase(5, 0)]
+    [TestCase(7, 4)]
+    [TestCase(10, 0)]
+    [TestCase(9, 0)]     // d = 10, exactly the radius: vanilla's last lit ring
+    [TestCase(10, 0)]    // d = 11, past it: both must be nothing
+    public void OwedLight_IsZeroAgainstVanillasOwnStoredValue(int dx, int dz)
+    {
+        VanillaStoredGlow(dx, dz, TorchR, TorchG, TorchB, TorchRadius,
+            out int deliveredR, out int deliveredG, out int deliveredB);
+
+        OurStraightLineLight(dx, dz, out int oursR, out int oursG, out int oursB);
+
+        Assert.That((oursR, oursG, oursB), Is.EqualTo((deliveredR, deliveredG, deliveredB)),
+            $"the straight-line model disagrees with vanilla's own flood at ({dx}, {dz})");
+
+        Assert.That(VectorLightMath.OwedLightChannel(oursR, deliveredR, 255), Is.Zero);
+        Assert.That(VectorLightMath.OwedLightChannel(oursG, deliveredG, 255), Is.Zero);
+        Assert.That(VectorLightMath.OwedLightChannel(oursB, deliveredB, 255), Is.Zero);
+    }
+
+    // THE REGRESSION TEST FOR THE BUG ITSELF, and it has to assert the WRONG answer to be worth
+    // anything: sampling the curve at the raw octile distance reads one cell closer than vanilla did,
+    // so it claims a debt in open space. Pinned as a real, large over-claim so that anyone
+    // "simplifying" VanillaGlowDistance back to OctileDistance gets a failure naming the reason,
+    // rather than a room that is quietly a fifth too bright.
+    [TestCase(2, 0)]
+    [TestCase(5, 0)]
+    [TestCase(3, 3)]
+    public void OwedLight_RawOctileDistanceInventsADebtInOpenSpace(int dx, int dz)
+    {
+        VanillaStoredGlow(dx, dz, TorchR, TorchG, TorchB, TorchRadius, out int deliveredR, out _, out _);
+
+        float raw = VectorLightMath.OctileDistance(dx, dz);
+        float falloff = VectorLightMath.VanillaFalloff(raw, TorchRadius);
+        VectorLightMath.OurLightAt(TorchR, TorchG, TorchB, falloff, out int oursR, out _, out _);
+
+        Assert.That(VectorLightMath.OwedLightChannel(oursR, deliveredR, 255), Is.GreaterThan(0),
+            "if this ever reads zero the offset has been double-applied or removed");
+    }
+
+    // THE SHAPE OF THAT OVER-CLAIM, and why it was never going to look like a calibration constant
+    // somebody could tune out. A one-cell sampling error is not a fixed fraction: vanilla's curve is
+    // dominated by 1/(d*d) near the lamp and by the linear term near the rim, and it steepens all the
+    // way out, so the invented debt runs from about a quarter of the delivered light close in to
+    // nearly double it at the edge of reach.
+    //
+    // That is also the tell that was missed in the frames. A uniform lift reads as "the beam is too
+    // strong" and invites turning a slider down; a lift that grows with distance reads as a HALO, and
+    // the capture showed the mid brightness bands rising more than the near ones.
+    [Test]
+    public void OwedLight_RawOctileOverClaimGrowsTowardTheRim()
+    {
+        float near = RawOctileOverClaim(2, 0);
+        float mid = RawOctileOverClaim(5, 0);
+        float rim = RawOctileOverClaim(8, 0);
+
+        Assert.That(near, Is.GreaterThan(1.15f), $"near over-claim {near:0.000} is smaller than measured");
+        Assert.That(mid, Is.GreaterThan(near), "the invented debt has to grow with distance");
+        Assert.That(rim, Is.GreaterThan(mid));
+        Assert.That(rim, Is.GreaterThan(1.7f), $"rim over-claim {rim:0.000} is smaller than measured");
+    }
+
+    // How many times brighter the raw-octile model claims a cell should be than vanilla actually made
+    // it, with nothing in the way. One is the correct answer; anything above it is invented light.
+    private static float RawOctileOverClaim(int dx, int dz)
+    {
+        VanillaStoredGlow(dx, dz, TorchR, TorchG, TorchB, TorchRadius, out int deliveredR, out _, out _);
+
+        float raw = VectorLightMath.OctileDistance(dx, dz);
+        VectorLightMath.OurLightAt(
+            TorchR, TorchG, TorchB, VectorLightMath.VanillaFalloff(raw, TorchRadius),
+            out int oursR, out _, out _);
+
+        return (float)oursR / deliveredR;
+    }
+
+    // What the mask computes for one cell, in one place, so the tests above and the live probe cannot
+    // drift apart from each other or from VectorLightMask.AccumulateEmitter.
+    private static void OurStraightLineLight(int dx, int dz, out int r, out int g, out int b)
+    {
+        float straight = VectorLightMath.VanillaGlowDistance(dx, dz);
+        float falloff = VectorLightMath.VanillaFalloff(straight, TorchRadius);
+
+        VectorLightMath.OurLightAt(TorchR, TorchG, TorchB, falloff, out r, out g, out b);
+    }
+
+    // TorchLamp's ACTUAL def values, read from Buildings_Furniture.xml rather than remembered:
+    // CompProperties_Glower glowRadius 10, glowColor (184,136,83,0). It is the emitter
+    // vector_light_differential.json places, so these are the numbers the live probe reports.
+    //
+    // Worth pinning rather than parameterising. The radius sets where on the curve the over-claim
+    // below is evaluated, and the curve steepens sharply toward the rim — a test written against a
+    // guessed radius of 12 measured a 1.18x over-claim where the real lamp gives 1.85x.
+    private const int TorchR = 184;
+    private const int TorchG = 136;
+    private const int TorchB = 83;
+    private const float TorchRadius = 10f;
 
     // THE BEAM, and the case a ratio of vanilla's own delivery can never produce: vanilla delivered
     // nothing through the open door, so the whole straight-line value is owed.

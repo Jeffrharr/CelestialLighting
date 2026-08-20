@@ -8311,6 +8311,103 @@ The crossfade branch is deliberately **not** scaled by it. Its level is calibrat
 than to lift, so scaling it down would land the fallback path *dimmer* than vanilla — a different bug
 rather than a milder version of this one.
 
+### Phase 3c: the owed-light beam (`vector_light_beam_differential`, `Tests/Scenarios/vector_light_differential.json`)
+
+**Problem.** The slider above is a trade, not a fix, and the section says so: the polygon *is* the lit
+region, so the flat beam cannot raise the doorway without raising the room. Measured on the four-arm
+fixture, the shipped flat beam moves **83,072 px inside the room at median CIELAB ΔE 2.43** to buy a
+doorway beam of ΔE 0.84. It pays for the beam almost entirely in light nobody asked for.
+
+**Approach: ask what vanilla *owes* the cell rather than what it delivered.**
+
+    owed = project(C · F(d_straight)) − delivered
+
+`C` is `GlowLight.glowColor` — vanilla's own, so there is no calibration constant and nothing to get
+wrong about units. `F` is `VanillaFalloff`, vanilla's curve reproduced including its lack of any
+minimum-distance clamp. `project` is `ProjectLikeVanilla`, its hue-preserving normalise-by-max, which
+is **not** a per-channel clamp and reading it as one invents a debt at every bright cell. `d_straight`
+is the unobstructed distance in vanilla's own metric.
+
+One expression covers three cases, which is the point: vanilla reached the cell by the straight path
+and owes **nothing**; vanilla bent to get there and owes **the shortfall**; vanilla delivered
+**nothing at all** and owes the whole straight-line value. That last case is §27e's headline and a
+ratio of vanilla's own delivery can never express it — a term proportional to `delivered` is zero when
+`delivered` is zero, which is why an earlier ratio formulation photographed an empty doorway.
+Accumulated as a *negative* shadow so the existing corner and centre averaging carry it without a
+second buffer or a second pass.
+
+**`d_straight` is octile PLUS ONE, and the plus one is the whole subsystem.** `ComputeGlowGridsJob`
+walks an 8-neighbour lattice charging 100 a cardinal step and 141 a diagonal one, so the metric is
+octile rather than Euclidean — that much was known, and measuring the differential across two metrics
+is what killed the first formulation. What was *not* known is that `PrepareFill` seeds the emitter's
+own cell at `intDist = 100` rather than 0. Vanilla never evaluates its curve at zero: the source cell
+is sampled at d = 1, a cardinal neighbour at d = 2, a diagonal at d = 2.41.
+
+Passing the raw octile distance therefore samples the curve **one cell closer than vanilla did,
+everywhere, with nothing in the way**. `ours` comes out unconditionally brighter than `delivered`,
+every cell in an open room reports a debt, and the term built to net to zero lifts the whole room
+instead. It is not a rounding error — for a radius-10 lamp the invented debt runs from about **1.25×**
+the delivered light two cells out to nearly **2×** at the edge of reach, growing all the way. That
+shape is also the tell that was missed in the frames: a uniform lift reads as "too strong" and invites
+turning a slider down, while a lift that grows with distance reads as a *halo*.
+
+`VanillaFalloff` is additionally written in vanilla's **order of operations** — `1f + (-1f/radius)·d`,
+not the tidier `1f - d/radius`. The two differ by an ULP, and an ULP is enough: the term differences
+two projections of `(int)(channel · falloff)`, so a single ULP lands as an off-by-one debt on whichever
+channel sits against an integer boundary. Matching the expression exactly is what lets the offline test
+assert equality rather than a tolerance.
+
+**How it was found, and the method note that matters more than the bug.** Three formulations of this
+term were judged from pixels — a frame-diff centroid, a brightness-band histogram, a lit-area fraction
+— and two of the three read as *plausible while being wrong*, because every one of them measures the
+term after the mesh has averaged it over four cells and the sky has multiplied it. The offline tests
+were worse than useless here: `OwedLight_IsZeroWhereVanillaAlreadyDelivered` computed **both halves of
+the difference with the code under test**, so it asserted `x − x == 0` and passed at every distance
+while the shipped build lifted the room by a fifth.
+
+Both were fixed the same way. `VanillaStoredGlow` in the tests is an **oracle** — `SetGlowFromDist`
+transcribed from vanilla's source, sharing no code with what it judges, down to the integer `intDist`
+accumulation and the inlined projection. `VectorLightOwedProbe` is the live counterpart, reporting
+`delivered`, `ours`, `owed`, `coverage` and `distance` for one named cell **before** the mesh averaging
+and the sky multiply. A differential can only be tested against an independent statement of what it is
+differencing; everything else confirms that a code path ran.
+
+**Verification.** `vector_light_differential.json`, four arms in one boot, roofed room with a door held
+open, at midnight. The probes (pinned at zero tolerance):
+
+| cell | coverage | delivered | ours | owed |
+|---|---|---|---|---|
+| open room, 3 cells west of the lamp | 255 | 70 | **70** | **0** |
+| off-axis, where octile and Euclidean disagree most | — | 65 | **65** | **0** |
+| first cell outside the held-open door | 255 | **0** | 58 | **58** |
+
+`distance` is pinned at **4** — octile 3 plus the seed — so a regression on the metric fails there
+rather than as a slightly-too-bright room nobody can attribute.
+
+In the frames, against vanilla and measured over the pixels each arm actually moves:
+
+| arm | inside the room | beam outside the door |
+|---|---|---|
+| flat beam (`vector_light_mask_beam`) | 83,072 px, median ΔE **2.43** | 7,038 px, median ΔE 0.84 |
+| owed light (`vector_light_beam_differential`) | **607 px**, median ΔE 1.44 | 8,990 px, median ΔE **1.12** |
+
+The room lift is gone — a **137× smaller footprint** — and the doorway beam is *stronger* than the one
+that ships today. The 607 px that remain sit at the doorway itself and are the documented cost of cell
+resolution: a corner vertex on the wall line averages an outside cell carrying owed light with an
+inside cell that is not, bleeding the beam inward by half a cell.
+
+**Whole-frame median and p90 both read 0.00** for every arm, which is the trap this fixture exists to
+document rather than a result: the effect covers 4.35% of a 1920×1080 frame, and a bounded effect
+disappears in both statistics. The numbers above are medians over the touched pixels.
+
+**What ships: the flag stays off.** `vector_light_beam_differential` defaults **false** and remains
+mutually exclusive with `vector_light_mask_beam`. The arithmetic is now right and the room no longer
+moves, but a doorway beam at ΔE 1.12 is "visible on close inspection" rather than obvious, and whether
+that is the level the mod wants is the same taste call the beam-strength slider already represents —
+not something to decide from a formula being correct. §27's own bar is that a change under ΔE 1 is not
+shipped however sound its maths; this clears that bar narrowly, and clearing it narrowly is not an
+argument for flipping a default.
+
 ### §27e: open doors (`vector_light_open_doors`, `Tests/Scenarios/vector_light_open_door.json`)
 
 **It is a settings toggle now**, "Light through open doors", nested under the master switch and still

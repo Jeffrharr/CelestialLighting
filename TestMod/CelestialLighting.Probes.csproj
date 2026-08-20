@@ -69,6 +69,11 @@
     <!-- §27e phase 2: aperture, watched-door count, and rebakes-per-swing. The last is the number
          the performance claim rests on; a timing probe cannot see a call count change. -->
     <Compile Include="../Source/Probes/DoorApertureProbe.cs" Link="DoorApertureProbe.cs" />
+    <!-- §27 phase 3c: the two integers the owed-light term differences, side by side. The one probe
+         in the set that reads BEFORE the mesh averaging and the sky multiply, which is why it found
+         a one-cell distance offset that three rounds of pixel measurement had each read as
+         plausible. -->
+    <Compile Include="../Source/Probes/VectorLightOwedProbe.cs" Link="VectorLightOwedProbe.cs" />
     <!-- §27e: the SetDoorOpen scenario step. Not a probe, but it belongs to the same dev-only
          assembly for the same reason: StepDiscovery scans loaded mod assemblies, and this must
          never reach the shipped DLL. -->

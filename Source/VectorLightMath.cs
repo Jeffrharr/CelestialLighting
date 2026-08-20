@@ -1212,6 +1212,39 @@ public static class VectorLightMath
         return DiagonalCost * min + (max - min);
     }
 
+    // The seed cost vanilla's flood puts on the emitter's OWN cell, in the same units OctileDistance
+    // returns. ComputeGlowGridsJob.PrepareFill writes `value.intDist = 100` there — not 0 — and
+    // Flood then adds 100 a cardinal step and 141 a diagonal one ON TOP of that, so SetGlowFromDist
+    // divides by 100 and evaluates its curve at 1 + octile.
+    public const float SourceCellDistance = 1f;
+
+    // The distance vanilla's falloff is ACTUALLY evaluated at for a cell (dx, dz) from the emitter,
+    // with nothing in the way. This is the octile distance PLUS ONE, and the plus one is the whole
+    // point of the function existing.
+    //
+    // THE BUG IT EXISTS TO STOP, because it cost this subsystem three rounds of measurement. The
+    // owed-light term is project(C * F(d_straight)) - delivered, and it is correct only if F is
+    // sampled at the same point vanilla sampled it. Passing the raw octile distance samples the curve
+    // ONE CELL CLOSER than vanilla did, everywhere, with nothing in the way — so `ours` is
+    // unconditionally brighter than `delivered`, every cell in an open room reports a debt, and the
+    // term that is supposed to net to zero lifts the whole room instead.
+    //
+    // It is not a rounding error, it is a fifth of the light. For a radius-12 lamp F(d)/F(d+1) is
+    // 1.21 at d = 2 and 1.18 at d = 5, and the build that shipped the raw distance measured its mid
+    // brightness bands at 0.85 against the flat beam's 0.72 (1.18x) and 2.20 against 1.85 (1.19x).
+    // The spurious lift IS this offset, to two decimal places.
+    //
+    // TWO CONSEQUENCES WORTH KNOWING. Vanilla's curve is never evaluated below d = 1, so its
+    // 1/(d*d) term cannot run away and OurLightAt's overflow cap stops being reachable from the
+    // mask — the cap stays because the function is public and the guard is free, not because
+    // anything still needs it. And vanilla's own reach test is `num2 <= glowRadius` on this SAME
+    // offset distance, so feeding this to VanillaFalloff makes its `distance > radius` cutoff agree
+    // with the flood's `num5 > num` cutoff for free, rather than reaching one cell too far.
+    public static float VanillaGlowDistance(int dx, int dz)
+    {
+        return OctileDistance(dx, dz) + SourceCellDistance;
+    }
+
     // Verse.ColorInt.ProjectToColor32Fast, reproduced exactly. NOT a per-channel clamp: when any
     // channel exceeds 255 vanilla scales ALL THREE by 255/max, which preserves the light's hue
     // instead of clipping it toward white.
@@ -1323,7 +1356,15 @@ public static class VectorLightMath
         if (distance <= 0f)
             return float.MaxValue;
 
-        float linear = 1f - distance / radius;
+        // WRITTEN IN VANILLA'S ORDER OF OPERATIONS, NOT THE TIDY ONE. SetGlowFromDist hoists
+        // `-1f / glowRadius` into a local and forms `1f + num * num2`, which is NOT bit-identical to
+        // `1f - distance / radius` in float. The difference is an ULP, and an ULP is enough: the
+        // owed-light term differences two projections of `(int)(channel * falloff)`, so a single ULP
+        // lands as an off-by-one debt on whichever channel happens to sit against an integer
+        // boundary — a faint, cell-scattered lift that would read as a discretisation artefact
+        // rather than as an arithmetic one. Matching the expression exactly makes the term cancel to
+        // the bit, which is what lets the offline test assert equality rather than a tolerance.
+        float linear = 1f + (-1f / radius) * distance;
         float inverseSquare = 1f / (distance * distance);
 
         return linear + InverseSquareWeight * (inverseSquare - linear);

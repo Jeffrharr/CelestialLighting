@@ -276,6 +276,57 @@ public static class ProbeRegistration
             "door_aperture_watched", DoorApertureProbe.Metric.Watched, IntVec3.Zero));
         ProbeRegistry.Register(new DoorApertureProbe(
             "door_aperture_bakes", DoorApertureProbe.Metric.DirtyRequests, IntVec3.Zero));
+        // §27 phase 3c, vector_light_differential.json. The two integers the owed-light term
+        // differences, read straight out of the live game rather than inferred from pixels.
+        //
+        // READ THEM AS A GROUP OR NOT AT ALL. `owed` alone is ambiguous three ways — zero because we
+        // cannot see the cell, zero because vanilla already paid, or non-zero because our model is
+        // wrong — and only `ours` against `delivered` with `coverage` beside them separates those.
+        // `distance` is pinned as well because the bug this probe found WAS the distance: vanilla
+        // seeds its flood at intDist 100, so its curve is evaluated at octile + 1, and sampling the
+        // raw octile invented a debt at every unobstructed cell.
+        //
+        // Cells are local to that scenario's room at offset (0, 45), with the lamp at local (-3, 0)
+        // and the held-open door at local (0, 0):
+        //
+        //   room  (-6, 0) — open floor three cells west of the lamp, six or more from every wall,
+        //                   with nothing at all in the line. THE CONTROL: ours must equal delivered
+        //                   here and owed must be exactly 0, or the room lifts.
+        //   diag  (-2, 3) — the same claim off-axis, where the octile metric and Euclidean disagree
+        //                   most. A metric error is invisible on the cardinal row above.
+        //   door  ( 1, 0) — the first cell OUTSIDE the doorway. THE PAYOFF: vanilla's glow grid never
+        //                   learns a door opened, so delivered must be 0 while ours is positive, and
+        //                   owed is the beam. This is the one cell where a non-zero owed is correct.
+        ProbeRegistry.Register(new VectorLightOwedProbe(
+            "vector_light_owed_room_delivered", VectorLightOwedProbe.Metric.Delivered,
+            new IntVec3(-6, 0, 45)));
+        ProbeRegistry.Register(new VectorLightOwedProbe(
+            "vector_light_owed_room_ours", VectorLightOwedProbe.Metric.Ours, new IntVec3(-6, 0, 45)));
+        ProbeRegistry.Register(new VectorLightOwedProbe(
+            "vector_light_owed_room_owed", VectorLightOwedProbe.Metric.Owed, new IntVec3(-6, 0, 45)));
+        ProbeRegistry.Register(new VectorLightOwedProbe(
+            "vector_light_owed_room_coverage", VectorLightOwedProbe.Metric.Coverage,
+            new IntVec3(-6, 0, 45)));
+        ProbeRegistry.Register(new VectorLightOwedProbe(
+            "vector_light_owed_room_distance", VectorLightOwedProbe.Metric.Distance,
+            new IntVec3(-6, 0, 45)));
+        ProbeRegistry.Register(new VectorLightOwedProbe(
+            "vector_light_owed_diag_delivered", VectorLightOwedProbe.Metric.Delivered,
+            new IntVec3(-2, 0, 48)));
+        ProbeRegistry.Register(new VectorLightOwedProbe(
+            "vector_light_owed_diag_ours", VectorLightOwedProbe.Metric.Ours, new IntVec3(-2, 0, 48)));
+        ProbeRegistry.Register(new VectorLightOwedProbe(
+            "vector_light_owed_diag_owed", VectorLightOwedProbe.Metric.Owed, new IntVec3(-2, 0, 48)));
+        ProbeRegistry.Register(new VectorLightOwedProbe(
+            "vector_light_owed_door_delivered", VectorLightOwedProbe.Metric.Delivered,
+            new IntVec3(1, 0, 45)));
+        ProbeRegistry.Register(new VectorLightOwedProbe(
+            "vector_light_owed_door_ours", VectorLightOwedProbe.Metric.Ours, new IntVec3(1, 0, 45)));
+        ProbeRegistry.Register(new VectorLightOwedProbe(
+            "vector_light_owed_door_owed", VectorLightOwedProbe.Metric.Owed, new IntVec3(1, 0, 45)));
+        ProbeRegistry.Register(new VectorLightOwedProbe(
+            "vector_light_owed_door_coverage", VectorLightOwedProbe.Metric.Coverage,
+            new IntVec3(1, 0, 45)));
         // §27 phase 4 / issue #159. The rectangle a colonist's lamp shadow is actually built from,
         // which has to be the one vanilla's sun shadow is built from or the two leave the pawn at
         // different points. Pin BOTH in any arm that photographs a pawn shadow: they failed
