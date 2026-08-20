@@ -288,6 +288,13 @@ public static class ProbeRegistration
         // Vanilla refuses one for four non-sun reasons and §27 asked none of them.
         ProbeRegistry.Register(
             new VectorLightProbe("vector_light_pawn_casters", VectorLightProbe.Metric.PawnShadowCasters));
+        // §27 phase 4b. Registered as a PAIR, and scenarios should pin both: the fix drives the peak
+        // arm down while leaving the rosette almost where it was, so either number on its own is
+        // consistent with the feature being broken.
+        ProbeRegistry.Register(
+            new VectorLightProbe("vector_light_pawn_shadow_peak", VectorLightProbe.Metric.PawnShadowPeak));
+        ProbeRegistry.Register(
+            new VectorLightProbe("vector_light_pawn_shadow_rosette", VectorLightProbe.Metric.PawnShadowRosette));
         // Performance, measured through Circinus rather than Dubs, because Circinus reports CALL
         // COUNTS. §27 phase 3 does all its work inside a section regenerate, and the Dubs window that
         // appeared to show it running three times cheaper than the feature-off baseline had simply
@@ -777,6 +784,12 @@ public static class ProbeRegistration
         FeatureRegistry.Register(
             CelestialLightingFeatures.VectorLightPawnShadowsKey,
             enabled => CelestialLightingFeatures.VectorLightPawnShadows = enabled);
+        // §27 phase 4b, the share denominator. Two-arg overload, matching its shipped default of
+        // true. No ForceRebuild: this changes only the alpha the shadows are drawn at, and they are
+        // drawn immediate-mode every frame rather than baked into a section.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightShadowSharesKey,
+            enabled => CelestialLightingFeatures.VectorLightShadowShares = enabled);
         // §27e. THREE-arg overload with defaultEnabled: false -- both of these ship off, and the
         // two-arg overload would let ResetAll switch them on for a later scenario in a suite, which
         // for the glow-blocker one would silently change gameplay light under an unrelated test.
