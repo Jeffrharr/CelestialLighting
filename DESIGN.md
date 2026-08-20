@@ -8400,13 +8400,64 @@ inside cell that is not, bleeding the beam inward by half a cell.
 document rather than a result: the effect covers 4.35% of a 1920×1080 frame, and a bounded effect
 disappears in both statistics. The numbers above are medians over the touched pixels.
 
+**The beam was still too faint, and the reason was not the arithmetic.** Live inspection after the
+fix said the doorway had lost too much of its beam, and that the room read slightly brighter than the
+ground outside it at the same distance from the lamp. Both turned out to be one mechanism, and the
+transect probes are what showed it. Due east of the door, `coverage` holds at 255 the whole way while
+`ours` decays 58 / 46 / 34 / 23 / 11 / 0 — so the beam is exactly **six cells long**, because the lamp
+is three cells back from the door, `glowRadius` is 10, and vanilla evaluates its curve at octile + 1.
+That length is vanilla's own reach and no gain can extend it. One cell off the axis `coverage` is
+**64**; two cells off it is **0** — correct optics for a point source through a one-cell aperture, and
+the beam really is that thin.
+
+Thinness is the whole problem. The overlay has one vertex per cell corner plus one per centre, so
+every value is averaged over the up-to-four cells meeting each corner. For vanilla's smooth flood that
+is nearly lossless; for a one-cell-wide beam each corner averages a lit cell against neighbours at
+almost nothing. **Measured**: the term delivers 58 units of glow at the first cell outside the door
+and the frame shows a lift of **+8** red, while the mirror cell inside the room — same distance from
+the lamp, vanilla delivering the same 58 — renders about **+22** over its own floor. Roughly a third
+of the beam survives the mesh.
+
+That also settles the indoor-versus-outdoor asymmetry, and settles it as *not a lighting bug*: the
+probes read `delivered` 58 / `ours` 58 / `owed` 0 at the mirror against `delivered` 0 / `ours` 58 /
+`owed` 58 at the doorway. The model is exactly symmetric. Only the rendering is not, because one side
+is a smooth field and the other is a spike.
+
+**So the gain, and the constraint it retires.** `MaskBeamStrength`'s header states the rule §27 lived
+under: *"the beam and the room brightness are the SAME quantity here — the polygon covers the lit
+region, so nothing can raise the doorway without raising the room with it."* That is true of a term
+proportional to the polygon. **It is false for this one**, and that is the real payoff of the
+differential. `owed` is provably zero wherever vanilla already delivered — pinned offline against the
+oracle at every distance, and measured live at 70/70 and 65/65 — and zero times any gain is zero.
+
+`DefaultOwedBeamGain = 3`, derived from the "about a third survives" measurement rather than chosen.
+Verified live at gain 3 against gain 1:
+
+| | vanilla | flat beam | owed, gain 1 | owed, gain 3 |
+|---|---|---|---|---|
+| red lift at first cell outside the door | — | +5 | +8 | **+24** |
+| red lift two cells out | — | +4 | +8 | +21 |
+| **largest red change anywhere inside the room** | — | **+16** | **0** | **0** |
+| beam outside, median ΔE / p90 | — | 0.84 / 2.01 | 1.12 / 2.56 | **2.56 / 8.67** |
+| pixels moved inside the room | — | 83,072 | 607 | 944 |
+
+The 944 pixels all sit in the final half-cell before the door — the threshold, not the room — and are
+the corner-averaging bleed described above. Across the room's whole interior the largest red change is
+**zero**: the lit room is bit-identical to vanilla while the beam is five times the flat beam's, which
+is the combination §27 has wanted since phase 1 and could not previously express.
+
+**The gain is a compensation, not a licence, and it is provisional.** It restores what the mesh
+removes for an aperture ONE cell wide, which is the only width measured. A double door or a window run
+loses less to averaging and will read too bright at 3. The principled fix is to draw the beam at
+better than cell resolution rather than to scale a scalar; the gain is what is available without a
+mesh of our own, and it is a setting so the number can move when a second fixture disagrees with it.
+
 **What ships: the flag stays off.** `vector_light_beam_differential` defaults **false** and remains
 mutually exclusive with `vector_light_mask_beam`. The arithmetic is now right and the room no longer
-moves, but a doorway beam at ΔE 1.12 is "visible on close inspection" rather than obvious, and whether
-that is the level the mod wants is the same taste call the beam-strength slider already represents —
-not something to decide from a formula being correct. §27's own bar is that a change under ΔE 1 is not
-shipped however sound its maths; this clears that bar narrowly, and clearing it narrowly is not an
-argument for flipping a default.
+moves, and at gain 3 the beam measures ΔE 2.56 — "visible at a glance" — with the room
+provably untouched. What is not yet settled is the gain itself: 3 is calibrated against a single
+one-cell doorway, and the value that is right there is knowably wrong for a wider aperture. A default
+flips when a second fixture has been measured, not because the first one looks good.
 
 ### §27e: open doors (`vector_light_open_doors`, `Tests/Scenarios/vector_light_open_door.json`)
 

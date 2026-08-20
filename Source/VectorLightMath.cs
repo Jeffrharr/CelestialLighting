@@ -1330,9 +1330,43 @@ public static class VectorLightMath
     //     A term proportional to `delivered` is zero when delivered is zero, so the ratio form could
     //     never produce this — and this is §27e's entire headline, since the glow grid never learns a
     //     door opened. Measured: the ratio form threw no cone through an open doorway at all.
-    public static int OwedLightChannel(int projected, int delivered, int coverage)
+    public static int OwedLightChannel(int projected, int delivered, int coverage) =>
+        OwedLightChannel(projected, delivered, coverage, 1f);
+
+    // THE GAIN, AND WHY IT IS SAFE HERE WHEN IT WAS NOT FOR THE FLAT BEAM.
+    //
+    // MaskBeamStrength's header states the constraint that governed §27 until now: "the beam and the
+    // room brightness are the SAME quantity here — the polygon covers the lit region, so nothing can
+    // raise the doorway without raising the room with it." That is true of a term proportional to the
+    // polygon. It is NOT true of this one, and that is the whole payoff of the differential.
+    //
+    // `owed` is provably zero wherever vanilla already delivered by the straight path — pinned
+    // offline against a transcribed oracle at every distance, and measured live at 70 against 70 in
+    // the open room and 65 against 65 off-axis. Multiplying zero by any gain is still zero. So this
+    // scales the doorway and CANNOT scale the room, which means the beam's level is finally a free
+    // parameter rather than half of a trade.
+    //
+    // WHAT IT IS COMPENSATING, because it is not a taste knob dressed up. The lighting overlay has
+    // one vertex per cell corner plus one per centre, so every value written is averaged over the
+    // up-to-four cells meeting each corner. For vanilla's smooth flood that averaging is nearly
+    // lossless. A doorway beam is not smooth: through a one-cell aperture it is one cell wide, and
+    // MEASURED on the transect its coverage falls 255 -> 64 -> 0 within two cells of the axis. So
+    // each corner averages a lit cell against neighbours at nearly nothing, and most of the beam is
+    // averaged away before it is ever drawn.
+    //
+    // The size of the loss was measured, not guessed. At the first cell outside the door the term
+    // delivers 58 units of glow and the frame shows a lift of +8 red, while the MIRROR cell inside
+    // the room — same distance from the lamp, vanilla delivering the same 58 — renders about +22
+    // over its own floor. Roughly a third of the beam survives the mesh, so the gain that restores
+    // it is roughly three.
+    //
+    // IT IS A COMPENSATION, NOT A LICENCE. Where an aperture is wide the beam is already several
+    // cells across, the averaging is nearly lossless, and this gain over-delivers by however much it
+    // is above 1. That is the known cost of correcting a resolution loss with a scalar instead of
+    // drawing at a higher resolution, and it is why the value is a setting rather than a constant.
+    public static int OwedLightChannel(int projected, int delivered, int coverage, float gain)
     {
-        if (coverage <= 0)
+        if (coverage <= 0 || gain <= 0f)
             return 0;
 
         int owed = projected - delivered;
@@ -1340,8 +1374,23 @@ public static class VectorLightMath
         if (owed <= 0)
             return 0;
 
-        return owed * (coverage >= 255 ? 255 : coverage) / 255;
+        int scaled = (int)(owed * (coverage >= 255 ? 255 : coverage) / 255f * gain);
+
+        // Clamped to a byte because the caller accumulates into a ColorInt that is later subtracted
+        // from a Color32: a gain large enough to overflow the channel would wrap rather than
+        // saturate, and wrapping reads as a DARK beam, which is the least diagnosable failure this
+        // could have.
+        return scaled > 255 ? 255 : scaled;
     }
+
+    // Three, from the measurement in OwedLightChannel's header rather than from taste: about a third
+    // of a one-cell-wide beam survives the overlay's corner averaging.
+    //
+    // PROVISIONAL, and the reason is worth keeping. It restores what the mesh removes for an aperture
+    // ONE cell wide, which is the only width measured so far. A double door or a window run loses
+    // less to averaging and will therefore read too bright at this value — so the number wants a
+    // second fixture before it is treated as settled, not a second opinion.
+    public const float DefaultOwedBeamGain = 3f;
 
     // Vanilla's falloff EXACTLY as ComputeGlowGridsJob.SetGlowFromDist computes it, including the
     // absence of any minimum-distance clamp. Deliberately not VectorLightMath.Falloff: that one

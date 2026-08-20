@@ -1618,6 +1618,61 @@ public class VectorLightMathTests
         return (float)oursR / deliveredR;
     }
 
+    // ---- §27 phase 3c: the gain -----------------------------------------------------------------
+
+    // THE PROPERTY THAT MAKES A GAIN ABOVE 1 LEGAL AT ALL, and the one that was false for the flat
+    // beam. `owed` is zero wherever vanilla already delivered by the straight path, and zero times
+    // anything is zero -- so the doorway can be scaled without the lit room moving by a single level.
+    // Asserted across the whole plausible slider range rather than at the default, because the claim
+    // is about the SHAPE of the term, not about one value of it.
+    [TestCase(0f)]
+    [TestCase(1f)]
+    [TestCase(3f)]
+    [TestCase(10f)]
+    [TestCase(1000f)]
+    public void OwedGain_CannotLiftACellVanillaAlreadyPaidFor(float gain)
+    {
+        foreach ((int dx, int dz) in new[] { (0, 0), (1, 0), (3, 1), (5, 0), (9, 0) })
+        {
+            VanillaStoredGlow(dx, dz, TorchR, TorchG, TorchB, TorchRadius, out int delivered, out _, out _);
+            OurStraightLineLight(dx, dz, out int ours, out _, out _);
+
+            Assert.That(VectorLightMath.OwedLightChannel(ours, delivered, 255, gain), Is.Zero,
+                $"gain {gain} lifted an already-lit cell at ({dx}, {dz})");
+        }
+    }
+
+    // And the other half: where vanilla delivered nothing, the gain does what it says.
+    [Test]
+    public void OwedGain_ScalesTheBeamItself()
+    {
+        Assert.That(VectorLightMath.OwedLightChannel(58, 0, 255, 1f), Is.EqualTo(58));
+        Assert.That(VectorLightMath.OwedLightChannel(58, 0, 255, 3f), Is.EqualTo(174));
+        Assert.That(VectorLightMath.OwedLightChannel(58, 0, 255, 0f), Is.Zero, "0 must be no beam");
+    }
+
+    // A gain big enough to overflow the channel must SATURATE, not wrap. The caller accumulates into
+    // a ColorInt that is subtracted from a Color32, so a wrap would render as a dark beam -- the
+    // least diagnosable failure available to this code.
+    [Test]
+    public void OwedGain_SaturatesRatherThanWrapping()
+    {
+        Assert.That(VectorLightMath.OwedLightChannel(200, 0, 255, 50f), Is.EqualTo(255));
+        Assert.That(VectorLightMath.OwedLightChannel(255, 0, 255, 1e6f), Is.EqualTo(255));
+    }
+
+    // The no-gain overload has to be exactly the gain-1 overload, or the offline pins above and the
+    // live probe (which calls the short form) quietly measure different things.
+    [TestCase(58, 0, 255)]
+    [TestCase(70, 70, 255)]
+    [TestCase(120, 90, 128)]
+    public void OwedGain_DefaultOverloadIsGainOne(int projected, int delivered, int coverage)
+    {
+        Assert.That(
+            VectorLightMath.OwedLightChannel(projected, delivered, coverage),
+            Is.EqualTo(VectorLightMath.OwedLightChannel(projected, delivered, coverage, 1f)));
+    }
+
     // What the mask computes for one cell, in one place, so the tests above and the live probe cannot
     // drift apart from each other or from VectorLightMask.AccumulateEmitter.
     private static void OurStraightLineLight(int dx, int dz, out int r, out int g, out int b)

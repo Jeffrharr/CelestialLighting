@@ -327,6 +327,31 @@ public static class ProbeRegistration
         ProbeRegistry.Register(new VectorLightOwedProbe(
             "vector_light_owed_door_coverage", VectorLightOwedProbe.Metric.Coverage,
             new IntVec3(1, 0, 45)));
+        // THE TRANSECT, added after the fix landed and the beam still read too short on screen.
+        // Six cells due east of the door, then two off the axis, then the MIRROR of the first one
+        // inside the room at the same distance from the lamp.
+        //
+        // WHAT EACH CAN SHOW. The lamp sits at local (-3, 0) with glowRadius 10, and vanilla's flood
+        // evaluates its curve at octile + 1 -- so the door at local (0, 0) is already d = 4, and the
+        // emitter's reach ends at d = 10, i.e. SIX cells past the doorway. If `ours` decays to zero
+        // across this transect while `coverage` stays high, the beam is short because vanilla's own
+        // falloff ran out and no gain on the term can lengthen it. If `coverage` collapses first,
+        // the beam is short because our polygon cannot see through its own aperture, which is a
+        // different bug with a different fix.
+        //
+        // t_mirror is the control that makes the indoor-versus-outdoor complaint measurable: local
+        // (-7, 0) is four cells WEST of the lamp exactly as (1, 0) is four cells east, so with the
+        // door held open the two must render at the same level. If the inside one reads higher, the
+        // asymmetry is ours and this is where it shows as numbers rather than as an impression.
+        RegisterOwedQuad("vector_light_owed_t1", new IntVec3(1, 0, 45));
+        RegisterOwedQuad("vector_light_owed_t2", new IntVec3(2, 0, 45));
+        RegisterOwedQuad("vector_light_owed_t3", new IntVec3(3, 0, 45));
+        RegisterOwedQuad("vector_light_owed_t4", new IntVec3(4, 0, 45));
+        RegisterOwedQuad("vector_light_owed_t5", new IntVec3(5, 0, 45));
+        RegisterOwedQuad("vector_light_owed_t6", new IntVec3(6, 0, 45));
+        RegisterOwedQuad("vector_light_owed_off1", new IntVec3(2, 0, 46));
+        RegisterOwedQuad("vector_light_owed_off2", new IntVec3(3, 0, 47));
+        RegisterOwedQuad("vector_light_owed_mirror", new IntVec3(-7, 0, 45));
         // §27 phase 4 / issue #159. The rectangle a colonist's lamp shadow is actually built from,
         // which has to be the one vanilla's sun shadow is built from or the two leave the pawn at
         // different points. Pin BOTH in any arm that photographs a pawn shadow: they failed
@@ -1436,4 +1461,23 @@ public static class ProbeRegistration
 
     private static void Register(string name, AuroraPathTimingProbe.Metric metric) =>
         ProbeRegistry.Register(new AuroraPathTimingProbe(name, metric));
+
+    // All four owed-light quantities for one cell, under a shared prefix.
+    //
+    // REGISTERED AS A QUAD BECAUSE THEY ARE ONLY MEANINGFUL TOGETHER. A dim cell along the beam is
+    // either vanilla's falloff running out (delivered low, ours low), our polygon failing to see it
+    // (coverage low), or the term under-claiming (ours below delivered) -- and those want three
+    // different fixes. Reading one number and inferring the other three is how this subsystem spent
+    // three rounds fixing the wrong thing.
+    private static void RegisterOwedQuad(string prefix, IntVec3 offsetFromCentre)
+    {
+        ProbeRegistry.Register(new VectorLightOwedProbe(
+            prefix + "_coverage", VectorLightOwedProbe.Metric.Coverage, offsetFromCentre));
+        ProbeRegistry.Register(new VectorLightOwedProbe(
+            prefix + "_delivered", VectorLightOwedProbe.Metric.Delivered, offsetFromCentre));
+        ProbeRegistry.Register(new VectorLightOwedProbe(
+            prefix + "_ours", VectorLightOwedProbe.Metric.Ours, offsetFromCentre));
+        ProbeRegistry.Register(new VectorLightOwedProbe(
+            prefix + "_owed", VectorLightOwedProbe.Metric.Owed, offsetFromCentre));
+    }
 }

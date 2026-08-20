@@ -1,7 +1,7 @@
 {
   "name": "vector_light_differential",
   "saveFile": "minimal_colony.rws",
-  "description": "27 phase 3c. Four arms in ONE boot, because the question is a comparison and cross-run frame diffs on this mod already measure a 7-13 percent nondeterminism floor. Arms: vanilla, mask alone, the flat additive beam that ships today, and the differential beam. THE CLAIM UNDER TEST is that arm 3 lights the doorway like arm 2 while leaving the room like arm 1 -- the flat beam adds over the whole visibility polygon, and the polygon IS the lit region, so it lifts the room to 1.175x vanilla by construction. Arm 1 is load-bearing rather than decorative: it is the only arm that shows what the room looks like with nothing added, so it is what arm 3 has to match. vector_light_mask_available is pinned at 1 in every 27 arm because failing to read the per-emitter glow arrays is a defined STAND-DOWN rather than an error, and an unpinned arm photographs the crossfade while reporting a pass. ROOFED ON PURPOSE. The symptom was reported indoors, and roofing is load-bearing rather than set dressing: VectorLightOverlay.StrengthFor keys its daylight term on Roofed(emitter cell), so an indoor lamp runs at FULL strength at every hour while an outdoor one is attenuated toward zero by daylight -- which is why 0.5 read as acceptable outdoors and too bright indoors. It is also the only configuration where 7b's sky-cover alpha and 17's indoor gates are in play at all. THE ROOM IS ROOFED AND DOORED, taken wholesale from vector_light_open_door.json. A gap in a wall is an opening rather than a room, and the door is the point: it is the one place vanilla's flood is forced to detour, so it is the only place phase 3c is supposed to fire at all. THE DOOR IS HELD OPEN (holdOpenInt) and vector_light_open_doors is on in every 27 arm. This is the case phase 3c has to be judged on and it is also the one that can break it: vanilla's glow grid NEVER learns a door opened -- Building.SpawnSetup writes blockLight once at spawn and DoorOpen touches the grid not at all -- so vanilla delivers ZERO beyond an open door. A differential term is delivered * (ratio - 1), which is zero when delivered is zero, so if that holds then phase 3c cannot produce 27e's beam at all and the flat beam is the only thing that can. Shot precisely to find out. RESOLVED 2026-08-20, and the probe pins above are the record of it. The owed-light term was sampling vanilla's falloff ONE CELL TOO CLOSE: ComputeGlowGridsJob.PrepareFill seeds the emitter's own cell at intDist 100 rather than 0, so vanilla evaluates its curve at octile + 1 and the raw octile distance over-claimed at every unobstructed cell -- 1.26x the delivered light five cells out, growing toward the rim -- which is what lifted the room instead of netting to zero. vector_light_owed_room_distance is pinned at 4 (octile 3 plus the seed) so a regression on the metric fails HERE rather than as a slightly-too-bright room nobody can attribute. THE THREE PINS THAT ARE THE WHOLE CLAIM: room_ours == room_delivered == 70 with room_owed 0 (the lit room does not move), the same off-axis at diag 65/65/0 (a metric error is invisible on the cardinal row), and door_delivered 0 against door_ours 58 with coverage 255 (vanilla's grid never learned the door opened, so the whole straight-line value is owed -- the beam). Measured in the frames: the owed arm moves 607 px inside the room against the flat beam's 83,072, while its beam outside the door reads median CIELAB dE 1.12 against the flat beam's 0.84.",
+  "description": "27 phase 3c. Four arms in ONE boot, because the question is a comparison and cross-run frame diffs on this mod already measure a 7-13 percent nondeterminism floor. Arms: vanilla, mask alone, the flat additive beam that ships today, and the differential beam. THE CLAIM UNDER TEST is that arm 3 lights the doorway like arm 2 while leaving the room like arm 1 -- the flat beam adds over the whole visibility polygon, and the polygon IS the lit region, so it lifts the room to 1.175x vanilla by construction. Arm 1 is load-bearing rather than decorative: it is the only arm that shows what the room looks like with nothing added, so it is what arm 3 has to match. vector_light_mask_available is pinned at 1 in every 27 arm because failing to read the per-emitter glow arrays is a defined STAND-DOWN rather than an error, and an unpinned arm photographs the crossfade while reporting a pass. ROOFED ON PURPOSE. The symptom was reported indoors, and roofing is load-bearing rather than set dressing: VectorLightOverlay.StrengthFor keys its daylight term on Roofed(emitter cell), so an indoor lamp runs at FULL strength at every hour while an outdoor one is attenuated toward zero by daylight -- which is why 0.5 read as acceptable outdoors and too bright indoors. It is also the only configuration where 7b's sky-cover alpha and 17's indoor gates are in play at all. THE ROOM IS ROOFED AND DOORED, taken wholesale from vector_light_open_door.json. A gap in a wall is an opening rather than a room, and the door is the point: it is the one place vanilla's flood is forced to detour, so it is the only place phase 3c is supposed to fire at all. THE DOOR IS HELD OPEN (holdOpenInt) and vector_light_open_doors is on in every 27 arm. This is the case phase 3c has to be judged on and it is also the one that can break it: vanilla's glow grid NEVER learns a door opened -- Building.SpawnSetup writes blockLight once at spawn and DoorOpen touches the grid not at all -- so vanilla delivers ZERO beyond an open door. A differential term is delivered * (ratio - 1), which is zero when delivered is zero, so if that holds then phase 3c cannot produce 27e's beam at all and the flat beam is the only thing that can. Shot precisely to find out. RESOLVED 2026-08-20, and the probe pins above are the record of it. The owed-light term was sampling vanilla's falloff ONE CELL TOO CLOSE: ComputeGlowGridsJob.PrepareFill seeds the emitter's own cell at intDist 100 rather than 0, so vanilla evaluates its curve at octile + 1 and the raw octile distance over-claimed at every unobstructed cell -- 1.26x the delivered light five cells out, growing toward the rim -- which is what lifted the room instead of netting to zero. vector_light_owed_room_distance is pinned at 4 (octile 3 plus the seed) so a regression on the metric fails HERE rather than as a slightly-too-bright room nobody can attribute. THE THREE PINS THAT ARE THE WHOLE CLAIM: room_ours == room_delivered == 70 with room_owed 0 (the lit room does not move), the same off-axis at diag 65/65/0 (a metric error is invisible on the cardinal row), and door_delivered 0 against door_ours 58 with coverage 255 (vanilla's grid never learned the door opened, so the whole straight-line value is owed -- the beam). Measured in the frames: the owed arm moves 607 px inside the room against the flat beam's 83,072, while its beam outside the door reads median CIELAB dE 1.12 against the flat beam's 0.84. TRANSECT ADDED 2026-08-20 after live inspection said the beam was still too faint. It is the evidence for DefaultOwedBeamGain: coverage holds at 255 for six cells east of the door while ours decays 58/46/34/23/11/0, so the beam's LENGTH is vanilla's own reach and no gain extends it; but coverage falls to 64 one cell off the axis and 0 two cells off, so the beam is one cell wide and the overlay's corner averaging removes about two thirds of it before it is drawn. t*_ours and *_owed are pinned AT GAIN 1 on purpose -- they are the arithmetic claim, and a probe tracking the gain setting would make every pin here move when somebody drags a slider. The mirror cell is the control for the indoor-vs-outdoor complaint: local (-7,0) is as far west of the lamp as (1,0) is east, and it reads delivered 58 / ours 58 / owed 0 against the doorway's 0 / 58 / 58 -- the model is symmetric, only the rendering is not.",
   "steps": [
     {
       "type": "SetTile",
@@ -455,6 +455,294 @@
       "args": {
         "probeName": "vector_light_owed_door_owed",
         "expectedValue": "58",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_owed_t1_coverage",
+        "expectedValue": "255",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_owed_t1_delivered",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_owed_t1_ours",
+        "expectedValue": "58",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_owed_t1_owed",
+        "expectedValue": "58",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_owed_t2_coverage",
+        "expectedValue": "255",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_owed_t2_delivered",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_owed_t2_ours",
+        "expectedValue": "46",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_owed_t2_owed",
+        "expectedValue": "46",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_owed_t3_coverage",
+        "expectedValue": "255",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_owed_t3_delivered",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_owed_t3_ours",
+        "expectedValue": "34",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_owed_t3_owed",
+        "expectedValue": "34",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_owed_t4_coverage",
+        "expectedValue": "255",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_owed_t4_delivered",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_owed_t4_ours",
+        "expectedValue": "23",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_owed_t4_owed",
+        "expectedValue": "23",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_owed_t5_coverage",
+        "expectedValue": "255",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_owed_t5_delivered",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_owed_t5_ours",
+        "expectedValue": "11",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_owed_t5_owed",
+        "expectedValue": "11",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_owed_t6_coverage",
+        "expectedValue": "255",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_owed_t6_delivered",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_owed_t6_ours",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_owed_t6_owed",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_owed_off1_coverage",
+        "expectedValue": "64",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_owed_off1_delivered",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_owed_off1_ours",
+        "expectedValue": "41",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_owed_off1_owed",
+        "expectedValue": "10",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_owed_off2_coverage",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_owed_off2_delivered",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_owed_off2_ours",
+        "expectedValue": "25",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_owed_off2_owed",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_owed_mirror_coverage",
+        "expectedValue": "255",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_owed_mirror_delivered",
+        "expectedValue": "58",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_owed_mirror_ours",
+        "expectedValue": "58",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_owed_mirror_owed",
+        "expectedValue": "0",
         "tolerance": "0"
       }
     },

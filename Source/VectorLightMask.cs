@@ -283,9 +283,13 @@ public static class VectorLightMask
                         light.glowColor.r, light.glowColor.g, light.glowColor.b, falloff,
                         out int ourR, out int ourG, out int ourB);
 
-                    cellShadow[index].r -= VectorLightMath.OwedLightChannel(ourR, own.r, coverage);
-                    cellShadow[index].g -= VectorLightMath.OwedLightChannel(ourG, own.g, coverage);
-                    cellShadow[index].b -= VectorLightMath.OwedLightChannel(ourB, own.b, coverage);
+                    // Read once rather than per channel: it is a static field, but three reads of it
+                    // inside the innermost loop of a whole-map rebake is three too many.
+                    float gain = VectorLightSettings.OwedBeamGain;
+
+                    cellShadow[index].r -= VectorLightMath.OwedLightChannel(ourR, own.r, coverage, gain);
+                    cellShadow[index].g -= VectorLightMath.OwedLightChannel(ourG, own.g, coverage, gain);
+                    cellShadow[index].b -= VectorLightMath.OwedLightChannel(ourB, own.b, coverage, gain);
                 }
 
                 any = true;

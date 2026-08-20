@@ -43,6 +43,12 @@ public sealed class VectorLightOwedProbe : IProbe
 
         // The claim itself: max(Ours - Delivered, 0), scaled by coverage exactly as the mask scales
         // it. Zero in the open room, positive only through the doorway.
+        //
+        // DELIBERATELY REPORTED AT GAIN 1, i.e. the model quantity rather than the drawn one. The
+        // gain is a setting, and a probe that tracked it would make every pin in every scenario move
+        // when somebody drags a slider -- which is exactly the contamination the settings-XML trap
+        // already causes once. The arithmetic claim is pinned here; the level that reaches the screen
+        // is measured in pixels, where it belongs.
         Owed,
 
         // The polygon's verdict on the cell, 0-255. Pin it beside the others: an Owed of zero means
