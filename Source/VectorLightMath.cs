@@ -881,6 +881,15 @@ public static class VectorLightMath
     // shadow on the map shares.
     public static float PawnShadowLength(float distance, float casterHeight, float lampHeight)
     {
+        return PawnShadowLength(distance, casterHeight, lampHeight, MaxPawnShadowLength);
+    }
+
+    // The same, with the cap passed in, so the shape flag's off arm can reproduce phase 4b's cap as
+    // well as its heights. Overloaded rather than defaulted because a default would let a caller
+    // forget the cap exists at exactly the site that has to choose one.
+    public static float PawnShadowLength(
+        float distance, float casterHeight, float lampHeight, float maxLength)
+    {
         float headroom = lampHeight - casterHeight;
 
         if (headroom < MinLampHeadroom)
@@ -888,7 +897,7 @@ public static class VectorLightMath
 
         float length = distance * casterHeight / headroom;
 
-        return length > MaxPawnShadowLength ? MaxPawnShadowLength : length;
+        return length > maxLength ? maxLength : length;
     }
 
     // How much light this lamp delivers to the pawn's cell, in the same 0-1 glow space the rest of
@@ -935,6 +944,41 @@ public static class VectorLightMath
         float total = totalIlluminance < FullIlluminance ? FullIlluminance : totalIlluminance;
 
         return Clamp01(lampIlluminance / total);
+    }
+
+    // How much of a shadow survives the first thing that stops the light (issue #166).
+    //
+    // THE BUG. Phase 4 asked the occlusion question exactly once, at the caster's own cell — "can
+    // this lamp see the pawn" — and then drew the full quad with nothing checking what it CROSSED.
+    // A pawn standing beside a wall threw its shadow over the wall and out the other side, into the
+    // next room or across a corridor, onto ground that lamp never reached. It was more visible here
+    // than in vanilla only because these shadows are long.
+    //
+    // THE FIX IS ONE NUMBER, because phase 3 already knows the answer. The shadow runs directly
+    // away from the lamp, so it lies along a RADIAL of that lamp's visibility polygon — and
+    // `BoundaryDistanceAt` gives how far that polygon reaches at a bearing in a binary search plus a
+    // lerp. Everything past the boundary is a cell the lamp cannot see, which is precisely a cell
+    // with no light to remove. So the tip is clamped to the boundary and the shadow stops at the
+    // wall, without a raycast and without clipping the mesh.
+    //
+    // ALL THREE DISTANCES ARE MEASURED FROM THE LAMP, which is the only part worth being careful
+    // about: `boundary` and `distance` already are, and the shadow does not start at the pawn's
+    // centre but at the silhouette's trailing edge, so that has to be paid too or a shadow beside a
+    // wall keeps a sliver of overhang.
+    //
+    // IT ALSO CLIPS AT THE LAMP'S OWN RIM, not only at walls, and that is intended rather than a
+    // side effect: an unobstructed polygon's boundary IS the light's radius, so a pawn near the
+    // edge of a lamp's reach no longer throws a shadow out into ground that lamp does not light.
+    // The same statement covers both — a shadow exists only inside the region the lamp lights.
+    public static float ClipShadowLength(
+        float length, float boundaryDistance, float distance, float trailingEdge)
+    {
+        float room = boundaryDistance - distance - trailingEdge;
+
+        if (room <= 0f)
+            return 0f;
+
+        return length > room ? room : length;
     }
 
     // How dark a pawn's shadow from this lamp is, in [0, 1].
@@ -1199,13 +1243,39 @@ public static class VectorLightMath
         return MaskBeamStrength * (scale >= 1f ? 1f : scale);
     }
 
-    // How high a lamp sits above the floor, in cells, for shadow-length purposes. A torch is about
-    // a pawn and a half; the number is a look choice within a physical relation rather than a
-    // measurement, and it is the one knob that changes how dramatic these shadows are.
-    public const float DefaultLampHeight = 2.4f;
+    // How high a lamp sits above the floor, in cells, for shadow-length purposes.
+    //
+    // RAISED FROM 2.4 TO 3.2, which is the deliberate half of the shortening. Length is
+    // `d * t / (h - t)`, so this and the caster's height are the whole of how dramatic these get:
+    // at 2.4 against a 1.2-cell pawn the ratio was exactly 1 and a lamp four cells away threw four
+    // cells of shadow, which is longer than anything vanilla draws and read as the pawn being lit
+    // by a floodlight at ankle height. A lamp nearer the ceiling than a pawn's head is also the
+    // more honest picture of a wall sconce or a standing lamp's bulb.
+    //
+    // The number is a look choice within a physical relation rather than a measurement, and it is
+    // stated as one. With the caster height now coming from vanilla's own 0.8, the ratio is
+    // `0.8 / 2.4` — exactly a THIRD of what phase 4 drew.
+    public const float DefaultLampHeight = 3.2f;
 
-    // A pawn's height as a caster, in cells.
-    public const float DefaultPawnHeight = 1.2f;
+    // A pawn's height as a caster, in cells, for defs that declare no shadow of their own.
+    //
+    // 0.8 rather than 1.2 because that is what VANILLA says a human casts: Races_Humanlike.xml
+    // declares `specialShadowData` volume (0.3, 0.8, 0.4), and `ShadowData.BaseY` is the tallness
+    // its own shader multiplies the extrusion by. §27 invented 1.2 while the answer was sitting in
+    // the same struct it was already reading BaseX and BaseZ out of — the same shape of miss as
+    // issue #159, where the width came from the wrong place too.
+    //
+    // The draw prefers the def's own BaseY and only falls back to this, so an animal that declares
+    // a squatter shadow now gets a squatter one rather than a human's.
+    public const float DefaultPawnHeight = 0.8f;
+
+    // What phase 4b shipped, kept only so the shape flag's off arm is the previous LOOK rather than
+    // an absence. Not reachable from settings and not a fallback — if the flag is ever retired,
+    // these go with it.
+    public const float LegacyPawnHeight = 1.2f;
+    public const float LegacyLampHeight = 2.4f;
+    public const float LegacyMaxShadowLength = 6f;
+    public const float LegacyTipTaper = 0.32f;
 
     // Never divide by less than this. A pawn taller than the lamp would otherwise throw a shadow
     // through infinity and back, which renders as a bar across the whole map for one frame.
@@ -1213,7 +1283,11 @@ public static class VectorLightMath
 
     // Shadows stop growing here however close the lamp gets. Without a cap, a pawn standing ON a
     // lamp's cell casts an arbitrarily long shadow, and the cap is cheaper than special-casing it.
-    public const float MaxPawnShadowLength = 6f;
+    //
+    // Brought down from 6 with the rest of the geometry: it is a backstop on the degenerate case,
+    // so it wants to stay a small multiple of what a normal shadow runs to rather than a number
+    // ordinary shadows can reach. At the new ratio a lamp at its full reach throws about 2.
+    public const float MaxPawnShadowLength = 2f;
 
     // The narrowest a pawn shadow's base is allowed to get, in cells from the centre line.
     //

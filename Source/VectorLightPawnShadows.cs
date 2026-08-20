@@ -61,12 +61,20 @@ public static class VectorLightPawnShadows
     // second so the second does not recompute a distance and a coverage lookup it already paid for.
     private struct Contribution
     {
+        public VectorLightField.LightEntry Entry;
         public float Illuminance;
         public float Distance;
         public float LightX;
         public float LightZ;
         public float UnitX;
         public float UnitZ;
+
+        // The shadow's bearing FROM THE LAMP, in radians, in the visibility polygon's own
+        // convention. Kept beside the unit vector rather than derived from it at the point of use
+        // because the two have opposite sign conventions — the transform wants Unity's clockwise
+        // degrees, the polygon wants atan2's anticlockwise radians — and deriving one from the other
+        // at each site is how a shadow ends up clipped against the wall behind the lamp.
+        public float Bearing;
     }
 
     // Reused rather than allocated per pawn: this runs for every on-screen pawn every frame, and a
@@ -119,6 +127,29 @@ public static class VectorLightPawnShadows
         }
     }
 
+    // Everything about one shadow a pawn casts from one lamp, resolved once.
+    //
+    // A struct carried between two consumers rather than a draw that computes as it goes, because
+    // the PROBE has to see these numbers. The quantity issue #166 is about is a LENGTH, and a length
+    // is no more visible to a screenshot than an alpha was: a shadow that stops at a wall and one
+    // that crosses it differ only in pixels on the far side of the wall.
+    public struct DrawnShadow
+    {
+        // How wide the tip is as a fraction of the base: 1 for the blocky shape vanilla's own
+        // shadows use, and phase 4b's 0.32 when the shape flag is down.
+        public float Taper;
+
+        public float Opacity;
+        public float Length;
+        public float Half;
+        public float TrailingEdge;
+        public float AngleDegrees;
+        public float UnitX;
+        public float UnitZ;
+    }
+
+    private static readonly List<DrawnShadow> Shadows = new List<DrawnShadow>();
+
     private static void DrawFor(
         Map map, Pawn pawn, Dictionary<object, VectorLightField.LightEntry>.ValueCollection lights,
         float skyGlow, float altitude)
@@ -135,15 +166,74 @@ public static class VectorLightPawnShadows
         // draws pawn shadows as Rot4.North regardless of which way the pawn faces.
         Vector3 anchor = shadow == null ? centre : centre + shadow.offset;
 
+        Build(pawn, lights, skyGlow, Shadows);
+
+        for (int i = 0; i < Shadows.Count; i++)
+        {
+            DrawnShadow drawn = Shadows[i];
+            Mesh mesh = MeshFor(drawn.Half, drawn.Length, drawn.Taper);
+
+            if (mesh == null)
+                continue;
+
+            // A material per opacity step rather than a property block. Graphics.DrawMesh is
+            // deferred, so writing one shared material's colour between calls gives every shadow in
+            // the frame whichever opacity was written last — the trap VectorLightOverlay's header
+            // records §17 paying for. Distinct materials sidestep it without a property block.
+            // Started at the silhouette's trailing edge rather than at its centre, so the length
+            // computed above is length BEYOND the caster — the same thing it means for a sun shadow,
+            // whose skirt is extruded from that edge too. Pushing the transform rather than baking
+            // the offset into the mesh keeps the cache keyed on two numbers instead of three.
+            Graphics.DrawMesh(
+                mesh,
+                new Vector3(
+                    anchor.x + drawn.UnitX * drawn.TrailingEdge, altitude,
+                    anchor.z + drawn.UnitZ * drawn.TrailingEdge),
+                Quaternion.Euler(0f, drawn.AngleDegrees, 0f), MaterialFor(drawn.Opacity), 0);
+        }
+    }
+
+    // Every shadow this pawn casts, geometry and opacity both. The one place either is decided.
+    //
+    // The draw and the probe call this same builder rather than each deriving its own answer, which
+    // is the repo's probe convention and has earned its keep twice in this file already: phase 4b's
+    // share and #166's clip are both quantities a screenshot reports only indirectly.
+    private static void Build(
+        Pawn pawn, Dictionary<object, VectorLightField.LightEntry>.ValueCollection lights,
+        float skyGlow, List<DrawnShadow> into)
+    {
+        into.Clear();
+
+        Vector3 centre = pawn.DrawPos;
+        ShadowData shadow = ShadowDataOf(pawn);
+
         float halfX = shadow == null
             ? VectorLightMath.DefaultPawnShadowHalfExtent : shadow.BaseX * 0.5f;
         float halfZ = shadow == null
             ? VectorLightMath.DefaultPawnShadowHalfExtent : shadow.BaseZ * 0.5f;
 
-        // The first pass, shared with the probe so the two cannot drift — see Gather.
+        // How TALL the caster is, taken from the same struct the two half-extents above come from.
+        // `ShadowData.BaseY` is vanilla's own tallness for this def — the number its own shader
+        // multiplies the sun-shadow extrusion by — and §27 was inventing 1.2 while reading BaseX and
+        // BaseZ out of the very same object. A human declares 0.8, so this alone takes a third off a
+        // colonist's lamp shadow, and an animal that declares a squatter shadow now gets a squatter
+        // one instead of a human's.
+        // With the shape flag down, the heights phase 4b shipped — an invented 1.2-cell caster and
+        // a 2.4-cell lamp, whose ratio is exactly 1. Not a separate code path, just the other pair
+        // of numbers through the same similar-triangles function, so the off arm reproduces the old
+        // frame rather than approximating it.
+        bool shaped = CelestialLightingFeatures.VectorLightShadowShape;
+
+        float casterHeight = !shaped
+            ? VectorLightMath.LegacyPawnHeight
+            : shadow == null ? VectorLightMath.DefaultPawnHeight : shadow.BaseY;
+
+        float lampHeight = shaped
+            ? VectorLightMath.DefaultLampHeight : VectorLightMath.LegacyLampHeight;
+
+        // The first pass: which lamps light this pawn, and how much in total — see Gather.
         float totalForShare = Gather(pawn, lights);
 
-        // SECOND PASS: draw each lamp's shadow at its share of that total.
         for (int i = 0; i < Contributions.Count; i++)
         {
             Contribution light = Contributions[i];
@@ -159,7 +249,8 @@ public static class VectorLightPawnShadows
                 continue;
 
             float length = VectorLightMath.PawnShadowLength(
-                light.Distance, VectorLightMath.DefaultPawnHeight, VectorLightMath.DefaultLampHeight);
+                light.Distance, casterHeight, lampHeight,
+                shaped ? VectorLightMath.MaxPawnShadowLength : VectorLightMath.LegacyMaxShadowLength);
 
             // The caster's silhouette as this lamp sees it: how wide across, and how far out its
             // trailing edge is. Vanilla's shadow is the footprint rectangle PLUS a skirt extruded
@@ -173,28 +264,32 @@ public static class VectorLightPawnShadows
             float trailingEdge = VectorLightMath.FootprintExtent(
                 halfX, halfZ, light.UnitX, light.UnitZ);
 
-            Mesh mesh = MeshFor(half, length);
+            // Stopped at the first thing that blocks the lamp (issue #166). The shadow runs directly
+            // away from the lamp, so it lies along a radial of that lamp's visibility polygon and one
+            // boundary query answers it — see VectorLightMath.ClipShadowLength. Asked in the
+            // polygon's own angle convention, atan2(dz, dx) from the light, which is what the ray
+            // builder fills the array with and what IsLit queries it with.
+            if (CelestialLightingFeatures.VectorLightShadowClip)
+                length = VectorLightMath.ClipShadowLength(
+                    length, BoundaryFor(light), light.Distance, trailingEdge);
 
-            if (mesh == null)
+            // A shadow with no room left to fall into is not drawn at all: the pawn is standing flat
+            // against the thing the lamp's light dies on.
+            if (length <= 0f)
                 continue;
 
-            float angle = VectorLightMath.PawnShadowAngleDegrees(
-                light.LightX, light.LightZ, centre.x, centre.z);
-
-            // A material per opacity step rather than a property block. Graphics.DrawMesh is
-            // deferred, so writing one shared material's colour between calls gives every shadow in
-            // the frame whichever opacity was written last — the trap VectorLightOverlay's header
-            // records §17 paying for. Distinct materials sidestep it without a property block.
-            // Started at the silhouette's trailing edge rather than at its centre, so the length
-            // computed above is length BEYOND the caster — the same thing it means for a sun shadow,
-            // whose skirt is extruded from that edge too. Pushing the transform rather than baking
-            // the offset into the mesh keeps the cache keyed on two numbers instead of three.
-            Graphics.DrawMesh(
-                mesh,
-                new Vector3(
-                    anchor.x + light.UnitX * trailingEdge, altitude,
-                    anchor.z + light.UnitZ * trailingEdge),
-                Quaternion.Euler(0f, angle, 0f), MaterialFor(opacity), 0);
+            into.Add(new DrawnShadow
+            {
+                Taper = shaped ? 1f : VectorLightMath.LegacyTipTaper,
+                Opacity = opacity,
+                Length = length,
+                Half = half,
+                TrailingEdge = trailingEdge,
+                UnitX = light.UnitX,
+                UnitZ = light.UnitZ,
+                AngleDegrees = VectorLightMath.PawnShadowAngleDegrees(
+                    light.LightX, light.LightZ, centre.x, centre.z),
+            });
         }
     }
 
@@ -252,6 +347,8 @@ public static class VectorLightPawnShadows
 
             Contributions.Add(new Contribution
             {
+                Entry = entry,
+                Bearing = (float)System.Math.Atan2(dz, dx),
                 Illuminance = illuminance,
                 Distance = distance,
                 LightX = lightX,
@@ -279,13 +376,34 @@ public static class VectorLightPawnShadows
         return totalForShare;
     }
 
-    // The opacities this pawn's lamp shadows are about to be drawn at, one per lamp that reaches
-    // them, appended in no particular order. Public for the probe alone.
+    // How far this lamp's light reaches along the shadow's own bearing, in cells from the lamp.
     //
-    // Returns the same numbers the draw uses because it runs the same two functions in the same
-    // order — the peak arm and the composited rosette a scenario pins are then facts about the
-    // frame rather than about a model of it.
-    public static void ShadowOpacitiesFor(Map map, Pawn pawn, List<float> into)
+    // AN UNBUILT POLYGON MEANS "NO WALL KNOWN", NOT "A WALL AT ZERO", and the difference is the
+    // whole feature working versus every shadow in the colony vanishing. `BoundaryDistanceAt`
+    // answers 0 for an empty polygon, which through ClipShadowLength is a boundary closer than the
+    // pawn and therefore no shadow at all — so a light whose polygon has not been rebaked yet (a
+    // frame after a wall changed, or any path that reaches the draw before the mask has run) would
+    // silently delete its shadows rather than draw them unclipped. Falling back to the light's own
+    // radius degrades to phase 4b's behaviour for that one frame, which is the safe direction.
+    //
+    // Capped at the radius in the normal case too: the ray distances are stored unclamped, and a
+    // boundary beyond the lamp's reach would let a shadow run out past the light that casts it.
+    private static float BoundaryFor(Contribution light)
+    {
+        if (light.Entry.Polygon.Count == 0)
+            return light.Entry.Radius;
+
+        return Mathf.Min(
+            VectorLightMath.BoundaryDistanceAt(light.Entry.Polygon, light.Bearing),
+            light.Entry.Radius);
+    }
+
+    // Every shadow this pawn is about to have drawn, for the probe alone.
+    //
+    // Returns exactly what the renderer will draw because it runs the same builder — so the peak
+    // arm, the composited rosette and the reach a scenario pins are facts about the frame rather
+    // than about a model of it.
+    public static void ShadowsFor(Map map, Pawn pawn, List<DrawnShadow> into)
     {
         into.Clear();
 
@@ -298,14 +416,7 @@ public static class VectorLightPawnShadows
         if (lights.Count == 0)
             return;
 
-        float totalForShare = Gather(pawn, lights);
-        float skyGlow = map.skyManager.CurSkyGlow;
-
-        for (int i = 0; i < Contributions.Count; i++)
-        {
-            into.Add(VectorLightMath.PawnShadowOpacity(
-                Contributions[i].Illuminance, totalForShare, skyGlow));
-        }
+        Build(pawn, lights, map.skyManager.CurSkyGlow, into);
     }
 
     private static Material MaterialFor(float opacity)
@@ -377,9 +488,14 @@ public static class VectorLightPawnShadows
     // 0.15 to 0.20) so quarter-cell buckets would round every one of them to the same 0.25 and throw
     // away the direction-dependence this is here to express, while a length of 3.1 versus 3.25 cells
     // is invisible. A human sweeps two buckets over a full circuit of the lamp.
-    private static Mesh MeshFor(float half, float length)
+    private static Mesh MeshFor(float half, float length, float taper)
     {
-        long key = ((long)Mathf.RoundToInt(half * 32f) << 32) | (uint)Mathf.RoundToInt(length * 4f);
+        // The taper joins the key because the shape flag can change it mid-session, and a cache that
+        // ignored it would hand the new arm the old arm's mesh — an A/B that measures nothing while
+        // every flag reads as set.
+        long key = ((long)Mathf.RoundToInt(half * 32f) << 32)
+            | ((uint)Mathf.RoundToInt(length * 4f) << 1)
+            | (uint)(taper >= 1f ? 1 : 0);
 
         if (MeshCache.TryGetValue(key, out Mesh cached))
             return cached;
@@ -388,14 +504,19 @@ public static class VectorLightPawnShadows
         Colors.Clear();
         Tris.Clear();
 
-        // Narrowed hard towards the tip. The first capture used 0.75 and read as a plank: with no
-        // way to fade the edge — the material spends vertex alpha on extrusion, so a gradient there
-        // would move the geometry rather than dim it — the silhouette is doing all the work, and a
-        // shape that tapers reads as cast while a shape that does not reads as an object.
+        // CONSTANT WIDTH, which reverses an earlier decision in this same file rather than merely
+        // differing from it. The taper (a tip at 32% of the base) was added because the first
+        // capture, at full width, "read as a plank" — and it did, because the shadows were up to six
+        // cells long and nothing that long is shaped like a pawn.
         //
-        // Not to a point, though. A triangle reads as a cone pointing away from the pawn, which is
-        // the shape of a spotlight rather than of a shadow.
-        float tipHalf = half * 0.32f;
+        // The premise went away when the geometry got shorter. Vanilla's own sun shadow is the
+        // footprint rectangle plus a skirt of CONSTANT width extruded from the trailing edge
+        // (`MeshMakerShadows.NewShadowMesh` duplicates each edge's two vertices and lets the shader
+        // push them along _CastVect) — there is no taper anywhere in it. So the blocky shape is not
+        // a compromise here, it is the shape the game's other shadows already are, and matching it
+        // is what makes a lamp shadow and a sun shadow on the same pawn look like two shadows rather
+        // than two effects.
+        float tipHalf = half * taper;
 
         Verts.Add(new Vector3(0f, 0f, -half));
         Verts.Add(new Vector3(0f, 0f, half));
