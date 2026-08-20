@@ -103,9 +103,20 @@ public static class VectorLightBeamMath
     // band a third of a cell deep just inside the doorway, having read exactly 0 the build before.
     // Clamping each corner to its own ray's first owed radius makes the mouth a chord across the
     // aperture instead of an arc through it.
+    // `rayEdge` is how OCCLUDED each ray's own edge is, 0 for the middle of the beam and 1 for a ray
+    // that bounds it. It becomes the vertex's V, which is the gradient texture's second axis — the
+    // penumbra ramp the fan already uses for its soft shadow edges.
+    //
+    // WHY THE BEAM NEEDS IT AND THE FAN'S WEDGES DO NOT COVER IT. Every quad here used to carry V = 0,
+    // the gradient's fully-lit row, so the beam had knife edges down both sides: a hard-edged wedge on
+    // near-black ground, which reads as a rendering artefact rather than as light. It is also wrong on
+    // its own terms. A lamp is not a point source — §27 already models a source radius for exactly
+    // this reason — so light through an aperture has a real penumbra along both flanks, and a doorway
+    // beam is nearly all flank.
     public static VectorLightMath.LightMesh BuildOwedMesh(
         float lightX, float lightZ, float radius,
-        VectorLightMath.LightPolygon polygon, bool[] owed, int stepsPerSector, float[] rayNear)
+        VectorLightMath.LightPolygon polygon, bool[] owed, int stepsPerSector, float[] rayNear,
+        float[] rayEdge)
     {
         if (polygon.Count == 0 || radius <= 0f || owed == null || stepsPerSector <= 0)
             return Empty();
@@ -145,8 +156,11 @@ public static class VectorLightBeamMath
                     float near0 = rayNear == null ? near : Max(near, rayNear[sector]);
                     float near1 = rayNear == null ? near : Max(near, rayNear[next]);
 
+                    float v0 = rayEdge == null ? 0f : rayEdge[sector];
+                    float v1 = rayEdge == null ? 0f : rayEdge[next];
+
                     Emit(lightX, lightZ, radius, a0, a1, d0, d1,
-                        near0, near1, RadiusAtStep(step - 1),
+                        near0, near1, RadiusAtStep(step - 1), v0, v1,
                         xs, zs, us, vs, tris, ref verts, ref triCount);
                 }
                 else
@@ -205,7 +219,7 @@ public static class VectorLightBeamMath
     // lose the polygon boundary this file exists to follow.
     private static void Emit(
         float lightX, float lightZ, float radius, float a0, float a1, float d0, float d1,
-        float nearA, float nearB, float far,
+        float nearA, float nearB, float far, float v0, float v1,
         float[] xs, float[] zs, float[] us, float[] vs, int[] tris, ref int verts, ref int triCount)
     {
         float near0 = nearA < d0 ? nearA : d0;
@@ -215,10 +229,10 @@ public static class VectorLightBeamMath
 
         int baseIndex = verts;
 
-        Put(lightX, lightZ, radius, a0, near0, xs, zs, us, vs, ref verts);
-        Put(lightX, lightZ, radius, a1, near1, xs, zs, us, vs, ref verts);
-        Put(lightX, lightZ, radius, a1, far1, xs, zs, us, vs, ref verts);
-        Put(lightX, lightZ, radius, a0, far0, xs, zs, us, vs, ref verts);
+        Put(lightX, lightZ, radius, a0, near0, v0, xs, zs, us, vs, ref verts);
+        Put(lightX, lightZ, radius, a1, near1, v1, xs, zs, us, vs, ref verts);
+        Put(lightX, lightZ, radius, a1, far1, v1, xs, zs, us, vs, ref verts);
+        Put(lightX, lightZ, radius, a0, far0, v0, xs, zs, us, vs, ref verts);
 
         tris[triCount++] = baseIndex;
         tris[triCount++] = baseIndex + 1;
@@ -229,7 +243,7 @@ public static class VectorLightBeamMath
     }
 
     private static void Put(
-        float lightX, float lightZ, float radius, float angle, float distance,
+        float lightX, float lightZ, float radius, float angle, float distance, float edge,
         float[] xs, float[] zs, float[] us, float[] vs, ref int verts)
     {
         xs[verts] = lightX + Cos(angle) * distance;
@@ -241,9 +255,10 @@ public static class VectorLightBeamMath
         // profile — which is the thing that was actually being asked for.
         us[verts] = radius <= 0f ? 0f : distance / radius;
 
-        // V = 0 is the gradient's first row, the falloff unmodified. The penumbra ramp belongs to the
-        // shadow edges of the fan and there is no soft edge to cross here.
-        vs[verts] = 0f;
+        // V walks the gradient's penumbra ramp: 0 in the body of the beam, 1 on a ray that bounds it,
+        // so a quad spanning the boundary fades across its own width instead of ending at a knife
+        // edge. Same axis, same texture and same meaning as the fan's soft shadow edges.
+        vs[verts] = edge;
 
         verts++;
     }

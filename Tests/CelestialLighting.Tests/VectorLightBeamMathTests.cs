@@ -51,7 +51,7 @@ public class VectorLightBeamMathTests
         int steps = VectorLightBeamMath.StepsFor(10f);
 
         VectorLightMath.LightMesh mesh = VectorLightBeamMath.BuildOwedMesh(
-            5f, 5f, 10f, polygon, Mask(48, steps, (s, i) => false), steps, null);
+            5f, 5f, 10f, polygon, Mask(48, steps, (s, i) => false), steps, null, null);
 
         Assert.That(mesh.VertexCount, Is.Zero);
         Assert.That(mesh.Triangles.Length, Is.Zero, "an oversized triangle buffer uploads degenerates");
@@ -67,7 +67,7 @@ public class VectorLightBeamMathTests
         int steps = VectorLightBeamMath.StepsFor(10f);
 
         VectorLightMath.LightMesh mesh = VectorLightBeamMath.BuildOwedMesh(
-            0f, 0f, 10f, polygon, Mask(48, steps, (s, i) => s == 0), steps, null);
+            0f, 0f, 10f, polygon, Mask(48, steps, (s, i) => s == 0), steps, null, null);
 
         Assert.That(mesh.VertexCount, Is.EqualTo(4), "one contiguous run is one quad");
 
@@ -100,7 +100,7 @@ public class VectorLightBeamMathTests
         int steps = VectorLightBeamMath.StepsFor(10f);
 
         VectorLightMath.LightMesh merged = VectorLightBeamMath.BuildOwedMesh(
-            0f, 0f, 10f, polygon, Mask(4, steps, (s, i) => s == 0 && i < 8), steps, null);
+            0f, 0f, 10f, polygon, Mask(4, steps, (s, i) => s == 0 && i < 8), steps, null, null);
 
         Assert.That(merged.VertexCount, Is.EqualTo(4), "eight adjacent steps are one run");
     }
@@ -115,7 +115,7 @@ public class VectorLightBeamMathTests
         int steps = VectorLightBeamMath.StepsFor(10f);
 
         VectorLightMath.LightMesh split = VectorLightBeamMath.BuildOwedMesh(
-            0f, 0f, 10f, polygon, Mask(4, steps, (s, i) => s == 0 && (i < 4 || (i > 8 && i < 12))), steps, null);
+            0f, 0f, 10f, polygon, Mask(4, steps, (s, i) => s == 0 && (i < 4 || (i > 8 && i < 12))), steps, null, null);
 
         Assert.That(split.VertexCount, Is.EqualTo(8), "two runs are two quads");
     }
@@ -130,7 +130,7 @@ public class VectorLightBeamMathTests
         int steps = VectorLightBeamMath.StepsFor(8f);
 
         VectorLightMath.LightMesh mesh = VectorLightBeamMath.BuildOwedMesh(
-            0f, 0f, 8f, polygon, Mask(4, steps, (s, i) => s == 0), steps, null);
+            0f, 0f, 8f, polygon, Mask(4, steps, (s, i) => s == 0), steps, null, null);
 
         for (int i = 0; i < mesh.VertexCount; i++)
         {
@@ -158,7 +158,7 @@ public class VectorLightBeamMathTests
         int steps = VectorLightBeamMath.StepsFor(9f);
 
         VectorLightMath.LightMesh mesh = VectorLightBeamMath.BuildOwedMesh(
-            0f, 0f, 9f, polygon, Mask(4, steps, (s, i) => true), steps, null);
+            0f, 0f, 9f, polygon, Mask(4, steps, (s, i) => true), steps, null, null);
 
         for (int i = 0; i < mesh.VertexCount; i++)
         {
@@ -187,7 +187,7 @@ public class VectorLightBeamMathTests
         int steps = VectorLightBeamMath.StepsFor(10f);
 
         VectorLightMath.LightMesh mesh = VectorLightBeamMath.BuildOwedMesh(
-            0f, 0f, 10f, polygon, Mask(48, steps, (s, i) => (s + i) % 3 == 0), steps, null);
+            0f, 0f, 10f, polygon, Mask(48, steps, (s, i) => (s + i) % 3 == 0), steps, null, null);
 
         Assert.That(mesh.Triangles.Length % 3, Is.Zero);
 
@@ -203,7 +203,7 @@ public class VectorLightBeamMathTests
         var polygon = Circle(8, 5f);
 
         VectorLightMath.LightMesh mesh = VectorLightBeamMath.BuildOwedMesh(
-            0f, 0f, radius, polygon, new bool[8 * 4], 4, null);
+            0f, 0f, radius, polygon, new bool[8 * 4], 4, null, null);
 
         Assert.That(mesh.VertexCount, Is.Zero);
     }
@@ -226,7 +226,7 @@ public class VectorLightBeamMathTests
             near[i] = 4f;
 
         VectorLightMath.LightMesh clamped = VectorLightBeamMath.BuildOwedMesh(
-            0f, 0f, 10f, polygon, mask, steps, near);
+            0f, 0f, 10f, polygon, mask, steps, near, null);
 
         for (int i = 0; i < clamped.VertexCount; i++)
         {
@@ -251,7 +251,7 @@ public class VectorLightBeamMathTests
             near[i] = i == 0 ? 0f : float.MaxValue;
 
         VectorLightMath.LightMesh mesh = VectorLightBeamMath.BuildOwedMesh(
-            0f, 0f, 6f, polygon, Mask(8, steps, (s, i) => true), steps, near);
+            0f, 0f, 6f, polygon, Mask(8, steps, (s, i) => true), steps, near, null);
 
         for (int i = 0; i < mesh.VertexCount; i++)
         {

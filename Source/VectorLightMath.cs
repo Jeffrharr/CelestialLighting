@@ -1404,7 +1404,7 @@ public static class VectorLightMath
     // own light has at that distance.
     //
     // Provisional until that measurement is taken; this is the starting point it is measured FROM.
-    public const float DefaultOwedLayerStrength = 0.4f;
+    public const float DefaultOwedLayerStrength = 0.2f;
 
     // Vanilla's falloff EXACTLY as ComputeGlowGridsJob.SetGlowFromDist computes it, including the
     // absence of any minimum-distance clamp. Deliberately not VectorLightMath.Falloff: that one

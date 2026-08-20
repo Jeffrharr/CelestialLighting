@@ -31,6 +31,15 @@ public static class VectorLightBeamLayer
     // arc bulges back through the wall into the lit room.
     private static float[] rayNear = new float[0];
 
+    // How occluded each ray's own edge is: 0 in the body of the beam, 1 on a ray that bounds it. Feeds
+    // the vertex V, i.e. the gradient's penumbra ramp, so the beam fades across its flanks instead of
+    // ending at a knife edge. See VectorLightBeamMath.BuildOwedMesh.
+    private static float[] rayEdge = new float[0];
+
+    // Whether each sector owes light anywhere along its length, which is what decides where the beam's
+    // angular boundary is.
+    private static bool[] sectorOwes = new bool[0];
+
     public static bool Active =>
         CelestialLightingFeatures.VectorLightBeamLayer
         && CelestialLightingFeatures.VectorLightBeamDifferential
@@ -120,7 +129,9 @@ public static class VectorLightBeamLayer
             return;
 
         Grow(ref owed, sectors * steps);
+        Grow(ref sectorOwes, sectors);
         GrowFloats(ref rayNear, sectors);
+        GrowFloats(ref rayEdge, sectors);
 
         float lightX = entry.Cell.x + 0.5f;
         float lightZ = entry.Cell.z + 0.5f;
@@ -150,8 +161,11 @@ public static class VectorLightBeamLayer
             }
         }
 
+        TaperFarEnds(map, light, colors, lightX, lightZ, entry, steps, sectors);
+        MarkEdgeRays(sectors, steps);
+
         VectorLightMath.LightMesh built = VectorLightBeamMath.BuildOwedMesh(
-            lightX, lightZ, entry.Radius, entry.Polygon, owed, steps, rayNear);
+            lightX, lightZ, entry.Radius, entry.Polygon, owed, steps, rayNear, rayEdge);
 
         entry.OwedMesh = VectorLightOverlay.Upload(entry.OwedMesh, built, altitude, "CelestialLighting_VectorBeam");
     }
@@ -249,6 +263,116 @@ public static class VectorLightBeamLayer
 
         return entry.Cell.x + reach >= view.minX && entry.Cell.x - reach <= view.maxX
             && entry.Cell.z + reach >= view.minZ && entry.Cell.z - reach <= view.maxZ;
+    }
+
+    // Carry every sector's LAST run out to the polygon boundary, through the region where vanilla's
+    // falloff has underflowed to nothing.
+    //
+    // WHY THE BEAM NEEDED THIS. `ours` is an integer, so it hits zero a cell or two before the
+    // emitter's actual reach — (int)(184 * F) is 0 once F drops below about 1/184. The owed test goes
+    // false there and the beam simply STOPPED, mid-air, at a hard vertical cut. Extending the run lets
+    // the baked gradient do what it is for: U walks on toward 1, alpha walks down to nothing, and the
+    // beam fades out instead of being chopped.
+    //
+    // EXTENDS AN EXISTING RUN, NEVER STARTS ONE. That distinction is the whole safety of it and it is
+    // the same underflow that drew a bright crescent through the lit room on the first build of this
+    // layer: at the rim INSIDE the room the cells also read delivered 0 and ours 0. The difference is
+    // that no run reaches them, because everything closer to the lamp along those rays was paid for.
+    // So a sector with nothing owed stays empty however far its polygon reaches.
+    private static void TaperFarEnds(
+        Map map, GlowLight light, UnsafeList<Color32> colors, float lightX, float lightZ,
+        VectorLightField.LightEntry entry, int steps, int sectors)
+    {
+        for (int sector = 0; sector < sectors; sector++)
+        {
+            int last = -1;
+
+            for (int step = 0; step < steps; step++)
+            {
+                if (owed[sector * steps + step])
+                    last = step;
+            }
+
+            if (last < 0)
+                continue;
+
+            float angle = VectorLightBeamMath.SectorMidAngle(entry.Polygon, sector);
+            float dx = Mathf.Cos(angle);
+            float dz = Mathf.Sin(angle);
+
+            for (int step = last + 1; step < steps; step++)
+            {
+                float distance =
+                    VectorLightBeamMath.RadiusAtStep(step) - VectorLightBeamMath.MarchStep * 0.5f;
+
+                IntVec3 cell = new IntVec3(
+                    Mathf.FloorToInt(lightX + dx * distance), 0,
+                    Mathf.FloorToInt(lightZ + dz * distance));
+
+                // Stop the moment vanilla has paid again. Past a lit cell is somebody else's light and
+                // extending into it would double what is already there.
+                if (!InBoundsUnlit(map, light, colors, cell))
+                    break;
+
+                owed[sector * steps + step] = true;
+            }
+        }
+    }
+
+    // Vanilla delivered nothing here AND the cell is somewhere we are allowed to draw. Deliberately
+    // does NOT ask whether a straight line still owes anything, which is exactly what separates it
+    // from OwesAt: this is the taper's test, and the taper's whole job is the region past underflow.
+    private static bool InBoundsUnlit(
+        Map map, GlowLight light, UnsafeList<Color32> colors, IntVec3 cell)
+    {
+        if (!cell.InBounds(map) || !light.AffectedRect.Contains(cell))
+            return false;
+
+        Building edifice = map.edificeGrid[cell];
+        Building_Door door = edifice as Building_Door;
+
+        if (edifice?.def != null && DoorOcclusionMath.Occludes(
+                edifice.def.blockLight, door != null, door != null && door.Open,
+                CelestialLightingFeatures.VectorLightOpenDoors))
+        {
+            return false;
+        }
+
+        int local = light.WorldToLocalIndex(cell);
+
+        if (local < 0 || local >= colors.Length)
+            return false;
+
+        Color32 delivered = colors[local];
+
+        return delivered.r == 0 && delivered.g == 0 && delivered.b == 0;
+    }
+
+    // A ray bounds the beam when the sectors either side of it disagree about owing light. Those are
+    // the rays that get the penumbra ramp; everything in the beam's body stays fully lit.
+    //
+    // A NARROW BEAM IS ALL EDGE, and that is correct rather than a degenerate case. Through a one-cell
+    // door the beam is a few sectors wide, so both flanks ramp and the brightest line runs up the
+    // middle — which is what a shaft of light through a gap actually looks like.
+    private static void MarkEdgeRays(int sectors, int steps)
+    {
+        for (int sector = 0; sector < sectors; sector++)
+        {
+            sectorOwes[sector] = false;
+
+            for (int step = 0; step < steps; step++)
+            {
+                if (owed[sector * steps + step])
+                    sectorOwes[sector] = true;
+            }
+        }
+
+        for (int ray = 0; ray < sectors; ray++)
+        {
+            int before = (ray - 1 + sectors) % sectors;
+
+            rayEdge[ray] = sectorOwes[before] == sectorOwes[ray] ? 0f : 1f;
+        }
     }
 
     // How far along this ray before vanilla stops having paid. Returns a radius past the emitter's

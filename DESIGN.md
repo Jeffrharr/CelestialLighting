@@ -8522,6 +8522,30 @@ The room is bit-identical to vanilla across its whole interior — not a median,
 red change at any pixel west of the doorway is **zero**. The beam covers *fewer* pixels than 3c's at
 more than twice the intensity, which is the difference between a smear and an edge.
 
+**The finding that stops phase 3d short, and the fixture that produced it.**
+`Tests/Scenarios/vector_light_room_parity.json` puts two identical rooms side by side at midnight, each
+with its own torch three cells back from its opening. One opening is a **door held open**; the other is
+a plain **gap** where that wall cell was never built. They should be lit alike. They are not.
+
+The probes say why, and they say it as one sentence: outside the door, `delivered 0 / owed 58`; outside
+the gap, `delivered 58 / owed 0`. **The same 58, reached from opposite directions.** Vanilla's flood
+pours through a gap and never through a door, so the drawn layer — which fires on "vanilla delivered
+nothing" — lights the door and ignores the gap entirely. A real opening therefore gets vanilla's soft
+blob while a door gets a crisp beam, which is the reverse of a feature whose whole premise is that a
+held-open door should behave like an opening.
+
+**An attempt to fix it by topology was measured and rejected.** Keying the layer on "the cell is in a
+different `Room` from the lamp" is the obvious predicate and it does not work: a wall with a hole in it
+does not enclose, so RimWorld merges the gapped room's interior with the outdoors, the test is false
+everywhere for that lamp, and the asymmetry survives untouched. It is recorded here because it looks
+correct on paper and costs a build and a live run to disprove.
+
+The predicate that would work is **geometric rather than topological** — a ray that has squeezed past
+light-blockers on both flanks has passed through an aperture, whatever RimWorld thinks the room
+topology is — and it is not built. That change would also have to remove vanilla's own through-aperture
+contribution so the drawn beam replaces it rather than adding to it, which would be the first place §27
+takes away light vanilla delivered by a straight path.
+
 **Open, and deliberately not settled here.** ΔE 7.11 is above the ΔE 3–6 band this repo has settled
 on elsewhere as "present without being distracting", and `OwedLayerStrength` is a first guess at 0.4
 rather than a measured landing. The calibration target exists and is cheap — the mirror cell, which

@@ -1,0 +1,250 @@
+{
+  "name": "vector_light_room_parity",
+  "saveFile": "minimal_colony.rws",
+  "description": "TWO IDENTICAL ROOMS AT MIDNIGHT, EACH WITH ITS OWN TORCH THREE CELLS BACK FROM ITS OPENING. One opening is a DOOR held open; the other is a plain GAP where that wall cell was simply never built. They must be lit almost equally, inside and out. WHY THIS IS THE SHARPEST TEST 27 HAS. Vanilla's flood pours through a gap and NEVER through a door, open or not -- its glow grid has no idea a door moved, which is the entire reason 27e exists. So vanilla renders these two rooms differently, and the probes below pin that difference rather than hide it: one cell outside, the gap reads delivered 58 / owed 0 while the door reads delivered 0 / owed 58. The SAME 58, arrived at from opposite directions. Everything 27 phase 3c and 3d do is the claim that those two render the same, so a pixel comparison of the two openings is the feature's whole thesis in one frame -- and unlike a diff against vanilla it cannot be satisfied by a feature that is merely switched off. INSIDE, both rooms must be untouched: parity_*_owed pinned at 0, parity_*_delivered pinned equal at 70 so that a fixture edit nudging one lamp fails HERE rather than as an unexplained brightness difference later. The interiors are what caught the drawn layer's two worst bugs, both invisible to every other probe in the suite -- an arc bowing back through the wall, and a crescent at the lamp's rim where vanilla's own value underflows to zero. KNOWN OPEN, AND PINNED AS SUCH RATHER THAN HIDDEN. As of 2026-08-20 the two openings do NOT render alike: the door gets a drawn beam and the gap gets only vanilla's soft blob. The probe pins above are the proof and the diagnosis in one -- the door reads owed 58 (vanilla delivered nothing, so the drawn layer fires) while the gap reads owed 0 (vanilla already delivered, so it does not). An attempt to key the layer on 'the cell is in a different Room from the lamp' was measured and REJECTED: a wall with a hole in it does not enclose, so RimWorld merges the gap room's interior with the outdoors, the predicate is false everywhere for that lamp, and the asymmetry survives untouched. The predicate that would work is geometric rather than topological -- a ray that has squeezed past blockers on both flanks has passed through an aperture -- and it is not built. Keep these pins: when they finally read alike, the feature is done.",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Concrete",
+        "width": "64",
+        "height": "24",
+        "offset": "8,45",
+        "clear": "true"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "0,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "-13,-7; -13,7; -12,-7; -12,7; -11,-7; -11,7; -10,-7; -10,7; -9,-7; -9,7; -8,-7; -8,7; -7,-7; -7,7; -6,-7; -6,7; -5,-7; -5,7; -4,-7; -4,7; -3,-7; -3,7; -2,-7; -2,7; -1,-7; -1,7; 0,-7; 0,7; -13,-6; 0,-6; -13,-5; 0,-5; -13,-4; 0,-4; -13,-3; 0,-3; -13,-2; 0,-2; -13,-1; 0,-1; -13,0; -13,1; 0,1; -13,2; 0,2; -13,3; 0,3; -13,4; 0,4; -13,5; 0,5; -13,6; 0,6; 15,-7; 15,7; 16,-7; 16,7; 17,-7; 17,7; 18,-7; 18,7; 19,-7; 19,7; 20,-7; 20,7; 21,-7; 21,7; 22,-7; 22,7; 23,-7; 23,7; 24,-7; 24,7; 25,-7; 25,7; 26,-7; 26,7; 27,-7; 27,7; 28,-7; 28,7; 15,-6; 28,-6; 15,-5; 28,-5; 15,-4; 28,-4; 15,-3; 28,-3; 15,-2; 28,-2; 15,-1; 28,-1; 15,0; 15,1; 28,1; 15,2; 28,2; 15,3; 28,3; 15,4; 28,4; 15,5; 28,5; 15,6; 28,6"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Door",
+        "stuff": "WoodLog",
+        "offset": "0,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "0,0"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "TorchLamp",
+        "offset": "0,45",
+        "layout": "cells",
+        "cells": "-3,0; 25,0"
+      }
+    },
+    {
+      "type": "SetRoof",
+      "args": {
+        "def": "RoofConstructed",
+        "width": "64",
+        "height": "24",
+        "offset": "8,45"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "0"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "7,45",
+        "zoom": "30"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "parity_vanilla.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_suppress",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_open_doors",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_beam",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_beam_differential",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_beam_layer",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_available",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_parity_doored_owed",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_parity_gap_owed",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_parity_doored_delivered",
+        "expectedValue": "70",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_parity_gap_delivered",
+        "expectedValue": "70",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_parity_out_door_delivered",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_parity_out_door_owed",
+        "expectedValue": "58",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_parity_out_gap_delivered",
+        "expectedValue": "58",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_parity_out_gap_owed",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "parity_beam.png"
+      }
+    }
+  ]
+}

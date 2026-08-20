@@ -352,6 +352,18 @@ public static class ProbeRegistration
         RegisterOwedQuad("vector_light_owed_off1", new IntVec3(2, 0, 46));
         RegisterOwedQuad("vector_light_owed_off2", new IntVec3(3, 0, 47));
         RegisterOwedQuad("vector_light_owed_mirror", new IntVec3(-7, 0, 45));
+        // vector_light_room_parity.json: one cell three west of each room's own lamp. The doored room's
+        // lamp is at local (-3, 0) and the sealed room's at (17, 0), so these two cells stand in the
+        // same place relative to their own light and MUST read the same. Delivered is pinned as well
+        // as owed, because two rooms agreeing at zero proves nothing if vanilla never lit either.
+        RegisterOwedQuad("vector_light_parity_doored", new IntVec3(-6, 0, 45));
+        RegisterOwedQuad("vector_light_parity_gap", new IntVec3(22, 0, 45));
+        // One cell OUTSIDE each opening, and the pair is the feature's whole thesis. Vanilla's flood
+        // pours through the gap and never through the door, so these two read the same 58 arrived at
+        // from opposite directions: the gap as delivered 58 / owed 0, the door as delivered 0 / owed
+        // 58. That they then RENDER the same is what 27 phase 3c and 3d exist to make true.
+        RegisterOwedQuad("vector_light_parity_out_door", new IntVec3(1, 0, 45));
+        RegisterOwedQuad("vector_light_parity_out_gap", new IntVec3(29, 0, 45));
         // §27 phase 4 / issue #159. The rectangle a colonist's lamp shadow is actually built from,
         // which has to be the one vanilla's sun shadow is built from or the two leave the pawn at
         // different points. Pin BOTH in any arm that photographs a pawn shadow: they failed
@@ -927,6 +939,8 @@ public static class ProbeRegistration
         // comments say is off. Forces a rebuild for the same reason the differential does -- the
         // owed mesh is cached per emitter, so without it the arm photographs the previous arm's
         // geometry while reporting a clean flag flip.
+        // §27 phase 3d's strength sweep. Three keys, one per level; see BeamStrengthOverride.
+        BeamStrengthOverride.Register();
         FeatureRegistry.Register(
             CelestialLightingFeatures.VectorLightBeamLayerKey,
             enabled =>
