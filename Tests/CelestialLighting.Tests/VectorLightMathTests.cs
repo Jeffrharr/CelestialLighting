@@ -935,27 +935,125 @@ public class VectorLightMathTests
             VectorLightMath.PawnShadowAngleDegrees(8f, 8f, 8f, 8f), Is.EqualTo(0f).Within(Tolerance));
     }
 
-    // Each of the three factors can veto the shadow on its own: a lamp that cannot see the pawn, a
-    // pawn beyond the lamp's reach, and broad daylight. Any one of them reaching zero has to take
-    // the whole thing to zero, or a shadow appears where its light does not.
-    [TestCase(0f, 0f, "the lamp cannot see the pawn")]
-    [TestCase(1f, 1f, "broad daylight")]
-    public void AnyOneFactorCanVetoTheShadow(float coverage, float skyGlow, string why)
+    // Each factor can veto the shadow on its own: a lamp that cannot see the pawn, a pawn beyond the
+    // lamp's reach, and broad daylight. Any one of them reaching zero has to take the whole thing to
+    // zero, or a shadow appears where its light does not.
+    [TestCase(0f, 1f, 0f, "the lamp cannot see the pawn")]
+    [TestCase(1f, 1f, 1f, "broad daylight")]
+    public void AnyOneFactorCanVetoTheShadow(
+        float coverage, float total, float skyGlow, string why)
     {
+        float illuminance = VectorLightMath.PawnIlluminance(3f, 10f, coverage);
+
         Assert.That(
-            VectorLightMath.PawnShadowOpacity(3f, 10f, coverage, skyGlow),
+            VectorLightMath.PawnShadowOpacity(illuminance, total, skyGlow),
             Is.EqualTo(0f).Within(Tolerance), why);
     }
 
-    // And with all three favourable it is visible but never opaque — these stack one per lamp, and
-    // two torches either side of a pawn should read as two soft shadows rather than a black cross.
+    // A pawn beyond the lamp's reach receives nothing from it, so there is nothing to block.
+    [Test]
+    public void APawnOutsideTheLampsReachIsLitByItNotAtAll()
+    {
+        Assert.That(
+            VectorLightMath.PawnIlluminance(11f, 10f, 1f), Is.EqualTo(0f).Within(Tolerance));
+    }
+
+    // And with all three favourable it is visible but never opaque.
     [Test]
     public void AFullyLitShadowIsVisibleButNotOpaque()
     {
-        float opacity = VectorLightMath.PawnShadowOpacity(2f, 10f, 1f, 0f);
+        float illuminance = VectorLightMath.PawnIlluminance(2f, 10f, 1f);
+        float opacity = VectorLightMath.PawnShadowOpacity(illuminance, illuminance, 0f);
 
         Assert.That(opacity, Is.GreaterThan(0.05f));
         Assert.That(opacity, Is.LessThanOrEqualTo(VectorLightMath.PawnShadowStrength));
+    }
+
+    // ---- one lamp's share of the light on the pawn (§27 phase 4b) -------------------------
+
+    // THE PROPERTY THE WHOLE CHANGE RESTS ON. A single lamp must come out of the share model with
+    // exactly what phase 4 gave it, because phase 4's constant was calibrated against a live capture
+    // of one lamp and every committed single-lamp screenshot is a pin on that number. Swept across
+    // the falloff range rather than tested at one distance: the floor at FullIlluminance is what
+    // makes this hold for a DIM lone lamp as well as a bright one, and a bare `sum` denominator
+    // would pass at the bright end and hand a rim-lit pawn a share of 1 at the dim end.
+    [TestCase(1f)]
+    [TestCase(0.75f)]
+    [TestCase(0.5f)]
+    [TestCase(0.25f)]
+    [TestCase(0.05f)]
+    public void OneLampKeepsExactlyThePhaseFourOpacity(float illuminance)
+    {
+        Assert.That(
+            VectorLightMath.PawnShadowShare(illuminance, illuminance),
+            Is.EqualTo(illuminance).Within(Tolerance));
+    }
+
+    // The physics, stated as the invariant that was missing: blocking one light cannot remove more
+    // than that light put there, so the shares of every lamp on a cell sum to at most one however
+    // many lamps there are. This is what stops N lamps drawing N full shadows.
+    [TestCase(1)]
+    [TestCase(2)]
+    [TestCase(3)]
+    [TestCase(5)]
+    [TestCase(8)]
+    public void TheSharesOfEveryLampSumToAtMostOne(int lamps)
+    {
+        const float each = 0.6f;
+        float total = each * lamps;
+        float sum = 0f;
+
+        for (int i = 0; i < lamps; i++)
+            sum += VectorLightMath.PawnShadowShare(each, total);
+
+        Assert.That(sum, Is.LessThanOrEqualTo(1f + Tolerance));
+    }
+
+    // And the dilution is monotone in the number of lamps: the eighth lamp joining a room makes
+    // every shadow in it fainter, never darker. The regression this guards is a denominator that
+    // accumulates something the numerator does not, which would pass the sum-to-one test above while
+    // still letting an added lamp darken the shadows already there.
+    [Test]
+    public void AddingALampMakesEveryShadowFainter()
+    {
+        const float each = 0.6f;
+        float previous = float.MaxValue;
+
+        for (int lamps = 1; lamps <= 8; lamps++)
+        {
+            float share = VectorLightMath.PawnShadowShare(each, each * lamps);
+
+            Assert.That(share, Is.LessThan(previous), $"{lamps} lamps");
+            previous = share;
+        }
+    }
+
+    // A lamp contributing nothing takes no share, even where the total is zero too — which is the
+    // degenerate case the divide would otherwise reach.
+    [Test]
+    public void ALampContributingNothingTakesNoShare()
+    {
+        Assert.That(VectorLightMath.PawnShadowShare(0f, 0f), Is.EqualTo(0f).Within(Tolerance));
+    }
+
+    // The numbers behind the complaint that prompted this, pinned as a regression: eight lamps used
+    // to leave the ground at a pawn's feet all but black, because each arm drew at the full 0.30 and
+    // they composite. Under the share model the same eight draw faintly enough that the overlap
+    // stays in the range a shadow occupies rather than the range an object does.
+    [Test]
+    public void EightLampsNoLongerCompositeToNearlyOpaque()
+    {
+        const float each = 0.6f;
+        const int lamps = 8;
+
+        float opacity = VectorLightMath.PawnShadowOpacity(each, each * lamps, 0f);
+        float remaining = 1f;
+
+        for (int i = 0; i < lamps; i++)
+            remaining *= 1f - opacity;
+
+        Assert.That(opacity, Is.LessThan(0.1f), "one arm of eight is a smudge, not a shadow");
+        Assert.That(1f - remaining, Is.LessThan(0.5f), "and the rosette is not an opaque asterisk");
     }
 
     // ---- which pawns cast at all (§27 phase 4, issue #159) --------------------------------

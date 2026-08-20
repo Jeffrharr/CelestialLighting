@@ -783,6 +783,31 @@ public static class CelestialLightingFeatures
     // gives §25's visible clouds their own switch rather than riding the master.
     public static bool VectorLightPawnShadows = true;
 
+    // Feature key for VectorLightShadowShares.
+    public const string VectorLightShadowSharesKey = "vector_light_shadow_shares";
+
+    // §27 phase 4b: each lamp's shadow is that lamp's SHARE of the light on the pawn, not the whole
+    // of it.
+    //
+    // WHAT IT FIXES. Phase 4 charged every lamp the full darkening, as though each were the only
+    // light in the room. One lamp is the case that is true for, and it is the case it was calibrated
+    // and captured against — but a colony lights a room with four or six, and the shadows then
+    // stacked instead of sharing: eight lamps put eight full-strength arms through one pawn and left
+    // the ground at their feet 94% black. The complaint is that a well-lit pawn looks WORSE than a
+    // dimly lit one, which is precisely backwards.
+    //
+    // WHY IT IS PHYSICS RATHER THAN A FUDGE FACTOR. Illuminance adds, so blocking one of N lights
+    // removes that light's share of the total and no more — see VectorLightMath.PawnShadowShare.
+    // Dividing by the total is not a strength knob turned down; it is the denominator that was
+    // missing, and it is why the answer gets it right at both ends without a second constant: one
+    // lamp still draws at full strength, and adding lamps makes each shadow fainter while the light
+    // in the room goes up.
+    //
+    // ON BY DEFAULT, and separately switchable so the live A/B has a control arm in one boot. The
+    // off arm is a genuine pre-feature baseline rather than an absence: with the flag down the
+    // denominator is pinned to FullIlluminance and the arithmetic is bit-for-bit phase 4's.
+    public static bool VectorLightShadowShares = true;
+
     // Feature key for VectorLightOpenDoors.
     public const string VectorLightOpenDoorsKey = "vector_light_open_doors";
 

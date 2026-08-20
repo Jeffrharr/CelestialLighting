@@ -891,21 +891,70 @@ public static class VectorLightMath
         return length > MaxPawnShadowLength ? MaxPawnShadowLength : length;
     }
 
+    // How much light this lamp delivers to the pawn's cell, in the same 0-1 glow space the rest of
+    // §27 works in: the lamp's own falloff, scaled by the share of the cell it can actually SEE.
+    //
+    // Split out of PawnShadowOpacity because it is now needed TWICE per pawn — once to accumulate
+    // what every lamp together puts on that cell, and once per lamp to take that lamp's share of the
+    // total. Naming it is what makes the two passes provably ask the same question rather than two
+    // subtly different ones.
+    public static float PawnIlluminance(float distance, float radius, float coverage)
+    {
+        return Falloff(distance, radius) * Clamp01(coverage);
+    }
+
+    // What fraction of the light standing on the pawn's cell this ONE lamp is responsible for.
+    //
+    // THE PHYSICS. Illuminance adds. A cell receives E_total from every source that reaches it, and
+    // interposing a caster between it and lamp L removes E_L and nothing else — so the darkening a
+    // player sees is E_L / E_total. It is a SHARE, and the shares over all the lamps lighting a cell
+    // sum to at most one, which is the property the old model lacked.
+    //
+    // THE BUG THIS FIXES. The previous formula was this same expression with the denominator pinned
+    // to 1, i.e. every lamp charged the full darkening as though it were the only light in the room.
+    // That is correct when it is, and compounds absurdly when it is not: eight lamps around a pawn
+    // each drew at 0.30 and left the ground at their feet 94% black — one opaque asterisk of arms —
+    // because nothing in the arithmetic knew that the seven lamps NOT being blocked were still
+    // lighting the ground being darkened. Under the share model those same eight draw at 0.058 each
+    // and the rosette settles at 38%, which is what a room with eight lamps in it looks like.
+    //
+    // WHY THE DENOMINATOR IS FLOORED AT FULL ILLUMINATION rather than being the bare sum. A lone
+    // lamp at half falloff delivers 0.5, and dividing by 0.5 would hand it a share of 1 — a pawn at
+    // the dim rim of a single lamp's reach throwing a BLACKER shadow than one standing under it.
+    // That is defensible only in a sealed darkroom, and a RimWorld map is never one: there is always
+    // sky, glowing terrain, a fire, another mod's light. Flooring at one states "you cannot remove
+    // more light than there is", and it buys the property that made this change safe to make at all
+    // — with one lamp the result is ALGEBRAICALLY IDENTICAL to what shipped, so every existing pin
+    // and every committed single-lamp capture stays valid, and dilution begins at exactly the point
+    // a second lamp makes the pawn brighter than fully lit.
+    public static float PawnShadowShare(float lampIlluminance, float totalIlluminance)
+    {
+        if (lampIlluminance <= 0f)
+            return 0f;
+
+        float total = totalIlluminance < FullIlluminance ? FullIlluminance : totalIlluminance;
+
+        return Clamp01(lampIlluminance / total);
+    }
+
     // How dark a pawn's shadow from this lamp is, in [0, 1].
     //
-    // Three things multiply, and each is there for a reason a screenshot would otherwise ask about:
+    // Two things multiply, and each is there for a reason a screenshot would otherwise ask about:
     //
-    //  - The lamp's own falloff, so a shadow fades out exactly where the light that casts it does.
-    //    A shadow that stayed crisp to the rim of a lamp's reach reads as a decal.
-    //  - The share of the pawn's cell the lamp can actually SEE, which is §27's coverage grid. A
-    //    pawn behind a wall must not cast a shadow from a lamp that cannot reach it — and nothing
-    //    else in the mod can answer that question, which is why this feature wants the mask.
+    //  - This lamp's SHARE of the light on the pawn's cell, which carries the lamp's own falloff and
+    //    the share of the cell it can see inside it — so a shadow fades out exactly where the light
+    //    that casts it does, a pawn behind a wall casts nothing from a lamp that cannot reach it,
+    //    and a pawn under six lamps gets six faint shadows rather than six full ones.
     //  - Daylight, on the same reasoning as DaylightScale: a torch at noon casts nothing anyone can
-    //    see, and drawing it anyway is how an effect starts looking like a bug.
+    //    see, and drawing it anyway is how an effect starts looking like a bug. Kept as a separate
+    //    multiply rather than folded into the denominator as an ambient term, because glow units are
+    //    perceptual rather than photometric — the sky reads 1.0 against a lamp's 0.5 where the real
+    //    ratio is four orders of magnitude, so daylight has to be applied as the calibrated curve it
+    //    already is instead of being allowed to compete on those numbers.
     public static float PawnShadowOpacity(
-        float distance, float radius, float coverage, float curSkyGlow)
+        float lampIlluminance, float totalIlluminance, float curSkyGlow)
     {
-        float lit = Falloff(distance, radius) * Clamp01(coverage) * DaylightScale(curSkyGlow);
+        float lit = PawnShadowShare(lampIlluminance, totalIlluminance) * DaylightScale(curSkyGlow);
 
         return Clamp01(lit * PawnShadowStrength);
     }
@@ -1148,6 +1197,14 @@ public static class VectorLightMath
     // indoors — and a torch a cell away should still throw something. Square, because with no data
     // there is no reason to prefer an axis.
     public const float DefaultPawnShadowHalfExtent = 0.3f;
+
+    // The illuminance a cell counts as fully lit at, and the floor on PawnShadowShare's denominator.
+    //
+    // One rather than a tuned value because it is not a taste knob: it is the point at which the
+    // old model's implicit assumption — that the pawn's cell receives exactly one unit of light —
+    // stops being an approximation and starts being an underestimate. Below it the shares would
+    // exceed the darkening actually available; at and above it they are the real thing.
+    public const float FullIlluminance = 1f;
 
     // How dark a fully lit, fully seen pawn shadow gets at most.
     //
