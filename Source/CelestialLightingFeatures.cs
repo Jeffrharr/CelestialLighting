@@ -808,6 +808,46 @@ public static class CelestialLightingFeatures
     // denominator is pinned to FullIlluminance and the arithmetic is bit-for-bit phase 4's.
     public static bool VectorLightShadowShares = true;
 
+    // Feature key for VectorLightShadowShape.
+    public const string VectorLightShadowShapeKey = "vector_light_shadow_shape";
+
+    // §27: lamp shadows the length and shape of the ones the game already draws.
+    //
+    // TWO CHANGES THAT ARE ONE DECISION, which is why they share a flag. Phase 4's shadow ran the
+    // full distance to the lamp — a colonist four cells from a torch threw four cells of shadow,
+    // longer than anything vanilla draws — and it tapered to 32% at the tip. Both came from the same
+    // place: nothing had compared the result against a sun shadow standing beside it.
+    //
+    // The length is now a third of that, from vanilla's own numbers where possible. `ShadowData
+    // .BaseY` is the tallness the game's own shadow shader uses, 0.8 for a human, and §27 had
+    // invented 1.2 while reading BaseX and BaseZ out of the same struct. The lamp moved from 2.4 to
+    // 3.2, which is the taste half and is stated as such.
+    //
+    // The shape is now a constant-width rectangle, because that is what a sun shadow IS —
+    // MeshMakerShadows extrudes each footprint edge at full width and tapers nothing. The taper was
+    // added when these were six cells long and a full-width quad read as a plank; shortening them
+    // removed the premise, and matching vanilla's blocky silhouette is what makes a lamp shadow and
+    // a sun shadow on one pawn read as two shadows rather than two effects.
+    //
+    // Off restores phase 4b's geometry exactly — the old heights, the old cap and the taper — so the
+    // A/B's control arm is the previous look rather than no shadows at all.
+    public static bool VectorLightShadowShape = true;
+
+    // Feature key for VectorLightShadowClip.
+    public const string VectorLightShadowClipKey = "vector_light_shadow_clip";
+
+    // §27, issue #166: a lamp shadow stops at the wall instead of crossing it.
+    //
+    // Phase 4 asked whether the lamp could see the PAWN and never what the shadow crossed, so a pawn
+    // beside a wall threw its shadow over the wall into the next room — onto ground that lamp never
+    // reached, and which the room's own lamp is lighting, so it lands somewhere a player is looking.
+    //
+    // The shadow runs directly away from the lamp, so it lies along a radial of that lamp's
+    // visibility polygon, and phase 3 already bakes that polygon: one boundary query per shadow
+    // clamps the tip. It also clips at the lamp's own rim, which is the same statement rather than
+    // an extra one — a shadow exists only inside the region the lamp lights.
+    public static bool VectorLightShadowClip = true;
+
     // Feature key for VectorLightOpenDoors.
     public const string VectorLightOpenDoorsKey = "vector_light_open_doors";
 

@@ -874,16 +874,31 @@ public class VectorLightMathTests
     // ---- pawn shadows cast by lamps (§27 phase 4) ---------------------------------------
 
     // Similar triangles: a caster of height t at horizontal distance d from a lamp of height h puts
-    // the shadow's tip d*t/(h-t) beyond it. With the shipped constants the headroom is exactly the
-    // pawn's height, so the shadow is the distance — which makes these cases readable by eye.
-    [TestCase(1f, 1f)]
-    [TestCase(2f, 2f)]
-    [TestCase(4f, 4f)]
+    // the shadow's tip d*t/(h-t) beyond it. Stated against the SHIPPED constants, where the ratio is
+    // 0.8/2.4 — a third of the distance — so a change to either height fails here with a number that
+    // says which way it moved, rather than only showing up in a capture.
+    [TestCase(1f, 0.3333f)]
+    [TestCase(2f, 0.6667f)]
+    [TestCase(4f, 1.3333f)]
     public void APawnShadowLengthensWithDistanceFromTheLamp(float distance, float expected)
     {
         Assert.That(
-            VectorLightMath.PawnShadowLength(distance, 1.2f, 2.4f),
-            Is.EqualTo(expected).Within(Tolerance));
+            VectorLightMath.PawnShadowLength(
+                distance, VectorLightMath.DefaultPawnHeight, VectorLightMath.DefaultLampHeight),
+            Is.EqualTo(expected).Within(0.001f));
+    }
+
+    // The shortening, pinned as the ratio rather than as three lengths: phase 4 drew a shadow as
+    // long as the distance to the lamp, and this draws a third of it. Both halves of the change are
+    // in this one number — vanilla's 0.8 tallness replacing an invented 1.2, and the lamp moving up
+    // from 2.4 to 3.2 — so it is the thing to assert, not either constant alone.
+    [Test]
+    public void TheShippedShadowIsOneThirdOfTheDistanceToTheLamp()
+    {
+        Assert.That(
+            VectorLightMath.PawnShadowLength(
+                3f, VectorLightMath.DefaultPawnHeight, VectorLightMath.DefaultLampHeight),
+            Is.EqualTo(1f).Within(0.001f));
     }
 
     // THE DIRECTION THE PHYSICS ACTUALLY RUNS, stated as a test because the intuition goes the other
@@ -892,8 +907,10 @@ public class VectorLightMathTests
     [Test]
     public void StandingUnderTheLampCastsAlmostNothing()
     {
-        float near = VectorLightMath.PawnShadowLength(0.2f, 1.2f, 2.4f);
-        float far = VectorLightMath.PawnShadowLength(5f, 1.2f, 2.4f);
+        float near = VectorLightMath.PawnShadowLength(
+            0.2f, VectorLightMath.DefaultPawnHeight, VectorLightMath.DefaultLampHeight);
+        float far = VectorLightMath.PawnShadowLength(
+            5f, VectorLightMath.DefaultPawnHeight, VectorLightMath.DefaultLampHeight);
 
         Assert.That(near, Is.LessThan(0.5f));
         Assert.That(far, Is.GreaterThan(near));
@@ -910,6 +927,57 @@ public class VectorLightMathTests
 
         Assert.That(length, Is.LessThanOrEqualTo(VectorLightMath.MaxPawnShadowLength));
         Assert.That(length, Is.GreaterThan(0f));
+    }
+
+    // ---- stopping the shadow at the wall (issue #166) -------------------------------------
+
+    // With the boundary far away there is nothing to clip against and the shadow keeps its length.
+    // The regression this guards is a clip that always fires: it would shorten every shadow in the
+    // game while looking, in one capture of one pawn beside one wall, exactly like the fix.
+    [Test]
+    public void AnUnobstructedShadowKeepsItsLength()
+    {
+        Assert.That(
+            VectorLightMath.ClipShadowLength(2f, 14f, 4f, 0.2f),
+            Is.EqualTo(2f).Within(Tolerance));
+    }
+
+    // A wall inside the shadow's reach truncates it exactly at the wall, and the arithmetic is in
+    // distances FROM THE LAMP — boundary 6, pawn at 4, silhouette edge 0.2 further out, so 1.8 of
+    // room remains out of the 2 asked for.
+    [Test]
+    public void AWallTruncatesTheShadowAtTheWall()
+    {
+        Assert.That(
+            VectorLightMath.ClipShadowLength(2f, 6f, 4f, 0.2f),
+            Is.EqualTo(1.8f).Within(Tolerance));
+    }
+
+    // A pawn flat against the thing that stops the light has nowhere to cast, and the caller draws
+    // nothing rather than a zero-length quad. Tested at and PAST the boundary: a pawn can sit
+    // outside it — the coverage grid answers a different question about a partly-seen cell than the
+    // polygon's boundary does along one ray — and a negative room must not come back as a negative
+    // length, which would extrude the mesh backwards through the pawn.
+    [TestCase(4.2f, "the silhouette's trailing edge is exactly on the boundary")]
+    [TestCase(3.0f, "the pawn is past the boundary entirely")]
+    public void AShadowWithNoRoomIsNothing(float boundary, string why)
+    {
+        Assert.That(
+            VectorLightMath.ClipShadowLength(2f, boundary, 4f, 0.2f),
+            Is.EqualTo(0f).Within(Tolerance), why);
+    }
+
+    // The clip never lengthens a shadow, whatever it is handed. Swept rather than argued because it
+    // is a max/min inversion away from being wrong, and an inverted clip makes shadows near a wall
+    // LONGER — which reads as a lighting bug rather than as this function.
+    [TestCase(6f)]
+    [TestCase(8f)]
+    [TestCase(20f)]
+    public void TheClipOnlyEverShortens(float boundary)
+    {
+        Assert.That(
+            VectorLightMath.ClipShadowLength(2f, boundary, 4f, 0.2f),
+            Is.LessThanOrEqualTo(2f));
     }
 
     // Away from the lamp, in Unity's clockwise-from-+Z Y rotation. The mesh is baked extruded along
