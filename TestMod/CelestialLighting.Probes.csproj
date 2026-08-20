@@ -159,6 +159,9 @@
          is blind to §27 by construction (it never writes the glow grid), so this is the only reading
          that can say what a cell renders at. Used by room_parity.json. -->
     <Compile Include="../Source/Probes/RenderedLightCellProbe.cs" Link="RenderedLightCellProbe.cs" />
+    <!-- Whether §27's drawn pass actually reached the GPU, and at what render queue. Every other §27
+         probe reads state that survives the draw standing down entirely. Used by room_parity.json. -->
+    <Compile Include="../Source/Probes/VectorLightDrawProbe.cs" Link="VectorLightDrawProbe.cs" />
     <!-- The ground/artificial/sky split behind IndoorGlowPassthrough at an arbitrary cell. Used by
          indoor_glow_lamp.json to prove a lamp-lit sealed room keeps SkyFraction at 0 while its
          GroundGlow stays high — the regression that would otherwise put dawn pink on a windowless

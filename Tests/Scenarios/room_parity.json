@@ -235,6 +235,22 @@
     {
       "type": "Probe",
       "args": {
+        "probeName": "vector_light_drawn_meshes",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_draw_queue",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
         "probeName": "parity_door_inside_lum",
         "expectedValue": "52.1702",
         "tolerance": "0.01"
@@ -400,6 +416,22 @@
     {
       "type": "Probe",
       "args": {
+        "probeName": "vector_light_drawn_meshes",
+        "expectedValue": "2",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_draw_queue",
+        "expectedValue": "3151",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
         "probeName": "parity_door_inside_lum",
         "expectedValue": "52.1702",
         "tolerance": "0.01"
@@ -560,6 +592,22 @@
       "args": {
         "featureName": "vector_light_door_aperture",
         "enabled": "true"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_drawn_meshes",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_draw_queue",
+        "expectedValue": "0",
+        "tolerance": "0"
       }
     },
     {
@@ -744,6 +792,22 @@
     {
       "type": "Probe",
       "args": {
+        "probeName": "vector_light_drawn_meshes",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_draw_queue",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
         "probeName": "parity_door_inside_lum",
         "expectedValue": "52.1702",
         "tolerance": "0.01"
@@ -904,6 +968,22 @@
       "args": {
         "featureName": "vector_light_door_aperture",
         "enabled": "true"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_drawn_meshes",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_draw_queue",
+        "expectedValue": "0",
+        "tolerance": "0"
       }
     },
     {

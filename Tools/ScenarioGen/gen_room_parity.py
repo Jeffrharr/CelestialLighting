@@ -204,9 +204,27 @@ READINGS = {
 CELL_NAMES = ["inside", "beside", "threshold", "beam"]
 
 
+# What §27's DRAWN pass did in each arm, observed at the Graphics.DrawMesh call rather than derived
+# from the flags that were set. `meshes` is 0 or 2 — one fan per lamp, or the pass standing down —
+# and `queue` is vanilla MoteGlow's, which is the pin that would have caught phase 2b's shader bundle
+# declaring the default Transparent (3000) and landing on the wrong side of the lighting overlay's
+# multiply. Triangles are deliberately NOT pinned: that count is a function of how many corners each
+# polygon found and a fixture edit legitimately moves it, where a mesh count of 0 against 2 is a
+# statement about the composition itself. Both values measured, not predicted.
+DRAWN = {
+    "vanilla": (0, 0),
+    "flat": (2, 3151),
+    "max": (0, 0),
+}
+
+
 def read_pairs(name):
     steps = []
     values = READINGS[name]
+    meshes, queue = DRAWN[name]
+
+    steps.append(probe("vector_light_drawn_meshes", meshes, 0))
+    steps.append(probe("vector_light_draw_queue", queue, 0))
 
     for index, cell in enumerate(CELL_NAMES):
         steps.append(probe(f"parity_door_{cell}_lum", values[index], LUM_TOL))

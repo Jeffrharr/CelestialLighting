@@ -8417,6 +8417,66 @@ computes — and changing what "inside" means is §7b's and §15's business, not
 own header records why the topological answer is there: blacking out a porch that stands open on
 three sides was that feature's most conspicuous artifact.
 
+#### Sharpness is a separate axis from level, and the max only owns one of them
+
+Phase 3b fixes the level and does not fix the look. Held up against the flat beam, the max's beam
+through an aperture reads as a smudge where the flat beam's reads as a shaft, and the reason is worth
+stating precisely because the eye's account of it is wrong.
+
+`Tools/BeamProfile/beam_profile.py` takes a lateral transect across the beam and reports three
+numbers, because a masked ΔE cannot tell a shaft from a smudge — two frames can put the same light
+through the same doorway and look nothing alike. Measured 2 cells past the opening on
+`room_parity.json`'s own captures:
+
+| arm | peak | integral | 10–90% rise |
+|---|---|---|---|
+| vanilla, gap | 15.05 | 89.28 | 3.27 cells |
+| flat beam, door | 4.51 | 9.79 | **0.44 cells** |
+| max, door | 7.54 | **17.70** | 1.70 cells |
+| max, gap | 11.08 | 36.96 | 3.83 cells |
+
+The max is the **brighter** beam through the open door — 17.70 against the flat beam's 9.79, 1.8× the
+light — and it is twice as sharp as vanilla's own beam through a gap. What the flat arm has that it
+lacks is the third column: a drawn triangle fan at sub-cell resolution, carrying little light very
+concentrated, which is what reads as a shaft. "The max looks formless" is a statement about contrast,
+not about light.
+
+**The floor is structural.** Anything composed into the lighting overlay carries one value per cell
+corner plus one per cell centre, bilinearly interpolated, so a beam through a one-cell aperture has
+its edges inside cells and cannot be tighter than about a cell whatever the arithmetic. 1.70 is near
+that floor; 0.44 is only reachable by drawn geometry.
+
+**And this reconciles phase 2b's result rather than contradicting it.** Phase 2b measured a max as
+near-degenerate and concluded "wherever our polygon can see a cell, the straight line IS the geodesic
+path, so the two models agree and the max has nothing to take". That is exactly right **for a gap**,
+and the table above shows it: through the gap, vanilla already delivers 89.28 by a nearly straight
+path, so there is nothing owed and the max lands *below* vanilla once the mask has taken the unseen
+share back out. It is wrong **for an open door**, where vanilla's glow grid never learns the door
+moved, delivers nothing, and the max takes the whole straight-line value — 4.99 to 17.70. The two
+measurements are the same measurement on two apertures that differ in what vanilla did, which is the
+only variable a max can respond to.
+
+**What follows for anyone iterating here.** A max cannot produce the sharp bright shaft, at any
+resolution, because that shaft is light *in addition to* what vanilla delivered and
+`max(vanilla, ours) ≥ vanilla` can only reach vanilla's own level where the two models agree. Level
+and sharpness are separate axes: the max owns the level (the room stays bit-identical, the doorway
+gains light vanilla never had), and only an additive pass at sub-cell resolution owns the sharpness.
+Clipping such a pass to "beyond the aperture" was tried and abandoned twice — it needs a definition of
+an arbitrary gap, and the obvious predicates fail on the cases that matter (a topological one fails
+because a wall with a hole in it does not enclose; a geometric "both flanks blocked" one silently
+does nothing for an opening two cells wide). The remaining route is per-fragment modulation, which is
+issue #151's shader.
+
+**The instrument that makes the next iteration cheap** is the pinned pair in `room_parity.json`:
+`vector_light_drawn_meshes` (0 or 2 — the drawn pass standing down, or one fan per lamp) and
+`vector_light_draw_queue` (3151, vanilla `MoteGlow`'s). Both are read at the `Graphics.DrawMesh` call
+rather than derived from the flags, because every other §27 probe reads state that survives the draw
+standing down entirely: `vector_light_verts` counts a mesh that was BUILT and reads healthy while
+nothing reaches the screen. The queue pin is the one that would have caught phase 2b's shader bundle
+declaring the default `Transparent` (3000) and landing under the lighting overlay's multiply — a bug
+that presents as the frame being *dimmer than vanilla exactly where the new code adds light*, and so
+reads as the arithmetic being wrong.
+
 #### Performance: it moves work out of the draw and into the bake, and comes out ahead
 
 The flat beam builds and draws a triangle fan per emitter **every frame**; the max builds nothing and

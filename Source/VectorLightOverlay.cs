@@ -35,8 +35,43 @@ public static class VectorLightOverlay
     private static readonly List<Vector2> Uvs = new List<Vector2>();
     private static readonly List<int> Tris = new List<int>();
 
+    // WHAT WAS ACTUALLY HANDED TO THE GPU on the last Draw, counted rather than inferred.
+    //
+    // WHY A COUNTER AND NOT A PREDICATE. Every other §27 probe reads state that exists whether or not
+    // this pass runs: `vector_light_verts` counts vertices in a mesh that was BUILT, `lit_area` is
+    // the polygon's area, and both read healthy while the draw stands down and nothing reaches the
+    // screen. That is not hypothetical — it is what the composition flags do to each other on
+    // purpose, and it is the failure §15 shipped once with unit tests and a numeric probe both green.
+    // A scenario can only pin "the drawn geometry is there" against a number taken at the DrawMesh
+    // call, so this is taken there. Same shape and same argument as
+    // GameComponent_DoorAperture.DirtyRequests.
+    //
+    // Reset at the top of each Draw rather than accumulated, so it is a per-frame figure a probe can
+    // read at any time without a Reset step in the scenario.
+    public static int DrawnMeshCount { get; private set; }
+
+    public static int DrawnTriangleCount { get; private set; }
+
+    // The render queue the pass was actually drawn at, recorded at the DrawMesh call for the same
+    // reason as the counts above.
+    //
+    // THIS ONE EXISTS BECAUSE IT ALREADY COST A DAY. §27 phase 2b's shader bundle declared the
+    // default Transparent (3000) while MoteGlow sits at 3151, so our additive pass was drawn UNDER
+    // the lighting overlay's multiply and attenuated by it. That does not present as an ordering bug:
+    // the frame comes out dimmer than vanilla in exactly the place the new code is supposed to be
+    // adding light, so it reads as the arithmetic being wrong and sends you back into the maths. A
+    // pinned number here fails the scenario instead, at the step where the queue changed.
+    //
+    // Zero when nothing was drawn, which a scenario should read together with DrawnMeshCount rather
+    // than on its own.
+    public static int DrawnQueue { get; private set; }
+
     public static void Draw(Map map)
     {
+        DrawnMeshCount = 0;
+        DrawnTriangleCount = 0;
+        DrawnQueue = 0;
+
         if (!CelestialLightingFeatures.VectorLights || map == null)
             return;
 
@@ -90,9 +125,17 @@ public static class VectorLightOverlay
         Color color = entry.Color;
         entry.Props.SetColor(ShaderPropertyIDs.Color, new Color(color.r, color.g, color.b, strength));
 
+        Material material = MaterialFor(entry.Radius);
+
         Graphics.DrawMesh(
-            entry.Mesh, Vector3.zero, Quaternion.identity, MaterialFor(entry.Radius),
+            entry.Mesh, Vector3.zero, Quaternion.identity, material,
             0, null, 0, entry.Props);
+
+        // Counted after the call rather than before it, so an emitter that fell out on any of the
+        // guards above is not reported as drawn.
+        DrawnMeshCount++;
+        DrawnTriangleCount += entry.Mesh.triangles.Length / 3;
+        DrawnQueue = material.renderQueue;
     }
 
     // How brightly this light competes with the sky above it.

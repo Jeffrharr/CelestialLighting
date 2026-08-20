@@ -268,6 +268,15 @@ public static class ProbeRegistration
             new GlowGridCellProbe("door_outside_ground_glow", new IntVec3(1, 0, 45)));
         ProbeRegistry.Register(
             new GlowGridCellProbe("door_inside_ground_glow", new IntVec3(-1, 0, 45)));
+        // §27's drawn pass, observed at the DrawMesh call rather than derived from the flags. See
+        // VectorLightDrawProbe for why no other §27 probe can tell "the beam stood down" from "the
+        // beam is fine" — and why the queue is worth a pin of its own.
+        ProbeRegistry.Register(
+            new VectorLightDrawProbe("vector_light_drawn_meshes", VectorLightDrawProbe.Metric.Meshes));
+        ProbeRegistry.Register(
+            new VectorLightDrawProbe("vector_light_drawn_tris", VectorLightDrawProbe.Metric.Triangles));
+        ProbeRegistry.Register(
+            new VectorLightDrawProbe("vector_light_draw_queue", VectorLightDrawProbe.Metric.Queue));
         RegisterRoomParityProbes();
         // §27e phase 2, vector_light_door_aperture.json. The door sits at local (0, 0) of that
         // scenario's room, i.e. offset (0, 45) from centre.
