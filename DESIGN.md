@@ -8417,6 +8417,32 @@ computes — and changing what "inside" means is §7b's and §15's business, not
 own header records why the topological answer is there: blacking out a porch that stands open on
 three sides was that feature's most conspicuous artifact.
 
+#### Performance: it moves work out of the draw and into the bake, and comes out ahead
+
+The flat beam builds and draws a triangle fan per emitter **every frame**; the max builds nothing and
+draws nothing, and instead runs vanilla's falloff transcription over every cell in an obstructed
+emitter's reach **when a section bakes**. Those are different budgets, so `vector_light_perf.json`
+now profiles the pair against each other on the same scene — 23 lamps walled into their own rooms
+with every one on screen, which is the case where the max's `Unobstructed` skip cannot fire.
+
+Both arms baked exactly 112 sections and drew 1,200 times over 600 frames, so the two rows below are
+directly comparable rather than being per-frame averages over different amounts of work:
+
+| arm | bake, µs/section | draw, µs/call | draw ms/frame | worst draw frame | both rows, ms/frame |
+|---|---|---|---|---|---|
+| mask + flat beam (ships today) | 18.2 | 23.3 | 0.0465 | 1.55 | 0.0499 |
+| **max** | **23.8** | **7.0** | **0.0139** | **0.68** | **0.0183** |
+
+The bake gets **31% dearer** and the draw gets **70% cheaper**, and the draw runs twice a frame while
+a bake runs 112 times in 600 — so the pair lands at **2.7× less per frame** and the worst draw frame
+halves. The direction is structural rather than lucky: a per-frame fan is paid for whether or not
+anything changed, and a bake is paid for when the world does.
+
+**What this scene does not say.** Its lamps are all walled in, which is the case the emitter skip
+cannot help with. An ordinary colony's lamps are mostly in the open, where `Unobstructed` drops them
+before a single cell is read — and where the flat beam still builds its fan. The untested middle is a
+base with many partly-obstructed lamps and a high section-rebake rate.
+
 **Ships on** whenever the mask is on, which is whenever §27 is, which still ships off. Off is not "no
 beam" — it is the flat beam exactly as phase 3 shipped it, slider and all, so the A/B measures the
 composition rather than the absence of one. `vectorLightBeamStrength` therefore still means what it
