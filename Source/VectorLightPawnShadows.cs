@@ -57,6 +57,23 @@ public static class VectorLightPawnShadows
 
     private static readonly Dictionary<int, Material> MaterialCache = new Dictionary<int, Material>();
 
+    // One lamp's contribution to the pawn currently being drawn, carried from the first pass to the
+    // second so the second does not recompute a distance and a coverage lookup it already paid for.
+    private struct Contribution
+    {
+        public float Illuminance;
+        public float Distance;
+        public float LightX;
+        public float LightZ;
+        public float UnitX;
+        public float UnitZ;
+    }
+
+    // Reused rather than allocated per pawn: this runs for every on-screen pawn every frame, and a
+    // fresh list each time is the kind of per-frame garbage §27's profiling budget has no room for.
+    // Safe to share because DrawFor neither recurses nor outlives its own call.
+    private static readonly List<Contribution> Contributions = new List<Contribution>();
+
     public static void Draw(Map map)
     {
         if (!CelestialLightingFeatures.VectorLightPawnShadows || map == null)
@@ -123,6 +140,88 @@ public static class VectorLightPawnShadows
         float halfZ = shadow == null
             ? VectorLightMath.DefaultPawnShadowHalfExtent : shadow.BaseZ * 0.5f;
 
+        // The first pass, shared with the probe so the two cannot drift — see Gather.
+        float totalForShare = Gather(pawn, lights);
+
+        // SECOND PASS: draw each lamp's shadow at its share of that total.
+        for (int i = 0; i < Contributions.Count; i++)
+        {
+            Contribution light = Contributions[i];
+
+            float opacity = VectorLightMath.PawnShadowOpacity(
+                light.Illuminance, totalForShare, skyGlow);
+
+            // Below a level of 255 the shadow is a rounding artefact rather than a shadow, and
+            // drawing it costs the same as drawing a visible one. It rejects considerably more now
+            // than it used to: dilution is exactly what pushes the fifth and sixth lamp's arms under
+            // the threshold, so the busiest scenes are the ones that get cheaper.
+            if (opacity * 255f < 1f)
+                continue;
+
+            float length = VectorLightMath.PawnShadowLength(
+                light.Distance, VectorLightMath.DefaultPawnHeight, VectorLightMath.DefaultLampHeight);
+
+            // The caster's silhouette as this lamp sees it: how wide across, and how far out its
+            // trailing edge is. Vanilla's shadow is the footprint rectangle PLUS a skirt extruded
+            // from the edge facing away from the light, so both numbers come from the same rectangle
+            // and both are direction-dependent — a human presents 0.15 half-cells to a lamp due east
+            // and 0.20 to one due south.
+            float half = Mathf.Max(
+                VectorLightMath.FootprintExtent(halfX, halfZ, -light.UnitZ, light.UnitX),
+                VectorLightMath.MinPawnShadowHalfWidth);
+
+            float trailingEdge = VectorLightMath.FootprintExtent(
+                halfX, halfZ, light.UnitX, light.UnitZ);
+
+            Mesh mesh = MeshFor(half, length);
+
+            if (mesh == null)
+                continue;
+
+            float angle = VectorLightMath.PawnShadowAngleDegrees(
+                light.LightX, light.LightZ, centre.x, centre.z);
+
+            // A material per opacity step rather than a property block. Graphics.DrawMesh is
+            // deferred, so writing one shared material's colour between calls gives every shadow in
+            // the frame whichever opacity was written last — the trap VectorLightOverlay's header
+            // records §17 paying for. Distinct materials sidestep it without a property block.
+            // Started at the silhouette's trailing edge rather than at its centre, so the length
+            // computed above is length BEYOND the caster — the same thing it means for a sun shadow,
+            // whose skirt is extruded from that edge too. Pushing the transform rather than baking
+            // the offset into the mesh keeps the cache keyed on two numbers instead of three.
+            Graphics.DrawMesh(
+                mesh,
+                new Vector3(
+                    anchor.x + light.UnitX * trailingEdge, altitude,
+                    anchor.z + light.UnitZ * trailingEdge),
+                Quaternion.Euler(0f, angle, 0f), MaterialFor(opacity), 0);
+        }
+    }
+
+    // Which lamps light this pawn and how much each contributes, left in Contributions, with the
+    // denominator their shares are taken against returned.
+    //
+    // Split out of DrawFor so the PROBE can call it. That is the repo's probe convention and it
+    // matters more than usual here: the quantity under test is an alpha, which no screenshot can
+    // report directly, and a probe that recomputed the share from its own copy of the arithmetic
+    // could agree with the intended physics while the renderer drew something else.
+    private static float Gather(
+        Pawn pawn, Dictionary<object, VectorLightField.LightEntry>.ValueCollection lights)
+    {
+        Vector3 centre = pawn.DrawPos;
+
+        // FIRST PASS: which lamps light this pawn, and how much light is on its cell in total.
+        //
+        // The total has to be in hand before ANY shadow is drawn, because each lamp's shadow is that
+        // lamp's SHARE of it — see VectorLightMath.PawnShadowShare for why that is what a shadow is.
+        // The requirement is the whole reason this is two passes rather than one: a single pass
+        // cannot know how much light the lamps it has not reached yet are putting back into the
+        // ground it is busy darkening, so it can only assume none, which is what left a pawn under
+        // eight lamps standing in an opaque asterisk.
+        Contributions.Clear();
+
+        float totalIlluminance = 0f;
+
         foreach (VectorLightField.LightEntry entry in lights)
         {
             float lightX = entry.Cell.x + 0.5f;
@@ -141,54 +240,71 @@ public static class VectorLightPawnShadows
                 entry.Coverage, entry.Cell.x, entry.Cell.z, entry.CoverageRadius,
                 pawn.Position.x, pawn.Position.z) / 255f;
 
-            float opacity = VectorLightMath.PawnShadowOpacity(distance, entry.Radius, coverage, skyGlow);
+            float illuminance = VectorLightMath.PawnIlluminance(distance, entry.Radius, coverage);
 
-            // Below a level of 255 the shadow is a rounding artefact rather than a shadow, and
-            // drawing it costs the same as drawing a visible one.
-            if (opacity * 255f < 1f)
+            // A lamp delivering nothing here casts nothing here, and it must not reach the total
+            // either — a lamp the pawn cannot see diluting the shadows of the lamps it can would be
+            // the mirror of the bug being fixed.
+            if (illuminance <= 0f)
                 continue;
 
-            float length = VectorLightMath.PawnShadowLength(
-                distance, VectorLightMath.DefaultPawnHeight, VectorLightMath.DefaultLampHeight);
+            totalIlluminance += illuminance;
 
-            // The shadow's bearing as a unit vector, resolved once so the two footprint questions
-            // below and the push-out that follows all agree about which way "away from the lamp"
-            // points. A pawn standing on the lamp's own cell has no bearing at all, and +X is what
-            // PawnShadowAngleDegrees resolves that to — agreeing with it matters more than the
-            // choice does.
-            float ux = distance > 0f ? dx / distance : 1f;
-            float uz = distance > 0f ? dz / distance : 0f;
+            Contributions.Add(new Contribution
+            {
+                Illuminance = illuminance,
+                Distance = distance,
+                LightX = lightX,
+                LightZ = lightZ,
 
-            // The caster's silhouette as this lamp sees it: how wide across, and how far out its
-            // trailing edge is. Vanilla's shadow is the footprint rectangle PLUS a skirt extruded
-            // from the edge facing away from the light, so both numbers come from the same rectangle
-            // and both are direction-dependent — a human presents 0.15 half-cells to a lamp due east
-            // and 0.20 to one due south.
-            float half = Mathf.Max(
-                VectorLightMath.FootprintExtent(halfX, halfZ, -uz, ux),
-                VectorLightMath.MinPawnShadowHalfWidth);
+                // The shadow's bearing as a unit vector, resolved once so the two footprint
+                // questions below and the push-out that follows all agree about which way "away from
+                // the lamp" points. A pawn standing on the lamp's own cell has no bearing at all,
+                // and +X is what PawnShadowAngleDegrees resolves that to — agreeing with it matters
+                // more than the choice does.
+                UnitX = distance > 0f ? dx / distance : 1f,
+                UnitZ = distance > 0f ? dz / distance : 0f,
+            });
+        }
 
-            float trailingEdge = VectorLightMath.FootprintExtent(halfX, halfZ, ux, uz);
+        // With the share model switched off the denominator stays at one — which is not a second
+        // code path but literally the arithmetic that shipped: PawnShadowShare floors its divisor at
+        // FullIlluminance and an illuminance never exceeds it, so the share collapses back to
+        // falloff × coverage exactly. That is what makes the off arm a true pre-feature baseline
+        // rather than a picture of the shadows being absent.
+        float totalForShare = CelestialLightingFeatures.VectorLightShadowShares
+            ? totalIlluminance
+            : VectorLightMath.FullIlluminance;
 
-            Mesh mesh = MeshFor(half, length);
+        return totalForShare;
+    }
 
-            if (mesh == null)
-                continue;
+    // The opacities this pawn's lamp shadows are about to be drawn at, one per lamp that reaches
+    // them, appended in no particular order. Public for the probe alone.
+    //
+    // Returns the same numbers the draw uses because it runs the same two functions in the same
+    // order — the peak arm and the composited rosette a scenario pins are then facts about the
+    // frame rather than about a model of it.
+    public static void ShadowOpacitiesFor(Map map, Pawn pawn, List<float> into)
+    {
+        into.Clear();
 
-            float angle = VectorLightMath.PawnShadowAngleDegrees(lightX, lightZ, centre.x, centre.z);
+        if (map == null || pawn == null || !pawn.Spawned || !CastsShadow(pawn))
+            return;
 
-            // A material per opacity step rather than a property block. Graphics.DrawMesh is
-            // deferred, so writing one shared material's colour between calls gives every shadow in
-            // the frame whichever opacity was written last — the trap VectorLightOverlay's header
-            // records §17 paying for. Distinct materials sidestep it without a property block.
-            // Started at the silhouette's trailing edge rather than at its centre, so the length
-            // computed above is length BEYOND the caster — the same thing it means for a sun shadow,
-            // whose skirt is extruded from that edge too. Pushing the transform rather than baking
-            // the offset into the mesh keeps the cache keyed on two numbers instead of three.
-            Graphics.DrawMesh(
-                mesh,
-                new Vector3(anchor.x + ux * trailingEdge, altitude, anchor.z + uz * trailingEdge),
-                Quaternion.Euler(0f, angle, 0f), MaterialFor(opacity), 0);
+        Dictionary<object, VectorLightField.LightEntry>.ValueCollection lights =
+            VectorLightField.LightsFor(map);
+
+        if (lights.Count == 0)
+            return;
+
+        float totalForShare = Gather(pawn, lights);
+        float skyGlow = map.skyManager.CurSkyGlow;
+
+        for (int i = 0; i < Contributions.Count; i++)
+        {
+            into.Add(VectorLightMath.PawnShadowOpacity(
+                Contributions[i].Illuminance, totalForShare, skyGlow));
         }
     }
 
