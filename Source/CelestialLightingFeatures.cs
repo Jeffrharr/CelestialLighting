@@ -759,6 +759,71 @@ public static class CelestialLightingFeatures
     public static bool VectorLightMaskBeam = true;
 
     // Feature key for VectorLightPawnShadows.
+    // Feature key for VectorLightShaderMax.
+    public const string VectorLightShaderMaxKey = "vector_light_shader_max";
+
+    // §27 phase 6: the max evaluated PER FRAGMENT on the polygon's own fan, instead of per cell on
+    // the lighting overlay's mesh.
+    //
+    // WHY THIS EXISTS AFTER PHASE 5. Phase 5 computes exactly the right level and delivers it at
+    // cell resolution, because `coverage` is one byte per cell and the lighting overlay carries one
+    // vertex per cell corner plus one per centre. A shadow BOUNDARY survives that — a long straight
+    // edge blurred by half a cell still reads straight. A one-cell APERTURE does not: a doorway beam
+    // comes out a soft ellipse where it should be a wedge, measured and captured in
+    // Tests/Screenshots/maskmax_door_beam_shape.png. Coverage is the polygon's area integral over a
+    // cell; the fan IS the polygon. One is a summary, the other is the shape.
+    //
+    // SO THE SHADER IS NEEDED AFTER ALL, for a reason #151 never gave. #151 justified it as the only
+    // way to get vanilla's glow into a fragment program; that is not true — the mask holds it in C#,
+    // which is what phase 5 proves. It is needed because the fan is the only surface in §27 finer
+    // than a cell, and modulating the fan per cell needs vanilla's value at its vertices. The fan's
+    // vertices sit at arbitrary sub-cell positions on the visibility polygon, so a max evaluated
+    // there keeps the wedge.
+    //
+    // THE TWO HALVES WANT DIFFERENT RESOLUTIONS, and that is the whole design. The shadow is a long
+    // boundary and is carved by phase 3's mask at cell resolution, where cell resolution is fine.
+    // The level is a one-cell aperture and is set by this pass at polygon resolution, where nothing
+    // coarser will do. Phase 5's per-cell lift stands down when this is on — they are two deliveries
+    // of the same quantity and running both would light the region twice.
+    //
+    // Requires the shader to have loaded. A bundle that is absent, built for another OS, or
+    // unsupported on the player's hardware all land as VectorLightShader.Available == false and the
+    // subsystem falls back, because a missing shader must never mean missing light.
+    //
+    // ON, AND IT IS THE COMPOSITION §27 SHIPS AS. Measured against the flat beam it replaces, on a
+    // sealed roofed room lit by one torch at midnight — the scene that answers the question every
+    // §27 composition has to answer, since epic #145 rejected drawing our model over vanilla's at
+    // 6 L* over:
+    //
+    //     lit room   vanilla 12.05    flat beam 14.83 (+2.78)    phase 6 12.44 (+0.39)
+    //     near lamp  vanilla 17.89    flat beam 22.55 (+4.66)    phase 6 18.04 (+0.15)
+    //     whole frame, masked ΔE against vanilla:  flat beam 2.52,  phase 6 0.84
+    //
+    // and on an open door, where the flat beam lifts the doorway +0.51 L* at masked ΔE 1.25 while
+    // this delivers +1.36 at masked ΔE 2.99 — 2.7x the beam for a fiftieth of the indoor spill,
+    // with no strength to choose. VectorLightSettings.BeamStrength now governs only the fallback
+    // path below.
+    //
+    // Inert unless VectorLights is on, which still ships OFF.
+    public static bool VectorLightShaderMax = true;
+
+    // Feature key for VectorLightShaderMaxSubtract.
+    public const string VectorLightShaderMaxSubtractKey = "vector_light_shader_max_subtract";
+
+    // THE CONTROL ARM for the pass above, lifted from #151 along with the shader. With this off the
+    // fragment program computes max(0, ours - 0), which is MoteGlow's output exactly, so the arm
+    // renders whatever the stock additive pass renders and any difference is the SHADER rather than
+    // the composition.
+    //
+    // #151 records what that arm is worth: its first run measured a masked ΔE of 5.58 that had
+    // nothing to do with the arithmetic — the bundle declared the default "Queue"="Transparent"
+    // (3000) against MoteGlow's 3151, so the additive pass drew under the lighting overlay's
+    // multiply and came out dimmer than vanilla exactly where it was supposed to be adding light.
+    // Without this arm that reads as the composition being wrong.
+    //
+    // ON.
+    public static bool VectorLightShaderMaxSubtract = true;
+
     // Feature key for VectorLightMaskMax.
     public const string VectorLightMaskMaxKey = "vector_light_mask_max";
 

@@ -1,6 +1,8 @@
 using System.Collections.Generic;
+using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
 using Verse;
+using Verse.Glow;
 
 namespace CelestialLighting;
 
@@ -31,6 +33,26 @@ public static class VectorLightOverlay
     // float noise fill the cache.
     private static readonly Dictionary<int, Material> MaterialsByRadius = new Dictionary<int, Material>();
 
+    // The same gradients again, bound to §27 phase 6's custom shader instead of MoteGlow. Two caches
+    // rather than one keyed on the mode, because the mode is a per-frame answer — the shader can be
+    // unavailable, and the flag can be flipped by the harness mid-run — and a light must not have to
+    // throw away its material to change composition.
+    private static readonly Dictionary<int, Material> MaxMaterialsByRadius = new Dictionary<int, Material>();
+
+    // Gradients are keyed on radius alone and shared between the two material caches. A 256x32
+    // texture per distinct radius is the expensive half of MaterialFor, and it is identical either
+    // way: the composition changes what the fragment program does with the curve, never the curve.
+    private static readonly Dictionary<int, Texture2D> GradientsByRadius = new Dictionary<int, Texture2D>();
+
+    // Vanilla's delivered glow per vertex, in UV1. Vector4 rather than Vector3 because Unity's mesh
+    // API takes UV channels as float4 and a float3 overload would silently pad anyway.
+    private static readonly List<Vector4> VanillaUvs = new List<Vector4>();
+
+    // Scratch for the field upload, grown rather than allocated per emitter: a radius-14 lamp is a
+    // 29x29 field and a colony rebaking after a toggle would otherwise put a fresh array through the
+    // collector for every light on screen.
+    private static Color32[] FieldPixels = new Color32[0];
+
     private static readonly List<Vector3> Verts = new List<Vector3>();
     private static readonly List<Vector2> Uvs = new List<Vector2>();
     private static readonly List<int> Tris = new List<int>();
@@ -46,15 +68,21 @@ public static class VectorLightOverlay
         // exception: it keeps this pass running at a reduced strength so the lit region gains the
         // contrast the mask alone cannot produce, over a vanilla that has already had the bent light
         // removed. See CelestialLightingFeatures.VectorLightMaskBeam.
-        // Phase 5's max is a lift on the same lit region this pass lifts, computed inside the mask
-        // against what vanilla actually delivered. Running both would light the region twice —
-        // once by a measured excess and once by a flat fraction — so the max wins outright rather
-        // than composing, which is also what makes the two comparable in a single boot instead of
-        // additive. See CelestialLightingFeatures.VectorLightMaskMax.
-        if (VectorLightMask.Lifting)
+        // Phase 5's per-cell lift and this pass are two deliveries of the SAME quantity — the excess
+        // of our model over what vanilla delivered — at two different resolutions. Running both
+        // would light the region twice. Phase 6 wins when it can actually draw, because polygon
+        // resolution is the whole reason it exists; phase 5 wins otherwise, so a machine whose
+        // shader failed to compile still gets the right level at the coarser resolution rather than
+        // nothing. See CelestialLightingFeatures.VectorLightShaderMax.
+        if (VectorLightMask.Lifting && !VectorLightShader.MaxActive)
             return;
 
-        if (VectorLightMask.Active && !CelestialLightingFeatures.VectorLightMaskBeam)
+        // The beam flag governs the FLAT lift only. Phase 6 is this same pass carrying a different
+        // fragment program, so gating it on the beam flag stands the shader down whenever the flat
+        // beam happens to be off — which is exactly how a phase 6 arm is configured, and it
+        // photographs as the feature having no effect rather than as a misconfiguration.
+        if (VectorLightMask.Active && !CelestialLightingFeatures.VectorLightMaskBeam
+            && !VectorLightShader.MaxActive)
             return;
 
         Dictionary<object, VectorLightField.LightEntry>.ValueCollection lights =
@@ -74,7 +102,15 @@ public static class VectorLightOverlay
     private static void DrawLight(
         Map map, VectorLightField.LightEntry entry, CellRect view, float skyGlow, float altitude)
     {
-        float strength = StrengthFor(map, entry, skyGlow);
+        // TWO ANSWERS, NOT ONE, and keeping them apart is what makes the control arm possible.
+        // `maxDrawing` is which material the pass goes through — asked for AND possible, since a
+        // machine that cannot run the shader has to compose the old way instead. `maxComposing` is
+        // whether that shader will actually subtract anything, and a shader subtracting nothing must
+        // be treated as the plain additive pass or the control arm measures a different thing.
+        bool maxDrawing = VectorLightShader.MaxActive;
+        bool maxComposing = maxDrawing && CelestialLightingFeatures.VectorLightShaderMaxSubtract;
+
+        float strength = StrengthFor(map, entry, skyGlow, maxComposing);
 
         if (strength <= 0f || !Overlaps(view, entry))
             return;
@@ -85,6 +121,12 @@ public static class VectorLightOverlay
         if (entry.Mesh == null)
             return;
 
+        // Only under the max, and only when something moved. Off-screen lights never get here at
+        // all — the cull above is what keeps this proportional to what is being looked at — so a
+        // colony switching a lamp pays for resampling the handful of lights currently in view.
+        if (maxDrawing && entry.SampleDirty)
+            UploadVanillaField(map, entry);
+
         // Per-draw colour goes through a MaterialPropertyBlock and not Material.color. Graphics.DrawMesh
         // is DEFERRED — the draws are queued and resolved later — so writing the material's colour
         // between calls gives every light in the frame whichever colour was written last. §17's branch
@@ -92,8 +134,22 @@ public static class VectorLightOverlay
         Color color = entry.Color;
         entry.Props.SetColor(ShaderPropertyIDs.Color, new Color(color.r, color.g, color.b, strength));
 
+        // Set on the same property block and for the same deferred-draw reason as the colour. Zero
+        // is the control arm rather than a disabled state: the shader still runs, and still has to
+        // produce MoteGlow's output when it subtracts nothing.
+        // A light whose field could not be built has nothing to compose against, so it draws the
+        // stock additive pass rather than a max against black — which would be our whole model over
+        // an unsuppressed vanilla, i.e. two lighting models summed.
+        bool composed = maxDrawing && entry.VanillaField != null;
+
+        if (maxDrawing)
+        {
+            VectorLightShader.SetVanillaWeight(entry.Props, maxComposing && composed ? 1f : 0f);
+            VectorLightShader.SetVanillaTexture(entry.Props, entry.VanillaField);
+        }
+
         Graphics.DrawMesh(
-            entry.Mesh, Vector3.zero, Quaternion.identity, MaterialFor(entry.Radius),
+            entry.Mesh, Vector3.zero, Quaternion.identity, MaterialFor(entry.Radius, maxDrawing),
             0, null, 0, entry.Props);
     }
 
@@ -110,10 +166,20 @@ public static class VectorLightOverlay
     // at a fraction of the sky and the lamp is what lifts it back. §7c's NativeSkyFalloffGrid already
     // answers "how much sky reaches this cell" properly and is the principled upgrade here; the binary
     // roof test is the prototype's version of it.
-    private static float StrengthFor(Map map, VectorLightField.LightEntry entry, float skyGlow)
+    private static float StrengthFor(
+        Map map, VectorLightField.LightEntry entry, float skyGlow, bool maxComposing)
     {
         bool sheltered = map.roofGrid.Roofed(entry.Cell);
         float daylight = VectorLightMath.DaylightScale(sheltered ? 0f : skyGlow);
+
+        // Under the per-fragment max we deliver the WHOLE of our model, because the compensation
+        // happens per fragment against vanilla's local value rather than globally against a
+        // constant. Where vanilla already delivered our model's own value the fragment program
+        // subtracts all of it and this scalar multiplies zero; where vanilla delivered nothing —
+        // the far side of an open door — it multiplies the whole beam. That is the self-limiting
+        // property, and cutting the level here would take it back.
+        if (maxComposing)
+            return VectorLightMath.DefaultStrength * daylight;
 
         // Riding on top of phase 3's mask rather than over a suppressed vanilla. What is underneath
         // is not a whole second lighting model — it is vanilla with the shadowed light already taken
@@ -170,7 +236,13 @@ public static class VectorLightOverlay
             VectorLightMath.BuildMesh(lightX, lightZ, entry.Radius, polygon, sourceRadius);
 
         entry.LitArea = PolygonArea(polygon);
+        entry.Built = built;
         UploadMesh(entry, built, altitude);
+
+        // New geometry means every sample belongs to a vertex that no longer exists. Marked rather
+        // than resampled here so an off-screen or non-max light never pays for it: DrawLight is the
+        // only place that knows whether the shader is actually composing this frame.
+        entry.SampleDirty = true;
     }
 
     private static void UploadMesh(
@@ -225,18 +297,185 @@ public static class VectorLightOverlay
         return total;
     }
 
-    private static Material MaterialFor(float radius)
+    private static Material MaterialFor(float radius, bool max)
     {
         int key = Mathf.RoundToInt(radius * 4f);
+        Dictionary<int, Material> cache = max ? MaxMaterialsByRadius : MaterialsByRadius;
 
-        if (!MaterialsByRadius.TryGetValue(key, out Material material))
+        if (!cache.TryGetValue(key, out Material material))
         {
-            material = new Material(ShaderDatabase.MoteGlow) { mainTexture = BuildGradient(key / 4f) };
-            MaterialsByRadius[key] = material;
+            // THE MAX GETS A DIFFERENT CURVE, not just a different program. Its whole arithmetic is
+            // ours minus vanilla's, and vanilla's flood is evaluated at octile + 1 because
+            // PrepareFill seeds the light's own cell at one cell rather than zero. Handing the
+            // fragment program our unseeded curve compares ours at d against vanilla's at d + 1, so
+            // the subtraction never reaches zero and every lamp keeps a halo the composition is
+            // supposed to have removed — measured at +2.04 L* across a room vanilla had already lit
+            // correctly. The stock additive pass is not subtracting vanilla from anything and keeps
+            // the unseeded curve, which is why the two caches hold different textures for one radius.
+            Texture2D gradient = GradientFor(key, max);
+            material = max
+                ? VectorLightShader.NewMaterial(gradient)
+                : new Material(ShaderDatabase.MoteGlow) { mainTexture = gradient };
+            cache[key] = material;
         }
 
         return material;
     }
+
+    // One gradient per radius, shared by both material caches — the curve does not depend on which
+    // program consumes it, and a 256x32 texture per radius is the expensive half of MaterialFor.
+    private static Texture2D GradientFor(int key, bool matchSeed)
+    {
+        // Keyed on the seed as well as the radius, because the two curves genuinely differ and a
+        // cache that ignored the flag would hand whichever program asked first its own texture to
+        // every later one. Negative keys for the seeded half rather than a second dictionary: the
+        // key is a rounded radius in quarter-cells and is never negative, so the two spaces cannot
+        // collide.
+        int cacheKey = matchSeed ? -key - 1 : key;
+
+        if (!GradientsByRadius.TryGetValue(cacheKey, out Texture2D gradient))
+        {
+            gradient = BuildGradient(key / 4f, matchSeed);
+            GradientsByRadius[cacheKey] = gradient;
+        }
+
+        return gradient;
+    }
+
+    // Vanilla's delivered glow over this emitter's square, uploaded as a TEXTURE, plus the UV1
+    // coordinates that let each fragment look itself up in it.
+    //
+    // WHY A TEXTURE AND NOT A PER-VERTEX VALUE, which is the whole correction over #151. #151 wrote
+    // vanilla's glow into UV1 as a value and let the hardware interpolate it across the triangle.
+    // The fan's triangles are long radial slivers that all share ONE apex — at the lamp, where
+    // vanilla's glow is near its maximum — and reach out to the polygon rim, where it is near zero.
+    // Linear interpolation between those two therefore tells a fragment halfway along a doorway beam
+    // that vanilla is roughly half-maximum where the true value is almost nothing, and
+    // max(0, ours - vanilla) clamps to zero across the beam. That is why #151 measured its
+    // composition as a no-op: not because the two models agree, but because one of its two inputs
+    // was sampled at a rate the input does not survive.
+    //
+    // The signature was specific enough to name: on the door scene the ONLY geometry that lit was
+    // the penumbra wedges, which are short triangles out at the rim whose three vertices all sample
+    // low vanilla, while the fan's interior stayed dark. A wrong texture, a wrong weight or a wrong
+    // sample position would all fail uniformly; that failed BY TRIANGLE LENGTH.
+    //
+    // So UV1 carries a POSITION instead. Position across a triangle genuinely is linear, so it
+    // interpolates exactly, and the value it looks up does not have to. One texel per cell is
+    // vanilla's own resolution — this is not an approximation of its field, it IS its field,
+    // bilinearly filtered the same way vanilla's lighting overlay filters the same numbers.
+    //
+    // THIS EMITTER'S OWN GLOW, NOT THE ACCUMULATED TOTAL. #151 sampled GlowGrid.VisualGlowAt because
+    // it composed against the whole frame vanilla draws; the per-light array is the same quantity
+    // phase 3's mask works on, so using it keeps the two halves composing the same thing. It is also
+    // a straight memcpy of a buffer that already exists in exactly this layout, where the total
+    // would be a per-cell lookup.
+    //
+    // GAMEPLAY LIGHT IS READ, NEVER WRITTEN. Nothing here dirties the grid, invalidates it or
+    // schedules a recompute, so GroundGlowAt and everything built on it return what they always did.
+    private static void UploadVanillaField(Map map, VectorLightField.LightEntry entry)
+    {
+        entry.SampleDirty = false;
+
+        VectorLightMath.LightMesh built = entry.Built;
+
+        if (entry.Mesh == null || built.VertexCount == 0)
+            return;
+
+        GlowGridPerLight.Reader reader = GlowGridPerLight.For(map);
+
+        if (reader == null
+            || !reader.TryResolveEmitter(entry.VanillaKey, out GlowLight light, out UnsafeList<Color32> colors))
+        {
+            // No per-light arrays means nothing to compose against. Leaving the field black would
+            // make the shader subtract nothing and draw our whole model over an unsuppressed
+            // vanilla, which is the summing failure epic #145 rejected — so the pass stands down for
+            // this emitter instead, and VectorLightShader.Available is what a scenario pins.
+            entry.VanillaField = null;
+            return;
+        }
+
+        int diameter = light.diameter;
+
+        if (diameter <= 0 || colors.Length < diameter * diameter)
+            return;
+
+        EnsureField(entry, diameter);
+        CopyField(entry.VanillaField, colors, diameter);
+        UploadFieldUvs(entry, built, light.localGlowGridStartPos, diameter);
+    }
+
+    private static void EnsureField(VectorLightField.LightEntry entry, int diameter)
+    {
+        if (entry.VanillaField != null && entry.VanillaField.width == diameter)
+            return;
+
+        if (entry.VanillaField != null)
+            Object.Destroy(entry.VanillaField);
+
+        entry.VanillaField = new Texture2D(diameter, diameter, TextureFormat.RGBA32, mipChain: false)
+        {
+            // Clamp for the same reason the gradient clamps: the penumbra wedges lie just outside
+            // the polygon and can reach a hair past the emitter's square, where wrapping would fetch
+            // the glow from the opposite side of the lamp and put a bright seam on a shadow edge.
+            wrapMode = TextureWrapMode.Clamp,
+
+            // Bilinear, matching what vanilla's own lighting overlay does with these same numbers —
+            // it interpolates them across its mesh. Point filtering would give the composition a
+            // cell-shaped staircase, which is precisely the resolution this pass exists to escape.
+            filterMode = FilterMode.Bilinear,
+        };
+    }
+
+    private static void CopyField(Texture2D field, UnsafeList<Color32> colors, int diameter)
+    {
+        int count = diameter * diameter;
+
+        if (FieldPixels.Length < count)
+            FieldPixels = new Color32[count];
+
+        for (int i = 0; i < count; i++)
+        {
+            Color32 glow = colors[i];
+
+            // ALPHA IS NOT OPACITY IN THIS BUFFER. ComputeGlowGridsJob writes the accumulated
+            // DISTANCE into it (`colorInt.a = (int)num2`), so copying it through would hand the
+            // sampler a channel that means nothing and looks like a mask. The fragment program reads
+            // rgb only, but leaving distance in alpha is the kind of thing that becomes a bug the
+            // first time somebody adds an alpha term.
+            glow.a = 255;
+            FieldPixels[i] = glow;
+        }
+
+        field.SetPixels32(FieldPixels);
+        field.Apply(updateMipmaps: false);
+    }
+
+    // Where each vertex sits in the emitter's square, in [0, 1] on both axes.
+    //
+    // The square spans `diameter` cells from localGlowGridStartPos, and texel i covers cell i, so a
+    // cell centre at start + i + 0.5 maps to (i + 0.5) / diameter — the texel's own centre, which is
+    // what bilinear filtering needs to return that cell's value unmixed. Dividing world position by
+    // the diameter does that without a special case.
+    private static void UploadFieldUvs(
+        VectorLightField.LightEntry entry, VectorLightMath.LightMesh built, IntVec3 start, int diameter)
+    {
+        VanillaUvs.Clear();
+
+        float scale = 1f / diameter;
+
+        for (int i = 0; i < built.VertexCount; i++)
+        {
+            VanillaUvs.Add(new Vector4(
+                (built.X[i] - start.x) * scale,
+                (built.Z[i] - start.z) * scale,
+                0f,
+                0f));
+        }
+
+        entry.Mesh.SetUVs(1, VanillaUvs);
+    }
+
 
     // The falloff curve and the penumbra ramp as one 2-D texture: white throughout, with the product
     // of the two in ALPHA. That split is copied from AuroraCurtain, which writes colour into RGB and
@@ -250,10 +489,10 @@ public static class VectorLightOverlay
     // would mean shipping a compiled AssetBundle per platform — the toolchain for which does now
     // work here — but it would buy no fidelity, and it would put the feature behind an asset that
     // has to be rebuilt for three platforms and checked with shader.isSupported at runtime.
-    private static Texture2D BuildGradient(float radius)
+    private static Texture2D BuildGradient(float radius, bool matchSeed)
     {
         byte[] curve = VectorLightMath.PenumbraGradient(
-            radius, VectorLightMath.GradientSize, VectorLightMath.PenumbraGradientSize);
+            radius, VectorLightMath.GradientSize, VectorLightMath.PenumbraGradientSize, matchSeed);
         byte[] rgba = new byte[curve.Length * 4];
 
         for (int i = 0; i < curve.Length; i++)

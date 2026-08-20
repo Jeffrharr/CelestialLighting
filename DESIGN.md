@@ -8982,6 +8982,121 @@ Roughly a doubling of a cost that is paid on building and toggling rather than o
 **Ships OFF**, pending the shape question above.
 
 
+### §27 phase 6: the max per fragment, on the polygon (`VectorLightShader`, `vector_light_shader_max`, issue #151)
+
+Phase 5 computes the right level and delivers it at the wrong resolution. `coverage` is one byte per
+cell and the lighting overlay carries one vertex per cell corner plus one per centre, so a doorway
+beam whose neck is **one cell wide** comes out a soft ellipse where it should be a wedge
+(`Tests/Screenshots/maskmax_door_beam_shape.png`). A shadow *boundary* survives cell resolution — a
+long straight edge blurred by half a cell still reads straight — and a one-cell *aperture* does not.
+Coverage is the polygon's area integral over a cell; the fan **is** the polygon. One is a summary,
+the other is the shape.
+
+So the two halves want different resolutions, and phase 6 gives each the one it needs. The mask
+carves the shadow at cell resolution, where cell resolution is fine. The level is set by the additive
+fan carrying a custom fragment program, at polygon resolution, where nothing coarser will do.
+
+#### Why #151's shader was right and its sampling was not
+
+#151 justified the shader as the only way to get vanilla's glow into a fragment program. That
+justification is false — phase 5 computes the same max in C# where the per-emitter glow is already in
+hand — and the file is needed anyway, for a reason #151 never gave: the fan is the only surface in
+§27 finer than a cell.
+
+Its *sampling* is what made it measure as a no-op. #151 wrote vanilla's glow into UV1 **as a value**,
+once per vertex, and let the hardware interpolate. The fan's triangles are long radial slivers that
+all share one apex — at the lamp, where vanilla is near maximum — reaching out to the rim, where it
+is near zero. Linear interpolation therefore tells a fragment halfway along a beam that vanilla is
+roughly half-maximum where the true value is almost nothing, and `max(0, ours − vanilla)` clamps to
+zero across exactly the region the beam occupies. Rebuilt and shot: with the subtraction off the fan
+draws a crisp wedge through a gap, and with it on the frame is indistinguishable from vanilla.
+
+The signature was specific enough to name. On the door scene the only geometry that lit was the
+**penumbra wedges** — short triangles at the rim whose three vertices all sample low vanilla — while
+the fan's interior stayed dark. A wrong texture, a wrong weight or a wrong sample position all fail
+uniformly; that failed *by triangle length*.
+
+So UV1 carries a **position** instead, and vanilla arrives as a per-emitter **texture**, one texel
+per cell over the emitter's own square. Position across a triangle genuinely is linear, so it
+interpolates exactly, and the value it looks up does not have to. One texel per cell is vanilla's
+native resolution — this is not an approximation of its field, it *is* its field, bilinearly filtered
+the same way vanilla's own lighting overlay filters the same numbers.
+
+**The seed matters here too, and by the same amount.** With our unseeded curve the composition lifted
+a room vanilla had already lit correctly by **+2.04 L\***, because `Falloff` is evaluated at `d` while
+vanilla's flood is evaluated at `octile + 1`. Baking the seed into the max path's gradient
+(`FalloffGradient(radius, size, matchSeed: true)`) took that to **+0.41**. The stock additive pass
+keeps the unseeded curve — it is not subtracting vanilla from anything — which is why one radius now
+has two gradients.
+
+#### Verification
+
+`Tests/Scenarios/vector_light_shader_only.json` isolates the shader with every other composition off.
+`vector_light_shader_max.json` is the open-door scene, `vector_light_shader_max_penumbra.json` the
+one with real shadows, and `vector_light_indoor_level.json` the sealed room.
+
+**The sealed room is the one that decides it**, because it asks the question every §27 composition has
+to answer — epic #145 rejected drawing our model over vanilla's at 6 L\* over — and it is the question
+the doorway scenes *cannot* ask. A room with a one-cell gap is an **outdoor** room as far as RimWorld
+is concerned, roofed or not, so it reads sky and never tests the indoor level at all. This one is a
+sealed 15×15 box, roofed explicitly with `SetRoof` because walls alone roof nothing here, one torch,
+midnight:
+
+| arm | lit room | near lamp | far corner | masked ΔE vs vanilla |
+|---|---|---|---|---|
+| vanilla | 12.05 | 17.89 | 8.76 | — |
+| mask alone | 12.05 | 17.89 | 8.76 | 0.85 |
+| mask + shipped flat beam | 14.83 (+2.78) | 22.55 (+4.66) | 10.62 (+1.86) | **2.52** |
+| **phase 6** | **12.44 (+0.39)** | **18.04 (+0.15)** | **9.22 (+0.46)** | **0.84** |
+
+In a sealed room our polygon can see every cell vanilla's flood reached, so the two models agree
+everywhere and a self-limiting max must add essentially nothing. It does. The flat beam does not,
+and that is the failure it was always going to have: a flat fraction of our model cannot tell a cell
+vanilla lit correctly from one it left dark.
+
+Where they were both meant to work — an open door, where the glow grid never learns the door opened
+and vanilla delivers literally nothing beyond it:
+
+| arm | doorway beam L\* | beam masked ΔE | lit room L\* |
+|---|---|---|---|
+| vanilla / mask alone | 8.07 | — | 16.95 |
+| mask + flat beam | 8.58 (+0.51) | 1.25 | 18.99 (+2.04) |
+| phase 5, per cell | 9.11 (+1.04) | 1.95 | 17.21 (+0.26) |
+| **phase 6** | **9.43 (+1.36)** | **2.99** | **17.33 (+0.38)** |
+
+2.7× the beam of the composition it replaces, at a fifth of the indoor spill, with no strength to
+choose. And on the scene with real shadows, phase 6 refills **+0.21 L\*** of the shadow the mask just
+carved against the flat beam's **+0.35**, while `vector_light_penumbra_area` stays pinned at
+11.8912582 either side — the composition moves no geometry.
+
+Two byte-identical results in those runs are worth recording rather than explaining away, because
+both are correct and one is a trap. `shadermax_mask.png == shadermax_vanilla.png`: a sealed room with
+no interior obstruction gives the mask nothing to subtract, so the mask arm *is* vanilla, and
+`shadermax_151.png == shadermax_phase6.png` follows — with the mask inert, mask-on and mask-off are
+the same frame. **That scene therefore never tested the shadow half**, which is why
+`vector_light_shader_max_penumbra.json` exists.
+
+`vector_light_shader_max_available` is pinned in every arm that claims to use the shader. Standing
+down is by design silent — an absent bundle, one built for another OS, or hardware that cannot
+compile the pass all fall back rather than losing the player their light — and `--mod-overlay` swaps
+assemblies only, so the bundle reaches a run through `--install <worktree>/1.6/AssetBundles:<main>/1.6/AssetBundles`.
+
+#### What it ships as
+
+**ON**, and it is what §27 composes with now. The flat beam stays as the fallback for a machine where
+the shader could not be loaded or compiled, so `VectorLightSettings.BeamStrength` still drives
+something — on the shader path it correctly has nothing to do, which is noted at the slider rather
+than left to be discovered. Phase 5's per-cell lift stays reachable behind `vector_light_mask_max`
+and stands down whenever phase 6 is active; the two are the same quantity at two resolutions and
+running both would light the region twice.
+
+There is now **one** Unity project and **one** bundle triple. #151 shipped its own project at
+`Tools/ShaderBundle/Assets` and bundles named `celestiallighting_{os}`, alongside §25c's at
+`Tools/ShaderBundle/Project` and `celestiallighting_shaders_{os}`; that duplicate is gone and
+`VectorLightMax.shader` lives in the §25c project, listed in `BuildShaderBundles.ShaderPaths`.
+Adding a shader is a line in that array and a `Tools/ShaderBundle/build.sh` run.
+
+
 ## Conflict risk
 
 Decompiled the user's local Dub's Skylights 1.6 copy (`Dubwise.DubsSkylights`) — its patches

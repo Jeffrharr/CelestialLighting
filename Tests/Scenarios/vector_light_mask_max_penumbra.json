@@ -1,7 +1,7 @@
 {
   "name": "vector_light_mask_max_penumbra",
   "saveFile": "minimal_colony.rws",
-  "description": "\u00a727 phase 5's max on #151's OWN scene, so the two are comparable rather than merely both measured: the same midnight room, the same torch at (-3, 0), the same 1-cell gap in the east wall and the same two interior wall stubs casting the shadows. This is the half the door scene cannot show \u2014 the max is a LIFT and can only add, so everything \u00a727 has to say about darkness still comes from the mask's subtraction, and the question here is whether adding a self-limiting lift on top costs any of it. The gap is an open APERTURE rather than a door, which #151 found is exactly where a max wins nothing: within the wedge our polygon can see, the straight line runs through the hole and vanilla's flood walked the same line. Seven arms: vanilla, the mask alone, the mask plus the shipped flat beam, the control (phase 5 runs and lifts nothing, and must reproduce the mask frame), the masked max, and the max composed WITH the flat beam so the precedence rule is photographed rather than asserted. penumbra_area is pinned either side of the max to prove the composition moved no geometry.",
+  "description": "\u00a727 phase 5's max on #151's OWN scene, so the two are comparable rather than merely both measured: the same midnight room, the same torch at (-3, 0), the same 1-cell gap in the east wall and the same two interior wall stubs casting the shadows. This is the half the door scene cannot show \u2014 the max is a LIFT and can only add, so everything \u00a727 has to say about darkness still comes from the mask's subtraction, and the question here is whether adding a self-limiting lift on top costs any of it. The gap is an open APERTURE rather than a door, which #151 found is exactly where a max wins nothing: within the wedge our polygon can see, the straight line runs through the hole and vanilla's flood walked the same line. Seven arms: vanilla, the mask alone, the mask plus the shipped flat beam, the control (phase 5 runs and lifts nothing, and must reproduce the mask frame), the masked max, and the max composed WITH the flat beam so the precedence rule is photographed rather than asserted. penumbra_area is pinned either side of the max to prove the composition moved no geometry. Phase 6's vector_light_shader_max is stated false in every arm: it ships ON, and phase 5's per-cell lift stands down whenever it is active, so leaving it implicit would make every arm here measure the shader composition instead of the one the scenario is named for.",
   "steps": [
     {
       "type": "SetTile",
@@ -127,6 +127,13 @@
     {
       "type": "SetFeature",
       "args": {
+        "featureName": "vector_light_shader_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
         "featureName": "vector_light_mask_max_lift",
         "enabled": "true"
       }
@@ -211,6 +218,13 @@
       "type": "SetFeature",
       "args": {
         "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max",
         "enabled": "false"
       }
     },
@@ -309,6 +323,13 @@
       "type": "SetFeature",
       "args": {
         "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max",
         "enabled": "false"
       }
     },
@@ -429,6 +450,13 @@
     {
       "type": "SetFeature",
       "args": {
+        "featureName": "vector_light_shader_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
         "featureName": "vector_light_mask_max_lift",
         "enabled": "true"
       }
@@ -530,6 +558,13 @@
       "args": {
         "featureName": "vector_light_mask_max",
         "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max",
+        "enabled": "false"
       }
     },
     {
@@ -644,6 +679,13 @@
       "args": {
         "featureName": "vector_light_mask_max",
         "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max",
+        "enabled": "false"
       }
     },
     {
@@ -766,6 +808,13 @@
       "args": {
         "featureName": "vector_light_mask_max",
         "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max",
+        "enabled": "false"
       }
     },
     {

@@ -259,6 +259,11 @@ public static class ProbeRegistration
         // stand-down rather than an error, so an unpinned arm photographs the crossfade instead.
         ProbeRegistry.Register(
             new VectorLightProbe("vector_light_mask_available", VectorLightProbe.Metric.MaskAvailable));
+        // §27 phase 6. Registered next to the phase 5 pair because a scenario shooting the
+        // per-fragment max needs all three: available says the shader loaded, and lift_samples says
+        // whether the per-cell path stood down for it as it is supposed to.
+        ProbeRegistry.Register(new VectorLightProbe(
+            "vector_light_shader_max_available", VectorLightProbe.Metric.ShaderMaxAvailable));
         // §27 phase 5's max. Registered as a pair and pinned as a pair — see the Metric comments:
         // samples at 0 means the composition never ran, peak at 0 with samples healthy means it ran
         // and correctly found nothing, and those are the two results this arm is trying to tell
@@ -865,6 +870,25 @@ public static class ProbeRegistration
                 VectorLightRedraw.ForceRebuild();
             },
             defaultEnabled: false);
+
+        // Two-arg, matching phase 6's shipped default of true. The registry default is what a suite
+        // reset restores between scenarios, so it has to be the SHIPPED value or every scenario
+        // after the first would silently measure a composition the mod does not ship with.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightShaderMaxKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.VectorLightShaderMax = enabled;
+                VectorLightRedraw.ForceRebuild();
+            });
+
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightShaderMaxSubtractKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.VectorLightShaderMaxSubtract = enabled;
+                VectorLightRedraw.ForceRebuild();
+            });
 
         // Two-arg, matching its shipped default of true: the control arm is only reachable by a
         // scenario asking for it, and a suite reset correctly puts the lift back on.

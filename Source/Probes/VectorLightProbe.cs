@@ -80,6 +80,17 @@ public sealed class VectorLightProbe : IProbe
         // CORRECT answer and is #151's entire finding. A scenario pinning only the peak cannot tell
         // "the composition is degenerate here" from "the composition is not running", which are the
         // two outcomes this arm exists to distinguish.
+        // §27 phase 6: whether the custom shader loaded and is supported, so the per-fragment max
+        // can actually be drawn.
+        //
+        // PIN THIS IN ANY ARM CLAIMING TO MEASURE IT. The shader failing to load is BY DESIGN not an
+        // error — a missing bundle, a bundle built for another OS, or hardware that cannot compile
+        // the pass all stand the feature down silently so that a player never loses their light. So
+        // without a pin here, an arm whose bundle never reached the run leaves every other number
+        // healthy while the frames quietly show the previous composition. #151 registered the same
+        // metric for the same reason.
+        ShaderMaxAvailable,
+
         MaskLiftSamples,
 
         MaskLiftPeak,
@@ -173,6 +184,9 @@ public sealed class VectorLightProbe : IProbe
 
         // Map-free like MaskAvailable above: these count what the bake did, and the bake has already
         // happened by the time a probe reads.
+        if (metric == Metric.ShaderMaxAvailable)
+            return VectorLightShader.Available ? 1f : 0f;
+
         if (metric == Metric.MaskLiftSamples)
             return VectorLightMask.LiftSamples;
 

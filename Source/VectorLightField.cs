@@ -69,6 +69,26 @@ public static class VectorLightField
         // bake skips such an emitter outright rather than looking its grid up cell by cell.
         public bool Unobstructed;
 
+        // The mesh as the pure core built it, kept rather than discarded after upload. Phase 6
+        // needs the vertex POSITIONS again after the fact — to resample vanilla's glow when the
+        // lighting around this light changed but its geometry did not — and reading them back off
+        // the Unity Mesh allocates a fresh array every time it is asked.
+        public VectorLightMath.LightMesh Built;
+
+        // A THIRD KIND OF STALENESS, and the reason it is not folded into GeometryDirty. Under the
+        // per-fragment max each vertex carries vanilla's delivered glow at that point, and that
+        // value moves whenever any OTHER light near this one changes — a lamp switched on across
+        // the room leaves this light's polygon identical and its samples wrong. Reusing
+        // GeometryDirty for it would rebake the polygon too, which is exactly the
+        // every-toggle-rebakes-everything cost this class exists to avoid; resampling on its own
+        // rewrites one UV channel and no geometry.
+        public bool SampleDirty = true;
+
+        // Vanilla's delivered glow over this emitter's own square, one texel per cell, for the
+        // fragment program to look up per fragment. Per emitter and so cannot live on the shared
+        // per-radius material; see VectorLightShader.SetVanillaTexture.
+        public Texture2D VanillaField;
+
         // The polygon's area in square cells, kept for the probes: it is the one number that says
         // "the lit region changed shape" without going anywhere near a pixel. Issue #3 records two
         // wrong conclusions drawn from pixel measurement on exactly this kind of effect.
@@ -85,8 +105,18 @@ public static class VectorLightField
 
     public static void MarkRosterDirty(Map map)
     {
-        if (map != null && ByMap.TryGetValue(map.uniqueID, out MapLights lights))
-            lights.RosterDirty = true;
+        if (map == null || !ByMap.TryGetValue(map.uniqueID, out MapLights lights))
+            return;
+
+        lights.RosterDirty = true;
+
+        // A light was built, removed, recoloured or switched — so vanilla's glow has moved under
+        // every light that can see the same cells, and their samples are stale even though their
+        // polygons are not. Marking all of them is deliberately blunt: the roster changing is rare,
+        // resampling is a UV rewrite rather than a rebake, and working out which lights overlap the
+        // changed one would need the position of a light that may already be gone.
+        foreach (LightEntry entry in lights.Entries.Values)
+            entry.SampleDirty = true;
     }
 
     // A blocker appeared or vanished at `cell`: every light that can see that cell now throws a
@@ -108,6 +138,11 @@ public static class VectorLightField
             {
                 entry.GeometryDirty = true;
                 entry.PolygonDirty = true;
+
+                // A wall appearing or vanishing also rewrites vanilla's geodesic distances through
+                // that cell, so the samples go with the geometry. A rebuild resamples anyway; this
+                // is for the case where the rebuild is skipped because the light is off-screen.
+                entry.SampleDirty = true;
             }
         }
     }
@@ -339,5 +374,14 @@ public static class VectorLightField
             Object.Destroy(entry.Mesh);
 
         entry.Mesh = null;
+
+        // The vanilla field goes with the mesh. Both are unmanaged Unity objects that the GC will
+        // not collect on its own, and an emitter is dropped from the roster whenever a lamp is
+        // deconstructed or the whole field is cleared by a settings toggle — which on a large colony
+        // is enough textures to matter if they are only ever created.
+        if (entry.VanillaField != null)
+            Object.Destroy(entry.VanillaField);
+
+        entry.VanillaField = null;
     }
 }
