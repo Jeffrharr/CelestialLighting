@@ -8738,6 +8738,107 @@ near them — a confident 0.00 that is indistinguishable from the feature being 
 the camera view rect now, which is the renderer's own cull, exactly as `PawnShadowCasters` already
 was for the same reason.
 
+**Phase 4b's captures predate this and are not re-shot.** `vector_light_shadow_shares__*.png` show
+the long tapered geometry, because that is what was on screen when the share model was measured — and
+its claim is about opacity, which phase 4c leaves untouched to seven digits (the probes are pinned
+identical across both). The images are evidence for the number they were taken to prove, not a
+picture of what ships.
+
+### Phase 4c: the length and shape of a lamp shadow (`vector_light_shadow_shape`)
+
+**Problem.** Nobody had put a lamp shadow next to a sun shadow and looked at them. Phase 4 drew a
+shadow the full distance to the lamp — the ratio `t / (h - t)` came out to exactly 1 with a 1.2-cell
+caster and a 2.4-cell lamp, so a colonist four cells from a torch threw four cells of shadow, longer
+than anything vanilla draws — and it tapered to 32% of its width at the tip. The result read as a
+different kind of object from the shadow the game draws two feet away from it.
+
+**Approach.** Two changes that are one decision, which is why they share a flag.
+
+*Length, to a third.* The caster's height now comes from `ShadowData.BaseY` — vanilla's own tallness
+for that def, the number its own shadow shader multiplies the extrusion by, and **0.8** for a human.
+§27 had invented 1.2 while reading `BaseX` and `BaseZ` out of the very same struct, which is the same
+shape of miss as issue #159's width. That alone takes a third off. The lamp then moves 2.4 → 3.2,
+which is the taste half and is labelled as such; together the ratio is `0.8 / 2.4`, exactly a third of
+what phase 4 drew. It also makes animals right for free: a def declaring a squatter shadow now gets a
+squatter one instead of a human's.
+
+*Shape, to blocky.* Vanilla's sun shadow is the footprint rectangle plus a skirt of **constant
+width** — `MeshMakerShadows.NewShadowMesh` duplicates each footprint edge's two vertices and lets the
+shader push them along `_CastVect`, and there is no taper anywhere in it. Ours now matches. The taper
+was not arbitrary when it was added — a full-width quad six cells long genuinely "read as a plank" —
+but shortening the shadow removed the premise, and matching the silhouette the game already uses is
+what makes two shadows on one pawn read as two shadows rather than as two effects.
+
+The flag's off arm restores phase 4b's geometry exactly: the old heights, the old cap of 6, and the
+0.32 taper, all through the same functions, so the A/B measures a change of shape rather than a
+feature appearing.
+
+### Stopping at the wall (`vector_light_shadow_clip`, issue #166)
+
+**Problem.** Phase 4 asked the occlusion question exactly once, at the caster's own cell — "can this
+lamp see the pawn" — and never asked what the shadow **crossed**. A pawn standing beside a wall threw
+its shadow over the wall and out the other side.
+
+**Approach.** One number, because phase 3 already knows the answer. The shadow runs directly away
+from the lamp, so it lies along a **radial** of that lamp's visibility polygon, and
+`BoundaryDistanceAt` gives how far the polygon reaches at a bearing in a binary search plus a lerp.
+Everything past that boundary is a cell the lamp cannot see, which is precisely a cell with no light
+to remove — so the tip is clamped to the boundary. No raycast, no clipped mesh, and it follows §27e's
+doors for free, because an open door is already a different polygon.
+
+All three distances are measured from the lamp, which is the only fiddly part: the shadow starts at
+the silhouette's trailing edge rather than at the pawn's centre, so that has to be paid too or a
+shadow beside a wall keeps a sliver of overhang.
+
+It also clips at the lamp's **own rim**, not only at walls. That is the same statement rather than an
+extra one — a shadow exists only inside the region the lamp lights — and it is called out because it
+is a behaviour change the issue did not ask for.
+
+**An unbuilt polygon means "no wall known", not "a wall at zero".** `BoundaryDistanceAt` answers 0
+for an empty polygon, which is a boundary nearer than the pawn and therefore *no shadow at all*, so a
+light whose polygon had not been rebaked yet would silently delete its shadows instead of drawing
+them unclipped. The fallback is the light's own radius, which degrades to phase 4b for that one
+frame. Written down because the failure would have been a colony-wide disappearance traced to a
+one-frame race.
+
+#### Verification
+
+Two scenarios, each flipping one flag against an arm that reproduces the previous look rather than
+switching the shadows off: `Tests/Scenarios/vector_light_shadow_shape.json` (the same six-torch ring
+phase 4b used, so the two are directly comparable) and `Tests/Scenarios/vector_light_shadow_wall.json`
+(two lit rooms either side of a one-cell wall).
+
+| what | probe | before | after |
+|---|---|---|---|
+| ring at four cells, geometry | `vector_light_pawn_shadow_reach` | 4.000 | **1.333** |
+| wall, unclipped vs clipped | `vector_light_pawn_shadow_reach` | 2.000 | **0.350** |
+
+Both land on the arithmetic exactly. The ring reads a third of the distance to the lamp, which is
+`0.8 / 2.4` to seven digits. The wall's 0.35 is the boundary at 6.5 cells from the lamp, less the
+pawn's 6.0 and the silhouette's 0.15 — i.e. the shadow now ends on the wall's near face.
+
+**The opacity probes are pinned UNCHANGED across every arm of both scenarios**, and that is the point
+of including them: `peak` and `rosette` read 0.0772 / 0.3753 in both ring arms and 0.1136 / 0.1136 in
+both wall arms. Geometry moves how far a shadow reaches and the clip moves where it stops; neither is
+allowed to move how dark it is, and a change in both at once would mean the two are tangled. (In the
+wall scenario peak and rosette are equal because only one lamp reaches the pawn at all — the other
+room's lamp is behind the wall, which is phase 3's mask doing its job.)
+
+Frame measurements, masked over the region each effect touches:
+
+| comparison | masked median ΔE | touched | max |
+|---|---|---|---|
+| ring: phase 4b geometry → short and blocky | **2.41** | 7.3% of region | 3.77 |
+| wall: shadow through the wall → stopped at it | **1.97** | 18.5% of region | 3.36 |
+
+**The wall fix is a small number and is quoted as one.** The escaped overhang is about 0.65 cells of
+a faint shadow (`peak` 0.11) landing on a neighbouring room's floor, so it is 936 pixels differing by
+at most 4 levels of luminance. It is plainly visible in the capture once you know where to look, and
+it would be entirely invisible to a whole-frame median — which is why the reach probe, not the ΔE, is
+what this fix is signed off on. It is also why the scenario puts a *second lamp* in the far room: on
+unlit ground the same bug photographs as nothing at all.
+
+
 ## Conflict risk
 
 Decompiled the user's local Dub's Skylights 1.6 copy (`Dubwise.DubsSkylights`) — its patches

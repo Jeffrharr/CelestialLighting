@@ -1,0 +1,382 @@
+{
+  "name": "vector_light_shadow_wall",
+  "saveFile": "minimal_colony.rws",
+  "description": "Issue #166: a lamp shadow stops at the wall instead of crossing it. Two lit rooms separated by a one-cell wall, a colonist standing against that wall, and the lamp lighting them six cells away on the far side — so the shadow runs at the wall and, unclipped, out the other side. THE SECOND LAMP IS LOAD-BEARING, not scenery: an escaped shadow lands on the neighbouring room's floor, and a black quad on UNLIT ground is invisible however wrong it is, so without a lamp over there the bug photographs as nothing. The reach probe is the assertion — unclipped it reads the full geometric length, clipped it reads the distance from the caster to the wall — because the difference on screen is a sliver of overhang past a wall and a median over the frame cannot see it. Peak and rosette are pinned across both arms to show the clip changes how FAR a shadow goes and not how dark it is.",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Concrete",
+        "width": "36",
+        "height": "24",
+        "offset": "0,45",
+        "clear": "true"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "0,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "-13,-8; -13,8; -12,-8; -12,8; -11,-8; -11,8; -10,-8; -10,8; -9,-8; -9,8; -8,-8; -8,8; -7,-8; -7,8; -6,-8; -6,8; -5,-8; -5,8; -4,-8; -4,8; -3,-8; -3,8; -2,-8; -2,8; -1,-8; -1,8; 0,-8; 0,8; 1,-8; 1,8; 2,-8; 2,8; 3,-8; 3,8; 4,-8; 4,8; 5,-8; 5,8; 6,-8; 6,8; 7,-8; 7,8; 8,-8; 8,8; 9,-8; 9,8; 10,-8; 10,8; 11,-8; 11,8; 12,-8; 12,8; 13,-8; 13,8; -13,-7; 13,-7; -13,-6; 13,-6; -13,-5; 13,-5; -13,-4; 13,-4; -13,-3; 13,-3; -13,-2; 13,-2; -13,-1; 13,-1; -13,0; 13,0; -13,1; 13,1; -13,2; 13,2; -13,3; 13,3; -13,4; 13,4; -13,5; 13,5; -13,6; 13,6; -13,7; 13,7"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "0,45",
+        "layout": "cells",
+        "cells": "1,-6; 1,-5; 1,-4; 1,-3; 1,-2; 1,-1; 1,0; 1,1; 1,2; 1,3; 1,4; 1,5; 1,6"
+      }
+    },
+    {
+      "type": "SetRoof",
+      "args": {
+        "def": "RoofConstructed",
+        "width": "27",
+        "height": "17",
+        "offset": "0,45"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "TorchLamp",
+        "offset": "0,45",
+        "layout": "cells",
+        "cells": "-6,0; 6,0"
+      }
+    },
+    {
+      "type": "SpawnPawn",
+      "args": {
+        "kind": "Colonist",
+        "faction": "player",
+        "count": "1",
+        "offset": "0,45",
+        "clear": "true"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "0"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "0,45",
+        "zoom": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_pawn_casters",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_suppress",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_beam",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_pawn_shadows",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shadow_shares",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shadow_shape",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shadow_clip",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "wall_warmup_discard.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_suppress",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_beam",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_pawn_shadows",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shadow_shares",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shadow_shape",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shadow_clip",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "wall_through.png"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_pawn_shadow_reach",
+        "expectedValue": "2",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_pawn_shadow_peak",
+        "expectedValue": "0.1136",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_pawn_shadow_rosette",
+        "expectedValue": "0.1136",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_suppress",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_beam",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_pawn_shadows",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shadow_shares",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shadow_shape",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shadow_clip",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "wall_stopped.png"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_pawn_shadow_reach",
+        "expectedValue": "0.35",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_pawn_shadow_peak",
+        "expectedValue": "0.1136",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_pawn_shadow_rosette",
+        "expectedValue": "0.1136",
+        "tolerance": "0.01"
+      }
+    }
+  ]
+}

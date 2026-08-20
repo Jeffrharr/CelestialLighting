@@ -127,6 +127,18 @@ public sealed class VectorLightProbe : IProbe
         // the sprite rather than the effect.
         PawnShadowPeak,
         PawnShadowRosette,
+
+        // §27 / issue #166: how far the longest of this pawn's lamp shadows actually reaches, in
+        // cells beyond the caster.
+        //
+        // THE METRIC FOR A CLIP, and it needs one for the same reason the alphas did. A shadow that
+        // stops at a wall and one that runs through it differ only in pixels on the FAR side of the
+        // wall — a region a masked frame measurement has to be told to look at, and which a median
+        // over the whole frame cannot see at all. The reach says it in one number.
+        //
+        // The maximum rather than the sum, because the failure is one shadow escaping: six arms
+        // averaging correctly while one crosses a wall is exactly what a sum would hide.
+        PawnShadowReach,
     }
 
     private readonly Metric metric;
@@ -153,8 +165,9 @@ public sealed class VectorLightProbe : IProbe
         if (metric == Metric.PawnShadowCasters)
             return CountCasters(map);
 
-        if (metric == Metric.PawnShadowPeak || metric == Metric.PawnShadowRosette)
-            return ReadShadowOpacity(map);
+        if (metric == Metric.PawnShadowPeak || metric == Metric.PawnShadowRosette
+            || metric == Metric.PawnShadowReach)
+            return ReadShadow(map);
 
         float litArea = 0f;
         float openArea = 0f;
@@ -196,7 +209,7 @@ public sealed class VectorLightProbe : IProbe
     // they all overlap at the caster's own feet: every shadow starts at the silhouette's trailing
     // edge and radiates outward, so the cells immediately around the pawn are under all of them.
     // That is the spot the old model turned black, so it is the spot worth reporting.
-    private float ReadShadowOpacity(Map map)
+    private float ReadShadow(Map map)
     {
         // SCOPED TO THE CAMERA VIEW RECT, exactly as CountCasters is, and for a reason that cost a
         // whole live run to find. ReadFootprint picks its colonist map-wide, which is harmless there
@@ -218,27 +231,35 @@ public sealed class VectorLightProbe : IProbe
                 subject = pawn;
         }
 
-        VectorLightPawnShadows.ShadowOpacitiesFor(map, subject, ShadowOpacities);
+        VectorLightPawnShadows.ShadowsFor(map, subject, DrawnShadows);
 
         float peak = 0f;
+        float reach = 0f;
         float clear = 1f;
 
-        for (int i = 0; i < ShadowOpacities.Count; i++)
+        for (int i = 0; i < DrawnShadows.Count; i++)
         {
-            float opacity = ShadowOpacities[i];
+            VectorLightPawnShadows.DrawnShadow drawn = DrawnShadows[i];
 
-            if (opacity > peak)
-                peak = opacity;
+            if (drawn.Opacity > peak)
+                peak = drawn.Opacity;
 
-            clear *= 1f - opacity;
+            if (drawn.Length > reach)
+                reach = drawn.Length;
+
+            clear *= 1f - drawn.Opacity;
         }
+
+        if (metric == Metric.PawnShadowReach)
+            return reach;
 
         return metric == Metric.PawnShadowPeak ? peak : 1f - clear;
     }
 
     // Reused rather than allocated per read, matching the draw path's own list: a probe runs on the
     // main thread beside the renderer and there is no reason for it to be the one making garbage.
-    private static readonly List<float> ShadowOpacities = new List<float>();
+    private static readonly List<VectorLightPawnShadows.DrawnShadow> DrawnShadows =
+        new List<VectorLightPawnShadows.DrawnShadow>();
 
     // The footprint of ONE colonist, chosen by lowest thing ID so a scenario with two of them pins a
     // stable one across runs rather than whichever the spawn order happened to yield.

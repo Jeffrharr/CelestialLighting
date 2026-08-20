@@ -295,6 +295,11 @@ public static class ProbeRegistration
             new VectorLightProbe("vector_light_pawn_shadow_peak", VectorLightProbe.Metric.PawnShadowPeak));
         ProbeRegistry.Register(
             new VectorLightProbe("vector_light_pawn_shadow_rosette", VectorLightProbe.Metric.PawnShadowRosette));
+        // Issue #166's metric: how far the longest arm reaches, in cells beyond the caster. Pinned
+        // in a scenario that puts a wall inside that reach, where an unclipped shadow reads the full
+        // geometric length and a clipped one reads the distance to the wall.
+        ProbeRegistry.Register(
+            new VectorLightProbe("vector_light_pawn_shadow_reach", VectorLightProbe.Metric.PawnShadowReach));
         // Performance, measured through Circinus rather than Dubs, because Circinus reports CALL
         // COUNTS. §27 phase 3 does all its work inside a section regenerate, and the Dubs window that
         // appeared to show it running three times cheaper than the feature-off baseline had simply
@@ -790,6 +795,15 @@ public static class ProbeRegistration
         FeatureRegistry.Register(
             CelestialLightingFeatures.VectorLightShadowSharesKey,
             enabled => CelestialLightingFeatures.VectorLightShadowShares = enabled);
+        // §27's geometry and #166's clip. Two-arg overloads, matching their shipped default of true.
+        // No ForceRebuild on either: both change only what the immediate-mode draw emits per frame,
+        // and neither touches a baked section or the visibility polygons they read.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightShadowShapeKey,
+            enabled => CelestialLightingFeatures.VectorLightShadowShape = enabled);
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightShadowClipKey,
+            enabled => CelestialLightingFeatures.VectorLightShadowClip = enabled);
         // §27e. THREE-arg overload with defaultEnabled: false -- both of these ship off, and the
         // two-arg overload would let ResetAll switch them on for a later scenario in a suite, which
         // for the glow-blocker one would silently change gameplay light under an unrelated test.
