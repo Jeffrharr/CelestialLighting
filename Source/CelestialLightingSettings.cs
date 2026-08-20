@@ -86,6 +86,19 @@ public class CelestialLightingSettings : ModSettings
     // clouds. Inert while vectorLights is off.
     public bool vectorLightPawnShadows = true;
 
+    // §27e: light through a door a pawn has opened. ONE player-facing switch drives BOTH halves of
+    // the feature — the boolean and the aperture that tracks the leaves as they slide — for the same
+    // reason §15's eave switch drives both of its own: with the aperture off, the beam appears at
+    // full width on the first tick of the swing, over a door the player can still see closing.
+    // Nobody would choose that, so it is not offered. The split flags survive so the harness can
+    // still film one against the other.
+    //
+    // Off by default, and it is the mod's one deliberate disagreement with gameplay light: vanilla's
+    // glow grid never learns a door opened, so this renders a beam vanilla does not deliver. Plant
+    // growth, work speed and pawn vision are unchanged either way — the divergence is visual only.
+    // See CelestialLightingFeatures.VectorLightOpenDoors for the full argument.
+    public bool vectorLightOpenDoors = false;
+
     // How strong §27's additive beam is on top of the mask. A per-effect intensity like
     // purpleLightStrength, deliberately NOT in PresetKnobs, so moving it does not flip the preset
     // radio to Custom. 1.0 is the level §27 originally shipped at; the default is lower because that
@@ -219,9 +232,22 @@ public class CelestialLightingSettings : ModSettings
         CelestialLightingFeatures.VectorLightPawnShadows = vectorLightPawnShadows;
         VectorLightSettings.BeamStrength = vectorLightBeamStrength;
 
+        // One switch, both halves (see the field comment). Tracked because this changes the BLOCKER
+        // SET the polygons are cast against, and §27's shadow half is baked into the lighting
+        // overlay — without a rebake the map keeps drawing beams cast against the old door state.
+        bool openDoorsChanged = CelestialLightingFeatures.VectorLightOpenDoors != vectorLightOpenDoors;
+        CelestialLightingFeatures.VectorLightOpenDoors = vectorLightOpenDoors;
+        CelestialLightingFeatures.VectorLightDoorAperture = vectorLightOpenDoors;
+
         VectorLightRedraw.SyncTo(vectorLights);
         CelestialLightingFeatures.VectorLights = vectorLights;
 
+        // SyncTo already rebuilt if the master switch moved. This covers the door switch moving on
+        // its own, which SyncTo cannot see. Rebuilding twice on the rare turn where both moved is
+        // cheaper to reason about than threading "did SyncTo fire" back out of it, and closing a
+        // settings window is not a hot path.
+        if (openDoorsChanged && vectorLights)
+            VectorLightRedraw.ForceRebuild();
         CelestialLightingFeatures.EaveShadows = eaveShadows;
         // One player-facing switch drives both halves of §15 — the split flag exists only so the
         // harness can isolate them (see CelestialLightingFeatures.EaveShade). A shipped game must
@@ -294,6 +320,7 @@ public class CelestialLightingSettings : ModSettings
         Scribe_Values.Look(ref cloudVolume, "cloudVolume", true);
         Scribe_Values.Look(ref vectorLights, "vectorLights", false);
         Scribe_Values.Look(ref vectorLightPawnShadows, "vectorLightPawnShadows", true);
+        Scribe_Values.Look(ref vectorLightOpenDoors, "vectorLightOpenDoors", false);
         Scribe_Values.Look(ref vectorLightBeamStrength, "vectorLightBeamStrength",
             VectorLightMath.DefaultBeamStrengthScale);
         Scribe_Values.Look(ref skyColorTemperature, "skyColorTemperature", true);
