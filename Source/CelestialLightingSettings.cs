@@ -86,6 +86,12 @@ public class CelestialLightingSettings : ModSettings
     // clouds. Inert while vectorLights is off.
     public bool vectorLightPawnShadows = true;
 
+    // How strong §27's additive beam is on top of the mask. A per-effect intensity like
+    // purpleLightStrength, deliberately NOT in PresetKnobs, so moving it does not flip the preset
+    // radio to Custom. 1.0 is the level §27 originally shipped at; the default is lower because that
+    // level renders the lit region at 1.175x vanilla — see VectorLightMath.DefaultBeamStrengthScale.
+    public float vectorLightBeamStrength = VectorLightMath.DefaultBeamStrengthScale;
+
     // --- Night-radiance tunables (drive NightRadianceSettings.Current) ---
     // The atmospheric starlight+airglow floor ("true pitch-black" when off), and the pitch-black
     // overlay's minimum-brightness clamp (0 == genuinely black nights; raise it for playability).
@@ -211,8 +217,11 @@ public class CelestialLightingSettings : ModSettings
         // The map would keep rendering the previous answer until the player happened to build
         // something — which for a settings screen means the toggle looks broken.
         CelestialLightingFeatures.VectorLightPawnShadows = vectorLightPawnShadows;
+        VectorLightSettings.BeamStrength = vectorLightBeamStrength;
+
         VectorLightRedraw.SyncTo(vectorLights);
         CelestialLightingFeatures.VectorLights = vectorLights;
+
         CelestialLightingFeatures.EaveShadows = eaveShadows;
         // One player-facing switch drives both halves of §15 — the split flag exists only so the
         // harness can isolate them (see CelestialLightingFeatures.EaveShade). A shipped game must
@@ -285,6 +294,8 @@ public class CelestialLightingSettings : ModSettings
         Scribe_Values.Look(ref cloudVolume, "cloudVolume", true);
         Scribe_Values.Look(ref vectorLights, "vectorLights", false);
         Scribe_Values.Look(ref vectorLightPawnShadows, "vectorLightPawnShadows", true);
+        Scribe_Values.Look(ref vectorLightBeamStrength, "vectorLightBeamStrength",
+            VectorLightMath.DefaultBeamStrengthScale);
         Scribe_Values.Look(ref skyColorTemperature, "skyColorTemperature", true);
         Scribe_Values.Look(ref polarNightBlue, "polarNightBlue", true);
         Scribe_Values.Look(ref polarNightBlueStrength, "polarNightBlueStrength", 1f);

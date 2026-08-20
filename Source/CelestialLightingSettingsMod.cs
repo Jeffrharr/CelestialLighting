@@ -178,6 +178,12 @@ public class CelestialLightingSettingsMod : Mod
             "Render artificial light as a shape cast from each lamp rather than as vanilla's flood fill: a beam through a doorway, a hard shadow behind a rock, firelight spilling out of a window. Vanilla's lighting records how far light travelled and never which direction it came from, so none of those can exist in it.\n\nThe trade is that light which reached a room only by bending around a corner no longer arrives, so indirectly lit rooms are genuinely darker than you are used to. Gameplay light is untouched — plant growth, work speed, pawn vision and mood read exactly the same numbers with this on or off. Visual only.");
         listing.CheckboxLabeled("    Pawn shadows from lamps", ref Settings.vectorLightPawnShadows,
             "Pawns throw a shadow away from each lamp lighting them, lengthening with distance the way a shadow does as the sun sinks. Vanilla cannot do this: its pawn shadow takes its direction from a single value shared by every shadow on the map, which is right for the sun and meaningless for a torch.\n\nDrawn indoors and under eaves too, unlike vanilla's, since a lamp indoors is the whole point. A pawn a lamp cannot actually see — behind a wall — casts nothing from it. Costs one quad per pawn per nearby lamp, the same order as vanilla's own pawn shadows.");
+        // A per-effect intensity, so LabeledSlider rather than AestheticSlider: moving it must not
+        // flip the preset radio to Custom. 1.0 is the level §27 first shipped at, kept reachable
+        // rather than deleted, because how bright a lamp should read is a taste call and the old
+        // value has to stay comparable against the new one in a single boot.
+        Settings.vectorLightBeamStrength = LabeledSlider(listing, "    Lamp beam strength",
+            Settings.vectorLightBeamStrength, 0f, 1f);
         listing.CheckboxLabeled("Sky colour-temperature", ref Settings.skyColorTemperature,
             "Warm the sky toward the horizon on a continuous, altitude-keyed curve.");
         listing.CheckboxLabeled("Polar night blue", ref Settings.polarNightBlue,

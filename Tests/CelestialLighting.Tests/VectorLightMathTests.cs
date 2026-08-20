@@ -1270,4 +1270,58 @@ public class VectorLightMathTests
 
         return total;
     }
+
+    // §27's beam-strength scale. The endpoints are what matter: 0 must be EXACTLY mask-alone and 1
+    // must be EXACTLY the pre-slider constant, because a slider that cannot reproduce the behaviour
+    // it replaced is not a calibration, it is a different feature. The interior is only required to
+    // be monotone — where it should sit is a taste call, not a derivation.
+    [Test]
+    public void MaskBeamStrengthFor_ZeroIsExactlyNoBeam()
+    {
+        Assert.That(VectorLightMath.MaskBeamStrengthFor(0f), Is.EqualTo(0f));
+    }
+
+    [Test]
+    public void MaskBeamStrengthFor_OneIsExactlyThePreSliderConstant()
+    {
+        Assert.That(VectorLightMath.MaskBeamStrengthFor(1f),
+            Is.EqualTo(VectorLightMath.MaskBeamStrength));
+    }
+
+    // Out of range in either direction must clamp rather than extrapolate: a negative scale would
+    // make the beam SUBTRACT on top of a mask that has already subtracted, and above 1 it would
+    // reintroduce the very over-brightening the scale exists to cut.
+    [TestCase(-1f, 0f)]
+    [TestCase(-0.001f, 0f)]
+    [TestCase(1.5f, VectorLightMath.MaskBeamStrength)]
+    [TestCase(1000f, VectorLightMath.MaskBeamStrength)]
+    public void MaskBeamStrengthFor_ClampsOutOfRange(float scale, float expected)
+    {
+        Assert.That(VectorLightMath.MaskBeamStrengthFor(scale), Is.EqualTo(expected).Within(1e-7f));
+    }
+
+    [Test]
+    public void MaskBeamStrengthFor_IsMonotoneAcrossTheRange()
+    {
+        float previous = -1f;
+
+        for (int i = 0; i <= 20; i++)
+        {
+            float value = VectorLightMath.MaskBeamStrengthFor(i / 20f);
+            Assert.That(value, Is.GreaterThanOrEqualTo(previous), $"fell at scale {i / 20f}");
+            previous = value;
+        }
+    }
+
+    // The shipped default has to actually be a reduction, or the fix is inert. 0.175 rendered the lit
+    // region at 1.175x vanilla (see the constant's own derivation); this pins that the default cuts
+    // that lift rather than merely existing as a knob nobody moved.
+    [Test]
+    public void DefaultBeamStrengthScale_IsBelowThePreSliderLevel()
+    {
+        Assert.That(VectorLightMath.DefaultBeamStrengthScale, Is.GreaterThan(0f));
+        Assert.That(VectorLightMath.DefaultBeamStrengthScale, Is.LessThan(1f));
+        Assert.That(VectorLightMath.MaskBeamStrengthFor(VectorLightMath.DefaultBeamStrengthScale),
+            Is.LessThan(VectorLightMath.MaskBeamStrength));
+    }
 }
