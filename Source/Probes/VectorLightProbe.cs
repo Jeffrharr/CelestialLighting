@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using RimWorldTestHarness.Mod.Probes;
 using Verse;
 
@@ -105,6 +106,27 @@ public sealed class VectorLightProbe : IProbe
         // renderer's cull also means the number answers the question a screenshot asks: of the pawns
         // in this frame, how many are casting.
         PawnShadowCasters,
+
+        // §27 phase 4b: how dark this pawn's lamp shadows actually are — the darkest single arm, and
+        // what all of them composite to where they overlap at the caster's feet.
+        //
+        // TWO METRICS BECAUSE THEY FALL BY DIFFERENT FACTORS, and the RATIO between them is the
+        // thing under test. Measured over six lamps, the peak arm goes 0.1875 -> 0.0772 (x0.41)
+        // while the rosette goes 0.7028 -> 0.3753 (x0.53): individual arms get much fainter than
+        // the total darkening does, because the arms overlap at the caster's feet and the shares
+        // they are now drawn at sum rather than compound.
+        //
+        // An earlier draft of this comment predicted the rosette would barely move at all, and the
+        // live run said otherwise — it halves, because phase 4's rosette was over-dark rather than
+        // correct. Recorded rather than quietly corrected: the prediction was the reasoning for
+        // pinning both, and it was wrong in a way only the measurement caught.
+        //
+        // AND NEITHER IS VISIBLE TO A SCREENSHOT AS A NUMBER. These are alphas — the frame shows
+        // their consequence composited against whatever ground, lighting overlay and pawn sprite
+        // happen to be underneath, which is exactly the situation where a pixel measurement reports
+        // the sprite rather than the effect.
+        PawnShadowPeak,
+        PawnShadowRosette,
     }
 
     private readonly Metric metric;
@@ -130,6 +152,9 @@ public sealed class VectorLightProbe : IProbe
 
         if (metric == Metric.PawnShadowCasters)
             return CountCasters(map);
+
+        if (metric == Metric.PawnShadowPeak || metric == Metric.PawnShadowRosette)
+            return ReadShadowOpacity(map);
 
         float litArea = 0f;
         float openArea = 0f;
@@ -162,6 +187,58 @@ public sealed class VectorLightProbe : IProbe
 
         return casters;
     }
+
+    // The darkest arm, or the composite of every arm, for the same one colonist ReadFootprint picks
+    // — and picked by the same rule for the same reason: a scenario with two of them must pin a
+    // stable pawn across runs rather than whichever the spawn order happened to yield.
+    //
+    // The composite is 1 - prod(1 - a), which is what alpha blending does when the arms overlap, and
+    // they all overlap at the caster's own feet: every shadow starts at the silhouette's trailing
+    // edge and radiates outward, so the cells immediately around the pawn are under all of them.
+    // That is the spot the old model turned black, so it is the spot worth reporting.
+    private float ReadShadowOpacity(Map map)
+    {
+        // SCOPED TO THE CAMERA VIEW RECT, exactly as CountCasters is, and for a reason that cost a
+        // whole live run to find. ReadFootprint picks its colonist map-wide, which is harmless there
+        // because every human shares one ShadowData — but this metric depends on WHERE the pawn is
+        // standing, and minimal_colony.rws ships its own colonists whose thing IDs are lower than
+        // anything a scenario spawns. Map-wide, this read a fixture colonist asleep on the far side
+        // of the map with no lamp near them and reported 0.00 in both arms, which is indistinguishable
+        // from the feature being dead. Sharing the renderer's own cull makes the number a fact about
+        // the frame the screenshot shows.
+        CellRect view = Find.CameraDriver.CurrentViewRect;
+        Pawn subject = null;
+
+        foreach (Pawn pawn in map.mapPawns.FreeColonistsSpawned)
+        {
+            if (!view.Contains(pawn.Position))
+                continue;
+
+            if (subject == null || pawn.thingIDNumber < subject.thingIDNumber)
+                subject = pawn;
+        }
+
+        VectorLightPawnShadows.ShadowOpacitiesFor(map, subject, ShadowOpacities);
+
+        float peak = 0f;
+        float clear = 1f;
+
+        for (int i = 0; i < ShadowOpacities.Count; i++)
+        {
+            float opacity = ShadowOpacities[i];
+
+            if (opacity > peak)
+                peak = opacity;
+
+            clear *= 1f - opacity;
+        }
+
+        return metric == Metric.PawnShadowPeak ? peak : 1f - clear;
+    }
+
+    // Reused rather than allocated per read, matching the draw path's own list: a probe runs on the
+    // main thread beside the renderer and there is no reason for it to be the one making garbage.
+    private static readonly List<float> ShadowOpacities = new List<float>();
 
     // The footprint of ONE colonist, chosen by lowest thing ID so a scenario with two of them pins a
     // stable one across runs rather than whichever the spawn order happened to yield.
