@@ -259,6 +259,14 @@ public static class ProbeRegistration
         // stand-down rather than an error, so an unpinned arm photographs the crossfade instead.
         ProbeRegistry.Register(
             new VectorLightProbe("vector_light_mask_available", VectorLightProbe.Metric.MaskAvailable));
+        // §27 phase 5's max. Registered as a pair and pinned as a pair — see the Metric comments:
+        // samples at 0 means the composition never ran, peak at 0 with samples healthy means it ran
+        // and correctly found nothing, and those are the two results this arm is trying to tell
+        // apart.
+        ProbeRegistry.Register(new VectorLightProbe(
+            "vector_light_mask_lift_samples", VectorLightProbe.Metric.MaskLiftSamples));
+        ProbeRegistry.Register(
+            new VectorLightProbe("vector_light_mask_lift_peak", VectorLightProbe.Metric.MaskLiftPeak));
         // §27e, vector_light_open_door.json. Cells are local to that scenario's room at offset
         // (0, 45): the doorway is local (0, 0), so (1, 0) is the first cell OUTSIDE it and (-1, 0)
         // the first cell inside. Both read vanilla's gameplay light, not ours -- they are what
@@ -843,6 +851,38 @@ public static class ProbeRegistration
             enabled =>
             {
                 CelestialLightingFeatures.VectorLightMaskBeam = enabled;
+                VectorLightRedraw.ForceRebuild();
+            });
+        // THREE-ARG, because phase 5's max ships OFF. The two-arg overload registers a default of
+        // true, so a suite's ResetAll between scenarios would turn the max ON for every later
+        // scenario in the batch — every §27 arm after this one would then be measuring a
+        // composition its own JSON never asked for.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightMaskMaxKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.VectorLightMaskMax = enabled;
+                VectorLightRedraw.ForceRebuild();
+            },
+            defaultEnabled: false);
+
+        // Two-arg, matching its shipped default of true: the control arm is only reachable by a
+        // scenario asking for it, and a suite reset correctly puts the lift back on.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightMaskMaxLiftKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.VectorLightMaskMaxLift = enabled;
+                VectorLightRedraw.ForceRebuild();
+            });
+
+        // Two-arg, matching its shipped default of true: the seed IS matched unless a scenario
+        // deliberately drops it to shoot the brightness-rescale arm.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightMaskMaxSeedKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.VectorLightMaskMaxSeed = enabled;
                 VectorLightRedraw.ForceRebuild();
             });
         FeatureRegistry.Register(

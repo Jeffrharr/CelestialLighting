@@ -1,7 +1,7 @@
 {
-  "name": "vector_light_perf",
+  "name": "vector_light_mask_max_perf",
   "saveFile": "minimal_colony.rws",
-  "description": "\u00a727's standing cost, in the three windows that mean different things, on 20 lamps each walled into its own room with doorways between \u2014 the geometry the subsystem is expensive on, rather than one torch in open ground. 'gated' is vector_lights off, which is the \u22640.01 ms/frame the epic asks of the switched-off path. 'hard_edges' is phase 1. 'soft_edges' adds phase 2's penumbra wedges, so the difference between the last two is what soft edges cost and nothing else. Camera is zoomed out far enough that every lamp is on screen: VectorLightOverlay culls against the view, so a tight zoom would profile the culling and report a fraction of the cost as if it were the whole of it. Pins vector_light_blend off explicitly: it ships on, and these numbers were measured without it, so leaving it implicit would silently change what is being profiled. Two windows added for \u00a727 phase 5: 'mask_no_beam' is the mask with the additive pass stood down, and 'mask_max' is the same with the max's lift computed inside it instead. The pair is what the max actually costs, because phase 5 relaxes two of the early-outs the mask's own header is built around \u2014 it no longer skips a fully lit cell, and it no longer skips an emitter that shadows nothing \u2014 so it visits every cell of every lamp's disc where the subtraction visited only the shadowed ones. Profiled against mask_no_beam and not against 'mask', because the max stands the additive pass down and comparing to a window that still draws it would credit the max with a saving that is really the beam's.",
+  "description": "\u00a727 phase 5's cost, measured where the cost actually is. The mask runs during a SECTION REGENERATE and not per frame, so a steady-state window measures a subsystem that is not running and reports the max as free; the number that matters is what one whole-map rebake costs. Each window here opens immediately after the SetFeature that dirties the map, so each contains exactly one rebake of the same 20-lamp scene, and the max arm and the mask arm alternate so drift over the run cannot be read as the flag's cost. The comparison is against the mask with the additive beam STOOD DOWN, because the max stands it down too \u2014 profiling against a window that still draws it would credit the max with a saving that is really the beam's. Phase 5 relaxes two of the early-outs the mask's header is built around: it no longer skips a fully lit cell, because that is exactly where a lift lands, and it no longer skips an emitter that shadows nothing. So it visits every cell of every lamp's disc where the subtraction visited only the shadowed ones, and this scenario is what says how much that is.",
   "steps": [
     {
       "type": "SetTile",
@@ -93,17 +93,15 @@
     {
       "type": "SetFeature",
       "args": {
-        "featureName": "vector_lights",
-        "enabled": "false"
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
       }
     },
     {
-      "type": "Profile",
+      "type": "SetFeature",
       "args": {
-        "name": "gated",
-        "prefix": "CelestialLighting",
-        "frames": "600",
-        "timeSpeed": "superfast"
+        "featureName": "vector_light_suppress",
+        "enabled": "true"
       }
     },
     {
@@ -111,38 +109,6 @@
       "args": {
         "featureName": "vector_lights",
         "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_penumbra",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "Profile",
-      "args": {
-        "name": "hard_edges",
-        "prefix": "CelestialLighting",
-        "frames": "600",
-        "timeSpeed": "superfast"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_penumbra",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "Profile",
-      "args": {
-        "name": "soft_edges",
-        "prefix": "CelestialLighting",
-        "frames": "600",
-        "timeSpeed": "superfast"
       }
     },
     {
@@ -150,15 +116,6 @@
       "args": {
         "featureName": "vector_light_mask",
         "enabled": "true"
-      }
-    },
-    {
-      "type": "Profile",
-      "args": {
-        "name": "mask",
-        "prefix": "CelestialLighting",
-        "frames": "600",
-        "timeSpeed": "superfast"
       }
     },
     {
@@ -171,6 +128,13 @@
     {
       "type": "SetFeature",
       "args": {
+        "featureName": "vector_light_mask_max_seed",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
         "featureName": "vector_light_mask_max",
         "enabled": "false"
       }
@@ -178,9 +142,9 @@
     {
       "type": "Profile",
       "args": {
-        "name": "mask_no_beam",
+        "name": "rebake_mask_1",
         "prefix": "CelestialLighting",
-        "frames": "600",
+        "frames": "240",
         "timeSpeed": "superfast"
       }
     },
@@ -192,18 +156,43 @@
       }
     },
     {
+      "type": "Profile",
+      "args": {
+        "name": "rebake_max_1",
+        "prefix": "CelestialLighting",
+        "frames": "240",
+        "timeSpeed": "superfast"
+      }
+    },
+    {
       "type": "SetFeature",
       "args": {
-        "featureName": "vector_light_mask_max_seed",
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Profile",
+      "args": {
+        "name": "rebake_mask_2",
+        "prefix": "CelestialLighting",
+        "frames": "240",
+        "timeSpeed": "superfast"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
         "enabled": "true"
       }
     },
     {
       "type": "Profile",
       "args": {
-        "name": "mask_max",
+        "name": "rebake_max_2",
         "prefix": "CelestialLighting",
-        "frames": "600",
+        "frames": "240",
         "timeSpeed": "superfast"
       }
     }

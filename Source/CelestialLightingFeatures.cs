@@ -759,6 +759,89 @@ public static class CelestialLightingFeatures
     public static bool VectorLightMaskBeam = true;
 
     // Feature key for VectorLightPawnShadows.
+    // Feature key for VectorLightMaskMax.
+    public const string VectorLightMaskMaxKey = "vector_light_mask_max";
+
+    // §27 phase 5: the mask's lift is decided by max(vanilla, ours) instead of by a strength knob.
+    //
+    // WHAT IT REPLACES. VectorLightMaskBeam above keeps the additive MoteGlow pass running over the
+    // mask at a reduced strength, which lifts EVERY cell of the lit region by the same fraction of
+    // our model — including the cells vanilla already lit correctly. That is why
+    // VectorLightSettings.BeamStrength exists: the flat lift had to be cut back until the room
+    // stopped reading bright, and the cut applies equally to the cells that needed it. With this on,
+    // the mask computes the lift itself, per emitter and per cell, as
+    //
+    //     max(0, ours(e, c) - vanilla(e, c)) * lit(e, c)
+    //
+    // so a cell vanilla already lit to our model's own value gets nothing and a cell vanilla left
+    // dark gets all of it. Self-limiting rather than tuned; there is no strength to pick.
+    //
+    // ISSUE #151, WITH THE OPERATOR IT WAS MISSING. #151 built max(vanilla, ours) as a whole-frame
+    // composition, measured it as near-degenerate and closed on the grounds that a max can never
+    // carve a shadow. Both halves of that are right and neither is a reason not to do this: the max
+    // sets the LEVEL and the mask's own subtraction carves the darkness, so the pair can do what
+    // neither can. Where the max is degenerate — everywhere the two models see the same geometry —
+    // it correctly contributes nothing, which is the property that makes it need no calibration.
+    // See VectorLightLiftMath for the three places they do not see the same geometry, of which the
+    // open door is the one worth having.
+    //
+    // NO SHADER, WHICH IS THE OTHER DIFFERENCE FROM #151. #151 composed in a fragment program and
+    // so had to smuggle vanilla's glow in through a spare UV channel, which is what the custom
+    // shader and the three binary bundles were for. The mask runs per cell in C# and is ALREADY
+    // holding vanilla's per-emitter glow — GlowGridPerLight is what phase 3 is built on — so the
+    // max is four lines of integer arithmetic next to the subtraction it composes with. It also
+    // lands the lift BELOW the sky's multiply rather than above it, so DaylightScale is not needed
+    // and a torch cannot outglow noon.
+    //
+    // TAKES PRECEDENCE OVER THE BEAM. Both are lifts on the same lit region and running them
+    // together would light it twice, so VectorLightOverlay stands down when this is on whatever
+    // VectorLightMaskBeam says. That makes the two directly comparable in one boot rather than
+    // additive.
+    //
+    // Inert unless VectorLightMask is on. OFF, pending the measurement — this is a bake-off arm
+    // against the shipped flat beam and the honest outcome is whichever frame reads better.
+    public static bool VectorLightMaskMax = false;
+
+    // Feature key for VectorLightMaskMaxLift.
+    public const string VectorLightMaskMaxLiftKey = "vector_light_mask_max_lift";
+
+    // THE CONTROL ARM, and it is an instrument rather than a taste knob. With this off the mask
+    // still walks every cell of every emitter's disc under the max's relaxed skips, still resolves
+    // the emitter, still evaluates our falloff, still projects it and still goes through
+    // VectorLightMask.Compose — and then delivers a lift of zero. So the frame it renders must be
+    // the mask-alone frame, to the byte.
+    //
+    // WHAT IT SEPARATES. Phase 5 changed three things at once: it added the max, it relaxed two
+    // early-outs that used to skip fully lit cells and unshadowed emitters, and it replaced the
+    // mask's Subtract with a Compose that clamps once at the end instead of once per term. Only the
+    // first is the feature. Without this arm a difference in the frame is consistent with any of
+    // the three, and #151 records what that costs: its own first control run measured a masked ΔE
+    // of 5.58 that had nothing to do with the composition and would have been "fixed" by retuning
+    // arithmetic that was already correct.
+    //
+    // ON. Inert unless VectorLightMaskMax is on, so it cannot contaminate any other arm.
+    public static bool VectorLightMaskMaxLift = true;
+
+    // Feature key for VectorLightMaskMaxSeed.
+    public const string VectorLightMaskMaxSeedKey = "vector_light_mask_max_seed";
+
+    // Whether the max compares like with like: our straight line evaluated at Euclidean distance
+    // PLUS ONE, matching the intDist = 100 that ComputeGlowGridsJob.PrepareFill seeds the light's
+    // own cell at and therefore carries into every cell of the flood.
+    //
+    // THIS IS THE DIFFERENCE BETWEEN A GEOMETRY CORRECTION AND A BRIGHTNESS RESCALE, which is why
+    // it is a flag and not a constant. With the seed matched, the max wins only where the flood's
+    // path was genuinely longer than the line — the open door, the octile residue, the last cell of
+    // the rim — and correctly finds nothing on a clear cardinal run. Drop it and our curve at d is
+    // compared against vanilla's at d + 1, so the max wins in EVERY cell of EVERY lamp: measured
+    // offline at 76 levels of glow one cell out from a radius-12 lamp, 23 at two cells, 13 at four.
+    // That is a halo around every light on the map, and §27's standing rule is that it changes where
+    // light reaches and not how bright a lamp is.
+    //
+    // ON. The unmatched arm exists to be shot beside this one so the choice is evidence rather than
+    // an assertion in a comment; it is not a taste knob and should not become one.
+    public static bool VectorLightMaskMaxSeed = true;
+
     public const string VectorLightPawnShadowsKey = "vector_light_pawn_shadows";
 
     // §27 phase 4: a pawn throws a shadow away from each lamp that lights it.

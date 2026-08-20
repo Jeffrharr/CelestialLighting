@@ -46,6 +46,14 @@ public static class VectorLightOverlay
         // exception: it keeps this pass running at a reduced strength so the lit region gains the
         // contrast the mask alone cannot produce, over a vanilla that has already had the bent light
         // removed. See CelestialLightingFeatures.VectorLightMaskBeam.
+        // Phase 5's max is a lift on the same lit region this pass lifts, computed inside the mask
+        // against what vanilla actually delivered. Running both would light the region twice —
+        // once by a measured excess and once by a flat fraction — so the max wins outright rather
+        // than composing, which is also what makes the two comparable in a single boot instead of
+        // additive. See CelestialLightingFeatures.VectorLightMaskMax.
+        if (VectorLightMask.Lifting)
+            return;
+
         if (VectorLightMask.Active && !CelestialLightingFeatures.VectorLightMaskBeam)
             return;
 
