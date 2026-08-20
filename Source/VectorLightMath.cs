@@ -1116,6 +1116,40 @@ public static class VectorLightMath
     // makes the combination directly comparable to the crossfade it is trying to beat.
     public const float MaskBeamStrength = DefaultStrength * (1f - DefaultVanillaFloor);
 
+    // WHY THAT NUMBER WAS TOO BRIGHT, and what this scale exists to correct. The comment above
+    // justifies 0.175 as "what the crossfade already delivers", but the crossfade delivers it while
+    // ALSO cutting vanilla to DefaultVanillaFloor underneath — Patch_VectorLightSuppress scales the
+    // artificial RGB before we add anything. In mask mode that suppression does not run at all: the
+    // mask returns early, so the lit region keeps the FULL vanilla flood and 0.175 lands on top of
+    // it. The same constant is a swap in one mode and a straight lift in the other, which is exactly
+    // what the comment above assumed it was not.
+    //
+    // The measurement was in the same PR that shipped it (#154): the lit room goes 9.61 -> 10.56 L*
+    // against the crossfade's 9.72, i.e. nine times the lift, and the sum above says why — (1 + k)
+    // inside the lit region, k = 0.175, so the room renders at 1.175x vanilla by construction.
+    //
+    // WHY A SCALE RATHER THAN A SMALLER CONSTANT. The beam and the room brightness are the SAME
+    // quantity here — the polygon covers the lit region, so nothing can raise the doorway without
+    // raising the room with it. Where that lands is a taste call rather than a derivation, so it is a
+    // slider with the old value still reachable at 1.0, not a new number picked and frozen.
+    public const float DefaultBeamStrengthScale = 0.5f;
+
+    // The beam's additive level once the player's scale is applied. Pure so the endpoints can be
+    // pinned offline: 0 must be exactly no beam (mask alone) and 1 must be exactly the pre-slider
+    // MaskBeamStrength, with no arithmetic drift at either end.
+    //
+    // THE CROSSFADE BRANCH IS DELIBERATELY NOT SCALED BY THIS. Its level is calibrated to conserve —
+    // it adds back the share of vanilla that Patch_VectorLightSuppress just took away — so scaling it
+    // down would land the fallback path DIMMER than vanilla rather than merely less lifted, which is
+    // a different bug rather than a milder version of this one.
+    public static float MaskBeamStrengthFor(float scale)
+    {
+        if (scale <= 0f)
+            return 0f;
+
+        return MaskBeamStrength * (scale >= 1f ? 1f : scale);
+    }
+
     // How high a lamp sits above the floor, in cells, for shadow-length purposes. A torch is about
     // a pawn and a half; the number is a look choice within a physical relation rather than a
     // measurement, and it is the one knob that changes how dramatic these shadows are.

@@ -111,7 +111,7 @@ public static class VectorLightOverlay
         // is not a whole second lighting model — it is vanilla with the shadowed light already taken
         // out — so the level is a lift on the lit region rather than a sum of two models.
         if (VectorLightMask.Active)
-            return VectorLightMath.MaskBeamStrength * daylight;
+            return VectorLightMath.MaskBeamStrengthFor(VectorLightSettings.BeamStrength) * daylight;
 
         // Whatever share of the light the crossfade left vanilla holding, we do not also deliver —
         // otherwise the two models sum and the room lands 6 L* bright, which is the measured failure
