@@ -35,6 +35,21 @@ namespace CelestialLighting;
 //     nothing else, so a mod's light arriving by any route survives untouched — by construction,
 //     not by a floor. That is the compatibility problem the crossfade exists to manage, gone.
 //
+// PHASE 5 ADDS A SECOND TERM, and it is the reason the header above no longer tells the whole story.
+// The shape below can only take light away, so a cell our polygon CAN see lands at exactly vanilla's
+// own value and never above it — which leaves §27 unable to light a cell vanilla left dark, however
+// clearly our geometry says the lamp can see it. The open door is the case that makes that matter:
+// the glow grid never learns a door opened, so beyond one there is no vanilla light for a mask to
+// keep. VectorLightMask then adds back, per emitter, the excess of our own model over what vanilla
+// delivered, gated by the same coverage the subtraction uses:
+//
+//     newGlow(c) = totalGlow(c) - SUM over our emitters of  own(e, c) * (1 - lit(e, c))
+//                              + SUM over our emitters of  max(0, ours(e, c) - own(e, c)) * lit(e, c)
+//
+// i.e. each emitter we modelled contributes lit * max(vanilla, ours) in place of its own light. The
+// max sets the level and the coverage carves the darkness. See VectorLightLiftMath for why that is
+// not phase 2b's no-op, and CelestialLightingFeatures.VectorLightMaskMax for what it replaces.
+//
 // THE COST IS RESOLUTION. The lighting overlay's mesh has one vertex per cell corner plus one per
 // cell centre, so a shadow boundary can only be expressed to within a cell, bilinearly interpolated.
 // That is why lit is a FRACTION rather than a yes/no — VectorLightMath.LitFraction samples the cell
@@ -53,12 +68,51 @@ public static class VectorLightMask
     private static ColorInt[] cellShadow = new ColorInt[0];
     private static ColorInt[] cornerShadow = new ColorInt[0];
 
+    // Phase 5's lift, kept in its own arrays rather than netted against the shadow into one signed
+    // accumulator. Two reasons, and the first is the load-bearing one: with the max off the shadow
+    // path has to produce the SAME BYTES it produced before phase 5 existed, and `own * (255 - c) /
+    // 255` subtracted is not the same integer as `own * c / 255 - own` added — they differ by one
+    // level wherever the division does not divide evenly. A control arm that is off by a level
+    // everywhere is not a control arm. The second is that ColorInt's operators are vanilla's, and
+    // asking them to carry negative channels through a divide is a guess about a struct we do not
+    // own.
+    private static ColorInt[] cellLift = new ColorInt[0];
+    private static ColorInt[] cornerLift = new ColorInt[0];
+
+    // What the last whole-map rebake's lift actually came to, for the probes.
+    //
+    // TWO NUMBERS, READ TOGETHER, because a zero in either has an entirely different cause. Samples
+    // counts the cells the max was EVALUATED at, so a zero there means it never ran — a stale bake,
+    // a flag that did not reach the mesh builder, the Unobstructed skip still dropping every
+    // emitter. Peak is the largest lift it actually wrote, so a zero there over healthy samples
+    // means it ran and correctly found nothing, which in a scene where both lighting models see the
+    // same geometry is #151's whole finding rather than a failure. Pinning only one of them cannot
+    // tell those apart, and they are the two outcomes this arm exists to distinguish.
+    //
+    // Reset by VectorLightRedraw.ForceRebuild, which is what every SetFeature step goes through, so
+    // a probe read after a toggle reports that toggle's rebake rather than everything since load.
+    public static long LiftSamples;
+
+    public static int LiftPeak;
+
+    public static void ResetTelemetry()
+    {
+        LiftSamples = 0;
+        LiftPeak = 0;
+    }
+
     // Whether phase 3 can run: the per-light arrays have to be readable, or there is nothing to
     // subtract and the subsystem stands down to the crossfade.
     public static bool Available => GlowGridPerLight.Available;
 
     public static bool Active =>
         CelestialLightingFeatures.VectorLightMask && Available;
+
+    // Whether phase 5's lift runs this frame. Read ONCE per Apply and threaded down rather than
+    // tested in the inner loops, so with the max off every added branch below is one bool compare
+    // against a local and the shipped path keeps the shape it was profiled in.
+    public static bool Lifting =>
+        Active && CelestialLightingFeatures.VectorLightMaskMax;
 
     // Rewrites one section's lighting overlay in place. Returns false when it declined to, so the
     // caller can fall through to the crossfade rather than leaving the section unlit or unmasked.
@@ -69,7 +123,9 @@ public static class VectorLightMask
         if (reader == null || mesh == null)
             return false;
 
-        CollectReaching(map, rect);
+        bool lifting = Lifting;
+
+        CollectReaching(map, rect, lifting);
 
         if (Reaching.Count == 0)
             return true;
@@ -79,11 +135,11 @@ public static class VectorLightMask
         // changes not one of them. Doing the shadow accumulation first — which needs no mesh at all
         // — means an unshadowed section pays the emitter scan and nothing else, where the crossfade
         // pays the round trip plus a write to every vertex unconditionally.
-        bool anyShadow = BuildCellShadow(map, reader, rect);
+        bool anyEdit = BuildCellShadow(map, reader, rect, lifting);
 
         Reaching.Clear();
 
-        if (!anyShadow)
+        if (!anyEdit)
             return true;
 
         int width = rect.Width;
@@ -99,8 +155,8 @@ public static class VectorLightMask
         if (colors == null || colors.Length != expected || verts == null || verts.Count != expected)
             return false;
 
-        ApplyToCorners(map, colors, rect, corners);
-        ApplyToCentres(colors, rect, corners);
+        ApplyToCorners(map, colors, rect, corners, lifting);
+        ApplyToCentres(colors, rect, corners, lifting);
 
         mesh.colors32 = colors;
         return true;
@@ -109,7 +165,7 @@ public static class VectorLightMask
     // Which emitters can reach any cell this section's vertices average over. The vertex loop reads
     // one cell further out on the min side than the section itself, because a corner vertex at the
     // section's edge averages the cells on both sides of it.
-    private static void CollectReaching(Map map, CellRect rect)
+    private static void CollectReaching(Map map, CellRect rect, bool lifting)
     {
         Reaching.Clear();
 
@@ -130,7 +186,15 @@ public static class VectorLightMask
             //
             // An emitter that shadows nothing is skipped outright rather than looked up cell by cell
             // and found to subtract zero every time. In open ground that is most of them.
-            if (overlaps && !entry.PolygonDirty && entry.Polygon.Count > 0 && !entry.Unobstructed)
+            // UNOBSTRUCTED IS ONLY A REASON TO SKIP WHEN THE MASK CAN ONLY SUBTRACT. Under the max
+            // an emitter that shadows nothing still has a lift to deliver — the octile residue at
+            // the very least, and the whole beam if what made it "unobstructed" was §27e deciding
+            // an open door is a hole. Keeping the skip under the max would drop exactly the
+            // emitters phase 5 exists for, and would do it silently: the frame would come back
+            // looking like the mask alone.
+            bool worthVisiting = lifting || !entry.Unobstructed;
+
+            if (overlaps && worthVisiting && !entry.PolygonDirty && entry.Polygon.Count > 0)
                 Reaching.Add(entry);
         }
     }
@@ -161,13 +225,22 @@ public static class VectorLightMask
 
     // Returns whether anything is shadowed at all, so Apply can leave the mesh untouched when
     // nothing is.
-    private static bool BuildCellShadow(Map map, GlowGridPerLight.Reader reader, CellRect rect)
+    private static bool BuildCellShadow(
+        Map map, GlowGridPerLight.Reader reader, CellRect rect, bool lifting)
     {
         int cells = CellsWide(rect) * CellsHigh(rect);
         Grow(ref cellShadow, cells);
 
         for (int i = 0; i < cells; i++)
             cellShadow[i] = default;
+
+        if (lifting)
+        {
+            Grow(ref cellLift, cells);
+
+            for (int i = 0; i < cells; i++)
+                cellLift[i] = default;
+        }
 
         bool any = false;
 
@@ -187,7 +260,7 @@ public static class VectorLightMask
             if (!reader.TryResolveEmitter(entry.VanillaKey, out GlowLight light, out UnsafeList<Color32> colors))
                 continue;
 
-            any |= AccumulateEmitter(map, rect, entry, light, colors);
+            any |= AccumulateEmitter(map, rect, entry, light, colors, lifting);
         }
 
         return any;
@@ -195,9 +268,20 @@ public static class VectorLightMask
 
     private static bool AccumulateEmitter(
         Map map, CellRect rect, VectorLightField.LightEntry entry, GlowLight light,
-        UnsafeList<Color32> colors)
+        UnsafeList<Color32> colors, bool lifting)
     {
         bool any = false;
+
+        // Hoisted out of the inner loop rather than read per cell. glowColor and glowRadius are
+        // fields on a struct we hold by value, so this is not about the cost of reading them — it
+        // is that the loop below runs a few hundred times per emitter per section and every line
+        // inside it that does not depend on the cell is a line that should not be there.
+        bool matchSeed = CelestialLightingFeatures.VectorLightMaskMaxSeed;
+        float radius = light.glowRadius;
+        float radiusSquared = radius * radius;
+        ColorInt colour = light.glowColor;
+        int lightX = light.position.x;
+        int lightZ = light.position.z;
 
         CellRect reach = light.AffectedRect;
 
@@ -216,9 +300,11 @@ public static class VectorLightMask
                 int coverage = VectorLightMath.CoverageAt(
                     entry.Coverage, entry.Cell.x, entry.Cell.z, entry.CoverageRadius, x, z);
 
-                // Fully lit is the common case and costs one compare. Checked before the glow read
-                // because the array index is the dearer of the two.
-                if (coverage >= 255)
+                // Fully lit is the common case for the SUBTRACTION and costs one compare. Checked
+                // before the glow read because the array index is the dearer of the two. Under the
+                // max a fully lit cell is exactly where the lift lands, so the skip is conditional
+                // on there being no lift to compute rather than unconditional.
+                if (coverage >= 255 && !lifting)
                     continue;
 
                 IntVec3 cell = new IntVec3(x, 0, z);
@@ -232,23 +318,104 @@ public static class VectorLightMask
                     continue;
 
                 Color32 own = colors[local];
-
-                if (own.r == 0 && own.g == 0 && own.b == 0)
-                    continue;
-
-                int shadowed = 255 - coverage;
                 int index = CellIndex(rect, x, z);
 
-                // Integer throughout: these are bytes scaled by a byte, so the float round-trip the
-                // first version did per channel bought nothing but conversions.
-                cellShadow[index].r += own.r * shadowed / 255;
-                cellShadow[index].g += own.g * shadowed / 255;
-                cellShadow[index].b += own.b * shadowed / 255;
-                any = true;
+                // THE BLACK TEST GUARDS THE SUBTRACTION ONLY, and moving it was the whole point.
+                // A cell vanilla never lit has nothing to take away — and under the max it is the
+                // single most interesting cell on the map, because "vanilla delivered none of it"
+                // is precisely what the far side of an open door looks like from in here. Leaving
+                // the old skip in place would have dropped every cell phase 5 exists to light,
+                // and would have done it silently: the frame comes back looking like the mask
+                // alone, which is a passing arm rather than an obvious failure.
+                bool anyOwn = own.r != 0 || own.g != 0 || own.b != 0;
+
+                if (coverage < 255 && anyOwn)
+                {
+                    int shadowed = 255 - coverage;
+
+                    // Integer throughout: these are bytes scaled by a byte, so the float round-trip
+                    // the first version did per channel bought nothing but conversions.
+                    cellShadow[index].r += own.r * shadowed / 255;
+                    cellShadow[index].g += own.g * shadowed / 255;
+                    cellShadow[index].b += own.b * shadowed / 255;
+                    any = true;
+                }
+
+                if (lifting && coverage > 0)
+                {
+                    any |= AccumulateLift(
+                        index, coverage, own, colour, x - lightX, z - lightZ, radius, radiusSquared,
+                        matchSeed);
+                }
             }
         }
 
         return any;
+    }
+
+    // Phase 5's half of one cell: how much of this emitter's light to put BACK, being the excess of
+    // our straight-line model over what vanilla's flood actually delivered, gated by coverage.
+    //
+    // Returns whether it wrote anything, so BuildCellShadow's "did anything change at all" answer
+    // covers the lift as well as the shadow. Getting that wrong would mean a section whose ONLY edit
+    // is a lift — a doorway beam into a room with no shadow in it — deciding it had nothing to do
+    // and handing back vanilla's mesh untouched.
+    private static bool AccumulateLift(
+        int index, int coverage, Color32 own, ColorInt colour, int dx, int dz, float radius,
+        float radiusSquared, bool matchSeed)
+    {
+        // THE INTEGER RADIUS TEST BEFORE THE SQUARE ROOT. AffectedRect is the light's bounding
+        // SQUARE, so more than a fifth of the cells this loop visits are outside the disc entirely
+        // and would come back with a falloff of zero having paid for a square root, a divide and a
+        // projection first. This is the one line that keeps the max's cost proportional to the lit
+        // disc rather than to the square around it.
+        int distanceSquared = dx * dx + dz * dz;
+
+        if (distanceSquared > radiusSquared)
+            return false;
+
+        float distance = VectorLightLiftMath.SightlineDistance(dx, dz, matchSeed);
+        float falloff = VectorLightMath.Falloff(distance, radius);
+
+        if (falloff <= 0f)
+            return false;
+
+        VectorLightLiftMath.Project(
+            colour.r, colour.g, colour.b, falloff, out int r, out int g, out int b);
+
+        int liftR = VectorLightLiftMath.LiftChannel(r, own.r, coverage);
+        int liftG = VectorLightLiftMath.LiftChannel(g, own.g, coverage);
+        int liftB = VectorLightLiftMath.LiftChannel(b, own.b, coverage);
+
+        // The control arm zeroes the lift HERE rather than earlier, so that everything above — the
+        // relaxed skips that got us to this cell, the falloff, the projection — has run exactly as
+        // it does under the feature. An arm that short-circuits at the top of the method would be
+        // testing the flag, not the composition. See CelestialLightingFeatures.VectorLightMaskMaxLift.
+        if (!CelestialLightingFeatures.VectorLightMaskMaxLift)
+        {
+            liftR = 0;
+            liftG = 0;
+            liftB = 0;
+        }
+
+        // COUNTED BEFORE THE ZERO TEST, not after, and that is the whole value of the metric. A max
+        // that ran everywhere and found nothing to add is the correct outcome in a scene where both
+        // models see the same geometry; a max that never ran is a bug. Counting only the cells it
+        // brightened would give the two the same number.
+        LiftSamples++;
+        LiftPeak = Math.Max(LiftPeak, Math.Max(liftR, Math.Max(liftG, liftB)));
+
+        // The common case under a matched seed is that vanilla already delivered everything our
+        // model would have, on all three channels — that is #151's finding, and it is still true
+        // everywhere the two models see the same geometry. Checking before the write keeps those
+        // cells out of the corner pass's work as well as out of this one.
+        if ((liftR | liftG | liftB) == 0)
+            return false;
+
+        cellLift[index].r += liftR;
+        cellLift[index].g += liftG;
+        cellLift[index].b += liftB;
+        return true;
     }
 
     // Corner vertices, mirroring GenerateLightingOverlay's own averaging exactly: the up-to-four
@@ -256,9 +423,13 @@ public static class VectorLightMask
     // map, divided by however many that left. Averaging over a different set than vanilla did would
     // subtract a different quantity than it added, which shows up as a faint grid of light and dark
     // corners rather than as an obvious error.
-    private static void ApplyToCorners(Map map, Color32[] colors, CellRect rect, int corners)
+    private static void ApplyToCorners(
+        Map map, Color32[] colors, CellRect rect, int corners, bool lifting)
     {
         Grow(ref cornerShadow, corners);
+
+        if (lifting)
+            Grow(ref cornerLift, corners);
 
         for (int z = rect.minZ; z <= rect.maxZ + 1; z++)
         {
@@ -271,15 +442,26 @@ public static class VectorLightMask
                 // and the full path costs four IntVec3 constructions, four InBounds tests and four
                 // edificeGrid lookups to arrive at zero. Reading the accumulator first turns the
                 // common case into a handful of compares.
-                if (NoShadowAround(rect, x, z))
+                if (NoEditAround(rect, x, z, lifting))
                 {
                     cornerShadow[index] = default;
+
+                    if (lifting)
+                        cornerLift[index] = default;
+
                     continue;
                 }
 
                 ColorInt sum = default;
+                ColorInt lift = default;
                 int counted = 0;
 
+                // ONE WALK OVER THE FOUR CELLS, NOT TWO. The averaging RULE is what has to be
+                // shared, not just the loop: vanilla averaged the cells that are in bounds and do
+                // not block light, and both terms have to average over exactly that set or the
+                // subtraction and the lift would each draw their own edge a fraction of a level
+                // apart — which reads as a faint bright fringe on the shadow side of every
+                // boundary rather than as an obvious error.
                 for (int corner = 0; corner < 4; corner++)
                 {
                     int cx = x - (corner % 2 == 0 ? 1 : 0);
@@ -289,30 +471,49 @@ public static class VectorLightMask
                     if (!cell.InBounds(map) || BlocksLight(map, cell))
                         continue;
 
-                    sum += cellShadow[CellIndex(rect, cx, cz)];
+                    int at = CellIndex(rect, cx, cz);
+                    sum += cellShadow[at];
+
+                    if (lifting)
+                        lift += cellLift[at];
+
                     counted++;
                 }
 
                 ColorInt shadow = counted > 0 ? sum / counted : default;
+                ColorInt lifted = counted > 0 && lifting ? lift / counted : default;
 
                 cornerShadow[index] = shadow;
-                colors[index] = Subtract(colors[index], shadow);
+
+                if (lifting)
+                    cornerLift[index] = lifted;
+
+                colors[index] = Compose(colors[index], shadow, lifted);
             }
         }
     }
 
-    // Whether all four cells meeting at this lattice point are unshadowed. Reads the accumulator
-    // rather than the map, so it costs four array reads and no game state at all — the point is to
-    // decide NOT to ask the map.
-    private static bool NoShadowAround(CellRect rect, int x, int z)
+    // Whether all four cells meeting at this lattice point are both unshadowed and unlifted. Reads
+    // the accumulators rather than the map, so it costs a handful of array reads and no game state
+    // at all — the point is to decide NOT to ask the map.
+    private static bool NoEditAround(CellRect rect, int x, int z, bool lifting)
     {
         for (int corner = 0; corner < 4; corner++)
         {
             int cx = x - (corner % 2 == 0 ? 1 : 0);
             int cz = z - (corner < 2 ? 1 : 0);
-            ColorInt shadow = cellShadow[CellIndex(rect, cx, cz)];
+            int at = CellIndex(rect, cx, cz);
+            ColorInt shadow = cellShadow[at];
 
             if (shadow.r != 0 || shadow.g != 0 || shadow.b != 0)
+                return false;
+
+            if (!lifting)
+                continue;
+
+            ColorInt lift = cellLift[at];
+
+            if (lift.r != 0 || lift.g != 0 || lift.b != 0)
                 return false;
         }
 
@@ -322,7 +523,7 @@ public static class VectorLightMask
     // Centre vertices are vanilla's own average of the four corners around them, so ours is the
     // average of the four corner SUBTRACTIONS. Recomputing the centre from the cell instead would
     // disagree with the corners by a fraction of a level and put a faint diamond in every cell.
-    private static void ApplyToCentres(Color32[] colors, CellRect rect, int corners)
+    private static void ApplyToCentres(Color32[] colors, CellRect rect, int corners, bool lifting)
     {
         int stride = rect.Width + 1;
 
@@ -337,26 +538,46 @@ public static class VectorLightMask
                 sum += cornerShadow[botLeft + stride];
                 sum += cornerShadow[botLeft + stride + 1];
 
-                // Four unshadowed corners average to nothing, and subtracting nothing is a write
+                ColorInt lift = default;
+
+                if (lifting)
+                {
+                    lift = cornerLift[botLeft];
+                    lift += cornerLift[botLeft + 1];
+                    lift += cornerLift[botLeft + stride];
+                    lift += cornerLift[botLeft + stride + 1];
+                }
+
+                // Four unedited corners average to nothing, and adding nothing to nothing is a write
                 // that changes no pixel. Skipping it is the same saving as the corner pass's, on the
                 // same reasoning.
-                if (sum.r == 0 && sum.g == 0 && sum.b == 0)
+                if (sum.r == 0 && sum.g == 0 && sum.b == 0
+                    && lift.r == 0 && lift.g == 0 && lift.b == 0)
                     continue;
 
                 int index = corners + (z - rect.minZ) * rect.Width + (x - rect.minX);
-                colors[index] = Subtract(colors[index], sum / 4);
+                colors[index] = Compose(colors[index], sum / 4, lift / 4);
             }
         }
     }
 
+    // Vanilla's own value with the bent light taken out and the max's excess put back.
+    //
+    // ONE CLAMP, AT THE END, not one per term. Clamping the subtraction on its own first and then
+    // adding would let a cell that momentarily went below zero come back UP from zero rather than
+    // from where the arithmetic actually put it, which turns a deep shadow with a little lift on it
+    // into a visibly grey one. The two terms are parts of a single expression — lit * max(vanilla,
+    // ours) in place of each emitter's own contribution — and the byte is where that expression is
+    // finally allowed to hit its floor.
+    //
     // Alpha is the sky-cover term, not light, and is left exactly alone — §7b's occlusion, §7c/§7d's
     // falloff and the roofed-area floor all ride on it.
-    private static Color32 Subtract(Color32 colour, ColorInt shadow)
+    private static Color32 Compose(Color32 colour, ColorInt shadow, ColorInt lift)
     {
         return new Color32(
-            ClampByte(colour.r - shadow.r),
-            ClampByte(colour.g - shadow.g),
-            ClampByte(colour.b - shadow.b),
+            ClampByte(colour.r - shadow.r + lift.r),
+            ClampByte(colour.g - shadow.g + lift.g),
+            ClampByte(colour.b - shadow.b + lift.b),
             colour.a);
     }
 

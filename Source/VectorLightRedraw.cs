@@ -37,6 +37,12 @@ public static class VectorLightRedraw
         // bakes against the map as it is now rather than as it was whenever the feature last ran.
         VectorLightField.ClearAll();
 
+        // Phase 5's lift telemetry counts one rebake, not everything since load. Cleared here rather
+        // than per frame because sections regenerate lazily — only the dirty ones, only as they are
+        // drawn — so a per-frame counter reads zero on every frame that happened not to rebake and
+        // the probe would report a working feature as dead.
+        VectorLightMask.ResetTelemetry();
+
         List<Map> maps = Find.Maps;
 
         if (maps == null)

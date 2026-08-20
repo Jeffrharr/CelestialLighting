@@ -69,6 +69,21 @@ public sealed class VectorLightProbe : IProbe
         // quietly show the crossfade instead.
         MaskAvailable,
 
+        // §27 phase 5: how many cells the last whole-map rebake put a lift on, and the largest single
+        // channel of lift it wrote.
+        //
+        // READ AS A PAIR OR NOT AT ALL, because a zero in either has a different cause and only the
+        // pair can separate them. MaskLiftSamples at zero means the max never ran — a stale bake, a
+        // flag that did not reach the mesh builder, or the relaxed emitter skip having quietly
+        // un-relaxed. MaskLiftPeak at zero with a healthy sample count means it ran and found
+        // nothing to do, which in a scene where both lighting models see the same geometry is the
+        // CORRECT answer and is #151's entire finding. A scenario pinning only the peak cannot tell
+        // "the composition is degenerate here" from "the composition is not running", which are the
+        // two outcomes this arm exists to distinguish.
+        MaskLiftSamples,
+
+        MaskLiftPeak,
+
         // §27 phase 4, issue #159: where on a colonist the lamp shadow is anchored, as the z offset
         // from DrawPos, and how wide that footprint is.
         //
@@ -155,6 +170,14 @@ public sealed class VectorLightProbe : IProbe
     {
         if (metric == Metric.MaskAvailable)
             return VectorLightMask.Available ? 1f : 0f;
+
+        // Map-free like MaskAvailable above: these count what the bake did, and the bake has already
+        // happened by the time a probe reads.
+        if (metric == Metric.MaskLiftSamples)
+            return VectorLightMask.LiftSamples;
+
+        if (metric == Metric.MaskLiftPeak)
+            return VectorLightMask.LiftPeak;
 
         if (map == null)
             return 0f;

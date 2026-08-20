@@ -8839,6 +8839,149 @@ what this fix is signed off on. It is also why the scenario puts a *second lamp*
 unlit ground the same bug photographs as nothing at all.
 
 
+### §27 phase 5: the max as the mask's lift (`VectorLightLiftMath`, `vector_light_mask_max`, issue #151)
+
+Phase 3's mask can only subtract, so a cell our polygon can see lands at exactly vanilla's own value
+and never above it. That is a feature — it is why the level needs no calibration — but it leaves §27
+unable to light a cell vanilla left dark however clearly the geometry says a lamp can see it. Phase
+3's answer is the beam: keep the additive pass running over the mask at a reduced strength. That
+strength is a taste knob, and `VectorLightSettings.BeamStrength` exists because a *flat* lift
+brightens the cells vanilla already lit correctly along with the ones it did not, and had to be cut
+back until the room stopped reading bright.
+
+Phase 5 asks whether issue #151's `max(vanilla, ours)` can set that level instead. Per emitter, per
+cell:
+
+    lift(e, c) = max(0, ours(e, c) − vanilla(e, c)) · lit(e, c)
+
+which composed with the mask's own subtraction replaces each modelled emitter's contribution with
+`lit · max(vanilla, ours)`. The max sets the level, the coverage carves the darkness. Self-limiting
+rather than tuned: where vanilla already delivered our model's own value it contributes nothing, and
+there is no strength to pick.
+
+**#151's finding is confirmed, and its conclusion does not follow from it.** #151 measured the max as
+near-degenerate and closed on the grounds that a max can never carve a shadow. Both halves are right.
+But "our falloff *is* vanilla's falloff so the two agree" holds only where the two models **see the
+same geometry**, and there are three places they do not — an open door (the glow grid never learns a
+door opened, so vanilla delivers nothing beyond one while §27e looks straight through), the octile
+metric's residue off the eight principal directions, and the last cell of every light's rim.
+Measured, on the same scene shape: the max's peak lift is **7** levels of glow through an open
+*aperture*, which is #151's scene, and **70** through an open *door*. A factor of ten, and #151 shot
+the aperture.
+
+**The seed is the whole calibration.** `ComputeGlowGridsJob.PrepareFill` seeds the light's own cell
+at `intDist = 100` — one cell, not zero — so vanilla's curve is evaluated at `octile + 1` everywhere.
+Evaluating our straight line at raw Euclidean distance instead compares our curve at `d` against
+vanilla's at `d + 1`, which is not the same quantity and wins in every cell of every lamp: pinned
+offline at 76 levels one cell out from a radius-12 lamp, 23 at two, 13 at four. That is a halo on
+every light, i.e. a brightness rescale, and §27's standing rule is that it changes where light
+reaches and not how bright a lamp is. `vector_light_mask_max_seed` makes the choice a measurement
+rather than an assertion; the unmatched arm is shot beside the matched one.
+
+**No shader, and that answers #151's design question rather than inheriting it.** #151 composed in a
+fragment program and so had to smuggle vanilla's glow in through a spare UV channel, which is what
+its custom shader and three binary bundles were for. The mask runs per cell in C# and is *already*
+holding vanilla's per-emitter glow, so the max is a few lines of integer arithmetic beside the
+subtraction. It also lands the lift below the sky's multiply instead of above it, so `DaylightScale`
+is not needed. See the shape finding below for the sense in which the shader turns out to be needed
+anyway.
+
+#### Verification
+
+Two live scenes, six and seven arms. `Tests/Scenarios/vector_light_mask_max.json` is the open-door
+room; `Tests/Scenarios/vector_light_mask_max_penumbra.json` is #151's own scene — same room, same
+torch at (−3, 0), same one-cell gap, same two interior stubs — so the two are comparable rather than
+merely both measured.
+
+Region lightness, open-door scene, L\*:
+
+| arm | beam core | beam region | room left | room right |
+|---|---|---|---|---|
+| vanilla | 7.94 | 7.84 | 16.95 | 14.83 |
+| mask alone | 7.94 | 7.84 | 16.95 | 14.83 |
+| mask + shipped flat beam | 9.11 | 8.28 | 18.99 | 16.98 |
+| **mask + max** | **10.48** | **8.81** | **17.21** | **14.98** |
+| max, seed dropped | 11.28 | 9.28 | 19.26 | 17.21 |
+| control (phase 5 runs, lifts nothing) | 7.94 | 7.84 | 16.95 | 14.83 |
+
+The first two rows are the premise: **the mask alone is identical to vanilla beyond the door**,
+because there is no vanilla light there for a mask to keep. The next two are the result. The flat
+beam lifts the doorway by +1.17 L\* and the room by +2.04 — it brightens the room it was not for
+*harder* than the doorway it was. The max lifts the doorway by **+2.54** and the room by **+0.26**:
+2.2× the beam for an eighth of the spill. Dropping the seed puts the room back to +2.31, confirming
+by measurement that the unmatched arm is a rescale.
+
+Masked median ΔE against the mask-alone frame:
+
+| comparison | masked ΔE | frame touched | beam core ΔE | peak |
+|---|---|---|---|---|
+| shipped flat beam | 1.99 | 4.54% | 1.79 | 8.05 |
+| **masked max** | **0.88** | **3.50%** | **3.14** | 5.29 |
+| max, seed dropped | 2.37 | 6.05% | 4.13 | 7.66 |
+| max, #151's aperture scene | 0.85 | 2.27% | — | 2.32 |
+
+The whole-frame masked number is *lower* for the max and its beam-core number is nearly twice as
+high, which is the self-limiting property stated in pixels: it does less almost everywhere and more
+where it matters. On the aperture scene it measures **0.85, below the ΔE 1 bar** — correctly
+near-degenerate, which is #151's result reproduced rather than argued with.
+
+**The control is byte-identical, on both scenes.** With `vector_light_mask_max_lift` off, phase 5
+walks every cell of every emitter's disc under its relaxed skips, resolves the emitter, evaluates the
+falloff, projects it and goes through `Compose` — and delivers zero. Both scenes measure **0.00% of
+frame touched**, not merely a small ΔE. Phase 5 changed three things at once (the max, two relaxed
+early-outs, and one clamp at the end instead of one per term) and only the first is the feature; this
+is what says the other two are inert. `vector_light_mask_lift_samples` reads 215 and 191 in those
+control arms with a peak of 0, which is the pair that separates "ran and found nothing" from "never
+ran".
+
+The mask's shadow survives: on the penumbra scene the flat beam refills its own shadow by +0.35 L\*
+(8.30 → 8.65) while the max refills it by +0.13 (8.30 → 8.43). `vector_light_penumbra_area` is pinned
+unchanged at 11.8912582 either side of the max, so the composition moved no geometry.
+
+#### The shape finding, which is what the arm turns on
+
+**The max gets the level right and loses the shape, and that is structural.** The flat beam is drawn
+by `VectorLightOverlay` as a triangle fan whose vertices *are* the visibility polygon's boundary
+points, at arbitrary sub-cell positions, so its edges are exact lines at any angle — through a
+doorway it renders a crisp wedge with a clean apex. The max is delivered through `entry.Coverage`,
+one byte per cell, written to the lighting overlay's corner-and-centre vertices and bilinearly
+interpolated. A beam whose neck is **one cell wide** becomes one number and then gets blurred across
+its neighbours: `Tests/Screenshots/maskmax_door_beam_shape.png` shows the three side by side and the
+max's beam is a soft ellipse where the flat beam's is a wedge.
+
+The mask's own header names cell resolution as its known cost. This is the first place that cost is
+fatal rather than acceptable, and the reason is a real distinction: a shadow **boundary** survives
+cell resolution, because a long straight edge blurred by half a cell still reads as a straight edge,
+while a one-cell **aperture** does not survive it at all. Coverage is the polygon's area integral
+over a cell; the fan is the polygon. One is a summary and the other is the shape.
+
+So the shader question #151 answered for the wrong reason has the right answer after all. It is not
+needed to *compute* the max — vanilla's per-emitter glow is available in C#, and #151's stated
+justification does not hold. It is needed to *draw* it, because the only surface in §27 with more
+than cell resolution is the fan, and modulating the fan per-cell needs data at its vertices or its
+fragments. The shader-free variant is a per-emitter 2-D lookup texture in place of the fan's current
+1-D radial gradient, which keeps the silhouette at polygon resolution while the brightness varies per
+cell; that is unbuilt and is the obvious next phase if this composition is kept.
+
+#### Cost
+
+The mask runs during a **section regenerate**, not per frame, so a steady-state window measures a
+subsystem that is not running and reports the max as free. `Tests/Scenarios/vector_light_mask_max_perf.json`
+opens each window immediately after the `SetFeature` that dirties the map, alternating the arms, so
+every window contains one whole-map rebake of the same 20-lamp scene.
+
+Read per call rather than per frame, because the windows caught different numbers of regenerates
+(448 against 224) and a whole-window average over 241 frames is dominated by whichever frame held the
+rebake: `Patch_VectorLightSuppress` costs **23.4 µs** per section regenerate with the max off and
+**35.0–45.1 µs** with it on, and the worst rebake frame goes **3.45 ms → 6.09 ms**. That is phase 5
+relaxing two of the early-outs phase 3's header is built around — it no longer skips a fully lit cell,
+because that is exactly where a lift lands, and it no longer skips an emitter that shadows nothing —
+so it visits every cell of every lamp's disc where the subtraction visited only the shadowed ones.
+Roughly a doubling of a cost that is paid on building and toggling rather than on every frame.
+
+**Ships OFF**, pending the shape question above.
+
+
 ## Conflict risk
 
 Decompiled the user's local Dub's Skylights 1.6 copy (`Dubwise.DubsSkylights`) — its patches
