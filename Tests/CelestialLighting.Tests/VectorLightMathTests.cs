@@ -1397,63 +1397,6 @@ public class VectorLightMathTests
 
     // ---- §27 phase 3c: the differential beam --------------------------------------------------
 
-    // THE CLAIM THE FEATURE RESTS ON. Vanilla's flood reached this cell by the straight path, so the
-    // distance it recorded equals the straight one and it owes nothing. Zero by construction, at any
-    // distance, which is what stops the open room being lifted.
-    [TestCase(1f)]
-    [TestCase(3f)]
-    [TestCase(5.64f)]
-    [TestCase(11f)]
-    public void DifferentialBeam_IsZeroWhenTheLightDidNotDetour(float d)
-    {
-        Assert.That(VectorLightMath.DifferentialBeamChannel(180, d, d, 12f, 255), Is.Zero);
-    }
-
-    // The doorway: vanilla's light had to travel 8 cells around the frame to reach somewhere only 4
-    // away in a straight line, so it arrived dimmer than it should have. What is owed is what
-    // vanilla's own curve says the difference between those two distances is worth.
-    [Test]
-    public void DifferentialBeam_ClaimsWhatTheDetourCost()
-    {
-        int owed = VectorLightMath.DifferentialBeamChannel(100, 4f, 8f, 12f, 255);
-        float ratio = VectorLightMath.VanillaFalloff(4f, 12f) / VectorLightMath.VanillaFalloff(8f, 12f);
-
-        Assert.That(owed, Is.GreaterThan(0));
-        Assert.That(owed, Is.EqualTo((int)(100 * (ratio - 1f))).Within(1));
-    }
-
-    // A longer detour is owed more. Monotone in the detour, which is what makes it read as light
-    // rather than as an arbitrary patch.
-    [Test]
-    public void DifferentialBeam_GrowsWithTheDetour()
-    {
-        int near = VectorLightMath.DifferentialBeamChannel(100, 4f, 5f, 12f, 255);
-        int far = VectorLightMath.DifferentialBeamChannel(100, 4f, 9f, 12f, 255);
-
-        Assert.That(far, Is.GreaterThan(near));
-    }
-
-    // Never subtracts. Vanilla's lattice can undershoot a true diagonal and deliver more than the
-    // straight path would; that is vanilla being generous, and the mask is the only thing allowed to
-    // take light away (#145 rejected two models fighting over one cell).
-    [Test]
-    public void DifferentialBeam_NeverSubtractsWhenVanillaOverDelivers()
-    {
-        Assert.That(VectorLightMath.DifferentialBeamChannel(100, 8f, 4f, 12f, 255), Is.Zero);
-    }
-
-    // Partial visibility ramps the addition exactly as it ramps the subtraction, or phase 2's
-    // deliberately softened boundary turns back into a step.
-    [Test]
-    public void DifferentialBeam_ScalesWithCoverage()
-    {
-        int full = VectorLightMath.DifferentialBeamChannel(100, 4f, 8f, 12f, 255);
-        int half = VectorLightMath.DifferentialBeamChannel(100, 4f, 8f, 12f, 128);
-
-        Assert.That(half, Is.EqualTo(full * 128 / 255).Within(1));
-        Assert.That(VectorLightMath.DifferentialBeamChannel(100, 4f, 8f, 12f, 0), Is.Zero);
-    }
-
     // Beyond the radius vanilla delivers nothing and so do we; at the source its curve saturates
     // because it never clamps the distance, which is the trap that broke the calibrated version.
     [Test]
@@ -1462,5 +1405,103 @@ public class VectorLightMathTests
         Assert.That(VectorLightMath.VanillaFalloff(12.5f, 12f), Is.Zero);
         Assert.That(VectorLightMath.VanillaFalloff(0f, 12f), Is.EqualTo(float.MaxValue));
         Assert.That(VectorLightMath.VanillaFalloff(6f, 12f), Is.GreaterThan(0f));
+    }
+
+    // ---- §27 phase 3c: the light vanilla owes ------------------------------------------------
+
+    // THE PROPERTY THE ROOM DEPENDS ON. Vanilla's flood reached this cell by the straight path, so
+    // what it delivered IS C * F(d), and nothing is owed. Zero at every distance, which is what stops
+
+    // THE PROPERTY THE BEAM DEPENDS ON, and the one the previous formulation could not have. Vanilla
+    // delivered nothing — an open door, which its glow grid never learns about — so the whole
+
+
+    // Never subtracts, and never over-claims at the lamp's own cell. Vanilla's curve has no minimum
+
+    // ---- §27 phase 3c: the light vanilla owes -------------------------------------------------
+
+    // Vanilla's projection preserves HUE by scaling the whole triple, and reproducing that is the
+    // difference between a correct term and a debt invented at every bright cell.
+    [Test]
+    public void ProjectLikeVanilla_ScalesTheTripleRatherThanClippingChannels()
+    {
+        VectorLightMath.ProjectLikeVanilla(400, 320, 200, out int r, out int g, out int b);
+
+        Assert.That(r, Is.EqualTo(255));
+        Assert.That(g, Is.EqualTo(320 * 255 / 400));
+        Assert.That(b, Is.EqualTo(200 * 255 / 400));
+        Assert.That(g, Is.LessThan(255), "a per-channel clamp would leave this at 255");
+    }
+
+    [Test]
+    public void ProjectLikeVanilla_LeavesInRangeTriplesAlone()
+    {
+        VectorLightMath.ProjectLikeVanilla(200, 100, 40, out int r, out int g, out int b);
+
+        Assert.That((r, g, b), Is.EqualTo((200, 100, 40)));
+    }
+
+    // THE ROOM. Vanilla reached the cell by the straight path, so it already delivered the whole
+    // straight-line value and owes nothing — at any distance, which is what stops the room lifting.
+    [TestCase(1f)]
+    [TestCase(2.41f)]
+    [TestCase(6f)]
+    [TestCase(11f)]
+    public void OwedLight_IsZeroWhereVanillaAlreadyDelivered(float d)
+    {
+        float f = VectorLightMath.VanillaFalloff(d, 12f);
+        VectorLightMath.ProjectLikeVanilla((int)(217 * f), (int)(190 * f), (int)(140 * f),
+            out int r, out _, out _);
+
+        Assert.That(VectorLightMath.OwedLightChannel(r, r, 255), Is.Zero);
+    }
+
+    // THE BEAM, and the case a ratio of vanilla's own delivery can never produce: vanilla delivered
+    // nothing through the open door, so the whole straight-line value is owed.
+    [Test]
+    public void OwedLight_CreatesLightWhereVanillaDeliveredNone()
+    {
+        Assert.That(VectorLightMath.OwedLightChannel(120, 0, 255), Is.EqualTo(120));
+    }
+
+    [Test]
+    public void OwedLight_ClaimsOnlyTheShortfallAndNeverSubtracts()
+    {
+        Assert.That(VectorLightMath.OwedLightChannel(120, 90, 255), Is.EqualTo(30));
+        Assert.That(VectorLightMath.OwedLightChannel(90, 120, 255), Is.Zero);
+    }
+
+    [Test]
+    public void OwedLight_ScalesWithCoverage()
+    {
+        Assert.That(VectorLightMath.OwedLightChannel(120, 0, 128), Is.EqualTo(120 * 128 / 255));
+        Assert.That(VectorLightMath.OwedLightChannel(120, 0, 0), Is.Zero);
+    }
+
+    // THE OVERFLOW GUARD. VanillaFalloff saturates at the emitter's own cell, and multiplying a
+    // channel by float.MaxValue before casting to int overflows — which reads as a wild value, not a
+    // bright one, and measured as a room lifted twice as hard as the beam it was replacing.
+    [Test]
+    public void OurLightAt_DoesNotOverflowAtTheEmittersOwnCell()
+    {
+        VectorLightMath.OurLightAt(217, 190, 140, float.MaxValue, out int r, out int g, out int b);
+
+        Assert.That(r, Is.InRange(0, 255));
+        Assert.That(g, Is.InRange(0, 255));
+        Assert.That(b, Is.InRange(0, 255));
+        Assert.That(r, Is.EqualTo(255), "the brightest channel saturates");
+    }
+
+    // Capping is only sound because the projection normalises by the max, so every falloff past the
+    // cap has to give the same triple. If that stops holding, the cap starts changing the answer.
+    [Test]
+    public void OurLightAt_IsIdenticalForEveryFalloffPastTheCap()
+    {
+        VectorLightMath.OurLightAt(217, 190, 140, 1000f, out int r1, out int g1, out int b1);
+        VectorLightMath.OurLightAt(217, 190, 140, 1e9f, out int r2, out int g2, out int b2);
+        VectorLightMath.OurLightAt(217, 190, 140, float.MaxValue, out int r3, out int g3, out int b3);
+
+        Assert.That((r2, g2, b2), Is.EqualTo((r1, g1, b1)));
+        Assert.That((r3, g3, b3), Is.EqualTo((r1, g1, b1)));
     }
 }

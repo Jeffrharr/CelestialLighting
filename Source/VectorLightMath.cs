@@ -1212,48 +1212,97 @@ public static class VectorLightMath
         return DiagonalCost * min + (max - min);
     }
 
-    // §27 phase 3c: the DIFFERENTIAL beam. What the additive beam should have been.
+    // Verse.ColorInt.ProjectToColor32Fast, reproduced exactly. NOT a per-channel clamp: when any
+    // channel exceeds 255 vanilla scales ALL THREE by 255/max, which preserves the light's hue
+    // instead of clipping it toward white.
     //
-    // THE BUG IT REPLACES. The flat beam adds a share of the falloff curve over the WHOLE visibility
-    // polygon, and the polygon is the lit region, so it lifts the open room as much as the doorway —
-    // 1.175x vanilla, measured, and reported from play as "the room itself is too bright". It never
-    // looks at what vanilla delivered, so it cannot tell "already correct here" from "arrived short".
+    // GETTING THIS WRONG IS A SPURIOUS POSITIVE EVERYWHERE THE LIGHT IS BRIGHT, and it is what the
+    // first owed-light build did. For C * F = (400, 320, 200) vanilla stores (255, 204, 127) while a
+    // per-channel clamp gives (255, 255, 200) — 51 and 73 too high on green and blue. Differenced
+    // against what vanilla actually delivered, that reads as a debt at every cell near the lamp, and
+    // it measured as a hot core that lifted the room MORE than the flat beam it was replacing.
     //
-    // WHAT THIS ASKS INSTEAD, AND WHY IT NEEDS NO CALIBRATION. Verse.Glow.ComputeGlowGridsJob stores
-    // the distance its flood actually travelled in the GLOW'S OWN ALPHA CHANNEL (`colorInt.a =
-    // (int)num2`). So for a cell we can read both what vanilla delivered and how far it thinks the
-    // light came, and since delivered = C * F(d_geodesic) for the same C we would use, the emitter
-    // colour cancels in a ratio:
-    //
-    //     owed = delivered * (F(d_straight) / F(d_geodesic) - 1)
-    //
-    // Where the light did not detour the two distances are equal, the ratio is exactly 1 and the term
-    // is exactly 0 — in the open room, at every cell, by construction rather than by tuning.
-    //
-    // TWO EARLIER VERSIONS FAILED HERE AND BOTH ARE WORTH KEEPING IN VIEW. The first reconstructed
-    // `ours` from a sample of vanilla's glow at the emitter's own cell, which SATURATES: vanilla does
-    // not clamp its distance, so 1/(0*0) is infinite there and the sample is a clipped 255 rather
-    // than C * F(0). The second compared a Euclidean straight line against vanilla's octile geodesic,
-    // which invents a deficit at 81.8% of cells with nothing in the way. Both lifted the whole room
-    // and both measured r ~ 0.89 against the flat beam they were meant to replace. A ratio of
-    // vanilla's own curve against vanilla's own distances has neither failure mode available to it.
-    //
-    // Never negative: where vanilla delivered MORE than the straight path would (its lattice can
-    // undershoot), that is vanilla being generous and is left alone. The mask is the only thing
-    // allowed to subtract.
-    public static int DifferentialBeamChannel(
-        int delivered, float straightDistance, float geodesicDistance, float radius, int coverage)
+    // Whole-triple by necessity: the scale factor depends on the largest channel, so this cannot be
+    // done a channel at a time however much tidier that would be.
+    public static void ProjectLikeVanilla(int r, int g, int b, out int pr, out int pg, out int pb)
     {
-        if (delivered <= 0 || coverage <= 0 || geodesicDistance <= straightDistance)
+        int max = r;
+
+        if (g > max)
+            max = g;
+
+        if (b > max)
+            max = b;
+
+        if (max <= 255)
+        {
+            pr = r;
+            pg = g;
+            pb = b;
+            return;
+        }
+
+        pr = r * 255 / max;
+        pg = g * 255 / max;
+        pb = b * 255 / max;
+    }
+
+    // What a straight line would have delivered here, in vanilla's own stored form.
+    //
+    // THE CAP IS AN OVERFLOW GUARD AND COSTS NOTHING. VanillaFalloff saturates at the emitter's own
+    // cell — vanilla has no minimum-distance guard, so its 1/(d*d) is genuinely infinite there — and
+    // (int)(channel * float.MaxValue) is an overflow, which lands as a wild value rather than a
+    // bright one. Capping is safe precisely BECAUSE ProjectLikeVanilla normalises by the largest
+    // channel: once the cap pushes that channel past 255 the projected triple is identical for every
+    // larger falloff, so this changes the answer nowhere and removes the overflow everywhere.
+    public static void OurLightAt(
+        int colourR, int colourG, int colourB, float falloff,
+        out int r, out int g, out int b)
+    {
+        if (falloff <= 0f)
+        {
+            r = 0;
+            g = 0;
+            b = 0;
+            return;
+        }
+
+        float capped = falloff > OverflowSafeFalloff ? OverflowSafeFalloff : falloff;
+
+        ProjectLikeVanilla(
+            (int)(colourR * capped), (int)(colourG * capped), (int)(colourB * capped),
+            out r, out g, out b);
+    }
+
+    // Comfortably past the point where any 0-255 channel projects to its saturated triple, and
+    // comfortably short of overflowing an int when multiplied by 255.
+    public const float OverflowSafeFalloff = 1000f;
+
+    // §27 phase 3c: the light vanilla OWES a cell.
+    //
+    //     owed = project(C * F(d_straight)) - delivered
+    //
+    // C is the emitter's own glowColor, handed over by Verse.Glow.GlowLight, so there is no
+    // calibration constant and nothing to get wrong about units. F is vanilla's own falloff and
+    // d_straight is in vanilla's own octile metric, so in open space this is EXACTLY what the flood
+    // already delivered and the term is exactly zero.
+    //
+    // ONE EXPRESSION, THREE CASES, which earlier attempts each got only part of:
+    //
+    //   - vanilla delivered the straight-line value -> zero. The open room stops being lifted, which
+    //     is the complaint: the flat beam adds over the whole visibility polygon, and the polygon IS
+    //     the lit region, so it renders the room at 1.175x vanilla.
+    //   - vanilla bent to get there -> the shortfall, and only the shortfall.
+    //   - vanilla delivered NOTHING and our polygon sees the cell -> the full straight-line value.
+    //     A term proportional to `delivered` is zero when delivered is zero, so the ratio form could
+    //     never produce this — and this is §27e's entire headline, since the glow grid never learns a
+    //     door opened. Measured: the ratio form threw no cone through an open doorway at all.
+    public static int OwedLightChannel(int projected, int delivered, int coverage)
+    {
+        if (coverage <= 0)
             return 0;
 
-        float atGeodesic = VanillaFalloff(geodesicDistance, radius);
-        float atStraight = VanillaFalloff(straightDistance, radius);
-
-        if (atGeodesic <= 0f || atStraight <= atGeodesic)
-            return 0;
-
-        int owed = (int)(delivered * (atStraight / atGeodesic - 1f));
+        int owed = projected - delivered;
 
         if (owed <= 0)
             return 0;

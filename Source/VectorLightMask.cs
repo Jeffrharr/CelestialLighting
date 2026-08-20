@@ -238,10 +238,17 @@ public static class VectorLightMask
 
                 Color32 own = colors[local];
 
-                if (own.r == 0 && own.g == 0 && own.b == 0)
+                // An unlit cell has nothing to subtract, so the shadow pass has always skipped it —
+                // but it is precisely where phase 3c has the most to ADD. Vanilla delivering zero
+                // while our polygon can see the cell is the open-door case, and it is the only case
+                // that produces a beam at all. Skipping it here is what made the previous version
+                // photograph an empty doorway.
+                bool unlit = own.r == 0 && own.g == 0 && own.b == 0;
+
+                if (unlit && !CelestialLightingFeatures.VectorLightBeamDifferential)
                     continue;
 
-                int shadowed = 255 - coverage;
+                int shadowed = unlit ? 0 : 255 - coverage;
                 int index = CellIndex(rect, x, z);
 
                 // Integer throughout: these are bytes scaled by a byte, so the float round-trip the
@@ -257,20 +264,22 @@ public static class VectorLightMask
                 // other per cell rather than fighting as separate lanes.
                 if (CelestialLightingFeatures.VectorLightBeamDifferential)
                 {
-                    // own.a is not a colour. ComputeGlowGridsJob writes the distance its flood
-                    // actually travelled into the alpha channel, so vanilla is telling us how far it
-                    // thinks this light came — the one number §27 needed and could not otherwise get.
-                    // Integer-truncated, so a detour shorter than a cell simply does not register,
-                    // which errs toward adding nothing.
-                    float geodesic = own.a;
-                    float straight = DistanceTo(entry.Cell, x, z);
+                    // Vanilla's own origin, so the two distances cannot disagree about where the
+                    // lamp is; near the lamp its 1/(d*d) term makes a one-cell error enormous.
+                    float straight = VectorLightMath.OctileDistance(
+                        x - light.position.x, z - light.position.z);
+                    float falloff = VectorLightMath.VanillaFalloff(straight, light.glowRadius);
 
-                    cellShadow[index].r -= VectorLightMath.DifferentialBeamChannel(
-                        own.r, straight, geodesic, entry.Radius, coverage);
-                    cellShadow[index].g -= VectorLightMath.DifferentialBeamChannel(
-                        own.g, straight, geodesic, entry.Radius, coverage);
-                    cellShadow[index].b -= VectorLightMath.DifferentialBeamChannel(
-                        own.b, straight, geodesic, entry.Radius, coverage);
+                    // Projected as a triple before differencing, because that is what vanilla did to
+                    // the value being differenced against. See ProjectLikeVanilla, and OurLightAt for
+                    // why the falloff is capped before it is ever multiplied out.
+                    VectorLightMath.OurLightAt(
+                        light.glowColor.r, light.glowColor.g, light.glowColor.b, falloff,
+                        out int ourR, out int ourG, out int ourB);
+
+                    cellShadow[index].r -= VectorLightMath.OwedLightChannel(ourR, own.r, coverage);
+                    cellShadow[index].g -= VectorLightMath.OwedLightChannel(ourG, own.g, coverage);
+                    cellShadow[index].b -= VectorLightMath.OwedLightChannel(ourB, own.b, coverage);
                 }
 
                 any = true;
