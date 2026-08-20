@@ -8452,6 +8452,82 @@ loses less to averaging and will read too bright at 3. The principled fix is to 
 better than cell resolution rather than to scale a scalar; the gain is what is available without a
 mesh of our own, and it is a setting so the number can move when a second fixture disagrees with it.
 
+### Phase 3d: the beam as geometry (`vector_light_beam_layer`)
+
+**Problem.** Phase 3c's arithmetic is right and the room finally stops moving, but the beam is written
+at the *lighting overlay's* resolution — one vertex per cell corner plus one per centre — so every
+value is averaged over up to four cells. Vanilla's flood is smooth and survives that. A doorway beam
+through a one-cell aperture does not: measured, its coverage falls 255 → 64 → 0 within two cells of
+the axis, so each corner averages a lit cell against neighbours at almost nothing. 58 units of glow
+at the first cell outside the door rendered **+8** red where the same 58 inside rendered **+22**. The
+gain of 3 restores the level but not the shape: a 2-cell-wide, 6-cell-long feature smoothed over
+4-cell corners is an ellipse, and it reads as a pool rather than a shaft.
+
+**Approach.** Stop writing the beam into vanilla's mesh and draw it as its own geometry. The
+visibility polygon is already sub-cell, and `VectorLightOverlay` already draws it as a fan whose `U`
+is distance/radius against a gradient texture baking vanilla's own falloff into alpha. So no new
+lighting model is needed — only the fan **clipped to the region where light is owed**.
+`VectorLightBeamMath` marches each sector at a quarter cell, merges runs of owed steps, and emits one
+quad per run carrying the same `U`. The beam therefore follows the same falloff curve as the room's
+light, which is what makes it read as that light continuing rather than as a second effect.
+
+**Why this is safe now and was not in phases 1–2.** Phase 1 drew our whole model over vanilla's and
+landed 6 L\* bright; phase 2b composed them as a `max` and measured a no-op, because our falloff *is*
+vanilla's falloff so the max returned vanilla wherever the polygon could see. Both failed on the same
+question — what happens where the two models overlap — and both answered it with a calibration
+constant. The differential answers it structurally: **owed is zero there**. A mesh clipped to the owed
+region cannot paint the lit room at any resolution, by construction. Phase 3c turns out to be the
+enabler for the drawn approach rather than a replacement for it.
+
+**Three bugs, each visible only in a frame.**
+
+1. **`delivered == 0` is not the owed test.** At the rim of the lamp's reach vanilla's stored value
+   *underflows* to zero — `(int)(184 · F)` hits 0 while the cell is in plain sight — so the last ring
+   inside the room read as an unpaid debt and the layer painted it. On an additive pass over lit floor
+   that is clearly visible: a ragged bright crescent along the far wall. The predicate is the
+   formula's own, `ours − delivered > 0`; at the rim `ours` underflows for the same reason and the two
+   agree.
+2. **`def.blockLight` rejects an open door.** A `Building_Door`'s def blocks light whether or not it
+   stands open — vanilla's grid never learns otherwise, which is why §27e exists — so the doorway cell
+   itself was skipped and the beam started one cell out, leaving a dark bite exactly where it should
+   be brightest (+0 against phase 3c's +21). Asking `DoorOcclusionMath` instead makes the aperture the
+   beam comes through the same one the polygon was cut for.
+3. **The mouth was an arc, not a chord.** A run's near radius is measured along the sector's
+   mid-angle; using it for both corners of the quad bows the beam's near edge back toward the lamp
+   between rays — through the wall, into the room, measuring a 40-level lift in a band just inside the
+   doorway. Each corner is now clamped to its **own ray's** first owed radius.
+
+**Verification.** Fifth arm of `vector_light_differential.json`, with arm 4 as its control — the term
+is identical in both, so any difference in the frames is resolution and nothing else. The arithmetic
+probes are pinned *unchanged* in arm 5 (`room_owed` 0, `door_ours` 58, `door_delivered` 0), which is
+what separates "we changed the renderer" from "we changed the formula".
+
+Red lift along the beam axis, in cells from the lamp (the door is at 3):
+
+| | 3 | 4 | 5 | 6 | 7 | 8 | room interior |
+|---|---|---|---|---|---|---|---|
+| flat beam | +8 | +5 | +4 | +3 | +2 | +0 | **+16** |
+| 3c, gain 3 | +21 | +24 | +21 | +14 | +7 | +1 | **0** |
+| **3d, drawn** | **+33** | +26 | +20 | +15 | +10 | +0 | **0** |
+
+Against vanilla, over the pixels each arm moves:
+
+| arm | inside the room | beam outside the door |
+|---|---|---|
+| flat beam (ships) | 82,048 px, median ΔE 2.43 | 8,062 px, median 1.04 / p90 2.82 |
+| 3c owed, gain 3 | **0 px** | 13,608 px, median 2.56 / p90 8.67 |
+| 3d drawn layer | **0 px** | 5,646 px, median **7.11** / p90 13.63 |
+
+The room is bit-identical to vanilla across its whole interior — not a median, a maximum: the largest
+red change at any pixel west of the doorway is **zero**. The beam covers *fewer* pixels than 3c's at
+more than twice the intensity, which is the difference between a smear and an edge.
+
+**Open, and deliberately not settled here.** ΔE 7.11 is above the ΔE 3–6 band this repo has settled
+on elsewhere as "present without being distracting", and `OwedLayerStrength` is a first guess at 0.4
+rather than a measured landing. The calibration target exists and is cheap — the mirror cell, which
+renders +22 — so this wants one sweep before a default moves. The beam also still ends where vanilla's
+falloff underflows rather than fading out, which is why its far end is a cut rather than a taper.
+
 **What ships: the flag stays off.** `vector_light_beam_differential` defaults **false** and remains
 mutually exclusive with `vector_light_mask_beam`. The arithmetic is now right and the room no longer
 moves, and at gain 3 the beam measures ΔE 2.56 — "visible at a glance" — with the room

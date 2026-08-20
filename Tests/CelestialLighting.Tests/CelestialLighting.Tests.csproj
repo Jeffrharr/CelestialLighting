@@ -260,6 +260,9 @@
          nothing else here, since a visibility polygon is answered entirely from a blocker grid and a
          light position. Tools/VectorLightPreview links the same file for offline look-dev. -->
     <Compile Include="../../Source/VectorLightMath.cs" Link="VectorLightMath.cs" />
+    <!-- §27 phase 3d: the owed beam as geometry. Depends on VectorLightMath above for LightPolygon
+         and LightMesh, so it has to follow it. -->
+    <Compile Include="../../Source/VectorLightBeamMath.cs" Link="VectorLightBeamMath.cs" />
   </ItemGroup>
 
 </Project>

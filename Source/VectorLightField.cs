@@ -73,6 +73,20 @@ public static class VectorLightField
         // "the lit region changed shape" without going anywhere near a pixel. Issue #3 records two
         // wrong conclusions drawn from pixel measurement on exactly this kind of effect.
         public float LitArea;
+
+        // §27 phase 3d. The owed-light beam is DIFFERENT GEOMETRY from the fan above -- quads clipped
+        // to where vanilla delivered nothing, not a triangle fan over the whole polygon -- so it
+        // cannot share Mesh, and it must not share Props either: Graphics.DrawMesh is deferred, so
+        // two draws sharing one property block both resolve with whichever colour was written last.
+        // §17's branch already paid for learning that once.
+        public Mesh OwedMesh;
+
+        public MaterialPropertyBlock BeamProps;
+
+        // Separate from GeometryDirty for the reason PolygonDirty is separate from it: the two are
+        // rebuilt by different passes at different times, and a beam whose staleness was tracked by
+        // the fan's flag would never rebuild in the arms where the fan does not draw at all.
+        public bool OwedDirty = true;
     }
 
     private sealed class MapLights
@@ -108,6 +122,7 @@ public static class VectorLightField
             {
                 entry.GeometryDirty = true;
                 entry.PolygonDirty = true;
+            entry.OwedDirty = true;
             }
         }
     }
@@ -289,7 +304,7 @@ public static class VectorLightField
 
         if (!lights.Entries.TryGetValue(key, out LightEntry entry))
         {
-            entry = new LightEntry { Props = new MaterialPropertyBlock() };
+            entry = new LightEntry { Props = new MaterialPropertyBlock(), BeamProps = new MaterialPropertyBlock() };
             lights.Entries[key] = entry;
         }
 
@@ -300,6 +315,7 @@ public static class VectorLightField
         {
             entry.GeometryDirty = true;
             entry.PolygonDirty = true;
+            entry.OwedDirty = true;
         }
 
         entry.Cell = cell;

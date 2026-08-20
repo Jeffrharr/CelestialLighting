@@ -784,6 +784,25 @@ public static class CelestialLightingFeatures
     // through UV1; the mask already holds that number in C#.
     public static bool VectorLightBeamDifferential = false;
 
+    // Feature key for VectorLightBeamLayer.
+    public const string VectorLightBeamLayerKey = "vector_light_beam_layer";
+
+    // §27 phase 3d: draw the owed light as its OWN geometry rather than writing it into vanilla's
+    // per-cell vertex colours.
+    //
+    // WHAT IT FIXES. Phase 3c's arithmetic is right -- the term is provably zero wherever vanilla
+    // already delivered, which is what stopped the lit room moving -- but it is written at the
+    // lighting overlay's resolution, one vertex per cell corner plus one per centre. Every value is
+    // therefore averaged over up to four cells, and a doorway beam through a one-cell aperture is one
+    // cell wide. Measured: 58 units of glow at the first cell outside the door rendered +8 red where
+    // the same 58 inside the room rendered +22. About a third survived.
+    //
+    // A SUB-FLAG OF VectorLightBeamDifferential, not an alternative to it. The layer draws only the
+    // "vanilla delivered nothing" case; the partial shortfall where vanilla bent around a corner and
+    // arrived dim stays on the differential's per-cell path, because that is a magnitude and this is
+    // a geometric mask. Turning this on without that one would draw a beam with no term behind it.
+    public static bool VectorLightBeamLayer = false;
+
     // Feature key for VectorLightPawnShadows.
     public const string VectorLightPawnShadowsKey = "vector_light_pawn_shadows";
 

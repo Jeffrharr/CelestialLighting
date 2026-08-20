@@ -44,6 +44,11 @@ public static class Patch_VectorLightDraw
 
         VectorLightOverlay.Draw(map);
 
+        // §27 phase 3d, AFTER the fan on purpose. Both are additive so the order does not change the
+        // sum, but the beam is the smaller and rarer mesh and drawing it second keeps the common
+        // no-beam frame paying only for the fan's own early-outs.
+        VectorLightBeamLayer.Draw(map);
+
         // After the light, and on the same hook for the same reason: this is a per-frame draw whose
         // cost is proportional to what is on screen, and it needs the polygons the call above has
         // just made sure exist.

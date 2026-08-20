@@ -51,6 +51,9 @@ public static class VectorLightOverlay
         // the flat fan running on top would add back exactly the term phase 3c exists to delete —
         // the over-brightening twice over. Enforced here rather than left to the scenario, because a
         // mistake shows up as "the fix did nothing" rather than as an error.
+        // §27 phase 3d draws the owed light itself, from its own mesh, so this pass stays down in
+        // that arm exactly as it does for the plain differential -- the beam is accounted for either
+        // way and a flat fan on top would add back the very lift phase 3c exists to delete.
         if (VectorLightMask.Active && CelestialLightingFeatures.VectorLightBeamDifferential)
             return;
 
@@ -176,14 +179,19 @@ public static class VectorLightOverlay
     private static void UploadMesh(
         VectorLightField.LightEntry entry, VectorLightMath.LightMesh built, float altitude)
     {
-        if (built.VertexCount == 0)
-        {
-            entry.Mesh = null;
-            return;
-        }
+        entry.Mesh = Upload(entry.Mesh, built, altitude, "CelestialLighting_VectorLight");
+    }
 
-        entry.Mesh = entry.Mesh ?? new Mesh { name = "CelestialLighting_VectorLight" };
-        entry.Mesh.Clear();
+    // Shared with §27 phase 3d's beam, which builds a different shape into the same LightMesh form.
+    // Returns null for an empty build so a caller can tell "nothing to draw" from "not built yet"
+    // without a second flag.
+    public static Mesh Upload(Mesh mesh, VectorLightMath.LightMesh built, float altitude, string name)
+    {
+        if (built.VertexCount == 0)
+            return null;
+
+        Mesh entryMesh = mesh ?? new Mesh { name = name };
+        entryMesh.Clear();
 
         Verts.Clear();
         Uvs.Clear();
@@ -201,9 +209,10 @@ public static class VectorLightOverlay
 
         Tris.AddRange(built.Triangles);
 
-        entry.Mesh.SetVertices(Verts);
-        entry.Mesh.SetUVs(0, Uvs);
-        entry.Mesh.SetTriangles(Tris, 0);
+        entryMesh.SetVertices(Verts);
+        entryMesh.SetUVs(0, Uvs);
+        entryMesh.SetTriangles(Tris, 0);
+        return entryMesh;
     }
 
     private static float PolygonArea(VectorLightMath.LightPolygon polygon)
@@ -225,7 +234,10 @@ public static class VectorLightOverlay
         return total;
     }
 
-    private static Material MaterialFor(float radius)
+    // Internal rather than private: §27 phase 3d's beam draws with the SAME material, because the
+    // gradient bakes vanilla's falloff against U and the beam's quads carry the same U. A second
+    // cache keyed the same way would double every texture on the map to no purpose.
+    public static Material MaterialFor(float radius)
     {
         int key = Mathf.RoundToInt(radius * 4f);
 

@@ -19,4 +19,11 @@ public static class VectorLightSettings
     // restraint. This one scales a term that is provably zero in the room, so it is allowed above 1
     // and its purpose is to undo a resolution loss. Same word, opposite jobs.
     public static float OwedBeamGain = VectorLightMath.DefaultOwedBeamGain;
+
+    // §27 phase 3d. How brightly the drawn beam adds, in the additive pass's own units -- NOT in the
+    // 0-255 glow space OwedBeamGain works in. The two are different lanes and are deliberately not
+    // shared: the gain compensates a resolution loss in vanilla's mesh, this one calibrates an
+    // additive draw that sits above the sky's multiply, and folding them together is what made
+    // DefaultStrength unlandable across phases 1 and 2.
+    public static float OwedLayerStrength = VectorLightMath.DefaultOwedLayerStrength;
 }

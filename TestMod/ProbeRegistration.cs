@@ -922,6 +922,19 @@ public static class ProbeRegistration
                 VectorLightRedraw.ForceRebuild();
             },
             defaultEnabled: false);
+        // §27 phase 3d. THREE-ARG OVERLOAD, matching a shipped default of false: the two-arg one
+        // registers as true and would leave every later arm in a suite drawing a beam layer its
+        // comments say is off. Forces a rebuild for the same reason the differential does -- the
+        // owed mesh is cached per emitter, so without it the arm photographs the previous arm's
+        // geometry while reporting a clean flag flip.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightBeamLayerKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.VectorLightBeamLayer = enabled;
+                VectorLightRedraw.ForceRebuild();
+            },
+            defaultEnabled: false);
         FeatureRegistry.Register(
             CelestialLightingFeatures.CivilTwilightPersistenceKey,
             enabled => CelestialLightingFeatures.CivilTwilightPersistence = enabled);

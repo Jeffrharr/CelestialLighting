@@ -1392,6 +1392,20 @@ public static class VectorLightMath
     // second fixture before it is treated as settled, not a second opinion.
     public const float DefaultOwedBeamGain = 3f;
 
+    // §27 phase 3d: the drawn beam's additive level.
+    //
+    // CALIBRATED AGAINST A TARGET THAT EXISTS, which is what phases 1 and 2 never had. DefaultStrength
+    // was picked to make an additive model of the WHOLE lit region sit correctly on top of vanilla,
+    // and there was no independent statement of what "correctly" meant -- so it was tuned by eye,
+    // measured 6 L* bright, and never landed. This one has a reference: the mirror cell. Local (-7, 0)
+    // is as far west of the lamp as the first cell outside the door is east, vanilla delivers the same
+    // 58 units to it, and it renders +22 red over its own floor. The beam is right when it renders
+    // +22 too, because then the light coming out of the door is literally the brightness the room's
+    // own light has at that distance.
+    //
+    // Provisional until that measurement is taken; this is the starting point it is measured FROM.
+    public const float DefaultOwedLayerStrength = 0.4f;
+
     // Vanilla's falloff EXACTLY as ComputeGlowGridsJob.SetGlowFromDist computes it, including the
     // absence of any minimum-distance clamp. Deliberately not VectorLightMath.Falloff: that one
     // clamps at MinFalloffDistance so §27's own draw has a finite value at the source, and a ratio

@@ -287,9 +287,23 @@ public static class VectorLightMask
                     // inside the innermost loop of a whole-map rebake is three too many.
                     float gain = VectorLightSettings.OwedBeamGain;
 
-                    cellShadow[index].r -= VectorLightMath.OwedLightChannel(ourR, own.r, coverage, gain);
-                    cellShadow[index].g -= VectorLightMath.OwedLightChannel(ourG, own.g, coverage, gain);
-                    cellShadow[index].b -= VectorLightMath.OwedLightChannel(ourB, own.b, coverage, gain);
+                    // THE SPLIT WITH §27 PHASE 3D, ENFORCED RATHER THAN TRUSTED. When the drawn
+                    // layer is on it takes the `vanilla delivered NOTHING` case -- the beam -- as
+                    // geometry, at polygon resolution. This path keeps the PARTIAL case, where
+                    // vanilla bent around a corner and arrived dimmer than a straight line would
+                    // have, because that is a magnitude the geometric mask cannot express.
+                    //
+                    // The two conditions are disjoint by construction (delivered == 0 versus
+                    // delivered > 0), so the light can never be paid twice -- but it is tested here
+                    // anyway, because the failure mode of getting it wrong is a doorway at double
+                    // brightness, which looks like a strength constant needing a tweak rather than
+                    // like two subsystems both claiming the same cell.
+                    if (!unlit || !CelestialLightingFeatures.VectorLightBeamLayer)
+                    {
+                        cellShadow[index].r -= VectorLightMath.OwedLightChannel(ourR, own.r, coverage, gain);
+                        cellShadow[index].g -= VectorLightMath.OwedLightChannel(ourG, own.g, coverage, gain);
+                        cellShadow[index].b -= VectorLightMath.OwedLightChannel(ourB, own.b, coverage, gain);
+                    }
                 }
 
                 any = true;
