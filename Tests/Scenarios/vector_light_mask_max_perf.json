@@ -1,7 +1,7 @@
 {
   "name": "vector_light_mask_max_perf",
   "saveFile": "minimal_colony.rws",
-  "description": "\u00a727 phase 5's cost, measured where the cost actually is. The mask runs during a SECTION REGENERATE and not per frame, so a steady-state window measures a subsystem that is not running and reports the max as free; the number that matters is what one whole-map rebake costs. Each window here opens immediately after the SetFeature that dirties the map, so each contains exactly one rebake of the same 20-lamp scene, and the max arm and the mask arm alternate so drift over the run cannot be read as the flag's cost. The comparison is against the mask with the additive beam STOOD DOWN, because the max stands it down too \u2014 profiling against a window that still draws it would credit the max with a saving that is really the beam's. Phase 5 relaxes two of the early-outs the mask's header is built around: it no longer skips a fully lit cell, because that is exactly where a lift lands, and it no longer skips an emitter that shadows nothing. So it visits every cell of every lamp's disc where the subtraction visited only the shadowed ones, and this scenario is what says how much that is.",
+  "description": "\u00a727 phase 5's cost, measured where the cost actually is. The mask runs during a SECTION REGENERATE and not per frame, so a steady-state window measures a subsystem that is not running and reports the max as free; the number that matters is what one whole-map rebake costs. Each window here opens immediately after the SetFeature that dirties the map, so each contains exactly one rebake of the same 20-lamp scene, and the max arm and the mask arm alternate so drift over the run cannot be read as the flag's cost. The comparison is against the mask with the additive beam STOOD DOWN, because the max stands it down too \u2014 profiling against a window that still draws it would credit the max with a saving that is really the beam's. Phase 5 relaxes two of the early-outs the mask's header is built around: it no longer skips a fully lit cell, because that is exactly where a lift lands, and it no longer skips an emitter that shadows nothing. So it visits every cell of every lamp's disc where the subtraction visited only the shadowed ones, and this scenario is what says how much that is. Phase 6's vector_light_shader_max is stated false in every arm: it ships ON, and phase 5's per-cell lift stands down whenever it is active, so leaving it implicit would make every arm here measure the shader composition instead of the one the scenario is named for.",
   "steps": [
     {
       "type": "SetTile",
@@ -140,6 +140,13 @@
       }
     },
     {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max",
+        "enabled": "false"
+      }
+    },
+    {
       "type": "Profile",
       "args": {
         "name": "rebake_mask_1",
@@ -153,6 +160,13 @@
       "args": {
         "featureName": "vector_light_mask_max",
         "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max",
+        "enabled": "false"
       }
     },
     {
@@ -172,6 +186,13 @@
       }
     },
     {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max",
+        "enabled": "false"
+      }
+    },
+    {
       "type": "Profile",
       "args": {
         "name": "rebake_mask_2",
@@ -185,6 +206,13 @@
       "args": {
         "featureName": "vector_light_mask_max",
         "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max",
+        "enabled": "false"
       }
     },
     {

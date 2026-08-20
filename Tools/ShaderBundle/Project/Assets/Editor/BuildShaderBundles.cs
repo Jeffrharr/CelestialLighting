@@ -26,7 +26,16 @@ using UnityEngine;
 public static class BuildShaderBundles
 {
     private const string BundleName = "celestiallighting_shaders";
-    private const string ShaderPath = "Assets/Data/joof.celestiallighting/Materials/CelestialCloudVolume.shader";
+
+    // ONE BUNDLE FOR EVERY SHADER THE MOD SHIPS, not one per feature. ModAssetBundlesHandler opens
+    // each bundle in the folder and ShaderDatabase.LoadShader searches all of them, so two bundles
+    // would work — but they would also be two things to build, two to stage in publish.sh and two
+    // to forget. Adding a shader here is adding a line to this array and rerunning build.sh.
+    private static readonly string[] ShaderPaths =
+    {
+        "Assets/Data/joof.celestiallighting/Materials/CelestialCloudVolume.shader",
+        "Assets/Data/joof.celestiallighting/Materials/VectorLightMax.shader",
+    };
 
     public static void Build()
     {
@@ -48,7 +57,7 @@ public static class BuildShaderBundles
         AssetBundleBuild build = new AssetBundleBuild
         {
             assetBundleName = BundleName + "_" + suffix,
-            assetNames = new[] { ShaderPath },
+            assetNames = ShaderPaths,
         };
 
         BuildPipeline.BuildAssetBundles(

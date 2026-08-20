@@ -1,7 +1,7 @@
 {
-  "name": "vector_light_mask_max",
+  "name": "vector_light_shader_max",
   "saveFile": "minimal_colony.rws",
-  "description": "\u00a727 phase 5: max(vanilla, ours) as the mask's LIFT, on the one scene where the two lighting models genuinely disagree about geometry \u2014 an open door. RimWorld's glow grid never learns a door opened, so beyond this one vanilla delivers nothing at all and \u00a727e's polygon looks straight through; the subtractive mask has no light there to keep, and the shipped composition answers with a flat additive beam at a strength somebody had to choose. Six arms from one midnight room and one torch: vanilla, the mask alone, the mask plus the shipped flat beam, THE CONTROL (phase 5's every line runs and delivers a lift of zero, which must reproduce the mask-alone frame exactly \u2014 it is what separates 'the max changed the frame' from 'relaxing two early-outs and clamping once instead of twice changed the frame'), the masked max itself, and the masked max with vanilla's intDist=100 seed dropped, which compares our curve at d against vanilla's at d+1 and so wins in every cell of every lamp rather than only where the geometry differs. Every arm states every \u00a727 flag; lift_samples and lift_peak are pinned as a pair because samples at 0 means the max never ran while peak at 0 over healthy samples means it ran and correctly found nothing, which is #151's finding rather than a failure. Phase 6's vector_light_shader_max is stated false in every arm: it ships ON, and phase 5's per-cell lift stands down whenever it is active, so leaving it implicit would make every arm here measure the shader composition instead of the one the scenario is named for.",
+  "description": "\u00a727 phase 6: the max evaluated PER FRAGMENT on the visibility polygon's own triangle fan, against phase 5's per-cell version and against #151 as originally built. One midnight room, one torch, one OPEN DOOR \u2014 which is the scene #151 never shot. Its measurement was taken on an open APERTURE, where both lighting models walk the same straight line through the hole and the max correctly wins nothing; probed here, the peak lift is 7 levels of glow through an aperture and 70 through a door, because RimWorld's glow grid never learns a door opened. Seven arms: vanilla, phase 3's mask alone, the shipped flat beam, phase 5's per-cell max, #151's composition exactly (no mask, no suppression, vanilla untouched underneath, the shader adding max(0, ours - vanilla)), phase 6 (the mask carving the shadow at cell resolution and the shader setting the level at polygon resolution), and the control, which is the same shader with its subtraction off \u2014 max(0, ours - 0) is MoteGlow's output exactly, so any difference there is the shader rather than the composition. vector_light_shader_max_available is pinned in every arm that claims to use the shader: standing down is by design silent, and --mod-overlay swaps assemblies only, so a bundle that never reached the run leaves every other number healthy while the frames quietly show the previous composition.",
   "steps": [
     {
       "type": "SetTile",
@@ -135,13 +135,6 @@
     {
       "type": "SetFeature",
       "args": {
-        "featureName": "vector_light_shader_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
         "featureName": "vector_light_mask_max_lift",
         "enabled": "true"
       }
@@ -150,6 +143,20 @@
       "type": "SetFeature",
       "args": {
         "featureName": "vector_light_mask_max_seed",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max_subtract",
         "enabled": "true"
       }
     },
@@ -219,20 +226,13 @@
       "type": "SetFeature",
       "args": {
         "featureName": "vector_light_mask_beam",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
         "enabled": "false"
       }
     },
     {
       "type": "SetFeature",
       "args": {
-        "featureName": "vector_light_shader_max",
+        "featureName": "vector_light_mask_max",
         "enabled": "false"
       }
     },
@@ -247,6 +247,20 @@
       "type": "SetFeature",
       "args": {
         "featureName": "vector_light_mask_max_seed",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max_subtract",
         "enabled": "true"
       }
     },
@@ -272,25 +286,9 @@
       }
     },
     {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_lift_samples",
-        "expectedValue": "0",
-        "tolerance": "0"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_lift_peak",
-        "expectedValue": "0",
-        "tolerance": "0"
-      }
-    },
-    {
       "type": "Screenshot",
       "args": {
-        "fileName": "maskmax_door_vanilla.png"
+        "fileName": "shadermax_vanilla.png"
       }
     },
     {
@@ -345,13 +343,6 @@
     {
       "type": "SetFeature",
       "args": {
-        "featureName": "vector_light_shader_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
         "featureName": "vector_light_mask_max_lift",
         "enabled": "true"
       }
@@ -360,6 +351,20 @@
       "type": "SetFeature",
       "args": {
         "featureName": "vector_light_mask_max_seed",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max_subtract",
         "enabled": "true"
       }
     },
@@ -393,25 +398,9 @@
       }
     },
     {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_lift_samples",
-        "expectedValue": "0",
-        "tolerance": "0"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_lift_peak",
-        "expectedValue": "0",
-        "tolerance": "0"
-      }
-    },
-    {
       "type": "Screenshot",
       "args": {
-        "fileName": "maskmax_door_mask.png"
+        "fileName": "shadermax_mask.png"
       }
     },
     {
@@ -466,13 +455,6 @@
     {
       "type": "SetFeature",
       "args": {
-        "featureName": "vector_light_shader_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
         "featureName": "vector_light_mask_max_lift",
         "enabled": "true"
       }
@@ -481,6 +463,20 @@
       "type": "SetFeature",
       "args": {
         "featureName": "vector_light_mask_max_seed",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max_subtract",
         "enabled": "true"
       }
     },
@@ -506,33 +502,9 @@
       }
     },
     {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_available",
-        "expectedValue": "1",
-        "tolerance": "0"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_lift_samples",
-        "expectedValue": "0",
-        "tolerance": "0"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_lift_peak",
-        "expectedValue": "0",
-        "tolerance": "0"
-      }
-    },
-    {
       "type": "Screenshot",
       "args": {
-        "fileName": "maskmax_door_beam.png"
+        "fileName": "shadermax_flatbeam.png"
       }
     },
     {
@@ -587,6 +559,20 @@
     {
       "type": "SetFeature",
       "args": {
+        "featureName": "vector_light_mask_max_lift",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max_seed",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
         "featureName": "vector_light_shader_max",
         "enabled": "false"
       }
@@ -594,14 +580,111 @@
     {
       "type": "SetFeature",
       "args": {
-        "featureName": "vector_light_mask_max_lift",
+        "featureName": "vector_light_shader_max_subtract",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_open_doors",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_glow_blocker",
         "enabled": "false"
       }
     },
     {
       "type": "SetFeature",
       "args": {
+        "featureName": "vector_light_door_aperture",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "shadermax_cellmax.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_suppress",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_beam",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max_lift",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
         "featureName": "vector_light_mask_max_seed",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max_subtract",
         "enabled": "true"
       }
     },
@@ -629,31 +712,15 @@
     {
       "type": "Probe",
       "args": {
-        "probeName": "vector_light_mask_available",
+        "probeName": "vector_light_shader_max_available",
         "expectedValue": "1",
-        "tolerance": "0"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_lift_peak",
-        "expectedValue": "0",
-        "tolerance": "0"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_lift_samples",
-        "expectedValue": "215",
         "tolerance": "0"
       }
     },
     {
       "type": "Screenshot",
       "args": {
-        "fileName": "maskmax_door_control.png"
+        "fileName": "shadermax_151.png"
       }
     },
     {
@@ -702,13 +769,6 @@
       "type": "SetFeature",
       "args": {
         "featureName": "vector_light_mask_max",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_shader_max",
         "enabled": "false"
       }
     },
@@ -723,6 +783,20 @@
       "type": "SetFeature",
       "args": {
         "featureName": "vector_light_mask_max_seed",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max_subtract",
         "enabled": "true"
       }
     },
@@ -750,7 +824,7 @@
     {
       "type": "Probe",
       "args": {
-        "probeName": "vector_light_mask_available",
+        "probeName": "vector_light_shader_max_available",
         "expectedValue": "1",
         "tolerance": "0"
       }
@@ -758,23 +832,15 @@
     {
       "type": "Probe",
       "args": {
-        "probeName": "vector_light_mask_lift_samples",
-        "expectedValue": "215",
-        "tolerance": "0"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_lift_peak",
-        "expectedValue": "70",
+        "probeName": "vector_light_mask_available",
+        "expectedValue": "1",
         "tolerance": "0"
       }
     },
     {
       "type": "Screenshot",
       "args": {
-        "fileName": "maskmax_door_max.png"
+        "fileName": "shadermax_phase6.png"
       }
     },
     {
@@ -823,13 +889,6 @@
       "type": "SetFeature",
       "args": {
         "featureName": "vector_light_mask_max",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_shader_max",
         "enabled": "false"
       }
     },
@@ -844,6 +903,20 @@
       "type": "SetFeature",
       "args": {
         "featureName": "vector_light_mask_max_seed",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max_subtract",
         "enabled": "false"
       }
     },
@@ -871,31 +944,15 @@
     {
       "type": "Probe",
       "args": {
-        "probeName": "vector_light_mask_available",
+        "probeName": "vector_light_shader_max_available",
         "expectedValue": "1",
-        "tolerance": "0"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_lift_samples",
-        "expectedValue": "235",
-        "tolerance": "0"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_lift_peak",
-        "expectedValue": "85",
         "tolerance": "0"
       }
     },
     {
       "type": "Screenshot",
       "args": {
-        "fileName": "maskmax_door_max_noseed.png"
+        "fileName": "shadermax_control.png"
       }
     }
   ]

@@ -188,6 +188,24 @@ public class CelestialLightingSettingsMod : Mod
         // flip the preset radio to Custom. 1.0 is the level §27 first shipped at, kept reachable
         // rather than deleted, because how bright a lamp should read is a taste call and the old
         // value has to stay comparable against the new one in a single boot.
+        //
+        // IT NOW GOVERNS ONLY THE FALLBACK, and that is worth knowing before wondering why it does
+        // nothing. §27 phase 6 composes max(vanilla, ours) per fragment, so the level is decided
+        // against what vanilla actually delivered at each point rather than by a flat fraction —
+        // there is nothing to tune, which was the whole argument for it. This slider still drives
+        // the flat additive beam that runs instead on a machine where the shader could not be
+        // loaded or compiled, so it is left in place rather than removed: a player on that path has
+        // exactly the knob they had before, and one on the shader path has a control that correctly
+        // has nothing to do.
+        //
+        // IT NOW GOVERNS ONLY THE FALLBACK, and that is worth knowing before wondering why it does
+        // nothing. §27 phase 6 composes max(vanilla, ours) per fragment, so the level is decided
+        // against what vanilla actually delivered at each point rather than by a flat fraction —
+        // there is nothing to tune, which was the whole argument for it. This slider still drives
+        // the flat additive beam that runs instead on a machine where the shader could not be
+        // loaded or compiled, so it is left in place rather than removed: a player on that path has
+        // exactly the knob they had before, and one on the shader path has a control that correctly
+        // has nothing to do.
         Settings.vectorLightBeamStrength = LabeledSlider(listing, "    Lamp beam strength",
             Settings.vectorLightBeamStrength, 0f, 1f);
         listing.CheckboxLabeled("Sky colour-temperature", ref Settings.skyColorTemperature,

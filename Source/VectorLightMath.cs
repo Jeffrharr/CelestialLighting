@@ -708,15 +708,33 @@ public static class VectorLightMath
     // is, but its inverse-square term is 1/(u*radius)^2, so a radius-6 campfire and a radius-24 sun
     // lamp have genuinely different curve shapes and cannot share a gradient. There are only a handful
     // of distinct radii on any map, so the caller caches these rather than rebaking them per light.
-    public static byte[] FalloffGradient(float radius, int size)
+    public static byte[] FalloffGradient(float radius, int size) =>
+        FalloffGradient(radius, size, matchSeed: false);
+
+    // `matchSeed` bakes vanilla's own intDist = 100 seed into the curve, so the gradient answers
+    // "what would vanilla's flood have delivered here along a clear straight line" rather than "what
+    // does our curve give at this distance".
+    //
+    // WHY THAT IS A DIFFERENT CURVE AND NOT A SCALE. ComputeGlowGridsJob.PrepareFill seeds the
+    // light's own cell at one cell rather than zero, so vanilla's falloff is evaluated at octile + 1
+    // EVERYWHERE. Comparing our curve at d against vanilla's at d + 1 is not comparing like with
+    // like: ours is brighter in every cell of every lamp, worst near the middle where the inverse
+    // square term dominates. Pinned offline at 76 levels of glow one cell out from a radius-12 lamp,
+    // 23 at two cells and 13 at four — a halo on every light, which §27 exists to avoid, since its
+    // whole claim is that it changes WHERE light reaches and not how bright a lamp is.
+    //
+    // Only the max composition wants this. The stock additive pass is not subtracting vanilla from
+    // anything, so for it the seed would just be a dimmer lamp for no reason.
+    public static byte[] FalloffGradient(float radius, int size, bool matchSeed)
     {
         int count = Math.Max(size, 2);
         byte[] gradient = new byte[count];
+        float seed = matchSeed ? VectorLightLiftMath.VanillaSeedDistance : 0f;
 
         for (int i = 0; i < count; i++)
         {
             float distance = radius * i / (count - 1);
-            gradient[i] = (byte)Math.Round(Falloff(distance, radius) * 255f);
+            gradient[i] = (byte)Math.Round(Falloff(distance + seed, radius) * 255f);
         }
 
         return gradient;
@@ -753,13 +771,16 @@ public static class VectorLightMath
     // built with no source radius draws exactly what the hard-edged version drew, through the same
     // texture, with no branch anywhere — the invariant PenumbraGradientFirstRowIsTheFalloffCurve
     // pins offline.
-    public static byte[] PenumbraGradient(float radius, int width, int height)
+    public static byte[] PenumbraGradient(float radius, int width, int height) =>
+        PenumbraGradient(radius, width, height, matchSeed: false);
+
+    public static byte[] PenumbraGradient(float radius, int width, int height, bool matchSeed)
     {
         int columns = Math.Max(width, 2);
         int rows = Math.Max(height, 2);
         byte[] gradient = new byte[columns * rows];
 
-        byte[] falloff = FalloffGradient(radius, columns);
+        byte[] falloff = FalloffGradient(radius, columns, matchSeed);
 
         for (int row = 0; row < rows; row++)
         {
@@ -1207,6 +1228,51 @@ public static class VectorLightMath
     // delivers on top of the half of vanilla it keeps. Reusing that number rather than picking a new
     // one means the beam's lift is a quantity already lived with rather than a fresh guess, and it
     // makes the combination directly comparable to the crossfade it is trying to beat.
+    // How far, in cells, a mesh vertex is pulled back towards the light before vanilla's glow is
+    // sampled for it. See SampleTowardLight for why this is not zero. Lifted unchanged from #151.
+    public const float VanillaSamplePull = 0.5f;
+
+    // Vanilla's glow byte in the units our own falloff curve produces. Both are the same physical
+    // quantity — that same Lerp(1 - d/R, 1/d^2, 0.4), evaluated on different distances — so the only
+    // conversion needed is the byte scale, and the comparison is meaningful rather than a units
+    // accident.
+    public static float GlowUnit(byte channel)
+    {
+        return channel / 255f;
+    }
+
+    // Where to sample vanilla's glow for a mesh vertex: the vertex itself, pulled `pull` cells back
+    // along the line to the light.
+    //
+    // WHY NOT AT THE VERTEX. Every boundary vertex of the visibility polygon sits ON the thing that
+    // stopped the ray, which is a wall — and a wall is a light blocker, so ComputeGlowGridsJob never
+    // floods it and its glow is zero. Sampling there would report that vanilla delivers NOTHING at
+    // the rim of every light, so we would subtract nothing and hand back the full hard-edged render
+    // in exactly the ring where the two models agree most closely. Half a cell is enough to land in
+    // the last open cell instead, and is small enough not to matter anywhere else.
+    //
+    // The apex is unaffected — it is already at the light, and pulling it towards itself is a no-op
+    // once the distance is below the pull, which the clamp below is there to make true rather than
+    // to guard a division.
+    public static void SampleTowardLight(
+        float x, float z, float lightX, float lightZ, float pull, out float sampleX, out float sampleZ)
+    {
+        float dx = lightX - x;
+        float dz = lightZ - z;
+        float distance = (float)Math.Sqrt(dx * dx + dz * dz);
+
+        if (distance <= pull || distance <= 0f)
+        {
+            sampleX = lightX;
+            sampleZ = lightZ;
+            return;
+        }
+
+        float step = pull / distance;
+        sampleX = x + dx * step;
+        sampleZ = z + dz * step;
+    }
+
     public const float MaskBeamStrength = DefaultStrength * (1f - DefaultVanillaFloor);
 
     // WHY THAT NUMBER WAS TOO BRIGHT, and what this scale exists to correct. The comment above
