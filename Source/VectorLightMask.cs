@@ -130,7 +130,19 @@ public static class VectorLightMask
             //
             // An emitter that shadows nothing is skipped outright rather than looked up cell by cell
             // and found to subtract zero every time. In open ground that is most of them.
-            if (overlaps && !entry.PolygonDirty && entry.Polygon.Count > 0 && !entry.Unobstructed)
+            //
+            // UNDER THE MAX, "shadows nothing" is not the same question as "contributes nothing", and
+            // the difference is one emitter: the lamp whose only obstruction is a door standing open.
+            // Our rays go through it (§27e), so its polygon is a full circle and Unobstructed is
+            // true; vanilla's flood does not, so everything past that door is light it owes. Asking
+            // vanilla's own blocker test as well is what keeps that emitter in the set — and an
+            // emitter with no blocker of either kind in reach still costs nothing, because in free
+            // space the two models agree cell for cell and every term is zero.
+            bool contributes = CelestialLightingFeatures.VectorLightMax
+                ? !entry.Unobstructed || entry.VanillaBlocked
+                : !entry.Unobstructed;
+
+            if (overlaps && !entry.PolygonDirty && entry.Polygon.Count > 0 && contributes)
                 Reaching.Add(entry);
         }
     }
@@ -199,6 +211,13 @@ public static class VectorLightMask
     {
         bool any = false;
 
+        // Hoisted out of the inner loop, and read once per emitter rather than once per cell: this is
+        // a static field read that the JIT cannot prove constant across a call to CoverageAt.
+        bool composingMax = CelestialLightingFeatures.VectorLightMax;
+        ColorInt colour = light.glowColor;
+        float radius = light.glowRadius;
+        IntVec3 origin = light.position;
+
         CellRect reach = light.AffectedRect;
 
         // The cell grid spans the section plus one cell of margin on every side; the emitter spans
@@ -218,7 +237,12 @@ public static class VectorLightMask
 
                 // Fully lit is the common case and costs one compare. Checked before the glow read
                 // because the array index is the dearer of the two.
-                if (coverage >= 255)
+                //
+                // NOT AN EARLY OUT UNDER THE MAX, and the asymmetry is the point rather than an
+                // oversight: a fully lit cell subtracts nothing, but it is exactly where the owed
+                // term lives — the cells our polygon sees clearly and vanilla's flood could only
+                // reach the long way round, which is what a doorway is.
+                if (coverage >= 255 && !composingMax)
                     continue;
 
                 IntVec3 cell = new IntVec3(x, 0, z);
@@ -233,17 +257,44 @@ public static class VectorLightMask
 
                 Color32 own = colors[local];
 
-                if (own.r == 0 && own.g == 0 && own.b == 0)
+                // A cell vanilla delivered nothing to owes its WHOLE straight-line value, so under
+                // the max this is the case that matters most rather than the one to skip. It is
+                // §27e's entire headline: the glow grid never learns that a door opened, so every
+                // cell beyond an open door reads a stored zero here.
+                bool delivered = own.r != 0 || own.g != 0 || own.b != 0;
+
+                if (!delivered && !composingMax)
                     continue;
 
-                int shadowed = 255 - coverage;
+                int straightR = 0;
+                int straightG = 0;
+                int straightB = 0;
+
+                if (composingMax && coverage > 0)
+                {
+                    VectorLightMaxMath.StraightLineGlow(
+                        colour.r, colour.g, colour.b, x - origin.x, z - origin.z, radius,
+                        out straightR, out straightG, out straightB);
+                }
+
+                // One signed term per channel, so the shadow and the owed light land in one
+                // accumulator with one clamp at the end. With the max off, `straight` is zero and
+                // this reduces to the subtraction alone, bit for bit — which is what makes the flag's
+                // off arm the shipped renderer rather than an approximation of it.
+                int netR = VectorLightMaxMath.NetShadowChannel(straightR, own.r, coverage);
+                int netG = VectorLightMaxMath.NetShadowChannel(straightG, own.g, coverage);
+                int netB = VectorLightMaxMath.NetShadowChannel(straightB, own.b, coverage);
+
+                if (netR == 0 && netG == 0 && netB == 0)
+                    continue;
+
                 int index = CellIndex(rect, x, z);
 
                 // Integer throughout: these are bytes scaled by a byte, so the float round-trip the
                 // first version did per channel bought nothing but conversions.
-                cellShadow[index].r += own.r * shadowed / 255;
-                cellShadow[index].g += own.g * shadowed / 255;
-                cellShadow[index].b += own.b * shadowed / 255;
+                cellShadow[index].r += netR;
+                cellShadow[index].g += netG;
+                cellShadow[index].b += netB;
                 any = true;
             }
         }

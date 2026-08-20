@@ -46,7 +46,13 @@ public static class VectorLightOverlay
         // exception: it keeps this pass running at a reduced strength so the lit region gains the
         // contrast the mask alone cannot produce, over a vanilla that has already had the bent light
         // removed. See CelestialLightingFeatures.VectorLightMaskBeam.
-        if (VectorLightMask.Active && !CelestialLightingFeatures.VectorLightMaskBeam)
+        // The max composition replaces this pass rather than joining it — it puts the same light in
+        // through the mask's own lane, per cell, and only where vanilla fell short. Enforced here
+        // rather than left to the scenario because running both adds the flat term back on top of
+        // the thing that replaced it, which is the over-brightening twice over and would read as the
+        // max being wrong.
+        if (VectorLightMask.Active
+            && (CelestialLightingFeatures.VectorLightMax || !CelestialLightingFeatures.VectorLightMaskBeam))
             return;
 
         Dictionary<object, VectorLightField.LightEntry>.ValueCollection lights =

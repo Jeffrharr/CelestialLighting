@@ -155,6 +155,10 @@
          classification is right" apart from "the classification is right AND the bake reached the
          mesh". Used by glass_wall_leak.json for the ReBuild: Doors and Corners glass-wall interop. -->
     <Compile Include="../Source/Probes/SkyCoverVertexProbe.cs" Link="SkyCoverVertexProbe.cs" />
+    <!-- The RGB half of the same mesh, which is where §27's composition lands. Every glow-grid probe
+         is blind to §27 by construction (it never writes the glow grid), so this is the only reading
+         that can say what a cell renders at. Used by room_parity.json. -->
+    <Compile Include="../Source/Probes/RenderedLightCellProbe.cs" Link="RenderedLightCellProbe.cs" />
     <!-- The ground/artificial/sky split behind IndoorGlowPassthrough at an arbitrary cell. Used by
          indoor_glow_lamp.json to prove a lamp-lit sealed room keeps SkyFraction at 0 while its
          GroundGlow stays high — the regression that would otherwise put dawn pink on a windowless

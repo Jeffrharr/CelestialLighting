@@ -29,8 +29,26 @@ public static class VectorLightBlockers
     // and light nothing at all — where vanilla's flood simply starts on that cell and spreads out.
     // This is the one place §27 knowingly disagrees with the blocker grid, and it disagrees in the
     // direction that keeps a lit thing lit.
-    public static VectorLightMath.Segment[] SegmentsAround(Map map, IntVec3 centre, float radius)
+    public static VectorLightMath.Segment[] SegmentsAround(Map map, IntVec3 centre, float radius) =>
+        SegmentsAround(map, centre, radius, out _);
+
+    // The overload §27's max composition needs, and the reason it needs a SECOND answer about the
+    // same window.
+    //
+    // `vanillaBlocked` is whether anything in reach blocks light by VANILLA's test — `def.blockLight`
+    // flat, with no exemption for a door standing open. Our own silhouette exempts one (that is the
+    // whole of §27e), so the two answers part company for exactly the emitter whose only obstruction
+    // is an open door: our polygon comes back a full circle and `Unobstructed` says "this lamp
+    // shadows nothing, skip it", while vanilla's flood is still sitting behind the door delivering
+    // nothing beyond it. Skipping that emitter would drop the one beam §27e exists to draw.
+    //
+    // Answered here rather than re-walked by the caller because this is the pass that already visits
+    // every cell of the window, and the window is the hot loop of the whole bake.
+    public static VectorLightMath.Segment[] SegmentsAround(
+        Map map, IntVec3 centre, float radius, out bool vanillaBlocked)
     {
+        vanillaBlocked = false;
+
         if (map == null)
             return new VectorLightMath.Segment[0];
 
@@ -48,7 +66,7 @@ public static class VectorLightBlockers
 
         bool[] blocked = new bool[width * height];
         List<VectorLightMath.Segment> leaves = null;
-        FillWindow(map, centre, minX, minZ, width, height, blocked, ref leaves);
+        vanillaBlocked = FillWindow(map, centre, minX, minZ, width, height, blocked, ref leaves);
 
         VectorLightMath.Segment[] silhouette =
             VectorLightMath.SilhouetteSegments(blocked, width, height, minX, minZ);
@@ -106,11 +124,14 @@ public static class VectorLightBlockers
             : new VectorLightMath.Segment(face, start, face, end));
     }
 
-    private static void FillWindow(
+    // Returns whether any cell in the window blocks light by vanilla's own test — see the overload
+    // above for what that second answer is for.
+    private static bool FillWindow(
         Map map, IntVec3 centre, int minX, int minZ, int width, int height, bool[] blocked,
         ref List<VectorLightMath.Segment> leaves)
     {
         EdificeGrid edifices = map.edificeGrid;
+        bool vanillaBlocked = false;
 
         for (int z = 0; z < height; z++)
         {
@@ -127,10 +148,28 @@ public static class VectorLightBlockers
                     // second sweep: the window is the hot loop, and a part-open door is rare enough
                     // that the list stays null on nearly every bake.
                     CollectLeaves(edifices, cell, ref leaves);
-                    blocked[z * width + x] = BlocksLight(edifices, cell);
+
+                    bool ours = BlocksLight(edifices, cell);
+                    blocked[z * width + x] = ours;
+
+                    // `ours` first, so the common cell — a blocker both models agree about — costs
+                    // one already-computed bool and the vanilla re-test only runs on the cells our
+                    // own rule let through.
+                    vanillaBlocked |= ours || BlocksLightForVanilla(edifices, cell);
                 }
             }
         }
+
+        return vanillaBlocked;
+    }
+
+    // Vanilla's flood's own blocker test, with none of §27e's exemption: `Building` writes exactly
+    // `def.blockLight` into GlowGrid's `lightBlockers` on spawn, open or shut, and never hears about
+    // the door moving afterwards.
+    private static bool BlocksLightForVanilla(EdificeGrid edifices, IntVec3 cell)
+    {
+        Building edifice = edifices[cell];
+        return edifice != null && edifice.def != null && edifice.def.blockLight;
     }
 
     // Appends this cell's leaf edges if it holds a door that is part-way through its slide. A shut

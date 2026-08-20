@@ -69,6 +69,13 @@ public static class VectorLightField
         // bake skips such an emitter outright rather than looking its grid up cell by cell.
         public bool Unobstructed;
 
+        // Whether anything in reach blocks light by VANILLA's test, which is not the same question —
+        // §27e lets an open door through and vanilla's flood never does. An emitter can therefore be
+        // Unobstructed to us and walled in to vanilla, and that emitter is precisely the one the max
+        // composition has the most to say about: everything past its open door is light vanilla owes
+        // and never delivered. Without this the Unobstructed skip would drop it.
+        public bool VanillaBlocked;
+
         // The polygon's area in square cells, kept for the probes: it is the one number that says
         // "the lit region changed shape" without going anywhere near a pixel. Issue #3 records two
         // wrong conclusions drawn from pixel measurement on exactly this kind of effect.
@@ -161,7 +168,9 @@ public static class VectorLightField
             return;
 
         VectorLightMath.Segment[] segments =
-            VectorLightBlockers.SegmentsAround(map, entry.Cell, entry.Radius);
+            VectorLightBlockers.SegmentsAround(map, entry.Cell, entry.Radius, out bool vanillaBlocked);
+
+        entry.VanillaBlocked = vanillaBlocked;
 
         entry.Polygon = VectorLightMath.Build(
             entry.Cell.x + 0.5f, entry.Cell.z + 0.5f, entry.Radius, segments,

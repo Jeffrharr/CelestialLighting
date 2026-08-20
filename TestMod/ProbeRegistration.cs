@@ -268,6 +268,7 @@ public static class ProbeRegistration
             new GlowGridCellProbe("door_outside_ground_glow", new IntVec3(1, 0, 45)));
         ProbeRegistry.Register(
             new GlowGridCellProbe("door_inside_ground_glow", new IntVec3(-1, 0, 45)));
+        RegisterRoomParityProbes();
         // §27e phase 2, vector_light_door_aperture.json. The door sits at local (0, 0) of that
         // scenario's room, i.e. offset (0, 45) from centre.
         ProbeRegistry.Register(new DoorApertureProbe(
@@ -845,6 +846,15 @@ public static class ProbeRegistration
                 CelestialLightingFeatures.VectorLightMaskBeam = enabled;
                 VectorLightRedraw.ForceRebuild();
             });
+        // Two-arg overload, matching its shipped default of true: off is the flat beam exactly as
+        // §27 phase 3 shipped it, which is the baseline this composition is measured against.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightMaxKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.VectorLightMax = enabled;
+                VectorLightRedraw.ForceRebuild();
+            });
         FeatureRegistry.Register(
             CelestialLightingFeatures.CivilTwilightPersistenceKey,
             enabled => CelestialLightingFeatures.CivilTwilightPersistence = enabled);
@@ -1380,6 +1390,62 @@ public static class ProbeRegistration
         Register("aurora_path_bake_us_max", AuroraPathTimingProbe.Metric.BakeUsMax);
         Register("aurora_path_table_us_max", AuroraPathTimingProbe.Metric.TableUsMax);
         Register("aurora_path_upload_us_max", AuroraPathTimingProbe.Metric.UploadUsMax);
+    }
+
+    // room_parity.json's twenty pins, generated in one place because the two buildings are a MIRROR
+    // PAIR and the whole file reads differences between them. Registering them by hand would let the
+    // two sides drift apart by a typo — one cell off, and the pair reports an asymmetry the fixture
+    // does not have, which is exactly the failure a parity test cannot survive.
+    //
+    // Cells are local to that scenario's anchor (0, 45): the west building's centre is x -16 and the
+    // east's is x +16, and every offset below is the same (dx, dz) applied to both.
+    // Tools/ScenarioGen/gen_room_parity.py holds the matching constants; the two must move together.
+    private static void RegisterRoomParityProbes()
+    {
+        const int anchorZ = 45;
+        const int west = -16;
+        const int east = 16;
+
+        (string name, int dx, int dz)[] cells =
+        {
+            // Deep inside, opposite the opening: the cell that says whether a roofed interior was
+            // blacked out as enclosed or left bright as a porch.
+            ("inside", 0, 2),
+            // Off-axis interior, where the lamp's own light is not pointed at the opening.
+            ("beside", 2, 0),
+            // First cell outside the opening — the doorway itself, one step out.
+            ("threshold", 0, -5),
+            // Three cells out, where a beam has separated from the building it came from.
+            ("beam", 0, -7),
+        };
+
+        foreach ((string name, int dx, int dz) in cells)
+        {
+            ProbeRegistry.Register(new RenderedLightCellProbe(
+                $"parity_door_{name}_lum", new IntVec3(west + dx, 0, anchorZ + dz),
+                RenderedLightCellProbe.Metric.Luminance));
+            ProbeRegistry.Register(new RenderedLightCellProbe(
+                $"parity_gap_{name}_lum", new IntVec3(east + dx, 0, anchorZ + dz),
+                RenderedLightCellProbe.Metric.Luminance));
+        }
+
+        // §7b's own output at the interior cell, which is what tells an asymmetry in the
+        // CLASSIFICATION apart from an asymmetry in the light. A brightness difference with these
+        // two equal is §27's business; a brightness difference with these two unequal is not.
+        ProbeRegistry.Register(new SkyCoverVertexProbe(
+            "parity_door_sky_cover", new IntVec3(west, 0, anchorZ + 2),
+            SkyCoverVertexProbe.Metric.CentreAlpha));
+        ProbeRegistry.Register(new SkyCoverVertexProbe(
+            "parity_gap_sky_cover", new IntVec3(east, 0, anchorZ + 2),
+            SkyCoverVertexProbe.Metric.CentreAlpha));
+
+        // Vanilla's gameplay light at the same pair of cells. §27 never writes it, so this is the
+        // fixture's own control: if these two disagree the buildings are not mirror images and every
+        // other reading in the file is measuring the fixture rather than the composition.
+        ProbeRegistry.Register(
+            new GlowGridCellProbe("parity_door_ground_glow", new IntVec3(west, 0, anchorZ + 2)));
+        ProbeRegistry.Register(
+            new GlowGridCellProbe("parity_gap_ground_glow", new IntVec3(east, 0, anchorZ + 2)));
     }
 
     private static void Register(string name, AuroraPathTimingProbe.Metric metric) =>

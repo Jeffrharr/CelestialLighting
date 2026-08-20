@@ -1,0 +1,1012 @@
+{
+  "name": "room_parity",
+  "saveFile": "minimal_colony.rws",
+  "description": "TWO IDENTICAL BUILDINGS, differing by one cell. Both are nine by nine, roofed edge to edge, with a torch three cells back from an opening in the south wall. In the west building that opening holds a DOOR, standing open; in the east building the wall cell was simply never built, so the opening is a GAP. Nothing else about them differs \u2014 same size, same roof, same torch, same distance.  WHY ONE CELL IS THE WHOLE EXPERIMENT. RimWorld classifies rooms topologically. A door is a room boundary whether it is open or shut, so the west building is an enclosed Room; a gap is not, so the east building's interior joins the outdoors and comes back UsesOutdoorTemperature. Every \"is this cell inside\" question in this mod is asked through that flag \u2014 \u00a77b's sky occlusion via EaveCells.Encloses, \u00a715's eave shade, \u00a715b's shading \u2014 so a single missing wall cell flips a roofed interior from \"enclosed\" to \"porch\". Vanilla asks the roof grid instead and lights both alike.  And \u00a727 has the mirror of the same asymmetry from the other side: vanilla's glow flood pours through a gap and NEVER through a door, open or shut, because its lightBlockers bit is written on spawn and the door moving never updates it. So the two openings start from opposite errors \u2014 the gap is classified outdoors and lit like it, the door is classified indoors and gets no light through it.  THE BASELINE THIS FILE IS FOR: those two buildings should render alike. Not identical \u2014 a door leaf is a real object and a gap is a hole \u2014 but alike enough that a player cannot tell which building the mod thinks is indoors. Every probe here is a PAIR, one cell per building at the mirror position, and the interesting number is always the difference between the two rather than either one.  FOUR ARMS, TWO HOURS:    midnight, vanilla            \u00a727 off entirely \u2014 what the game does, and the reference for \"alike\"   midnight, flat beam          \u00a727 as it ships today: mask plus the flat additive beam   midnight, max                \u00a727 composing max(vanilla, ours) with the mask after   noon, vanilla / noon, max    the sky half, where the indoor/outdoor classification actually bites  The noon arms exist because the midnight ones cannot see the classification at all: at midnight there is no sky light to occlude, so \u00a77b's blackout has nothing to remove and both buildings read their torch alone. A parity claim tested only at midnight would be silent about the larger of the two asymmetries.",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Concrete",
+        "width": "70",
+        "height": "30",
+        "offset": "0,45",
+        "clear": "true"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "0,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "-20,-4; -20,4; -19,-4; -19,4; -18,-4; -18,4; -17,-4; -17,4; -16,4; -15,-4; -15,4; -14,-4; -14,4; -13,-4; -13,4; -12,-4; -12,4; -20,-3; -12,-3; -20,-2; -12,-2; -20,-1; -12,-1; -20,0; -12,0; -20,1; -12,1; -20,2; -12,2; -20,3; -12,3; 12,-4; 12,4; 13,-4; 13,4; 14,-4; 14,4; 15,-4; 15,4; 16,4; 17,-4; 17,4; 18,-4; 18,4; 19,-4; 19,4; 20,-4; 20,4; 12,-3; 20,-3; 12,-2; 20,-2; 12,-1; 20,-1; 12,0; 20,0; 12,1; 20,1; 12,2; 20,2; 12,3; 20,3"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Door",
+        "stuff": "WoodLog",
+        "offset": "0,45",
+        "layout": "cells",
+        "cells": "-16,-4"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "TorchLamp",
+        "offset": "0,45",
+        "layout": "cells",
+        "cells": "-16,-1; 16,-1"
+      }
+    },
+    {
+      "type": "SetRoof",
+      "args": {
+        "def": "RoofConstructed",
+        "width": "9",
+        "height": "9",
+        "offset": "-16,45"
+      }
+    },
+    {
+      "type": "SetRoof",
+      "args": {
+        "def": "RoofConstructed",
+        "width": "9",
+        "height": "9",
+        "offset": "16,45"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-16,41",
+        "open": "true"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "0,45",
+        "zoom": "34"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "0"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_suppress",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_beam",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_open_doors",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_aperture",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "warmup_discard.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_suppress",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_beam",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_open_doors",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_aperture",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_door_inside_lum",
+        "expectedValue": "52.1702",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_gap_inside_lum",
+        "expectedValue": "52.1702",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_door_beside_lum",
+        "expectedValue": "60.5914",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_gap_beside_lum",
+        "expectedValue": "60.5914",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_door_threshold_lum",
+        "expectedValue": "0.0",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_gap_threshold_lum",
+        "expectedValue": "41.749",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_door_beam_lum",
+        "expectedValue": "0.0",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_gap_beam_lum",
+        "expectedValue": "23.9788",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_door_sky_cover",
+        "expectedValue": "128",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_gap_sky_cover",
+        "expectedValue": "100",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_door_ground_glow",
+        "expectedValue": "0.5",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_gap_ground_glow",
+        "expectedValue": "0.5",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "parity_midnight_vanilla.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_suppress",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_beam",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_open_doors",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_aperture",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_door_inside_lum",
+        "expectedValue": "52.1702",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_gap_inside_lum",
+        "expectedValue": "52.1702",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_door_beside_lum",
+        "expectedValue": "60.5914",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_gap_beside_lum",
+        "expectedValue": "60.5914",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_door_threshold_lum",
+        "expectedValue": "0.0",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_gap_threshold_lum",
+        "expectedValue": "27.1192",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_door_beam_lum",
+        "expectedValue": "0.0",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_gap_beam_lum",
+        "expectedValue": "17.7702",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_door_sky_cover",
+        "expectedValue": "128",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_gap_sky_cover",
+        "expectedValue": "100",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_door_ground_glow",
+        "expectedValue": "0.5",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_gap_ground_glow",
+        "expectedValue": "0.5",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "parity_midnight_flat.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_suppress",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_beam",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_max",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_open_doors",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_aperture",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_door_inside_lum",
+        "expectedValue": "52.1702",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_gap_inside_lum",
+        "expectedValue": "52.1702",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_door_beside_lum",
+        "expectedValue": "60.5914",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_gap_beside_lum",
+        "expectedValue": "60.5914",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_door_threshold_lum",
+        "expectedValue": "21.1232",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_gap_threshold_lum",
+        "expectedValue": "27.1192",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_door_beam_lum",
+        "expectedValue": "16.7702",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_gap_beam_lum",
+        "expectedValue": "17.7702",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_door_sky_cover",
+        "expectedValue": "128",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_gap_sky_cover",
+        "expectedValue": "100",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_door_ground_glow",
+        "expectedValue": "0.5",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_gap_ground_glow",
+        "expectedValue": "0.5",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "parity_midnight_max.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "56.72",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_suppress",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_beam",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_open_doors",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_aperture",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_door_inside_lum",
+        "expectedValue": "52.1702",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_gap_inside_lum",
+        "expectedValue": "52.1702",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_door_beside_lum",
+        "expectedValue": "60.5914",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_gap_beside_lum",
+        "expectedValue": "60.5914",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_door_threshold_lum",
+        "expectedValue": "0.0",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_gap_threshold_lum",
+        "expectedValue": "41.749",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_door_beam_lum",
+        "expectedValue": "0.0",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_gap_beam_lum",
+        "expectedValue": "23.9788",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_door_sky_cover",
+        "expectedValue": "128",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_gap_sky_cover",
+        "expectedValue": "100",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_door_ground_glow",
+        "expectedValue": "0.5",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_gap_ground_glow",
+        "expectedValue": "0.5",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "parity_noon_vanilla.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_suppress",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_beam",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_max",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_open_doors",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_aperture",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_door_inside_lum",
+        "expectedValue": "52.1702",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_gap_inside_lum",
+        "expectedValue": "52.1702",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_door_beside_lum",
+        "expectedValue": "60.5914",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_gap_beside_lum",
+        "expectedValue": "60.5914",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_door_threshold_lum",
+        "expectedValue": "21.1232",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_gap_threshold_lum",
+        "expectedValue": "27.1192",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_door_beam_lum",
+        "expectedValue": "16.7702",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_gap_beam_lum",
+        "expectedValue": "17.7702",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_door_sky_cover",
+        "expectedValue": "128",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_gap_sky_cover",
+        "expectedValue": "100",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_door_ground_glow",
+        "expectedValue": "0.5",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "parity_gap_ground_glow",
+        "expectedValue": "0.5",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "parity_noon_max.png"
+      }
+    }
+  ]
+}

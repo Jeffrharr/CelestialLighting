@@ -260,6 +260,10 @@
          nothing else here, since a visibility polygon is answered entirely from a blocker grid and a
          light position. Tools/VectorLightPreview links the same file for offline look-dev. -->
     <Compile Include="../../Source/VectorLightMath.cs" Link="VectorLightMath.cs" />
+    <!-- Subsystem 27's max composition. Separate from VectorLightMath because it is a transcription
+         of vanilla's own flood rather than any of §27's geometry, and it is judged against a second
+         transcription (VanillaGlowFlood, in this project) that shares no code with it. -->
+    <Compile Include="../../Source/VectorLightMaxMath.cs" Link="VectorLightMaxMath.cs" />
   </ItemGroup>
 
 </Project>

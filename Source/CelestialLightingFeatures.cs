@@ -758,6 +758,38 @@ public static class CelestialLightingFeatures
     // best contrast of any arm at 1.68, against full §27's 1.66 and the crossfade's 1.38.
     public static bool VectorLightMaskBeam = true;
 
+    // Feature key for VectorLightMax.
+    public const string VectorLightMaxKey = "vector_light_max";
+
+    // §27 phase 3b: compose vanilla's flood and ours as a MAX per cell, and let the mask carve the
+    // shadow out of the result — instead of laying a flat share of our model over the whole lit
+    // region.
+    //
+    // WHAT IT FIXES, in one sentence: the beam and the room stop being the same quantity.
+    // VectorLightMaskBeam adds a fraction of the falloff curve across the entire visibility polygon,
+    // and the polygon IS the lit region, so it lifts the open room by exactly as much as it lifts the
+    // doorway. That is why the room renders at 1.175x vanilla — reported from play as "the room
+    // itself is too bright", and visible in DESIGN.md §27's own table as lit room 10.56 against
+    // vanilla's 9.61 — and why the fix could only ever be a slider trading one against the other.
+    // The max asks per cell whether vanilla already delivered the straight-line value; in an open
+    // room it always has, so the term is exactly zero there and the doorway is free to be as bright
+    // as vanilla's own curve says. See VectorLightMaxMath.
+    //
+    // MUTUALLY EXCLUSIVE WITH THE FLAT BEAM, and the draw enforces that rather than trusting the
+    // scenario to: both are the beam, and running them together adds the flat term back on top of
+    // the thing that replaced it, which is the over-brightening twice over.
+    //
+    // RIDES THE MASK'S OWN BAKE. It is accumulated as a NEGATIVE shadow in the same per-cell pass,
+    // so the corner and centre averaging that already exists carries it and the byte clamp that
+    // already exists bounds it — no second pass, no fan, and no shader. Issue #151 wanted a custom
+    // shader only because phase 2b computed this difference in a fragment program, where vanilla's
+    // per-emitter glow had to be smuggled in through a spare UV channel.
+    //
+    // ON, and it is what §27 composes as. Off is not "no beam" — it is the flat beam exactly as
+    // shipped, slider and all, so the A/B measures the composition rather than the absence of one.
+    // Inert unless VectorLightMask is on, which is inert unless VectorLights is, which ships OFF.
+    public static bool VectorLightMax = true;
+
     // Feature key for VectorLightPawnShadows.
     public const string VectorLightPawnShadowsKey = "vector_light_pawn_shadows";
 

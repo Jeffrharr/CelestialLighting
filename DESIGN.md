@@ -8311,6 +8311,117 @@ The crossfade branch is deliberately **not** scaled by it. Its level is calibrat
 than to lift, so scaling it down would land the fallback path *dimmer* than vanilla — a different bug
 rather than a milder version of this one.
 
+### Phase 3b: the composition is a max, and the room stops moving (`vector_light_max`)
+
+The correction above put the beam's level on a slider because the beam and the room were the same
+quantity: the flat term is spread over the whole visibility polygon, the polygon **is** the lit
+region, so nothing could raise the doorway without raising the room. That is a trade, and a trade is
+what you settle for when the two cannot be separated. They can be separated.
+
+```
+composed(c) = lit(c) · max( delivered(c), straight(c) )
+```
+
+`delivered` is what vanilla's flood actually put in the cell — its falloff of the **geodesic**
+distance, the path that bent around the walls. `straight` is the same curve, the same emitter colour
+and the same arithmetic evaluated on the straight-line distance. Wherever an unobstructed lamp can
+see a cell the two are the same number, so the max adds **exactly zero** and an open room renders at
+vanilla's own level. Where the light had to bend it arrived dimmer than the straight line, and there
+the max takes ours. Where it never arrived at all — past an open door, which the glow grid never
+hears about — the max is the whole straight-line value.
+
+**It costs no new pass.** The mask already subtracts `delivered · (1 − lit)` from vanilla's own
+vertex colours; adding `(straight − delivered)⁺ · lit` in the same accumulation composes to the line
+above. One signed term, one clamp, no fan, no second mesh and specifically no shader — issue #151
+wanted one only because phase 2b computed this difference in a fragment program, where vanilla's
+per-emitter glow had to be smuggled in through a spare UV channel. The mask holds that number in C#
+already. `VectorLightOverlay.Draw` stands the flat pass down when this is on, because running both
+adds the flat term back on top of the thing that replaced it.
+
+**Why phase 2b measured a max as a no-op, and what was actually wrong.** That attempt took the max
+against `VectorLightMath.Falloff` — §27's own curve, clamped at `MinFalloffDistance`, evaluated on a
+euclidean distance in cells. Vanilla's flood is none of those things. It accumulates an **integer**
+cost in hundredths, 100 a cardinal step and 141 a diagonal, and `PrepareFill` seeds the emitter's own
+cell at **100 rather than 0**, so every distance its falloff ever sees is one whole cell larger than
+the geometry. Sampled a cell too close, `ours` is unconditionally the larger of the two, the max
+degenerates to `ours` everywhere, and what should have been a difference of zero in open ground is
+instead a lift over the whole room — about 1.25× the delivered light two cells out, growing toward 2×
+at the rim. So the operator was right and the input was wrong, and `Source/VectorLightMaxMath.cs`
+exists to be vanilla's arithmetic transcribed rather than approximated: its integer distance, its
+order of operations (`1f + (-1f / radius) * distance`, which is not bit-identical to the tidy form),
+its `ColorInt * float` truncation, its non-negative clamp and its projection.
+
+**The offline tests are judged by an oracle, not by themselves.** A differential test that computes
+both halves with the code under test asserts `x − x == 0` and passes for a formula wrong in the same
+way on both sides. So `Tests/CelestialLighting.Tests/VanillaGlowFlood.cs` is a second, independent
+transcription — an actual Dijkstra over an actual lattice, including vanilla's stale flanking-blocker
+bits, which it clears once per light and not once per popped cell. Every cell of a radius-4, -8, -12
+and -14 lamp must come back byte-identical through all three channels, and
+`DroppingTheSourceSeedWouldOweLightAllOverAnOpenRoom` proves that suite can go red by removing the
+seed and asserting the size of the error it prevents. 2,271 offline tests pass, 40 of them this file's.
+
+#### What it measures (`Tests/Scenarios/room_parity.json`)
+
+The fixture is the one the feature has to answer to: **two identical nine-by-nine roofed buildings, a
+torch three cells back from an opening in the south wall, differing by one cell.** West holds a door
+standing open; east simply never had that wall cell built. Vanilla's flood pours through the gap and
+never through the door, so the two start from opposite errors, and "do they render alike" is the
+whole question.
+
+Interior, mean L\* over the seven-by-seven inside the walls:
+
+| arm | door building | gap building | vs vanilla |
+|---|---|---|---|
+| vanilla | 13.19 | 11.11 | — |
+| flat beam (ships today) | 16.24 | 14.19 | **+3.05 / +3.08** |
+| **max** | **13.19** | **11.11** | **+0.00 / +0.00** |
+
+Interior ΔE against vanilla is **3.74 / 3.82 over 97.3% of the pixels** for the flat beam and
+**0.00 over 0.00% of them** for the max — the lit room is not merely close to vanilla, it is
+pixel-identical. That is the "the room itself is too bright" report answered at its cause rather than
+traded against the beam.
+
+Outside, at the rendered vertex (probe values, deterministic across runs):
+
+| cell | vanilla door | vanilla gap | max door | max gap |
+|---|---|---|---|---|
+| first cell past the opening | **0.00** | 41.75 | **21.12** | 27.12 |
+| three cells out | **0.00** | 23.98 | **16.77** | 17.77 |
+
+Vanilla is not a little asymmetric here, it is totally asymmetric: nothing at all leaves the open
+door. Under the max the two openings land within **6%** of each other three cells out. Whole-crop
+CIELAB ΔE between the two buildings **in the same frame**, which is the parity measurement proper:
+
+| arm | midnight, door vs gap | noon, door vs gap |
+|---|---|---|
+| vanilla | 1.81 (p90 5.26) | 2.54 (p90 6.53) |
+| flat beam | 1.16 (p90 3.48) | — |
+| **max** | **1.02 (p90 3.24)** | **1.62 (p90 5.72)** |
+
+**Two residuals, both named rather than tuned away.**
+
+The first is the door leaf itself. `ApplyToCorners` mirrors vanilla's own averaging, which skips any
+cell whose edifice blocks light — and an open door still blocks light by that test while a gap has no
+edifice at all. So the cell immediately outside a door averages over three cells where the gap's
+averages over four, and reads 21.12 against 27.12. Two cells further out it is 16.77 against 17.77.
+A door is a real object and a hole is not; this is the correct direction and a small amount of it.
+
+The second is not §27's at all and is pinned in every arm so it cannot be mistaken for it. `§7b` asks
+whether a cell is inside through `Room.UsesOutdoorTemperature`, and a wall with a hole in it does not
+enclose — so the gapped building's interior merges with the outdoors, is classified an **eave**, and
+keeps vanilla's `RoofedAreaMinSkyCover` of 100 where the doored building's enclosed interior gets
+**128**. One missing wall cell, 28/255 more sky admitted to an otherwise identical roofed room, and
+it is most of what the 1.62 at noon is made of. The predicate that would fix it is geometric rather
+than topological — how much sky actually reaches the cell, which §7c's `NativeSkyFalloffGrid` already
+computes — and changing what "inside" means is §7b's and §15's business, not a composition's. §15's
+own header records why the topological answer is there: blacking out a porch that stands open on
+three sides was that feature's most conspicuous artifact.
+
+**Ships on** whenever the mask is on, which is whenever §27 is, which still ships off. Off is not "no
+beam" — it is the flat beam exactly as phase 3 shipped it, slider and all, so the A/B measures the
+composition rather than the absence of one. `vectorLightBeamStrength` therefore still means what it
+meant, and still scales the arm it was written for.
+
 ### §27e: open doors (`vector_light_open_doors`, `Tests/Scenarios/vector_light_open_door.json`)
 
 **It is a settings toggle now**, "Light through open doors", nested under the master switch and still
