@@ -8598,6 +8598,108 @@ both within a pixel of what the geometry says. Where the two arms' shadows disag
 more than half of it is overlap where both arms draw the same shadow, and the whole-frame median is
 0.00 for the usual reason a bounded object gives one.
 
+### Phase 4b: a lamp's shadow is that lamp's SHARE of the light (`vector_light_shadow_shares`)
+
+**Problem.** Phase 4 gave every lamp a shadow at `PawnShadowStrength × falloff × coverage ×
+daylight`. Read as physics, that is the darkening you get when the lamp being blocked is *the only
+light in the room* — and phase 4 was calibrated, captured and signed off in exactly that scene, one
+torch and one colonist. A colony does not light a workroom with one torch. Put six around a pawn and
+each of the six still drew at full strength, so the arms composited: the ground at the caster's feet
+went to 94% opaque black, and the pawn who was by construction the **best-lit** thing on the map
+stood in the darkest patch of it. That is not a strength that wants turning down; it is a missing
+term.
+
+**Approach.** Illuminance adds. A cell receives `E_total` from everything that reaches it, and
+interposing a caster between it and lamp *L* removes `E_L` and nothing else, so the darkening a
+player actually sees is `E_L / E_total` — a **share**. Phase 4's formula is that expression with the
+denominator pinned to 1. Phase 4b stops pinning it:
+
+```
+E_j     = Falloff(d_j, r_j) × coverage_j          per lamp, the quantity phase 4 already had
+total   = max(Σ E_j, FullIlluminance)
+alpha_i = PawnShadowStrength × DaylightScale × E_i / total
+```
+
+Shares now sum to at most one by construction, which is the property phase 4 lacked: *no arrangement
+of lamps can remove more light than is there*. Six lamps give six faint shadows whose overlap is
+about one shadow's worth of darkening, which is what a room with six lamps in it looks like — real
+multi-light scenes read as many soft shadows precisely because each light is only a fraction of the
+illumination.
+
+**Why the denominator is floored at `FullIlluminance` rather than being the bare sum.** A lone lamp
+at half falloff delivers 0.5, and dividing by 0.5 hands it a share of 1 — a pawn at the dim rim of a
+single lamp's reach would throw a *blacker* shadow than one standing beneath it. That is only correct
+in a sealed darkroom, and a RimWorld map is never one: there is always sky, glowing terrain, a fire,
+another mod's light. The floor states "you cannot remove more light than there is", and it buys the
+property that made this safe to ship: **with one lamp the result is algebraically identical to phase
+4**, so every existing pin and every committed single-lamp capture stays valid, and dilution begins
+exactly where a second lamp makes the pawn brighter than fully lit. It is pinned as a swept test
+rather than argued, because a bare-sum regression passes at the bright end and only fails at the dim
+one.
+
+**Daylight stays a separate multiply** rather than joining the denominator as an ambient term, and
+that is a deliberate refusal to be more physical than the units allow. Glow here is perceptual, not
+photometric: the sky reads 1.0 against a lamp's 0.5 where the real illuminance ratio is four orders
+of magnitude. Letting them compete on those numbers would leave torch shadows half-strength at noon.
+`DaylightScale` is the already-calibrated curve for that question and keeps it.
+
+**What is not fixed.** The shadows still pass straight through walls — the occlusion question is
+asked once, at the caster's own cell, and never about the cells the quad crosses (issue #166). Phase
+4b changes how dark each arm is, not how far it reaches.
+
+#### Verification
+
+Six torches ringing one colonist at four cells, roofed and at midnight so that vanilla's
+`Graphic_Shadow` draws nothing and every shadow in frame is ours
+(`Tests/Scenarios/vector_light_shadow_shares.json`).
+
+**The frame measurement had to be masked, and the unmasked number is recorded here because it is a
+trap.** The rosette covers 10,600 of 2,073,600 pixels — 0.5% of the frame — so whole-frame median
+*and* p90 both read **0.00** for every pair of arms, including "no shadows at all" against "phase 4
+as shipped", which is a change nobody disputes is visible. Measured over the 344×269 region the
+effect actually touches:
+
+| comparison | masked median ΔE | p90 | max |
+|---|---|---|---|
+| no lamp shadows → **phase 4 as shipped** | **6.88** | 6.42 | 13.80 |
+| no lamp shadows → **phase 4b** | **2.41** | 2.02 | 5.56 |
+| phase 4 → phase 4b (the change itself) | **4.58** | 3.95 | 8.79 |
+
+Six lamps' worth of shadow drops from ΔE 6.88 — "obvious" on this repo's scale, and above the ~9
+that §26 was rejected for looking distracting — to 2.41, "visible at a glance". The change itself
+measures 4.58.
+
+The two probes are the real assertion, because an alpha is not a thing a screenshot reports:
+`vector_light_pawn_shadow_peak` is the darkest single arm and `vector_light_pawn_shadow_rosette` is
+what all six composite to. Both are pinned because they fall by **different factors**, and the
+ratio between them is what says the light was redistributed rather than merely turned down.
+
+| probe | phase 4 | phase 4b | factor |
+|---|---|---|---|
+| `vector_light_pawn_shadow_peak` (darkest single arm) | 0.1875 | **0.0772** | ×0.41 |
+| `vector_light_pawn_shadow_rosette` (all six composited) | 0.7028 | **0.3753** | ×0.53 |
+
+The arithmetic is exactly recoverable from those two numbers, which is the point of pinning them.
+The nearest lamp delivers `falloff × coverage = 0.375`, so phase 4 drew it at `0.5 × 0.375 =
+0.1875`; the six together deliver 2.43, so phase 4b draws that same lamp at its share,
+`0.5 × 0.375 / 2.43 = 0.077`.
+
+**This is where the design note written before the run was wrong, and it is left in rather than
+quietly fixed.** The prediction was that the rosette would barely move — that sharing the light
+would redistribute darkness without changing how much of it there is. It halves. The reason is that
+phase 4's rosette was not a correct total that phase 4b preserves; it was itself over-dark, six
+independent 0.19 alphas compounding to 0.70 where the physics allows at most `PawnShadowStrength`
+of total darkening. A prediction that survived the arithmetic and died on the measurement is the
+argument for pinning a number instead of reasoning about it.
+
+**The probe read 0.00 in both arms on the first live run, and the cause is worth recording** because
+it is the second time this file has caught it: `ReadShadowOpacity` picked its subject by lowest thing
+ID across the whole map, and `minimal_colony.rws` ships colonists whose IDs are lower than anything a
+scenario spawns. It was measuring a fixture colonist asleep on the far side of the map with no lamp
+near them — a confident 0.00 that is indistinguishable from the feature being dead. It is scoped to
+the camera view rect now, which is the renderer's own cull, exactly as `PawnShadowCasters` already
+was for the same reason.
+
 ## Conflict risk
 
 Decompiled the user's local Dub's Skylights 1.6 copy (`Dubwise.DubsSkylights`) — its patches
