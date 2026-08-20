@@ -1191,6 +1191,109 @@ public static class VectorLightMath
     // it adds back the share of vanilla that Patch_VectorLightSuppress just took away — so scaling it
     // down would land the fallback path DIMMER than vanilla rather than merely less lifted, which is
     // a different bug rather than a milder version of this one.
+    // Vanilla's own distance metric, which is NOT Euclidean: Verse.Glow.ComputeGlowGridsJob walks an
+    // 8-neighbour lattice charging 100 for a cardinal step and 141 for a diagonal one, and divides by
+    // 100, so what its falloff is evaluated on is the octile distance 1.41*min + (max - min).
+    //
+    // THE DIFFERENTIAL BEAM MUST MEASURE ITS STRAIGHT LINE IN THIS, not in Euclidean. Measured, and
+    // it is why one version of phase 3c failed outright: the octile metric reads up to 4.65% farther
+    // than Euclidean with NOTHING in the way, and 81.8% of the cells inside an unobstructed lamp's
+    // radius disagree at all. A difference taken across two metrics claims a deficit almost
+    // everywhere and lifts the whole room, which is the exact failure it was built to remove.
+    public const float DiagonalCost = 1.41f;
+
+    public static float OctileDistance(int dx, int dz)
+    {
+        int ax = dx < 0 ? -dx : dx;
+        int az = dz < 0 ? -dz : dz;
+        int min = ax < az ? ax : az;
+        int max = ax < az ? az : ax;
+
+        return DiagonalCost * min + (max - min);
+    }
+
+    // §27 phase 3c: the DIFFERENTIAL beam. What the additive beam should have been.
+    //
+    // THE BUG IT REPLACES. The flat beam adds a share of the falloff curve over the WHOLE visibility
+    // polygon, and the polygon is the lit region, so it lifts the open room as much as the doorway —
+    // 1.175x vanilla, measured, and reported from play as "the room itself is too bright". It never
+    // looks at what vanilla delivered, so it cannot tell "already correct here" from "arrived short".
+    //
+    // WHAT THIS ASKS INSTEAD, AND WHY IT NEEDS NO CALIBRATION. Verse.Glow.ComputeGlowGridsJob stores
+    // the distance its flood actually travelled in the GLOW'S OWN ALPHA CHANNEL (`colorInt.a =
+    // (int)num2`). So for a cell we can read both what vanilla delivered and how far it thinks the
+    // light came, and since delivered = C * F(d_geodesic) for the same C we would use, the emitter
+    // colour cancels in a ratio:
+    //
+    //     owed = delivered * (F(d_straight) / F(d_geodesic) - 1)
+    //
+    // Where the light did not detour the two distances are equal, the ratio is exactly 1 and the term
+    // is exactly 0 — in the open room, at every cell, by construction rather than by tuning.
+    //
+    // TWO EARLIER VERSIONS FAILED HERE AND BOTH ARE WORTH KEEPING IN VIEW. The first reconstructed
+    // `ours` from a sample of vanilla's glow at the emitter's own cell, which SATURATES: vanilla does
+    // not clamp its distance, so 1/(0*0) is infinite there and the sample is a clipped 255 rather
+    // than C * F(0). The second compared a Euclidean straight line against vanilla's octile geodesic,
+    // which invents a deficit at 81.8% of cells with nothing in the way. Both lifted the whole room
+    // and both measured r ~ 0.89 against the flat beam they were meant to replace. A ratio of
+    // vanilla's own curve against vanilla's own distances has neither failure mode available to it.
+    //
+    // Never negative: where vanilla delivered MORE than the straight path would (its lattice can
+    // undershoot), that is vanilla being generous and is left alone. The mask is the only thing
+    // allowed to subtract.
+    public static int DifferentialBeamChannel(
+        int delivered, float straightDistance, float geodesicDistance, float radius, int coverage)
+    {
+        if (delivered <= 0 || coverage <= 0 || geodesicDistance <= straightDistance)
+            return 0;
+
+        float atGeodesic = VanillaFalloff(geodesicDistance, radius);
+        float atStraight = VanillaFalloff(straightDistance, radius);
+
+        if (atGeodesic <= 0f || atStraight <= atGeodesic)
+            return 0;
+
+        int owed = (int)(delivered * (atStraight / atGeodesic - 1f));
+
+        if (owed <= 0)
+            return 0;
+
+        return owed * (coverage >= 255 ? 255 : coverage) / 255;
+    }
+
+    // Vanilla's falloff EXACTLY as ComputeGlowGridsJob.SetGlowFromDist computes it, including the
+    // absence of any minimum-distance clamp. Deliberately not VectorLightMath.Falloff: that one
+    // clamps at MinFalloffDistance so §27's own draw has a finite value at the source, and a ratio
+    // taken across the two curves would not cancel where this one's whole correctness is that it
+    // does. Saturates rather than dividing by zero at the source, which is what vanilla does too.
+    public static float VanillaFalloff(float distance, float radius)
+    {
+        if (radius <= 0f || distance > radius)
+            return 0f;
+
+        if (distance <= 0f)
+            return float.MaxValue;
+
+        float linear = 1f - distance / radius;
+        float inverseSquare = 1f / (distance * distance);
+
+        return linear + InverseSquareWeight * (inverseSquare - linear);
+    }
+
+    // The normalised falloff profile: F(d) / F(0), i.e. what share of its at-source brightness a
+    // straight line still carries at `distance`. Split out from Falloff so the ratio is pinned
+    // offline at both ends — 1 at the source, 0 beyond the radius — independently of whatever the
+    // curve does in between.
+    public static float FalloffRatio(float distance, float radius)
+    {
+        float peak = Falloff(0f, radius);
+
+        if (peak <= 0f)
+            return 0f;
+
+        return Clamp01(Falloff(distance, radius) / peak);
+    }
+
     public static float MaskBeamStrengthFor(float scale)
     {
         if (scale <= 0f)

@@ -1324,4 +1324,143 @@ public class VectorLightMathTests
         Assert.That(VectorLightMath.MaskBeamStrengthFor(VectorLightMath.DefaultBeamStrengthScale),
             Is.LessThan(VectorLightMath.MaskBeamStrength));
     }
+
+    // ---- §27 phase 3c: the differential beam ------------------------------------------------
+
+    // THE CLAIM THE WHOLE FEATURE RESTS ON. Where vanilla delivered exactly what a straight line
+    // would have, the beam must add NOTHING. That is what makes the open room stop being lifted, and
+
+    // Vanilla's 100/141 grid metric can undershoot a true diagonal, delivering MORE than a straight
+    // line would. That is vanilla being generous and must be left alone: the mask is the only thing
+
+    // The doorway case: the cell is fully visible, so a straight line would have delivered the full
+    // profile, but vanilla's light had to bend to arrive and came up short. The deficit is exactly
+
+    // Partial visibility has to ramp the addition the same way it ramps the subtraction, or the
+
+    // Stand-down cases. A dark emitter has no scale to calibrate against, and an unlit cell has no
+
+    // The profile is a RATIO, so it has to be 1 at the source and 0 past the radius regardless of
+    // what the curve does in between — those two ends are what the calibration depends on.
+    [Test]
+    public void FalloffRatio_IsOneAtTheSourceAndZeroBeyondTheRadius()
+    {
+        Assert.That(VectorLightMath.FalloffRatio(0f, 12f), Is.EqualTo(1f).Within(1e-6f));
+        Assert.That(VectorLightMath.FalloffRatio(12.01f, 12f), Is.Zero);
+        Assert.That(VectorLightMath.FalloffRatio(50f, 12f), Is.Zero);
+    }
+
+    [Test]
+    public void FalloffRatio_FallsMonotonicallyWithDistance()
+    {
+        float previous = float.MaxValue;
+
+        for (int i = 0; i <= 24; i++)
+        {
+            float value = VectorLightMath.FalloffRatio(i * 0.5f, 12f);
+            Assert.That(value, Is.LessThanOrEqualTo(previous), $"rose at distance {i * 0.5f}");
+            Assert.That(value, Is.InRange(0f, 1f));
+            previous = value;
+        }
+    }
+
+    // Vanilla's metric, not ours. 100 a cardinal step and 141 a diagonal one.
+    [TestCase(0, 0, 0f)]
+    [TestCase(3, 0, 3f)]
+    [TestCase(0, 4, 4f)]
+    [TestCase(2, 2, 2.82f)]     // pure diagonal: 2 * 1.41
+    [TestCase(-2, -2, 2.82f)]   // sign must not matter
+    [TestCase(3, 1, 3.41f)]     // 1 diagonal + 2 cardinal
+    public void OctileDistance_MatchesVanillasLatticeCosts(int dx, int dz, float expected)
+    {
+        Assert.That(VectorLightMath.OctileDistance(dx, dz), Is.EqualTo(expected).Within(1e-4f));
+    }
+
+    // THE REGRESSION TEST FOR THE BUG THAT KILLED THE FIRST VERSION. Off-axis, the octile metric
+    // reads farther than Euclidean — so a differential taken across the two metrics invents a
+    // deficit in open space and lifts the whole room. This pins the gap as real and non-trivial, so
+    // that anyone tempted to "simplify" OctileDistance back to Math.Sqrt gets a failure that names
+    // the reason rather than a picture of a room that is quietly too bright.
+    [TestCase(2, 1)]
+    [TestCase(3, 1)]
+    [TestCase(5, 2)]
+    public void OctileDistance_ReadsFartherThanEuclideanOffAxis(int dx, int dz)
+    {
+        double euclidean = System.Math.Sqrt(dx * dx + dz * dz);
+
+        Assert.That(VectorLightMath.OctileDistance(dx, dz), Is.GreaterThan(euclidean),
+            "if these ever agree, the differential beam stops being metric-cancelling");
+    }
+
+    // And the payoff: measured on the SAME metric vanilla used, an unobstructed cell owes nothing.
+    // This is the property the whole feature rests on, expressed end to end rather than on the
+
+    // ---- §27 phase 3c: the differential beam --------------------------------------------------
+
+    // THE CLAIM THE FEATURE RESTS ON. Vanilla's flood reached this cell by the straight path, so the
+    // distance it recorded equals the straight one and it owes nothing. Zero by construction, at any
+    // distance, which is what stops the open room being lifted.
+    [TestCase(1f)]
+    [TestCase(3f)]
+    [TestCase(5.64f)]
+    [TestCase(11f)]
+    public void DifferentialBeam_IsZeroWhenTheLightDidNotDetour(float d)
+    {
+        Assert.That(VectorLightMath.DifferentialBeamChannel(180, d, d, 12f, 255), Is.Zero);
+    }
+
+    // The doorway: vanilla's light had to travel 8 cells around the frame to reach somewhere only 4
+    // away in a straight line, so it arrived dimmer than it should have. What is owed is what
+    // vanilla's own curve says the difference between those two distances is worth.
+    [Test]
+    public void DifferentialBeam_ClaimsWhatTheDetourCost()
+    {
+        int owed = VectorLightMath.DifferentialBeamChannel(100, 4f, 8f, 12f, 255);
+        float ratio = VectorLightMath.VanillaFalloff(4f, 12f) / VectorLightMath.VanillaFalloff(8f, 12f);
+
+        Assert.That(owed, Is.GreaterThan(0));
+        Assert.That(owed, Is.EqualTo((int)(100 * (ratio - 1f))).Within(1));
+    }
+
+    // A longer detour is owed more. Monotone in the detour, which is what makes it read as light
+    // rather than as an arbitrary patch.
+    [Test]
+    public void DifferentialBeam_GrowsWithTheDetour()
+    {
+        int near = VectorLightMath.DifferentialBeamChannel(100, 4f, 5f, 12f, 255);
+        int far = VectorLightMath.DifferentialBeamChannel(100, 4f, 9f, 12f, 255);
+
+        Assert.That(far, Is.GreaterThan(near));
+    }
+
+    // Never subtracts. Vanilla's lattice can undershoot a true diagonal and deliver more than the
+    // straight path would; that is vanilla being generous, and the mask is the only thing allowed to
+    // take light away (#145 rejected two models fighting over one cell).
+    [Test]
+    public void DifferentialBeam_NeverSubtractsWhenVanillaOverDelivers()
+    {
+        Assert.That(VectorLightMath.DifferentialBeamChannel(100, 8f, 4f, 12f, 255), Is.Zero);
+    }
+
+    // Partial visibility ramps the addition exactly as it ramps the subtraction, or phase 2's
+    // deliberately softened boundary turns back into a step.
+    [Test]
+    public void DifferentialBeam_ScalesWithCoverage()
+    {
+        int full = VectorLightMath.DifferentialBeamChannel(100, 4f, 8f, 12f, 255);
+        int half = VectorLightMath.DifferentialBeamChannel(100, 4f, 8f, 12f, 128);
+
+        Assert.That(half, Is.EqualTo(full * 128 / 255).Within(1));
+        Assert.That(VectorLightMath.DifferentialBeamChannel(100, 4f, 8f, 12f, 0), Is.Zero);
+    }
+
+    // Beyond the radius vanilla delivers nothing and so do we; at the source its curve saturates
+    // because it never clamps the distance, which is the trap that broke the calibrated version.
+    [Test]
+    public void VanillaFalloff_MatchesVanillasOwnEdgeCases()
+    {
+        Assert.That(VectorLightMath.VanillaFalloff(12.5f, 12f), Is.Zero);
+        Assert.That(VectorLightMath.VanillaFalloff(0f, 12f), Is.EqualTo(float.MaxValue));
+        Assert.That(VectorLightMath.VanillaFalloff(6f, 12f), Is.GreaterThan(0f));
+    }
 }

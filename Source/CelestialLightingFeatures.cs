@@ -758,6 +758,32 @@ public static class CelestialLightingFeatures
     // best contrast of any arm at 1.68, against full §27's 1.66 and the crossfade's 1.38.
     public static bool VectorLightMaskBeam = true;
 
+    // Feature key for VectorLightBeamDifferential.
+    public const string VectorLightBeamDifferentialKey = "vector_light_beam_differential";
+
+    // §27 phase 3c: compute the beam as vanilla's own DEFICIT rather than as a flat addition.
+    //
+    // WHAT IT FIXES. VectorLightMaskBeam adds a share of the falloff curve across the whole
+    // visibility polygon. The polygon is the lit region, so it lifts the open room exactly as much as
+    // it lifts the doorway, and the room renders at 1.175x vanilla — reported from play as "the room
+    // itself is too bright", and visible in #154's own table as lit room 10.56 against vanilla's 9.61.
+    // The flat term has no way to ask whether vanilla already delivered enough at a cell.
+    //
+    // This one asks. Per emitter per cell it adds ours(c) - own(c) and nothing else, so where the
+    // straight line and vanilla's geodesic agree — which is everywhere an unobstructed lamp can see —
+    // it adds exactly zero. See VectorLightMath.DifferentialBeamChannel.
+    //
+    // MUTUALLY EXCLUSIVE WITH VectorLightMaskBeam, and the draw enforces it rather than trusting the
+    // scenario: both are the beam, and running them together would add the flat term back on top of
+    // the one that replaced it, which is the over-brightening twice over.
+    //
+    // Rides the SAME bake as the mask. It is accumulated as a negative shadow, so the corner and
+    // centre averaging that already exists carries it and the clamp that already exists bounds it —
+    // no second pass, no fan, and specifically no shader. #151 needed one only because it computed
+    // this difference in a fragment program, where vanilla's per-emitter glow had to be smuggled in
+    // through UV1; the mask already holds that number in C#.
+    public static bool VectorLightBeamDifferential = false;
+
     // Feature key for VectorLightPawnShadows.
     public const string VectorLightPawnShadowsKey = "vector_light_pawn_shadows";
 

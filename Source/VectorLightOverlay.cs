@@ -46,6 +46,14 @@ public static class VectorLightOverlay
         // exception: it keeps this pass running at a reduced strength so the lit region gains the
         // contrast the mask alone cannot produce, over a vanilla that has already had the bent light
         // removed. See CelestialLightingFeatures.VectorLightMaskBeam.
+        // §27 phase 3c REPLACES this pass rather than joining it. The differential beam is the same
+        // beam computed properly and baked into the same vertex colours the mask writes, so leaving
+        // the flat fan running on top would add back exactly the term phase 3c exists to delete —
+        // the over-brightening twice over. Enforced here rather than left to the scenario, because a
+        // mistake shows up as "the fix did nothing" rather than as an error.
+        if (VectorLightMask.Active && CelestialLightingFeatures.VectorLightBeamDifferential)
+            return;
+
         if (VectorLightMask.Active && !CelestialLightingFeatures.VectorLightMaskBeam)
             return;
 

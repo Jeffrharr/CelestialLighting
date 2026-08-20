@@ -1,0 +1,304 @@
+{
+  "name": "vector_light_differential",
+  "saveFile": "minimal_colony.rws",
+  "description": "27 phase 3c. Four arms in ONE boot, because the question is a comparison and cross-run frame diffs on this mod already measure a 7-13 percent nondeterminism floor. Arms: vanilla, mask alone, the flat additive beam that ships today, and the differential beam. THE CLAIM UNDER TEST is that arm 3 lights the doorway like arm 2 while leaving the room like arm 1 -- the flat beam adds over the whole visibility polygon, and the polygon IS the lit region, so it lifts the room to 1.175x vanilla by construction. Arm 1 is load-bearing rather than decorative: it is the only arm that shows what the room looks like with nothing added, so it is what arm 3 has to match. vector_light_mask_available is pinned at 1 in every 27 arm because failing to read the per-emitter glow arrays is a defined STAND-DOWN rather than an error, and an unpinned arm photographs the crossfade while reporting a pass. ROOFED ON PURPOSE. The symptom was reported indoors, and roofing is load-bearing rather than set dressing: VectorLightOverlay.StrengthFor keys its daylight term on Roofed(emitter cell), so an indoor lamp runs at FULL strength at every hour while an outdoor one is attenuated toward zero by daylight -- which is why 0.5 read as acceptable outdoors and too bright indoors. It is also the only configuration where 7b's sky-cover alpha and 17's indoor gates are in play at all. THE ROOM IS ROOFED AND DOORED, taken wholesale from vector_light_open_door.json. A gap in a wall is an opening rather than a room, and the door is the point: it is the one place vanilla's flood is forced to detour, so it is the only place phase 3c is supposed to fire at all.",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Concrete",
+        "width": "40",
+        "height": "24",
+        "offset": "0,45",
+        "clear": "true"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "0,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "-13,-7; -13,-6; -13,-5; -13,-4; -13,-3; -13,-2; -13,-1; -13,0; -13,1; -13,2; -13,3; -13,4; -13,5; -13,6; -13,7; -12,-7; -12,7; -11,-7; -11,7; -10,-7; -10,7; -9,-7; -9,7; -8,-7; -8,7; -7,-7; -7,7; -6,-7; -6,7; -5,-7; -5,7; -4,-7; -4,7; -3,-7; -3,7; -2,-7; -2,7; -1,-7; -1,7; 0,-7; 0,-6; 0,-5; 0,-4; 0,-3; 0,-2; 0,-1; 0,1; 0,2; 0,3; 0,4; 0,5; 0,6; 0,7"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Door",
+        "stuff": "WoodLog",
+        "offset": "0,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "0,0"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "TorchLamp",
+        "offset": "0,45",
+        "layout": "cells",
+        "cells": "-3,0"
+      }
+    },
+    {
+      "type": "SetRoof",
+      "args": {
+        "def": "RoofConstructed",
+        "width": "40",
+        "height": "24",
+        "offset": "0,45"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "0"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "0,45",
+        "zoom": "22"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "warmup_discard.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "d_vanilla.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_suppress",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_beam",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_beam_differential",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_available",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "d_mask_only.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_suppress",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_beam",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_beam_differential",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_available",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "d_flat_beam.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_suppress",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_beam",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_beam_differential",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_available",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "d_differential.png"
+      }
+    }
+  ]
+}

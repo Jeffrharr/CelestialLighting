@@ -218,7 +218,12 @@ public static class VectorLightMask
 
                 // Fully lit is the common case and costs one compare. Checked before the glow read
                 // because the array index is the dearer of the two.
-                if (coverage >= 255)
+                //
+                // §27 phase 3c WANTS the fully lit cells, which the shadow pass has no use for: the
+                // light vanilla owes a cell is only claimable where the polygon says the cell can be
+                // seen, so the deficit lives precisely in the cells this early-out exists to skip.
+                // The shadow-only path keeps the early-out and therefore keeps costing what it did.
+                if (coverage >= 255 && !CelestialLightingFeatures.VectorLightBeamDifferential)
                     continue;
 
                 IntVec3 cell = new IntVec3(x, 0, z);
@@ -244,6 +249,30 @@ public static class VectorLightMask
                 cellShadow[index].r += own.r * shadowed / 255;
                 cellShadow[index].g += own.g * shadowed / 255;
                 cellShadow[index].b += own.b * shadowed / 255;
+
+                // §27 phase 3c, accumulated as a NEGATIVE shadow on purpose. ColorInt is signed and
+                // Subtract already clamps at both ends, so the corner averaging, the centre averaging
+                // and the write-back each carry an addition without knowing they are doing it: no
+                // second buffer, no second pass over the mesh, and the two terms net against each
+                // other per cell rather than fighting as separate lanes.
+                if (CelestialLightingFeatures.VectorLightBeamDifferential)
+                {
+                    // own.a is not a colour. ComputeGlowGridsJob writes the distance its flood
+                    // actually travelled into the alpha channel, so vanilla is telling us how far it
+                    // thinks this light came — the one number §27 needed and could not otherwise get.
+                    // Integer-truncated, so a detour shorter than a cell simply does not register,
+                    // which errs toward adding nothing.
+                    float geodesic = own.a;
+                    float straight = DistanceTo(entry.Cell, x, z);
+
+                    cellShadow[index].r -= VectorLightMath.DifferentialBeamChannel(
+                        own.r, straight, geodesic, entry.Radius, coverage);
+                    cellShadow[index].g -= VectorLightMath.DifferentialBeamChannel(
+                        own.g, straight, geodesic, entry.Radius, coverage);
+                    cellShadow[index].b -= VectorLightMath.DifferentialBeamChannel(
+                        own.b, straight, geodesic, entry.Radius, coverage);
+                }
+
                 any = true;
             }
         }
@@ -358,6 +387,16 @@ public static class VectorLightMask
             ClampByte(colour.g - shadow.g),
             ClampByte(colour.b - shadow.b),
             colour.a);
+    }
+
+    // The UNOBSTRUCTED distance from the emitter to a cell, in vanilla's own octile metric rather
+    // than in Euclidean. Same metric, straight path: vanilla's glow grid measured the same thing the
+    // long way round the walls, so subtracting one from the other leaves exactly the detour and
+    // nothing else. Measuring it in Euclidean instead is what made the first phase 3c lift the whole
+    // room — see VectorLightMath.OctileDistance.
+    private static float DistanceTo(IntVec3 emitter, int x, int z)
+    {
+        return VectorLightMath.OctileDistance(x - emitter.x, z - emitter.z);
     }
 
     private static byte ClampByte(int value)

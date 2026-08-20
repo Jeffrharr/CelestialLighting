@@ -831,6 +831,21 @@ public static class ProbeRegistration
                 CelestialLightingFeatures.VectorLightMaskBeam = enabled;
                 VectorLightRedraw.ForceRebuild();
             });
+        // §27 phase 3c. THREE-ARG OVERLOAD, matching its shipped default of false: registered with
+        // the two-arg one it would reset to TRUE, and every later arm in a suite would silently
+        // measure the differential beam while its own SetFeature said nothing about it.
+        //
+        // Rebuilds because this term is BAKED into the lighting overlay exactly like the mask it
+        // rides in — without it the map keeps rendering the previous arm's bake and an A/B measures
+        // the same frame twice, which is the failure VectorLightRedraw exists to prevent.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightBeamDifferentialKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.VectorLightBeamDifferential = enabled;
+                VectorLightRedraw.ForceRebuild();
+            },
+            defaultEnabled: false);
         FeatureRegistry.Register(
             CelestialLightingFeatures.CivilTwilightPersistenceKey,
             enabled => CelestialLightingFeatures.CivilTwilightPersistence = enabled);
