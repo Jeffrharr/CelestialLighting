@@ -8282,7 +8282,45 @@ both default on; the crossfade survives only as the fallback the code picks for 
 per-emitter glow arrays cannot be read. A player has no way to judge that choice and no reason to be
 asked about it, and the flags remain switchable from the harness for measurement.
 
+**Correction: the beam's level was wrong, and the reasoning that set it was wrong.**
+`MaskBeamStrength` is `DefaultStrength * (1 - DefaultVanillaFloor)` = 0.175, justified above and in
+the source as "exactly what the crossfade already delivers", i.e. a quantity already lived with. That
+equivalence does not hold, and the table in this very section shows it. The crossfade delivers 0.175
+*while `Patch_VectorLightSuppress` has also cut vanilla's artificial light to `DefaultVanillaFloor`
+underneath it* — a **swap**. In mask mode the suppressor returns early at its `ApplyMask` branch, so
+the lit region keeps vanilla's **full** flood and the same 0.175 lands on top as a **lift**. The
+algebra recorded beside the constant says exactly where that ends up: the sum is `(V + k·O)·lit` with
+`O ≈ V`, so the lit region renders at **1.175× vanilla** by construction.
+
+It was measured before it shipped — lit room 9.61 → **10.56** L\* against the crossfade's 9.72, nine
+times the lift — and shipped anyway because the headline was contrast, which the same table showed
+working. It was reported from live play as "the room itself is too bright", which is what 1.175×
+looks like.
+
+**Why the fix is a slider and not a smaller constant.** The beam and the room brightness are the same
+quantity: the polygon *is* the lit region, so nothing can raise the doorway without raising the room
+with it. There is no value that gives the beam back without the lift, only a trade, and where that
+trade should land is a taste call rather than a derivation. So `vectorLightBeamStrength` scales it,
+**1.0 reproduces the shipped level exactly** — the old look stays reachable and comparable in one
+boot — and the default drops to 0.5. That default is **provisional**: a halving chosen to be clearly
+under 1.175× while leaving a visible beam, not a measured landing point. The endpoints are what the
+offline tests pin, because a slider that cannot reproduce what it replaced is a different feature
+rather than a calibration.
+
+The crossfade branch is deliberately **not** scaled by it. Its level is calibrated to conserve rather
+than to lift, so scaling it down would land the fallback path *dimmer* than vanilla — a different bug
+rather than a milder version of this one.
+
 ### §27e: open doors (`vector_light_open_doors`, `Tests/Scenarios/vector_light_open_door.json`)
+
+**It is a settings toggle now**, "Light through open doors", nested under the master switch and still
+defaulting **off**. One switch drives both `vector_light_open_doors` and `vector_light_door_aperture`,
+on the precedent §15's eave switch already sets: with the aperture off, `Building_Door.Open` flips
+true on the first tick of the swing and a full-width beam appears over a door the player can still
+see closing, which is the version nobody would choose and so is not offered as one. Both flags stay
+separate underneath, because filming one against the other is what they exist for.
+`vector_light_door_glow_blocker` stays unexposed — it moves `GroundGlowAt`, and it is a comparison arm
+rather than a shipped choice.
 
 **Problem.** A pawn stands in an open doorway with a torch behind them and the doorway is black. §27
 draws a beam through a *bare* gap in a wall — that is its headline result — but put an ordinary
