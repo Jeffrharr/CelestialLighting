@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
 using Verse;
@@ -47,11 +48,6 @@ public static class VectorLightOverlay
     // Vanilla's delivered glow per vertex, in UV1. Vector4 rather than Vector3 because Unity's mesh
     // API takes UV channels as float4 and a float3 overload would silently pad anyway.
     private static readonly List<Vector4> VanillaUvs = new List<Vector4>();
-
-    // Scratch for the field upload, grown rather than allocated per emitter: a radius-14 lamp is a
-    // 29x29 field and a colony rebaking after a toggle would otherwise put a fresh array through the
-    // collector for every light on screen.
-    private static Color32[] FieldPixels = new Color32[0];
 
     private static readonly List<Vector3> Verts = new List<Vector3>();
     private static readonly List<Vector2> Uvs = new List<Vector2>();
@@ -427,12 +423,24 @@ public static class VectorLightOverlay
         };
     }
 
+    // WRITTEN INTO THE TEXTURE'S OWN BUFFER, NOT THROUGH SetPixels32. The array overload demands an
+    // array of EXACTLY width*height, which a scratch buffer shared between emitters cannot promise:
+    // this used to grow a static Color32[] to the largest field seen and hand the whole thing over, so
+    // the first smaller emitter to upload — a radius-3 torch drawn after a radius-14 sun lamp — threw
+    // "the size of data to be written would result in writing outside the target buffer bounds". From
+    // a Postfix on GameConditionManagerDraw that throw is not local: it aborts the rest of the draw
+    // chain (§11a's aurora, §23b's cloud underlight, §24's snow glare) for the frame, every frame.
+    //
+    // Sizing the scratch exactly would fix the throw and give back the allocation the buffer existed
+    // to avoid, once per emitter per frame whenever two radii alternate on screen. GetRawTextureData
+    // gives up nothing instead: it is a NativeArray view of the texture's own RGBA32 storage, already
+    // exactly diameter*diameter Color32s in the row order SetPixels32 was writing, so the copy stays a
+    // straight per-texel write with no second buffer to keep in step. Same argument as
+    // AuroraCurtainOverlay's LoadRawTextureData, one step further: no intermediate array at all.
     private static void CopyField(Texture2D field, UnsafeList<Color32> colors, int diameter)
     {
         int count = diameter * diameter;
-
-        if (FieldPixels.Length < count)
-            FieldPixels = new Color32[count];
+        NativeArray<Color32> texels = field.GetRawTextureData<Color32>();
 
         for (int i = 0; i < count; i++)
         {
@@ -444,10 +452,9 @@ public static class VectorLightOverlay
             // rgb only, but leaving distance in alpha is the kind of thing that becomes a bug the
             // first time somebody adds an alpha term.
             glow.a = 255;
-            FieldPixels[i] = glow;
+            texels[i] = glow;
         }
 
-        field.SetPixels32(FieldPixels);
         field.Apply(updateMipmaps: false);
     }
 
