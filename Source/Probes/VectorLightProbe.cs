@@ -95,6 +95,24 @@ public sealed class VectorLightProbe : IProbe
 
         MaskLiftPeak,
 
+        // §27 phase 5b: how many cells the last rebake found over vanilla's 255 ceiling and rewrote,
+        // how many it declined to rewrite, and the largest number of levels it took OFF a shadow.
+        //
+        // THE SAME PAIRING RULE AS THE LIFT ABOVE, and a third number because this correction has two
+        // ways of doing nothing rather than one. Samples at zero means no cell in the scene saturated
+        // — correct for a one-lamp room and a bake that never ran for a six-lamp ring, and the way to
+        // tell those apart is to build the ring on purpose. Skipped counts cells where our
+        // reconstruction of vanilla's sum did not reproduce vanilla's own displayed value, which
+        // happens for mixed-hue emitters and nothing else; a run where Skipped is large and Samples
+        // is small is measuring the fallback rather than the fix. Relief is the size of the bug being
+        // corrected, in levels of glow, so a scenario can say how much of a shadow was spurious
+        // rather than only that some of it was.
+        MaskSaturatedSamples,
+
+        MaskSaturationSkipped,
+
+        MaskSaturationRelief,
+
         // §27 phase 4, issue #159: where on a colonist the lamp shadow is anchored, as the z offset
         // from DrawPos, and how wide that footprint is.
         //
@@ -192,6 +210,15 @@ public sealed class VectorLightProbe : IProbe
 
         if (metric == Metric.MaskLiftPeak)
             return VectorLightMask.LiftPeak;
+
+        if (metric == Metric.MaskSaturatedSamples)
+            return VectorLightMask.SaturatedSamples;
+
+        if (metric == Metric.MaskSaturationSkipped)
+            return VectorLightMask.SaturationSkipped;
+
+        if (metric == Metric.MaskSaturationRelief)
+            return VectorLightMask.SaturationRelief;
 
         if (map == null)
             return 0f;

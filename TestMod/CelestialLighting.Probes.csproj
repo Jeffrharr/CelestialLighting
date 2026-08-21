@@ -66,6 +66,11 @@
     <!-- §27e: vanilla's gameplay light at a named cell, the only probe that can tell the drawn-only
          arm from the glow-grid-driven one, since our polygon is identical in both. -->
     <Compile Include="../Source/Probes/GlowGridCellProbe.cs" Link="GlowGridCellProbe.cs" />
+    <!-- §27 phase 5b: what a named cell actually RENDERS at, read out of the lighting overlay's own
+         vertex colours. The glow-grid probe above cannot see the mask at all — §27 deliberately
+         never touches gameplay light — so this is the only probe that can hold a monotonicity
+         property about the composed level. Carries the RGB-vs-alpha warning at its head. -->
+    <Compile Include="../Source/Probes/RenderedLightCellProbe.cs" Link="RenderedLightCellProbe.cs" />
     <!-- §27e phase 2: aperture, watched-door count, and rebakes-per-swing. The last is the number
          the performance claim rests on; a timing probe cannot see a call count change. -->
     <Compile Include="../Source/Probes/DoorApertureProbe.cs" Link="DoorApertureProbe.cs" />

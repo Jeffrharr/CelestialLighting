@@ -1,0 +1,1803 @@
+{
+  "name": "vector_light_column",
+  "saveFile": "minimal_colony.rws",
+  "description": "ONE WALL COLUMN, AND TORCHES ADDED AROUND IT ONE ARM AT A TIME. A single free-standing wall cell sits on bare concrete at midnight. Six torches are placed around it four cells out, in four stages \u2014 one, two, four, six \u2014 and the rendered light level is read at four cells beside the column after every stage. The stages are NESTED: each one keeps the torches the previous one placed and adds to them, so the sweep really is \"another lamp was switched on\" rather than four different scenes.  THE PROPERTY, WHICH IS A DIRECTION AND NOT A NUMBER:      adding a torch never lowers a cell's level  Reported from play the other way round \u2014 ring lamps around a column and the shadows get DEEPER as lamps are added, which is backwards: every lamp you add fills in part of the region the others cannot see. See DESIGN.md \u00a727 phase 5b for the arithmetic, and VectorLightSaturationMathTests for the same sweep run offline against a transcription of vanilla's own flood.  VANILLA IS THE ORACLE AND IS ONE OF THE ARMS. Its glow grid is unambiguously monotone here \u2014 the raw sum can only grow \u2014 so the vanilla column of this table is what \"monotone\" means, measured rather than argued. Three arms per stage:      vanilla     \u00a727 off entirely. The oracle.     old         \u00a727 with vector_light_mask_saturation OFF: the composition as it shipped, which                 subtracts each blocked torch's raw contribution out of a byte vanilla has already                 scaled down. This is the arm that must run the wrong way.     corrected   the same with the flag on.  The `old` arm is not decoration. A monotonicity scenario in which every arm passes is a scenario whose scene never saturated, and that is precisely how a direction-shaped bug survives a green run.  THE LEVEL IS THE MAX CHANNEL, not luminance. ColorInt.ProjectToColor32 normalises the three channels against their shared peak, so the property is FALSE per channel for vanilla itself \u2014 add a green lamp to a red-lit cell and the red channel genuinely falls. Only the peak is monotone, and it is also exactly what GlowGrid.GroundGlowAt reads.",
+  "steps": [
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "realistic_preset",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Concrete",
+        "width": "24",
+        "height": "24",
+        "offset": "0,45",
+        "clear": "true"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "0,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "0,0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "0"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "0,45",
+        "zoom": "16"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_available",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_suppress",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_beam",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_saturation",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_open_doors",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "column_warmup_discard.png"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "TorchLamp",
+        "offset": "0,45",
+        "layout": "cells",
+        "cells": "2,0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_count",
+        "expectedValue": "4",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_suppress",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_beam",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_saturation",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_open_doors",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "column_behind",
+        "expectedValue": "62",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "column_behind_far",
+        "expectedValue": "38",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "column_north",
+        "expectedValue": "77",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "column_northwest",
+        "expectedValue": "62",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturated_samples",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturation_skipped",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturation_relief",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "column_1_vanilla.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_suppress",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_beam",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_saturation",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_open_doors",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "column_behind",
+        "expectedValue": "20",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "column_behind_far",
+        "expectedValue": "0",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "column_north",
+        "expectedValue": "63",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "column_northwest",
+        "expectedValue": "33",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturated_samples",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturation_skipped",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturation_relief",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "column_1_old.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_suppress",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_beam",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_saturation",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_open_doors",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "column_behind",
+        "expectedValue": "20",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "column_behind_far",
+        "expectedValue": "0",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "column_north",
+        "expectedValue": "63",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "column_northwest",
+        "expectedValue": "33",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturated_samples",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturation_skipped",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturation_relief",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "column_1_corrected.png"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "TorchLamp",
+        "offset": "0,45",
+        "layout": "cells",
+        "cells": "-2,0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_count",
+        "expectedValue": "5",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_suppress",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_beam",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_saturation",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_open_doors",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "column_behind",
+        "expectedValue": "168",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "column_behind_far",
+        "expectedValue": "144",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "column_north",
+        "expectedValue": "156",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "column_northwest",
+        "expectedValue": "159",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturated_samples",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturation_skipped",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturation_relief",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "column_2_vanilla.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_suppress",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_beam",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_saturation",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_open_doors",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "column_behind",
+        "expectedValue": "123",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "column_behind_far",
+        "expectedValue": "106",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "column_north",
+        "expectedValue": "126",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "column_northwest",
+        "expectedValue": "127",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturated_samples",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturation_skipped",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturation_relief",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "column_2_old.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_suppress",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_beam",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_saturation",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_open_doors",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "column_behind",
+        "expectedValue": "123",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "column_behind_far",
+        "expectedValue": "106",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "column_north",
+        "expectedValue": "126",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "column_northwest",
+        "expectedValue": "127",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturated_samples",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturation_skipped",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturation_relief",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "column_2_corrected.png"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "TorchLamp",
+        "offset": "0,45",
+        "layout": "cells",
+        "cells": "1,2; -1,-2"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_count",
+        "expectedValue": "7",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_suppress",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_beam",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_saturation",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_open_doors",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "column_behind",
+        "expectedValue": "255",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "column_behind_far",
+        "expectedValue": "241",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "column_north",
+        "expectedValue": "255",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "column_northwest",
+        "expectedValue": "255",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturated_samples",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturation_skipped",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturation_relief",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "column_4_vanilla.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_suppress",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_beam",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_saturation",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_open_doors",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "column_behind",
+        "expectedValue": "172",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "column_behind_far",
+        "expectedValue": "201",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "column_north",
+        "expectedValue": "182",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "column_northwest",
+        "expectedValue": "204",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturated_samples",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturation_skipped",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturation_relief",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "column_4_old.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_suppress",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_beam",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_saturation",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_open_doors",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "column_behind",
+        "expectedValue": "229",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "column_behind_far",
+        "expectedValue": "215",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "column_north",
+        "expectedValue": "234",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "column_northwest",
+        "expectedValue": "241",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturated_samples",
+        "expectedValue": "40",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturation_skipped",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturation_relief",
+        "expectedValue": "72",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "column_4_corrected.png"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "TorchLamp",
+        "offset": "0,45",
+        "layout": "cells",
+        "cells": "-1,2; 1,-2"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_count",
+        "expectedValue": "9",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_suppress",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_beam",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_saturation",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_open_doors",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "column_behind",
+        "expectedValue": "255",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "column_behind_far",
+        "expectedValue": "255",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "column_north",
+        "expectedValue": "255",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "column_northwest",
+        "expectedValue": "255",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturated_samples",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturation_skipped",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturation_relief",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "column_6_vanilla.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_suppress",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_beam",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_saturation",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_open_doors",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "column_behind",
+        "expectedValue": "134",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "column_behind_far",
+        "expectedValue": "212",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "column_north",
+        "expectedValue": "138",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "column_northwest",
+        "expectedValue": "154",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturated_samples",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturation_skipped",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturation_relief",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "column_6_old.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_suppress",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_beam",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_saturation",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_open_doors",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "column_behind",
+        "expectedValue": "255",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "column_behind_far",
+        "expectedValue": "255",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "column_north",
+        "expectedValue": "255",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "column_northwest",
+        "expectedValue": "255",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturated_samples",
+        "expectedValue": "85",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturation_skipped",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturation_relief",
+        "expectedValue": "168",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "column_6_corrected.png"
+      }
+    }
+  ]
+}
