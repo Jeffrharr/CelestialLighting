@@ -2202,6 +2202,64 @@ public class ApiCompatibilityTests
         Assert.That(method!.ReturnType.FullName, Is.EqualTo("UnityEngine.Vector2"));
     }
 
+    // --- §27 phase 5b: the glow grid's accumulated value and its projection ---
+    //
+    // WHAT THESE GUARD, and why the pair rather than either alone. VectorLightMask.CorrectCell asks
+    // vanilla what it DISPLAYED at a cell (`GlowGrid.VisualGlowAt`) and reconstructs how vanilla got
+    // there by summing the per-emitter arrays and applying vanilla's own projection. The projection
+    // is reimplemented in VectorLightSaturationMath rather than called — it is four lines of integer
+    // arithmetic on a struct — so the risk is not that a call site breaks but that the OPERATOR
+    // changes underneath a copy of it that goes on compiling. If `ProjectToColor32Fast` stops
+    // existing, the odds are that the rule it encodes has changed too, and phase 5b's whole premise
+    // ("over 255 vanilla scales the colour rather than clipping the channel") needs re-reading.
+    //
+    // A Cecil test can only say the members exist. That is exactly the failure it is here for: a
+    // silent rename would leave the mask reading a stale reflection path and standing down, or
+    // reconstructing against a projection vanilla no longer performs — neither of which shows up as
+    // an error at run time.
+
+    [Test]
+    public void GlowGrid_VisualGlowAt_TakesACell()
+    {
+        var type = GetType("Verse.GlowGrid");
+        Assert.That(type, Is.Not.Null, "Verse.GlowGrid no longer exists");
+
+        var method = type!.Methods.SingleOrDefault(m => m.Name == "VisualGlowAt"
+            && m.Parameters.Count == 1
+            && m.Parameters[0].ParameterType.FullName == "Verse.IntVec3");
+
+        Assert.That(method, Is.Not.Null, "GlowGrid.VisualGlowAt(IntVec3) no longer exists");
+        Assert.That(method!.ReturnType.FullName, Is.EqualTo("UnityEngine.Color32"));
+    }
+
+    // The two private fields §27 phase 3 reads by reflection, and phase 5b now walks in full to
+    // reconstruct vanilla's sum. GlowGridPerLight treats an unreadable pair as a defined stand-down,
+    // so a rename here costs the whole subsystem silently at run time and must fail loudly at build.
+    [Test]
+    public void GlowGrid_HasPerLightFieldsWeReadByReflection()
+    {
+        var type = GetType("Verse.GlowGrid");
+        Assert.That(type, Is.Not.Null, "Verse.GlowGrid no longer exists");
+        Assert.That(type!.Fields.Any(f => f.Name == "lights"), Is.True,
+            "GlowGrid.lights no longer exists — GlowGridPerLight cannot enumerate emitters");
+        Assert.That(type.Fields.Any(f => f.Name == "glowPool"), Is.True,
+            "GlowGrid.glowPool no longer exists — GlowGridPerLight cannot read per-emitter glow");
+    }
+
+    [Test]
+    public void ColorInt_StillProjectsRatherThanClipping()
+    {
+        var type = GetType("Verse.ColorInt");
+        Assert.That(type, Is.Not.Null, "Verse.ColorInt no longer exists");
+        Assert.That(type!.Methods.Any(m => m.Name == "ProjectToColor32Fast"), Is.True,
+            "ColorInt.ProjectToColor32Fast no longer exists — re-read whether the glow grid still "
+            + "SCALES an over-255 sum by 255/max instead of clipping each channel, which is the "
+            + "premise VectorLightSaturationMath is built on");
+        Assert.That(type.Methods.Any(m => m.Name == "ProjectToColor32"), Is.True,
+            "ColorInt.ProjectToColor32 no longer exists — SectionLayer_LightingOverlay's own vertex "
+            + "projection, which the offline sweep transcribes");
+    }
+
     // --- helpers ---
 
     private TypeDefinition? GetType(string fullName) =>

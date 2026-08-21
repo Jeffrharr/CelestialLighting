@@ -79,6 +79,36 @@ public static class GlowGridPerLight
 
         public static long KeyFor(int id, bool isTerrain) => ((long)id << 1) | (isTerrain ? 1L : 0L);
 
+        // EVERY emitter on the map, ours and everybody else's, indexed positionally.
+        //
+        // WHY THE WHOLE LIST AND NOT JUST OURS. §27 phase 5b has to reconstruct the sum vanilla
+        // PROJECTED, and vanilla projected a sum over every light reaching the cell — a mod's lamp,
+        // a glowing plant, a fire. Reconstructing it from our own field's entries alone would
+        // under-count the sum, read the cell as unsaturated and leave the over-subtraction exactly
+        // where it was in the case most likely to saturate: a room several mods are all lighting.
+        //
+        // Positional rather than keyed because the caller wants to walk them all once; the
+        // dictionary above exists for the opposite question, "where is this one emitter".
+        public int LightCount => lights.Length;
+
+        public bool TryLightAt(int index, out GlowLight light, out UnsafeList<Color32> colors)
+        {
+            light = default;
+            colors = default;
+
+            if (index < 0 || index >= lights.Length)
+                return false;
+
+            light = lights[index];
+            LocalGlowArea area = pool[light.localGlowPoolIndex];
+
+            if (!area.colors.IsCreated)
+                return false;
+
+            colors = area.colors;
+            return true;
+        }
+
         // One emitter resolved ONCE, so the caller can then walk its cells with plain array
         // arithmetic.
         //
