@@ -378,6 +378,33 @@ public static class ProbeRegistration
         ProbeRegistry.Register(new CircinusProbe("circinus_ours_total_ms", CircinusProbe.Metric.TotalMs, suppress, "Postfix"));
         ProbeRegistry.Register(new CircinusProbe("circinus_ours_max_ms", CircinusProbe.Metric.MaxMs, suppress, "Postfix"));
 
+        // §7b's postfix, armed directly, for the same reason the §27 block above arms its own: the
+        // whole-bake row cannot separate our cost from the 795 ms vanilla spends baking 112 sections.
+        //
+        // WHY A SECOND ARM ON THE SAME VANILLA METHOD. Both this and circinus_ours_* postfix
+        // SectionLayer_LightingOverlay.Regenerate, so a scenario reading both gets two of the three
+        // terms in circinus_regen_* separately — which is what the §16 fan-out table could never do.
+        //
+        // The A/B this exists for compares the SAME arm across two BUILDS, not two arms in one run,
+        // and that is the only comparison the numbers support: Circinus's instrumentation overhead is
+        // roughly fixed per call, so it cancels between builds that make the same number of calls (a
+        // whole-map rebake bakes the same sections either way) and does not cancel between one method
+        // and another. Read total_ms/calls, not avg_ms: a rebake is not guaranteed to bake the same
+        // number of sections twice, and a per-cycle mean silently mixes "cheaper per call" with
+        // "called fewer times". circinus_occl_calls is pinned in the scenario for exactly that.
+        const string occlusion = "CelestialLighting.Patch_IndoorSkyOcclusion";
+        ProbeRegistry.Register(new CircinusProbe("circinus_occl_patched", CircinusProbe.Metric.Patched, occlusion, "Postfix"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_occl_calls", CircinusProbe.Metric.Calls, occlusion, "Postfix"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_occl_total_ms", CircinusProbe.Metric.TotalMs, occlusion, "Postfix"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_occl_max_ms", CircinusProbe.Metric.MaxMs, occlusion, "Postfix"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_occl_max_calls", CircinusProbe.Metric.MaxCallsPerCycle, occlusion, "Postfix"));
+
+        // The barrier between the discarded warm-up rebake and the measured one. CollectStatistics
+        // accumulates across Circinus's whole 2000-cycle ring, so without a reset the measured rebake
+        // would be reported with the feature-off rebake that preceded it still inside it — which
+        // flatters whichever build ran the cheap early-returning pass more recently.
+        ProbeRegistry.Register(new CircinusProbe("circinus_occl_reset", CircinusProbe.Metric.Reset, occlusion, "Postfix"));
+
         // One recorded run per arm. The label is the only thing separating one run document from
         // another, so there is a start probe per arm rather than one taking an argument — the
         // scenario language has no way to pass a string, and an arm whose document is mislabelled is
