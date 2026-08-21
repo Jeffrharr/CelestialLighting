@@ -35,6 +35,13 @@ namespace CelestialLighting;
 // these passes later belongs in the window too; the comment above claiming this runs "never per
 // frame" is what made the drift easy to miss, and it is only true of a colony with no lit torches.
 //
+// Measured after the fix (Tests/Scenarios/perf_indoor_occlusion.json, 7 interleaved runs per build,
+// 1,120 postfix calls each): 729.6 -> 238.9 µs/call median, 3.05x, and the two arms do not overlap —
+// the slowest memo run is still 2.3x faster than the fastest main one. The whole vanilla bake this
+// sits inside went 814 -> 310 µs/call, i.e. the postfix was 90% of it and is now 77%. Interleave the
+// arms if you re-measure: two runs of ONE build came out 883 ms and 2151 ms on this machine, so a
+// block design would hand whichever arm ran in the quiet half a win it did not earn.
+//
 // Why Priority.First:
 //   Dub's Skylights brackets this same method — its Prefix nulls map.roofGrid for skylit cells so
 //   vanilla's roofed branch never fires, and its Postfix puts the roofs back. Running first means we

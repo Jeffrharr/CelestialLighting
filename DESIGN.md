@@ -918,6 +918,27 @@ reads `map.roofGrid` / `map.edificeGrid` and rewrites `mesh.colors32`.
   the worst input for an indexing change, since reading the neighbouring cell still gives nearly the
   right answer — and a lookup counter of its own. **Anything a later section adds to these two passes
   belongs in the window**; the rule is what this subsystem now has instead of a comment that ages.
+- **Measured, the memo is 3.05x on the postfix**, and the arms do not overlap.
+  `Tests/Scenarios/perf_indoor_occlusion.json` drives 60 whole-map rebakes over 360 rendered frames on
+  a roofed, lamp-lit scene, seven interleaved runs per build, 1,120 postfix calls in every run:
+
+  | | median µs/call | range | vanilla `Regenerate` it sits inside |
+  |---|---|---|---|
+  | `main` | 729.6 | 683.8 – 774.1 | 814 µs/call — the postfix is **90%** of the whole bake |
+  | memo | 238.9 | 225.8 – 297.1 | 310 µs/call — the postfix is **77%** |
+
+  Three things about that table are worth more than the ratio. **The arms are separated by more than
+  the noise**: the slowest memo run beats the fastest main run by 2.3x, which is the only reason seven
+  runs each was enough. **Interleave, do not block**: two runs of the *same* build came out 883 ms and
+  2151 ms here, so A,B,A,B,… is what keeps a drifting machine from handing one arm a win it did not
+  earn. And **one memo run recorded 532 calls rather than 1,120** and reported 678 µs/call — a machine
+  hitch, not a shed arm, since the same run's vanilla-`Regenerate` row moved with it; it is quoted in
+  the range above rather than dropped, and it is why the scenario pins the call count next to the
+  timing. Behaviour is unchanged and was checked rather than assumed: `native_falloff_fraction` reads
+  0.48 and `native_falloff_depth` 4 in all fourteen runs, and the cross-build frame ΔE (median 0.000,
+  p90 0.701, 12.8% of pixels moving) is *smaller on every statistic* than the same-build control
+  (median 0.000, p90 0.713, 13.2%) — that ~13% is the harness's own run-to-run drift, and a cross-arm
+  diff without the control would have read it as this change's doing.
 - Skipped entirely on `disableSkyLighting` biomes (the Odyssey undercave), where vanilla already zeroes
   the sky contribution wholesale; there is nothing to occlude and overriding it would fight that contract.
 
@@ -2858,7 +2879,18 @@ to 361). Two things follow for anyone reading this table next:
 - **A per-section cost table dates as fast as the sections it measures.** Read the date before
   trusting a row, and re-measure rather than citing.
 - **A whole-table re-measure is owed**, this time under Circinus for the call counts Dubs omits.
-  Until it happens, the rows above describe a build from July, and the §7b row is known wrong.
+  Until it happens, the rows above describe a build from July.
+
+The §7b row has since been re-measured on its own (2026-08-21, `perf_indoor_occlusion.json`, seven
+interleaved runs per build): **729.6 µs/call before the memo, 238.9 after**, with the whole vanilla
+`Regenerate` it sits inside going 814 → 310. §7b's own write-up carries the table and the method. Two
+consequences for the six rows above, neither of them yet acted on: the postfix was **90% of the entire
+lighting-overlay bake** at the point that table was written and is now 77%, so its 24% share of "what
+the mod adds" was already badly understated by July's numbers; and the other five rows have had a
+month of unrelated changes land on them under exactly the same conditions that let §7b drift. The
+instrument now exists — arm the layer, drive rebakes, interleave the arms — so the honest next step is
+to point it at `SectionLayer_NightDesaturation`, which the verdict below still names as the largest
+term on the strength of a July measurement.
 
 In wall-clock terms a roof edit dirties its own section plus the sections of the eight adjacent
 cells — at most four distinct sections — so roofing a 10x10 room costs on the order of 2.2 ms with
@@ -2943,10 +2975,11 @@ only. The new-moon arm of the scenario exists to keep that branch proven rather 
   when `!Visible` would drop the layer to nothing for every player who has the feature off, since
   `TryUpdate` will not do it for us.
 - **§7b's 95 µs postfix** is the second-largest term and belongs to the companion issue about the
-  augmented lighting overlay, now with a number attached. (Which then grew to 790 µs and was brought
-  back down — see the dated caveat under the table above. Note that fix and §9's (1) here are the
-  *same bug twice*: a per-cell live-grid read placed inside a per-vertex lattice walk. §9 still has
-  its version, at 2601 `GroundGlowAt` calls per section.)
+  augmented lighting overlay, now with a number attached. (Which then grew to 790 µs and has been
+  measured back down to 238.9 — see the dated caveat under the table above. Note that fix and §9's (1)
+  here are the *same bug twice*: a per-cell live-grid read placed inside a per-vertex lattice walk.
+  §9 still has its version, at 2601 `GroundGlowAt` calls per section — and it is now the one plausible
+  candidate for the largest term in the mod, measured with the same instrument §7b's fix was.)
 
 ### The flag we used to raise ourselves (§3, issues #11 and #26)
 
