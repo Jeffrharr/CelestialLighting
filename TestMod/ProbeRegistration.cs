@@ -281,6 +281,26 @@ public static class ProbeRegistration
             new GlowGridCellProbe("door_outside_ground_glow", new IntVec3(1, 0, 45)));
         ProbeRegistry.Register(
             new GlowGridCellProbe("door_inside_ground_glow", new IntVec3(-1, 0, 45)));
+        // Issue #174 phase 3, vector_light_wall_lamp.json. The wall lamp's own cell, local (-2, 0)
+        // of the same room, i.e. two cells inside the doorway on the wall opposite it.
+        //
+        // A POWER CHECK WEARING A LIGHTING PROBE'S CLOTHES, and it is registered because the failure
+        // it guards against is indistinguishable from the bug being investigated. The scenario runs
+        // a real WallLamp off a real generator, so "the lamp casts no rays" and "the conduit never
+        // energised, or the clock never ticked far enough for PowerNet to notice" produce the same
+        // black frame and the same zero from every vector_light_* probe. Vanilla's own glow at the
+        // emitter is the one number that is high when the lamp is lit whatever our polygon does.
+        ProbeRegistry.Register(
+            new GlowGridCellProbe("wall_lamp_cell_glow", new IntVec3(-2, 0, 45)));
+        // The same three readings over that scenario's SECOND room, ten cells south, whose lamp
+        // hangs on the door's own wall instead of the one opposite it. Its doorway is local (0, -10),
+        // i.e. offset (0, 35) from centre, and its lamp is one cell north of that at (-1, 36).
+        ProbeRegistry.Register(
+            new GlowGridCellProbe("wall_lamp2_cell_glow", new IntVec3(-1, 0, 36)));
+        ProbeRegistry.Register(
+            new GlowGridCellProbe("door2_outside_ground_glow", new IntVec3(1, 0, 35)));
+        ProbeRegistry.Register(
+            new GlowGridCellProbe("door2_inside_ground_glow", new IntVec3(-1, 0, 35)));
         // §27e phase 2, vector_light_door_aperture.json. The door sits at local (0, 0) of that
         // scenario's room, i.e. offset (0, 45) from centre.
         ProbeRegistry.Register(new DoorApertureProbe(
