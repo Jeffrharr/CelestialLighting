@@ -9243,6 +9243,56 @@ it would be entirely invisible to a whole-frame median — which is why the reac
 what this fix is signed off on. It is also why the scenario puts a *second lamp* in the far room: on
 unlit ground the same bug photographs as nothing at all.
 
+### Phase 4d: what vanilla's shadow actually does along its length (`vector_light_shadow_reference`)
+
+Phase 4c matched vanilla's *silhouette*. What still reads as a different kind of object is the
+opacity, and epic #174 named a suspect for it: `MatBases.SunShadowFade`, "its texture feathers the
+shadow along its length". **That mechanism is wrong, and it is worth writing down because it would
+have sent the fix looking for a texture we cannot reach.** `Custom/Sun shadow fade` is a genuinely
+separate shader from `Custom/Sun shadow` — both strings appear in `resources.assets` — but it
+declares exactly one property, `_Color` ("Sun shadow color"), and samples **no texture at all**.
+`MeshMakerShadows.NewShadowMesh` assigns no UVs either, so there is nothing for a texture to be
+indexed by. The gradient is carried by the interpolated vertex-colour channel — the same alpha that
+`_CastVect` multiplies to extrude the skirt, running 0 at the footprint to `tallness` at the tip.
+
+So the fade is free of any texture, and the question phase 4 has to answer is not "which texture" but
+"what curve". **Measured, not assumed**, from `vector_light_shadow_reference.json` — two colonists in
+one frame, each carrying exactly one kind of shadow, opacity binned along each shadow's own length
+and normalised to its value at the caster:
+
+| along the shadow | lamp α (ours) | normalised | sun α (vanilla) | normalised |
+|---|---|---|---|---|
+| 0.0–0.1 (at the pawn) | 0.2502 | 1.000 | 0.1001 | 1.000 |
+| 0.2–0.3 | 0.2494 | 0.997 | 0.0710 | 0.709 |
+| 0.4–0.5 | 0.2488 | 0.995 | 0.0569 | 0.568 |
+| 0.6–0.7 | 0.2584 | 1.033 | 0.0472 | 0.471 |
+| 0.9–1.0 (at the tip) | 0.2502 | 1.000 | 0.0396 | **0.396** |
+
+**Ours is flat to within ±4% end to end; vanilla's keeps about 40% of its opacity at the tip and
+loses it fastest near the caster.** A hyperbola `α(t) = 1/(1 + 1.6·t)` reproduces the vanilla column
+to within 0.02 at every bin, which is the shape a linearly-interpolated attribute takes across a
+projected quad — but ten bins over one capture is not enough to sign off a functional form, so what
+this section pins is the **endpoint ratio 0.396 and the monotone decrease**, not the formula.
+
+**Why this scenario and not `vector_light_pawn_shadow_anchor`.** That one deliberately puts both
+shadows on the *same* pawn, because #159 was about where a shadow leaves its caster and the two have
+to leave from one place. Overlapping shadows are exactly what makes an opacity profile unreadable,
+so this scenario separates them: the indoor colonist is in a sealed roofed room, where vanilla's
+`Graphic_Shadow` bails on every cell and so every shadow is ours; the outdoor colonist is nine cells
+away with no lamp able to see them, so every shadow is vanilla's. The sun frames double as a
+**control** — no lamp reaches the outdoor pawn, so the two arms' sun captures must be pixel-identical,
+and they are (0 pixels differing, worst 0.00).
+
+The lamp shadow's own A/B (`vector_light_pawn_shadows` off → on) is masked median CIELAB ΔE **5.96**
+(p90 6.48, max 7.17) over the 2,003 pixels it touches — 0.097% of the frame, so the whole-frame
+median is 0.00, which is the usual reading a bounded object gives.
+
+**The opacity probes are pinned here, and unlike phase 4c they are expected to move.** `peak` and
+`rosette` both read **0.2402** for this single-lamp geometry, against a rendered 0.2502 — model and
+pixels agree to within a percent, which is what makes them usable as the before-side of a feathering
+change. Any fix that grades the alpha along the extrusion *must* move at least one of them, and a fix
+that leaves both untouched has changed the material rather than the shadow.
+
 
 ### §27 phase 5: the max as the mask's lift (`VectorLightLiftMath`, `vector_light_mask_max`, issue #151)
 
