@@ -1,7 +1,7 @@
 {
  "name": "occlusion_cost_split",
  "saveFile": "minimal_colony.rws",
- "description": "Splits indoor sky occlusion's postfix into its two halves, to answer whether the cost is the INDOORS VERDICT or the SKY-FALLOFF TERM. Three readings of the same layer: with everything on, with both arms of SkyFalloffSource switched off (so FractionAt returns 0 after two branch tests and what remains is the roof/edifice/room verdict plus the vertex writes), and with the postfix off entirely. Vector lights are held OFF throughout so the 112.6 us that postfix costs is not sitting inside every reading. Same scene and clock as layer_regen_timing.json, deliberately, so the numbers sit next to the table that file produced. Everything is RECORDED, not asserted.",
+ "description": "Splits indoor sky occlusion's postfix into its two halves, to answer whether the cost is the INDOORS VERDICT or the SKY-FALLOFF TERM. Three readings of the same layer: with everything on, with both arms of SkyFalloffSource switched off (so FractionAt returns 0 after two branch tests and what remains is the roof/edifice/room verdict plus the vertex writes), and with the postfix off entirely. Vector lights are held OFF throughout so the 112.6 us that postfix costs is not sitting inside every reading. Same scene and clock as layer_regen_timing.json, deliberately, so the numbers sit next to the table that file produced. Everything is RECORDED, not asserted. FOURTH ARM: passthrough off with the native BFS still on, because the two arms of SkyFalloffSource are not the same kind of cost -- the passthrough makes two live glow-grid calls per cell (one of them the patched GroundGlowAt), the native arm indexes a grid that is already built. Which of the two the falloff term actually is decides whether this needs a cache with an invalidation surface or just a gate.",
  "steps": [
   {
    "type": "SetTile",
@@ -118,6 +118,28 @@
     "probeName": "regen_us_lighting_overlay",
     "expectedValue": "0",
     "tolerance": "1000000"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_glow_passthrough",
+    "enabled": "false"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "regen_us_lighting_overlay",
+    "expectedValue": "0",
+    "tolerance": "1000000"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_glow_passthrough",
+    "enabled": "true"
    }
   },
   {

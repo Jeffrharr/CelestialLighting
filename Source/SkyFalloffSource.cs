@@ -61,4 +61,68 @@ public static class SkyFalloffSource
         return SkyFalloffArbitration.Resolve(
             fromOtherMod, ownerPresent: false, nativeEnabled: true, native);
     }
+
+    // The same dispatch, bound once for a caller about to ask about a whole section's worth of cells.
+    // See NativeSkyFalloffGrid.Reader for the measurement that motivated it; this half hoists what
+    // FractionAt above re-reads per cell -- the two feature flags, UnderRoofFalloffOwner.Present, the
+    // settings object and CurSkyGlow.
+    //
+    // The ARBITRATION stays per cell, and must: which source answers depends on whether the other mod
+    // contributed anything *at this cell*, which is the one input here that genuinely varies within a
+    // section. Only what cannot vary is hoisted.
+    public readonly struct SectionReader
+    {
+        private readonly Map map;
+        private readonly bool ownerPresent;
+        private readonly bool nativeEnabled;
+        private readonly NativeSkyFalloffGrid.Reader native;
+
+        internal SectionReader(
+            Map map, bool ownerPresent, bool nativeEnabled, NativeSkyFalloffGrid.Reader native)
+        {
+            this.map = map;
+            this.ownerPresent = ownerPresent;
+            this.nativeEnabled = nativeEnabled;
+            this.native = native;
+        }
+
+        public float FractionAt(IntVec3 cell)
+        {
+            float fromOtherMod = IndoorGlowPassthrough.SkyFractionAt(map, cell);
+
+            // Same short-circuit as the per-cell path, for the same reason. The difference is only that
+            // deciding it costs nothing here: the answer was resolved when the reader was built.
+            if (fromOtherMod > 0f || ownerPresent || !nativeEnabled)
+            {
+                return SkyFalloffArbitration.Resolve(
+                    fromOtherMod, ownerPresent, nativeEnabled, nativeFraction: 0f);
+            }
+
+            return SkyFalloffArbitration.Resolve(
+                fromOtherMod, ownerPresent: false, nativeEnabled: true,
+                native.FractionAt(cell.x, cell.z));
+        }
+    }
+
+    // Resolving the native reader up front is a deliberate difference from the per-cell path, which
+    // short-circuits before ever touching NativeSkyFalloffGrid. Building it can mean running the BFS,
+    // so the one case this pays for and the per-cell path does not -- an owner present with the
+    // feature on -- is bought off by skipping the build in exactly that case, which is what the guard
+    // below is for. Without it, §7c's "never consulted when another mod owns the gradient" promise
+    // would be broken by a reader that built the grid to hold something it would never read.
+    public static SectionReader ForSection(Map map)
+    {
+        bool ownerPresent = UnderRoofFalloffOwner.Present;
+        bool nativeEnabled = CelestialLightingFeatures.NativeSkyFalloff;
+
+        if (map == null || ownerPresent || !nativeEnabled)
+            return new SectionReader(map, ownerPresent, nativeEnabled, default);
+
+        NativeSkyFalloffSettings settings = NativeSkyFalloffSettings.Current;
+        NativeSkyFalloffGrid.Reader native = NativeSkyFalloffGrid.ReaderFor(
+            map, map.skyManager.CurSkyGlow,
+            settings.MaxDepth, settings.PassThroughPercent, settings.DoorStrengthSensitivity);
+
+        return new SectionReader(map, ownerPresent, nativeEnabled, native);
+    }
 }
