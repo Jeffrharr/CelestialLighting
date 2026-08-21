@@ -254,6 +254,38 @@ public static class ProbeRegistration
         ProbeRegistry.Register(new VectorLightProbe("vector_light_verts", VectorLightProbe.Metric.Vertices));
         ProbeRegistry.Register(
             new VectorLightProbe("vector_light_penumbra_area", VectorLightProbe.Metric.PenumbraArea));
+        // Bake accounting for the vector lights (§27 P2 phase 6). Counters the bake itself wrote,
+        // NOT a recomputation — see VectorLightBakeProbe's header. The pair to read together is
+        // vector_light_bakes and vector_light_bake_segments: a bake count is only interpretable
+        // against the wall population it was measured over, because the ray cull's whole gain scales
+        // with clutter and a healthy-looking count over an empty window has verified nothing.
+        //
+        // vector_light_marks_per_call is the invalidation radius, measured. The epic names
+        // MarkGeometryDirtyAround as the suspect that turns one lamp toggle into a map-wide rebake;
+        // read against vector_light_emitters, this says whether "only the lights that can see the
+        // cell" holds in a real scene or only in the comment.
+        ProbeRegistry.Register(
+            new VectorLightBakeProbe("vector_light_bakes", VectorLightBakeProbe.Metric.Bakes));
+        ProbeRegistry.Register(
+            new VectorLightBakeProbe("vector_light_bake_hits", VectorLightBakeProbe.Metric.Hits));
+        ProbeRegistry.Register(
+            new VectorLightBakeProbe("vector_light_bake_segments", VectorLightBakeProbe.Metric.Segments));
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_segments_per_bake", VectorLightBakeProbe.Metric.SegmentsPerBake));
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_invalidations", VectorLightBakeProbe.Metric.InvalidationCalls));
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_invalidation_marks", VectorLightBakeProbe.Metric.InvalidationMarks));
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_marks_per_call", VectorLightBakeProbe.Metric.MarksPerCall));
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_roster_resyncs", VectorLightBakeProbe.Metric.RosterResyncs));
+        ProbeRegistry.Register(
+            new VectorLightBakeProbe("vector_light_emitters", VectorLightBakeProbe.Metric.Emitters));
+        // Reads 0 and zeroes the counters, so the counting window can be opened at the same step as
+        // the profiling window. See the metric's comment for the mismatch that provoked it.
+        ProbeRegistry.Register(
+            new VectorLightBakeProbe("vector_light_bake_reset", VectorLightBakeProbe.Metric.Reset));
         // §27 phase 3. Pin this at 1 in any arm claiming to measure the mask: the per-emitter glow
         // arrays are private fields read by reflection, and failing to read them is a defined
         // stand-down rather than an error, so an unpinned arm photographs the crossfade instead.
@@ -429,7 +461,7 @@ public static class ProbeRegistration
         // another, so there is a start probe per arm rather than one taking an argument — the
         // scenario language has no way to pass a string, and an arm whose document is mislabelled is
         // worse than one that was never recorded.
-        foreach (string armName in new[] { "gated", "crossfade", "mask", "combo" })
+        foreach (string armName in new[] { "gated", "crossfade", "mask", "combo", "cull", "brute" })
         {
             ProbeRegistry.Register(new CircinusProbe(
                 "circinus_run_start_" + armName, CircinusProbe.Metric.RunStart,
@@ -437,6 +469,36 @@ public static class ProbeRegistration
         }
 
         ProbeRegistry.Register(new CircinusProbe("circinus_run_stop", CircinusProbe.Metric.RunStop));
+
+        // The POLYGON bake path, for the ray-cull work (§27 P2 phase 6). Offline the visibility
+        // polygon is 83-94% of a bake and quadratic in the wall count; these arms are what say
+        // whether that holds in Mono and whether the cull's 5-8x transfers.
+        //
+        // TWO LEVELS, AND ONLY ONE OF THEM DECIDES ANYTHING. EnsurePolygon is the PARENT — it
+        // contains the silhouette extraction, the polygon and the coverage grid — and it is the arm
+        // to A/B between builds, because it is where a saving has to show up to be real. Build,
+        // SegmentsAround and BuildCoverage are child arms and exist to apportion the parent, not to
+        // be compared across builds: Circinus instruments by transpiling, so its per-call overhead
+        // inflates small methods, and the change under test REMOVES ray-segment solves rather than
+        // calls, which is the case where a child arm flatters itself. Check the children sum to the
+        // parent before believing either.
+        const string field = "CelestialLighting.VectorLightField";
+        ProbeRegistry.Register(new CircinusProbe("circinus_bake_patched", CircinusProbe.Metric.Patched, field, "EnsurePolygon"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_bake_calls", CircinusProbe.Metric.Calls, field, "EnsurePolygon"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_bake_total_ms", CircinusProbe.Metric.TotalMs, field, "EnsurePolygon"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_bake_max_ms", CircinusProbe.Metric.MaxMs, field, "EnsurePolygon"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_bake_reset", CircinusProbe.Metric.Reset, field, "EnsurePolygon"));
+
+        const string polygon = "CelestialLighting.VectorLightMath";
+        ProbeRegistry.Register(new CircinusProbe("circinus_poly_patched", CircinusProbe.Metric.Patched, polygon, "Build"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_poly_calls", CircinusProbe.Metric.Calls, polygon, "Build"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_poly_total_ms", CircinusProbe.Metric.TotalMs, polygon, "Build"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_silh_patched", CircinusProbe.Metric.Patched, "CelestialLighting.VectorLightBlockers", "SegmentsAround"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_cover_patched", CircinusProbe.Metric.Patched, polygon, "BuildCoverage"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_silh_total_ms", CircinusProbe.Metric.TotalMs, "CelestialLighting.VectorLightBlockers", "SegmentsAround"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_silh_calls", CircinusProbe.Metric.Calls, "CelestialLighting.VectorLightBlockers", "SegmentsAround"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_cover_total_ms", CircinusProbe.Metric.TotalMs, polygon, "BuildCoverage"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_cover_calls", CircinusProbe.Metric.Calls, polygon, "BuildCoverage"));
 
         // Sub-method breakdown of the bake. Registered after three speculative optimisations to the
         // mask moved its cost by nothing at all — a coverage cache, a per-frame reader cache and a
@@ -827,6 +889,12 @@ public static class ProbeRegistration
             enabled =>
             {
                 CelestialLightingFeatures.VectorLights = enabled;
+                // Zeroes the bake counters, the way the door-aperture flag zeroes its own, so each
+                // arm counts from zero instead of inheriting the previous arm's total. ForceRebuild
+                // below then provokes a fresh bake per emitter, which is what makes the first
+                // reading of vector_light_bakes an emitter count rather than an accident of
+                // whatever the previous arm left dirty.
+                VectorLightField.ResetCounters();
                 VectorLightRedraw.ForceRebuild();
             },
             defaultEnabled: false);
