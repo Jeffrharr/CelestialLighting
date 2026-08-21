@@ -38,6 +38,10 @@ public static class VectorLightMath
     // comfortably below the point where a player could see the rim is a polygon.
     public const int DefaultBaseRayCount = 48;
 
+    // Stands in for a null segment array so Build has exactly one null check. Shared and immutable:
+    // a zero-length array has nothing to mutate.
+    private static readonly Segment[] NoSegments = new Segment[0];
+
     // Samples in the baked falloff gradient. 256 is one entry per output byte, so the gradient can
     // never be the thing quantising the light.
     public const int GradientSize = 256;
@@ -283,12 +287,16 @@ public static class VectorLightMath
     public static LightPolygon Build(
         float lightX, float lightZ, float radius, Segment[] segments, int baseRayCount)
     {
-        int segmentCount = segments == null ? 0 : segments.Length;
+        // Normalised to a non-null array once, here, so nothing downstream needs its own null check
+        // and no call site can pass one on. The public CastRay keeps its own guard because it is
+        // called directly by the tests and by nothing else in this file.
+        Segment[] walls = segments ?? NoSegments;
+        int segmentCount = walls.Length;
 
         // One atan2 per endpoint, computed ONCE and shared by the corner rays and the angular index.
         // The index is built out of exactly the angles the corner rays are already made of, so
         // computing them twice would add a transcendental per endpoint to the pass being made cheaper.
-        float[] endpointAngles = EndpointAngles(lightX, lightZ, segments, segmentCount);
+        float[] endpointAngles = EndpointAngles(lightX, lightZ, walls, segmentCount);
 
         // Sized up front: the ring plus three rays per endpoint is the exact final count, and the
         // cluttered case grows this list past 1,300 entries — eleven doublings and eleven copies.
@@ -308,7 +316,7 @@ public static class VectorLightMath
         for (int i = 0; i < angles.Count; i++)
         {
             float angle = angles[i];
-            float distance = index.CastRay(lightX, lightZ, angle, radius, segments);
+            float distance = index.CastRay(lightX, lightZ, angle, radius, walls);
 
             if (!IsRedundant(outAngles, outDistances, count, angle, distance))
             {
@@ -345,9 +353,6 @@ public static class VectorLightMath
     // in pairs and the corner rays walk it in sequence.
     private static float[] EndpointAngles(float lightX, float lightZ, Segment[] segments, int segmentCount)
     {
-        if (segments == null)
-            return new float[0];
-
         float[] endpointAngles = new float[segmentCount * 2];
 
         for (int i = 0; i < segmentCount; i++)
