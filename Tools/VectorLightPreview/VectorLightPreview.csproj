@@ -12,6 +12,9 @@
          entirely a look question, and a RimWorld boot costs ~3 minutes to answer one — this costs a
          second, which is the difference between iterating on the shape and guessing at it. -->
     <Compile Include="../../Source/VectorLightMath.cs" Link="VectorLightMath.cs" />
+    <!-- VectorLightMath.FalloffGradient calls into the lift curve, so the two cannot be linked
+         apart. Added when the preview stopped compiling against main; nothing here renders a lift. -->
+    <Compile Include="../../Source/VectorLightLiftMath.cs" Link="VectorLightLiftMath.cs" />
     <!-- Borrowed wholesale from AuroraPreview, as CloudPreview does: a dependency-free PNG writer,
          because System.Drawing is not available here. -->
     <Compile Include="../AuroraPreview/Png.cs" Link="Png.cs" />
