@@ -126,8 +126,14 @@ public static class VectorLightBlockers
                     // Leaves are collected in the SAME pass that fills the grid rather than in a
                     // second sweep: the window is the hot loop, and a part-open door is rare enough
                     // that the list stays null on nearly every bake.
-                    CollectLeaves(edifices, cell, ref leaves);
-                    blocked[z * width + x] = BlocksLight(edifices, cell);
+                    //
+                    // ONE read of the aperture, shared by both questions, because they have to agree.
+                    // Asking separately let a closing door be a whole-cell occluder in the grid while
+                    // simultaneously handing out the leaf edges of the gap in it -- two occluders for
+                    // one cell, the wider one winning, which is the shape the closing bug took.
+                    float openPct = OpenFractionOf(edifices, cell);
+                    CollectLeaves(edifices, cell, openPct, ref leaves);
+                    blocked[z * width + x] = BlocksLight(edifices, cell, openPct);
                 }
             }
         }
@@ -137,9 +143,9 @@ public static class VectorLightBlockers
     // door (0) is an ordinary blocker and a fully open one (1) is an ordinary hole; only the interval
     // between them needs sub-cell geometry, which is what keeps this off the common path.
     private static void CollectLeaves(
-        EdificeGrid edifices, IntVec3 cell, ref List<VectorLightMath.Segment> leaves)
+        EdificeGrid edifices, IntVec3 cell, float openPct,
+        ref List<VectorLightMath.Segment> leaves)
     {
-        float openPct = OpenFractionOf(edifices, cell);
         if (openPct <= 0f || openPct >= 1f)
         {
             return;
@@ -181,7 +187,11 @@ public static class VectorLightBlockers
     // a def flag because `Open` is where vanilla itself keeps the answer, and every modded door worth
     // supporting derives from it (Steve's Doors' Building_UnmirroredDoor does, so its glass doors and
     // its opaque ones both answer correctly without a compat entry).
-    private static bool BlocksLight(EdificeGrid edifices, IntVec3 cell)
+    // `openPct` is the same quantised aperture CollectLeaves was handed, and it is what lets a door
+    // mid-CLOSE stay a hole in the grid while its leaves slide in: vanilla's `Open` is already false
+    // by then. See DoorOcclusionMath for why the two terms are OR-ed rather than one replacing the
+    // other, and for the known asymmetry left standing at the start of an open.
+    private static bool BlocksLight(EdificeGrid edifices, IntVec3 cell, float openPct)
     {
         Building edifice = edifices[cell];
         if (edifice == null || edifice.def == null)
@@ -194,6 +204,7 @@ public static class VectorLightBlockers
             edifice.def.blockLight,
             door != null,
             door != null && door.Open,
-            CelestialLightingFeatures.VectorLightOpenDoors);
+            CelestialLightingFeatures.VectorLightOpenDoors,
+            openPct);
     }
 }

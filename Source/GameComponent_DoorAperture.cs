@@ -97,10 +97,23 @@ public class GameComponent_DoorAperture : GameComponent
             DirtyRequests++;
         }
 
-        // Done once the slide has run out at either end. A door sitting fully open is an ordinary
-        // hole and a shut one an ordinary blocker; neither needs watching, and leaving them in the
-        // set would turn this into a per-door-per-tick sweep of the whole base.
-        if (aperture >= 1f || (aperture <= 0f && !door.Open))
+        // Done once the slide has run out AT THE END THIS DOOR IS HEADING FOR. A door sitting fully
+        // open is an ordinary hole and a shut one an ordinary blocker; neither needs watching, and
+        // leaving them in the set would turn this into a per-door-per-tick sweep of the whole base.
+        //
+        // WHICH END THAT IS DEPENDS ON `Open`, AND READING IT AS "EITHER END" WAS HALF OF ISSUE #174
+        // PHASE 1. A close STARTS at aperture 1 -- Building_Door.DoorTryClose sets openInt false on
+        // the first tick while ticksSinceOpen is still at its maximum -- so an unconditional
+        // `aperture >= 1f` dropped the door from the set on the first sweep of every close, before a
+        // single step of the slide had happened. It was measured, not reasoned: the live scenario
+        // read one bake per close where an open costs nine.
+        //
+        // Reading the state rather than remembering a direction is deliberate. An interrupted door
+        // reverses mid-slide and Watch is called again on the reversal, so the end it is heading for
+        // is whatever `Open` says right now; a remembered direction would keep sweeping a door that
+        // had already turned around.
+        bool reachedItsEnd = door.Open ? aperture >= 1f : aperture <= 0f;
+        if (reachedItsEnd)
         {
             Finished.Add(door);
         }

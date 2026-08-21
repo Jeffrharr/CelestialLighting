@@ -46,22 +46,52 @@ public static class DoorAccess
             typeof(Func<Building_Door, float>), getter);
     }
 
-    // How far this door has slid, 0 shut and 1 fully open. A door that is not Open reads 0 regardless
-    // of what OpenPct says: vanilla keeps counting ticksSinceOpen after the door has shut, so the raw
-    // property is only meaningful while Open is true.
+    // How far this door has slid, 0 shut and 1 fully open. Read through the CLOSE as well as the open:
+    // this is the drawn aperture, not the door's open STATE, and the two disagree for the whole length
+    // of a close.
+    //
+    // WHY NOT GATE ON `Open`, WHICH IS WHAT THIS DID. `Building_Door.DoorTryClose` sets `openInt =
+    // false` on the tick the door is told to shut (Building_Door.cs:502), and `Tick` then decrements
+    // `ticksSinceOpen` one per tick down to zero (:327-331). So `Open` goes false at the START of the
+    // slide while `OpenPct`, a ratio of that counter, ramps correctly down through it. Gating here on
+    // `Open` therefore returned 0 for the whole close and the beam snapped shut in one frame while the
+    // player watched the leaves take another forty ticks to arrive — §27e phase 2's own bug, in the
+    // one direction phase 2 never filmed. DESIGN.md calls a beam disagreeing with the animation "the
+    // most conspicuous moment there is to disagree", which is as true shutting as opening.
+    //
+    // WHY READING IT UNGATED IS SAFE, WHICH IS THE PART THAT WAS ACTUALLY BEING WORRIED ABOUT. The old
+    // comment said the raw property is only meaningful while Open is true. It is meaningful whenever
+    // the door is drawn, because it is what the door is drawn FROM: `Building_Door.DrawMovers` slides
+    // each leaf by +/-0.45 * OpenPct, so a door whose OpenPct did not fall back to zero when shut
+    // would render its own leaves standing open. Vanilla's shut door reads `ticksSinceOpen == 0` and a
+    // door saved open comes back with `ticksSinceOpen = TicksToOpenNow` (:305-307), so both ends are
+    // already right; and a modded override cannot lie to us here without lying to vanilla's own
+    // renderer first. That is a stronger guarantee than the gate it replaces.
+    //
+    // The clamp is not a formality. `OpenPct` is `protected virtual`, TicksToOpenNow can in principle
+    // be zero, and `!(value > 0f)` catches NaN as well as negatives -- a NaN reaching the occlusion
+    // rule would compare false against every threshold and quietly unblock a shut door.
     public static float OpenFraction(Building_Door door)
     {
-        if (door == null || !door.Open)
+        if (door == null)
         {
             return 0f;
         }
 
+        // No delegate means no animation detail at all, so fall back to the boolean the feature had
+        // before phase 2: fully open while Open, fully shut the instant it is not.
         if (OpenPctGetter == null)
         {
-            return 1f;
+            return door.Open ? 1f : 0f;
         }
 
-        return OpenPctGetter(door);
+        float slid = OpenPctGetter(door);
+        if (!(slid > 0f))
+        {
+            return 0f;
+        }
+
+        return slid > 1f ? 1f : slid;
     }
 
     // Which world axis the leaves slide along, matching Building_Door.DrawMovers exactly: it rotates
