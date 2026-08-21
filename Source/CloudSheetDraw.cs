@@ -50,6 +50,19 @@ public static class CloudSheetDraw
     // against itself while looking perfectly healthy.
     private static bool _placedPresent;
 
+    // §25f's Clear share is deliberately NOT part of the cache key, unlike the flag above, and the
+    // difference is worth stating because the two look like the same case. That flag is set from
+    // outside the game's clock, so it really can move while the tick does not. The share cannot:
+    // it is a function of `WeatherManager.curWeatherAge`, which is incremented in the weather
+    // manager's tick, so a colony whose tick is not advancing has a weather that is not changing
+    // either. A paused colony is paused. Keying on the tick is therefore already keying on the
+    // share, and adding it would put a `WeatherManager` walk in front of the cache test that three
+    // lanes hit every frame, to catch a state the game cannot be in.
+    //
+    // What CAN reach that state is a harness scenario, which sets a weather instantly on a map it
+    // has paused — and the fix belongs there rather than here, because the scenario is the thing
+    // doing something the game does not. cloud_sheet_default advances the clock by a tick after its
+    // instant SetWeather for exactly this reason, and says so.
     private static int _placedTick = int.MinValue;
     private static int _placedMapId = -1;
     private static int _placedCount;
@@ -77,15 +90,18 @@ public static class CloudSheetDraw
     // cloud in the middle of the view, and a sky that clears does not delete one: the population only
     // changes at a wrap, and a wrap happens with the sheet entirely off-map.
     //
-    // The exception, and it is deliberate, is a WEATHER change. CloudFractionAtTick only time-shifts
-    // §22's Clear-sky half; §13's deck is read live, so a front moving in reaches every sheet at once
-    // and cross-fades them over vanilla's own 4,000 ticks rather than waiting up to a crossing for
-    // each one to come round. Weather is global and abrupt, and cloud drifting about a clear sky is
-    // neither.
+    // The exception, and it is deliberate, is a WEATHER change (§25f). How much of the sky is a CLEAR
+    // sky at all is read live and scales every placed sheet's ALPHA, so a front moving in reaches all
+    // of them at once and fades them together over vanilla's own 4,000 ticks rather than each waiting
+    // up to a crossing to come round. Weather is global and abrupt; cloud drifting about a clear sky
+    // is neither. The two signals stay in their own lanes: the weather can only fade what is up, and
+    // the drift can only change what is up while it is off-map.
     //
     // `cover` reports the heaviest cover any placed sheet is holding, which is what the lane alpha
     // wants: it is a gate ("is there cloud at all"), and the live cover is the wrong answer to that
-    // question while a latched sheet is still finishing its crossing.
+    // question while a latched sheet is still finishing its crossing. It is deliberately the
+    // UNSCALED latched cover — the weather fade is already on every placement's alpha, and putting it
+    // on the lane ceiling as well would square it.
     public static int PlaceSheets(Map map, out CloudSheetLayout.Placement[] placements, out float cover)
     {
         placements = Placements;
@@ -130,25 +146,41 @@ public static class CloudSheetDraw
             ? CloudSheetLayout.PresentSizeFraction
             : CloudSheetLayout.BaseSizeFraction;
 
-        // The weather half of the cover is the same for every sheet this tick; only §22's drift is
-        // asked per sheet. Read once — see CloudLayers.ReadCoverBlend for why one read per sheet would
-        // be one walk of MapSky's uncached gates per sheet.
-        CloudLayers.ReadCoverBlend(map, out float offset, out float scale);
+        // §25f's weather gate: how much of the sky is still a Clear sky, which is the one number a
+        // weather change moves. It is the same for every sheet this tick — only §22's drift is asked
+        // per sheet — so it is read once here rather than per sheet, and it multiplies each sheet's
+        // ALPHA rather than its cover, which is what makes a front fade the whole sky at one rate
+        // instead of shedding clouds one at a time off the top of the count (CloudWeatherGateMath
+        // .FadedCoverage carries the measurement).
+        float clearShare = CloudLayers.ClearShareFor(map);
 
         int seed = map.Tile.tileId;
         int count = 0;
         float heaviest = 0f;
 
-        for (int i = 0; i < cap; i++)
+        // Nothing to place under a settled deck, and this is the early-out that keeps §22's memo from
+        // being touched (or seeded) mid-storm — the same restraint WeatherDimming.DeckOpacityFor
+        // keeps. `cap` is left as it is rather than zeroed so the loop below reads the same in both
+        // cases; this simply skips it.
+        int placeable = clearShare > 0f ? cap : 0;
+
+        for (int i = 0; i < placeable; i++)
         {
-            float sheetCover = CloudLayers.CoverFrom(
-                map, offset, scale, CloudSheetLayout.EntryTickFor(i, seed, ticks, DeckWeights));
+            // THE COUNT COMES FROM THE UNSCALED COVER, and the weather never touches it. A sheet's
+            // coverage weight is decided at the tick it came over the edge of the map and is constant
+            // for as long as it is visible (§25's entry latch); folding the live weather into it
+            // would hand the population back to a global, abrupt signal, which is the pop that latch
+            // exists to have removed.
+            float sheetCover = CloudCoverClock.FractionForTick(
+                map, CloudSheetLayout.EntryTickFor(i, seed, ticks, DeckWeights));
 
             // The coverage weight is folded into the placement's own alpha rather than applied by each
             // lane, so the cloud, its shadow and its underlight cannot disagree about how much of a
             // sheet is there — see CloudSheetLayout.CoverageAlpha for why the marginal one is partial
-            // rather than either wholly present or wholly absent.
-            float coverage = CloudSheetLayout.CoverageAlpha(i, sheetCover, cap);
+            // rather than either wholly present or wholly absent. The weather fade rides in on the
+            // same scale for the same reason: one number on the placement, honoured by all three.
+            float coverage = CloudWeatherGateMath.FadedCoverage(
+                CloudSheetLayout.CoverageAlpha(i, sheetCover, cap), clearShare);
             if (coverage > 0f)
             {
                 // Compacted rather than left in place: the population is no longer a prefix of the
