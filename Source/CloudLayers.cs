@@ -33,107 +33,80 @@ public static class CloudLayers
 
     // How much of this map's sky is cloud right now, in [0, 1] — the field's own input.
     //
-    // TWO SOURCES, AND THEY CANNOT BOTH BE LIVE. §13 classifies a WeatherDef's deck opacity and scores
-    // Clear as exactly 0 on both its axes; §22 invents a fractional cloud amount that only exists
-    // WHILE the weather is Clear. So the two are mutually exclusive by construction — the same
-    // property Patch_CloudCoverSky's header records for why it never fights Patch_WeatherDimming —
-    // and taking the larger of them is a max over a pair that always has a zero in it, not a blend of
-    // two competing opinions.
+    // ONE SOURCE, AND IT IS §22's. §25f (DESIGN.md) settled which weathers this mod draws cloud in:
+    // the answer is Clear ones, because the thing all three lanes render is BOUNDED SHEETS — discrete
+    // objects with edges and gaps between them — and that is what a partly-cloudy sky looks like, not
+    // what an overcast one does. A weather that carries a deck is §13's to render, by dimming the whole
+    // map, and this lane stays out of it.
     //
-    // Reading BOTH is the whole reason §23b can do something §23 cannot. §23 keys on §13's opacity
-    // alone, so it is silent on a Clear day by construction; issue #88's most common real sunset — a
-    // partly-cloudy clear evening — is exactly the case where structure is everything and the flat
-    // lane has nothing to say.
-    // BLENDED ACROSS A WEATHER TRANSITION, WHICH IS WHERE THE "CANNOT BOTH BE LIVE" ABOVE STOPS BEING
-    // TRUE. The two sources are mutually exclusive per WEATHER DEF, not per instant: RimWorld cross-
-    // fades the outgoing weather into the incoming one over 4,000 ticks, and for that hour and a half
-    // the map is partly a Clear sky §22 has an opinion about and partly a deck §13 has one about.
+    // §13'S DECK USED TO BE ADDED TO THIS, and removing it is the point of §25f rather than a
+    // simplification along the way. Cover was `deck + clearShare x clearCover`, so settled Rain placed
+    // the full cap of sheets at cover 1.0 — and §25's own section already recorded the bill for that:
+    // over a solid overcast the sheets and §13's flat dimming both render the same deck, the map comes
+    // out darker than either intends, and `SheetAmplitude` was held down to 0.35 to make room. Below a
+    // deck exactly one lane is now live, so neither has to be detuned for the other.
     //
-    // The original read — take §13's blended deck, fall back to §22 only when it is exactly zero —
-    // got that instant badly wrong in the one direction that shows. At the tick a Clear day turns to
-    // rain, curWeather is already Rain and the lerp factor is still 0, so §13's blend is Clear's own
-    // zero: the fraction fell from §22's cover to nothing in a single tick, every cloud sheet on the
-    // map vanished at once, and they then popped back in one at a time as the deck built. A sky
-    // clearing did the same in reverse.
+    // WHAT §23b LOSES BY IT, stated rather than discovered later. §23b's whole claim over §23 was that
+    // it reads both sources and so has something to say on a Clear day; it keeps that, since the Clear
+    // day is the case it was built for (issue #88's partly-cloudy evening). What it gives up is the
+    // overcast sunset, where it now draws nothing — which is the same ruling as above, applied to the
+    // lane that renders the light under a sheet rather than the sheet: there is no sheet there to
+    // underlight.
     //
-    // So the blend happens a level down, over the two DEFS' fractions, using the same lerp factor
-    // vanilla uses for everything else it cross-fades. In steady weather the factor is 1 and this is
-    // bit-identical to the old read (§13 scores Clear as exactly 0, so the Clear arm still resolves to
-    // §22 and only §22); it differs only during a transition, and only by being continuous there.
+    // THE TRANSITION IS A CROSS-FADE, NOT A SWITCH. RimWorld cross-fades the outgoing weather into the
+    // incoming one over 4,000 ticks, and the Clear share below rides that same factor, so a Clear day
+    // turning to rain walks this fraction down to zero over that hour and a half and the clouds fade
+    // off the screen where they are. The earlier arrangement — deck first, §22 only when the deck was
+    // exactly zero — got that instant badly wrong in the one direction that shows: at the tick a Clear
+    // day turns to rain, curWeather is already Rain and the lerp factor is still 0, so the fraction
+    // fell from §22's cover to nothing in a single tick and every sheet on the map vanished at once.
     public static float CloudFractionFor(Map map) =>
         CloudFractionAtTick(map, Find.TickManager?.TicksAbs ?? 0);
 
-    // The same fraction with §22'S HALF READ AT A GIVEN TICK, which is the seam §25 places its sheets
+    // The same fraction with §22's COVER READ AT A GIVEN TICK, which is the seam §25 places its sheets
     // through — each one asking "how cloudy was it when I came over the edge" (CloudSheetDraw), so its
     // existence is settled before it is visible and cannot change while it is.
     //
-    // ONLY THE CLEAR ARM IS TIME-SHIFTED, and the asymmetry is the point rather than an omission. §22's
-    // cover is a property of the AIR — how much cloud is drifting about over this tile — so asking what
-    // it was when a particular cloud arrived is a sensible question with a stable answer. §13's deck is
-    // a property of the WEATHER, which is a global state vanilla cross-fades over 4,000 ticks; a sheet
-    // that latched "it was raining when I arrived" would keep raining on its own after the storm ended.
-    // So the deck is always read live, which means a weather change reaches every sheet at once and
-    // fades them together — exactly the behaviour asked for, and the reason the two halves are blended
-    // here rather than each being latched or each being live.
-    public static float CloudFractionAtTick(Map map, int absTick)
-    {
-        ReadCoverBlend(map, out float offset, out float scale);
-        return CoverFrom(map, offset, scale, absTick);
-    }
+    // ONLY THE COVER IS TIME-SHIFTED, NOT THE WEATHER SHARE, and the asymmetry is the point rather than
+    // an omission. §22's cover is a property of the AIR — how much cloud is drifting about over this
+    // tile — so asking what it was when a particular cloud arrived is a sensible question with a stable
+    // answer. The weather is a global state vanilla cross-fades on its own clock; a sheet that latched
+    // "it was Clear when I arrived" would go on being a fair-weather cloud in the middle of a storm for
+    // up to a whole crossing. So the share is always read live, which means a weather change reaches
+    // every sheet at once and fades them together.
+    public static float CloudFractionAtTick(Map map, int absTick) =>
+        CoverFrom(map, ClearShareFor(map), absTick);
 
-    // The blend above with the weather half PULLED OUT AS A LINE, so a caller placing a dozen sheets
-    // pays for it once instead of a dozen times.
+    // How much of this map's sky is a Clear sky right now, in [0, 1] — 1 in settled Clear weather, 0 in
+    // any settled weather that is not, and vanilla's own transition lerp in between.
     //
-    // The blend is `lerp(fractionOf(lastWeather), fractionOf(curWeather), t)`, and each of those two
-    // is either §13's deck for that def (a constant this tick) or §22's cover (the only part that
-    // varies per sheet). Collecting terms leaves a straight line in the cover — `offset + scale x
-    // cover` — where `scale` is how much of the blend the Clear arm currently owns: 1 in settled Clear
-    // weather, 0 mid-storm, and somewhere between during a transition into or out of Clear.
-    //
-    // WHY IT IS WORTH THE INDIRECTION. `DeckOpacityOfWeather` asks `MapSky.HasSky`, whose biome and
-    // condition gates are not cached — WeatherDimming.ReadDimmingAndGain exists for exactly that
-    // reason one file over. Placing twelve sheets through the naive read would walk them twelve times
-    // per tick to arrive at one answer twelve times over.
-    public static void ReadCoverBlend(Map map, out float offset, out float scale)
+    // PULLED OUT AS ITS OWN READ so a caller placing a dozen sheets pays for it once instead of a dozen
+    // times. The arithmetic is CloudWeatherGateMath.ClearShare's, which is where the Clear-to-Clear
+    // re-roll case and the reason the two arms are summed rather than picked are recorded; this half
+    // only reads the three live values it takes.
+    public static float ClearShareFor(Map map)
     {
         WeatherManager weather = map?.weatherManager;
         if (weather == null)
-        {
-            offset = 0f;
-            scale = 0f;
-            return;
-        }
-
-        float lerp = Clamp01(weather.TransitionLerpFactor);
-        bool lastIsClear = weather.lastWeather == WeatherDefOf.Clear;
-        bool curIsClear = weather.curWeather == WeatherDefOf.Clear;
-
-        float lastDeck = lastIsClear ? 0f : WeatherDimming.DeckOpacityOfWeather(map, weather.lastWeather);
-        float curDeck = curIsClear ? 0f : WeatherDimming.DeckOpacityOfWeather(map, weather.curWeather);
-
-        offset = lastDeck * (1f - lerp) + curDeck * lerp;
-        scale = (lastIsClear ? 1f - lerp : 0f) + (curIsClear ? lerp : 0f);
-    }
-
-    // The cover a sheet that entered at `absTick` is holding, given this tick's blend. §22 is read only
-    // when the Clear arm owns some of the blend — a cheap per-tile lookup, but there is no reason to
-    // touch it (or seed its cache) mid-storm, the same restraint WeatherDimming.DeckOpacityFor keeps.
-    public static float CoverFrom(Map map, float offset, float scale, int absTick)
-    {
-        if (!(scale > 0f))
-            return offset;
-
-        return Clamp01(offset + scale * CloudCoverClock.FractionForTick(map, absTick));
-    }
-
-    // Local rather than Mathf's, so this file keeps its existing usings — it reads live RimWorld state
-    // but has never needed UnityEngine, and one clamp is not a reason to start.
-    private static float Clamp01(float value)
-    {
-        if (!(value > 0f))
             return 0f;
 
-        return value < 1f ? value : 1f;
+        return CloudWeatherGateMath.ClearShare(
+            weather.TransitionLerpFactor,
+            weather.lastWeather == WeatherDefOf.Clear,
+            weather.curWeather == WeatherDefOf.Clear);
+    }
+
+    // The cover a sheet that entered at `absTick` is holding, given how much of the sky is Clear now.
+    // §22 is read only when the Clear share is non-zero — a cheap per-tile lookup, but there is no
+    // reason to touch it (or seed its cache) mid-storm, the same restraint WeatherDimming.DeckOpacityFor
+    // keeps.
+    public static float CoverFrom(Map map, float clearShare, int absTick)
+    {
+        if (!(clearShare > 0f))
+            return 0f;
+
+        return CloudWeatherGateMath.CoverFromShare(
+            clearShare, CloudCoverClock.FractionForTick(map, absTick));
     }
 
     // The additive layer's strength for this map right now, in [0, AmplitudeScale]. Exactly 0 whenever

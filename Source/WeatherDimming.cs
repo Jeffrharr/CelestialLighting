@@ -96,29 +96,6 @@ public static class WeatherDimming
             weather.TransitionLerpFactor);
     }
 
-    // The deck opacity of ONE weather def over this map, un-blended — the per-def half of
-    // CloudOpacityFor, gated identically so the two can never disagree about a skyless map or about a
-    // player who turned §13 off.
-    //
-    // WHY THE HALVES ARE EXPOSED AT ALL. §25's cloud lanes blend §13's deck against §22's Clear-sky
-    // fraction, and only the PER-DEF opacities can take part in that blend: the finished
-    // CloudOpacityFor has already lerped Clear's own zero into itself, so a transition off Clear
-    // reads as "no cloud" for the whole of its first instant even though the sky is still the
-    // partly-cloudy one §22 was drawing. See CloudLayers.CloudFractionFor.
-    public static float DeckOpacityOfWeather(Map map, WeatherDef def)
-    {
-        if (!CelestialLightingFeatures.WeatherDimming)
-            return 0f;
-
-        if (map?.weatherManager == null)
-            return 0f;
-
-        if (!MapSky.HasSky(map))
-            return 0f;
-
-        return OpacityOf(def);
-    }
-
     // The 0..1 fraction by which the rendered sky is currently darkened. 0 whenever CloudOpacityFor
     // is 0 — the feature gate and the skyless fast path are inherited from it, and Clear weather
     // stays at exactly 0 too even though ReadDimmingAndGain now looks past it for §24's sake (see

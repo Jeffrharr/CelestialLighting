@@ -92,6 +92,13 @@
          is CloudCoverClock.cs and is NOT linked, same reason as AerosolDriftClock.cs above. -->
     <Compile Include="../../Source/SeasonalWetFraction.cs" Link="SeasonalWetFraction.cs" />
     <Compile Include="../../Source/CloudCoverDrift.cs" Link="CloudCoverDrift.cs" />
+    <!-- §25f's weather gate: which weathers this mod draws cloud in, and what a change of weather
+         does to the cloud already on screen. No dependencies of its own — it takes the transition
+         lerp and two "is this def Clear" booleans as primitives — but it belongs beside §22 above
+         because it is the multiplier applied to exactly that fraction. The live half that reads
+         WeatherManager is CloudLayers.ClearShareFor and is NOT linked, same reason as
+         CloudCoverClock.cs above. -->
+    <Compile Include="../../Source/CloudWeatherGateMath.cs" Link="CloudWeatherGateMath.cs" />
     <!-- Subsystem 20d pure core (aerosol spectral shape / Angstrom exponent). Like OzoneTwilightMath
          below it reuses SkyColorTemperature.Rgb as its colour struct, so the SkyColorTemperature
          link above is a hard prerequisite. Its tests live in SkyColorTemperatureTests.cs rather than
