@@ -272,6 +272,34 @@ public static class ProbeRegistration
             "vector_light_mask_lift_samples", VectorLightProbe.Metric.MaskLiftSamples));
         ProbeRegistry.Register(
             new VectorLightProbe("vector_light_mask_lift_peak", VectorLightProbe.Metric.MaskLiftPeak));
+        // §27 phase 5b's three. Pinned together for the reason the Metric comments give: saturated
+        // samples at 0 is the correct reading for a one-torch scene and a dead bake for a six-torch
+        // ring, and only building the ring on purpose tells them apart. Skipped is the fallback
+        // counter — a run where it dominates is measuring mixed-hue emitters rather than the fix.
+        ProbeRegistry.Register(new VectorLightProbe(
+            "vector_light_mask_saturated_samples", VectorLightProbe.Metric.MaskSaturatedSamples));
+        ProbeRegistry.Register(new VectorLightProbe(
+            "vector_light_mask_saturation_skipped", VectorLightProbe.Metric.MaskSaturationSkipped));
+        ProbeRegistry.Register(new VectorLightProbe(
+            "vector_light_mask_saturation_relief", VectorLightProbe.Metric.MaskSaturationRelief));
+        // §27 phase 5b, vector_light_column.json. The rendered level at four cells around the
+        // one-cell wall column, local to that scenario's anchor at (0, 45). `column_behind` is the
+        // cell the whole phase is about: one step west of the column, permanently invisible to the
+        // torch four cells east of it, and therefore the cell whose level must not fall when a torch
+        // is added somewhere else entirely.
+        //
+        // LEVEL RATHER THAN LUMINANCE, and the Metric comment carries why: the monotonicity property
+        // is false per channel for VANILLA, so a weighted mix of the three would fail the oracle
+        // before it reached our arithmetic. The max channel is the only monotone summary, and it is
+        // also the one GroundGlowAt itself reads.
+        ProbeRegistry.Register(new RenderedLightCellProbe(
+            "column_behind", new IntVec3(-1, 0, 45), RenderedLightCellProbe.Metric.Level));
+        ProbeRegistry.Register(new RenderedLightCellProbe(
+            "column_behind_far", new IntVec3(-3, 0, 45), RenderedLightCellProbe.Metric.Level));
+        ProbeRegistry.Register(new RenderedLightCellProbe(
+            "column_north", new IntVec3(0, 0, 46), RenderedLightCellProbe.Metric.Level));
+        ProbeRegistry.Register(new RenderedLightCellProbe(
+            "column_northwest", new IntVec3(-1, 0, 46), RenderedLightCellProbe.Metric.Level));
         // §27e, vector_light_open_door.json. Cells are local to that scenario's room at offset
         // (0, 45): the doorway is local (0, 0), so (1, 0) is the first cell OUTSIDE it and (-1, 0)
         // the first cell inside. Both read vanilla's gameplay light, not ours -- they are what
@@ -887,6 +915,20 @@ public static class ProbeRegistration
             enabled =>
             {
                 CelestialLightingFeatures.VectorLightShaderMaxSubtract = enabled;
+                VectorLightRedraw.ForceRebuild();
+            });
+
+        // Two-arg, matching phase 5b's shipped default of true. The registry default is what a suite
+        // reset restores between scenarios, so it has to be the SHIPPED value — registered false,
+        // every §27 scenario after this one would silently measure the pre-fix composition.
+        // ForceRebuild because the correction is baked into the lighting overlay's vertex colours
+        // during a section regenerate, so flipping it changes nothing on screen until something else
+        // dirties a section.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightMaskSaturationKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.VectorLightMaskSaturation = enabled;
                 VectorLightRedraw.ForceRebuild();
             });
 
