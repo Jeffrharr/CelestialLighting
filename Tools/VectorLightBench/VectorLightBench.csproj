@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <AssemblyName>VectorLightBench</AssemblyName>
+    <RootNamespace>CelestialLighting.Tools</RootNamespace>
+    <Optimize>true</Optimize>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Same discipline as AuroraBench and VectorLightPreview: the benchmark times the SHIPPED pure
+         core, linked as source, so a number here cannot describe a copy that has drifted. -->
+    <Compile Include="../../Source/VectorLightMath.cs" Link="VectorLightMath.cs" />
+    <!-- FalloffGradient calls the lift curve; the two cannot be linked apart. -->
+    <Compile Include="../../Source/VectorLightLiftMath.cs" Link="VectorLightLiftMath.cs" />
+    <!-- The brute-force reference, LINKED from the test project rather than reimplemented here, so
+         the polygon this benchmark calls slow is the identical one the equivalence test calls
+         correct. A second copy would let the A/B drift away from what is actually verified. -->
+    <Compile Include="../../Tests/CelestialLighting.Tests/VectorLightBuildOracle.cs"
+             Link="VectorLightBuildOracle.cs" />
+  </ItemGroup>
+</Project>
