@@ -1,0 +1,1101 @@
+{
+  "name": "vector_light_wall_lamp",
+  "saveFile": "minimal_colony.rws",
+  "description": "Issue #174 phase 3, the reproduction only: does a wall-mounted lamp cast \u00a727's rays, and if not, which of the named causes is it. NO FIX IS UNDER TEST HERE -- the epic asks for the symptom to be confirmed against a real WallLamp before anything is diagnosed, because the hypothesis it carries (\"the lamp stands in a wall run, so its polygon is a slot one cell wide\") is a guess about a def nobody had read at the time.\n\nTWO ROOMS, BECAUSE A WALL LAMP HAS TWO PLACEMENTS AND ONLY ONE OF THEM IS THE ONE PLAYERS BUILD. Both are 2x5 with a wooden door in the east wall. Room 1's doorway is local (0,0): its lamp is at (-2,0), two cells away on the opposite wall, FACING the door. Room 2's doorway is local (0,-10): its lamp hangs on the door's OWN wall one cell to the side, which is where a corridor's lamps actually go and where light has to leave through a doorway it is beside rather than opposite. Both are lit in every frame, so the two placements are compared inside one capture rather than across a rebuild -- and the comparison is the whole result: room 1 throws a beam, room 2 throws a sliver a cell long, and the frames are what say so.\n\nTHE LAMPS ARE POWERED FOR REAL rather than swapped for torches, which is the whole point: a toxifier generator at (5,-6) feeds hidden conduit west along z=-6 between the two rooms and up the outside of room 1's west wall. ToxifierGenerator because it needs no fuel -- a chemfuel or wood generator spawns empty and the lamps would sit dark, which reads exactly like the bug under investigation. FastForward rather than AdvanceTicks after every placement for the same reason: PowerNet energises a lamp on a real tick, and a clock jump runs none. wall_lamp_cell_glow and wall_lamp2_cell_glow are pinned in every arm to close the same hole -- they are what separates \"the lamp casts nothing\" from \"the lamp is off\".\n\nTHE DEAD-NET TRAP, AND WHY THE WIRING IS ALL OUTSIDE. PowerConnectionMaker.BestTransmitterForConnector takes the NEAREST transmitter, not the nearest POWERED one, and for a wall attachment it searches from the WALL cell rather than the lamp's. Two drafts died on that. The first deleted a lamp by placing a lone hidden conduit over it, and the conduit was nearer the next lamp than the generator's chain was, so that lamp joined a net with nothing in it. The second wired every interior cell instead and bridged out through the walls -- and GenSpawn REFUSES a conduit on a wall cell (six refusals at local x=-3), which no in-game experience predicts, because building one there is a blueprint the place worker allows. That left an unbridged interior web, i.e. the first failure again with more cells. Both present as an unlit wall lamp, which is indistinguishable from the bug under investigation. So: the chain stays outside, and every lamp cell here has a conduit ON IT as its nearest transmitter.\n\nSEVEN ARMS. A and B are both lamps with the doors shut and open; B is the frame the report is about. C is vanilla over the identical scene, which is what an absent beam is supposed to look like. D and E swap room 1's emitter for a StandingLamp (same power net, same lamp family, not wall-attached) and a TorchLamp (no power at all): if B showed no beam where D does, the cause would be wall attachment. F puts the WallLamp back, and its numbers landing on B's again is what makes the two swaps trustworthy. G roofs both rooms, since every lamp in a played colony is under one; the rects are the rooms EXACTLY, because CellRect.CenteredOn takes minX = cx - width/2 and a cell of roof past the walls would be an EAVE that \u00a715b shades the very ground the beam is looked for on. G's numbers are F's to six figures, which is the statement that a roof changes none of this.\n\nWHAT THE DEF ACTUALLY SAYS, recorded here because it contradicts the epic's hypothesis and the live run is what settles it: WallLamp is passability Standable with isEdifice false, and Placeworker_AttachedToWall REFUSES a cell holding anything of Fillage.Full. So the lamp's own cell is open floor INSIDE the room and its neighbours along the wall are open floor too -- there is no slot for it to be sealed in.\n\nRun STANDALONE -- PlaceThings, SetDoorOpen, SetRoof and the emitter swaps all leave map residue.",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Concrete",
+        "width": "40",
+        "height": "30",
+        "offset": "0,40",
+        "clear": "true"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "0,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "-3,-3; -3,-2; -3,-1; -3,0; -3,1; -3,2; -3,3; 0,-3; 0,-2; 0,-1; 0,1; 0,2; 0,3; -2,-3; -1,-3; -2,3; -1,3; -3,-13; -3,-12; -3,-11; -3,-10; -3,-9; -3,-8; -3,-7; 0,-13; 0,-12; 0,-11; 0,-9; 0,-8; 0,-7; -2,-13; -1,-13; -2,-7; -1,-7"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Door",
+        "stuff": "WoodLog",
+        "offset": "0,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "0,0; 0,-10"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "WallLamp",
+        "offset": "0,45",
+        "layout": "cells",
+        "rot": "West",
+        "clear": "true",
+        "cells": "-2,0"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "WallLamp",
+        "offset": "0,35",
+        "layout": "cells",
+        "rot": "East",
+        "clear": "true",
+        "cells": "-1,1"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "ToxifierGenerator",
+        "offset": "0,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "5,-6"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "HiddenConduit",
+        "offset": "0,45",
+        "layout": "cells",
+        "cells": "4,-6; 3,-6; 2,-6; 1,-6; 0,-6; -1,-6; -2,-6; -3,-6; -4,-6; -4,-5; -4,-4; -4,-3; -4,-2; -4,-1; -4,0"
+      }
+    },
+    {
+      "type": "FastForward",
+      "args": {
+        "ticks": "300"
+      }
+    },
+    {
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "paused"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "0"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "3,40",
+        "zoom": "26"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_suppress",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_beam",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max_subtract",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_open_doors",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_glow_blocker",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_aperture",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "warmup_discard.png"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_count",
+        "expectedValue": "5",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_lit_area",
+        "expectedValue": "325.593597",
+        "tolerance": "2"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_shadow_fraction",
+        "expectedValue": "0.703039348",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_verts",
+        "expectedValue": "554",
+        "tolerance": "6"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wall_lamp_cell_glow",
+        "expectedValue": "0.5",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "door_inside_ground_glow",
+        "expectedValue": "0.5",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "door_outside_ground_glow",
+        "expectedValue": "0.0951154977",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wall_lamp2_cell_glow",
+        "expectedValue": "0.5",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "door2_inside_ground_glow",
+        "expectedValue": "0.5",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "door2_outside_ground_glow",
+        "expectedValue": "0.0951154977",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "walllamp_shut.png"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,35",
+        "open": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_count",
+        "expectedValue": "5",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_lit_area",
+        "expectedValue": "349.667938",
+        "tolerance": "2"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_shadow_fraction",
+        "expectedValue": "0.681082129",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_verts",
+        "expectedValue": "595",
+        "tolerance": "6"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wall_lamp_cell_glow",
+        "expectedValue": "0.5",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "door_inside_ground_glow",
+        "expectedValue": "0.5",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "door_outside_ground_glow",
+        "expectedValue": "0.0951154977",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wall_lamp2_cell_glow",
+        "expectedValue": "0.5",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "door2_inside_ground_glow",
+        "expectedValue": "0.5",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "door2_outside_ground_glow",
+        "expectedValue": "0.0951154977",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "walllamp_open.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_suppress",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_beam",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max_subtract",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_open_doors",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_glow_blocker",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_aperture",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_count",
+        "expectedValue": "5",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_lit_area",
+        "expectedValue": "349.667938",
+        "tolerance": "2"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_shadow_fraction",
+        "expectedValue": "0.681082129",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_verts",
+        "expectedValue": "595",
+        "tolerance": "6"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wall_lamp_cell_glow",
+        "expectedValue": "0.5",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "door_inside_ground_glow",
+        "expectedValue": "0.5",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "door_outside_ground_glow",
+        "expectedValue": "0.0951154977",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wall_lamp2_cell_glow",
+        "expectedValue": "0.5",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "door2_inside_ground_glow",
+        "expectedValue": "0.5",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "door2_outside_ground_glow",
+        "expectedValue": "0.0951154977",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "walllamp_open_vanilla.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_suppress",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_beam",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max_subtract",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_open_doors",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_glow_blocker",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_aperture",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "StandingLamp",
+        "offset": "0,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "-2,0"
+      }
+    },
+    {
+      "type": "FastForward",
+      "args": {
+        "ticks": "300"
+      }
+    },
+    {
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "paused"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_count",
+        "expectedValue": "5",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_lit_area",
+        "expectedValue": "354.196259",
+        "tolerance": "2"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_shadow_fraction",
+        "expectedValue": "0.696871877",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_verts",
+        "expectedValue": "598",
+        "tolerance": "6"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wall_lamp_cell_glow",
+        "expectedValue": "0.5",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "door_inside_ground_glow",
+        "expectedValue": "0.5",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "door_outside_ground_glow",
+        "expectedValue": "0.0951154977",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wall_lamp2_cell_glow",
+        "expectedValue": "0.5",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "door2_inside_ground_glow",
+        "expectedValue": "0.5",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "door2_outside_ground_glow",
+        "expectedValue": "0.0951154977",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "standinglamp_open.png"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "TorchLamp",
+        "offset": "0,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "-2,0"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_count",
+        "expectedValue": "5",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_lit_area",
+        "expectedValue": "345.533325",
+        "tolerance": "2"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_shadow_fraction",
+        "expectedValue": "0.664737344",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_verts",
+        "expectedValue": "598",
+        "tolerance": "6"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wall_lamp_cell_glow",
+        "expectedValue": "0.5",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "door_inside_ground_glow",
+        "expectedValue": "0.5",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "door_outside_ground_glow",
+        "expectedValue": "0.0951154977",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wall_lamp2_cell_glow",
+        "expectedValue": "0.5",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "door2_inside_ground_glow",
+        "expectedValue": "0.5",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "door2_outside_ground_glow",
+        "expectedValue": "0.0951154977",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "torchlamp_open.png"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "WallLamp",
+        "offset": "0,45",
+        "layout": "cells",
+        "rot": "West",
+        "clear": "true",
+        "cells": "-2,0"
+      }
+    },
+    {
+      "type": "FastForward",
+      "args": {
+        "ticks": "300"
+      }
+    },
+    {
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "paused"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_count",
+        "expectedValue": "5",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_lit_area",
+        "expectedValue": "349.667908",
+        "tolerance": "2"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_shadow_fraction",
+        "expectedValue": "0.681082189",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_verts",
+        "expectedValue": "595",
+        "tolerance": "6"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wall_lamp_cell_glow",
+        "expectedValue": "0.5",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "door_inside_ground_glow",
+        "expectedValue": "0.5",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "door_outside_ground_glow",
+        "expectedValue": "0.0951154977",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wall_lamp2_cell_glow",
+        "expectedValue": "0.5",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "door2_inside_ground_glow",
+        "expectedValue": "0.5",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "door2_outside_ground_glow",
+        "expectedValue": "0.0951154977",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "walllamp_reinstated.png"
+      }
+    },
+    {
+      "type": "SetRoof",
+      "args": {
+        "def": "RoofConstructed",
+        "width": "4",
+        "height": "7",
+        "offset": "-1,45"
+      }
+    },
+    {
+      "type": "SetRoof",
+      "args": {
+        "def": "RoofConstructed",
+        "width": "4",
+        "height": "7",
+        "offset": "-1,35"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_count",
+        "expectedValue": "5",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_lit_area",
+        "expectedValue": "349.667908",
+        "tolerance": "2"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_shadow_fraction",
+        "expectedValue": "0.681082189",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_verts",
+        "expectedValue": "595",
+        "tolerance": "6"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wall_lamp_cell_glow",
+        "expectedValue": "0.5",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "door_inside_ground_glow",
+        "expectedValue": "0.5",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "door_outside_ground_glow",
+        "expectedValue": "0.0951154977",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wall_lamp2_cell_glow",
+        "expectedValue": "0.5",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "door2_inside_ground_glow",
+        "expectedValue": "0.5",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "door2_outside_ground_glow",
+        "expectedValue": "0.0951154977",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "walllamp_roofed.png"
+      }
+    }
+  ]
+}
