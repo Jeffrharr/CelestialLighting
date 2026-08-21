@@ -73,6 +73,16 @@ run `git config core.hooksPath .githooks` once per clone/worktree to turn it on.
 
 Conventions worth knowing before you write anything:
 
+- **Name the feature, don't cite the number.** Write "night desaturation", not "§9"; "indoor sky
+  occlusion", not "§7b". This applies to everything you write — code comments, commit messages, PR
+  bodies, scenario descriptions, replies in chat — and it applies to `DESIGN.md` prose too, even
+  though its *headings* stay numbered. A § number may follow the name as a pointer into `DESIGN.md`
+  ("indoor sky occlusion (§7b)"), but it never stands alone as the way a subsystem is referred to.
+  The reason is that the numbers do not survive contact with a reader: they are allocation order
+  rather than document order, they collide (see Traps below), and a number that means nothing without
+  a 5,000-line lookup makes every diff, log line and review comment unreadable to anyone who has not
+  just read `DESIGN.md`. Existing prose is full of bare numbers — that is drift to fix when you touch
+  a passage, not a licence to add more.
 - **Pure core linked, not copied.** `Tests/CelestialLighting.Tests/CelestialLighting.Tests.csproj`
   pulls each pure file in
   with `<Compile Include ... Link=...>` so the tests compile the exact shipped file. Adding a new
@@ -108,6 +118,17 @@ with the captures committed to `Tests/Screenshots/` and the measurement quoted i
 Measure **median per-pixel CIELAB ΔE (CIE76)** between the A and B frames — see the parent CLAUDE.md
 for the thresholds, the reason the median rather than the mean, and how to invoke the harness. Two
 things worth internalising beyond that:
+
+**Turn the clouds off in any scenario that is not testing clouds.** `cloud_cover`, `cloud_sheet`,
+`cloud_presence`, `cloud_deck_varieties` and `cloud_volume` all ship **on**, and the cloud sheet
+drifts on the tick counter — so two runs of the same build put it in different places, and every
+outdoor cell it shades differs between them. That is the single largest source of run-to-run pixel
+noise this mod has, it lands on exactly the terrain an A/B capture is trying to compare, and it
+looks like a real effect: it produced a "2.9% of pixels changed" reading that took a same-build
+control and a per-region mask to identify. Partial cover during Clear weather is our own feature, so
+`SetWeather Clear` does **not** get you a clear sky. State the flags off explicitly rather than
+relying on weather. The exception is a scenario measuring the shipped default as a whole, which has
+to leave them on and accept the noise — say so in its description when you do.
 
 - A change measuring under ΔE 1 is not shipped, however correct its maths. §20c (#99) was merged
   knowingly inert on exactly that basis, with the reason recorded rather than the number quietly
