@@ -283,12 +283,23 @@ public static class VectorLightMath
     public static LightPolygon Build(
         float lightX, float lightZ, float radius, Segment[] segments, int baseRayCount)
     {
-        List<float> angles = new List<float>();
+        int segmentCount = segments == null ? 0 : segments.Length;
+
+        // One atan2 per endpoint, computed ONCE and shared by the corner rays and the angular index.
+        // The index is built out of exactly the angles the corner rays are already made of, so
+        // computing them twice would add a transcendental per endpoint to the pass being made cheaper.
+        float[] endpointAngles = EndpointAngles(lightX, lightZ, segments, segmentCount);
+
+        // Sized up front: the ring plus three rays per endpoint is the exact final count, and the
+        // cluttered case grows this list past 1,300 entries — eleven doublings and eleven copies.
+        List<float> angles = new List<float>(baseRayCount + segmentCount * 6);
 
         AddBaseRays(angles, baseRayCount);
-        AddCornerRays(angles, lightX, lightZ, segments);
+        AddCornerRays(angles, endpointAngles, segmentCount);
 
         angles.Sort();
+
+        AngularIndex index = AngularIndex.For(endpointAngles, segmentCount);
 
         float[] outAngles = new float[angles.Count];
         float[] outDistances = new float[angles.Count];
@@ -297,7 +308,7 @@ public static class VectorLightMath
         for (int i = 0; i < angles.Count; i++)
         {
             float angle = angles[i];
-            float distance = CastRay(lightX, lightZ, angle, radius, segments);
+            float distance = index.CastRay(lightX, lightZ, angle, radius, segments);
 
             if (!IsRedundant(outAngles, outDistances, count, angle, distance))
             {
@@ -329,21 +340,32 @@ public static class VectorLightMath
             angles.Add((float)(-Math.PI + 2.0 * Math.PI * i / baseRayCount));
     }
 
-    private static void AddCornerRays(List<float> angles, float lightX, float lightZ, Segment[] segments)
+    // The direction of every segment endpoint as seen from the light, endpoint 1 of segment i at
+    // 2i and endpoint 2 at 2i+1. Kept as a flat array in that order because the index below walks it
+    // in pairs and the corner rays walk it in sequence.
+    private static float[] EndpointAngles(float lightX, float lightZ, Segment[] segments, int segmentCount)
     {
-        if (segments == null)
-            return;
+        float[] endpointAngles = new float[segmentCount * 2];
 
-        for (int i = 0; i < segments.Length; i++)
+        for (int i = 0; i < segmentCount; i++)
         {
-            AddCornerRay(angles, lightX, lightZ, segments[i].X1, segments[i].Z1);
-            AddCornerRay(angles, lightX, lightZ, segments[i].X2, segments[i].Z2);
+            endpointAngles[i * 2] =
+                (float)Math.Atan2(segments[i].Z1 - lightZ, segments[i].X1 - lightX);
+            endpointAngles[i * 2 + 1] =
+                (float)Math.Atan2(segments[i].Z2 - lightZ, segments[i].X2 - lightX);
         }
+
+        return endpointAngles;
     }
 
-    private static void AddCornerRay(List<float> angles, float lightX, float lightZ, float cornerX, float cornerZ)
+    private static void AddCornerRays(List<float> angles, float[] endpointAngles, int segmentCount)
     {
-        float angle = (float)Math.Atan2(cornerZ - lightZ, cornerX - lightX);
+        for (int i = 0; i < segmentCount * 2; i++)
+            AddCornerRay(angles, endpointAngles[i]);
+    }
+
+    private static void AddCornerRay(List<float> angles, float angle)
+    {
         angles.Add(angle - CornerRayEpsilon);
         angles.Add(angle);
         angles.Add(angle + CornerRayEpsilon);
@@ -369,6 +391,191 @@ public static class VectorLightMath
         }
 
         return nearest;
+    }
+
+    // Which segments a ray in a given direction could possibly hit, so Build stops testing every ray
+    // against every wall.
+    //
+    // WHY THIS EXISTS. Build is QUADRATIC in the segment count and it is the whole cost of a bake.
+    // Each segment contributes six rays and each ray was tested against every segment, so the work is
+    // 6S^2 + 48S ray-segment solves. Measured offline across a clutter sweep (Tools/VectorLightBench),
+    // the visibility polygon was 83-94% of a bake in any scene resembling a built colony, and it grew
+    // as the square: 224 segments cost 1.39 ms, 480 cost 5.79 — 2.14x the walls for 4.17x the time.
+    // The silhouette, coverage and mesh passes together never exceeded 0.4 ms in any scene.
+    //
+    // WHAT MAKES THE CULL EXACT RATHER THAN APPROXIMATE. A segment and a light not standing on it
+    // subtend a single angular interval of less than pi. A ray can hit the segment only if its
+    // direction lies inside that interval, because `u` in RaySegmentDistance is outside [0, 1] for
+    // every direction outside it — so a segment culled here would have returned "miss" anyway. This
+    // does not approximate the polygon, it declines to ask questions whose answer is already known.
+    // Nothing about the OUTPUT changes, which is why the offline test asserts bit-for-bit equality
+    // against a brute-force oracle rather than equality within a tolerance.
+    //
+    // The light can never stand on a segment in practice — emitters sit at cell centres (x + 0.5) and
+    // every segment lies on an integer grid line, including door leaves — but a span of pi or more is
+    // handled by putting the segment in every bucket rather than by trusting that.
+    private readonly struct AngularIndex
+    {
+        // A power of two so the wrap is a mask rather than a modulo. 64 divides the circle into
+        // 5.6-degree slices, which is finer than the base ring's 7.5 and about the angle a one-cell
+        // wall subtends from across a radius-14 room — so a typical segment lands in one to three
+        // buckets and a bucket holds a handful of segments rather than all of them.
+        private const int Buckets = 64;
+        private const int BucketMask = Buckets - 1;
+
+        // Below this the index costs more than it saves: two array allocations and a counting sort
+        // to avoid a loop that is already only a few hundred solves. Measured rather than guessed —
+        // an eight-segment room bakes in 0.008 ms, which is three orders of magnitude under the case
+        // this exists for, so the threshold's only job is to not make the cheap case worse.
+        private const int MinSegments = 24;
+
+        // CSR layout: bucket b owns items[starts[b] .. starts[b + 1]). Null when the segment count is
+        // under MinSegments, which CastRay reads as "test everything".
+        private readonly int[] starts;
+        private readonly int[] items;
+
+        private AngularIndex(int[] starts, int[] items)
+        {
+            this.starts = starts;
+            this.items = items;
+        }
+
+        public static AngularIndex For(float[] endpointAngles, int segmentCount)
+        {
+            if (segmentCount < MinSegments)
+                return new AngularIndex(null, null);
+
+            // TWO ALLOCATIONS, and the count is deliberate rather than incidental. The obvious
+            // counting sort wants four more — per-segment arc bounds, and a per-bucket write cursor —
+            // and the first cut here had them. On this call rate that garbage is not free: the bench
+            // showed a SECOND sweep of untouched stages (coverage, mesh) slowing by 60%, which is
+            // this method's litter being collected during somebody else's measurement. In Mono, with
+            // a bake per lamp per door step, it would be collected during a frame.
+            //
+            // So the arc bounds are recomputed in the fill pass instead of stored — BucketRange is
+            // comparisons and one divide, no transcendentals, and it was already paid for by the
+            // atan2 the caller shares — and the cursor is `starts` itself, walked forward and then
+            // shifted back into place.
+            int[] starts = new int[Buckets + 1];
+
+            for (int i = 0; i < segmentCount; i++)
+            {
+                BucketRange(endpointAngles[i * 2], endpointAngles[i * 2 + 1], out int first, out int span);
+
+                for (int k = 0; k < span; k++)
+                    starts[((first + k) & BucketMask) + 1]++;
+            }
+
+            for (int b = 0; b < Buckets; b++)
+                starts[b + 1] += starts[b];
+
+            int[] items = new int[starts[Buckets]];
+
+            for (int i = 0; i < segmentCount; i++)
+            {
+                BucketRange(endpointAngles[i * 2], endpointAngles[i * 2 + 1], out int first, out int span);
+
+                for (int k = 0; k < span; k++)
+                {
+                    int bucket = (first + k) & BucketMask;
+                    items[starts[bucket]] = i;
+                    starts[bucket]++;
+                }
+            }
+
+            // The fill left every start one bucket advanced — starts[b] now holds where bucket b
+            // ENDS, which is where bucket b+1 begins. Shifting right restores the CSR invariant
+            // without a second counting pass.
+            for (int b = Buckets; b > 0; b--)
+                starts[b] = starts[b - 1];
+
+            starts[0] = 0;
+
+            return new AngularIndex(starts, items);
+        }
+
+        // The bucket range one segment's arc covers, PADDED BY A BUCKET AT EACH END.
+        //
+        // The padding guards the one place exact arithmetic runs out. A ray is cast from cos/sin of
+        // an angle, while the arc is derived from atan2 of the endpoint offsets; the two round
+        // differently, so a ray aimed exactly along a corner — precisely what AddCornerRay emits,
+        // three times per endpoint — can land a few ulps outside the arc it was computed from.
+        //
+        // IT IS KEPT DESPITE BEING UNNECESSARY HERE, which is worth writing down because the obvious
+        // review note is to delete it. Removing it was tried: VectorLightBuildCullTests stays green,
+        // so on this runtime no ray ever does fall outside. But that fixture runs on CoreCLR and the
+        // game runs Mono, whose transcendentals are a different implementation and need not round
+        // the same way — and the offline suite is structurally incapable of noticing the difference.
+        // A bucket is 5.6 degrees of slack against a discrepancy measured in millionths, bought for
+        // one extra bucket of solves per ray. The same fixture, made to UNDER-cover the arc, fails 11
+        // of its 13 cases — so the margin is slack, not the thing holding the cull up.
+        private static void BucketRange(float angleA, float angleB, out int first, out int span)
+        {
+            float difference = angleB - angleA;
+
+            // Normalise into (-pi, pi] so the arc is the SHORT way round, which is the one the
+            // segment actually subtends. Taking the long way would put a wall in three quarters of
+            // the buckets and cull nothing.
+            while (difference > (float)Math.PI)
+                difference -= (float)(2.0 * Math.PI);
+
+            while (difference <= -(float)Math.PI)
+                difference += (float)(2.0 * Math.PI);
+
+            // A span at or beyond a half turn means the light is on the segment's line, where the
+            // interval stops being a single arc. Give up and test it against every ray.
+            if (Math.Abs(difference) >= (float)Math.PI - 1e-6f)
+            {
+                first = 0;
+                span = Buckets;
+                return;
+            }
+
+            float start = difference >= 0f ? angleA : angleB;
+            float width = Math.Abs(difference);
+
+            int startBucket = BucketOf(start);
+            int endBucket = startBucket + (int)(width / (float)(2.0 * Math.PI) * Buckets) + 1;
+
+            first = startBucket - 1;
+            span = Math.Min(endBucket - startBucket + 3, Buckets);
+        }
+
+        private static int BucketOf(float angle)
+        {
+            // atan2 returns [-pi, pi], so the +pi shift lands in [0, 2pi] and only the closed upper
+            // end can reach Buckets. Masking rather than clamping wraps it to 0, which is the same
+            // slice: +pi and -pi are one direction.
+            int bucket = (int)((angle + (float)Math.PI) / (float)(2.0 * Math.PI) * Buckets);
+            return bucket & BucketMask;
+        }
+
+        // Distance to the nearest segment along one ray, testing only the bucket the ray points into.
+        // Identical in result to the public CastRay, which stays the brute-force version: it is the
+        // oracle the offline test compares this against, and it is the one the unit tests call.
+        public float CastRay(float lightX, float lightZ, float angle, float radius, Segment[] segments)
+        {
+            if (starts == null)
+                return VectorLightMath.CastRay(lightX, lightZ, angle, radius, segments);
+
+            float dirX = (float)Math.Cos(angle);
+            float dirZ = (float)Math.Sin(angle);
+            float nearest = radius;
+
+            int bucket = BucketOf(angle);
+            int to = starts[bucket + 1];
+
+            for (int k = starts[bucket]; k < to; k++)
+            {
+                float hit = RaySegmentDistance(lightX, lightZ, dirX, dirZ, segments[items[k]]);
+                bool closer = hit >= 0f && hit < nearest;
+
+                if (closer)
+                    nearest = hit;
+            }
+
+            return nearest;
+        }
     }
 
     // Solves L + t*D = A + u*S for t >= 0 and u in [0, 1]. Returns -1 when the ray misses, which
