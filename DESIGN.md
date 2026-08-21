@@ -9096,6 +9096,31 @@ There is now **one** Unity project and **one** bundle triple. #151 shipped its o
 `VectorLightMax.shader` lives in the §25c project, listed in `BuildShaderBundles.ShaderPaths`.
 Adding a shader is a line in that array and a `Tools/ShaderBundle/build.sh` run.
 
+#### The field upload, and the one-radius blind spot
+
+What the fragment program samples is vanilla's *delivered* glow, uploaded per emitter into a texture
+sized to that emitter's own field — a radius-10 lamp is 21x21, a radius-9 wall torch 19x19.
+`VectorLightOverlay.CopyField` writes it through `Texture2D.GetRawTextureData<Color32>()`, straight
+into the texture's own RGBA32 storage, and that choice is load-bearing rather than stylistic. As
+shipped in `ed76677` it wrote through `SetPixels32(Color32[])` from a static scratch array grown to
+the largest field seen so far. That overload requires an array of **exactly** width*height, so the
+first emitter smaller than the largest one threw
+`the size of data to be written would result in writing outside the target buffer bounds` — and,
+from a Postfix on `GameConditionManagerDraw`, took §11a, §23b and §24's draws down with it for that
+frame. Sizing the scratch exactly would have fixed the throw and reinstated the per-emitter
+allocation the buffer existed to avoid; a view of the texture's own storage costs neither.
+
+Worth recording is *why* nothing caught it: every §27 scenario up to that point lit a single radius,
+so no run had ever uploaded two differently-sized fields. `vector_light_mixed_radii.json` is the
+fixture that does — a radius-10 torch lamp and a radius-9 wall torch in one roofed room at midnight.
+It reproduced the throw 15 times on the shipped build and zero times after, with
+`vector_light_lit_area` (619.18) and `vector_light_shadow_fraction` (0.3161) **identical** on both
+builds: the defect was never in the lighting quantities, which is exactly why probes alone were blind
+to it. The frames are blind to it too — the upload only runs when an emitter's sample is dirty, so
+the throw is intermittent, and a buggy-vs-fixed capture pair measures the torches' flicker (6.59% of
+pixels touched) barely above a same-flags A-vs-A control across two runs (3.91%). **The evidence for
+that scenario is the run's `Player.log`, not its ΔE.**
+
 
 ## Conflict risk
 

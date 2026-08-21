@@ -1,0 +1,350 @@
+{
+  "name": "vector_light_mixed_radii",
+  "saveFile": "minimal_colony.rws",
+  "description": "TWO EMITTERS OF DIFFERENT RADII IN ONE FRAME, which is the one thing every other \u00a727 scenario lacks: a radius-10 torch lamp and a radius-9 wall torch in the same roofed room at midnight, on top of the fixture's own lamps. Phase 6 uploads vanilla's delivered glow per emitter into a texture sized to THAT emitter's field, so a scene lighting a single radius never exercises an upload following a differently-sized one. That case threw Texture2D.SetPixels32 'writing outside the target buffer bounds' on the build shipped in ed76677 \u2014 15 root-level exceptions across this scenario, none after the fix, same fixture and same flags. Because the draw hangs off a Postfix on GameConditionManagerDraw, each throw also abandoned the rest of that chain for the frame. READ THE RUN'S Player.log, NOT THE FRAMES. The throw is intermittent (the upload only runs when an emitter's sample is dirty), RimWorld catches it at Root level, and the probes below read lighting state rather than pixels \u2014 they are identical on both builds, which is the point: the fix changes no lighting quantity. A still frame therefore cannot show the bug, and the buggy-vs-fixed capture pair measures the torches' own flicker rather than the defect (6.59%% of pixels touched against 3.91%% for a same-flags A-vs-A control across the two runs). vector_light_count reads 5 in BOTH arms because the field is built for every emitter on the map whether or not the draw is switched on; it pins the fixture, not the feature.",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Concrete",
+        "width": "40",
+        "height": "24",
+        "offset": "0,45",
+        "clear": "true"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "0,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "-16,-7; -16,-6; -16,-5; -16,-4; -16,-3; -16,-2; -16,-1; -16,0; -16,1; -16,2; -16,3; -16,4; -16,5; -16,6; -16,7; -15,-7; -15,7; -14,-7; -14,7; -13,-7; -13,7; -12,-7; -12,7; -11,-7; -11,7; -10,-7; -10,7; -9,-7; -9,7; -8,-7; -8,7; -7,-7; -7,7; -6,-7; -6,7; -5,-7; -5,7; -4,-7; -4,7; -3,-7; -3,7; -2,-7; -2,7; -1,-7; -1,7; 0,-7; 0,7; 1,-7; 1,7; 2,-7; 2,-6; 2,-5; 2,-4; 2,-3; 2,-2; 2,-1; 2,0; 2,1; 2,2; 2,3; 2,4; 2,5; 2,6; 2,7"
+      }
+    },
+    {
+      "type": "SetRoof",
+      "args": {
+        "def": "RoofConstructed",
+        "width": "19",
+        "height": "15",
+        "offset": "-7,45"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "TorchLamp",
+        "offset": "0,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "-12,0"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "TorchWallLamp",
+        "rot": "South",
+        "offset": "0,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "-3,3"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "0"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "-7,45",
+        "zoom": "20"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "10"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "warmup_discard.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_suppress",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_beam",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max_lift",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max_seed",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max_subtract",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_open_doors",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_glow_blocker",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_aperture",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_count",
+        "expectedValue": "5",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "mixed_radii_vanilla.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_suppress",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_beam",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max_lift",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max_seed",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max_subtract",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_open_doors",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_glow_blocker",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_aperture",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_count",
+        "expectedValue": "5",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_shader_max_available",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_lit_area",
+        "expectedValue": "619.18",
+        "tolerance": "5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_shadow_fraction",
+        "expectedValue": "0.3161",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "mixed_radii_shadermax.png"
+      }
+    }
+  ]
+}
