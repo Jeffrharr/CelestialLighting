@@ -2887,10 +2887,15 @@ interleaved runs per build): **729.6 µs/call before the memo, 238.9 after**, wi
 consequences for the six rows above, neither of them yet acted on: the postfix was **90% of the entire
 lighting-overlay bake** at the point that table was written and is now 77%, so its 24% share of "what
 the mod adds" was already badly understated by July's numbers; and the other five rows have had a
-month of unrelated changes land on them under exactly the same conditions that let §7b drift. The
-instrument now exists — arm the layer, drive rebakes, interleave the arms — so the honest next step is
-to point it at `SectionLayer_NightDesaturation`, which the verdict below still names as the largest
-term on the strength of a July measurement.
+month of unrelated changes land on them under exactly the same conditions that let §7b drift.
+
+**The `SectionLayer_NightDesaturation` row is the worst of them, and in the opposite direction.** Its
+271 µs was measured at 11:35 on 2026-07-27; `a3b4cb4` memoised its nine-reads-per-cell glow walk and
+added its `!Visible` early return at 12:01 the same day. The row, the verdict below and every later
+citation of "§9 is the mod's largest term" have therefore all been quoting a number that a commit
+twenty-six minutes younger invalidated. **Nobody knows what this mod's most expensive section layer
+is.** The instrument now exists — arm the layer, drive rebakes with a flag re-set, interleave the arms
+— and pointing it at all six rows is the honest next step.
 
 In wall-clock terms a roof edit dirties its own section plus the sections of the eight adjacent
 cells — at most four distinct sections — so roofing a 10x10 room costs on the order of 2.2 ms with
@@ -2966,20 +2971,24 @@ only. The new-moon arm of the scenario exists to keep that branch proven rather 
   `Buildings` would reintroduce "walling in a porch leaves it drawn as a porch" (§15's known
   limitation, in its worst form) to save a number indistinguishable from noise. Not a trade worth
   making.
-- **`SectionLayer_NightDesaturation` is where the cost actually is**, and there are two independent,
-  behaviour-preserving fixes available, both recorded here rather than taken in the same change that
-  documented the problem: (1) `WashAt` calls `GroundGlowAt` **nine times per cell** — once as the
-  cell, eight more as each neighbour's neighbour — which is 2601 glow-grid queries per section where
-  361 into a reusable (17+2)² scratch grid would answer identically; vanilla's own
-  `GenerateLightingOverlay` walks the vertex lattice precisely to avoid that. (2) An early return
-  when `!Visible` would drop the layer to nothing for every player who has the feature off, since
-  `TryUpdate` will not do it for us.
+- **`SectionLayer_NightDesaturation` was where the cost actually was**, and the two independent,
+  behaviour-preserving fixes recorded here were both **taken 26 minutes after this table was
+  measured** (`a3b4cb4`, 2026-07-27 12:01, against the table's 11:35): (1) `WashAt` called
+  `GroundGlowAt` **nine times per cell** — once as the cell, eight more as each neighbour's neighbour
+  — 2601 glow-grid queries per section where 361 answer identically; that is now `NightWashWindow`,
+  filled once by `ResolveWash` and read by `AddCellColors`, a 7.2x reduction, and `WashAt` no longer
+  exists. (2) The `!Visible` early return is `DiscardMesh`, which also disables the submesh rather
+  than clearing it so the toggle costs no GPU re-upload. **So the 271 µs row above is a pre-fix
+  number and this bullet's premise expired the same afternoon it was written** — nobody came back to
+  it, and it went on being quoted as the mod's largest term for a month (including, briefly, by the
+  §7b change that fixed the identical bug elsewhere). §9's cost today is simply unknown.
 - **§7b's 95 µs postfix** is the second-largest term and belongs to the companion issue about the
   augmented lighting overlay, now with a number attached. (Which then grew to 790 µs and has been
   measured back down to 238.9 — see the dated caveat under the table above. Note that fix and §9's (1)
-  here are the *same bug twice*: a per-cell live-grid read placed inside a per-vertex lattice walk.
-  §9 still has its version, at 2601 `GroundGlowAt` calls per section — and it is now the one plausible
-  candidate for the largest term in the mod, measured with the same instrument §7b's fix was.)
+  here are the *same bug twice*: a per-cell live-grid read placed inside a per-vertex lattice walk,
+  fixed the same way — a section-plus-skirt window filled once. §9's landed a month earlier, which is
+  the awkward part: the pattern was already in the codebase, named, and documented when §7c wired a
+  second per-read lookup into §7b's lattice.)
 
 ### The flag we used to raise ourselves (§3, issues #11 and #26)
 
