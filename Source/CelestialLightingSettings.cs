@@ -295,7 +295,9 @@ public class CelestialLightingSettings : ModSettings
 
         // §15's caster heights are baked into the sun-shadow section meshes for the same reason, so
         // the eave toggle needs its own rebuild. Separate from the call above because the two write
-        // different mesh layers and dirty different flags.
+        // different mesh layers and dirty different flags. One call covers both halves of the eave
+        // feature: the shade layer subscribes to the same Buildings flag and now skips its own bake
+        // while the feature is off, so this is what brings the shade back with the caster.
         EaveShadowRedraw.SyncTo(eaveShadows);
 
         // §9's per-cell wash joined the same club when SectionLayer_NightDesaturation started skipping
