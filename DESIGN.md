@@ -9743,6 +9743,145 @@ composition to the byte — which is what makes `vector_light_column.json`'s swe
 assertion. It keeps a flag because of the cost above, and because an A/B needs somewhere to stand.
 
 
+### Vector lighting, phase 6: the visibility polygon was quadratic (`VectorLightMath.AngularIndex`, `VectorLightBakeProbe`, epic #174 phase 6)
+
+Phase 6 of the vector-lighting epic is about the **bakes** rather than the draw. The draw was already
+measured and is not the problem: `Patch_VectorLightDraw:Postfix` costs 0.0389 ms/frame hard and
+0.0460 soft on 23 emitters all on screen. The bakes had one recorded figure — a whole-map rebake at
+49 ms — and no decomposition at all.
+
+#### What a bake is actually made of
+
+`Tools/VectorLightBench` sweeps a clutter spectrum and times the four stages separately. The answer
+was not evenly split. **The visibility polygon is 83–94% of a bake in any scene resembling a built
+colony, and it grows as the square of the wall count**: 224 silhouette segments cost 2.25 ms against
+480 segments' 9.74, i.e. 2.14× the walls for 4.33× the time. Every ray was tested against every
+segment while every segment contributed six more rays, so the work is `6S² + 48S` ray-segment
+solves. The silhouette, coverage and mesh passes together never exceeded 0.4 ms in any scene in the
+sweep, including the adversarial ones.
+
+#### The cull, and why it is exact rather than approximate
+
+A segment, seen from a light not standing on it, subtends **one** angular interval of less than π. A
+ray can hit it only if the ray's direction lies inside that interval — outside it, `u` in
+`RaySegmentDistance` falls outside `[0, 1]` and the solver returns "miss" regardless. So segments are
+bucketed by the arc they subtend, 64 slices of the circle, and each ray tests only its own bucket.
+
+This is not an approximation of the polygon. It is the same solve on a smaller candidate set, and the
+candidates removed are the ones whose answer was already known. The endpoint angles the buckets need
+are the *same* `atan2` results the corner rays are already made of, so the index is built out of work
+the bake had already paid for. Below 24 segments there is no index: the allocation costs more than
+the loop it would save.
+
+Three details are load-bearing and each is a comment in the file rather than folklore:
+
+- **Two allocations, not six.** The obvious counting sort wants per-segment arc bounds and a
+  per-bucket write cursor, and the first cut had them. On this call rate that litter is not free: a
+  second sweep of stages the change does not touch — coverage, mesh — slowed by 60%, which was this
+  method's garbage being collected during somebody else's measurement. The arc bounds are recomputed
+  in the fill pass instead, and the cursor is `starts` itself, walked forward and shifted back.
+- **A bucket of padding on each arc**, kept although the offline tests pass without it. They run on
+  CoreCLR and the game runs Mono, whose transcendentals are a different implementation and need not
+  round `cos`/`sin` and `atan2` into agreement. The offline suite is structurally unable to notice.
+- **`Build`'s signature is unchanged**, so its three call sites — the mask, the drawn mesh, and the
+  probe's recomputation — need no edit and cannot drift apart on this change.
+
+#### Identical output is the claim, so it is tested as one
+
+`VectorLightBuildCullTests` asserts **bit-for-bit** equality — not within a tolerance — against
+`VectorLightBuildOracle`, across nine layouts, six wall bearings including both sides of the ±π seam,
+door leaves off the integer grid, a light pressed flat against a wall, and 200 randomised layouts at
+a fixed seed. A tolerance would accept a defect exactly where one is most likely: a ray aimed along a
+corner, which is where the entire shadow edge lives.
+
+The oracle is a **verbatim transcription of the pre-cull implementation**, and both halves of that
+matter. Independent of the code under test, because the index does not exist in it — a differential
+test whose two sides share the code making the claim asserts `x - x == 0`. But not independently
+*written*, because it doubles as the benchmark's baseline arm: the first cut used `foreach` where the
+shipped loop used an index, measured 1.67× slower than the thing it stood in for, and would have
+inflated every ratio quoted against it. It is separately shown faithful by running the bench on
+`main`, where the two arms agree at 0.96–1.05×.
+
+The green was proved by making it red. Under-covering the arc by one bucket fails 11 of the 13 cases;
+the two that survive are below the index threshold and take the brute-force path by design.
+
+#### What it measures live, and the number that deflates the headline
+
+`vector_light_bake_cull.json` and `vector_light_bake_brute.json` are one scenario in two copies,
+differing only in the Circinus run label. There is no feature flag — the output is bit-identical, and
+a flag would put a permanent branch in a pure core to buy a measurement — so the arms are two
+**builds**, compared as run documents, the way the four existing bake arms already are.
+
+| arm | brute | cull | ratio |
+|---|---|---|---|
+| `EnsurePolygon` total, 46 calls | 37.74 ms | 18.12 ms | **2.08×** |
+| `EnsurePolygon` max per cycle | 19.07 ms | 9.07 ms | 2.10× |
+| `Build`, attributed 46/86 | 28.16 ms | 7.22 ms | **3.90×** |
+| `SegmentsAround` (control) | 1.93 ms | 1.84 ms | 1.05× |
+| `BuildCoverage` (control) | 8.91 ms | 9.19 ms | 0.97× |
+
+Offline predicted 3.55× on `Build` at this segment count and Mono delivered 3.90×, so the bench's
+*ratios* transfer even though its milliseconds do not. The two arms nothing touched did not move,
+which is what makes the parent's 2.08× attributable rather than coincident. The worst cycle halving —
+19.07 → 9.07 ms — is the figure that matters most, because a 19 ms bake is a dropped frame outright.
+
+**The population is 42 segments per bake, and that is pinned.** This is the most useful thing the run
+found and it deflates the headline deliberately: the bench's cluttered scenes carry 224 and 480
+segments and gain 5.6–7.5×, but the epic's own lamp scene carries 42, where the gain is 3.90× on the
+polygon and 2.08× on the bake. Quoting the dense figure as the result would be quoting a scene nobody
+has. `vector_light_segments_per_bake` is pinned at 42 so a later edit drifting to an emptier scene
+fails loudly rather than reporting the cull as worthless.
+
+#### Where the next slice goes: coverage, not the polygon
+
+Inside a bake, brute was `Build` 74.6%, coverage 23.6%, silhouette 5.1%. Culled it is **coverage
+50.7%**, `Build` 39.9%, silhouette 10.2%. `BuildCoverage` samples `(2r+1)²` cells four times each
+through an `atan2`, a `sqrt` and a binary search, and it does not care how much wall is nearby —
+which is why it barely moves across the entire clutter sweep and why it now dominates. That is the
+next phase-6 target, and it is a different shape of problem: not an algorithmic blow-up but a fixed
+per-cell cost paid over a square that is mostly outside the lit circle.
+
+#### Counters, not timers
+
+`VectorLightBakeProbe` reads state the bake itself wrote — polygons rebuilt, rebuilds skipped,
+segments summed, invalidation calls and the emitters they marked, roster resyncs. `door_aperture_bakes`
+is the model and the reasoning is its own, one level up: a per-call timer measures one call and never
+asks how often it happens, so a bake made twice as cheap and provoked twice as often reads as a
+straight win in every timing table here.
+
+The alternative, and the trap, is to have the probe rebuild a polygon and time it — which
+`VectorLightProbe` genuinely does, correctly, for *shape* questions. For cache questions it is
+useless: a recomputation returns a fresh correct answer whether or not the cache was consulted, so a
+memoisation measures as working while doing nothing.
+
+Two scenario faults were found by using it. `circinus_*_reset` reads 0 by design, and pinning it at 1
+failed a run that was otherwise sound. And the counters reset on the `vector_lights` toggle while the
+profiler reset several steps later, so the first run reported 161 bakes against Circinus's 46 calls
+to the same method — two true numbers over two different windows, which is exactly the pair that gets
+quoted as a ratio by mistake. `vector_light_bake_reset` now opens both windows at one step.
+
+The children were checked to sum to the parent rather than assumed to: 100.7% on the culled arm and
+103% on the brute one, the excess being Circinus's own per-call overhead. Arms that did not sum would
+have been unequal scopes, and comparing those is how an earlier slice mistook lazy polygon building
+inside a timed bake for a slow algorithm.
+
+#### Two warts fixed in passing
+
+The terrain rect is shrunk clear of the four `SteamGeyser` cells at `z = 147..148`. Phase 5b records
+inheriting that wart from `vector_light_mask_max_perf.json` and keeping it so two figures compare —
+`SetTerrain`'s `clear` cannot remove a non-destroyable def, so the run reports `pass=false` while
+every probe passes. Shrinking the footprint costs nothing here: the terrain is cosmetic and blocks no
+light. And `Tools/VectorLightPreview` had stopped compiling entirely — `VectorLightMath.FalloffGradient`
+calls into `VectorLightLiftMath` and the preview's csproj linked only the former.
+
+#### What it ships as
+
+**Unconditionally on, and unflagged.** A flag is how this repo makes an A/B possible, and there is
+nothing to A/B: the output is identical on two runtimes and the offline suite proves it bit-for-bit.
+What stands in for the off arm is `vector_light_bake_brute.json` plus a one-file revert, which is
+what produced the table above.
+
+
 ## Conflict risk
 
 Decompiled the user's local Dub's Skylights 1.6 copy (`Dubwise.DubsSkylights`) — its patches
