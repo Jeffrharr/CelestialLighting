@@ -15,6 +15,13 @@ namespace CelestialLighting.Tests;
 //   2. The short-circuits survive. EaveCells.Encloses returns before the Room query for an unroofed
 //      cell, and the window must not have quietly forced every cell through a full resolution — so
 //      the fake map counts room queries as well as resolutions.
+//
+// Both apply twice over, because the window now bakes two verdicts. The sky-falloff fraction §7c/§7d
+// added was wired to the live map at every read for a month before it joined the window, and these
+// tests could not have caught that: every case below drove the lattice with a falloff of exactly 0,
+// so the term was present in the arithmetic and absent from what was being proved. The
+// SkyFalloff-suffixed cases exist to close that hole — a varying, non-zero field, its own lookup
+// counter, and the same equivalence bar the blocksSky half already had.
 [TestFixture]
 public class SkyOcclusionWindowTests
 {
@@ -84,8 +91,8 @@ public class SkyOcclusionWindowTests
     public void Verdicts_AreStoredPerCellAndIndependently()
     {
         SkyOcclusionWindow window = Window(InnerMin, InnerMin, InnerMax, InnerMax);
-        window.Resolve(40, 41, blocksSky: true);
-        window.Resolve(41, 41, blocksSky: false);
+        window.Resolve(40, 41, blocksSky: true, skyFalloffFraction: 0.25f);
+        window.Resolve(41, 41, blocksSky: false, skyFalloffFraction: 0.75f);
 
         Assert.Multiple(() =>
         {
@@ -94,6 +101,12 @@ public class SkyOcclusionWindowTests
 
             // Row stride: the cell directly above must not alias the cell to the right.
             Assert.That(window.BlocksSky(40, 42), Is.False);
+
+            // The second verdict is indexed the same way and stays with its own cell — the two are
+            // stored in parallel arrays, so a stride slip in one would not show up in the other.
+            Assert.That(window.SkyFalloffFraction(40, 41), Is.EqualTo(0.25f));
+            Assert.That(window.SkyFalloffFraction(41, 41), Is.EqualTo(0.75f));
+            Assert.That(window.SkyFalloffFraction(40, 42), Is.EqualTo(0f));
         });
     }
 
@@ -103,13 +116,15 @@ public class SkyOcclusionWindowTests
         // The border cells are the whole point of the +1: they are read by the section's boundary
         // lattice points even though the section never writes a vertex for them.
         SkyOcclusionWindow window = Window(InnerMin, InnerMin, InnerMax, InnerMax);
-        window.Resolve(window.MinX, window.MinZ, blocksSky: true);
-        window.Resolve(window.MaxX, window.MaxZ, blocksSky: true);
+        window.Resolve(window.MinX, window.MinZ, blocksSky: true, skyFalloffFraction: 0.5f);
+        window.Resolve(window.MaxX, window.MaxZ, blocksSky: true, skyFalloffFraction: 0.5f);
 
         Assert.Multiple(() =>
         {
             Assert.That(window.BlocksSky(window.MinX, window.MinZ), Is.True);
             Assert.That(window.BlocksSky(window.MaxX, window.MaxZ), Is.True);
+            Assert.That(window.SkyFalloffFraction(window.MinX, window.MinZ), Is.EqualTo(0.5f));
+            Assert.That(window.SkyFalloffFraction(window.MaxX, window.MaxZ), Is.EqualTo(0.5f));
         });
     }
 
@@ -126,6 +141,14 @@ public class SkyOcclusionWindowTests
             Assert.That(window.BlocksSky(4, -1), Is.False);
             Assert.That(window.BlocksSky(window.MaxX + 1, 4), Is.False);
             Assert.That(window.BlocksSky(4, window.MaxZ + 1), Is.False);
+
+            // 0 is likewise the genuine answer for the falloff term, not a fallback: it is what the
+            // deleted per-read InBounds guard substituted, and it loses the corner's MAX to any real
+            // neighbour, exactly as `false` loses the OR.
+            Assert.That(window.SkyFalloffFraction(-1, 4), Is.EqualTo(0f));
+            Assert.That(window.SkyFalloffFraction(4, -1), Is.EqualTo(0f));
+            Assert.That(window.SkyFalloffFraction(window.MaxX + 1, 4), Is.EqualTo(0f));
+            Assert.That(window.SkyFalloffFraction(4, window.MaxZ + 1), Is.EqualTo(0f));
         });
     }
 
@@ -168,7 +191,72 @@ public class SkyOcclusionWindowTests
         AssertSameVertices(legacy, windowed);
     }
 
+    // --- Equivalence for the second verdict: the sky-falloff fraction ---
+
+    [Test]
+    public void Lattice_WithASkyFalloffField_MatchesPerCellLookupExactly()
+    {
+        // The case the cases above could not see. Every test before this one drove the lattice with a
+        // falloff of 0, where baked and per-read are trivially equal; a field that varies per cell is
+        // what makes the corner pass's MAX-over-four-neighbours a real claim about indexing.
+        FakeMap map = SkyFalloffField(Scene());
+        LatticeRun legacy = LatticeRun.Legacy(map, InnerMin, InnerMin, InnerMax, InnerMax, NoFloor);
+        LatticeRun windowed = LatticeRun.Windowed(map, InnerMin, InnerMin, InnerMax, InnerMax, NoFloor);
+
+        AssertSameVertices(legacy, windowed);
+    }
+
+    [Test]
+    public void Lattice_WithASkyFalloffFieldAndAnIndoorBrightnessFloor_MatchesPerCellLookupExactly()
+    {
+        // Both caps at once. CapOcclusion composes them (the more generous floor wins), so this is the
+        // arrangement where a falloff read off by one cell could still be masked by the flat floor on
+        // some vertices and not others — i.e. the one most likely to produce a partial diff.
+        FakeMap map = SkyFalloffField(Scene());
+        LatticeRun legacy = LatticeRun.Legacy(map, InnerMin, InnerMin, InnerMax, InnerMax, 0.5f);
+        LatticeRun windowed = LatticeRun.Windowed(map, InnerMin, InnerMin, InnerMax, InnerMax, 0.5f);
+
+        AssertSameVertices(legacy, windowed);
+    }
+
+    [TestCase(0, 0, TestName = "Lattice_MapOriginSectionWithASkyFalloffField_MatchesPerCellLookupExactly")]
+    [TestCase(MapSize - SectionSize, MapSize - SectionSize,
+        TestName = "Lattice_FarEdgeSectionWithASkyFalloffField_MatchesPerCellLookupExactly")]
+    public void Lattice_EdgeSectionWithASkyFalloffField_MatchesPerCellLookupExactly(int botLeftX, int botLeftZ)
+    {
+        // Where the deleted SkyFalloffFractionAt guard mattered: a corner on the map edge asks about a
+        // cell one step past it. The window has to answer 0 there and must never index the map for it.
+        FakeMap map = SkyFalloffField(Scene());
+        int maxX = botLeftX + SectionSize - 1;
+        int maxZ = botLeftZ + SectionSize - 1;
+        LatticeRun legacy = LatticeRun.Legacy(map, botLeftX, botLeftZ, maxX, maxZ, NoFloor);
+        LatticeRun windowed = LatticeRun.Windowed(map, botLeftX, botLeftZ, maxX, maxZ, NoFloor);
+
+        Assert.Multiple(() =>
+        {
+            AssertSameVertices(legacy, windowed);
+            Assert.That(map.OutOfBoundsFalloffLookups, Is.EqualTo(0));
+        });
+    }
+
     // --- The reduction itself, and the short-circuits it must not have trampled ---
+
+    [Test]
+    public void Windowed_LooksUpSkyFalloffOncePerCellInsteadOfOncePerRead()
+    {
+        // The regression this whole change is about. SkyFalloffSource.FractionAt is the more expensive
+        // of the two verdicts — two glow-grid reads per call, one of them the GroundGlowAt every
+        // interop mod postfixes — and it was being paid 1,585 times per section regenerate.
+        FakeMap map = SkyFalloffField(Scene());
+        LatticeRun legacy = LatticeRun.Legacy(map, InnerMin, InnerMin, InnerMax, InnerMax, NoFloor);
+        LatticeRun windowed = LatticeRun.Windowed(map, InnerMin, InnerMin, InnerMax, InnerMax, NoFloor);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(legacy.FalloffLookups, Is.EqualTo(1585));
+            Assert.That(windowed.FalloffLookups, Is.EqualTo(361));
+        });
+    }
 
     [Test]
     public void Windowed_ResolvesEachCellOnceInsteadOfOncePerRead()
@@ -287,6 +375,23 @@ public class SkyOcclusionWindowTests
         return map;
     }
 
+    // A sky-falloff fraction for every cell on the map, deliberately not smooth. Real fields are
+    // gradients (a BFS out from a door, another mod's under-roof glow), and a gradient is the worst
+    // possible test input for an indexing change: neighbouring cells hold nearly equal values, so
+    // reading the wrong one still gives nearly the right answer and the equivalence assertion passes.
+    // The mixed multipliers below give every cell in a 4-neighbourhood a distinct value, and are
+    // asymmetric in x and z so a transposed index cannot pass either.
+    private static FakeMap SkyFalloffField(FakeMap map)
+    {
+        for (int z = 0; z < map.Size; z++)
+        {
+            for (int x = 0; x < map.Size; x++)
+                map.SetFalloff(x, z, ((x * 7 + z * 13) % 11) / 10f);
+        }
+
+        return map;
+    }
+
     // Stands in for the live Map the adapter reads. Resolve() mirrors
     // Patch_IndoorSkyOcclusion.ResolveCell exactly, including the order in which EaveCells.Encloses
     // short-circuits, and drives the real pure cores (EavesMath, IndoorOcclusionMath) so the
@@ -300,6 +405,7 @@ public class SkyOcclusionWindowTests
         private readonly bool[] naturalRock;
         private readonly bool[] doors;
         private readonly bool[] outdoorTemperature;
+        private readonly float[] skyFalloff;
 
         public FakeMap(int size)
         {
@@ -310,6 +416,7 @@ public class SkyOcclusionWindowTests
             naturalRock = new bool[size * size];
             doors = new bool[size * size];
             outdoorTemperature = new bool[size * size];
+            skyFalloff = new float[size * size];
         }
 
         public int Size => size;
@@ -320,11 +427,23 @@ public class SkyOcclusionWindowTests
 
         public int OutOfBoundsResolutions { get; private set; }
 
+        // Counted separately from Resolutions because the two used to fan out differently: the
+        // blocksSky verdict was baked once per cell while the falloff fraction was still being fetched
+        // once per read. A single counter would have averaged that gap away.
+        public int FalloffLookups { get; private set; }
+
+        // The deleted Patch_IndoorSkyOcclusion.SkyFalloffFractionAt existed only to keep this at zero:
+        // IndoorGlowPassthrough indexes the glow grid directly and would have read off the end of it.
+        // The window's clipped bounds are what replace that guard, so the count still has to be zero.
+        public int OutOfBoundsFalloffLookups { get; private set; }
+
         public void ResetCounters()
         {
             Resolutions = 0;
             RoomQueries = 0;
             OutOfBoundsResolutions = 0;
+            FalloffLookups = 0;
+            OutOfBoundsFalloffLookups = 0;
         }
 
         public bool InBounds(int x, int z) => x >= 0 && x < size && z >= 0 && z < size;
@@ -376,6 +495,22 @@ public class SkyOcclusionWindowTests
 
         public void SetDoor(int x, int z) => doors[Index(x, z)] = true;
 
+        // Stands in for SkyFalloffSource.FractionAt, which cannot be linked here (it reaches Map and
+        // GlowGrid). The values themselves are arbitrary; what matters for equivalence is that they
+        // vary sharply from cell to cell, so a corner's MAX over its four neighbours is a different
+        // number for every corner and any misindexing shows up as a diverged vertex rather than a
+        // coincidence. See SkyFalloffField.
+        public void SetFalloff(int x, int z, float fraction) => skyFalloff[Index(x, z)] = fraction;
+
+        public float FalloffAt(int x, int z)
+        {
+            FalloffLookups++;
+            if (!InBounds(x, z))
+                OutOfBoundsFalloffLookups++;
+
+            return skyFalloff[Index(x, z)];
+        }
+
         public void Resolve(int x, int z, out bool blocksSky)
         {
             Resolutions++;
@@ -409,12 +544,14 @@ public class SkyOcclusionWindowTests
     // differs between Legacy and Windowed; the arithmetic below is one copy shared by both.
     private sealed class LatticeRun
     {
-        private LatticeRun(float[] corners, byte[] centres, int resolutions, int roomQueries)
+        private LatticeRun(
+            float[] corners, byte[] centres, int resolutions, int roomQueries, int falloffLookups)
         {
             Corners = corners;
             Centres = centres;
             Resolutions = resolutions;
             RoomQueries = roomQueries;
+            FalloffLookups = falloffLookups;
         }
 
         public float[] Corners { get; }
@@ -425,8 +562,10 @@ public class SkyOcclusionWindowTests
 
         public int RoomQueries { get; }
 
+        public int FalloffLookups { get; }
+
         // The pre-refactor shape: resolve on demand at every read, with the explicit map-bounds guard
-        // the corner pass used to carry.
+        // the corner pass used to carry — on both verdicts, since each had one of its own.
         public static LatticeRun Legacy(FakeMap map, int minX, int minZ, int maxX, int maxZ, float floor)
         {
             map.ResetCounters();
@@ -436,6 +575,7 @@ public class SkyOcclusionWindowTests
             float Corner(int x, int z)
             {
                 bool anyBlocksSky = false;
+                float skyFalloffFraction = 0f;
                 for (int i = 0; i < 4; i++)
                 {
                     int cellX = x - (i & 1);
@@ -444,14 +584,21 @@ public class SkyOcclusionWindowTests
                     {
                         map.Resolve(cellX, cellZ, out bool blocksSky);
                         anyBlocksSky |= blocksSky;
+
+                        // MAX, against the OR above: the most sky any of the four neighbours receives
+                        // is the floor this corner honours. The pre-window code took it inside the same
+                        // guard, so an off-map neighbour contributed nothing to either.
+                        skyFalloffFraction = Math.Max(skyFalloffFraction, map.FalloffAt(cellX, cellZ));
                     }
                 }
 
                 return IndoorOcclusionMath.CapOcclusion(
-                    IndoorOcclusionMath.CornerOcclusion(anyBlocksSky), floor, skyFalloffFraction: 0f);
+                    IndoorOcclusionMath.CornerOcclusion(anyBlocksSky), floor, skyFalloffFraction);
             }
 
-            return Run(map, minX, minZ, maxX, maxZ, floor, Corner, CentreBlocksSky);
+            // The centre pass carried no guard of its own and needed none — a centre vertex is always
+            // a cell of the section, hence always on the map.
+            return Run(map, minX, minZ, maxX, maxZ, floor, Corner, CentreBlocksSky, map.FalloffAt);
 
             bool CentreBlocksSky(int x, int z)
             {
@@ -473,30 +620,35 @@ public class SkyOcclusionWindowTests
                 for (int x = window.MinX; x <= window.MaxX; x++)
                 {
                     map.Resolve(x, z, out bool blocksSky);
-                    window.Resolve(x, z, blocksSky);
+                    window.Resolve(x, z, blocksSky, map.FalloffAt(x, z));
                 }
             }
 
             float Corner(int x, int z)
             {
                 bool anyBlocksSky = false;
+                float skyFalloffFraction = 0f;
                 for (int i = 0; i < 4; i++)
                 {
                     int cellX = x - (i & 1);
                     int cellZ = z - (i >> 1);
                     anyBlocksSky |= window.BlocksSky(cellX, cellZ);
+                    skyFalloffFraction =
+                        Math.Max(skyFalloffFraction, window.SkyFalloffFraction(cellX, cellZ));
                 }
 
                 return IndoorOcclusionMath.CapOcclusion(
-                    IndoorOcclusionMath.CornerOcclusion(anyBlocksSky), floor, skyFalloffFraction: 0f);
+                    IndoorOcclusionMath.CornerOcclusion(anyBlocksSky), floor, skyFalloffFraction);
             }
 
-            return Run(map, minX, minZ, maxX, maxZ, floor, Corner, window.BlocksSky);
+            return Run(
+                map, minX, minZ, maxX, maxZ, floor, Corner, window.BlocksSky, window.SkyFalloffFraction);
         }
 
         private static LatticeRun Run(
             FakeMap map, int minX, int minZ, int maxX, int maxZ, float floor,
-            Func<int, int, float> corner, Func<int, int, bool> centreBlocksSky)
+            Func<int, int, float> corner, Func<int, int, bool> centreBlocksSky,
+            Func<int, int, float> centreFalloff)
         {
             int width = maxX - minX + 1;
             int height = maxZ - minZ + 1;
@@ -519,11 +671,12 @@ public class SkyOcclusionWindowTests
                     float occlusion = IndoorOcclusionMath.CentreOcclusion(centreBlocksSky(x, z), cornerSum);
                     centres[(z - minZ) * width + (x - minX)] =
                         IndoorOcclusionMath.CoverAlpha(
-                            IndoorOcclusionMath.CapOcclusion(occlusion, floor, skyFalloffFraction: 0f), 0);
+                            IndoorOcclusionMath.CapOcclusion(occlusion, floor, centreFalloff(x, z)), 0);
                 }
             }
 
-            return new LatticeRun(corners, centres, map.Resolutions, map.RoomQueries);
+            return new LatticeRun(
+                corners, centres, map.Resolutions, map.RoomQueries, map.FalloffLookups);
         }
     }
 }

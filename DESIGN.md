@@ -896,13 +896,28 @@ reads `map.roofGrid` / `map.edificeGrid` and rewrites `mesh.colors32`.
   so the cost lands in bursts on ordinary gameplay events. The postfix therefore bakes a
   `(Section.Size + 2)^2 == 361`-cell verdict window up front and reads it — the same trade §15's
   `EaveShadowGrid` already makes for the same reason, deliberately solved the same way rather than a
-  second way: same one-cell skirt, same clip at the map edge, same allocate-per-regenerate (361 bytes,
+  second way: same one-cell skirt, same clip at the map edge, same allocate-per-regenerate (722 bytes,
   and a shared static buffer would corrupt the mesh if anything ever re-entered `Regenerate`). Pure
   refactor — every vertex alpha is identical, which `SkyOcclusionWindowTests` pins by running both
   lattices and comparing. Two properties it preserves rather than papers over: `EaveCells`' `roof == null`
   short-circuit still keeps the room query off unroofed cells (the window resolves exactly the cells the
   lattice was already resolving, no more), and the corner pass's old `cell.InBounds(map)` guard now lives
   in the window, which answers for an off-map cell with the same `false` that guard was contributing.
+- **The window went stale as soon as a second verdict appeared, and that is the durable lesson here.**
+  §7c/§7d added the sky-falloff term (`SkyFalloffSource.FractionAt`) to both mesh passes and wired it
+  straight to the live map at every read, rebuilding the exact 1,585-reads-per-section fan-out the
+  window had just removed — on a *costlier* lookup than the one it was written for, since `FractionAt`
+  reads the glow grid twice and one of those is `GroundGlowAt`, the patched surface every interop mod
+  in the load order postfixes. It survived a month because nothing pointed at it: the §16 table below
+  had measured the postfix before §7c existed, the file header still quoted that measurement, and
+  `SkyOcclusionWindowTests` drove every one of its equivalence cases with a falloff of exactly `0` —
+  the term was in the arithmetic and absent from what was being proved. Circinus found it at 7.38% of
+  frame, 790 µs/call against the 95 µs on record, worst frame 95.92 ms. The falloff fraction now bakes
+  into the window alongside `blocksSky` (one `Resolve` call takes both, so a fill loop cannot resolve
+  one and forget the other), the tests gained a deliberately non-smooth falloff field — a gradient is
+  the worst input for an indexing change, since reading the neighbouring cell still gives nearly the
+  right answer — and a lookup counter of its own. **Anything a later section adds to these two passes
+  belongs in the window**; the rule is what this subsystem now has instead of a comment that ages.
 - Skipped entirely on `disableSkyLighting` biomes (the Odyssey undercave), where vanilla already zeroes
   the sky contribution wholesale; there is nothing to occlude and overriding it would fight that contract.
 
@@ -2832,6 +2847,19 @@ Two further measurements, each taken with the feature's own toggle switched off:
 - §7b off: vanilla's lighting overlay drops from 158 µs to 63 µs. Our occlusion postfix is 2.5x the
   cost of the entire vanilla layer it postfixes.
 
+**Every number above was measured on 2026-07-27, before §7c and §7d existed, and the §7b row went
+stale a fortnight later.** Left in place rather than quietly patched, because the drift is the
+finding: §7c/§7d put a per-read `SkyFalloffSource.FractionAt` into §7b's two mesh passes, and Circinus
+subsequently read that postfix at **790 µs/call, 7.38% of frame, worst frame 95.92 ms** — 8x the 95 µs
+on this table, which is also the number the file's own header was still quoting. §7b's write-up has
+the mechanism and the fix (bake the falloff into `SkyOcclusionWindow`, 1,585 lookups per section down
+to 361). Two things follow for anyone reading this table next:
+
+- **A per-section cost table dates as fast as the sections it measures.** Read the date before
+  trusting a row, and re-measure rather than citing.
+- **A whole-table re-measure is owed**, this time under Circinus for the call counts Dubs omits.
+  Until it happens, the rows above describe a build from July, and the §7b row is known wrong.
+
 In wall-clock terms a roof edit dirties its own section plus the sections of the eight adjacent
 cells — at most four distinct sections — so roofing a 10x10 room costs on the order of 2.2 ms with
 this mod against 0.6 ms without, once, in the frame the camera is looking at it, and nothing at all
@@ -2915,7 +2943,10 @@ only. The new-moon arm of the scenario exists to keep that branch proven rather 
   when `!Visible` would drop the layer to nothing for every player who has the feature off, since
   `TryUpdate` will not do it for us.
 - **§7b's 95 µs postfix** is the second-largest term and belongs to the companion issue about the
-  augmented lighting overlay, now with a number attached.
+  augmented lighting overlay, now with a number attached. (Which then grew to 790 µs and was brought
+  back down — see the dated caveat under the table above. Note that fix and §9's (1) here are the
+  *same bug twice*: a per-cell live-grid read placed inside a per-vertex lattice walk. §9 still has
+  its version, at 2601 `GroundGlowAt` calls per section.)
 
 ### The flag we used to raise ourselves (§3, issues #11 and #26)
 

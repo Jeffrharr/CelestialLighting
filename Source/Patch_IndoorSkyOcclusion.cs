@@ -19,11 +19,21 @@ namespace CelestialLighting;
 // separate places that add work to a map-mesh dirty flag (the other three are
 // SectionLayer_NightDesaturation, SectionLayer_EaveShade and Patch_ShadowRoofInvalidation), and no
 // one of the four can show the total — DESIGN.md §16 has the flag-to-layers table and the live
-// timings. Measured, this postfix adds 95 µs per section regenerate against the 63 µs vanilla's
-// whole lighting overlay takes, i.e. it costs 2.5x the method it postfixes, and it is the second
-// largest term in what the mod adds to a roof edit. Also worth knowing before reasoning about how
-// often this runs: GlowGrid.DirtyCell raises Roofs as well as GroundGlow, so every lamp toggle
+// timings. Measured at §16, this postfix added 95 µs per section regenerate against the 63 µs
+// vanilla's whole lighting overlay takes, i.e. it cost 2.5x the method it postfixes, and it is the
+// second largest term in what the mod adds to a roof edit. Also worth knowing before reasoning about
+// how often this runs: GlowGrid.DirtyCell raises Roofs as well as GroundGlow, so every lamp toggle
 // re-runs this pass over the sections it covers.
+//
+// That 95 µs then drifted to 790 µs and nobody noticed for a month, which is the more useful lesson
+// than either number. §7c/§7d added a per-read sky-falloff lookup to both passes below and left it
+// wired to the live map, so the 1,585 lattice reads a section takes were each doing two glow-grid
+// reads — one of them GroundGlowAt, the patched surface every interop mod postfixes. Circinus caught
+// it at 7.38% of frame, 2.0 calls/frame, 790 µs/call, worst frame 95.92 ms (a whole-map GroundGlow
+// change re-baking most sections at once). The fix was to bake that verdict into SkyOcclusionWindow
+// alongside blocksSky, where everything else a pass reads per cell already lived. Anything added to
+// these passes later belongs in the window too; the comment above claiming this runs "never per
+// frame" is what made the drift easy to miss, and it is only true of a colony with no lit torches.
 //
 // Why Priority.First:
 //   Dub's Skylights brackets this same method — its Prefix nulls map.roofGrid for skylit cells so
@@ -42,8 +52,9 @@ namespace CelestialLighting;
 // Why the cell verdicts are baked into a window first (SkyOcclusionWindow):
 //   The two passes below read each cell up to five times — four times as a neighbour of one of the
 //   corner lattice points it meets at, once as its own centre — and each read used to reach a Room
-//   query. Resolving the section's cells plus their one-cell skirt once, up front, is the same trade
-//   §15's EaveShadowGrid already makes for the same reason; the window carries the arithmetic.
+//   query, then later a pair of glow-grid reads as well. Resolving the section's cells plus their
+//   one-cell skirt once, up front, is the same trade §15's EaveShadowGrid already makes for the same
+//   reason; the window carries the arithmetic.
 //
 // Two passes in a fixed order, mirroring vanilla's: corners first, then centres — because an
 // *uncovered* cell's centre is the mean of its own four corners, so the corner values have to exist
@@ -85,9 +96,9 @@ public static class Patch_IndoorSkyOcclusion
 
         IndoorOcclusionSettings settings = IndoorOcclusionSettings.Current;
         SkyOcclusionWindow window = BuildWindow(map, rect);
-        float[] corners = BuildCornerOcclusion(map, window, rect, settings);
+        float[] corners = BuildCornerOcclusion(window, rect, settings);
         WriteCorners(colors, corners);
-        WriteCentres(map, window, rect, colors, firstCenterInd, corners, settings);
+        WriteCentres(window, rect, colors, firstCenterInd, corners, settings);
         mesh.colors32 = colors;
     }
 
@@ -111,7 +122,7 @@ public static class Patch_IndoorSkyOcclusion
     // The lattice: one more row and column than there are cells, in the same row-major order as the
     // mesh's leading corner vertices, so index i here is vertex i there.
     private static float[] BuildCornerOcclusion(
-        Map map, SkyOcclusionWindow window, CellRect rect, IndoorOcclusionSettings settings)
+        SkyOcclusionWindow window, CellRect rect, IndoorOcclusionSettings settings)
     {
         int stride = rect.Width + 1;
         float[] corners = new float[stride * (rect.Height + 1)];
@@ -119,7 +130,7 @@ public static class Patch_IndoorSkyOcclusion
         {
             for (int x = rect.minX; x <= rect.maxX + 1; x++)
             {
-                corners[(z - rect.minZ) * stride + (x - rect.minX)] = CornerOcclusion(map, window, x, z, settings);
+                corners[(z - rect.minZ) * stride + (x - rect.minX)] = CornerOcclusion(window, x, z, settings);
             }
         }
 
@@ -137,7 +148,7 @@ public static class Patch_IndoorSkyOcclusion
     // wall line into a straight ramp instead of a per-tile starburst. The four corner indices are the
     // same neighbourhood vanilla's own centre pass averages: (x,z), (x+1,z), (x,z+1), (x+1,z+1).
     private static void WriteCentres(
-        Map map, SkyOcclusionWindow window, CellRect rect, Color32[] colors, int firstCenterInd, float[] corners,
+        SkyOcclusionWindow window, CellRect rect, Color32[] colors, int firstCenterInd, float[] corners,
         IndoorOcclusionSettings settings)
     {
         int stride = rect.Width + 1;
@@ -151,7 +162,7 @@ public static class Patch_IndoorSkyOcclusion
 
                 float occlusion = IndoorOcclusionMath.CentreOcclusion(window.BlocksSky(x, z), cornerSum);
 
-                float skyFalloffFraction = SkyFalloffSource.FractionAt(map, new IntVec3(x, 0, z));
+                float skyFalloffFraction = window.SkyFalloffFraction(x, z);
                 int vertex = firstCenterInd + (z - rect.minZ) * rect.Width + (x - rect.minX);
                 colors[vertex].a = IndoorOcclusionMath.CoverAlpha(
                     IndoorOcclusionMath.CapOcclusion(occlusion, settings.MinIndoorBrightness, skyFalloffFraction),
@@ -165,9 +176,10 @@ public static class Patch_IndoorSkyOcclusion
     // door, so an edge corner is judged only by the cells that actually exist, and the two sections
     // sharing a boundary vertex compute an identical value (no seam). The explicit InBounds guard
     // this loop used to carry now lives in the window, which answers for an off-map cell with exactly
-    // the `false` those two ORs were already contributing.
+    // the `false` those two ORs were already contributing — and, since the falloff term joined the
+    // window, with exactly the 0f that term's own guard was substituting.
     private static float CornerOcclusion(
-        Map map, SkyOcclusionWindow window, int x, int z, IndoorOcclusionSettings settings)
+        SkyOcclusionWindow window, int x, int z, IndoorOcclusionSettings settings)
     {
         bool anyBlocksSky = false;
         // A corner is shared by up to four cells, and — unlike anyBlocksSky, which is an OR because one
@@ -181,23 +193,11 @@ public static class Patch_IndoorSkyOcclusion
             int cellX = x - (i & 1);
             int cellZ = z - (i >> 1);
             anyBlocksSky |= window.BlocksSky(cellX, cellZ);
-            skyFalloffFraction = Mathf.Max(skyFalloffFraction, SkyFalloffFractionAt(map, cellX, cellZ));
+            skyFalloffFraction = Mathf.Max(skyFalloffFraction, window.SkyFalloffFraction(cellX, cellZ));
         }
 
         float occlusion = IndoorOcclusionMath.CornerOcclusion(anyBlocksSky);
         return IndoorOcclusionMath.CapOcclusion(occlusion, settings.MinIndoorBrightness, skyFalloffFraction);
-    }
-
-    // IndoorGlowPassthrough.SkyFractionAt (one of SkyFalloffSource's two possible answers) assumes an
-    // in-bounds cell — it indexes straight into Ambient Light's own per-map depth array — so this
-    // checks InBounds itself rather than pushing that contract onto the dispatcher. (NativeSkyFalloffGrid
-    // guards internally, so the check is redundant-but-harmless on that path.) The window's
-    // BlocksSky/IsDoor already answer `false` for an off-map neighbour without needing this guard, but a
-    // corner on the map edge still asks about a cell one step past it.
-    private static float SkyFalloffFractionAt(Map map, int x, int z)
-    {
-        IntVec3 cell = new IntVec3(x, 0, z);
-        return cell.InBounds(map) ? SkyFalloffSource.FractionAt(map, cell) : 0f;
     }
 
     // Live-state lookup for one cell, baked into the window and never repeated. Reads the roof *def*
@@ -218,6 +218,15 @@ public static class Patch_IndoorSkyOcclusion
     // the expensive half — the overwhelming majority of cells on any map are unroofed, and baking
     // this window resolves exactly the cells the lattice was already resolving (no more), so no cell
     // that used to exit early is now forced through a full resolution.
+    //
+    // The sky-falloff fraction is fetched here too, once, rather than at each of the five reads that
+    // want it. Safe as a memo because SkyFalloffSource.FractionAt is a pure function of (map, cell)
+    // for the duration of one Regenerate: its inputs are the glow grid, the BFS grid behind a dirty
+    // flag, and CurSkyGlow, none of which anything between this fill loop and the last vertex write
+    // touches — the per-read version was reading the same value five times, not a fresher one.
+    // No InBounds guard needed on it (the deleted SkyFalloffFractionAt carried one for
+    // IndoorGlowPassthrough's direct glow-grid indexing) — ForSection has already clipped the window,
+    // so every cell this loop visits is on the map by construction.
     private static void ResolveCell(Map map, SkyOcclusionWindow window, int x, int z)
     {
         IntVec3 cell = new IntVec3(x, 0, z);
@@ -230,7 +239,7 @@ public static class Patch_IndoorSkyOcclusion
             EaveCells.Encloses(map, cell, roof), roof != null && roof.isThickRoof, holdsRoof, isDoor,
             NaturalRock(edifice));
 
-        window.Resolve(x, z, blocksSky);
+        window.Resolve(x, z, blocksSky, SkyFalloffSource.FractionAt(map, cell));
     }
 
     // Unmined stone: the game's own flag for it, set on RockBase and so inherited by every vanilla
