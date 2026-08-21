@@ -907,6 +907,45 @@ public static class CelestialLightingFeatures
     // an assertion in a comment; it is not a taste knob and should not become one.
     public static bool VectorLightMaskMaxSeed = true;
 
+    // Feature key for VectorLightMaskSaturation.
+    public const string VectorLightMaskSaturationKey = "vector_light_mask_saturation";
+
+    // §27 phase 5b (epic #174 phase 5): the mask's edit is applied to vanilla's raw SUM and projected
+    // once, instead of being subtracted from the projected byte.
+    //
+    // WHAT IT FIXES, and it is a direction rather than a level. Ring lamps around a free-standing
+    // wall column and the shadows behind the column get DEEPER as lamps are added. Every lamp you
+    // add fills in part of the region the others cannot see, so the physical answer runs the other
+    // way: more lamps, shallower shadows, always.
+    //
+    // WHY IT HAPPENS. Vanilla sums its emitters into a ColorInt and then calls
+    // ColorInt.ProjectToColor32Fast, which over 255 rescales all three channels by 255/max — the
+    // glow grid SATURATES. The mask subtracts each blocked emitter's raw `own` out of that saturated
+    // byte, so once a cell is over the ceiling the subtraction keeps its full strength while the
+    // thing it is taken from has stopped growing. Six lamps at 150 leaves the cell displaying 255 and
+    // the mask taking 300 off it; add a seventh the column also blocks and the same cell darkens
+    // again. Below the ceiling the two spaces are identical and none of this is reachable, which is
+    // why §27 shipped for this long without it showing up outside a heavily lit room.
+    //
+    // WHAT IT DOES INSTEAD. VectorLightSaturationMath re-applies the accumulated shadow and lift to
+    // the raw sum, projects that, and hands the mask the difference against what vanilla displayed.
+    // The composition becomes proj(R - shadow + lift) rather than proj(R) - shadow + lift, which is
+    // monotone in emitter count by construction: adding an emitter adds a non-negative amount to R'
+    // whatever our geometry says about it, and vanilla — the oracle here, since its flood is
+    // unambiguously monotone — is matched rather than approximated.
+    //
+    // CONFINED TO SATURATED CELLS ON PURPOSE. Where the raw sum is under 255 the correction is
+    // provably the identity, so VectorLightMask tests the sum and leaves the accumulators untouched
+    // rather than running arithmetic that cannot change anything. The shipped shadow in an ordinary
+    // one-lamp room is therefore byte-identical with this on, and the ONLY frames that move are the
+    // ones that were wrong.
+    //
+    // ON, and it is a correctness fix rather than a bake-off arm — but it keeps a flag because the
+    // off arm is what makes the monotonicity sweep an A/B rather than an assertion, and because it
+    // costs a second walk over the section's emitters to learn the raw sum vanilla projected.
+    // Inert unless VectorLightMask is on.
+    public static bool VectorLightMaskSaturation = true;
+
     public const string VectorLightPawnShadowsKey = "vector_light_pawn_shadows";
 
     // §27 phase 4: a pawn throws a shadow away from each lamp that lights it.
