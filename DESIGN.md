@@ -7477,14 +7477,17 @@ would call the feature. So it gets a **settings checkbox of its own** ("Visible 
 under "Partial cloud cover" as a **sub-toggle of §22** — the same relationship the `- N% cloudy`
 label has, for the same reason: §22 is the master for *does this mod have an opinion about cloud at
 all*, and drawing a deck over a player who switched that off would be the mod arguing with them. The
-gate is load-bearing rather than bookkeeping, because coverage here comes from §13's weather deck as
-well as §22's Clear-day fraction (`CloudFractionFor`), so without it a rainy day would keep growing
-sheets with partial cover off. Both flags are checked in `CloudLayers.SheetAlphaFor`, which returns 0
+gate is load-bearing rather than bookkeeping, because §22's fraction is the only thing standing
+between the player's "no thank you" and a drawn deck. (It used to be load-bearing for a second
+reason — coverage also came from §13's weather deck, so without the gate a rainy day kept growing
+sheets with partial cover off. §25f removed the deck term entirely; a rainy day now grows no sheets
+either way.) Both flags are checked in `CloudLayers.SheetAlphaFor`, which returns 0
 and skips the draw call entirely — off is the pre-feature baseline exactly, for the harness and for
 the player.
 
-**The §13 double-count is now a shipped cost rather than a prototype's.** See the note below on
-`SheetAmplitude` 0.35; it is the first thing to fix.
+**The §13 double-count was a shipped cost rather than a prototype's, and §25f fixed it.** See the
+note below on `SheetAmplitude` 0.35 for what it was, and §25f for the partition that removed it: a
+weather carrying a deck now draws no sheets at all, so the two lanes can no longer both render it.
 
 **What it is.** The other two lanes draw *illumination* and stop at the ground, below `FogOfWar`. This
 draws *sky*: cloud between the camera and the map, above `FogOfWar` for the same reason §11a's aurora
@@ -7692,13 +7695,18 @@ arithmetic, and every pure core takes `inVacuum` as its last required parameter 
 it, per `Vacuum.cs`'s convention. A cavern, a pocket map and an orbital habitat all draw nothing.
 
 **Not a residual, unlike the other two, and that is deliberate.** A drawn cloud is the object, not an
-adjustment to a flat approximation of it: an overcast sky should come out *covered*, not
-uniform-and-therefore-invisible. The honest cost, recorded rather than hidden, is that over a solid
-overcast the sheet and §13's flat dimming are both rendering the same deck, so the map is darker than
-either alone intends. That double-count is why `SheetAmplitude` is only 0.35, and now that the lane
-ships on it is a cost every player pays under overcast rather than an opt-in prototype's — the first
-thing to fix here, most likely by feeding §13 a reduced opacity while the sheet draws, so the two
-partition the deck the way §23b and §23 partition the underlight.
+adjustment to a flat approximation of it: a *partly-cloudy* sky should come out with clouds in it,
+not uniform-and-therefore-invisible.
+
+**SUPERSEDED IN PART BY §25f, and the original reasoning is kept because it is what §25f answered.**
+This paragraph used to end: over a solid overcast the sheet and §13's flat dimming are both rendering
+the same deck, so the map is darker than either alone intends; that double-count is why
+`SheetAmplitude` is only 0.35, and the first thing to fix, most likely by feeding §13 a reduced
+opacity while the sheet draws. §25f fixed it the other way round — a weather with a deck now draws no
+sheets at all, so there is nothing left to partition and no second scalar to keep in sync. What §25
+draws is a Clear-day sky, and "an overcast sky should come out covered" turned out to be the wrong
+ambition for a lane made of bounded, edged objects: an overcast sky has no edges in it, and §13
+already renders it.
 
 ### Live verification
 
@@ -10518,6 +10526,150 @@ to what it produces.
 The three timing probes declare `pinnedUnder: no-profiler`, because profiling changes what a
 stopwatch sees and a duration pinned under one mode and compared under the other is wrong in a way
 nothing else here catches.
+
+## 25f. Which weathers draw cloud, and how a front takes it away (`CloudWeatherGateMath`, `cloud_weather_fade`)
+
+**Status: SHIPPED ON**, with no feature flag of its own. It is not an effect; it is the rule about
+when §25's existing effect is allowed to be on screen, and a flag would only exist to reproduce a
+behaviour this section argues was wrong.
+
+### The problem, stated as it was reported
+
+Two things, and the second turned out to be the harder one:
+
+1. **Cloud was drawn in weathers it does not belong in.** Settled Rain placed the full cap of sheets
+   at cover 1.0 — a dozen discrete, edged, fair-weather shapes over a sky vanilla was already
+   rendering as a solid overcast.
+2. **A weather change took the cloud away by deleting it.** "It disappears. Not a smooth transition
+   at all."
+
+### Our cloud is a Clear-sky phenomenon
+
+§25 draws **bounded sheets**: discrete objects with edges, gaps between them, and a soft boundary
+inside their own quad. That is what a partly-cloudy sky looks like out of a window. **An overcast sky
+is not a lot of that** — it is a lid, with no edges to see — and §13 already renders it, by dimming
+and desaturating the whole map. So the deck no longer feeds §25 at all: a weather carrying a deck
+hands the sky to §13, and the cloud lanes stay out of it.
+
+`CloudLayers.CloudFractionFor` used to be `deckOpacity + clearShare × §22 cover`. It is now
+`clearShare × §22 cover`, and `WeatherDimming.DeckOpacityOfWeather` — which existed only to serve
+that first term — is deleted.
+
+**This resolves §25's own recorded double-count rather than adding a rule.** §25 above says it
+plainly: over a solid overcast the sheets and §13's flat dimming were both rendering the same deck,
+the map came out darker than either subsystem intends, and `SheetAmplitude` was held down to 0.35 to
+make room. That section names "feeding §13 a reduced opacity while the sheet draws" as the likely
+fix. This is the other partition of the same problem, and it is the cheaper one: below a deck exactly
+one lane is live, so neither has to be detuned for the other, and no third scalar has to be kept in
+sync between them.
+
+**What §23b gives up, stated rather than discovered later.** §23b's claim over §23 was that it reads
+both sources and therefore has something to say on a Clear day. It keeps that — the Clear day is the
+case it was built for (issue #88's partly-cloudy evening) — and it loses the overcast sunset, where
+it now draws nothing. Same ruling, applied to the lane that lights a sheet rather than the one that
+draws it: there is no sheet there to underlight.
+
+### The fade is vanilla's own cross-fade, read live
+
+RimWorld cross-fades the outgoing weather into the incoming one over 4,000 ticks
+(`WeatherManager.TransitionLerpFactor`, ~1.6 in-game hours, about 67 seconds of real time at 1×).
+`CloudWeatherGateMath.ClearShare` rides that same factor: 1 in settled Clear weather, 0 in any
+settled weather that is not, and the lerp (or its complement) in between.
+
+Both arms are **summed rather than picked**, which is not a stylistic choice: vanilla re-rolls the
+same weather often enough that Clear-to-Clear is a real state, and there both booleans are true. The
+two terms are `1 - lerp` and `lerp` and they add to exactly 1 throughout, so a re-roll of Clear does
+nothing. A `curIsClear ? lerp : …` style pick would dip the whole sky to `lerp` and back for no cause
+a player could ever see.
+
+**The share is read live and is never latched per sheet**, which is the deliberate exception to §25's
+entry latch. §22's cover is a property of the *air*, so "what was it when this cloud arrived" has a
+stable answer; the weather is global and abrupt, and a sheet that latched "it was Clear when I
+arrived" would go on being a fair-weather cloud in the middle of a storm for up to a whole crossing.
+
+### Where the share is applied is the whole of whether it reads as a fade
+
+**The first cut multiplied the share into the cover**, let `CoverageAlpha` decompose the result as
+usual, and passed every test written for it: monotone per sheet, continuous in the tick, zero at the
+end. It was still wrong, and the report on it was "they do fade now, but maybe not all of them".
+
+**Cover is a COUNT.** Sheet *i* is present in proportion to `cover × cap - i`, so scaling the cover
+walks the population down **one sheet at a time off the top**, while sheet 0 sits pinned at full
+opacity until the share falls below `1 / (cap × cover)` — the last tenth of the transition on a
+cloudy day. Measured live across a Clear-to-Rain front at cover 0.39, sampled every 200 ticks, the
+placed count went:
+
+    5 5 5 5 5 4 4 4 3 3 3 3 2 2 2 1 1 1 1 0
+
+A staircase. The clouds nearest the top of the count faded; the rest held station and then left. From
+the camera that is *some* of the sky fading and the rest waiting its turn, which is not what a front
+does.
+
+**So the share multiplies every placed sheet's ALPHA instead** (`CloudWeatherGateMath.FadedCoverage`,
+applied in `CloudSheetDraw.PlaceSheets`), and the count is left to the entry latch alone. One number
+scales all of them, so the whole sky thins out together at one rate and the population never changes
+in view — which is also what that latch was for. The two signals now sit in strictly separate lanes:
+**the weather can only fade what is up; the drift can only change what is up, and only while it is
+off-map.**
+
+Because the lane-level gate still reads `clearShare × cover`, §23b and §23c see the share in both
+their ceiling and their per-sheet weight, and so fade quadratically where §25 fades linearly.
+Accepted rather than plumbed around: both ship off, both are light cast *by* these sheets rather than
+the sheets themselves, and light that fades slightly ahead of the cloud casting it is not something
+anybody can point at.
+
+### Live verification (`Tests/Scenarios/cloud_weather_fade.json`)
+
+Forced overcast at 0.92, so every sheet latches the same cover and the drawn mass *is* the fade
+rather than the fade plus the entry latch's steps. One Clear-to-Rain front, sampled every 400 ticks:
+
+| ticks into the front | 0 | 400 | 800 | 1200 | 1600 | 2000 | 2400 | 2800 | settled |
+|---|---|---|---|---|---|---|---|---|---|
+| `cloud_sheets_placed` | 11 | 11 | 11 | 11 | 11 | 11 | 11 | 11 | **0** |
+| `cloud_sheet_mass` | 6.323 | 5.666 | 4.979 | 4.271 | 3.636 | 3.087 | 2.216 | 1.446 | **0.000** |
+| `cloud_underlight_cover` | 0.918 | 0.820 | 0.721 | 0.605 | 0.506 | 0.407 | 0.291 | 0.189 | **0.000** |
+
+**The count row is the assertion and the mass row is not.** A pinned count is what fails on the
+staircase; a per-sheet monotone check is not, because the staircase is monotone. The mass cannot be
+pinned at all: a placement's base alpha depends on the absolute tick the boot landed in — the same
+harness characteristic `CloudCoverFractionOverride.cs` records for the cover, one level down — and
+the identical scenario measured 7.234, 5.997 and 6.323 on three runs with nothing about the mod
+changed. `FastForward`'s 9–13% overshoot rules out mid-transition pins independently.
+
+Frame-to-frame, against the settled rain sky:
+
+| | Clear | +800 | +2000 | +2800 |
+|---|---|---|---|---|
+| median ΔE vs settled rain | 29.72 | 15.13 | 6.17 | 2.64 |
+
+A monotone ramp to nothing, with the sky readable again from about the halfway mark. (These include
+the weather's own darkening, not the cloud alone; they are the shape of the hand-over, not a
+measurement of §25's amplitude.)
+
+### One thing this deliberately does *not* do: key the placement cache on the share
+
+`CloudSheetDraw` caches its placements per **tick**, and the obvious-looking companion change here is
+to add the Clear share to that key, the way §25d's layout flag already is. It was written, measured,
+and taken back out.
+
+The two are not the same case. §25d's flag is set from outside the game's clock, so it genuinely can
+move while the tick does not. The share cannot: it is a function of `WeatherManager.curWeatherAge`,
+which vanilla increments inside the weather manager's *tick*. **A paused colony is paused** — its
+weather is not changing either — so keying on the tick is already keying on the share, and adding it
+would put a `WeatherManager` walk in front of a cache test that three lanes hit every frame in order
+to catch a state the game cannot be in.
+
+What *can* reach that state is a harness scenario, which sets a weather instantly on a map it has
+paused. `cloud_sheet_default.json` did exactly that and read a full lane alpha of 0.75 over an
+overcast sky — the stale placements from the Clear arm before it. **The scenario is the thing doing
+something the game does not, so the scenario is where it is fixed**: it advances the clock by one
+tick after its instant `SetWeather`, and says why in its own description.
+
+**Settled Clear is bit-identical to pre-§25f**, which is the property that matters most and the
+reason `cloud_sheet_pop.json`'s Clear-arm pins were not touched: at `share == 1` this whole section
+multiplies by one. `cloud_sheet_pop.json` also still holds its **one tick into the front** readings
+unchanged, which is §25's own anti-pop guarantee — the regression that section exists for is not
+reintroduced by this one.
 
 ## Interop: Clouds (`Source/CloudsCompat.cs` / `CloudsCompatMath.cs`)
 

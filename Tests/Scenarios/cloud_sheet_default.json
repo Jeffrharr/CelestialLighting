@@ -1,7 +1,7 @@
 {
   "name": "cloud_sheet_default",
   "saveFile": "minimal_colony.rws",
-  "description": "§25's drawn cloud sheet is now shipped ON and nested under §22 as a settings sub-toggle, and this scenario is the live proof of exactly those two claims — neither of which any offline test can make, because both are about what a player who touches nothing sees.\n\nCLAIM 1: DEFAULT ON. Every other cloud scenario turns cloud_sheet on with a SetFeature step, which proves the lane draws but says nothing about whether it draws for a fresh install. Here the flag is never set at all: the reading comes from whatever CelestialLightingFeatures.CloudSheet rests at, which is the shipped default and (through FeatureRegistry.ResetAll between scenarios in a suite) the value ProbeRegistration registers. A regression that flipped either back to false shows up as a zero here and nowhere else.\n\nCLAIM 2: THE §22 MASTER GATE, and specifically its load-bearing half. With partial cloud cover off, the Clear-day arm of CloudLayers.CloudFractionFor already reads 0 on its own — so the Clear pin below would pass even without the gate and is the weak half of the test. The Overcast pin is the real one: coverage there comes from §13's weather deck, which §22's own switch does not touch, so a sheet still drawing under rain for a player who turned partial cloud cover off is exactly the bug the gate exists to prevent, and the only pin that catches it.\n\nSame tile, season and forced fraction as cloud_layers.json so the numbers sit beside that scenario's rather than starting a second baseline. realistic_preset and realistic_day_length are set false explicitly: both are persisted-or-static state the harness does not reset for a standalone run, and this scenario's whole subject is what the shipped defaults do.",
+  "description": "\u00a725's drawn cloud sheet is now shipped ON and nested under \u00a722 as a settings sub-toggle, and this scenario is the live proof of exactly those two claims \u2014 neither of which any offline test can make, because both are about what a player who touches nothing sees.\n\nCLAIM 1: DEFAULT ON. Every other cloud scenario turns cloud_sheet on with a SetFeature step, which proves the lane draws but says nothing about whether it draws for a fresh install. Here the flag is never set at all: the reading comes from whatever CelestialLightingFeatures.CloudSheet rests at, which is the shipped default and (through FeatureRegistry.ResetAll between scenarios in a suite) the value ProbeRegistration registers. A regression that flipped either back to false shows up as a zero here and nowhere else.\n\nCLAIM 2: THE \u00a722 MASTER GATE, and specifically its load-bearing half. With partial cloud cover off, the Clear-day arm of CloudLayers.CloudFractionFor already reads 0 on its own \u2014 so the Clear pin below would pass even without the gate and is the weak half of the test. The Overcast pin is the real one: coverage there comes from \u00a713's weather deck, which \u00a722's own switch does not touch, so a sheet still drawing under rain for a player who turned partial cloud cover off is exactly the bug the gate exists to prevent, and the only pin that catches it.\n\nSame tile, season and forced fraction as cloud_layers.json so the numbers sit beside that scenario's rather than starting a second baseline. realistic_preset and realistic_day_length are set false explicitly: both are persisted-or-static state the harness does not reset for a standalone run, and this scenario's whole subject is what the shipped defaults do. TWO PINS MOVED, FROM TWO DIFFERENT CAUSES, and they are recorded separately because only one of them is a change of behaviour. (1) The CLEAR arm reads 0.7500 where it read 0.3500. That is stale rather than new: cloud_sheet_alpha is a pure gate returning the lane AMPLITUDE whenever any cloud is placed, and \u00a725d raised the shipped amplitude from CloudSheetMath.SheetAmplitude 0.35 to PresentSheetAmplitude 0.75 without re-measuring here. Verified by running this scenario against main with no branch build installed: it reads 0.7500 there too, so the pin has been red on main and is re-measured here rather than fixed by the change that noticed it. (2) The OVERCAST arm reads 0.0000 where it read 0.3346. That one IS \u00a725f: \u00a713's deck no longer feeds \u00a725's cover, so an overcast sky places no sheets and the lane gate closes. The pair either side of it -- cloud_cover off reading 0.0000 -- is untouched and still asserts what this scenario is named for, that \u00a722 is the master toggle and carries the sheet with it. A note on 0.3346: it was never an amplitude, so it cannot have been the gate's output under any amplitude this repo has shipped, which is the other half of why the Clear-arm pin was believed rather than checked for so long. THE FastForward 1 AFTER THE OVERCAST SetWeather IS LOAD-BEARING, and deleting it would silently gut the arm after it. CloudSheetDraw caches its placements per TICK; this scenario changes the weather INSTANTLY on a colony the harness has paused, and the SetTime that follows asks for an hour the clock is already at, so without that one tick nothing in the key moves and the Overcast reading is served from the Clear reading's placements -- measured, it reported a full lane alpha of 0.75 over an overcast sky. The cache is right and the scenario was wrong: vanilla increments WeatherManager.curWeatherAge in its tick, so a paused colony's weather cannot change on its own and keying on the tick already keys on the weather. Only a scenario can produce the state, so only a scenario has to step out of it.",
   "steps": [
     {
       "type": "SetTile",
@@ -103,7 +103,7 @@
       "type": "Probe",
       "args": {
         "probeName": "cloud_sheet_alpha",
-        "expectedValue": "0.3500",
+        "expectedValue": "0.7500",
         "tolerance": "0.0005"
       }
     },
@@ -149,6 +149,12 @@
       }
     },
     {
+      "type": "FastForward",
+      "args": {
+        "ticks": "1"
+      }
+    },
+    {
       "type": "SetTime",
       "args": {
         "hour": "12"
@@ -158,7 +164,7 @@
       "type": "Probe",
       "args": {
         "probeName": "cloud_sheet_alpha",
-        "expectedValue": "0.3346",
+        "expectedValue": "0.0000",
         "tolerance": "0.0005"
       }
     },
