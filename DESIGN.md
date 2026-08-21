@@ -9287,12 +9287,109 @@ The lamp shadow's own A/B (`vector_light_pawn_shadows` off → on) is masked med
 (p90 6.48, max 7.17) over the 2,003 pixels it touches — 0.097% of the frame, so the whole-frame
 median is 0.00, which is the usual reading a bounded object gives.
 
-**The opacity probes are pinned here, and unlike phase 4c they are expected to move.** `peak` and
-`rosette` both read **0.2402** for this single-lamp geometry, against a rendered 0.2502 — model and
-pixels agree to within a percent, which is what makes them usable as the before-side of a feathering
-change. Any fix that grades the alpha along the extrusion *must* move at least one of them, and a fix
-that leaves both untouched has changed the material rather than the shadow.
+**The opacity probes are pinned here, and they do NOT move — which this section originally predicted
+backwards.** `peak` and `rosette` both read **0.2402** for this single-lamp geometry, against a
+rendered 0.2502; model and pixels agree to within a percent. The prediction written here before the
+fix existed was that a feathering change must move at least one of them. It must not, and the reason
+is structural rather than incidental: both are defined **at the caster**, where any sane fade is 1 by
+construction. A shadow that leaves the pawn at a different darkness than it used to has changed the
+material, not added a gradient. So the pair are the right *control* for this change, and the fade
+needed a number of its own — `vector_light_pawn_shadow_tip_fade`, below.
 
+
+### Phase 4e: the lamp shadow dissolves toward its tip (`vector_light_shadow_feather`)
+
+**Problem.** The measurement above, acted on. Vanilla's sun shadow keeps ~0.4 of its opacity at the
+tip; ours kept 1.0, so a lamp shadow ended on a hard line and read as a different kind of object from
+the sun shadow beside it.
+
+**The route, and the three that are closed.** Vanilla reaches its fade through the vertex-colour
+alpha its shadow shader already spends on extrusion. We cannot borrow that material (its alpha is the
+extrusion channel and its opacity is a map-wide colour — the reasons `VectorLightPawnShadows`' header
+already records), we cannot grade our own vertex colours (`Map/SolidColor` ignores vertex colour
+outright), and we should not pass the curve as a per-vertex *value* even where a shader would read
+one: a value interpolates linearly across a triangle, so a curve sampled that way is wrong by
+triangle length. That is not a hypothetical — it is how the beam's max failed before a texture fixed
+it.
+
+So the fade rides a **ramp texture**: one row of 64 texels, RGB black, alpha falling along the
+extrusion, sampled through UVs the mesh bakes itself and drawn with `Map/Transparent`. A UV is a
+*position*, and position across a triangle really is linear, so the curve stays exact wherever it
+lands. One row serves every shadow on the map — the ramp is a function of the fraction along a
+shadow, and the per-shadow opacity stays where it already was, in the material colour, which
+`Map/Transparent` multiplies the texel by. It costs no extra draw call and no shader of our own.
+
+**The curve.** `VectorLightMath.PawnShadowFade` is `1/(1 + k·t)` with `k` derived from the tip
+opacity, so there is one number to calibrate and the curve cannot drift away from its own endpoint.
+Hyperbolic rather than linear because that is what the capture says: a straight line with the same
+endpoints misses the quarter-way bin by 0.14 and the halfway bin by 0.13, while the hyperbola tracks
+every bin to within 0.037.
+
+**`PawnShadowTipOpacity` is 0.35, not the measured 0.396, and the gap is a correction rather than
+rounding.** The measured column is normalised to the first bin, centred a twentieth of the way along
+the shadow rather than at the caster. Using 0.396 as a t = 0-anchored constant leaves the whole
+interior about 0.07 too dark — a one-directional systematic that an endpoint-only test cannot see.
+The offline test therefore normalises the model exactly the way the capture was normalised, and it
+caught this: the first version of it failed on a case that was comparing two different quantities.
+
+**A shader swap needs a control arm, so there is one.** Turning this on moves the draw from
+`Map/SolidColor` to `Map/Transparent`. A shader at a different render queue composites against the
+lighting overlay at a different moment, which presents as the whole shadow changing darkness and is
+indistinguishable from a mis-derived curve — a confusion that has already cost this repo a live run
+once. Two things answer it. The material copies its render queue from the flat one, so the swap is
+compositionally neutral by construction; and because a comment is not a control, the harness carries
+`vector_light_shadow_feather_flat`, which flattens the ramp *through the new material* so an arm can
+reproduce the old frame. Its result is the amount the shader swap is worth, and anything it shows has
+to be subtracted from the fade's number rather than credited to it.
+
+**Measured.** Every control lands on exactly zero, which is what makes the one non-zero number
+attributable:
+
+| comparison | changed | masked median ΔE |
+|---|---|---|
+| noise floor — same arm, same flags, re-shot | 0 px | 0.000 |
+| sun view, no-shadow arm vs each of the other three | 0 px | 0.000 |
+| **shader swap alone** (new material, curve flattened) | **0 px** | **0.000** |
+| flat shadow → feathered | 1,590 px (0.077%) | **3.500** (p90 4.126, max 4.905) |
+
+The shader swap costing nothing is the result the control was built for: the render queue copy works,
+so the entire 3.500 is the curve. Opacity along the shadow, normalised to each shadow's own value at
+the visible start:
+
+| | 0.05 | 0.25 | 0.45 | 0.65 | 0.95 |
+|---|---|---|---|---|---|
+| flat (before) | 1.000 | 1.020 | 1.013 | 1.003 | 1.019 |
+| feathered (after) | 1.000 | 0.825 | 0.677 | 0.562 | **0.512** |
+| vanilla sun | 1.000 | 0.709 | 0.568 | 0.471 | **0.396** |
+
+**The lamp shadow reads shallower than vanilla's in that table and the implementation is
+nevertheless exact**, which is worth stating rather than tuning away. The pawn's own sprite covers
+the start of its shadow, so what a capture measures is the *visible* part — about the outer 80% of a
+1.3-cell lamp shadow, against the outer 98% of a 10-cell sun shadow. Accounting for that offset the
+render matches the model to three digits: predicted 0.366 at the corresponding point, measured 0.366.
+The constant stays calibrated in fractions of the shadow's own geometric length, which is the
+quantity vanilla's own profile was fitted in; making the *visible* ends agree instead would be
+fitting to one colonist's sprite.
+
+**Two bugs on the way here, both silent, both of the same family.** Neither threw, neither logged,
+and both left a full set of green probes.
+
+- **The mesh's vertex colours were `(0,0,0,0)`,** left over from a plan to draw through the game's own
+  shadow material where vertex alpha means extrusion distance. `Map/SolidColor` ignores vertex colour,
+  so the zeros sat inert for as long as that was the only path. `Map/Transparent` multiplies by them,
+  so the first feathered build rendered a perfect nothing — a frame identical to the feature being
+  off. Fixed to white, which is what every map-layer mesh in the game uses.
+- **The ramp texture and the material cache could not invalidate each other.** Rebuilding the ramp
+  clears the materials, but the ramp was only consulted on a material-cache *miss* — so once one
+  material existed the row was frozen for the session. The harness runs one step per frame, so the
+  control arm rendered a frame between its two `SetFeature` steps and built its material with the
+  first flag applied and the second not; it then held the wrong ramp for the whole arm. Every derived
+  number said the arm had changed and its pixels never did. The ramp is now checked on every draw.
+
+**What caught the second one was changing the probe, not adding a test.** `tip_fade` originally
+recomputed the ramp's endpoint from the formula, which agreed with the flag while the screen sampled a
+stale texture — a probe reporting a model of the frame rather than the frame. Reading the endpoint off
+the texture the live material is actually bound to turned a silent disagreement into a failing pin.
 
 ### §27 phase 5: the max as the mask's lift (`VectorLightLiftMath`, `vector_light_mask_max`, issue #151)
 
