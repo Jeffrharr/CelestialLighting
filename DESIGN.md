@@ -9203,6 +9203,222 @@ the throw is intermittent, and a buggy-vs-fixed capture pair measures the torche
 pixels touched) barely above a same-flags A-vs-A control across two runs (3.91%). **The evidence for
 that scenario is the run's `Player.log`, not its ΔE.**
 
+### §27 phase 5b: the mask edits vanilla's sum, not vanilla's byte (`VectorLightSaturationMath`, `vector_light_mask_saturation`, epic #174 phase 5)
+
+Ring lamps around a free-standing wall column and the shadows behind it get **deeper** as lamps are
+added. Physically it is the other way round without exception: every lamp you add fills in part of
+the region the others cannot see, so more lamps means shallower shadows. Reported from play, and it
+is a *direction* — which is the kind of defect no amount of retuning rescues and the kind a test can
+hold.
+
+#### Where the direction comes from
+
+Vanilla's glow grid saturates. `CombineColorsJob.AddColors` sums the emitters reaching a cell into a
+`ColorInt` and calls `ColorInt.ProjectToColor32Fast`, which over 255 is **not a clamp**: it scales
+all three channels by `255/max` together, so the hue survives and the level tops out. Write the raw
+sum `R` and the displayed byte `P = proj(R)`.
+
+Phase 3's mask subtracts `own(e)·(1 − lit(e))` — a quantity out of `R` — from the mesh vertex, which
+holds `P`. Below the ceiling `R` and `P` are the same number and that is exactly right. Above it they
+are not, and the mismatch has a sign: the subtraction keeps full raw strength while the thing it is
+taken from has stopped growing. Six torches two cells away deliver about 85 each, so `R ≈ 510` and
+`P = 255` — each torch is really contributing 42. Blocking one of them takes **85** off 255. Add
+another torch the column also blocks and the same cell goes darker again, so the frame darkens as the
+room brightens.
+
+The fix is one line of algebra: do the edit **before** the projection instead of after it.
+
+    P     = proj(R)                                    what vanilla displays
+    R′    = R − Σ own(e)·(1 − lit(e)) + Σ lift(e)      the raw sum with our geometry applied
+    ours  = proj(R′)                                   what we should display
+
+`VectorLightMask.CorrectCell` reconstructs `R`, computes `proj(R′)`, and hands the rest of the file
+the difference `P − proj(R′)` split into the same non-negative shadow and lift halves the corner
+averaging already consumes. The accumulation is untouched; only the space its result is measured in
+changes.
+
+#### The property, and vanilla as the oracle
+
+Stated as a direction rather than as an example, the way §27e's quantisation bound was stated as
+"at most `steps + 1` distinct values":
+
+> **Adding an emitter never lowers a cell's level.**
+
+on the **max channel**, which is what `GlowGrid.GroundGlowAt` itself reads. The channel choice is
+load-bearing rather than cosmetic: the property is *false per channel for vanilla*, because `proj`
+normalises the three channels against their shared peak, so adding a green lamp to a red-lit cell
+genuinely lowers the red channel. Only the peak is monotone, and any weighted luminance inherits the
+problem.
+
+- **Vanilla is the oracle and satisfies it unconditionally** — `max(proj(R))` is `min(max(R), 255)`
+  and `max(R)` can only grow.
+- **The corrected composition satisfies it** — adding an emitter adds `own(e)·lit(e) + lift(e)` to
+  `R′`, non-negative componentwise whatever our geometry says.
+- **The old composition does not**, and `VectorLightSaturationMathTests` pins that arm **red** on
+  purpose. A monotonicity test over a scene that never saturates passes for both arms and pins
+  nothing, which is exactly how a direction-shaped bug survives a green suite.
+
+The offline sweep runs the real thing rather than a restatement of it: `VanillaGlowFlood` is
+`ComputeGlowGridsJob` transcribed from the decompiled source, sharing no code with anything under
+test (recovered from the abandoned phase 3b branch `894796b`, which built it for the same reason and
+never merged), the coverage comes from `VectorLightMath`'s own polygon and bake, and the result goes
+through `SectionLayer_LightingOverlay`'s own vertex averaging before it is read. One wall cell, six
+`TorchLamp`s in a hexagon two cells out, added in nested sets. Deepest shadow anywhere in the scene,
+in levels of glow:
+
+| torches | 1 | 2 | 4 | 6 |
+|---|---|---|---|---|
+| old | 46 | 46 | 93 | **143** |
+| corrected | 46 | 46 | 32 | **9** |
+
+and at the one cell directly behind the column, west of the torch that can never see it:
+
+| torches | 1 | 2 | 4 | 6 |
+|---|---|---|---|---|
+| vanilla | 62 | 168 | 255 | 255 |
+| old | 19 | 123 | 171 | **133** |
+| corrected | 19 | 123 | 228 | **255** |
+
+**The first two columns being identical is part of the result, not a weak showing.** Below the
+ceiling the correction is provably the identity — `P == R` and `proj(R′) == R′`, so `P − proj(R′)` is
+the raw subtraction back again — so `VectorLightMask.CorrectCell` tests `max(R)` and leaves the
+accumulators untouched when it is under 255. One torch cannot saturate a cell at all, its own light
+being a `Color32`. Every §27 shadow in a scene that does not saturate is byte-identical to the one it
+already shipped, and the only frames that move are the ones that were wrong.
+
+#### The render swallows the defect before the arithmetic does
+
+The first cut of this fixture put the torches **four** cells out, measured a clean 36-level
+non-monotonicity per cell offline, and then had its live run come back **monotone at every probed
+cell**. The arithmetic was right and the claim was not.
+
+The overlay's mesh carries one vertex per cell corner plus one per centre, and a centre is the mean
+of its four corners while a corner is the mean of the up-to-four cells meeting there — so what a
+probe reads and what a pixel shows is a **3×3 tent filter over the cells**. A one-cell column throws
+a one-cell shadow. At four cells out the surviving over-subtraction was narrower than the filter, and
+the blur took the whole of it.
+
+Two things follow, and the second is the more general one:
+
+- The ring came in to two cells, which deepens the saturation until the defect survives its own
+  render. A defect the render swallows is not one a player can see, and a fix for one is not one that
+  can be photographed.
+- The offline model now runs the vertex averaging too, so `VectorLightSaturationMathTests` and
+  `vector_light_column.json` read **the same quantity on the same fixture**. The tables above are a
+  prediction of the live run rather than a separate result that happens to rhyme with it. That is the
+  arrangement worth copying: a per-cell offline number and a per-vertex live number are not two
+  measurements of one thing.
+
+The corrected row of the first table is **not** monotone decreasing and is not asserted to be: it is
+a maximum over a moving region, and vanilla's own level saturates while ours is still climbing. The
+property is on the level; the tables are the measurement.
+
+#### Live: `vector_light_column.json`
+
+Same fixture in the running game, three arms per stage, read with `RenderedLightCellProbe` at the
+cell one step west of the column — the cell the torch two cells east of it can never see. Level, out
+of 255:
+
+| torches | 1 | 2 | 4 | 6 |
+|---|---|---|---|---|
+| vanilla (oracle) | 62 | 168 | 255 | 255 |
+| old | 20 | 123 | 172 | **134** |
+| corrected | 20 | 123 | 229 | **255** |
+
+The old arm **falls 38 levels** when the fifth and sixth torches come on. The offline sweep predicted
+19 / 123 / 171 / 133 and 19 / 123 / 228 / 255 for those two rows, from a transcription of vanilla's
+flood and a transcription of the overlay's averaging — **agreement to within one level across the
+whole table**, which is what makes the two instruments one measurement rather than two opinions. All
+four probed cells behave the same way; `vector_light_mask_saturation_skipped` is **0** in every arm,
+so nothing fell back.
+
+On pixels, `old` against `corrected`:
+
+| torches | 1 | 4 | 6 |
+|---|---|---|---|
+| masked median ΔE | — | 1.80 | **3.08** |
+| max ΔE | 0.00 | 10.75 | 22.31 |
+| pixels touched | **0.00%** | 3.09% | 6.07% |
+
+**One torch is byte-identical — 0.00 max over the whole frame, not a small number but no number at
+all.** That is the confined-fix property on pixels rather than in a comment. The effect then appears
+only as the scene saturates.
+
+The frames show something the probe table understates, and it is a wider statement of the bug than
+the one the report made. The over-subtraction is not confined to the column's shadow: the mask's
+shadow term is non-zero wherever coverage is under 255, which includes every cell near the polygon's
+rim (an inscribed 48-gon does not fill its own circle), so under saturation **the whole lit disc**
+comes out dim. A ×10 difference image of the two arms is a broad glow over the entire lit region,
+brightest at the centre where saturation is deepest, with the wedge behind the column showing *less*
+change than its surroundings — i.e. the shadow that should be there is preserved and the darkening
+that should not be there is gone.
+
+`Tests/Screenshots/column_{1,4,6}_{vanilla,old,corrected}.png`.
+
+#### The one case it declines, and the slack that nearly broke it
+
+`AddColors` projects after **every** addition rather than once at the end, and that fold is lossy:
+two saturating red lamps followed by a green one land about **128 levels** from a single projection
+of the true sum, because the first saturation threw away the red that would have set the divisor.
+Where the two disagree that far, our reconstruction is simply wrong about what vanilla did, so the
+cell is left with today's arithmetic rather than "corrected" against a value vanilla never displayed.
+`CorrectCell` detects it by comparing its reconstruction against `VisualGlowAt` and counts the
+declines in `vector_light_mask_saturation_skipped`, so the residue is a number a scenario reads
+rather than a paragraph here.
+
+**The check was an exact equality first, and the live run is what corrected it.** Same-hue emitters
+land on the same capped ray whichever order they are added in, but the fold's per-step integer divide
+still leaves a level or two between it and a single projection — 0 or 1 in this fixture, and at worst
+**5** over 200,000 random same-hue sets of up to fourteen emitters. On the six-torch ring the exact
+test therefore rejected **50 of 85** candidate cells over rounding, the corrected arm fell back to the
+broken composition on most of the cells the scenario was built to measure, and the run came back
+non-monotone. `VectorLightSaturationMath.ReconstructionSlack` is **8**: two orders of magnitude below
+the thing it rejects and comfortably above the noise it has to tolerate. An exactness that rejects the
+case it was written for is not rigour.
+
+Two smaller things fall out of the same arithmetic and are worth naming:
+
+- **The lift arrays are live under the correction even with phase 5's max off.** Removing a red
+  emitter from a saturated red-and-green cell *raises* the green, because the divisor that was
+  scaling it down went with the red. That is a genuine lift in vanilla's own arithmetic with no max
+  involved, and dropping it would leave the corrected colour hue-shifted against vanilla's.
+- **The raw sum is over every emitter on the map, not only ours.** It is what vanilla projected. A
+  room several mods are all lighting is the case most likely to saturate, and reconstructing from our
+  own field's entries alone would read it as unsaturated and leave the over-subtraction exactly
+  where it was.
+
+#### Cost
+
+`vector_light_column_perf.json`, on the same 20-lamp five-room plate phase 5's cost was measured on,
+arms alternating so drift cannot be read as the flag's cost. `Patch_VectorLightSuppress:Postfix`,
+which is where the whole mask lives, per section regenerate:
+
+| arm | window 1 | window 2 | worst rebake frame |
+|---|---|---|---|
+| plain mask | 21.0 µs | 20.3 µs | 2.35 / 2.42 ms |
+| corrected | 37.0 µs | 33.7 µs | 4.15 / 3.87 ms |
+
+So **about +15 µs per section**, roughly 1.7× the mask alone — the same order phase 5's max cost
+(35.0–45.1 µs) and for the same reason: a second walk over the section's emitters. It is a *rebake*
+cost, not a per-frame one; §16's ≤0.20 ms budget is about the draw, and `Patch_VectorLightDraw` is
+untouched here.
+
+Two things bound it in practice, and this plate deliberately defeats both so the number is the worst
+case: the correction runs only on sections that already carry an edit, and it returns before the walk
+starts on a section fewer than two emitters reach — one emitter's own light is a `Color32` and cannot
+saturate anything. On this plate every section has at least two lamps in range.
+
+Measured under the profiler, so the absolute microseconds are instrumented ones; the ratio is what
+transfers. The scenario inherits `vector_light_mask_max_perf.json`'s terrain rect and therefore its
+wart — four `SteamGeyser` cells `SetTerrain` cannot clear, which makes both runs report `Pass=false`
+while changing nothing about the lighting. Kept identical on purpose, so the two figures compare.
+
+#### What it ships as
+
+**ON.** It is a correctness fix rather than a bake-off arm, and its off arm reproduces the previous
+composition to the byte — which is what makes `vector_light_column.json`'s sweep an A/B rather than an
+assertion. It keeps a flag because of the cost above, and because an A/B needs somewhere to stand.
+
 
 ## Conflict risk
 
