@@ -129,4 +129,107 @@ public class DoorApertureMathTests
     {
         Assert.That(DoorApertureMath.Quantise(0.4321f, steps), Is.EqualTo(0.4321f).Within(1e-6));
     }
+
+    // ---- ISSUE #174 PHASE 2: the swing as the LIGHT sees it -----------------------------------
+    //
+    // The two pure cores are correct apart and were wrong together. Quantise and LeafSpans place the
+    // leaves, DoorOcclusionMath decides whether the cell is a wall, and neither can see the composed
+    // result: the width of the gap a ray can actually pass through. That composition is what the
+    // player watches, so it is what this pins.
+    //
+    // Stated as a DIRECTION rather than a value list, the same way QuantisationBoundsTheNumberOf-
+    // DistinctApertures states a bound: the bug was a gap that got NARROWER as the door opened, and
+    // no list of expected widths catches a re-ordering that reintroduces one. A door opening is a
+    // monotone act; the light it admits has to be monotone too.
+    private static float GapSeenByLight(float rawOpenPct, bool doorOpen, int steps)
+    {
+        float openPct = DoorApertureMath.Quantise(rawOpenPct, steps);
+
+        bool blocked = DoorOcclusionMath.Occludes(
+            blocksLight: true, isDoor: true, doorOpen: doorOpen, openDoorsPassLight: true,
+            doorAperture: openPct, apertureTracked: true);
+
+        if (blocked)
+        {
+            return 0f;
+        }
+
+        // No leaves are emitted at either end, so the cell is a bare doorway -- correct at 1, and the
+        // phase 2 bug at 0.
+        if (openPct <= 0f || openPct >= 1f)
+        {
+            return 1f;
+        }
+
+        DoorApertureMath.LeafSpans(
+            0f, openPct, out float _, out float aEnd, out float bStart, out float _);
+        return bStart - aEnd;
+    }
+
+    // A vanilla wooden door is 45 ticks; 7 and 600 bracket a powered door and an absurdly slow modded
+    // one, because the defect's width in ticks depends on the ratio of swing length to step count and
+    // a single speed would only prove the one case.
+    [TestCase(7)]
+    [TestCase(45)]
+    [TestCase(600)]
+    public void GapSeenByLightNeverNarrowsWhileADoorOpens(int ticksToOpen)
+    {
+        float previous = GapSeenByLight(0f, doorOpen: false, DoorApertureMath.DefaultQuantisationSteps);
+
+        for (int tick = 0; tick <= ticksToOpen; tick++)
+        {
+            // `Open` is true from the first tick of the slide while OpenPct is still 0 -- vanilla sets
+            // openInt in DoorOpen and only then starts incrementing ticksSinceOpen.
+            float gap = GapSeenByLight(
+                (float)tick / ticksToOpen, doorOpen: true, DoorApertureMath.DefaultQuantisationSteps);
+
+            Assert.That(gap, Is.GreaterThanOrEqualTo(previous - 1e-6),
+                $"gap narrowed at tick {tick} of {ticksToOpen}: {previous:F3} -> {gap:F3}");
+            previous = gap;
+        }
+
+        Assert.That(previous, Is.EqualTo(1f).Within(1e-6), "a fully open door is a bare doorway");
+    }
+
+    // The same property for a close, which phase 1 fixed and phase 2 must not disturb: `Open` is
+    // false throughout while OpenPct ramps down, and the gap must shrink monotonically to a wall.
+    [Test]
+    public void GapSeenByLightNeverWidensWhileADoorCloses()
+    {
+        float previous = 1f;
+
+        for (int tick = 45; tick >= 0; tick--)
+        {
+            float gap = GapSeenByLight(
+                tick / 45f, doorOpen: false, DoorApertureMath.DefaultQuantisationSteps);
+
+            Assert.That(gap, Is.LessThanOrEqualTo(previous + 1e-6),
+                $"gap widened at tick {tick} of a close: {previous:F3} -> {gap:F3}");
+            previous = gap;
+        }
+
+        Assert.That(previous, Is.EqualTo(0f), "a shut door is a wall");
+    }
+
+    // Quantisation is not what caused the phase 2 defect, and this is where that is recorded: the
+    // sweep is monotone at every step count, including none at all. Before the fix, turning
+    // quantisation off narrowed the bad window from three ticks to one but made the collapse larger
+    // (a full cell to 0.022) -- so a fix that only retuned the step count would have looked like
+    // progress while leaving the defect in place.
+    [TestCase(0)]
+    [TestCase(1)]
+    [TestCase(8)]
+    [TestCase(64)]
+    public void TheSweepIsMonotoneAtEveryStepCount(int steps)
+    {
+        float previous = 0f;
+
+        for (int tick = 0; tick <= 45; tick++)
+        {
+            float gap = GapSeenByLight(tick / 45f, doorOpen: true, steps);
+            Assert.That(gap, Is.GreaterThanOrEqualTo(previous - 1e-6),
+                $"gap narrowed at tick {tick} with steps={steps}: {previous:F3} -> {gap:F3}");
+            previous = gap;
+        }
+    }
 }

@@ -52,26 +52,41 @@ public static class DoorOcclusionMath
     // doorOpen=true for a non-door is a caller bug rather than a request to delete a wall, so the
     // door test gates the open test rather than the two being combined.
     //
-    // doorAperture LAST, and it exists because `doorOpen` is a state while the thing the player is
-    // looking at is an animation. A door told to shut has `Open` false from the first tick of a slide
-    // that lasts tens of ticks (Building_Door.DoorTryClose sets openInt immediately; DrawMovers keeps
-    // sliding the leaves from OpenPct), so a rule reading only `doorOpen` puts a whole-cell occluder
-    // back under a door the game is still drawing half-open. The aperture is how wide the DRAWN gap
-    // is, and a cell with a gap in it is not a whole-cell occluder whatever the door's state says.
+    // doorAperture LAST, and once it is being tracked it is the ONLY term that speaks for a door.
+    // `doorOpen` is a state; the thing the player is looking at is an animation, and the two disagree
+    // at BOTH ends of a slide:
     //
-    // The two are OR-ed rather than the aperture replacing `doorOpen`, which is a deliberate
-    // restraint: an open door reads exactly as it did before, so this changes the closing half and
-    // nothing else. It leaves one known asymmetry standing at the other end -- for the first tick or
-    // two of an OPEN, the quantised aperture still rounds to zero while `doorOpen` is already true, so
-    // the cell is briefly a hole with no leaves in it, i.e. a full-width gap. That is a real defect
-    // and it is a candidate cause of the flicker reported in issue #174 phase 2; it is written down
-    // here rather than fixed here so that one film measures one change.
+    //   - A door told to SHUT has `Open` false from the first tick of a slide that lasts tens of
+    //     ticks (Building_Door.DoorTryClose sets openInt immediately; DrawMovers keeps sliding the
+    //     leaves from OpenPct), so a rule reading only `doorOpen` puts a whole-cell occluder back
+    //     under a door the game is still drawing half-open. That was issue #174 phase 1.
+    //   - A door told to OPEN has `Open` TRUE from the first tick, while OpenPct is still 0 and
+    //     vanilla is drawing the leaves shut -- DrawMovers offsets each leaf by 0.45 * OpenPct, so at
+    //     OpenPct 0 they have not moved at all. A rule that OR-ed the two therefore turned the cell
+    //     into a bare, FULL-WIDTH doorway for the tick or two before the leaves began to move, and
+    //     the beam then collapsed to one-eighth width on the next quantisation step. That was issue
+    //     #174 phase 2 -- the "room flickers as a door opens" report -- and it is why the two terms
+    //     are no longer OR-ed.
     //
-    // Zero aperture and zero flag are the same input on purpose. VectorLightBlockers passes 0 whenever
-    // the aperture flag is off, so this expression collapses to `!doorOpen` -- the pre-feature rule,
-    // character for character, which is what the flag-off arm has to reproduce.
+    // Both ends get the same answer once the question is asked about the DRAWN gap rather than about
+    // the door's state: a cell with a gap in it is not a whole-cell occluder, and a cell with no gap
+    // in it is one, whatever `Open` says. The aperture measures the drawn gap. So when it is being
+    // tracked it decides alone, and `doorOpen` is not consulted at all.
+    //
+    // Note that quantisation is NOT what caused the phase 2 defect, though it is what made it
+    // conspicuous. Measured offline: with quantisation off the spike still occurs, for one tick
+    // instead of three, and collapses further (a full cell to 0.022). The cause was reading `Open`;
+    // the step count only sets how long the wrong frame is held.
+    //
+    // WHY apertureTracked IS A SEPARATE PARAMETER AND NOT JUST `doorAperture > 0`. VectorLightBlockers
+    // passes 0 whenever the aperture flag is off, and 0 is also what a genuinely shut door reads. The
+    // two must not be conflated: with the flag off an OPEN door still has to pass light, because the
+    // flag-off arm has to reproduce the pre-feature frame character for character, and an aperture-
+    // only rule would silently wall up every open door in it. This flag says which of the two rules is
+    // in force; it never says how wide the gap is.
     public static bool Occludes(
-        bool blocksLight, bool isDoor, bool doorOpen, bool openDoorsPassLight, float doorAperture)
+        bool blocksLight, bool isDoor, bool doorOpen, bool openDoorsPassLight, float doorAperture,
+        bool apertureTracked)
     {
         if (!blocksLight)
         {
@@ -91,6 +106,15 @@ public static class DoorOcclusionMath
         // `> 0f` rather than `>= MinimumLeafLength`: this asks whether there is a gap at all, which is
         // a different question from whether a LEAF is long enough to be worth a ray. An aperture below
         // the leaf threshold is a nearly-open door, and its cell is emphatically not a wall.
-        return !doorOpen && !(doorAperture > 0f);
+        //
+        // Negated rather than written `doorAperture <= 0f` so a NaN from a modded OpenPct fails SHUT:
+        // NaN compares false against every threshold, so `!(NaN > 0f)` is true.
+        if (apertureTracked)
+        {
+            return !(doorAperture > 0f);
+        }
+
+        // Untracked: the pre-aperture rule, character for character.
+        return !doorOpen;
     }
 }
