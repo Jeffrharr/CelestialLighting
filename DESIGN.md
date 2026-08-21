@@ -8447,6 +8447,88 @@ a simulated animation. Recorded here because a green run over a film of nothing 
 this repo's verification bar exists to catch, and it caught it only because a probe was pinned to a
 value that had to *move*.
 
+
+#### Phase 3: the close tracks its leaves too (issue #174 phase 1, `Tests/Scenarios/vector_light_door_close.json`)
+
+**Problem.** Phase 2 tracks a door's slide in exactly one direction. Open a door and the aperture
+ramps 0 → 1 across the swing; shut it and the beam **vanished on the first tick** while the player
+watched the leaves take another forty ticks to arrive. It is phase 2's own bug, in the half phase 2
+never filmed, and it survived for the reason bugs like it always survive: the scenario that proved
+the feature works opens a door.
+
+**Why the code did that, and it is vanilla's shape rather than an oversight.**
+`Building_Door.DoorTryClose` sets `openInt = false` on the tick the door is *told* to shut
+(`Building_Door.cs:502`), and `Tick` then walks `ticksSinceOpen` back down to zero one per tick
+(`:327-331`). `OpenPct` is a ratio of that counter, so vanilla's own property ramps correctly down
+through the whole close — **`Open` is the order, `OpenPct` is the animation**, and they disagree for
+the entire length of it. §27 read only the order, in two places that both had to move:
+
+- `DoorAccess.OpenFraction` early-returned `0f` whenever `!door.Open`. The comment defending that
+  said the raw property is only meaningful while the door is open. It is meaningful whenever the door
+  is *drawn*, because it is what the door is drawn from: `DrawMovers` slides each leaf by
+  ±0.45 · `OpenPct`. A modded override cannot lie to us here without lying to vanilla's own renderer
+  first, which is a stronger guarantee than the gate it replaces.
+- `DoorOcclusionMath.Occludes` put a whole-cell occluder back on the same tick, so even a correct
+  aperture would have been contradicted by the grid — the cell would have been solid *and* handed out
+  the leaf edges of the gap in it. The rule now takes the aperture as a fifth input and reads
+  `!doorOpen && !(doorAperture > 0f)`. The two terms are OR-ed rather than the aperture replacing
+  `doorOpen`, deliberately: an open door reads exactly as it did, so this changes the closing half and
+  nothing else.
+
+**And a third place that only the live run found.** `GameComponent_DoorAperture` drained its watch
+set on `aperture >= 1f || (aperture <= 0f && !door.Open)` — "the slide has run out at either end". A
+close *starts* at aperture 1, so that first clause dropped every closing door from the set on its
+first sweep, before one step of the slide had happened. Both other fixes were in and the beam still
+snapped, because nothing was left watching it. The condition is now the end the door is heading for,
+`door.Open ? aperture >= 1f : aperture <= 0f`, read from state rather than from a remembered
+direction so an interrupted door that reverses mid-slide is handled by the same line.
+
+That third one is the part worth keeping: it was **not visible from the code**. Reading
+`OpenFraction` and `Occludes` together gives a complete and wrong account of the bug, the offline
+tests pass on it, and the first live run came back with `door_aperture_bakes` at **1** where an open
+costs 9 — one bake, then the door fell out of the set. The count is the only probe in §27e that could
+have said so.
+
+**What was measured.** `vector_light_door_close.json`, two hand-rolled sweeps over one wooden door's
+close differing only in `vector_light_door_aperture`, hand-rolled for the reason phase 2 records
+(`AdvanceTicks` is a jump, so a door's own `Tick()` never runs under it). The flag-off arm is the
+behaviour being replaced rather than the feature being absent: with no aperture the cell is a
+whole-cell occluder from the tick `openInt` goes false, which is exactly what the old code did with
+the flag on.
+
+| probe | before | after |
+|---|---|---|
+| `door_aperture_bakes` over one close | **1** | **9** |
+| `door_aperture_watched` after the close | 0 | 0 |
+| `vector_light_lit_area`, door shut | 455.4963 | 455.4963 |
+| `vector_light_lit_area`, door open | 468.8965 | 468.8965 |
+
+Nine is the same nine an open costs — the same eight quantisation steps plus the seed — so the close
+is now exactly as expensive as the open and no more. Both ends still land on the geometry they landed
+on before any of this existed, which is what says the fix moved *when* the geometry changes and not
+what it is.
+
+Integrated beam brightness, over the wedge the beam occupies (0.35% of the frame; masked within one
+arm, so the clock drift between arms cannot flatter it), per captured frame:
+
+```
+tracked   32.2  30.3  28.5  26.8  24.9  25.2  24.9  24.9 ... 25.8      a ramp
+flag off  26.8  26.9  26.6  26.5  26.5  26.4  26.7  26.7 ... 27.1      already gone by frame 1
+```
+
+**The ramp is over in five captured frames, and that is not a disappointment — it is the size of the
+thing being fixed.** A wooden door's slide is 45 ticks, about three quarters of a second, so the
+whole defect was a beam being three quarters of a second early. It is worth fixing for the same
+reason phase 2 was: the eye tracks a door because a door moves, and the beam is the brightest thing
+attached to it.
+
+**One known asymmetry is left standing, written down rather than fixed.** At the very start of an
+*open*, the quantised aperture still rounds to 0 while `doorOpen` is already true, so for a tick or
+two the cell is a hole with no leaves in it — a full-width gap under a door that is barely open.
+`Occludes` OR-ing the two terms is what preserves that, and preserving it is deliberate: it keeps
+this change to the closing half so that one film measures one thing. It is a candidate cause of the
+room flicker reported as issue #174 phase 2, and that is where it should be measured.
+
 ### Performance (`Tests/Scenarios/vector_light_perf.json`)
 
 Epic #145 carried phase 5 with **nothing profiled at all** — phase 1's validation run was
