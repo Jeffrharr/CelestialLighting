@@ -2893,9 +2893,54 @@ month of unrelated changes land on them under exactly the same conditions that l
 271 µs was measured at 11:35 on 2026-07-27; `a3b4cb4` memoised its nine-reads-per-cell glow walk and
 added its `!Visible` early return at 12:01 the same day. The row, the verdict below and every later
 citation of "§9 is the mod's largest term" have therefore all been quoting a number that a commit
-twenty-six minutes younger invalidated. **Nobody knows what this mod's most expensive section layer
-is.** The instrument now exists — arm the layer, drive rebakes with a flag re-set, interleave the arms
-— and pointing it at all six rows is the honest next step.
+twenty-six minutes younger invalidated.
+
+### The 2026-08-21 re-measure
+
+Same instrument as the table above (`SectionRegenerateTimingProbe`, `layer_regen_timing.json`), same
+scene, three runs, medians, no profiler — plus four new arms appended to that file which turn each
+postfix on the lighting overlay off in turn, so the layer can be decomposed rather than attributed by
+assumption:
+
+| `SectionLayer_LightingOverlay` | µs | |
+|---|---|---|
+| everything on | **420.8** | the most expensive layer on the map, vanilla's included |
+| §7b off (§27 still on) | 86.3 | → §7b's postfix costs **334.6** |
+| §27 off (§7b still on) | 308.2 | → §27's postfix costs **112.6** |
+| both off — the bare vanilla layer | **66.4** | July measured 67 |
+
+| every other layer | now | July | |
+|---|---|---|---|
+| `SectionLayer_NightDesaturation` (§9) | 148.9 | 105 | feature **off**: 0.02 — the gate works |
+| `SectionLayer_GravshipHull` (vanilla) | 86.8 | 59.0 | we do not touch it |
+| `SectionLayer_IndoorMask` (vanilla + our `Patch_IndoorMaskOverage`) | 42.5 | 30.7 | |
+| `SectionLayer_SunShadows` (§15's widening) | 28.4 | 26.0 | |
+| `SectionLayer_EaveShade` (§15b) | 18.6 | 13.3 | feature **off**: 13.2 — **no gate** |
+| `SectionLayer_Darkness` (vanilla) | 0.04 | 0.025 | the do-nothing floor |
+
+**The bare vanilla lighting overlay is the calibration control, and it says these numbers are
+comparable with July's**: 66.4 against 67, on a code path neither we nor Ludeon changed. That is what
+makes the rest readable — and it is also what makes `SectionLayer_GravshipHull` moving 59.0 → 86.8 an
+oddity for someone to chase rather than machine drift, since a drifting machine would have moved the
+overlay too. `SectionLayer_IndoorMask`'s 30.7 → 42.5 is at least partly ours (`Patch_IndoorMaskOverage`
+did not exist in July); §9's 105 → 148.9 is not explained by anything in its own history.
+
+Four things follow.
+
+- **§7b's postfix is still the largest single term this mod adds**, at 334.6 µs, after the memo took a
+  3.05x off it. The memo removed the *fan-out*; it could not remove the work itself, because §7c/§7d
+  added a per-cell sky-falloff term that the 95 µs July version never computed at all. Cutting how
+  often a lookup happens by 5x does not undo a lookup that did not previously exist.
+- **§27's suppress postfix is 112.6 µs**, second among what we add, and did not exist when the table
+  above was written.
+- **The parts do not sum.** 66.4 + 334.6 + 112.6 = 513.6 against a measured 420.8, an interaction of
+  −92.8 µs: the two postfixes share warmed state (the falloff BFS, the glow grid, `GeometryMemo`), so
+  each one's individual delta is an *upper* bound on what removing it alone would save. Quote the
+  decomposition with that caveat or not at all.
+- **§15b pays 71% of its cost with the feature switched off** (13.2 of 18.6). §9 had exactly this
+  problem and fixed it with `DiscardMesh`; §15b never got the same treatment, and the verdict below
+  waves its cost away as "13 µs, indistinguishable from noise" — which is true of the layer and beside
+  the point about a player who turned it off and is still paying for it.
 
 In wall-clock terms a roof edit dirties its own section plus the sections of the eight adjacent
 cells — at most four distinct sections — so roofing a 10x10 room costs on the order of 2.2 ms with
@@ -2970,7 +3015,9 @@ only. The new-moon arm of the scenario exists to keep that branch proven rather 
   — and measured, it is 13 µs, 3% of what we add, the cheapest layer in the mod. Dropping
   `Buildings` would reintroduce "walling in a porch leaves it drawn as a porch" (§15's known
   limitation, in its worst form) to save a number indistinguishable from noise. Not a trade worth
-  making.
+  making. **The 2026-08-21 re-measure does find something here, though, and it is not the
+  subscription**: 13.2 of the layer's 18.6 µs is paid with the feature switched *off*, because §15b
+  never got the `DiscardMesh` gate §9 has. Same fix, already written once, three files away.
 - **`SectionLayer_NightDesaturation` was where the cost actually was**, and the two independent,
   behaviour-preserving fixes recorded here were both **taken 26 minutes after this table was
   measured** (`a3b4cb4`, 2026-07-27 12:01, against the table's 11:35): (1) `WashAt` called
@@ -2983,12 +3030,14 @@ only. The new-moon arm of the scenario exists to keep that branch proven rather 
   it, and it went on being quoted as the mod's largest term for a month (including, briefly, by the
   §7b change that fixed the identical bug elsewhere). §9's cost today is simply unknown.
 - **§7b's 95 µs postfix** is the second-largest term and belongs to the companion issue about the
-  augmented lighting overlay, now with a number attached. (Which then grew to 790 µs and has been
-  measured back down to 238.9 — see the dated caveat under the table above. Note that fix and §9's (1)
-  here are the *same bug twice*: a per-cell live-grid read placed inside a per-vertex lattice walk,
-  fixed the same way — a section-plus-skirt window filled once. §9's landed a month earlier, which is
-  the awkward part: the pattern was already in the codebase, named, and documented when §7c wired a
-  second per-read lookup into §7b's lattice.)
+  augmented lighting overlay, now with a number attached. (Which then grew to 790 µs/call, was
+  measured back down to 238.9, and **is nonetheless the mod's largest single term today at 334.6 µs**
+  — see the 2026-08-21 re-measure above, which is the first time anything ranked these by measurement
+  rather than by the July ordering. Note that fix and §9's (1) here are the *same bug twice*: a
+  per-cell live-grid read placed inside a per-vertex lattice walk, fixed the same way — a
+  section-plus-skirt window filled once. §9's landed a month earlier, which is the awkward part: the
+  pattern was already in the codebase, named, and documented when §7c wired a second per-read lookup
+  into §7b's lattice.)
 
 ### The flag we used to raise ourselves (§3, issues #11 and #26)
 
