@@ -1,0 +1,189 @@
+{
+ "name": "occlusion_cost_split",
+ "saveFile": "minimal_colony.rws",
+ "description": "Splits indoor sky occlusion's postfix into its two halves, to answer whether the cost is the INDOORS VERDICT or the SKY-FALLOFF TERM. Three readings of the same layer: with everything on, with both arms of SkyFalloffSource switched off (so FractionAt returns 0 after two branch tests and what remains is the roof/edifice/room verdict plus the vertex writes), and with the postfix off entirely. Vector lights are held OFF throughout so the 112.6 us that postfix costs is not sitting inside every reading. Same scene and clock as layer_regen_timing.json, deliberately, so the numbers sit next to the table that file produced. Everything is RECORDED, not asserted.",
+ "steps": [
+  {
+   "type": "SetTile",
+   "args": {
+    "latitude": "45"
+   }
+  },
+  {
+   "type": "SetSeason",
+   "args": {
+    "dayOfYear": "40"
+   }
+  },
+  {
+   "type": "SetWeather",
+   "args": {
+    "weatherDef": "Clear",
+    "instant": "true"
+   }
+  },
+  {
+   "type": "SetTime",
+   "args": {
+    "hour": "12"
+   }
+  },
+  {
+   "type": "SetTerrain",
+   "args": {
+    "def": "Concrete",
+    "width": "30",
+    "height": "30",
+    "offset": "0,45",
+    "clear": "true"
+   }
+  },
+  {
+   "type": "SetRoof",
+   "args": {
+    "def": "RoofConstructed",
+    "width": "9",
+    "height": "9",
+    "offset": "0,45"
+   }
+  },
+  {
+   "type": "SetTerrain",
+   "args": {
+    "def": "Concrete",
+    "width": "20",
+    "height": "20",
+    "offset": "0,10",
+    "clear": "true"
+   }
+  },
+  {
+   "type": "PlaceThings",
+   "args": {
+    "def": "Wall",
+    "stuff": "BlocksGranite",
+    "offset": "0,10",
+    "layout": "cells",
+    "clear": "true",
+    "cells": "-2,-2; -1,-2; 0,-2; 1,-2; 2,-2; -2,-1; 2,-1; -2,0; 2,0; -2,1; 2,1; -2,2; -1,2; 0,2; 1,2; 2,2"
+   }
+  },
+  {
+   "type": "SetRoof",
+   "args": {
+    "def": "RoofConstructed",
+    "width": "7",
+    "height": "7",
+    "offset": "0,10"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "realistic_preset",
+    "enabled": "false"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_glow_passthrough",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "native_sky_falloff",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "vector_lights",
+    "enabled": "false"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "regen_us_lighting_overlay",
+    "expectedValue": "0",
+    "tolerance": "1000000"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_glow_passthrough",
+    "enabled": "false"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "native_sky_falloff",
+    "enabled": "false"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "regen_us_lighting_overlay",
+    "expectedValue": "0",
+    "tolerance": "1000000"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "false"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "regen_us_lighting_overlay",
+    "expectedValue": "0",
+    "tolerance": "1000000"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_glow_passthrough",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "native_sky_falloff",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "vector_lights",
+    "enabled": "true"
+   }
+  }
+ ]
+}
