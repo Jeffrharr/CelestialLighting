@@ -268,6 +268,10 @@
          light position. Tools/VectorLightPreview links the same file for offline look-dev. -->
     <Compile Include="../../Source/VectorLightMath.cs" Link="VectorLightMath.cs" />
     <Compile Include="../../Source/VectorLightLiftMath.cs" Link="VectorLightLiftMath.cs" />
+    <!-- §27 phase 5b's composition space. Verse-free like its two siblings above, and linked for the
+         same reason: the monotonicity property it exists to hold is a claim about the SHIPPED
+         arithmetic, so the tests have to compile the shipped file rather than a copy of it. -->
+    <Compile Include="../../Source/VectorLightSaturationMath.cs" Link="VectorLightSaturationMath.cs" />
   </ItemGroup>
 
 </Project>
