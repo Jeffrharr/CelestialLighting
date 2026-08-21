@@ -345,6 +345,9 @@ public static class VectorLightMath
     // in pairs and the corner rays walk it in sequence.
     private static float[] EndpointAngles(float lightX, float lightZ, Segment[] segments, int segmentCount)
     {
+        if (segments == null)
+            return new float[0];
+
         float[] endpointAngles = new float[segmentCount * 2];
 
         for (int i = 0; i < segmentCount; i++)

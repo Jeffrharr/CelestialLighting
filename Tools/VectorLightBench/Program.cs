@@ -93,6 +93,14 @@ public static class Program
         // hospital blocks get here, and it shows the growth curve rather than one point on it.
         yield return Grid("colony-tight", 14f, 5);
 
+        // THE MEASURED POPULATION. vector_light_bake_cull reports 42 silhouette segments per bake in
+        // a granite room grid with 23 torch lamps -- the scene the epic's own bake arms use, and the
+        // closest thing here to what a played colony hands the bake. Every scene denser than this is
+        // a growth curve rather than a claim, and the honest headline number is this row.
+        yield return Grid("measured-42", 14f, 17);
+        yield return Pillars("pillars-p9", 14f, 9);
+        yield return Pillars("pillars-p7", 14f, 7);
+
         // Mid clutter, and it exists to interrogate the index's own threshold rather than to model a
         // room anyone builds. The gain is worthless if the cutoff sits above the segment counts real
         // scenes produce, so the sweep needs points between "a room" (8) and "a colony" (224).

@@ -103,6 +103,59 @@ public static class VectorLightField
 
     private static readonly Dictionary<int, MapLights> ByMap = new Dictionary<int, MapLights>();
 
+    // ---- bake accounting ---------------------------------------------------------------------
+    //
+    // COUNTERS, NOT TIMERS, and the distinction is the whole reason these exist. A timing probe
+    // measures one call and never asks how often it happens, so a change that halves the cost of a
+    // bake and doubles how often one is provoked reads as a straight win. The door-aperture work hit
+    // exactly this and answered it with a counter (GameComponent_DoorAperture.DirtyRequests); this is
+    // the same instrument pointed at the field as a whole.
+    //
+    // WHY THEY CANNOT BE A PROBE THAT RECOMPUTES. The obvious alternative is to have the harness ask
+    // for a polygon and time it, and VectorLightProbe already does rebuild one to answer questions
+    // about shape. That is useless here: it produces a fresh, correct answer whether or not the cache
+    // was consulted, so a memoisation would measure as working while doing nothing at all. Only state
+    // the bake itself writes can distinguish "hit" from "recomputed".
+    //
+    // Live in shipped code rather than behind the probe compile flag because the increments are on
+    // the paths being measured; an int++ on a path that is about to run a visibility polygon is not a
+    // cost worth a conditional.
+
+    // Polygons actually rebuilt. The numerator of the whole phase.
+    public static int PolygonBakes;
+
+    // Rebuilds skipped because the polygon was still clean — the dirty flag doing its job. Read
+    // beside PolygonBakes: bakes alone cannot tell a well-cached field from one nobody asked.
+    public static int PolygonHits;
+
+    // Segments handed to the visibility polygon, summed over every bake. Says what POPULATION was
+    // measured, which a bake count cannot: the cull's gain scales with clutter, so a scenario
+    // reporting a healthy bake count over eight segments per bake has verified nothing about it.
+    public static int BakeSegments;
+
+    // How many times a blocker write asked the field to invalidate, and how many emitters that
+    // actually dirtied. The ratio IS the invalidation radius, measured rather than reasoned about —
+    // the epic names MarkGeometryDirtyAround as the thing that turns one toggle into a map-wide
+    // rebake, and these two numbers are what settle whether it does.
+    public static int InvalidationCalls;
+    public static int InvalidationMarks;
+
+    // Roster resyncs against vanilla's glower sets. A lamp toggle costs one; a per-frame resync
+    // would mean something is marking the roster dirty on a cadence rather than on an event.
+    public static int RosterResyncs;
+
+    // Cleared per arm, the way the door-aperture counter is, so an arm counts its own bakes from zero
+    // instead of inheriting the previous arm's total.
+    public static void ResetCounters()
+    {
+        PolygonBakes = 0;
+        PolygonHits = 0;
+        BakeSegments = 0;
+        InvalidationCalls = 0;
+        InvalidationMarks = 0;
+        RosterResyncs = 0;
+    }
+
     public static void MarkRosterDirty(Map map)
     {
         if (map == null || !ByMap.TryGetValue(map.uniqueID, out MapLights lights))
@@ -126,6 +179,8 @@ public static class VectorLightField
         if (map == null || !ByMap.TryGetValue(map.uniqueID, out MapLights lights))
             return;
 
+        InvalidationCalls++;
+
         foreach (LightEntry entry in lights.Entries.Values)
         {
             // Squared distance against squared radius, so a wall built across the map costs one
@@ -138,6 +193,7 @@ public static class VectorLightField
             {
                 entry.GeometryDirty = true;
                 entry.PolygonDirty = true;
+                InvalidationMarks++;
 
                 // A wall appearing or vanishing also rewrites vanilla's geodesic distances through
                 // that cell, so the samples go with the geometry. A rebuild resamples anyway; this
@@ -193,10 +249,16 @@ public static class VectorLightField
     public static void EnsurePolygon(Map map, LightEntry entry)
     {
         if (!entry.PolygonDirty && entry.Polygon.Count > 0)
+        {
+            PolygonHits++;
             return;
+        }
 
         VectorLightMath.Segment[] segments =
             VectorLightBlockers.SegmentsAround(map, entry.Cell, entry.Radius);
+
+        PolygonBakes++;
+        BakeSegments += segments.Length;
 
         entry.Polygon = VectorLightMath.Build(
             entry.Cell.x + 0.5f, entry.Cell.z + 0.5f, entry.Radius, segments,
@@ -256,6 +318,7 @@ public static class VectorLightField
     private static void Resync(Map map, MapLights lights)
     {
         lights.RosterDirty = false;
+        RosterResyncs++;
 
         HashSet<object> seen = new HashSet<object>();
         AddGlowers(map, lights, seen);
