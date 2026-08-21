@@ -30,7 +30,8 @@ public class DoorOcclusionMathTests
     [TestCase(false, true,  true,  ExpectedResult = false)]
     public bool FlagOffReproducesTheBareBlockLightTest(bool blocksLight, bool isDoor, bool doorOpen) =>
         DoorOcclusionMath.Occludes(
-            blocksLight, isDoor, doorOpen, openDoorsPassLight: false, doorAperture: 0f);
+            blocksLight, isDoor, doorOpen, openDoorsPassLight: false, doorAperture: 0f,
+            apertureTracked: true);
 
     // The feature itself: with the flag on, an open door is the ONLY case that changes.
     [TestCase(true,  true,  true,  ExpectedResult = false)] // open door -- the whole point
@@ -39,7 +40,8 @@ public class DoorOcclusionMathTests
     [TestCase(true,  false, true,  ExpectedResult = true)]  // a wall is never "open"
     public bool FlagOnChangesOnlyTheOpenDoor(bool blocksLight, bool isDoor, bool doorOpen) =>
         DoorOcclusionMath.Occludes(
-            blocksLight, isDoor, doorOpen, openDoorsPassLight: true, doorAperture: 0f);
+            blocksLight, isDoor, doorOpen, openDoorsPassLight: true, doorAperture: 0f,
+            apertureTracked: false);
 
     // A see-through door is transparent whether it is open or shut, and the flag must not disturb
     // that. This is what vector_light_glass_door pins live: a blockLight=false door reproduces a bare
@@ -51,7 +53,7 @@ public class DoorOcclusionMathTests
     public bool TransparentDoorPassesLightRegardlessOfOpenState(bool doorOpen) =>
         DoorOcclusionMath.Occludes(
             blocksLight: false, isDoor: true, doorOpen: doorOpen, openDoorsPassLight: true,
-            doorAperture: 0f);
+            doorAperture: 0f, apertureTracked: true);
 
     // Transparency wins over everything, flag included -- the blockLight test is deliberately first.
     [Test]
@@ -64,7 +66,7 @@ public class DoorOcclusionMathTests
                 foreach (bool open in new[] { false, true })
                 {
                     Assert.That(
-                        DoorOcclusionMath.Occludes(false, isDoor, open, flag, 0f), Is.False,
+                        DoorOcclusionMath.Occludes(false, isDoor, open, flag, 0f, true), Is.False,
                         $"blockLight=false must never occlude (isDoor={isDoor}, open={open}, flag={flag})");
                 }
             }
@@ -87,8 +89,10 @@ public class DoorOcclusionMathTests
                 {
                     foreach (float aperture in Apertures)
                     {
-                        bool off = DoorOcclusionMath.Occludes(blocks, isDoor, open, false, aperture);
-                        bool on = DoorOcclusionMath.Occludes(blocks, isDoor, open, true, aperture);
+                        bool off = DoorOcclusionMath.Occludes(
+                            blocks, isDoor, open, false, aperture, apertureTracked: true);
+                        bool on = DoorOcclusionMath.Occludes(
+                            blocks, isDoor, open, true, aperture, apertureTracked: true);
                         Assert.That(on && !off, Is.False,
                             $"flag on occludes where off did not (blocks={blocks}, isDoor={isDoor}, "
                             + $"open={open}, aperture={aperture})");
@@ -113,21 +117,57 @@ public class DoorOcclusionMathTests
     public bool ClosingDoorStopsOccludingUntilItsLeavesMeet(float doorAperture) =>
         DoorOcclusionMath.Occludes(
             blocksLight: true, isDoor: true, doorOpen: false, openDoorsPassLight: true,
-            doorAperture: doorAperture);
+            doorAperture: doorAperture, apertureTracked: true);
 
-    // The other half of the same claim: an OPEN door reads exactly as it did before the aperture
-    // existed. Phase 1 changes the closing half and nothing else, and this is where that is pinned --
-    // if a later edit makes the aperture replace `doorOpen` rather than join it, this is what says so.
+    // The other half of phase 1's claim, NOW SCOPED TO THE UNTRACKED RULE. This test used to assert
+    // that an open door reads the same for every aperture, and its comment said that if a later edit
+    // made the aperture replace `doorOpen` rather than join it, this is what would say so. Issue #174
+    // phase 2 is that edit, and it said so: the tripwire fired.
+    //
+    // It is re-derived rather than deleted, because the claim is still exactly true where it was
+    // meant to apply -- with the aperture NOT tracked, `doorOpen` is the whole rule and no fraction
+    // can disturb it. That is the flag-off arm's contract, and it is the part that had to survive.
     [TestCase(0f)]
     [TestCase(0.125f)]
     [TestCase(1f)]
-    public void OpenDoorIsUnaffectedByTheAperture(float doorAperture)
+    public void UntrackedOpenDoorIsUnaffectedByTheAperture(float doorAperture)
     {
         Assert.That(
             DoorOcclusionMath.Occludes(
                 blocksLight: true, isDoor: true, doorOpen: true, openDoorsPassLight: true,
-                doorAperture: doorAperture),
+                doorAperture: doorAperture, apertureTracked: false),
             Is.False);
+    }
+
+    // ISSUE #174 PHASE 2, THE WHOLE OF IT: the tracked aperture outranks `Open`.
+    //
+    // A door is told to open on one tick and its leaves do not move until the next -- `Open` is true
+    // while OpenPct is still 0, and vanilla draws the leaves shut throughout. OR-ing the two terms
+    // made that cell a bare, FULL-WIDTH doorway for a tick or two, so the room caught a full-brightness
+    // beam that then collapsed to one-eighth width. Measured offline as a gap of 1.000 on the tick the
+    // door is told to open, against 0.125 once the leaves actually move.
+    //
+    // A door drawn shut occludes, whatever its state flag says.
+    [Test]
+    public void TrackedApertureOutranksTheOpenFlag()
+    {
+        Assert.That(
+            DoorOcclusionMath.Occludes(
+                blocksLight: true, isDoor: true, doorOpen: true, openDoorsPassLight: true,
+                doorAperture: 0f, apertureTracked: true),
+            Is.True,
+            "a door drawn shut must occlude on the tick it is told to open");
+
+        // ...and the moment the leaves part, it stops. The two ends are unchanged from phase 1.
+        foreach (float ajar in new[] { 0.125f, 0.5f, 1f })
+        {
+            Assert.That(
+                DoorOcclusionMath.Occludes(
+                    blocksLight: true, isDoor: true, doorOpen: true, openDoorsPassLight: true,
+                    doorAperture: ajar, apertureTracked: true),
+                Is.False,
+                $"a door {ajar} ajar must pass light");
+        }
     }
 
     // A wall does not acquire a gap because a caller passed one. The aperture is gated behind the same
@@ -140,7 +180,7 @@ public class DoorOcclusionMathTests
         Assert.That(
             DoorOcclusionMath.Occludes(
                 blocksLight: true, isDoor: false, doorOpen: false, openDoorsPassLight: true,
-                doorAperture: doorAperture),
+                doorAperture: doorAperture, apertureTracked: true),
             Is.True);
     }
 
@@ -159,7 +199,8 @@ public class DoorOcclusionMathTests
                     foreach (float aperture in Apertures)
                     {
                         Assert.That(
-                            DoorOcclusionMath.Occludes(blocks, isDoor, open, false, aperture),
+                            DoorOcclusionMath.Occludes(
+                                blocks, isDoor, open, false, aperture, apertureTracked: true),
                             Is.EqualTo(blocks),
                             $"flag off must be exactly blocksLight (isDoor={isDoor}, open={open}, "
                             + $"aperture={aperture})");
@@ -185,9 +226,9 @@ public class DoorOcclusionMathTests
                     for (int i = 1; i < Apertures.Length; i++)
                     {
                         bool narrower = DoorOcclusionMath.Occludes(
-                            blocks, isDoor, open, true, Apertures[i - 1]);
+                            blocks, isDoor, open, true, Apertures[i - 1], apertureTracked: true);
                         bool wider = DoorOcclusionMath.Occludes(
-                            blocks, isDoor, open, true, Apertures[i]);
+                            blocks, isDoor, open, true, Apertures[i], apertureTracked: true);
                         Assert.That(wider && !narrower, Is.False,
                             $"aperture {Apertures[i]} occludes where {Apertures[i - 1]} did not "
                             + $"(blocks={blocks}, isDoor={isDoor}, open={open})");
@@ -208,7 +249,7 @@ public class DoorOcclusionMathTests
         Assert.That(
             DoorOcclusionMath.Occludes(
                 blocksLight: true, isDoor: true, doorOpen: false, openDoorsPassLight: true,
-                doorAperture: doorAperture),
+                doorAperture: doorAperture, apertureTracked: true),
             Is.True);
     }
 }

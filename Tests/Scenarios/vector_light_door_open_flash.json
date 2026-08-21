@@ -1,0 +1,598 @@
+{
+  "name": "vector_light_door_open_flash",
+  "saveFile": "minimal_colony.rws",
+  "description": "Issue #174 phase 2: does a room catch a full-brightness flash on the tick a door is told to open? `Building_Door.DoorOpen` sets openInt true while ticksSinceOpen is still 0, so `Open` is true for a tick or two while OpenPct is 0 and vanilla is still drawing the leaves shut. The rule that OR-ed the two therefore left the cell a bare, FULL-WIDTH doorway until the first quantisation step landed, and the beam then collapsed to one-eighth width. THE MEASUREMENT IS A PAUSED HOLD, NOT A FILM, and that is the load-bearing choice here. A rendered frame is worth roughly fifteen game ticks on this machine, so a per-frame sweep at normal speed steps clean over a three-tick window and reads a tidy monotone ramp whether or not the defect is present -- the first version of this scenario did exactly that and looked like a pass. Opening the door while PAUSED freezes the offending state indefinitely, and the door_aperture pin at tolerance 0 proves no tick elapsed while it was read. It is also exact rather than comparative: during the defect the door cell is geometrically IDENTICAL to a fully open one, so vector_light_lit_area reads the OPEN pin (468.896) where it should read the SHUT pin (455.496). The two differ by 13.4, far outside tolerance. The untracked arm is the pre-feature control and is EXPECTED to read the open value on that hold: with the aperture flag off, `Open` is the whole rule, so the door is full width the instant it is told to open and stays there. Before the fix the tracked arm was indistinguishable from it at that moment, which is precisely the bug. Pins: the two paused holds carry tight tolerances because they are the assertion -- tracked must read the SHUT area and untracked the OPEN one on the same held state. The samples taken under `normal` speed are a RECORD of the ramp and not pins: a rendered frame is worth roughly fifteen ticks, so where each sample lands in the swing drifts between runs, and two runs of this scenario disagreed on the aperture at the same slide index. Tightening those would buy a flaky scenario and no extra coverage, since the hold already decides the question.",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Concrete",
+        "width": "40",
+        "height": "24",
+        "offset": "0,45",
+        "clear": "true"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "0,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "-13,-7; -13,-6; -13,-5; -13,-4; -13,-3; -13,-2; -13,-1; -13,0; -13,1; -13,2; -13,3; -13,4; -13,5; -13,6; -13,7; -12,-7; -12,7; -11,-7; -11,7; -10,-7; -10,7; -9,-7; -9,7; -8,-7; -8,7; -7,-7; -7,7; -6,-7; -6,7; -5,-7; -5,7; -4,-7; -4,7; -3,-7; -3,7; -2,-7; -2,7; -1,-7; -1,7; 0,-7; 0,-6; 0,-5; 0,-4; 0,-3; 0,-2; 0,-1; 0,1; 0,2; 0,3; 0,4; 0,5; 0,6; 0,7"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Door",
+        "stuff": "WoodLog",
+        "offset": "0,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "0,0"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "TorchLamp",
+        "offset": "0,45",
+        "layout": "cells",
+        "cells": "-3,0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "0"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "0,45",
+        "zoom": "14"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_beam",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_open_doors",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_glow_blocker",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "openflash_warmup_discard.png"
+      }
+    },
+    {
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "normal"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "70"
+      }
+    },
+    {
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "paused"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_aperture",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_aperture",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "door_aperture",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_lit_area",
+        "expectedValue": "455.496338",
+        "tolerance": "2"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "openflash_tracked_a_shut.png"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "door_aperture",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_lit_area",
+        "expectedValue": "455.496338",
+        "tolerance": "2"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "openflash_tracked_b_toldtoopen.png"
+      }
+    },
+    {
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "normal"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_lit_area",
+        "expectedValue": "455.496338",
+        "tolerance": "200"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "door_aperture",
+        "expectedValue": "0",
+        "tolerance": "200"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "openflash_tracked_c_slide1.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_lit_area",
+        "expectedValue": "455.496338",
+        "tolerance": "200"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "door_aperture",
+        "expectedValue": "0",
+        "tolerance": "200"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "openflash_tracked_c_slide2.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_lit_area",
+        "expectedValue": "455.496338",
+        "tolerance": "200"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "door_aperture",
+        "expectedValue": "0",
+        "tolerance": "200"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "openflash_tracked_c_slide3.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "70"
+      }
+    },
+    {
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "paused"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "door_aperture",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_lit_area",
+        "expectedValue": "468.896484",
+        "tolerance": "2"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "door_aperture_bakes",
+        "expectedValue": "9",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "openflash_tracked_d_open.png"
+      }
+    },
+    {
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "normal"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "70"
+      }
+    },
+    {
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "paused"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_aperture",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_aperture",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "door_aperture",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_lit_area",
+        "expectedValue": "455.496338",
+        "tolerance": "2"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "openflash_untracked_a_shut.png"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "door_aperture",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_lit_area",
+        "expectedValue": "468.896484",
+        "tolerance": "2"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "openflash_untracked_b_toldtoopen.png"
+      }
+    },
+    {
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "normal"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_lit_area",
+        "expectedValue": "455.496338",
+        "tolerance": "200"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "door_aperture",
+        "expectedValue": "0",
+        "tolerance": "200"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "openflash_untracked_c_slide1.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_lit_area",
+        "expectedValue": "455.496338",
+        "tolerance": "200"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "door_aperture",
+        "expectedValue": "0",
+        "tolerance": "200"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "openflash_untracked_c_slide2.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_lit_area",
+        "expectedValue": "455.496338",
+        "tolerance": "200"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "door_aperture",
+        "expectedValue": "0",
+        "tolerance": "200"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "openflash_untracked_c_slide3.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "70"
+      }
+    },
+    {
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "paused"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "door_aperture",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_lit_area",
+        "expectedValue": "468.896484",
+        "tolerance": "2"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "door_aperture_bakes",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "openflash_untracked_d_open.png"
+      }
+    }
+  ]
+}

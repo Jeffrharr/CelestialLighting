@@ -8522,12 +8522,108 @@ whole defect was a beam being three quarters of a second early. It is worth fixi
 reason phase 2 was: the eye tracks a door because a door moves, and the beam is the brightest thing
 attached to it.
 
-**One known asymmetry is left standing, written down rather than fixed.** At the very start of an
-*open*, the quantised aperture still rounds to 0 while `doorOpen` is already true, so for a tick or
-two the cell is a hole with no leaves in it — a full-width gap under a door that is barely open.
-`Occludes` OR-ing the two terms is what preserves that, and preserving it is deliberate: it keeps
-this change to the closing half so that one film measures one thing. It is a candidate cause of the
-room flicker reported as issue #174 phase 2, and that is where it should be measured.
+**One known asymmetry was left standing here, written down rather than fixed.** At the very start of
+an *open*, the quantised aperture still rounded to 0 while `doorOpen` was already true, so for a tick
+or two the cell was a hole with no leaves in it — a full-width gap under a door that is barely open.
+`Occludes` OR-ing the two terms is what preserved it, and preserving it was deliberate: it kept this
+change to the closing half so that one film measured one thing. It was named as a candidate cause of
+the room flicker reported as issue #174 phase 2, and that is where it was measured — it was the
+cause. Phase 4 below is the fix, and the OR is gone.
+
+#### Phase 4: the open stops flashing (issue #174 phase 2, `Tests/Scenarios/vector_light_door_open_flash.json`)
+
+**Problem, as reported from play.** Opening a door made the room flicker. Not the beam — the room.
+
+**What it actually was, and the reported symptom named it.** A bright flash, one to three ticks long,
+at the instant the door was told to open. `Building_Door.DoorOpen` sets `openInt = true` while
+`ticksSinceOpen` is still 0, and only the *next* tick starts incrementing it (`Building_Door.cs:340`).
+So there is a window in which `Open` is true, `OpenPct` is 0, and `DrawMovers` — which offsets each
+leaf by `0.45 * OpenPct` — is still drawing the door **shut**. Phase 3's `Occludes` OR-ed `doorOpen`
+with `doorAperture > 0`, so during that window the cell was neither a wall nor a pair of leaves: it
+was a hole with nothing in it, i.e. a bare full-width doorway. The beam then collapsed to
+one-eighth width when the first quantisation step landed.
+
+**The issue predicted two suspects and ranked the wrong one first.** It named the quantised aperture
+stepping the max, and invalidation ordering in `DoorStateChanged` against `Patch_VectorLightSuppress`,
+and said a monotone staircase meant the first while a one-frame dip meant the second. It was neither
+shape: a *spike*, and upward. Both predictions can be disposed of specifically.
+
+- **Quantisation is not the cause.** It is only the reason the defect is conspicuous. Cutting it
+  offline leaves the spike standing for one tick instead of three, and makes the collapse *larger*
+  (a full cell to 0.022 rather than to 0.125). A fix that retuned the step count would have looked
+  like progress while leaving the defect exactly where it was.
+  `DoorApertureMathTests.TheSweepIsMonotoneAtEveryStepCount` is that finding turned into a test.
+- **The invalidation suspect cannot fire on a player's machine.** The `LightBlockerRemoved` call it
+  names sits behind `VectorLightDoorGlowBlocker`, and `CelestialLightingSettings` never assigns that
+  flag — it is reachable only from a scenario's `SetFeature`. It also predicts a dark *dip*, the
+  opposite sign to what was reported.
+
+**Approach: the tracked aperture outranks `Open`, and the OR is gone.** Once the aperture is being
+read it is the only term that speaks for a door, because it is the only one that measures the thing
+being drawn. `doorOpen` survives as the whole rule when the aperture is *not* tracked, which is what
+keeps the flag-off arm reproducing the pre-feature frame character for character — an aperture-only
+rule would have walled up every open door in that arm. That distinction is why `Occludes` takes an
+explicit `apertureTracked` rather than inferring it from `doorAperture > 0`: the adapter passes 0
+both for "flag off" and for "genuinely shut", and conflating them is the trap.
+
+This is the same claim phase 3 made, extended to the other end of the slide. Phase 3 said a door
+drawn half-open is not a whole-cell occluder whatever `Open` says; phase 4 says a door drawn shut
+*is* one, on the same authority.
+
+**A test that was written to fire, fired.** Phase 3 left
+`DoorOcclusionMathTests.OpenDoorIsUnaffectedByTheAperture` behind with the comment *"if a later edit
+makes the aperture replace `doorOpen` rather than join it, this is what says so"*. It said so. It is
+re-derived rather than deleted — scoped to the untracked rule, where the claim is still exactly true
+— and `TrackedApertureOutranksTheOpenFlag` states the new one beside it.
+
+##### Verification
+
+**The measurement is a paused hold, and that choice is load-bearing.** A rendered frame is worth
+roughly fifteen game ticks on this machine, so a per-frame sweep at normal speed steps clean over a
+three-tick window. The first version of this scenario did exactly that, reported a tidy monotone
+ramp, and would have passed against the unfixed build. Telling the door to open while the clock is
+**paused** freezes the offending state indefinitely; the `door_aperture` pin at tolerance 0 proves no
+tick elapsed while it was read.
+
+It is also exact rather than comparative. During the defect the door cell is geometrically identical
+to a fully open one — no leaves, nothing blocking — so `vector_light_lit_area` reads the *open*
+number where it should read the *shut* one, and the two differ by 13.4.
+
+| held state: told to open, paused, aperture 0, leaves unmoved | `vector_light_lit_area` |
+|---|---|
+| before the fix, aperture tracked | **468.8965** — a bare doorway |
+| before the fix, aperture flag off (pre-feature control) | 468.8965 |
+| **after the fix, aperture tracked** | **455.4963** — still a wall |
+| after the fix, aperture flag off (pre-feature control) | 468.8965 |
+
+**Read the first two rows together: before the fix the tracked arm was indistinguishable from having
+the feature switched off, at precisely the moment the feature exists to handle.** The control reading
+the open value on the same hold is what proves the hold captures the state at all rather than simply
+failing to open the door.
+
+Both ends are unchanged — 455.4963 shut and 468.8965 open, the same pair phase 3 pinned — and
+`door_aperture_bakes` is still 9 over a swing, so this moved *what* the geometry is during one window
+and neither what it is at the ends nor how often it is rebuilt.
+
+Pixels, on the crop containing the doorway (`Tests/Screenshots/doorflash_*.png`):
+
+| comparison | masked median ΔE | p90 | share touched |
+|---|---|---|---|
+| the flash being removed (before vs after, beam region) | **1.24** | 2.56 | 30.98% |
+| **after vs a genuinely shut door** | **0.00** | 0.00 | **0.00%** |
+
+The second row is the stronger claim and the one worth quoting: after the fix, a door told to open
+whose leaves have not moved renders **pixel-identical** to a door that is simply shut. Not close —
+identical, 0.00% of pixels touched. That is the whole assertion, since the defect was precisely that
+those two states rendered differently.
+
+**On the size of the first number.** 1.24 is modest against this repo's siblings, and the honest
+reason is that it is one frame of a transient: the flash is one to three ticks, so a still can only
+ever show a beam that should not be there, not the blink. The crop shows it unmistakably — light
+streaming out of a doorway whose door is drawn closed — and the case for fixing it is the one phase 3
+made, that the eye tracks a door because a door moves. A whole-frame median would have read 0.00
+here, as it does for every bounded effect in this file.
+
 
 ### Performance (`Tests/Scenarios/vector_light_perf.json`)
 

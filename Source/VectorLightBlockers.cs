@@ -155,6 +155,15 @@ public static class VectorLightBlockers
         AddDoorLeaves(leaves, (Building_Door)edifices[cell], cell, openPct);
     }
 
+    // Whether the aperture is a real reading this bake, as opposed to the 0 that stands in for
+    // "not tracked". ONE definition, asked by both OpenFractionOf and BlocksLight, because
+    // DoorOcclusionMath picks which rule to apply from it: if the two ever disagreed, a door would be
+    // measured by the aperture while being told the aperture is meaningless, which reads as a door
+    // that blocks light while visibly standing open.
+    private static bool ApertureTracked =>
+        CelestialLightingFeatures.VectorLightOpenDoors
+        && CelestialLightingFeatures.VectorLightDoorAperture;
+
     // How far the door on this cell has slid, or 0 for anything that is not a partly-open door under
     // the feature flag. Returns 0 rather than a nullable so the hot loop above stays branch-light.
     //
@@ -163,8 +172,7 @@ public static class VectorLightBlockers
     // did not actually change on, which is precisely the cost the quantisation exists to avoid.
     private static float OpenFractionOf(EdificeGrid edifices, IntVec3 cell)
     {
-        if (!CelestialLightingFeatures.VectorLightOpenDoors
-            || !CelestialLightingFeatures.VectorLightDoorAperture)
+        if (!ApertureTracked)
         {
             return 0f;
         }
@@ -187,10 +195,12 @@ public static class VectorLightBlockers
     // a def flag because `Open` is where vanilla itself keeps the answer, and every modded door worth
     // supporting derives from it (Steve's Doors' Building_UnmirroredDoor does, so its glass doors and
     // its opaque ones both answer correctly without a compat entry).
-    // `openPct` is the same quantised aperture CollectLeaves was handed, and it is what lets a door
-    // mid-CLOSE stay a hole in the grid while its leaves slide in: vanilla's `Open` is already false
-    // by then. See DoorOcclusionMath for why the two terms are OR-ed rather than one replacing the
-    // other, and for the known asymmetry left standing at the start of an open.
+    // `openPct` is the same quantised aperture CollectLeaves was handed, and once ApertureTracked is
+    // true it is the ONLY thing that speaks for the door: it is what lets a door mid-CLOSE stay a hole
+    // in the grid while its leaves slide in (vanilla's `Open` is already false by then), and equally
+    // what keeps a door drawn shut occluding on the tick it is told to OPEN, when `Open` has gone true
+    // but OpenPct is still 0. `door.Open` is still passed because it is the whole rule when the
+    // aperture is not tracked. See DoorOcclusionMath for both ends and why they are one question.
     private static bool BlocksLight(EdificeGrid edifices, IntVec3 cell, float openPct)
     {
         Building edifice = edifices[cell];
@@ -205,6 +215,7 @@ public static class VectorLightBlockers
             door != null,
             door != null && door.Open,
             CelestialLightingFeatures.VectorLightOpenDoors,
-            openPct);
+            openPct,
+            ApertureTracked);
     }
 }
