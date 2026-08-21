@@ -48,6 +48,7 @@ public static class VectorLightPawnShadows
 
     private static readonly List<Vector3> Verts = new List<Vector3>();
     private static readonly List<Color32> Colors = new List<Color32>();
+    private static readonly List<Vector2> Uvs = new List<Vector2>();
     private static readonly List<int> Tris = new List<int>();
 
     // One material per opacity step. Quantised to 16 levels because these are faint, overlapping
@@ -56,6 +57,21 @@ public static class VectorLightPawnShadows
     private const int OpacitySteps = 16;
 
     private static readonly Dictionary<int, Material> MaterialCache = new Dictionary<int, Material>();
+
+    // The feathered path's own bucket cache, kept SEPARATE from the flat one rather than keyed by a
+    // flag: these are different shaders, and one dictionary holding both would hand an arm the other
+    // arm's material the first time a bucket was reused — an A/B that measures nothing while every
+    // flag reads as set, which is the same trap the mesh cache's taper key exists to avoid.
+    private static readonly Dictionary<int, Material> FeatheredMaterialCache =
+        new Dictionary<int, Material>();
+
+    private const int RampTexels = 64;
+
+    private static Texture2D RampTextureCache;
+
+    // What tip opacity RampTextureCache was built for, so the harness's flat-ramp control arm gets a
+    // rebuilt row instead of the shipped one.
+    private static float RampTip = float.NaN;
 
     // One lamp's contribution to the pawn currently being drawn, carried from the first pass to the
     // second so the second does not recompute a distance and a coverage lookup it already paid for.
@@ -189,7 +205,7 @@ public static class VectorLightPawnShadows
                 new Vector3(
                     anchor.x + drawn.UnitX * drawn.TrailingEdge, altitude,
                     anchor.z + drawn.UnitZ * drawn.TrailingEdge),
-                Quaternion.Euler(0f, drawn.AngleDegrees, 0f), MaterialFor(drawn.Opacity), 0);
+                Quaternion.Euler(0f, drawn.AngleDegrees, 0f), MaterialForShadow(drawn.Opacity), 0);
         }
     }
 
@@ -419,6 +435,13 @@ public static class VectorLightPawnShadows
         Build(pawn, lights, map.skyManager.CurSkyGlow, into);
     }
 
+    // Which of the two draw paths this shadow takes. The flag is read here rather than at the call
+    // site so the probe and the draw cannot end up on different ones.
+    private static Material MaterialForShadow(float opacity) =>
+        CelestialLightingFeatures.VectorLightShadowFeather
+            ? FeatheredMaterialFor(opacity)
+            : MaterialFor(opacity);
+
     private static Material MaterialFor(float opacity)
     {
         int step = Mathf.Clamp(Mathf.RoundToInt(opacity * OpacitySteps), 1, OpacitySteps);
@@ -430,12 +453,157 @@ public static class VectorLightPawnShadows
             // NOTHING AT ALL — a silent nothing, which after the opaque black box is the second way
             // this has failed to look like a shadow. SolidColor is the shader meant for a coloured
             // quad with no texture, and SolidColorMaterials caches by colour for us.
+            //
+            // (The feathered path below DOES go through Map/Transparent, and gets away with it for
+            // exactly the reason this one could not: it supplies a texture.)
             material = SolidColorMaterials.SimpleSolidColorMaterial(
                 new Color(0f, 0f, 0f, (float)step / OpacitySteps));
             MaterialCache[step] = material;
         }
 
         return material;
+    }
+
+    // The same shadow, faded along its length by a ramp texture rather than held flat.
+    //
+    // WHY A TEXTURE AND NOT A PER-VERTEX ALPHA. The obvious cheap route is to grade the mesh's own
+    // vertex colours, and it is closed twice over: `Map/SolidColor` ignores vertex colour outright,
+    // and the material that reads it (`Custom/Sun shadow fade`) spends its alpha channel on the
+    // extrusion. It is closed a third time on principle — a per-vertex *value* interpolates linearly
+    // across a triangle, so a curve sampled that way is wrong by triangle length, which is precisely
+    // how the shader-max attempt failed before it was fixed with a texture. A UV is a *position*, and
+    // position across a triangle really is linear, so the curve stays exact wherever it is sampled.
+    //
+    // One texture for the whole map, not one per shadow: the ramp is a pure function of the fraction
+    // along the shadow, so every shadow at every length and every opacity samples the same row. The
+    // per-shadow opacity stays in the material colour, where it already was, and `Map/Transparent`
+    // multiplies the two.
+    private static Material FeatheredMaterialFor(float opacity)
+    {
+        // ASKED FIRST, ON EVERY DRAW, and deliberately not only when the material lookup misses.
+        // The two caches invalidate each other — rebuilding the ramp clears the materials — so
+        // reaching the ramp only through a material-cache miss makes the pair unreachable the moment
+        // one material exists: the row is fixed for the rest of the session and nothing can ever
+        // change it again.
+        //
+        // That is not hypothetical. The harness runs one step per frame, so a scenario arm that sets
+        // two flags renders a frame between them; the control arm built its material in that
+        // one-frame window, with the first flag applied and the second not, and then held the wrong
+        // ramp for the whole arm. Every derived number said the arm had changed and the pixels never
+        // did. When the ramp has not moved this costs one float comparison, which is not worth
+        // trading a whole class of invisible staleness for.
+        Texture2D ramp = RampTexture();
+
+        int step = Mathf.Clamp(Mathf.RoundToInt(opacity * OpacitySteps), 1, OpacitySteps);
+
+        if (!FeatheredMaterialCache.TryGetValue(step, out Material material))
+        {
+            // THE RENDER QUEUE IS COPIED FROM THE FLAT MATERIAL, DELIBERATELY. Turning this feature
+            // on swaps the shader, and a shader at a different queue composites against the lighting
+            // overlay at a different moment — which shows up as the whole shadow changing darkness
+            // rather than as a gradient appearing, and reads as a wrong formula rather than an
+            // ordering bug. Pinning the queue to the one the flat path already used makes the swap
+            // compositionally neutral, so the A/B measures the curve and nothing else. The scenario
+            // keeps a flat-ramp arm through THIS material anyway, because a comment is not a control.
+            material = MaterialPool.MatFrom(new MaterialRequest
+            {
+                shader = ShaderDatabase.Transparent,
+                mainTex = ramp,
+                color = new Color(0f, 0f, 0f, (float)step / OpacitySteps),
+                colorTwo = Color.white,
+                renderQueue = MaterialFor(opacity).renderQueue,
+                needsMainTex = true,
+            });
+
+            FeatheredMaterialCache[step] = material;
+        }
+
+        return material;
+    }
+
+    // One texel row, alpha falling from full at the caster to PawnShadowTipOpacity at the tip.
+    //
+    // 64 texels because the ramp is sampled bilinearly across a shadow that is rarely more than a
+    // cell or two on screen — at the zoom these are looked at, a cell is about 50 px, so 64 texels
+    // over the whole length is already finer than the pixels it lands on. Rebuilt when the tip
+    // opacity changes, which in a shipped game is never: the harness's flat-ramp control arm is the
+    // only thing that moves it.
+    private static Texture2D RampTexture()
+    {
+        float tip = VectorLightMath.PawnShadowTipOpacity;
+
+        // KEYED ON THE RAMP'S OWN ENDPOINT, NOT ON THE CONSTANT BEHIND IT. Reading the constant would
+        // make this cache blind to anything that changes the curve without changing the constant —
+        // which is exactly what the harness's flat-ramp control arm does, by postfixing
+        // PawnShadowFade. Keyed this way, flipping that arm invalidates the row on the next draw
+        // instead of leaving the previous arm's gradient on screen, which is the failure an in-run
+        // A/B would otherwise photograph as "the flag did nothing".
+        float endpoint = VectorLightMath.PawnShadowFade(1f, tip);
+
+        if (RampTextureCache != null && RampTip == endpoint)
+            return RampTextureCache;
+
+        Texture2D ramp = new Texture2D(RampTexels, 1, TextureFormat.ARGB32, false)
+        {
+            name = "CelestialLighting_PawnShadowRamp",
+
+            // Clamp, not repeat: a bilinear sample at the very tip would otherwise blend the far end
+            // of the ramp with its own full-opacity start and put a bright seam on the last texel.
+            wrapMode = TextureWrapMode.Clamp,
+            filterMode = FilterMode.Bilinear,
+        };
+
+        for (int i = 0; i < RampTexels; i++)
+        {
+            // Sampled at the texel CENTRE, which is what a bilinear fetch of u = i/(n-1) actually
+            // returns, so the row's two ends really are the ramp's two endpoints.
+            float along = RampTexels == 1 ? 0f : (float)i / (RampTexels - 1);
+
+            // RGB stays black: the shadow's colour is the material's, and Map/Transparent multiplies
+            // texel by _Color, so anything else here would tint the shadow.
+            ramp.SetPixel(i, 0, new Color(0f, 0f, 0f, VectorLightMath.PawnShadowFade(along, tip)));
+        }
+
+        ramp.Apply();
+
+        RampTextureCache = ramp;
+        RampTip = endpoint;
+
+        // EVERY CACHED MATERIAL IS NOW STALE, because a material binds a texture OBJECT and this has
+        // just made a new one. Without this line the first arm to build a material pins its ramp for
+        // the rest of the session: a later arm rebuilds the row, every recomputed number agrees the
+        // ramp changed, and the screen goes on sampling the old texture. That failure is close to
+        // invisible — the probes move, the frames do not — and it cost a live run here before the
+        // probe was changed to read the bound texture rather than a freshly derived value.
+        //
+        // Clearing rather than re-binding in place because the bucket set is a handful of entries
+        // rebuilt on the next draw, and a rebuild is cheaper to reason about than a mutation.
+        FeatheredMaterialCache.Clear();
+
+        return ramp;
+    }
+
+    // The alpha the ramp row the DRAW IS ACTUALLY BOUND TO ends on.
+    //
+    // For the probe, and deliberately read off a live material's own texture rather than recomputed
+    // from the formula — or even off the current cached row. This is the number the screen samples,
+    // so a scenario pinning it pins a fact about the frame. A probe that re-derived it agreed with
+    // the formula while the screen sampled a stale row, which is exactly the disagreement that hid
+    // the material-cache bug above: the arm's numbers all moved and its pixels did not.
+    //
+    // Falls back to building the row when nothing has drawn yet, so a probe read before the first
+    // frame reports the ramp that is about to be used rather than a sentinel.
+    public static float BoundRampTipAlpha()
+    {
+        foreach (Material material in FeatheredMaterialCache.Values)
+        {
+            if (material != null && material.mainTexture is Texture2D bound)
+                return bound.GetPixel(RampTexels - 1, 0).a;
+        }
+
+        Texture2D ramp = RampTexture();
+
+        return ramp == null ? 1f : ramp.GetPixel(RampTexels - 1, 0).a;
     }
 
     // The caster's own shadow data, read where vanilla reads it — which is two places, not one.
@@ -523,8 +691,38 @@ public static class VectorLightPawnShadows
         Verts.Add(new Vector3(length, 0f, tipHalf));
         Verts.Add(new Vector3(length, 0f, -tipHalf));
 
+        // U runs 0 at the trailing edge to 1 at the tip, which is the fraction-along the fade ramp
+        // is a function of. V is constant because the ramp has no cross-shadow variation — vanilla's
+        // skirt is uniform across its width and only dissolves along its length.
+        //
+        // Baked unconditionally, including for the flat path: SolidColor ignores UVs, so they cost
+        // four Vector2s in a cache that saturates at a couple of dozen meshes and save the mesh cache
+        // from needing the feather flag in its key. Length is already in the key, so a shadow that
+        // changes length gets a fresh mesh and the ramp restretches with it — which is what makes the
+        // fade a fraction of each shadow's own length rather than a fixed distance in cells.
+        Uvs.Clear();
+        Uvs.Add(new Vector2(0f, 0f));
+        Uvs.Add(new Vector2(0f, 1f));
+        Uvs.Add(new Vector2(1f, 1f));
+        Uvs.Add(new Vector2(1f, 0f));
+
+        // WHITE, WHICH REVERSES THIS LINE'S ORIGINAL VALUE AND IS THE REASON THE FEATHERED PATH
+        // DREW NOTHING THE FIRST TIME IT RAN. These were (0,0,0,0), chosen back when the plan was to
+        // draw through the game's own shadow material, where vertex alpha IS the extrusion distance
+        // and zero means "leave this vertex where it is". Nothing has drawn through that material for
+        // a long time; `Map/SolidColor` ignores vertex colour entirely, so the zeros were inert and
+        // stayed put looking deliberate.
+        //
+        // `Map/Transparent` does NOT ignore them — it multiplies the texel by the vertex colour, the
+        // way every map-layer mesh in the game relies on (Printer_Plane's DefaultColors are white for
+        // exactly this reason). Against a black, alpha-zero vertex colour that product is zero
+        // everywhere, so the shadow rendered as a perfect nothing: no error, no warning, every probe
+        // green, and a frame identical to the one with the feature switched off.
+        //
+        // White is inert for the flat path (SolidColor still ignores it) and correct for the
+        // feathered one, so the two can go on sharing one cached mesh.
         for (int i = 0; i < 4; i++)
-            Colors.Add(new Color32(0, 0, 0, 0));
+            Colors.Add(new Color32(255, 255, 255, 255));
 
         Tris.Add(0);
         Tris.Add(1);
@@ -536,6 +734,7 @@ public static class VectorLightPawnShadows
         Mesh mesh = new Mesh { name = "CelestialLighting_PawnShadow" };
         mesh.SetVertices(Verts);
         mesh.SetColors(Colors);
+        mesh.SetUVs(0, Uvs);
         mesh.SetTriangles(Tris, 0);
 
         MeshCache[key] = mesh;

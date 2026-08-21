@@ -183,6 +183,18 @@ public sealed class VectorLightProbe : IProbe
         // The maximum rather than the sum, because the failure is one shadow escaping: six arms
         // averaging correctly while one crosses a wall is exactly what a sum would hide.
         PawnShadowReach,
+
+        // The alpha the along-length fade ramp ends on, read off the texture the draw samples.
+        //
+        // A SEPARATE METRIC BECAUSE peak AND rosette CANNOT SEE THIS. Both are defined at the
+        // caster, where the ramp is 1 by construction, so a correctly feathered shadow leaves them
+        // exactly where a flat one left them. That is not the pair failing to notice a bug — it is
+        // what makes them the right control for a change that must not move the shadow's darkness
+        // where it starts — but it does mean the fade needs its own number or it is unpinnable, and
+        // an unpinned render path is one that can silently fall back to flat.
+        //
+        // Map-free: the ramp is one row shared by every shadow on every map.
+        PawnShadowTipFade,
     }
 
     private readonly Metric metric;
@@ -219,6 +231,20 @@ public sealed class VectorLightProbe : IProbe
 
         if (metric == Metric.MaskSaturationRelief)
             return VectorLightMask.SaturationRelief;
+
+        // Reports 1 when the feature is off, which is the true statement about the frame rather than
+        // a sentinel: the flat path really does draw a shadow that keeps full opacity to its tip.
+        //
+        // ASKS THE TEXTURE THE DRAW ACTUALLY BOUND, not the one a fresh build would produce. Reading
+        // the live material's own texture is the difference between "the formula says flat" and "the
+        // frame is flat" — and those came apart once already here, when a cached material went on
+        // sampling the previous arm's ramp while every recomputed number agreed the arm had changed.
+        if (metric == Metric.PawnShadowTipFade)
+        {
+            return CelestialLightingFeatures.VectorLightShadowFeather
+                ? VectorLightPawnShadows.BoundRampTipAlpha()
+                : 1f;
+        }
 
         if (map == null)
             return 0f;

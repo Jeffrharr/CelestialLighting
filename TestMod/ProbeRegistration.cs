@@ -393,6 +393,13 @@ public static class ProbeRegistration
         // geometric length and a clipped one reads the distance to the wall.
         ProbeRegistry.Register(
             new VectorLightProbe("vector_light_pawn_shadow_reach", VectorLightProbe.Metric.PawnShadowReach));
+        // The along-length fade's own number, because peak and rosette are both defined at the
+        // caster and so cannot see it -- see the metric's comment. Pin it beside them: together they
+        // say "the shadow starts exactly as dark as it did and ends fainter", which is the whole
+        // claim, and either number alone is consistent with the feature being broken.
+        ProbeRegistry.Register(
+            new VectorLightProbe("vector_light_pawn_shadow_tip_fade",
+                VectorLightProbe.Metric.PawnShadowTipFade));
         // Performance, measured through Circinus rather than Dubs, because Circinus reports CALL
         // COUNTS. §27 phase 3 does all its work inside a section regenerate, and the Dubs window that
         // appeared to show it running three times cheaper than the feature-off baseline had simply
@@ -973,6 +980,12 @@ public static class ProbeRegistration
         FeatureRegistry.Register(
             CelestialLightingFeatures.VectorLightShadowClipKey,
             enabled => CelestialLightingFeatures.VectorLightShadowClip = enabled);
+        // The along-length fade. Two-arg overload, matching its shipped default of true. No
+        // ForceRebuild for the same reason as its siblings above -- it selects which material the
+        // per-frame immediate-mode draw picks and touches no baked section.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightShadowFeatherKey,
+            enabled => CelestialLightingFeatures.VectorLightShadowFeather = enabled);
         // §27e. THREE-arg overload with defaultEnabled: false -- both of these ship off, and the
         // two-arg overload would let ResetAll switch them on for a later scenario in a suite, which
         // for the glow-blocker one would silently change gameplay light under an unrelated test.
@@ -1205,6 +1218,15 @@ public static class ProbeRegistration
         FeatureRegistry.Register(
             CloudCoverFractionOverride.FeatureKey,
             enabled => CloudCoverFractionOverride.Set(enabled),
+            defaultEnabled: false);
+        // Not a CelestialLightingFeatures flag either: flattens the pawn-shadow fade ramp WITHOUT
+        // leaving the feathered material, so an arm can separate the shader swap from the curve. See
+        // PawnShadowFlatRampOverride's header for why a change that does both at once needs it.
+        // defaultEnabled FALSE, like its siblings — the resting state is the shipped curve.
+        PawnShadowFlatRampOverride.Install();
+        FeatureRegistry.Register(
+            PawnShadowFlatRampOverride.FeatureKey,
+            enabled => PawnShadowFlatRampOverride.Set(enabled),
             defaultEnabled: false);
         // Not a CelestialLightingFeatures flag: this bridges the "true pitch-black" atmospheric-floor
         // switch that lives on NightRadianceSettings, so a probe scenario can drop the constant

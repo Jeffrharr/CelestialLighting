@@ -1057,6 +1057,135 @@ public class VectorLightMathTests
             Is.EqualTo(illuminance).Within(Tolerance));
     }
 
+    // The fade's two endpoints, which are the only two values it is calibrated on: a shadow leaves
+    // its caster at full strength and reaches its tip at the measured fraction. The second is the
+    // one that matters — k is derived from the tip opacity precisely so the curve cannot drift away
+    // from its own endpoint, and a formulation that re-tuned k independently would pass every
+    // interior check below while landing somewhere else at t = 1.
+    [Test]
+    public void TheFadeRunsFromFullAtTheCasterToTheMeasuredFractionAtTheTip()
+    {
+        float tip = VectorLightMath.PawnShadowTipOpacity;
+
+        Assert.That(VectorLightMath.PawnShadowFade(0f, tip), Is.EqualTo(1f).Within(Tolerance));
+        Assert.That(VectorLightMath.PawnShadowFade(1f, tip), Is.EqualTo(tip).Within(Tolerance));
+    }
+
+    // The property the shape has to have whatever curve is chosen, stated as a property rather than
+    // as examples for the reason the quantisation bound was: the bug this guards is a DIRECTION, and
+    // a direction is what a test can hold. A shadow that brightened anywhere along its length would
+    // read as a band rather than a fade.
+    [Test]
+    public void TheFadeIsMonotoneAlongTheShadow()
+    {
+        float tip = VectorLightMath.PawnShadowTipOpacity;
+        float previous = float.MaxValue;
+
+        for (int i = 0; i <= 64; i++)
+        {
+            float value = VectorLightMath.PawnShadowFade(i / 64f, tip);
+
+            Assert.That(value, Is.LessThanOrEqualTo(previous + Tolerance));
+            previous = value;
+        }
+    }
+
+    // THE FIT AGAINST VANILLA, which is the claim the shape is actually making and the reason the
+    // curve is hyperbolic rather than linear. These are the measured sun-shadow profile from
+    // vector_light_shadow_reference.json, binned along the shadow's own length. An INDEPENDENT
+    // ORACLE in the sense that matters: the numbers come off a capture of vanilla's renderer, not
+    // out of the function under test.
+    //
+    // NORMALISED THE WAY THE CAPTURE WAS, which is the whole reason this test earns its keep. The
+    // measured column is a ratio to the FIRST BIN — centred at t = 0.05, not at the caster — so
+    // comparing raw fade values against it is comparing two different quantities. It fails loudly at
+    // the first case (the model is 0.93 at t = 0.05 where the measurement is 1.000 by construction),
+    // and the first version of this test did exactly that. Dividing through by the model's own value
+    // at the same reference point puts both sides on one scale.
+    //
+    // 0.05 tolerance because the bins are noisy — the far tail sits at ~0.04 absolute alpha on
+    // speckled concrete, and the 0.65 and 0.85 bins are not even monotone with respect to each
+    // other — not because the fit is loose; the worst case below lands at 0.037. A straight line
+    // from 1 to the tip misses the 0.25 bin by 0.14 and fails this at any tolerance worth having,
+    // which is what these cases are here to keep out.
+    [TestCase(0.25f, 0.709f)]
+    [TestCase(0.45f, 0.568f)]
+    [TestCase(0.65f, 0.471f)]
+    [TestCase(0.95f, 0.396f)]
+    public void TheFadeTracksVanillasMeasuredSunShadow(float along, float measured)
+    {
+        const float referencePoint = 0.05f;
+        float tip = VectorLightMath.PawnShadowTipOpacity;
+
+        float normalised = VectorLightMath.PawnShadowFade(along, tip)
+            / VectorLightMath.PawnShadowFade(referencePoint, tip);
+
+        Assert.That(normalised, Is.EqualTo(measured).Within(0.05f));
+    }
+
+    // Proving the red for the test above, because a fit test that cannot fail is decoration. A
+    // straight line is the obvious alternative shape and the one the hyperbola was chosen over, so
+    // it is the right thing to hold up against the same data: it has the identical endpoints and
+    // misses the middle of the shadow by more than twice the tolerance.
+    [Test]
+    public void AStraightLineWouldNotTrackVanillasMeasuredSunShadow()
+    {
+        const float referencePoint = 0.05f;
+        float tip = VectorLightMath.PawnShadowTipOpacity;
+
+        float LinearFade(float t) => 1f - (1f - tip) * t;
+
+        float normalised = LinearFade(0.25f) / LinearFade(referencePoint);
+
+        Assert.That(normalised, Is.Not.EqualTo(0.709f).Within(0.05f));
+    }
+
+    // The control arm's arithmetic, pinned so the arm cannot quietly stop being a control: a tip
+    // opacity of 1 has to give back exactly the flat shadow that shipped before the fade, at every
+    // point rather than merely at the ends.
+    [TestCase(0f)]
+    [TestCase(0.3f)]
+    [TestCase(0.7f)]
+    [TestCase(1f)]
+    public void AFullTipOpacityReproducesTheFlatShadowExactly(float along)
+    {
+        Assert.That(VectorLightMath.PawnShadowFade(along, 1f), Is.EqualTo(1f));
+    }
+
+    // Out-of-range inputs clamp rather than extrapolate. The ramp texture samples the endpoints
+    // directly and a bilinear fetch can reach a hair past them, so an unclamped curve would put a
+    // value above 1 (a shadow darker than its own material) on the first texel.
+    [TestCase(-0.5f)]
+    [TestCase(-0.001f)]
+    public void TheFadeClampsBeforeTheCaster(float along)
+    {
+        Assert.That(
+            VectorLightMath.PawnShadowFade(along, VectorLightMath.PawnShadowTipOpacity),
+            Is.EqualTo(1f).Within(Tolerance));
+    }
+
+    [TestCase(1.001f)]
+    [TestCase(4f)]
+    public void TheFadeClampsBeyondTheTip(float along)
+    {
+        Assert.That(
+            VectorLightMath.PawnShadowFade(along, VectorLightMath.PawnShadowTipOpacity),
+            Is.EqualTo(VectorLightMath.PawnShadowTipOpacity).Within(Tolerance));
+    }
+
+    // A zero tip would divide by zero. It is clamped rather than honoured because a shadow that
+    // vanishes at its tip is not something any measurement supports — the guard exists so a future
+    // caller cannot turn a mis-set constant into a NaN that propagates into a material colour.
+    [Test]
+    public void AZeroTipOpacityStaysFinite()
+    {
+        float value = VectorLightMath.PawnShadowFade(1f, 0f);
+
+        Assert.That(float.IsNaN(value), Is.False);
+        Assert.That(float.IsInfinity(value), Is.False);
+        Assert.That(value, Is.GreaterThan(0f));
+    }
+
     // The physics, stated as the invariant that was missing: blocking one light cannot remove more
     // than that light put there, so the shares of every lamp on a cell sum to at most one however
     // many lamps there are. This is what stops N lamps drawing N full shadows.

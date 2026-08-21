@@ -1035,6 +1035,32 @@ public static class CelestialLightingFeatures
     // an extra one — a shadow exists only inside the region the lamp lights.
     public static bool VectorLightShadowClip = true;
 
+    // Feature key for VectorLightShadowFeather.
+    public const string VectorLightShadowFeatherKey = "vector_light_shadow_feather";
+
+    // Vector lighting, pawn shadows: a lamp shadow dissolves toward its tip the way a sun shadow does.
+    //
+    // WHAT WAS LEFT AFTER THE SHAPE MATCHED. The blocky-silhouette work above made a lamp shadow the
+    // same *outline* as a sun shadow and it still read as a different kind of object. The reason is
+    // opacity, and it is measurable: binned along its own length and normalised to its value at the
+    // caster, vanilla's sun shadow runs 1.000 → 0.709 → 0.568 → 0.471 → 0.396 while ours was flat to
+    // within ±4% end to end. A shadow that stops on a hard line does not look like a shadow.
+    //
+    // HOW, given the obvious route is closed. Vanilla gets its fade from the vertex-colour channel
+    // `Custom/Sun shadow fade` already spends on extrusion, and that material is unusable here for
+    // the two reasons VectorLightPawnShadows' header records. It is also NOT, as was assumed for a
+    // while, a texture feathering the shadow: that shader declares one property, `_Color`, samples no
+    // texture, and `MeshMakerShadows` gives the mesh no UVs to sample one with.
+    //
+    // So the fade rides a ramp texture of our own instead — one texel row, alpha falling along the
+    // extrusion, on UVs we bake ourselves, through `Map/Transparent`. Off keeps the flat solid-colour
+    // material exactly as it shipped, so the control arm is the previous look rather than an absence.
+    //
+    // ON BY DEFAULT. This makes a shadow fainter over most of its length and never darker, so the
+    // conservative direction and the correct one agree for once; and pawn shadows only render at all
+    // once vector lighting itself is opted into, which still ships off.
+    public static bool VectorLightShadowFeather = true;
+
     // Feature key for VectorLightOpenDoors.
     public const string VectorLightOpenDoorsKey = "vector_light_open_doors";
 
