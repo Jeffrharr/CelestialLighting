@@ -86,6 +86,81 @@ public static class NativeSkyFalloffGrid
         return NativeSkyFalloffMath.FractionAt(depth, curSkyGlow, maxDepth, passThroughPercent) * strength;
     }
 
+    // A reader bound to one map for the duration of one caller's loop, for callers that ask about
+    // hundreds of cells in a row -- §7b's window fill asks about 361 of them per section regenerate.
+    //
+    // WHY THIS EXISTS, measured. FractionAt above is correct and is the wrong shape for a loop: it
+    // calls DepthAt and StrengthAt, and *each* of those independently null-checks the map, runs
+    // cell.InBounds(map), runs EnsureCurrent (a WeakReference deref plus three comparisons) and calls
+    // cellIndices.CellToIndex -- all of which answer the same for every cell in the loop, all to
+    // retrieve two array elements. Two of everything, 361 times over, plus the settings fetch and the
+    // CurSkyGlow read its caller was doing per cell as well. Live measurement put this arm at 109.1 µs
+    // of §7b's 228 µs postfix, against 22.3 for the glow-grid passthrough it sits next to -- i.e. the
+    // ceremony cost several times what the two array reads did.
+    //
+    // NOT A CACHE, deliberately, and worth being precise about because a cache was the obvious thing
+    // to reach for: this holds nothing across calls and can serve nothing stale. It is the same
+    // arithmetic on the same grid, with the loop-invariant half hoisted out of the loop. The grid it
+    // reads is the cache, it is already invalidated by Patch_SkyFalloffDirty, and none of that changes.
+    //
+    // Valid only for the call that made it. Rebuild swaps the arrays wholesale, so a Reader kept
+    // across a dirty would keep serving the old ones; every caller builds one, loops, drops it.
+    public readonly struct Reader
+    {
+        private readonly int[] depths;
+        private readonly float[] strengths;
+        private readonly int sizeX;
+        private readonly int sizeZ;
+        private readonly float curSkyGlow;
+        private readonly int maxDepth;
+        private readonly float passThroughPercent;
+
+        internal Reader(
+            int[] depths, float[] strengths, int sizeX, int sizeZ,
+            float curSkyGlow, int maxDepth, float passThroughPercent)
+        {
+            this.depths = depths;
+            this.strengths = strengths;
+            this.sizeX = sizeX;
+            this.sizeZ = sizeZ;
+            this.curSkyGlow = curSkyGlow;
+            this.maxDepth = maxDepth;
+            this.passThroughPercent = passThroughPercent;
+        }
+
+        // False for a Reader that never got a grid (no map). Callers fall back to 0, which is the same
+        // "no cap" answer CapOcclusion already treats as absent.
+        public bool Valid => depths != null;
+
+        // Same value FractionAt(map, cell, ...) returns for the same cell, by construction: identical
+        // index arithmetic (CellIndicesUtility.CellToIndex is z * sizeX + x, decompiled to confirm) and
+        // identical formula. The off-map answer is 0 rather than DepthAt's 0-and-StrengthAt's-1,
+        // because NativeSkyFalloffMath.FractionAt(depth: 0, ...) is 0 anyway -- the product is the same
+        // either way, and this states it once instead of composing two sentinels that happen to agree.
+        public float FractionAt(int x, int z)
+        {
+            if (depths == null || x < 0 || z < 0 || x >= sizeX || z >= sizeZ)
+                return 0f;
+
+            int index = z * sizeX + x;
+            return NativeSkyFalloffMath.FractionAt(depths[index], curSkyGlow, maxDepth, passThroughPercent)
+                * strengths[index];
+        }
+    }
+
+    // Builds the grid if it is stale, then hands back a reader over it. This is the one place the
+    // per-loop work happens: one EnsureCurrent, one map-size read, one CurSkyGlow read.
+    public static Reader ReaderFor(
+        Map map, float curSkyGlow, int maxDepth, float passThroughPercent, float doorStrengthSensitivity)
+    {
+        if (map == null)
+            return default;
+
+        EnsureCurrent(map, maxDepth, doorStrengthSensitivity);
+        return new Reader(
+            depths, strengths, map.Size.x, map.Size.z, curSkyGlow, maxDepth, passThroughPercent);
+    }
+
     private static void EnsureCurrent(Map map, int maxDepth, float doorStrengthSensitivity)
     {
         bool sameMap = CachedMap.TryGetTarget(out Map cached) && ReferenceEquals(cached, map);

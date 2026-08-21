@@ -455,6 +455,19 @@ public static class ProbeRegistration
             "granite_corner", new IntVec3(0, 0, 50), SkyCoverVertexProbe.Metric.CornerAlpha));
         ProbeRegistry.Register(new SkyCoverVertexProbe(
             "granite_centre", new IntVec3(0, 0, 49), SkyCoverVertexProbe.Metric.CentreAlpha));
+        // door_strength_leak.json's wood-door room, at the SAME cell wood_door_fraction reads, so the
+        // two answer about one another: that probe reports the sky fraction SkyFalloffSource resolved
+        // (0.2625 there, pinned to 1e-4), this one reports the alpha §7b actually baked from it.
+        //
+        // Registered to give the sky-falloff reader a deterministic oracle. The existing pins go
+        // through SkyFalloffSource.FractionAt -- the per-cell path -- while the mesh goes through the
+        // per-section reader, so a change that broke only the reader would leave every one of those
+        // pins bit-identical and show up nowhere except in pixels, where the harness's own run-to-run
+        // drift is worth 10-18% of the frame. An integer read off the baked mesh has no such floor.
+        ProbeRegistry.Register(new SkyCoverVertexProbe(
+            "wood_door_corner_alpha", new IntVec3(-13, 0, 41), SkyCoverVertexProbe.Metric.CornerAlpha));
+        ProbeRegistry.Register(new SkyCoverVertexProbe(
+            "wood_door_centre_alpha", new IntVec3(-13, 0, 41), SkyCoverVertexProbe.Metric.CentreAlpha));
         // sky_falloff_redraw.json: the near-door corner of native_sky_falloff.json's own room --
         // same map address glass_corner reads (that room and this one are both built at offset
         // (0, 45) with the south gap at local (0, -5)), registered under its own name because this

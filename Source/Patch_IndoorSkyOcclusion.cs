@@ -112,15 +112,23 @@ public static class Patch_IndoorSkyOcclusion
     // Resolves every cell the two passes below can look at — this section plus the one-cell skirt its
     // boundary lattice points reach into — exactly once. This is the only place in the postfix that
     // touches the live map.
+    //
+    // The falloff reader is built once here rather than per cell, which is the second half of the same
+    // idea the window itself is: SkyFalloffSource.FractionAt re-read two feature flags, the owner
+    // check, the settings object and CurSkyGlow on every one of the 361 calls, and reached the grid
+    // through a path that null-checked, bounds-checked and index-computed twice per call. Measured,
+    // that ceremony was 109.1 µs of this postfix's 228 — several times what the two array reads it
+    // guarded actually cost. See NativeSkyFalloffGrid.Reader.
     private static SkyOcclusionWindow BuildWindow(Map map, CellRect rect)
     {
         SkyOcclusionWindow window = SkyOcclusionWindow.ForSection(
             rect.minX, rect.minZ, rect.maxX, rect.maxZ, map.Size.x, map.Size.z);
+        SkyFalloffSource.SectionReader falloff = SkyFalloffSource.ForSection(map);
 
         for (int z = window.MinZ; z <= window.MaxZ; z++)
         {
             for (int x = window.MinX; x <= window.MaxX; x++)
-                ResolveCell(map, window, x, z);
+                ResolveCell(map, window, in falloff, x, z);
         }
 
         return window;
@@ -234,7 +242,8 @@ public static class Patch_IndoorSkyOcclusion
     // No InBounds guard needed on it (the deleted SkyFalloffFractionAt carried one for
     // IndoorGlowPassthrough's direct glow-grid indexing) — ForSection has already clipped the window,
     // so every cell this loop visits is on the map by construction.
-    private static void ResolveCell(Map map, SkyOcclusionWindow window, int x, int z)
+    private static void ResolveCell(
+        Map map, SkyOcclusionWindow window, in SkyFalloffSource.SectionReader falloff, int x, int z)
     {
         IntVec3 cell = new IntVec3(x, 0, z);
         RoofDef roof = map.roofGrid.RoofAt(cell);
@@ -246,7 +255,7 @@ public static class Patch_IndoorSkyOcclusion
             EaveCells.Encloses(map, cell, roof), roof != null && roof.isThickRoof, holdsRoof, isDoor,
             NaturalRock(edifice));
 
-        window.Resolve(x, z, blocksSky, SkyFalloffSource.FractionAt(map, cell));
+        window.Resolve(x, z, blocksSky, falloff.FractionAt(cell));
     }
 
     // Unmined stone: the game's own flag for it, set on RockBase and so inherited by every vanilla

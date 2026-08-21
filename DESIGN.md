@@ -939,6 +939,42 @@ reads `map.roofGrid` / `map.edificeGrid` and rewrites `mesh.colors32`.
   p90 0.701, 12.8% of pixels moving) is *smaller on every statistic* than the same-build control
   (median 0.000, p90 0.713, 13.2%) — that ~13% is the harness's own run-to-run drift, and a cross-arm
   diff without the control would have read it as this change's doing.
+- **Then the postfix halved again, and the second win was not where anyone looked.** With the memo in,
+  `occlusion_cost_split.json` split what was left into three by switching each source off in turn —
+  three readings of one layer inside one process, because between-run drift here is worth 45% and
+  within-run ratios are not:
+
+  | | µs | share |
+  |---|---|---|
+  | `IndoorGlowPassthrough` — two live glow-grid calls per cell | 22.3 | 10% |
+  | `NativeSkyFalloffGrid` arm | **109.1** | 48% |
+  | the indoors verdict and the vertex writes | 96.8 | 42% |
+
+  The obvious suspect was the passthrough: it calls the patched `GroundGlowAt`, and on any install
+  without an under-roof-glow mod it is structurally zero, so it looked like pure waste. It is 10%.
+  The expensive arm was the one that reads a grid **already built** — because `FractionAt` called
+  `DepthAt` and `StrengthAt`, and *each* independently null-checked the map, ran `cell.InBounds(map)`,
+  ran `EnsureCurrent` (a `WeakReference` deref plus three comparisons) and called `CellToIndex`, while
+  its caller re-read two feature flags, `UnderRoofFalloffOwner.Present`, the settings object and
+  `CurSkyGlow` per cell. Two of everything, 361 times, to fetch two array elements. Hoisting that into
+  a reader built once per section (`NativeSkyFalloffGrid.Reader` / `SkyFalloffSource.SectionReader`)
+  took the postfix **349.5 → 175.5 µs, 1.99x**, non-overlapping across three interleaved runs per
+  build, and left the native arm indistinguishable from noise.
+
+  **It is not a cache and holds nothing across calls** — the grid it reads was always the cache, and
+  its invalidation is untouched. That matters because a cache was the obvious design and it would have
+  bought a staleness surface for a problem that turned out to be loop-invariant work sitting inside a
+  loop.
+
+  The equivalence check is worth copying. `door_strength_leak.json`'s six pins reproduce bit-for-bit
+  (0.262499988, 3.11354387e-09, 1.24541752e-10) — and **they prove nothing about the reader**, because
+  those probes go through the per-cell path the mesh no longer uses. Frames were no better: median ΔE
+  0.000 but 16–18% of noon pixels moving against a 10.7% same-build control, which is a floor, not a
+  signal. What settled it was `wood_door_corner_alpha` / `wood_door_centre_alpha`, added here: the
+  baked mesh byte at the same cell `wood_door_fraction` reads, where the falloff is a non-degenerate
+  0.2625. **217 and 223, identical on both builds across two runs each.** When a change is invisible by
+  construction, find the integer it writes; pixels have a noise floor and an unchanged code path has no
+  opinion about the changed one.
 - Skipped entirely on `disableSkyLighting` biomes (the Odyssey undercave), where vanilla already zeroes
   the sky contribution wholesale; there is nothing to occlude and overriding it would fight that contract.
 
