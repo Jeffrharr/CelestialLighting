@@ -1,0 +1,489 @@
+{
+  "name": "cloud_weather_fade",
+  "description": "DESIGN.md 25f: a Clear sky handing over to rain, and the two things that have to be true while it does. THE POPULATION MAY NOT CHANGE (cloud_sheets_placed is pinned at 11 through the whole cross-fade) AND THE SKY MUST END EMPTY (mass, count and cover are all pinned at zero once the front has settled). Those two together are the fade: eleven sheets, all of them dimming at one rate, none of them leaving in view. WHY THE COUNT IS THE ASSERTION AND THE MASS IS NOT. 25f's first cut multiplied the weather share into the COVER, which is a count -- so the sky shed clouds one at a time off the top while the first few sat at full opacity until the very end. It faded smoothly per sheet and still read as 'some of them fade and the rest just wait their turn' from the camera. A per-sheet monotone check passes on that; a pinned COUNT does not, which is why it is the guard. THE MASS LINES ARE DELIBERATELY UNASSERTABLE (tolerance 999) FOR TWO SEPARATE REASONS, both measured. (1) cloud_sheet_mass sums each placement's own alpha, and a placement's base alpha depends on the absolute tick the boot landed in -- the same harness characteristic CloudCoverFractionOverride.cs records for the cover, one level down. The identical scenario measured 7.234, 5.997 and 6.323 on three runs of the identical file, with nothing about the mod changed. (2) FastForward leaves the clock running and overshoots its target by a frame-rate-dependent margin (measured 9-13%), which moves a mid-transition sample by more than the value being read. What the mass lines are FOR is putting the shape in the report: 6.323, 5.666, 4.979, 4.271, 3.636, 3.087, 2.216, 1.446, 0.000 at 400-tick samples, against a cover of 0.918, 0.820, 0.721, 0.605, 0.506, 0.407, 0.291, 0.189, 0.000 -- a straight ramp in vanilla's own TransitionLerpFactor, and the same eleven sheets throughout. THE FORCED OVERCAST IS LOAD-BEARING: on natural cover every sheet latches a different fraction at the tick it entered the map, so the mass curve carries the entry latch's steps as well as the fade and neither can be read off the other. At 0.92 every sheet latches the same number and the mass IS the fade. The last sample sits well past tick 4,000 so the settled-Rain readings cannot catch the tail of the cross-fade. See cloud_sheet_pop.json for the same front on natural cover, and for the older regression -- every cloud on the map vanishing in a single tick -- whose setup this inherits. THE SETTLED READING RE-ASSERTS RAIN INSTANTLY RATHER THAN WAITING FOR THE FRONT TO FINISH ON ITS OWN, and that is a fix for a flaky run rather than a way of dodging the question. Waiting meant sitting on the map for ~6,000 ticks after the SetWeather, and vanilla's WeatherDecider re-rolls in that window: one verification run came back reading cover 0.9200 with eleven sheets up, because the rain had ended and the sky was Clear again. The scenario would then have been asserting nothing about \u00a725f and failing for a reason that had nothing to do with the mod. An instant SetWeather sets curWeatherAge to TransitionTicks, so the share is 0 whatever the decider did in the meantime, and the claim being pinned -- a settled weather that carries a deck draws no cloud -- is exactly the claim it was before. The FADE is carried by the eight count-pinned samples before it, which run inside the 4,000-tick window where the decider has not had time to interfere.",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "realistic_preset",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "realistic_day_length",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Soil",
+        "width": "128",
+        "height": "128",
+        "anchor": "64,64"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Soil",
+        "width": "128",
+        "height": "128",
+        "anchor": "64,186"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Soil",
+        "width": "128",
+        "height": "128",
+        "anchor": "186,64"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Soil",
+        "width": "128",
+        "height": "128",
+        "anchor": "186,186"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_cover",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_sheet",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_shadow",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_underlight_layer",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_deck_varieties",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_presence",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_cover_forced_overcast",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cwf_warmup.png",
+        "hideUi": "true"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "56.7200",
+        "tolerance": "0.02"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheet_mass",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheets_placed",
+        "expectedValue": "11",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_underlight_cover",
+        "expectedValue": "0.9200",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cwf_clear.png",
+        "hideUi": "true"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Rain",
+        "instant": "false"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheets_placed",
+        "expectedValue": "11",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheet_mass",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_underlight_cover",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "FastForward",
+      "args": {
+        "ticks": "400"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheets_placed",
+        "expectedValue": "11",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheet_mass",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_underlight_cover",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "FastForward",
+      "args": {
+        "ticks": "400"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheets_placed",
+        "expectedValue": "11",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheet_mass",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_underlight_cover",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cwf_fade_0800.png",
+        "hideUi": "true"
+      }
+    },
+    {
+      "type": "FastForward",
+      "args": {
+        "ticks": "400"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheets_placed",
+        "expectedValue": "11",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheet_mass",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_underlight_cover",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "FastForward",
+      "args": {
+        "ticks": "400"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheets_placed",
+        "expectedValue": "11",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheet_mass",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_underlight_cover",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "FastForward",
+      "args": {
+        "ticks": "400"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheets_placed",
+        "expectedValue": "11",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheet_mass",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_underlight_cover",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cwf_fade_2000.png",
+        "hideUi": "true"
+      }
+    },
+    {
+      "type": "FastForward",
+      "args": {
+        "ticks": "400"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheets_placed",
+        "expectedValue": "11",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheet_mass",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_underlight_cover",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "FastForward",
+      "args": {
+        "ticks": "400"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheets_placed",
+        "expectedValue": "11",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheet_mass",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_underlight_cover",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "FastForward",
+      "args": {
+        "ticks": "400"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cwf_fade_2800.png",
+        "hideUi": "true"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Rain",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheet_mass",
+        "expectedValue": "0.0000",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheets_placed",
+        "expectedValue": "0",
+        "tolerance": "0.5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_underlight_cover",
+        "expectedValue": "0.0000",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cwf_rain.png",
+        "hideUi": "true"
+      }
+    }
+  ]
+}

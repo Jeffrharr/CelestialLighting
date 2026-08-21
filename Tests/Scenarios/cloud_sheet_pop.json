@@ -1,7 +1,7 @@
 {
   "name": "cloud_sheet_pop",
   "saveFile": "minimal_colony.rws",
-  "description": "A Clear sky turning to rain, which is the instant \u00a725's cloud sheets used to vanish. Three instants are pinned and they are the deterministic ones: the Clear sky before the change, the SAME readings one tick into vanilla's cross-fade, and the settled deck at the far end. THE MIDDLE SET IS THE REGRESSION. On main, cloud_underlight_cover reads 0.0000 one tick in -- CloudFractionFor took \u00a713's blended deck, which is still Clear's own zero at lerp 0 -- so cloud_sheet_alpha gated to 0.0000 and the entire lane stopped drawing, every cloud on the map gone at once, returning one at a time over the following ~400 ticks. Here all five readings are unchanged at that tick and cross-fade to the full deck from there. cloud_sheets_in_view is pinned loosely on purpose: it is the harness's own guard that the camera is actually looking at cloud (a cloudless frame must fail rather than read as a subtle effect), not a measurement of the fix. NOTHING BETWEEN THOSE INSTANTS IS PINNED: FastForward leaves the clock running and overshoots its target by a frame-rate-dependent margin (measured 9-13%), so a mid-transition value is not reproducible between runs. Those captures are there to be looked at. See cloud_drift.json for what happens to the population when the weather does NOT change.",
+  "description": "A Clear sky turning to rain, on NATURAL cover -- the front measured where \u00a722's drift is left alone, as opposed to cloud_weather_fade.json which forces the cover flat to isolate the fade itself. Three instants are pinned and they are the deterministic ones: the Clear sky before the change, the SAME readings one tick into vanilla's cross-fade, and the settled deck at the far end. THE MIDDLE SET IS THE OLD REGRESSION, and it is still the reason this scenario exists. Before \u00a725's entry latch, cloud_underlight_cover read 0.0000 one tick in -- CloudFractionFor took \u00a713's blended deck, which is still Clear's own zero at lerp 0 -- so cloud_sheet_alpha gated to 0.0000 and the entire lane stopped drawing, every cloud on the map gone at once, returning one at a time over the following ~400 ticks. Here all five readings are unchanged at that tick, and \u00a725f did not reintroduce it: the Clear arm and the one-tick arm are bit-identical to their pre-\u00a725f values (mass 1.02426 against a pin of 1.0243 written before \u00a725f existed), because at share == 1 the whole of \u00a725f multiplies by one. THE FAR END IS WHAT \u00a725f CHANGED. It used to cross-fade UP to the full deck -- cover 1.0000, eleven sheets, mass 7.5618 -- because \u00a713's deck opacity fed \u00a725's cover as an additive term, so settled Rain drew a dozen discrete fair-weather shapes over a sky vanilla was already rendering as a solid overcast, and \u00a713's flat dimming and the sheets both rendered the same deck. It now settles at zero on every reading: a weather carrying a deck draws no sheets, and the sky is \u00a713's. NOTHING BETWEEN THOSE INSTANTS IS PINNED: FastForward leaves the clock running and overshoots its target by a frame-rate-dependent margin (measured 9-13%), so a mid-transition value is not reproducible between runs. Those captures are there to be looked at, and cloud_weather_fade.json is where the shape of the fade is actually measured. cloud_sheets_in_view is pinned loosely on purpose: it is the harness's own guard that the camera is looking at cloud (a cloudless frame must fail rather than read as a subtle effect), not a measurement of the fix -- at the far end its zero is now part of the assertion rather than a guard. See cloud_drift.json for what happens to the population when the weather does NOT change.",
   "steps": [
     {
       "type": "SetTile",
@@ -304,7 +304,7 @@
       "type": "Probe",
       "args": {
         "probeName": "cloud_underlight_cover",
-        "expectedValue": "1.0000",
+        "expectedValue": "0.0000",
         "tolerance": "0.0005"
       }
     },
@@ -312,7 +312,7 @@
       "type": "Probe",
       "args": {
         "probeName": "cloud_sheet_alpha",
-        "expectedValue": "0.7500",
+        "expectedValue": "0.0000",
         "tolerance": "0.0005"
       }
     },
@@ -320,7 +320,7 @@
       "type": "Probe",
       "args": {
         "probeName": "cloud_sheets_placed",
-        "expectedValue": "11",
+        "expectedValue": "0",
         "tolerance": "0.5"
       }
     },
@@ -328,16 +328,16 @@
       "type": "Probe",
       "args": {
         "probeName": "cloud_sheets_in_view",
-        "expectedValue": "6",
-        "tolerance": "2"
+        "expectedValue": "0",
+        "tolerance": "0.5"
       }
     },
     {
       "type": "Probe",
       "args": {
         "probeName": "cloud_sheet_mass",
-        "expectedValue": "7.5618",
-        "tolerance": "0.005"
+        "expectedValue": "0.0000",
+        "tolerance": "0.0005"
       }
     },
     {
