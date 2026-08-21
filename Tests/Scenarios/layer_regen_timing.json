@@ -209,6 +209,36 @@
   {
    "type": "SetFeature",
    "args": {
+    "featureName": "eave_shade",
+    "enabled": "false"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "regen_us_eave_shade",
+    "expectedValue": "0",
+    "tolerance": "1000000"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "eave_shade",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "regen_us_eave_shade",
+    "expectedValue": "0",
+    "tolerance": "1000000"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
     "featureName": "vector_lights",
     "enabled": "false"
    }

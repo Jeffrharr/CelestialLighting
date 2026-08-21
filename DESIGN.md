@@ -2684,7 +2684,9 @@ interior (0.0) §7b applies to a sealed room — an eave is never classified as 
 place. `EaveShadeMathTests` asserts that floor rather than trusting it.
 
 Gated by the same "Eave shadows" toggle as the caster half: off means no layer drawn and the material
-held at zero, so the A/B is a true no-op either way round.
+held at zero, so the A/B is a true no-op either way round. Off also means no layer *baked* — the
+`Regenerate` gate below — which for eleven months it did not; see "The gate the eave shade was
+missing" in §16 for the measurement and for why `Visible` alone was never enough to stop the work.
 
 **Why re-implement rather than defer to Perspective: Eaves.** That mod (Owlchemist, continued by
 Mlie; MIT) had the load-bearing insight — `UsesOutdoorTemperature`, not `Roofed`, is the real test —
@@ -2915,7 +2917,7 @@ assumption:
 | `SectionLayer_GravshipHull` (vanilla) | 86.8 | 59.0 | we do not touch it |
 | `SectionLayer_IndoorMask` (vanilla + our `Patch_IndoorMaskOverage`) | 42.5 | 30.7 | |
 | `SectionLayer_SunShadows` (§15's widening) | 28.4 | 26.0 | |
-| `SectionLayer_EaveShade` (§15b) | 18.6 | 13.3 | feature **off**: 13.2 — **no gate** |
+| `SectionLayer_EaveShade` (§15b) | 18.6 | 13.3 | feature **off**: 13.2 — no gate; **since fixed, see below** |
 | `SectionLayer_Darkness` (vanilla) | 0.04 | 0.025 | the do-nothing floor |
 
 **The bare vanilla lighting overlay is the calibration control, and it says these numbers are
@@ -3015,9 +3017,11 @@ only. The new-moon arm of the scenario exists to keep that branch proven rather 
   — and measured, it is 13 µs, 3% of what we add, the cheapest layer in the mod. Dropping
   `Buildings` would reintroduce "walling in a porch leaves it drawn as a porch" (§15's known
   limitation, in its worst form) to save a number indistinguishable from noise. Not a trade worth
-  making. **The 2026-08-21 re-measure does find something here, though, and it is not the
-  subscription**: 13.2 of the layer's 18.6 µs is paid with the feature switched *off*, because §15b
-  never got the `DiscardMesh` gate §9 has. Same fix, already written once, three files away.
+  making. **The 2026-08-21 re-measure did find something here, though, and it was not the
+  subscription**: the layer paid its full cost with the feature switched *off*, because the eave
+  shade never got the `DiscardMesh` gate the night desaturation has. That is now fixed — see "The
+  gate the eave shade was missing" below, which also corrects which flag the 13.2 µs was measured
+  under.
 - **`SectionLayer_NightDesaturation` was where the cost actually was**, and the two independent,
   behaviour-preserving fixes recorded here were both **taken 26 minutes after this table was
   measured** (`a3b4cb4`, 2026-07-27 12:01, against the table's 11:35): (1) `WashAt` called
@@ -3038,6 +3042,63 @@ only. The new-moon arm of the scenario exists to keep that branch proven rather 
   section-plus-skirt window filled once. §9's landed a month earlier, which is the awkward part: the
   pattern was already in the codebase, named, and documented when §7c wired a second per-read lookup
   into §7b's lattice.)
+
+### The gate the eave shade was missing
+
+The 2026-08-21 table above records the eave shade layer at 18.6 µs per section regenerate with its
+feature on and 13.2 µs with it off, and calls that "no gate". Both halves of that turned out to need
+work: the gate was genuinely missing, and the 13.2 µs was measured under the wrong switch.
+
+**The bug is the one the night desaturation already fixed.** `Verse.Section.TryUpdate` tests only
+`(dirtyFlags & layer.relevantChangeTypes)` before calling `Regenerate` — `RegenerateAllLayers` and
+`RegenerateDirtyLayers` consult `Visible`, `TryUpdate` does not — so the eave shade layer baked a
+full 289-cell mesh, room queries and Unity upload included, for every player who had the eave feature
+switched off. It subscribes to `Roofs | Buildings`, and `GlowGrid.DirtyCell` raises `Roofs`, so that
+was paid on every lamp toggle and every fire as well as on roof edits.
+
+The fix is deliberately identical to the night desaturation's, down to the method name, so the shape
+only has to be learned once: `if (!Visible) { DiscardMesh(); return; }` in front of everything, and
+`DiscardMesh` sets `subMeshes[i].disabled = true` rather than clearing the colours. Disabling rather
+than clearing matters for the same reason there — `Clear` + `FinalizeMesh` re-uploads the mesh to the
+GPU, which is most of the cost the gate exists to avoid — and the discard is needed at all because
+`TryUpdate` clears the layer's `Dirty` flag whether or not `Regenerate` did anything, so a mesh baked
+before the toggle would otherwise sit ready to draw a roofline that has since been rebuilt.
+
+`EaveShadowRedraw` needed no change but did change status: it dirties `Buildings` map-wide on the
+settings toggle, which reaches this layer because this layer subscribes to `Buildings`. That was a
+free side effect before the gate and is the delivery mechanism after it, so both ends are now pinned
+by `EaveShadeGateTests` — without them, ticking the box back on would leave the shade missing until
+some unrelated edit happened to dirty the sections.
+
+**Measured** (`Tests/Scenarios/layer_regen_timing.json`, `SectionRegenerateTimingProbe`, µs per
+section regenerate over 4 roofed sections, 10 timed runs after 2 warmups; median of three whole
+harness runs per build, run back to back on one machine):
+
+| `SectionLayer_EaveShade`, µs | before | after | |
+|---|---|---|---|
+| eave shade **off** | 14.58 | **0.015** | the gate |
+| eave shade **on**, same probe position | 13.18 | 13.55 | unchanged |
+| eave shade **on**, top of scenario | 19.77 | 19.00 | unchanged |
+
+0.015 µs is below the 0.04–0.06 µs `SectionLayer_Darkness` reports for returning immediately, i.e.
+the layer now costs nothing measurable when the feature is off. The feature-on rows are noise in both
+directions: across all nine feature-on readings per build the spread is 12.8–22.5 µs, which dwarfs
+anything one `Visible` read in front of a 289-cell loop could add, and the two builds' medians sit
+inside each other's spread. Three runs per build rather than one exists because of that spread.
+
+**Which switch the 13.2 µs came from, and why it is worth recording.** The scenario's eave arm
+flipped `eave_shadows` — the *caster* flag — while this layer's `Visible` reads `eave_shade`, the
+separate diagnostic flag §15b's write-up introduces. So the old row was not measuring an ungated
+layer with its feature off; it was measuring a fully-visible layer, and 13.2 vs 18.6 was position in
+the run, not the flag. The scenario now carries a real `eave_shade` off/on arm alongside the existing
+one, and the control build reads 13.20 µs on the `eave_shadows` arm and 14.58 µs on the `eave_shade`
+arm — indistinguishable, which is the point. The conclusion the row supported was still right, for a
+reason it could not see: there was no gate anywhere, so *any* arm would have read the full cost.
+
+The general lesson is the one the `SetFeature` conventions already carry in a different form: a
+feature-off arm proves nothing unless the flag it flips is the flag the code under test reads. Two
+flags whose names differ by one word, driven from one setting in a shipped game, are exactly where
+that goes unnoticed.
 
 ### The flag we used to raise ourselves (§3, issues #11 and #26)
 

@@ -18,8 +18,9 @@ namespace CelestialLighting;
 // three are SectionLayer_NightDesaturation, Patch_ShadowRoofInvalidation and
 // Patch_IndoorSkyOcclusion), and no one of the four can show the total. DESIGN.md §16 has the
 // flag-to-layers table and the live timings, including why the Buildings subscription below stays
-// despite issue #10 naming it the narrowing candidate: measured, this layer is 13 µs per section
-// regenerate, 3% of what the mod adds and the cheapest of the four.
+// despite issue #10 naming it the narrowing candidate: measured, this layer is the cheapest of the
+// four at 18.6 µs per section regenerate — but 13.2 of those µs used to be paid by players who had
+// eave shade switched off, which is what the gate in Regenerate below removes.
 //
 // ALTITUDE. AltitudeLayer.Shadows, the same altitude vanilla's own sun shadows use, because this IS
 // one — it lands on terrain, under things and pawns, exactly as the cast band beside it does. The two
@@ -54,8 +55,10 @@ public class SectionLayer_EaveShade : SectionLayer
     // draw-time skip rather than a clause on Visible — Section.TryUpdate ignores Visible and clears
     // Dirty, so hiding this layer by brightness would strand a stale bake at dawn.
     //
-    // Unlike §9's, this layer's Regenerate has no !Visible early return, so nothing here is discarded
-    // when it stops drawing; the mesh simply stops being submitted.
+    // Note this skip and Regenerate's !Visible gate below are answering different questions and are
+    // both needed. This one is "the shade is transparent right now", which is a fact about the clock
+    // and reverses itself every dawn, so the bake must survive it. That one is "the player switched
+    // the feature off", which is a fact about the settings and is what makes the bake pointless.
     public override void DrawLayer()
     {
         if (!EaveShadeOverlay.Drawing)
@@ -77,6 +80,22 @@ public class SectionLayer_EaveShade : SectionLayer
 
     public override void Regenerate()
     {
+        // Verse.Section.TryUpdate is what turns a dirty flag into a call to this method, and it does
+        // NOT consult Visible first — RegenerateAllLayers and RegenerateDirtyLayers do, TryUpdate
+        // does not (decompiled 1.6; DESIGN.md §16 has the loop). So without this gate every player
+        // who has eave shade switched off still bakes a mesh nothing will ever draw, on every roof
+        // edit and — because GlowGrid.DirtyCell raises Roofs as well as GroundGlow — on every lamp
+        // toggle and every fire. Measured live at 13.2 µs per section regenerate with the feature
+        // off, 71% of the 18.6 µs the layer costs with it on.
+        //
+        // Night desaturation had exactly this bug and this fix; the two layers are deliberately the
+        // same shape here so the next reader only has to learn it once.
+        if (!Visible)
+        {
+            DiscardMesh();
+            return;
+        }
+
         LayerSubMesh subMesh = GetSubMesh(EaveShadeOverlay.Material);
         if (subMesh.mesh.vertexCount == 0)
             SectionLayerGeometryMaker_Solid.MakeBaseGeometry(section, subMesh, AltitudeLayer.Shadows);
@@ -94,6 +113,25 @@ public class SectionLayer_EaveShade : SectionLayer
 
         subMesh.disabled = false;
         subMesh.FinalizeMesh(MeshParts.Colors);
+    }
+
+    // The other half of the gate: leaves nothing drawable behind while the feature is off.
+    //
+    // DrawLayer's own Visible check already stops the shade appearing, so this is not what makes it
+    // vanish when the box is unticked. What it prevents is the reverse: TryUpdate clears the layer's
+    // Dirty flag whether or not Regenerate did anything, so a mesh baked before the toggle would sit
+    // in subMeshes describing a roofline that has since been rebuilt, ready to draw the instant the
+    // feature came back. Disabled, the worst case is one frame of nothing instead of one frame of a
+    // stale shade — and EaveShadowRedraw dirties the map on the toggle, so that frame does not
+    // happen either.
+    //
+    // Disabled rather than cleared, specifically: Clear + FinalizeMesh would re-upload the mesh to
+    // the GPU, and that upload is most of the cost this gate exists to avoid. Regenerate's tail sets
+    // `disabled = false` again on the first bake after the feature returns.
+    private void DiscardMesh()
+    {
+        for (int i = 0; i < subMeshes.Count; i++)
+            subMeshes[i].disabled = true;
     }
 
     // SectionLayerGeometryMaker_Solid emits nine vertices per cell (four corners, four edge midpoints,
