@@ -1326,8 +1326,7 @@ public class VectorLightMathTests
     public void ALoneLampIsUnchangedByTheGroundQuestion(float blocked)
     {
         Assert.That(
-            VectorLightMath.PawnShadowShare(
-                blocked, VectorLightMath.ShadowGroundTotal(blocked, 0f)),
+            VectorLightMath.PawnShadowGroundShare(blocked, 0f),
             Is.EqualTo(blocked).Within(Tolerance));
     }
 
@@ -1343,8 +1342,7 @@ public class VectorLightMathTests
         const float otherAtPawn = 0.6f;
 
         float atCaster = VectorLightMath.PawnShadowShare(blocked, blocked + otherAtPawn);
-        float onGround = VectorLightMath.PawnShadowShare(
-            blocked, VectorLightMath.ShadowGroundTotal(blocked, 0f));
+        float onGround = VectorLightMath.PawnShadowGroundShare(blocked, 0f);
 
         // 0.8 / max(1, 0.8 + 0.6) = 0.571 asked at the caster, against 0.8 / max(1, 0.8) = 0.8 on
         // the ground. Both written out rather than recomputed, so the test states the numbers a
@@ -1355,8 +1353,7 @@ public class VectorLightMathTests
     }
 
     // And the converse direction, which is the half that makes it physics rather than a brightener:
-    // light landing ON the shadow fades it, monotonically. Started past the floor so the assertion is
-    // about the divide rather than about FullIlluminance holding the denominator flat.
+    // light landing ON the shadow fades it, monotonically.
     [Test]
     public void LightOnTheShadowedGroundMakesItFainter()
     {
@@ -1366,12 +1363,57 @@ public class VectorLightMathTests
         for (int step = 1; step <= 8; step++)
         {
             float other = 0.3f * step;
-            float share = VectorLightMath.PawnShadowShare(
-                blocked, VectorLightMath.ShadowGroundTotal(blocked, other));
+            float share = VectorLightMath.PawnShadowGroundShare(blocked, other);
 
             Assert.That(share, Is.LessThan(previous), $"other = {other}");
             previous = share;
         }
+    }
+
+    // THE REGRESSION THAT PROMPTED THE TWO-FACTOR FORM, and the reason the test above is not enough
+    // on its own: it sweeps a BRIGHT lamp, where the old single-divide form was already past its
+    // floor and did fade. In a dim room it did not fade at all. A lamp delivering 0.46 kept its
+    // shadow at exactly 0.46 no matter what landed on it, all the way until another 0.54 arrived —
+    // `max(1, 0.46 + other)` is just 1 until then — so light visibly falling across a shadow left it
+    // exactly as black. Reported from looking at the screen, which is the only place it shows.
+    //
+    // Swept from a very small `other` on purpose: the assertion is that the FIRST unit of light does
+    // something, not merely that a lot of light eventually does.
+    [TestCase(0.46f)]
+    [TestCase(0.3f)]
+    [TestCase(0.2f)]
+    public void LightOnADimShadowLightensItImmediately(float blocked)
+    {
+        float unlit = VectorLightMath.PawnShadowGroundShare(blocked, 0f);
+        float previous = unlit;
+
+        foreach (float other in new[] { 0.02f, 0.05f, 0.1f, 0.2f, 0.4f })
+        {
+            float share = VectorLightMath.PawnShadowGroundShare(blocked, other);
+
+            Assert.That(share, Is.LessThan(previous), $"blocked {blocked}, other {other}");
+            previous = share;
+        }
+
+        // And the size of it, not merely the sign: half a lamp's worth of light on the ground has to
+        // take a real bite out of the shadow rather than shaving a rounding error off it.
+        Assert.That(
+            VectorLightMath.PawnShadowGroundShare(blocked, blocked),
+            Is.EqualTo(unlit * 0.5f).Within(Tolerance));
+    }
+
+    // The two factors are separable, which is what lets the beam keep its calibration while the
+    // ground term does the fading: the ground fraction alone is what multiplies the lone-lamp value.
+    [TestCase(0.8f, 0.8f, 0.5f)]
+    [TestCase(0.8f, 2.4f, 0.25f)]
+    [TestCase(0.5f, 1.5f, 0.25f)]
+    public void TheGroundFractionScalesTheLoneLampValue(
+        float blocked, float other, float expectedFraction)
+    {
+        float lone = VectorLightMath.PawnShadowGroundShare(blocked, 0f);
+        float lit = VectorLightMath.PawnShadowGroundShare(blocked, other);
+
+        Assert.That(lit, Is.EqualTo(lone * expectedFraction).Within(Tolerance));
     }
 
     // The bound that comes free from putting the numerator into its own denominator, and the reason
@@ -1386,8 +1428,7 @@ public class VectorLightMathTests
     [TestCase(0.9f, 0.01f)]
     public void TheShareStaysAFractionHoweverTheSamplesDisagree(float blocked, float other)
     {
-        float share = VectorLightMath.PawnShadowShare(
-            blocked, VectorLightMath.ShadowGroundTotal(blocked, other));
+        float share = VectorLightMath.PawnShadowGroundShare(blocked, other);
 
         Assert.That(share, Is.InRange(0f, 1f));
     }

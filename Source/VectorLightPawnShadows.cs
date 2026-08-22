@@ -295,9 +295,8 @@ public static class VectorLightPawnShadows
             // not before it, so a shadow stopped by a wall asks about the ground it actually reaches
             // rather than the ground it would have reached — the same wall issue #166 was about, now
             // deciding the alpha as well as the length.
-            float opacity = VectorLightMath.PawnShadowOpacity(
-                light.Illuminance,
-                TotalFor(i, light, totalForShare, anchor, trailingEdge, length),
+            float opacity = VectorLightMath.PawnShadowOpacityOf(
+                ShareFor(i, light, totalForShare, anchor, trailingEdge, length),
                 skyGlow, roofed);
 
             // Below a level of 255 the shadow is a rounding artefact rather than a shadow, and
@@ -420,16 +419,19 @@ public static class VectorLightPawnShadows
     private static Vector3 AnchorOf(Vector3 centre, ShadowData shadow) =>
         shadow == null ? centre : centre + shadow.offset;
 
-    // The denominator this lamp's share is taken against, which of the three arms is live.
+    // This lamp's share of the light being blocked, by whichever of the three arms is live.
     //
     // The arms are ordered by what they can answer, not by preference. With shares off there is no
-    // denominator to place and `totalAtPawn` is already pinned to FullIlluminance by Gather, so this
-    // returns phase 4's arithmetic untouched. With shares on and the ground flag down it is phase
-    // 4b's, sampled at the caster. Only the third arm asks about the ground — and it is skipped when
-    // this pawn has ONE lamp, which is not an optimisation but the same identity the pure core
-    // records: with nothing else lighting the shadow the ground total IS the blocked beam, so the
-    // two arms agree exactly and the lookup would buy a number already in hand.
-    private static float TotalFor(
+    // denominator to place and `totalAtPawn` is already pinned to FullIlluminance by Gather, so the
+    // first branch is phase 4's arithmetic untouched; with shares on and the ground flag down it is
+    // phase 4b's, sampled at the caster. Both are one divide and go through PawnShadowShare.
+    //
+    // Only the third arm asks about the ground, and it returns a PRODUCT rather than a divide — which
+    // is why this hands back a share instead of a denominator, as it did when both forms were a
+    // single fraction. It is skipped when this pawn has ONE lamp, which is not an optimisation but an
+    // identity: with nothing else lighting the shadow the ground fraction is exactly one and the
+    // result is the beam strength, which is what the other branches would already have produced.
+    private static float ShareFor(
         int index, Contribution light, float totalAtPawn, Vector3 anchor, float trailingEdge,
         float length)
     {
@@ -438,14 +440,14 @@ public static class VectorLightPawnShadows
             && Contributions.Count > 1;
 
         if (!grounded)
-            return totalAtPawn;
+            return VectorLightMath.PawnShadowShare(light.Illuminance, totalAtPawn);
 
         float sample = VectorLightMath.ShadowSampleDistance(trailingEdge, length);
 
         float other = OtherIlluminanceAt(
             index, anchor.x + light.UnitX * sample, anchor.z + light.UnitZ * sample);
 
-        return VectorLightMath.ShadowGroundTotal(light.Illuminance, other);
+        return VectorLightMath.PawnShadowGroundShare(light.Illuminance, other);
     }
 
     // What every lamp OTHER than this one is putting on one point of ground.

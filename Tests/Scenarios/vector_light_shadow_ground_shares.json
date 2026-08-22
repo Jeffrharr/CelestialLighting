@@ -1,6 +1,6 @@
 {
   "name": "vector_light_shadow_ground_shares",
-  "description": "A lamp's share taken against the light on the GROUND ITS SHADOW FALLS ON rather than against the light on the pawn. FIVE LAMPS AND A STUB WALL. One torch three cells west of a colonist throws their shadow east; four more stand in a column to the north, lighting the colonist but hidden from that eastward floor by a seven-cell wall stub one cell north of it. The north four are therefore in the denominator asked at the caster and absent from the one asked on the ground, so the west torch's shadow should DARKEN when the flag goes up -- it was being filled in by light that never reaches it. FOUR NORTH LAMPS RATHER THAN ONE, which is arithmetic and not decoration: the share's denominator is floored at full illumination, so a scene whose lamps sum to less than 1.0 on the pawn gets the SAME floored denominator in both arms and measures a flat nothing. An earlier cut of this file used two lamps summing to 0.55 and did exactly that. ROOFED AND AT MIDNIGHT on purpose, as its phase 4b sibling is: vanilla's Graphic_Shadow bails on roofed cells, so every shadow in frame is ours and daylight is not scaling the alphas down. PAUSED BY SetTimeSpeed, which is load-bearing rather than tidy: a colonist left to walk is a different scene in each arm, and three runs of this file were lost to exactly that before the step existed. `reach` is pinned identical across both arms as the control that says the alphas moved and the geometry did not. THE ARM COUNT IS PINNED BESIDE THE ALPHAS because the measurement is meaningless with one caster: the ground denominator collapses to the blocked beam by identity, and vector_light_shadow_wall is a live example of a two-lamp frame that reaches the pawn with one. Clouds are stated off, though the camera is indoors and roofed, because the sheet drifts on the tick counter.",
+  "description": "A lamp's share taken against the light on the GROUND ITS SHADOW FALLS ON rather than against the light on the pawn. FIVE LAMPS AND A STUB WALL. One torch three cells west of a colonist throws their shadow east; four more stand in a column to the north, lighting the colonist but hidden from that eastward floor by a seven-cell wall stub one cell north of it. The north four are therefore in the denominator asked at the caster and absent from the one asked on the ground, so the west torch's shadow should DARKEN when the flag goes up -- it was being filled in by light that never reaches it. PEAK AND ROSETTE MOVE IN OPPOSITE DIRECTIONS HERE, and that is the whole value of this scene: it holds both halves of the model at once. `peak` is the west torch's shadow, which falls on floor the north lamps cannot see, so its ground fraction is exactly one and it DARKENS. `rosette` composites in the north lamps' own shadows, which run south onto floor the west torch lights perfectly well, so those FADE. A change that moved both the same way would be a strength knob rather than this model. FOUR NORTH LAMPS RATHER THAN ONE is arithmetic, not decoration. The at-caster arm's denominator is floored at full illumination, so a scene whose lamps sum to less than 1.0 on the pawn gives that arm the same floored denominator whatever else is present, and the A/B collapses. An earlier cut of this file used two lamps summing to 0.55 and measured a flat nothing with the flag working perfectly. ROOFED AND AT MIDNIGHT on purpose, as its phase 4b sibling is: vanilla's Graphic_Shadow bails on roofed cells, so every shadow in frame is ours and daylight is not scaling the alphas down. PAUSED BY SetTimeSpeed, which is load-bearing rather than tidy: a colonist left to walk is a different scene in each arm, and three runs of this file were lost to exactly that before the step existed. `reach` is pinned identical across both arms as the control that says the alphas moved and the geometry did not. THE ARM COUNT IS PINNED BESIDE THE ALPHAS because the measurement is meaningless with one caster: the ground denominator collapses to the blocked beam by identity, and vector_light_shadow_wall is a live example of a two-lamp frame that reaches the pawn with one. Clouds are stated off, though the camera is indoors and roofed, because the sheet drifts on the tick counter.",
   "steps": [
     {
       "type": "SetTile",
@@ -347,7 +347,7 @@
       "type": "Probe",
       "args": {
         "probeName": "vector_light_pawn_shadow_peak",
-        "expectedValue": "0.1308",
+        "expectedValue": "0.1313",
         "tolerance": "0.01"
       }
     },
@@ -355,7 +355,7 @@
       "type": "Probe",
       "args": {
         "probeName": "vector_light_pawn_shadow_rosette",
-        "expectedValue": "0.3786",
+        "expectedValue": "0.3800",
         "tolerance": "0.01"
       }
     },
@@ -497,7 +497,7 @@
       "type": "Probe",
       "args": {
         "probeName": "vector_light_pawn_shadow_peak",
-        "expectedValue": "0.2098",
+        "expectedValue": "0.2107",
         "tolerance": "0.01"
       }
     },
@@ -505,7 +505,7 @@
       "type": "Probe",
       "args": {
         "probeName": "vector_light_pawn_shadow_rosette",
-        "expectedValue": "0.4932",
+        "expectedValue": "0.3065",
         "tolerance": "0.01"
       }
     },

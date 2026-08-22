@@ -1236,12 +1236,48 @@ public static class VectorLightMath
     // above one, and the clamp would hide it as a shadow at full strength — the same silent
     // saturation the old model produced, arrived at from the other direction.
     //
-    // A LONE LAMP IS UNCHANGED, which is what keeps this safe to ship: `other` is zero, the total is
-    // the blocked beam itself, PawnShadowShare floors that at FullIlluminance, and the whole
-    // expression collapses to the phase-4 opacity that every committed single-lamp capture pins.
-    public static float ShadowGroundTotal(float blockedIlluminance, float otherIlluminanceOnGround)
+    // A LONE LAMP IS UNCHANGED, which is what keeps this safe to ship: `other` is zero, the ground
+    // fraction is exactly one, and the whole expression collapses to the phase-4 opacity that every
+    // committed single-lamp capture pins.
+    //
+    // TWO FACTORS, BECAUSE THEY ANSWER TWO DIFFERENT QUESTIONS, and folding them into one divide is
+    // what made the first cut of this wrong on screen. Written as `blocked / max(1, blocked + other)`
+    // the floor swallows the whole ground term in any dim room: at a lamp delivering 0.46 the shadow
+    // is COMPLETELY INSENSITIVE to light landing on it until another 0.54 arrives, which is a second
+    // torch of the same brightness. Light visibly falling across a shadow left it exactly as black,
+    // which is the thing a player notices and no probe was asking about.
+    //
+    //  * THE GROUND FRACTION, `blocked / (blocked + other)`, is the physics: what share of the light
+    //    standing on that ground this lamp is responsible for, and therefore what fraction of it goes
+    //    away when a pawn stands in the beam. It has NO floor and needs none — the numerator is a
+    //    term of its own denominator, so it is a true fraction by construction, and it responds
+    //    continuously from the very first unit of light rather than past a threshold.
+    //
+    //  * THE BEAM STRENGTH, `blocked` floored at FullIlluminance, is not physics but calibration, and
+    //    the floor belongs HERE where it always meant something. Physics says a lone lamp's shadow is
+    //    total blackness — it is the only light, so blocking it removes everything — and that looks
+    //    wrong, because a dim distant lamp should throw a faint shadow. Flooring this factor is what
+    //    carries the lamp's own falloff into the opacity, and it is the entire reason a pawn at the
+    //    rim of one lamp's reach does not throw a blacker shadow than one standing under it.
+    //
+    // Their product is bounded by `blocked`, hence by one, so nothing can saturate. Splitting them
+    // also states the trade honestly: a busy room now gets markedly fainter pawn shadows, because
+    // both factors are fractions and both shrink as lamps are added.
+    public static float PawnShadowGroundShare(
+        float blockedIlluminance, float otherIlluminanceOnGround)
     {
-        return blockedIlluminance + otherIlluminanceOnGround;
+        if (blockedIlluminance <= 0f)
+            return 0f;
+
+        float lit = blockedIlluminance + otherIlluminanceOnGround;
+
+        if (lit <= 0f)
+            return 0f;
+
+        float groundFraction = blockedIlluminance / lit;
+        float beamStrength = PawnShadowShare(blockedIlluminance, blockedIlluminance);
+
+        return Clamp01(beamStrength * groundFraction);
     }
 
     // How far along its own length to ask a shadow what else is lighting the ground beneath it.
@@ -1315,10 +1351,20 @@ public static class VectorLightMath
     public static float PawnShadowOpacity(
         float lampIlluminance, float totalIlluminance, float curSkyGlow, bool roofed)
     {
-        float lit = PawnShadowShare(lampIlluminance, totalIlluminance)
-            * DaylightScale(curSkyGlow, roofed);
+        return PawnShadowOpacityOf(
+            PawnShadowShare(lampIlluminance, totalIlluminance), curSkyGlow, roofed);
+    }
 
-        return Clamp01(lit * PawnShadowStrength);
+    // The same opacity, from a share the caller has already worked out.
+    //
+    // Split off because the ground arm's share is a PRODUCT of two factors rather than one divide
+    // (see PawnShadowGroundShare) and so cannot be expressed as a denominator to hand the overload
+    // above. Everything after the share — the daylight curve, the strength constant, the clamp — is
+    // identical for both, and this is the one copy of it. An adapter reproducing those three steps
+    // beside the other arm is exactly how the two would drift.
+    public static float PawnShadowOpacityOf(float share, float curSkyGlow, bool roofed)
+    {
+        return Clamp01(share * DaylightScale(curSkyGlow, roofed) * PawnShadowStrength);
     }
 
     // Which way the shadow points: directly away from the lamp, in radians, ready for a rotation

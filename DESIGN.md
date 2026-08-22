@@ -9264,9 +9264,9 @@ into a cupboard, so it was too strong. It is the same single question "Stopping 
 for the shadow's *length*, left unfixed for its *alpha* — and it outlived that fix by three releases
 because a length is a silhouette a screenshot can show and an alpha is not.
 
-**Approach.** Each lamp's shadow now takes its own denominator, sampled at that shadow's own
-midpoint: `ShadowGroundTotal(blocked, other)` where `blocked` is the casting lamp's illuminance at
-the pawn and `other` is what every *other* lamp delivers at the sample point, through the same
+**Approach.** Each lamp's shadow takes its own share, evaluated at that shadow's own midpoint:
+`PawnShadowGroundShare(blocked, other)`, where `blocked` is the casting lamp's illuminance at the
+pawn and `other` is what every *other* lamp delivers at the sample point, through the same
 `PawnIlluminance` the first pass uses.
 
 **The two terms are deliberately sampled in different places**, which is the one part worth reading
@@ -9275,6 +9275,30 @@ because a pawn stands in it — so it belongs to the pawn's cell, and it is the 
 numerator is. Everything else is light that arrives, so it is asked where it lands. That asymmetry
 buys exactness rather than costing it: the numerator appears in its own denominator, so the share
 cannot exceed one however far the two sample points disagree.
+
+**It is a product of two factors, not one divide, and the first cut got that wrong.** Written as
+`blocked / max(1, blocked + other)` the floor swallows the entire ground term in any dim room: at a
+lamp delivering 0.46, the shadow is *completely insensitive* to light landing on it until another
+0.54 arrives — a second torch of the same brightness. Light visibly falling across a shadow left it
+exactly as black. That is a defect only the screen reports, and it survived a green probe suite,
+because every probe was asking about the walled-off case where `other` is zero.
+
+The fix is to notice that the floor was never doing the job it appeared to:
+
+- **The ground fraction**, `blocked / (blocked + other)`, is the physics — what share of the light on
+  that ground this lamp is responsible for. It needs no floor and never did: the numerator is a term
+  of its own denominator, so it is a true fraction by construction, and it responds continuously from
+  the first unit of light rather than past a threshold.
+- **The beam strength**, `blocked` floored at `FullIlluminance`, is calibration rather than physics,
+  and the floor belongs here where it always meant something. Physics says a lone lamp's shadow is
+  total blackness — it is the only light, so blocking it removes everything — and that reads wrong,
+  because a dim distant lamp should throw a faint shadow. This factor is what carries the lamp's own
+  falloff into the opacity.
+
+Their product is bounded by `blocked`, so nothing saturates, and a lone lamp still lands on exactly
+the phase-4 value. **The trade is that busy rooms get markedly fainter**: both factors are fractions
+and both shrink as lamps are added, so eight lamps around a pawn composite to a 0.26 rosette where
+the single-divide form gave 0.40 and phase 4 gave 0.94.
 
 **The midpoint, not the tip or the base.** The quad is flat and carries one alpha, so a single sample
 stands for the whole footprint; the tip over-reports a lamp reaching only the far end, and the base
@@ -9313,9 +9337,16 @@ summing to 0.55 and did exactly that — the flag was working and the frames wer
 | probe | at the caster (shipped) | on the ground (this) |
 |---|---|---|
 | `vector_light_pawn_shadow_arms` | 5 | 5 |
-| `vector_light_pawn_shadow_peak` | 0.1315 | **0.2110** |
-| `vector_light_pawn_shadow_rosette` | 0.3804 | **0.4954** |
+| `vector_light_pawn_shadow_peak` | 0.1313 | **0.2107** |
+| `vector_light_pawn_shadow_rosette` | 0.3800 | **0.3065** |
 | `vector_light_pawn_shadow_reach` | 3.0000 | 3.0000 |
+
+**The two alphas move in opposite directions, and that is the point of this scene rather than an
+oddity of it.** `peak` is the west torch's shadow, falling on floor the north lamps cannot see: its
+ground fraction is exactly one, so it *darkens* — that is the original bug being fixed. `rosette`
+composites in the north lamps' own shadows, which run south onto floor the west torch lights
+perfectly well, so those *fade*. A change that moved both the same way would be a strength knob
+rather than this model, and the pair is what distinguishes them.
 
 **`reach` is pinned identical on purpose**: it is the control that says the alphas moved and the
 geometry did not. It earned that place — the first three runs of this scenario had it drifting
