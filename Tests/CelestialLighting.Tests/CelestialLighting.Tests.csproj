@@ -272,6 +272,13 @@
          same reason: the monotonicity property it exists to hold is a claim about the SHIPPED
          arithmetic, so the tests have to compile the shipped file rather than a copy of it. -->
     <Compile Include="../../Source/VectorLightSaturationMath.cs" Link="VectorLightSaturationMath.cs" />
+    <!-- Which sections a rebuilt emitter obliges the draw to regenerate (issue #188 item A). Depends
+         on nothing else here — it is integer rectangle arithmetic — but it must be the shipped file
+         rather than a copy, because the property under test is that its bound agrees exactly with
+         the admission predicate VectorLightMask uses at the other end. A copy would let the two
+         drift and still pass, and the failure that produces is silent: a section never told to
+         rebake, holding a shadow that has already moved. -->
+    <Compile Include="../../Source/SectionDirtyMath.cs" Link="SectionDirtyMath.cs" />
   </ItemGroup>
 
 </Project>
