@@ -1,7 +1,7 @@
 {
   "name": "vector_light_shadow_reference",
   "saveFile": "minimal_colony.rws",
-  "description": "Vector lighting, pawn shadows (DESIGN.md 27 phase 4d/4e): the reference frame for 'a lamp shadow should read like the game's own', and then the fix measured against it. TWO PAWNS, ONE FRAME, each carrying exactly one kind of shadow -- which is the point, and the thing vector_light_pawn_shadow_anchor cannot do. That scenario puts both shadows on the SAME pawn to settle where they leave it (#159); here they are deliberately separated, because the question is no longer where a shadow starts but what it LOOKS like along its length, and two overlapping shadows on one pawn make an opacity profile unreadable. The indoor colonist stands in a sealed, roofed room two cells west of a torch: vanilla's Graphic_Shadow bails on any roofed cell, so every shadow on that pawn is ours. The outdoor colonist stands on open concrete nine cells east of the room with no lamp able to see it, so every shadow on that pawn is vanilla's. FOUR ARMS. A has no lamp shadow at all and is what the lamp shadow is differenced out of. B is the flat shadow that shipped, through the old solid-colour material. C IS THE CONTROL THAT MATTERS: the NEW material with the curve flattened, which must reproduce B -- turning the fade on also swaps the shader from Map/SolidColor to Map/Transparent, and a shader at a different render queue composites against the lighting overlay at a different moment, which presents as the whole shadow changing darkness and is indistinguishable from a mis-derived curve. Whatever C fails to reproduce is the swap's doing and must be subtracted from D rather than credited to the fade. D is the shipped curve. PROBE ROLES ARE SPLIT ON PURPOSE: peak and rosette are pinned IDENTICAL across B, C and D, because both are defined at the caster where any fade is 1 by construction -- a shadow that leaves the pawn at a different darkness has changed the material rather than gained a gradient. Only vector_light_pawn_shadow_tip_fade sees the curve, and it is read off the ramp TEXTURE rather than recomputed, so it is a fact about what the draw samples. THE AZIMUTHS DO NOT MATCH AND THAT IS A CHOICE. The morning sun throws its shadow about 17 degrees south of west; the torch is due east of its pawn, so the lamp shadow runs due west. Matching them would have meant moving the torch to three cells away, and vector_light_pawn_shadows already recorded that at four cells the floor is near black and a geometrically correct shadow becomes invisible. Brightness was preferred over azimuth, and the quantity being compared -- opacity as a fraction of the shadow's own length -- does not depend on the bearing. HOUR 4.0 IS INHERITED, NOT RE-DERIVED: the anchor scenario surveyed it at a quarter hour and found it the one hour where both shadows exist at once, elevation 5.29 giving about ten cells of sun shadow while sky glow 0.17 leaves VectorLightMath.DaylightScale at 0.83 of the lamp shadow. It is pinned so a later clock change fails loudly. THE CLOCK IS PAUSED, for two reasons that both bite here: the sun keeps moving between arms otherwise, so the sun shadow this scenario exists to use as a ruler would be a different length in each frame; and the pawn-shadow probes pick their subject by lowest thing ID inside the camera view rect, so a fixture colonist strolling into shot would silently replace the subject. SPAWN ORDER IS LOAD-BEARING for the same reason -- the indoor pawn is spawned FIRST so its thing ID is the lower of the two and it wins the subject choice in any view holding both. SetRoof runs AFTER both spawns because SpawnPawn's clear strips roof from each spawn cell, and a roof hole over the indoor pawn would hand it a vanilla sun shadow and destroy the separation this file exists for. EVERY CLOUD LANE IS HELD OFF in every arm: they ship on, the sheet drifts on the tick counter, and it lands on exactly the outdoor concrete the sun shadow is measured against. THREE VIEWS PER ARM: a wide shot with both pawns, and a zoom on each, because a 1.3-cell lamp shadow and a 10-cell sun shadow cannot be sampled at the same scale. The sun frames are a BUILT-IN CONTROL: no lamp reaches the outdoor pawn, so all four arms' sun captures must be pixel-identical, and a difference there means the arms are not isolating what they claim to.",
+  "description": "Vector lighting, pawn shadows (DESIGN.md 27 phase 4d/4e): the reference frame for 'a lamp shadow should read like the game's own', and then the fix measured against it. TWO PAWNS, ONE FRAME, each carrying exactly one kind of shadow -- which is the point, and the thing vector_light_pawn_shadow_anchor cannot do. That scenario puts both shadows on the SAME pawn to settle where they leave it (#159); here they are deliberately separated, because the question is no longer where a shadow starts but what it LOOKS like along its length, and two overlapping shadows on one pawn make an opacity profile unreadable. The indoor colonist stands in a sealed, roofed room two cells west of a torch: vanilla's Graphic_Shadow bails on any roofed cell, so every shadow on that pawn is ours. The outdoor colonist stands on open concrete nine cells east of the room with no lamp able to see it, so every shadow on that pawn is vanilla's. FOUR ARMS. A has no lamp shadow at all and is what the lamp shadow is differenced out of. B is the flat shadow that shipped, through the old solid-colour material. C IS THE CONTROL THAT MATTERS: the NEW material with the curve flattened, which must reproduce B -- turning the fade on also swaps the shader from Map/SolidColor to Map/Transparent, and a shader at a different render queue composites against the lighting overlay at a different moment, which presents as the whole shadow changing darkness and is indistinguishable from a mis-derived curve. Whatever C fails to reproduce is the swap's doing and must be subtracted from D rather than credited to the fade. D is the shipped curve. PROBE ROLES ARE SPLIT ON PURPOSE: peak and rosette are pinned IDENTICAL across B, C and D, because both are defined at the caster where any fade is 1 by construction -- a shadow that leaves the pawn at a different darkness has changed the material rather than gained a gradient. Only vector_light_pawn_shadow_tip_fade sees the curve, and it is read off the ramp TEXTURE rather than recomputed, so it is a fact about what the draw samples. THE AZIMUTHS DO NOT MATCH AND THAT IS A CHOICE. The morning sun throws its shadow about 17 degrees south of west; the torch is due east of its pawn, so the lamp shadow runs due west. Matching them would have meant moving the torch to three cells away, and vector_light_pawn_shadows already recorded that at four cells the floor is near black and a geometrically correct shadow becomes invisible. Brightness was preferred over azimuth, and the quantity being compared -- opacity as a fraction of the shadow's own length -- does not depend on the bearing. HOUR 4.0 IS INHERITED, NOT RE-DERIVED: the anchor scenario surveyed it at a quarter hour and found it the one hour where both shadows exist at once, elevation 5.29 giving about ten cells of sun shadow while sky glow 0.17 leaves VectorLightMath.DaylightScale at 0.83 of the lamp shadow. It is pinned so a later clock change fails loudly. THE CLOCK IS PAUSED, for two reasons that both bite here: the sun keeps moving between arms otherwise, so the sun shadow this scenario exists to use as a ruler would be a different length in each frame; and the pawn-shadow probes pick their subject by lowest thing ID inside the camera view rect, so a fixture colonist strolling into shot would silently replace the subject. SPAWN ORDER IS LOAD-BEARING for the same reason -- the indoor pawn is spawned FIRST so its thing ID is the lower of the two and it wins the subject choice in any view holding both. SetRoof runs AFTER both spawns because SpawnPawn's clear strips roof from each spawn cell, and a roof hole over the indoor pawn would hand it a vanilla sun shadow and destroy the separation this file exists for. EVERY CLOUD LANE IS HELD OFF in every arm: they ship on, the sheet drifts on the tick counter, and it lands on exactly the outdoor concrete the sun shadow is measured against. THREE VIEWS PER ARM: a wide shot with both pawns, and a zoom on each, because a 1.3-cell lamp shadow and a 10-cell sun shadow cannot be sampled at the same scale. THE SHADOW NOW FADES TO NOTHING at its tip rather than stopping at vanilla's 0.396, which is a deliberate departure taken on looks -- vanilla still ends on a faint visible edge and this does not -- and the lamp height was lowered alongside it so the shadow runs half the distance to the lamp instead of a third, which costs about a tenth of its apparent length back. The sun frames are a BUILT-IN CONTROL: no lamp reaches the outdoor pawn, so all four arms' sun captures must be pixel-identical, and a difference there means the arms are not isolating what they claim to.",
   "steps": [
     {
       "type": "SetTile",
@@ -794,6 +794,14 @@
       }
     },
     {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_pawn_shadow_mid_fade",
+        "expectedValue": "1.0",
+        "tolerance": "0.005"
+      }
+    },
+    {
       "type": "LookAt",
       "args": {
         "offset": "4,45",
@@ -1007,6 +1015,14 @@
       }
     },
     {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_pawn_shadow_mid_fade",
+        "expectedValue": "1.0",
+        "tolerance": "0.005"
+      }
+    },
+    {
       "type": "LookAt",
       "args": {
         "offset": "4,45",
@@ -1215,7 +1231,15 @@
       "type": "Probe",
       "args": {
         "probeName": "vector_light_pawn_shadow_tip_fade",
-        "expectedValue": "0.35",
+        "expectedValue": "0.0",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_pawn_shadow_mid_fade",
+        "expectedValue": "0.4314",
         "tolerance": "0.005"
       }
     },

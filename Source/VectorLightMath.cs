@@ -1526,17 +1526,27 @@ public static class VectorLightMath
 
     // How high a lamp sits above the floor, in cells, for shadow-length purposes.
     //
-    // RAISED FROM 2.4 TO 3.2, which is the deliberate half of the shortening. Length is
-    // `d * t / (h - t)`, so this and the caster's height are the whole of how dramatic these get:
-    // at 2.4 against a 1.2-cell pawn the ratio was exactly 1 and a lamp four cells away threw four
-    // cells of shadow, which is longer than anything vanilla draws and read as the pawn being lit
-    // by a floodlight at ankle height. A lamp nearer the ceiling than a pawn's head is also the
-    // more honest picture of a wall sconce or a standing lamp's bulb.
+    // Raised from 2.4 to 3.2 when the geometry was first shortened, and now LOWERED TO 2.4 again.
+    // Length is `d * t / (h - t)`, so this and the caster's height are the whole of how dramatic
+    // these get.
     //
-    // The number is a look choice within a physical relation rather than a measurement, and it is
-    // stated as one. With the caster height now coming from vanilla's own 0.8, the ratio is
-    // `0.8 / 2.4` — exactly a THIRD of what phase 4 drew.
-    public const float DefaultLampHeight = 3.2f;
+    // The history matters because the number has been here before and does not mean what it meant
+    // then. At 2.4 against the INVENTED 1.2-cell pawn the ratio was exactly 1, and a lamp four cells
+    // away threw four cells of shadow — longer than anything vanilla draws, and reading as a
+    // floodlight at ankle height. That pawn height was wrong (vanilla says 0.8), and fixing it is
+    // most of what shortened these. Against the correct 0.8 the same 2.4 gives a ratio of **0.5**,
+    // half of what looked wrong and a full third longer than the 3.2 that replaced it.
+    //
+    // NUMERICALLY EQUAL TO LegacyLampHeight AND NOT THE SAME STATEMENT — the legacy constant is
+    // paired with LegacyPawnHeight 1.2 for a ratio of 1.0, and exists only so the shape flag's off
+    // arm reproduces the previous look. They are two different models that happen to share a lamp
+    // height.
+    //
+    // Lowered because the shadow now fades to nothing at its tip rather than stopping at a visible
+    // edge, which costs about a tenth of its apparent length, and because it was asked for: a
+    // shadow running half the distance to the lamp reads better than a third. The number is a look
+    // choice inside a physical relation rather than a measurement, and it is stated as one.
+    public const float DefaultLampHeight = 2.4f;
 
     // A pawn's height as a caster, in cells, for defs that declare no shadow of their own.
     //
@@ -1565,10 +1575,17 @@ public static class VectorLightMath
     // Shadows stop growing here however close the lamp gets. Without a cap, a pawn standing ON a
     // lamp's cell casts an arbitrarily long shadow, and the cap is cheaper than special-casing it.
     //
-    // Brought down from 6 with the rest of the geometry: it is a backstop on the degenerate case,
-    // so it wants to stay a small multiple of what a normal shadow runs to rather than a number
-    // ordinary shadows can reach. At the new ratio a lamp at its full reach throws about 2.
-    public const float MaxPawnShadowLength = 2f;
+    // Brought down from 6 with the rest of the geometry, then RAISED FROM 2 TO 3 WITH IT: it is a
+    // backstop on the degenerate case, so it wants to stay a small multiple of what a normal shadow
+    // runs to rather than a number ordinary shadows can reach.
+    //
+    // Scaled by exactly the 1.5 the lamp height moved the ratio by, and that is the point rather
+    // than tidiness. Left at 2 while the ratio went to 0.5, the cap would start binding at four
+    // cells from the lamp — an ordinary distance, well inside a torch's reach — and every pawn
+    // beyond it would throw the same length. That would quietly delete the property the whole
+    // relation exists for, that a shadow grows as its caster moves away from the light, and it
+    // would do it in the half of the room furthest from the lamp where it is most visible.
+    public const float MaxPawnShadowLength = 3f;
 
     // The narrowest a pawn shadow's base is allowed to get, in cells from the centre line.
     //
@@ -1612,62 +1629,62 @@ public static class VectorLightMath
     // read as two soft shadows rather than as a black cross.
     public const float PawnShadowStrength = 0.5f;
 
-    // How much of its opacity a pawn shadow still has at its far tip.
+    // What vanilla's own sun shadow keeps at its tip, recorded because it is the measurement this
+    // whole curve was built against and because we deliberately no longer match it there.
     //
-    // MEASURED OFF VANILLA, not chosen. Tests/Scenarios/vector_light_shadow_reference.json puts a
-    // lamp-lit colonist and a sun-lit colonist in one frame, each carrying exactly one kind of
-    // shadow, and the sun shadow's opacity binned along its own length and normalised to its value
-    // at the caster runs 1.000 → 0.709 → 0.568 → 0.471 → 0.396. Ours was flat to within ±4% end to
-    // end, which is the whole reason a lamp shadow beside a sun shadow read as a different kind of
-    // object rather than a different light.
+    // Tests/Scenarios/vector_light_shadow_reference.json puts a lamp-lit colonist and a sun-lit
+    // colonist in one frame, each carrying exactly one kind of shadow, and the sun shadow's opacity
+    // binned along its own length and normalised to its first bin runs
+    // 1.000 → 0.709 → 0.568 → 0.471 → 0.396. Ours was flat end to end, which is what made a lamp
+    // shadow beside a sun shadow read as a different kind of object rather than a different light.
+    public const float VanillaSunShadowTipOpacity = 0.396f;
+
+    // How front-loaded the fade is: 0 is a straight line to nothing, larger values lose opacity
+    // faster near the caster and trail off more gently.
     //
-    // 0.35 AND NOT THE MEASURED 0.396, and the gap is a real correction rather than rounding. The
-    // measured column is normalised to the FIRST BIN, whose centre is a twentieth of the way along
-    // the shadow rather than at the caster — so 0.396 is the tip as a fraction of the value at
-    // t = 0.05, while this constant is the tip as a fraction of the value at t = 0. Solving the
-    // curve for "reaches 0.396 of its own t = 0.05 value at t = 0.95" gives 0.35, and using 0.396
-    // directly leaves the whole interior about 0.07 too dark — a systematic error in one direction,
-    // which is exactly the shape of mistake an endpoint-only check cannot see. The offline test
-    // therefore normalises the model the same way the capture was normalised, rather than comparing
-    // raw values.
-    public const float PawnShadowTipOpacity = 0.35f;
+    // FITTED TO VANILLA OVER THE NEAR HALF, which is as far as the fit can honestly go — see
+    // PawnShadowFade for why the far half deliberately departs. Sweeping k against the measured
+    // bins at t ≤ 0.45 puts the best agreement at 0.27, within 0.045 everywhere across that range.
+    // A straight line (k = 0) is not much worse there and was rejected on the interior rather than
+    // the ends: it reads 0.789 a quarter of the way out where vanilla reads 0.709.
+    public const float PawnShadowFadeFrontLoad = 0.27f;
 
     // The opacity multiplier at `alongFraction` of the way from the caster to the shadow's tip.
     //
-    // HYPERBOLIC, NOT LINEAR, and that is what the measurement says rather than a preference. A
-    // straight line from 1 to 0.4 misses vanilla by up to 0.14 in the middle of the shadow (it
-    // predicts 0.85 at a quarter of the way out against a measured 0.709, and 0.70 at halfway
-    // against 0.568); 1/(1 + k·t) tracks it to within 0.03 at every bin. The shape is what a linearly
-    // interpolated attribute looks like once it has been through a projective divide, which is a
-    // plausible reason for vanilla to land on it, but the fit is the evidence here and the
-    // explanation is not load-bearing.
+    // REACHES EXACTLY ZERO AT THE TIP, WHICH IS A DELIBERATE DEPARTURE FROM VANILLA. Vanilla stops
+    // at 0.396 and therefore still ends on an edge — a faint one, but a visible line where the mesh
+    // stops. Ending at zero is a look decision, taken deliberately after seeing the 0.396 version in
+    // motion, and it is the one place this subsystem knowingly disagrees with the game it is
+    // otherwise matching. The consequence is that the curve tracks vanilla over the near half and
+    // then falls below it: 0.523 against 0.568 at t = 0.45, and 0.042 against 0.396 at the tip.
     //
-    // k is DERIVED from the tip opacity rather than being a second constant, so there is exactly one
-    // number to calibrate and the curve cannot drift away from its own endpoint: at t = 1 this is
-    // 1/(1 + (1/tip − 1)) = tip, identically.
+    // `(1 - t) / (1 + k·t)` rather than the hyperbola that came before it, because the family that
+    // fitted vanilla's endpoint — 1/(1 + k·t) — cannot reach zero at any finite k. This one hits 1
+    // at t = 0 and 0 at t = 1 by construction, with k left to shape the interior, so the two
+    // endpoints are structural rather than calibrated and only the shape needs a number.
     //
-    // Vanilla reaches this fade through the vertex-colour channel its shadow shader already spends
-    // on extrusion (`MeshMakerShadows` writes alpha 0 at the footprint and `tallness` at the tip,
-    // and `Custom/Sun shadow fade` samples NO texture — it has no UVs to sample one with). We cannot
-    // borrow that material, so we reach the same curve through a ramp texture instead; see
-    // VectorLightPawnShadows.RampTextureFor.
-    public static float PawnShadowFade(float alongFraction, float tipOpacity)
+    // IT COSTS ALMOST NO APPARENT LENGTH, which is the objection to check rather than assume. At
+    // k = 0.27 the shadow is still above the ~0.08 relative alpha that reads as visible on a lit
+    // floor until t = 0.91, so a shadow that fades to nothing looks about a tenth shorter than its
+    // geometry, not half. The lamp height was lowered alongside this with that already accounted
+    // for.
+    //
+    // Vanilla reaches its own fade through the vertex-colour channel its shadow shader already
+    // spends on extrusion (`MeshMakerShadows` writes alpha 0 at the footprint and `tallness` at the
+    // tip, and `Custom/Sun shadow fade` samples NO texture — it has no UVs to sample one with). We
+    // cannot borrow that material, so we reach ours through a ramp texture instead; see
+    // VectorLightPawnShadows.RampTexture.
+    public static float PawnShadowFade(float alongFraction, float frontLoad)
     {
-        // A tip at or above full opacity is the flat shadow that shipped before this — used as the
-        // control arm that separates the material swap from the curve, so it has to be exact rather
-        // than merely close.
-        if (tipOpacity >= 1f)
-            return 1f;
-
-        // Guards the division below. A tip of zero would be a shadow that vanishes rather than
-        // fades, which no measurement supports, so it is clamped rather than honoured.
-        if (tipOpacity <= 0f)
-            tipOpacity = 0.001f;
+        // A negative front-load would put a pole inside the shadow and flip its sign partway along.
+        // Clamped rather than trusted because the only caller that can supply one is a settings path
+        // that does not exist yet, and this is cheaper than discovering it later.
+        if (frontLoad < 0f)
+            frontLoad = 0f;
 
         float t = alongFraction < 0f ? 0f : (alongFraction > 1f ? 1f : alongFraction);
-        float k = (1f / tipOpacity) - 1f;
 
-        return 1f / (1f + k * t);
+        return (1f - t) / (1f + frontLoad * t);
     }
 
     // How many samples per axis the cell-coverage test takes. Four samples over a cell is enough to

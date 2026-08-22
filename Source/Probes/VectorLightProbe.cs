@@ -195,6 +195,10 @@ public sealed class VectorLightProbe : IProbe
         //
         // Map-free: the ramp is one row shared by every shadow on every map.
         PawnShadowTipFade,
+
+        // The same ramp halfway along, which is what actually identifies the curve now that both of
+        // its ends are structural rather than calibrated.
+        PawnShadowMidFade,
     }
 
     private readonly Metric metric;
@@ -242,7 +246,17 @@ public sealed class VectorLightProbe : IProbe
         if (metric == Metric.PawnShadowTipFade)
         {
             return CelestialLightingFeatures.VectorLightShadowFeather
-                ? VectorLightPawnShadows.BoundRampTipAlpha()
+                ? VectorLightPawnShadows.BoundRampAlphaAt(1f)
+                : 1f;
+        }
+
+        // Pinned BESIDE the tip, not instead of it. The curve now ends at exactly zero by
+        // construction, so the tip alone no longer identifies it — any broken shape that happens to
+        // vanish reads the same there. Halfway along is where the shape lives.
+        if (metric == Metric.PawnShadowMidFade)
+        {
+            return CelestialLightingFeatures.VectorLightShadowFeather
+                ? VectorLightPawnShadows.BoundRampAlphaAt(0.5f)
                 : 1f;
         }
 

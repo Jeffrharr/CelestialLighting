@@ -521,26 +521,31 @@ public static class VectorLightPawnShadows
         return material;
     }
 
-    // One texel row, alpha falling from full at the caster to PawnShadowTipOpacity at the tip.
+    // One texel row, alpha falling from full at the caster to nothing at the tip.
     //
     // 64 texels because the ramp is sampled bilinearly across a shadow that is rarely more than a
     // cell or two on screen — at the zoom these are looked at, a cell is about 50 px, so 64 texels
-    // over the whole length is already finer than the pixels it lands on. Rebuilt when the tip
-    // opacity changes, which in a shipped game is never: the harness's flat-ramp control arm is the
-    // only thing that moves it.
+    // over the whole length is already finer than the pixels it lands on. Rebuilt when the curve
+    // changes, which in a shipped game is never: the harness's flat-ramp control arm is the only
+    // thing that moves it.
     private static Texture2D RampTexture()
     {
-        float tip = VectorLightMath.PawnShadowTipOpacity;
+        float frontLoad = VectorLightMath.PawnShadowFadeFrontLoad;
 
-        // KEYED ON THE RAMP'S OWN ENDPOINT, NOT ON THE CONSTANT BEHIND IT. Reading the constant would
-        // make this cache blind to anything that changes the curve without changing the constant —
-        // which is exactly what the harness's flat-ramp control arm does, by postfixing
+        // KEYED ON THE CURVE'S OWN MIDPOINT, NOT ON THE CONSTANT BEHIND IT. Reading the constant
+        // would make this cache blind to anything that changes the curve without changing the
+        // constant — which is exactly what the harness's flat-ramp control arm does, by postfixing
         // PawnShadowFade. Keyed this way, flipping that arm invalidates the row on the next draw
         // instead of leaving the previous arm's gradient on screen, which is the failure an in-run
         // A/B would otherwise photograph as "the flag did nothing".
-        float endpoint = VectorLightMath.PawnShadowFade(1f, tip);
+        //
+        // The MIDPOINT rather than the endpoint, which the endpoint version of this got wrong: the
+        // curve now ends at exactly 0 by construction, so its tip is 0 for every front-load value
+        // and would key every distinct curve to the same cache entry. Halfway along, it separates
+        // them — and it still separates the flat control arm, which reads 1 there.
+        float key = VectorLightMath.PawnShadowFade(0.5f, frontLoad);
 
-        if (RampTextureCache != null && RampTip == endpoint)
+        if (RampTextureCache != null && RampTip == key)
             return RampTextureCache;
 
         Texture2D ramp = new Texture2D(RampTexels, 1, TextureFormat.ARGB32, false)
@@ -561,13 +566,14 @@ public static class VectorLightPawnShadows
 
             // RGB stays black: the shadow's colour is the material's, and Map/Transparent multiplies
             // texel by _Color, so anything else here would tint the shadow.
-            ramp.SetPixel(i, 0, new Color(0f, 0f, 0f, VectorLightMath.PawnShadowFade(along, tip)));
+            ramp.SetPixel(
+                i, 0, new Color(0f, 0f, 0f, VectorLightMath.PawnShadowFade(along, frontLoad)));
         }
 
         ramp.Apply();
 
         RampTextureCache = ramp;
-        RampTip = endpoint;
+        RampTip = key;
 
         // EVERY CACHED MATERIAL IS NOW STALE, because a material binds a texture OBJECT and this has
         // just made a new one. Without this line the first arm to build a material pins its ramp for
@@ -583,7 +589,7 @@ public static class VectorLightPawnShadows
         return ramp;
     }
 
-    // The alpha the ramp row the DRAW IS ACTUALLY BOUND TO ends on.
+    // The alpha of the ramp row THE DRAW IS ACTUALLY BOUND TO, at `along` of the way to the tip.
     //
     // For the probe, and deliberately read off a live material's own texture rather than recomputed
     // from the formula — or even off the current cached row. This is the number the screen samples,
@@ -591,19 +597,27 @@ public static class VectorLightPawnShadows
     // the formula while the screen sampled a stale row, which is exactly the disagreement that hid
     // the material-cache bug above: the arm's numbers all moved and its pixels did not.
     //
+    // TAKES A POSITION because the tip alone stopped being enough to identify the curve once the
+    // curve started ending at zero. A scenario pinning only the endpoint would pass against any
+    // shape that happens to vanish, including a broken one; pinning the endpoint AND the midpoint
+    // says the row reaching the GPU has both the right ends and the right bend.
+    //
     // Falls back to building the row when nothing has drawn yet, so a probe read before the first
     // frame reports the ramp that is about to be used rather than a sentinel.
-    public static float BoundRampTipAlpha()
+    public static float BoundRampAlphaAt(float along)
     {
+        int texel = Mathf.Clamp(
+            Mathf.RoundToInt(along * (RampTexels - 1)), 0, RampTexels - 1);
+
         foreach (Material material in FeatheredMaterialCache.Values)
         {
             if (material != null && material.mainTexture is Texture2D bound)
-                return bound.GetPixel(RampTexels - 1, 0).a;
+                return bound.GetPixel(texel, 0).a;
         }
 
         Texture2D ramp = RampTexture();
 
-        return ramp == null ? 1f : ramp.GetPixel(RampTexels - 1, 0).a;
+        return ramp == null ? 1f : ramp.GetPixel(texel, 0).a;
     }
 
     // The caster's own shadow data, read where vanilla reads it — which is two places, not one.
