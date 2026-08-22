@@ -474,7 +474,7 @@ public static class ProbeRegistration
         // another, so there is a start probe per arm rather than one taking an argument — the
         // scenario language has no way to pass a string, and an arm whose document is mislabelled is
         // worse than one that was never recorded.
-        foreach (string armName in new[] { "gated", "crossfade", "mask", "combo", "cull", "brute" })
+        foreach (string armName in new[] { "gated", "crossfade", "mask", "combo", "cull", "brute", "bounds" })
         {
             ProbeRegistry.Register(new CircinusProbe(
                 "circinus_run_start_" + armName, CircinusProbe.Metric.RunStart,
