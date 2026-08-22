@@ -1096,8 +1096,34 @@ public static class VectorLightMath
     // ADDITIVE pass sitting above that multiply, so with no attenuation a torch at midday would glow
     // brighter than it does at midnight. Fading on the ratio of the light to the sky it competes with
     // is the same "brightness ratio, not a switch" conclusion issues #4 and #48 both reached.
-    public static float DaylightScale(float curSkyGlow)
+    public static float DaylightScale(float curSkyGlow, bool roofed)
     {
+        // A ROOF IS WHAT MAKES THE SKY GLOW IRRELEVANT, and leaving this out was a real bug rather
+        // than a simplification. `curSkyGlow` is `SkyManager.CurSkyGlow`, which is MAP-WIDE — there
+        // is no per-cell version of it — so at noon it sits near 1 and this returned 0 for every
+        // pawn on the map. That included a colonist in a sealed, windowless, torch-lit room, where
+        // the whole premise ("a torch at noon casts nothing anyone can see") is false: no daylight
+        // reaches that floor at all, and the torch is the only thing lighting it. Reported from
+        // play as "works at night, does nothing indoors during the day", which is exactly the shape
+        // a map-wide gate produces.
+        //
+        // THE BEAM LANE ALREADY DECIDED THIS, which is the strongest argument for it and also what
+        // makes the bug embarrassing rather than subtle: `VectorLightOverlay.StrengthFor` has always
+        // asked the roof grid, and its comment says why in almost these words — "keying on the
+        // global value would put every indoor lamp out at noon". The two lanes simply never shared
+        // the question. Making `roofed` a parameter rather than something each caller remembers to
+        // fake is what stops them drifting apart again.
+        //
+        // Roofed is the right predicate because it is VANILLA'S OWN, on the other side of the same
+        // decision: `Graphic_Shadow.DrawWorker` refuses to draw a sun shadow on a roofed cell. So
+        // the two rules now partition the map with no gap and no overlap — unroofed, vanilla draws
+        // the sun shadow and daylight suppresses ours; roofed, vanilla draws none and ours runs at
+        // full strength. Asked at the CASTER'S cell, which is also where vanilla asks it
+        // (`loc.ToIntVec3()`), rather than per shadow cell, so the two agree about which pawns are
+        // indoors even when a shadow crosses a doorway.
+        if (roofed)
+            return 1f;
+
         return Clamp01(1f - Clamp01(curSkyGlow));
     }
 
@@ -1226,15 +1252,18 @@ public static class VectorLightMath
     //    that casts it does, a pawn behind a wall casts nothing from a lamp that cannot reach it,
     //    and a pawn under six lamps gets six faint shadows rather than six full ones.
     //  - Daylight, on the same reasoning as DaylightScale: a torch at noon casts nothing anyone can
-    //    see, and drawing it anyway is how an effect starts looking like a bug. Kept as a separate
+    //    see OUTDOORS, and drawing it anyway is how an effect starts looking like a bug. Under a
+    //    roof it does not apply at all; `roofed` is required rather than defaulted so no caller can
+    //    forget the question exists, which is how the indoor case went unnoticed in the first place. Kept as a separate
     //    multiply rather than folded into the denominator as an ambient term, because glow units are
     //    perceptual rather than photometric — the sky reads 1.0 against a lamp's 0.5 where the real
     //    ratio is four orders of magnitude, so daylight has to be applied as the calibrated curve it
     //    already is instead of being allowed to compete on those numbers.
     public static float PawnShadowOpacity(
-        float lampIlluminance, float totalIlluminance, float curSkyGlow)
+        float lampIlluminance, float totalIlluminance, float curSkyGlow, bool roofed)
     {
-        float lit = PawnShadowShare(lampIlluminance, totalIlluminance) * DaylightScale(curSkyGlow);
+        float lit = PawnShadowShare(lampIlluminance, totalIlluminance)
+            * DaylightScale(curSkyGlow, roofed);
 
         return Clamp01(lit * PawnShadowStrength);
     }

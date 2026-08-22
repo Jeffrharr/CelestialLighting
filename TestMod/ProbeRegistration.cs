@@ -414,6 +414,15 @@ public static class ProbeRegistration
         ProbeRegistry.Register(
             new VectorLightProbe("vector_light_pawn_shadow_mid_fade",
                 VectorLightProbe.Metric.PawnShadowMidFade));
+        // What the draw resolves for an ANIMAL, which reaches its shadow data by a different route
+        // than a colonist and was therefore getting the human-shaped fallback: a cat drawn 0.8 tall
+        // and 0.3 half-wide against a real 0.3 and 0.125. Pin both, in a view holding the animal.
+        ProbeRegistry.Register(
+            new VectorLightProbe("vector_light_animal_caster_height",
+                VectorLightProbe.Metric.AnimalCasterHeight));
+        ProbeRegistry.Register(
+            new VectorLightProbe("vector_light_animal_caster_half_width",
+                VectorLightProbe.Metric.AnimalCasterHalfWidth));
         // Performance, measured through Circinus rather than Dubs, because Circinus reports CALL
         // COUNTS. §27 phase 3 does all its work inside a section regenerate, and the Dubs window that
         // appeared to show it running three times cheaper than the feature-off baseline had simply

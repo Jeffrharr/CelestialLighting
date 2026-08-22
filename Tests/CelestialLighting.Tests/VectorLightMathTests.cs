@@ -1031,7 +1031,7 @@ public class VectorLightMathTests
         float illuminance = VectorLightMath.PawnIlluminance(3f, 10f, coverage);
 
         Assert.That(
-            VectorLightMath.PawnShadowOpacity(illuminance, total, skyGlow),
+            VectorLightMath.PawnShadowOpacity(illuminance, total, skyGlow, roofed: false),
             Is.EqualTo(0f).Within(Tolerance), why);
     }
 
@@ -1048,7 +1048,8 @@ public class VectorLightMathTests
     public void AFullyLitShadowIsVisibleButNotOpaque()
     {
         float illuminance = VectorLightMath.PawnIlluminance(2f, 10f, 1f);
-        float opacity = VectorLightMath.PawnShadowOpacity(illuminance, illuminance, 0f);
+        float opacity = VectorLightMath.PawnShadowOpacity(
+            illuminance, illuminance, 0f, roofed: false);
 
         Assert.That(opacity, Is.GreaterThan(0.05f));
         Assert.That(opacity, Is.LessThanOrEqualTo(VectorLightMath.PawnShadowStrength));
@@ -1303,7 +1304,8 @@ public class VectorLightMathTests
         const float each = 0.6f;
         const int lamps = 8;
 
-        float opacity = VectorLightMath.PawnShadowOpacity(each, each * lamps, 0f);
+        float opacity = VectorLightMath.PawnShadowOpacity(
+            each, each * lamps, 0f, roofed: false);
         float remaining = 1f;
 
         for (int i = 0; i < lamps; i++)
@@ -1449,7 +1451,55 @@ public class VectorLightMathTests
     [TestCase(1f, 0f)]
     public void DaylightScaleFadesTheLightOutAsTheSkyComesUp(float skyGlow, float expected)
     {
-        Assert.That(VectorLightMath.DaylightScale(skyGlow), Is.EqualTo(expected).Within(Tolerance));
+        Assert.That(
+            VectorLightMath.DaylightScale(skyGlow, roofed: false),
+            Is.EqualTo(expected).Within(Tolerance));
+    }
+
+    // THE BUG THIS PAIR EXISTS FOR, reported from play: lamp shadows worked at night and did
+    // nothing indoors during the day. CurSkyGlow is MAP-WIDE, so at noon the gate above returned 0
+    // for a colonist in a sealed, windowless, torch-lit room -- where no daylight arrives at all and
+    // the torch is the only light there is.
+    //
+    // Stated across the WHOLE range rather than at noon alone, because the failure is that the sky
+    // was consulted at all under a roof, not that one value of it was wrong.
+    [TestCase(0f)]
+    [TestCase(0.5f)]
+    [TestCase(1f)]
+    public void ARoofMakesTheSkyGlowIrrelevant(float skyGlow)
+    {
+        Assert.That(
+            VectorLightMath.DaylightScale(skyGlow, roofed: true),
+            Is.EqualTo(1f).Within(Tolerance));
+    }
+
+    // And the same statement one level up, where it actually reaches the draw: at noon an indoor
+    // pawn keeps a full-strength shadow while an outdoor one loses it entirely. This is the
+    // assertion a scenario can photograph.
+    [Test]
+    public void AtNoonAnIndoorPawnKeepsItsShadowAndAnOutdoorOneDoesNot()
+    {
+        const float lit = 1f;
+
+        float indoors = VectorLightMath.PawnShadowOpacity(lit, lit, 1f, roofed: true);
+        float outdoors = VectorLightMath.PawnShadowOpacity(lit, lit, 1f, roofed: false);
+
+        Assert.That(indoors, Is.EqualTo(VectorLightMath.PawnShadowStrength).Within(Tolerance));
+        Assert.That(outdoors, Is.EqualTo(0f).Within(Tolerance));
+    }
+
+    // A roof does not make a shadow DARKER than one at midnight -- it removes a scale that should
+    // never have applied, so the indoor noon shadow and the outdoor midnight shadow are the same
+    // shadow. Guards a fix that over-corrected into a brightness boost.
+    [Test]
+    public void AnIndoorShadowAtNoonMatchesAnOutdoorOneAtMidnight()
+    {
+        const float lit = 1f;
+
+        Assert.That(
+            VectorLightMath.PawnShadowOpacity(lit, lit, 1f, roofed: true),
+            Is.EqualTo(VectorLightMath.PawnShadowOpacity(lit, lit, 0f, roofed: false))
+                .Within(Tolerance));
     }
 
     // ---- helpers ------------------------------------------------------------------------
