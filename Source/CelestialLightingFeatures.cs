@@ -1138,6 +1138,50 @@ public static class CelestialLightingFeatures
     // Requires vector_light_open_doors. Off with that flag on reproduces phase 1 exactly — a beam
     // that pops — which is what makes the two filmable against each other.
     public static bool VectorLightDoorAperture = false;
+
+    // Feature key for VectorLightSectionDirty.
+    public const string VectorLightSectionDirtyKey = "vector_light_section_dirty";
+
+    // Issue #188 item A: after rebuilding polygons the draw dirties only the sections those emitters
+    // can change, instead of the whole map.
+    //
+    // WHAT WAS WRONG. Patch_VectorLightDraw must re-dirty after a build, because a section that baked
+    // while a polygon was still dirty skipped that emitter and nothing would ever ask it again. It
+    // did so with WholeMapChanged — a call that says "something, somewhere" and costs every section
+    // under the camera. Fine for a player building a wall; not fine for what actually provokes it,
+    // which is door aperture tracking invalidating nine times per swing while a pawn walks through a
+    // door on the other side of the colony.
+    //
+    // WHY IT IS A FLAG AT ALL when it changes no pixel. Because it changes no pixel: with the old
+    // behaviour unreachable there is nothing to measure the new one against, and the counters this
+    // ships with would have no baseline in the same boot. Off passes SectionDirtyMath.WholeMap and
+    // calls WholeMapChanged, reproducing the previous behaviour exactly rather than approximately —
+    // which is what makes the A/B a baseline instead of a picture of the feature being absent.
+    //
+    // Inert unless vector_lights and the mask are on, which still ship OFF.
+    public static bool VectorLightSectionDirty = true;
+
+    // Feature key for VectorLightViewCull.
+    public const string VectorLightViewCullKey = "vector_light_view_cull";
+
+    // Issue #188 item B: a dirty polygon out of camera range is left dirty until it comes back.
+    //
+    // The draw has culled its own emitters against the view since phase 1 — VectorLightOverlay.
+    // DrawLight bails on anything off screen — but EnsurePolygons never did, so scrolling away from
+    // a lamp stopped it being DRAWN and not being BUILT. A door in an unwatched corridor therefore
+    // paid full price nine times a swing to produce a polygon nothing would read.
+    //
+    // WHY IT IS SAFE, AND ONLY BECAUSE OF vector_light_section_dirty. Deferring a build leaves a
+    // section that would have baked against a polygon baking without it, which is the documented
+    // failure this subsystem has hit before. It is safe here because whoever eventually builds the
+    // polygon also dirties the sections it reaches, so the emitter's sections rebake on the frame it
+    // scrolls into range. Turning the section-dirty flag off while this one is on is therefore a
+    // combination to avoid rather than an orthogonal pair; the scenario sweeps them in the order
+    // that keeps each arm meaningful.
+    //
+    // Measured by vector_light_bake_deferrals beside vector_light_bakes. Off builds every dirty
+    // polygon on the map exactly as before.
+    public static bool VectorLightViewCull = true;
 }
 
 public enum SunClockMode

@@ -62,8 +62,14 @@ public static class VectorLightRedraw
             // Building here costs the same work on the same cadence — a flag flip is rare — and it
             // is synchronous, so the sections this method is about to dirty bake against polygons
             // that already exist rather than against ones that are about to.
+            // WHOLE MAP AS THE BUILD WINDOW, i.e. no view cull, even though the draw path culls.
+            // A flag flip is rare and its whole job is to leave the field in a state the next frame
+            // can be photographed from; deferring builds here would hand the harness a first frame
+            // that is still catching up, which is the failure this method was written to prevent in
+            // the first place. Issue #188 item B.
             if (VectorLightMask.Active)
-                VectorLightField.EnsurePolygons(maps[i]);
+                VectorLightField.EnsurePolygons(
+                    maps[i], SectionDirtyMath.WholeMap(maps[i].Size.x, maps[i].Size.z));
 
             // WHOLE MAP HERE, AND DELIBERATELY NOT THE NARROW DIRTY Patch_VectorLightDraw NOW USES.
             // The bounds EnsurePolygons returns describe where the polygons MOVED, which is the
