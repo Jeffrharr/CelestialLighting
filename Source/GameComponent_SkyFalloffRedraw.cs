@@ -63,12 +63,31 @@ public class GameComponent_SkyFalloffRedraw : GameComponent
         if (!CelestialLightingFeatures.IndoorSkyOcclusion)
             return;
 
-        if (!CelestialLightingFeatures.NativeSkyFalloff && !CelestialLightingFeatures.IndoorGlowPassthrough)
+        if (!AnyBakedTermVariesWithGlow())
             return;
 
         List<Map> maps = Find.Maps;
         for (int i = 0; i < maps.Count; i++)
             CheckMap(maps[i]);
+    }
+
+    // Is there anything in the baked alphas that a change in CurSkyGlow would move? Two independent
+    // reasons there might be, and the second is new — the decoupled indoor floor divides
+    // MinIndoorBrightness by §7a's keep factor, which is itself a function of the glow, so the cover a
+    // sealed room bakes now drifts with the sun even on a map where both sky-falloff sources are off.
+    // Missing that would have left the compensation frozen at whatever the sun was doing the last time a
+    // lamp was toggled: correct at that hour, and progressively wrong at every other one.
+    //
+    // The floor is checked as well as the flag because MinIndoorBrightness at 0 makes
+    // EffectiveIndoorFloor the constant 0 whatever the sky does — that is the Realistic preset, and it
+    // should not pay for a clock it cannot use.
+    private static bool AnyBakedTermVariesWithGlow()
+    {
+        if (CelestialLightingFeatures.NativeSkyFalloff || CelestialLightingFeatures.IndoorGlowPassthrough)
+            return true;
+
+        return CelestialLightingFeatures.DecoupledIndoorFloor
+            && IndoorOcclusionSettings.Current.MinIndoorBrightness > 0f;
     }
 
     private static void CheckMap(Map map)

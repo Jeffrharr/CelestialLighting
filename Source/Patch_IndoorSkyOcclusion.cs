@@ -101,12 +101,29 @@ public static class Patch_IndoorSkyOcclusion
         if (colors == null || colors.Length != firstCenterInd + rect.Width * rect.Height)
             return;
 
-        IndoorOcclusionSettings settings = IndoorOcclusionSettings.Current;
+        float indoorFloor = ResolveIndoorFloor(map);
         SkyOcclusionWindow window = BuildWindow(map, rect);
-        float[] corners = BuildCornerOcclusion(window, rect, settings);
+        float[] corners = BuildCornerOcclusion(window, rect, indoorFloor);
         WriteCorners(colors, corners);
-        WriteCentres(window, rect, colors, firstCenterInd, corners, settings);
+        WriteCentres(window, rect, colors, firstCenterInd, corners, indoorFloor);
         mesh.colors32 = colors;
+    }
+
+    // The floor CapOcclusion should actually cap at, resolved ONCE per section rather than at each of the
+    // ~1,700 lattice reads below — it is map-wide, and NightOverlayKeep reaches the sky manager, the ozone
+    // band and the game-condition list to answer. Same reasoning as the window itself.
+    //
+    // The division is what stops MinIndoorBrightness and MinNightBrightness compounding; see
+    // IndoorOcclusionMath.EffectiveIndoorFloor for why they were in different units to begin with and what
+    // saturates when the sky cannot deliver the floor. With the flag off the raw setting goes through
+    // untouched, which is the pre-feature formula exactly.
+    private static float ResolveIndoorFloor(Map map)
+    {
+        float minIndoorBrightness = IndoorOcclusionSettings.Current.MinIndoorBrightness;
+        if (!CelestialLightingFeatures.DecoupledIndoorFloor)
+            return minIndoorBrightness;
+
+        return IndoorOcclusionMath.EffectiveIndoorFloor(minIndoorBrightness, NightOverlayKeep.For(map));
     }
 
     // Resolves every cell the two passes below can look at — this section plus the one-cell skirt its
@@ -137,7 +154,7 @@ public static class Patch_IndoorSkyOcclusion
     // The lattice: one more row and column than there are cells, in the same row-major order as the
     // mesh's leading corner vertices, so index i here is vertex i there.
     private static float[] BuildCornerOcclusion(
-        SkyOcclusionWindow window, CellRect rect, IndoorOcclusionSettings settings)
+        SkyOcclusionWindow window, CellRect rect, float indoorFloor)
     {
         int stride = rect.Width + 1;
         float[] corners = new float[stride * (rect.Height + 1)];
@@ -145,7 +162,7 @@ public static class Patch_IndoorSkyOcclusion
         {
             for (int x = rect.minX; x <= rect.maxX + 1; x++)
             {
-                corners[(z - rect.minZ) * stride + (x - rect.minX)] = CornerOcclusion(window, x, z, settings);
+                corners[(z - rect.minZ) * stride + (x - rect.minX)] = CornerOcclusion(window, x, z, indoorFloor);
             }
         }
 
@@ -164,7 +181,7 @@ public static class Patch_IndoorSkyOcclusion
     // same neighbourhood vanilla's own centre pass averages: (x,z), (x+1,z), (x,z+1), (x+1,z+1).
     private static void WriteCentres(
         SkyOcclusionWindow window, CellRect rect, Color32[] colors, int firstCenterInd, float[] corners,
-        IndoorOcclusionSettings settings)
+        float indoorFloor)
     {
         int stride = rect.Width + 1;
         for (int z = rect.minZ; z <= rect.maxZ; z++)
@@ -180,7 +197,7 @@ public static class Patch_IndoorSkyOcclusion
                 float skyFalloffFraction = window.SkyFalloffFraction(x, z);
                 int vertex = firstCenterInd + (z - rect.minZ) * rect.Width + (x - rect.minX);
                 colors[vertex].a = IndoorOcclusionMath.CoverAlpha(
-                    IndoorOcclusionMath.CapOcclusion(occlusion, settings.MinIndoorBrightness, skyFalloffFraction),
+                    IndoorOcclusionMath.CapOcclusion(occlusion, indoorFloor, skyFalloffFraction),
                     colors[vertex].a);
             }
         }
@@ -194,7 +211,7 @@ public static class Patch_IndoorSkyOcclusion
     // the `false` those two ORs were already contributing — and, since the falloff term joined the
     // window, with exactly the 0f that term's own guard was substituting.
     private static float CornerOcclusion(
-        SkyOcclusionWindow window, int x, int z, IndoorOcclusionSettings settings)
+        SkyOcclusionWindow window, int x, int z, float indoorFloor)
     {
         bool anyBlocksSky = false;
         // A corner is shared by up to four cells, and — unlike anyBlocksSky, which is an OR because one
@@ -212,7 +229,7 @@ public static class Patch_IndoorSkyOcclusion
         }
 
         float occlusion = IndoorOcclusionMath.CornerOcclusion(anyBlocksSky);
-        return IndoorOcclusionMath.CapOcclusion(occlusion, settings.MinIndoorBrightness, skyFalloffFraction);
+        return IndoorOcclusionMath.CapOcclusion(occlusion, indoorFloor, skyFalloffFraction);
     }
 
     // Live-state lookup for one cell, baked into the window and never repeated. Reads the roof *def*

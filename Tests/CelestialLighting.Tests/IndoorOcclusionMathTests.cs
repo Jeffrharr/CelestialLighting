@@ -456,4 +456,142 @@ public class IndoorOcclusionMathTests
         Assert.That(IndoorOcclusionMath.CoverAlpha(5f, vanillaAlpha: 0), Is.EqualTo(IndoorOcclusionMath.FullSkyCover));
         Assert.That(IndoorOcclusionMath.CoverAlpha(-5f, vanillaAlpha: 0), Is.EqualTo(0));
     }
+
+    // --- EffectiveIndoorFloor: the two brightness floors stop compounding ---
+    //
+    // What these assert is the COMPOSED value, not the cap, and that distinction is the whole point of the
+    // subsystem. `SealedRoomBrightness` below is the renderer's own arithmetic written out independently —
+    // the sky the material still carries after §7a (`keep`), times the share of it a sealed cell admits —
+    // so a test that passes here is a statement about what lands on screen rather than a restatement of
+    // the formula under test. Writing it the other way round (assert the cap equals floor/keep) would
+    // compute both sides with the code under test and assert x == x.
+    //
+    // Note it runs the cap through CoverAlpha against vanilla's own baked 100 rather than using the cap
+    // directly. That is not incidental precision: the max in CoverAlpha is what makes 0.608 the real
+    // ceiling on an interior, and an oracle that skipped it would have "proved" a parity the renderer
+    // never delivers.
+
+    // Byte quantisation only. The cap becomes one of 256 alpha values on its way through the mesh, so an
+    // exact float comparison of the composed result is wrong by up to half a step (1/510) times keep.
+    private const float AlphaQuantisation = 0.003f;
+
+    // The brightest a roofed cell can render, as a fraction of the sky the material still carries:
+    // vanilla's RoofedAreaMinSkyCover is a floor CoverAlpha will not go under, so 100/255 of the sky is
+    // always covered no matter what any floor asks for.
+    private const float VanillaAdmittanceCeiling =
+        1f - IndoorOcclusionMath.VanillaRoofedMinSkyCover / 255f;
+
+    // The renderer's composition for a sealed interior cell, from vanilla's side of the contract:
+    // MatBases.LightOverlay.color is the sky lerped toward black by 1-keep, and
+    // SectionLayer_LightingOverlay's vertex alpha admits (1 - cover/255) of it. Expressed as a fraction of
+    // the undarkened sky, which is the unit MinNightBrightness is already in.
+    private static float SealedRoomBrightness(float minIndoorBrightness, float overlayKeep, bool decoupled)
+    {
+        float floor = decoupled
+            ? IndoorOcclusionMath.EffectiveIndoorFloor(minIndoorBrightness, overlayKeep)
+            : minIndoorBrightness;
+
+        float cover = IndoorOcclusionMath.CapOcclusion(1f, floor, skyFalloffFraction: 0f);
+        byte alpha = IndoorOcclusionMath.CoverAlpha(cover, IndoorOcclusionMath.VanillaRoofedMinSkyCover);
+        return overlayKeep * (1f - alpha / 255f);
+    }
+
+    [TestCase(0.50f, 0.50f)]   // the shipped Cinematic pair at the night floor
+    [TestCase(0.50f, 0.75f)]   // mid-dusk, §7a partway into its ramp
+    [TestCase(0.15f, 0.21f)]   // a low floor against the moonless-night keep (0.04/0.19) DESIGN quotes
+    [TestCase(0.30f, 0.60f)]
+    [TestCase(0.50f, 1.00f)]   // daylight: the two arms must agree exactly
+    public void EffectiveIndoorFloor_SealedRoomFloorsAtTheSettingOrTheCeiling(float minIndoor, float keep)
+    {
+        // The fix: an interior floors at MinIndoorBrightness of the SKY — the same quantity
+        // MinNightBrightness is a fraction of, so the two sliders can finally be compared — or at
+        // vanilla's admittance ceiling, whichever it reaches first.
+        float ceiling = keep * VanillaAdmittanceCeiling;
+        float expected = minIndoor < ceiling ? minIndoor : ceiling;
+        Assert.That(SealedRoomBrightness(minIndoor, keep, decoupled: true),
+            Is.EqualTo(expected).Within(AlphaQuantisation));
+    }
+
+    [TestCase(0.50f, 0.50f, 0.2490f, 0.3039f)]
+    [TestCase(0.50f, 0.75f, 0.3735f, 0.4559f)]
+    [TestCase(0.15f, 0.21f, 0.0313f, 0.1276f)]
+    [TestCase(0.30f, 0.60f, 0.1788f, 0.2988f)]
+    public void EffectiveIndoorFloor_ClosesTheGapItWasBuiltToClose(
+        float minIndoor, float keep, float coupled, float decoupled)
+    {
+        // The bug proved red on the same inputs rather than asserted in prose: the two floors used to
+        // multiply, so a sealed room rendered at keep x MinIndoorBrightness. On the shipped Cinematic pair
+        // that is 0.249 while the settings screen shows 0.50 for both knobs and the ground outside renders
+        // at 0.50.
+        Assert.That(SealedRoomBrightness(minIndoor, keep, decoupled: false),
+            Is.EqualTo(coupled).Within(AlphaQuantisation));
+
+        // And the values it moves to. Spelled out as constants rather than recomputed so a change to
+        // either formula has to come here and restate what it now costs a player, instead of quietly
+        // agreeing with itself.
+        Assert.That(SealedRoomBrightness(minIndoor, keep, decoupled: true),
+            Is.EqualTo(decoupled).Within(AlphaQuantisation));
+    }
+
+    [Test]
+    public void EffectiveIndoorFloor_DaylightIsTheIdentity()
+    {
+        // keep == 1 is every hour §7a is not darkening anything, which is the majority of the day. The
+        // decoupling must be provably invisible there or it is not a night fix, it is a retune.
+        Assert.That(IndoorOcclusionMath.EffectiveIndoorFloor(0.5f, overlayKeep: 1f),
+            Is.EqualTo(0.5f).Within(Tolerance));
+        Assert.That(IndoorOcclusionMath.EffectiveIndoorFloor(0.15f, overlayKeep: 1f),
+            Is.EqualTo(0.15f).Within(Tolerance));
+        Assert.That(SealedRoomBrightness(0.5f, 1f, decoupled: true),
+            Is.EqualTo(SealedRoomBrightness(0.5f, 1f, decoupled: false)).Within(Tolerance));
+    }
+
+    [Test]
+    public void EffectiveIndoorFloor_FloorOffStaysOff()
+    {
+        // The Realistic preset. A 0 floor is "interiors may go genuinely black", and no amount of sky
+        // darkening may turn that into a lift — 0/keep is still 0, but the early return says so without
+        // relying on the division.
+        Assert.That(IndoorOcclusionMath.EffectiveIndoorFloor(0f, overlayKeep: 0.5f), Is.EqualTo(0f));
+        Assert.That(IndoorOcclusionMath.EffectiveIndoorFloor(0f, overlayKeep: 0f), Is.EqualTo(0f));
+    }
+
+    [TestCase(0.50f, 0.50f)]
+    [TestCase(0.50f, 0.25f)]
+    [TestCase(0.50f, 0f)]
+    public void EffectiveIndoorFloor_SaturatesWhenTheSkyCannotDeliverTheFloor(float minIndoor, float keep)
+    {
+        // No headroom (issue #103): once §7a has darkened the sky to the floor or below, admitting all the
+        // sky vanilla will let through is the brightest an interior can be. The cap saturates at 1 rather
+        // than dividing past it — keep == 0 is the degenerate member of the family, and is here to pin
+        // that the divide is never reached rather than guarded after the fact.
+        Assert.That(IndoorOcclusionMath.EffectiveIndoorFloor(minIndoor, keep), Is.EqualTo(1f));
+
+        // What saturation actually delivers, which is NOT parity with the ground outside: vanilla's own
+        // roofed clamp still covers 100/255 of the sky, so the room lands at 0.608 of the open ground.
+        // Reaching the rest would mean lowering an alpha CoverAlpha deliberately never lowers.
+        Assert.That(SealedRoomBrightness(minIndoor, keep, decoupled: true),
+            Is.EqualTo(keep * VanillaAdmittanceCeiling).Within(AlphaQuantisation));
+    }
+
+    [Test]
+    public void EffectiveIndoorFloor_IndoorsCanStillBeSetDarkerThanOutdoors()
+    {
+        // With both floors finally in one unit, MinIndoorBrightness BELOW MinNightBrightness becomes a
+        // meaningful setting: it buys back the distinction between inside and outside at the floor, which
+        // is what a player who dislikes the parity would reach for. At 0.15 against an outdoor 0.50 the
+        // room renders at 0.15 — under the 0.304 ceiling, so the setting is honoured exactly.
+        Assert.That(SealedRoomBrightness(0.15f, overlayKeep: 0.5f, decoupled: true),
+            Is.EqualTo(0.15f).Within(AlphaQuantisation));
+    }
+
+    [Test]
+    public void EffectiveIndoorFloor_ClampsOutOfRangeInputs()
+    {
+        Assert.That(IndoorOcclusionMath.EffectiveIndoorFloor(5f, overlayKeep: 1f), Is.EqualTo(1f));
+        Assert.That(IndoorOcclusionMath.EffectiveIndoorFloor(-5f, overlayKeep: 1f), Is.EqualTo(0f));
+        Assert.That(IndoorOcclusionMath.EffectiveIndoorFloor(0.5f, overlayKeep: 5f),
+            Is.EqualTo(0.5f).Within(Tolerance));
+        Assert.That(IndoorOcclusionMath.EffectiveIndoorFloor(0.5f, overlayKeep: -5f), Is.EqualTo(1f));
+    }
 }

@@ -597,6 +597,17 @@ public static class ProbeRegistration
             "granite_corner", new IntVec3(0, 0, 50), SkyCoverVertexProbe.Metric.CornerAlpha));
         ProbeRegistry.Register(new SkyCoverVertexProbe(
             "granite_centre", new IntVec3(0, 0, 49), SkyCoverVertexProbe.Metric.CentreAlpha));
+        // indoor_floor_decoupling.json's SEALED room (no door, so §7c's BFS never reaches it and the
+        // indoor floor is the only cap in play). Its own middle cell, addressed as the room is built at
+        // map-centre + (0, 45). Centre AND corner because an interior should read flat: both are capped by
+        // the same floor, so an arm where only one moved would mean the cap is being applied in one pass
+        // and not the other. Deliberately not reusing glass_centre/deep_corner from the room above — the
+        // offsets happen to suit, but a probe named for a glass wall pinned in a scenario with no glass in
+        // it is how a later reader ends up believing the wrong thing about what was measured.
+        ProbeRegistry.Register(new SkyCoverVertexProbe(
+            "sealed_centre_alpha", new IntVec3(0, 0, 45), SkyCoverVertexProbe.Metric.CentreAlpha));
+        ProbeRegistry.Register(new SkyCoverVertexProbe(
+            "sealed_corner_alpha", new IntVec3(0, 0, 45), SkyCoverVertexProbe.Metric.CornerAlpha));
         // door_strength_leak.json's wood-door room, at the SAME cell wood_door_fraction reads, so the
         // two answer about one another: that probe reports the sky fraction SkyFalloffSource resolved
         // (0.2625 there, pinned to 1e-4), this one reports the alpha §7b actually baked from it.
@@ -1463,6 +1474,18 @@ public static class ProbeRegistration
             enabled =>
             {
                 CelestialLightingFeatures.IndoorSkyOcclusion = enabled;
+                IndoorOcclusionRedraw.ForceRebuild();
+            });
+        // The decoupled indoor floor: same baked-mesh situation as §7b's own flag immediately above (it
+        // resolves the floor inside that same Regenerate postfix), so toggling it needs the identical
+        // rebuild or the A/B would compare a stale bake against itself. Note this flag is only visible at
+        // an hour where §7a is actually darkening — at noon both arms bake the identical cover by
+        // construction, so a scenario that toggles it in daylight measures a guaranteed zero.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.DecoupledIndoorFloorKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.DecoupledIndoorFloor = enabled;
                 IndoorOcclusionRedraw.ForceRebuild();
             });
         // Issue #80 / IndoorGlowPassthrough: same baked-mesh situation as §7b's own flag immediately

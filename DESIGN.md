@@ -995,6 +995,84 @@ Gated by `CelestialLightingFeatures.IndoorSkyOcclusion`, default on, separate fr
 because it changes daytime interiors too (an unlit shed at noon goes black), which is a much larger taste
 call than night darkness.
 
+#### 7b-i. The two brightness floors were compounding (`EffectiveIndoorFloor` / `NightOverlayKeep`)
+
+**Problem, reported as a look complaint: "the lighting snap between indoor and outdoor is odd."** It was,
+and the reason is arithmetic rather than taste. Every lighting-overlay vertex renders as
+`skyColour x (1 - cover)`, composed with the artificial glow the vertex carries in its RGB. Pitch-black
+nights owns `skyColour` — it lerps the one global material toward black by its `keep` factor — and indoor
+sky occlusion owns `cover`. The two floors that stop each of them reaching black therefore **multiply**:
+
+| | outdoors | sealed unlit room, same instant |
+|---|---|---|
+| moonless night | `keep` = 0.50 | 0.50 x 0.50 = **0.25** |
+| noon | 1.00 | **0.50** |
+
+Both knobs read 0.50 on the settings screen (the shipped Cinematic pair) and neither says it is a fraction
+of a different quantity: `MinNightBrightness` is a fraction of the *undarkened* sky, `MinIndoorBrightness`
+was a fraction of whatever pitch-black nights had already left of it. `Presets` had already met this from
+the other side — the pair was raised 0.30 -> 0.50 because "the two floors compound" and 0.30 was
+unplayable once multiplied — which is the same fact read as a tuning problem rather than a units problem.
+
+The visible consequence is not that interiors are dark. It is that **the indoor/outdoor contrast changes
+with the sun**: measured on `indoor_floor_decoupling.json`, the room's mean L\* sat at 0.376 of the open
+ground at midnight against 0.476 at noon. Walking through a doorway was a different-sized step at
+different hours, for no reason a player could see.
+
+**Approach.** Divide the indoor floor by the outdoor one's own keep factor
+(`IndoorOcclusionMath.EffectiveIndoorFloor`), so `keep x (minIndoor / keep) = minIndoor` and both numbers
+are fractions of the same sky. Three properties fall out and are pinned offline:
+
+- **Daylight is the identity.** `keep` is 1 whenever nothing is darkening the overlay, so the division
+  changes nothing at noon — provable rather than tuned, and the live control arm measures ΔE **0.00** with
+  the baked alphas bit-identical (128 in both arms).
+- **`keep` is read from one place.** `NightOverlayKeep` is the extraction of the chain
+  `Patch_PitchBlackOverlay` used to carry inline — the ozone-band raise, the eclipse-safe visual glow,
+  Anomaly's UnnaturalDarkness clamp — because a compensation computed from a *different* keep than the one
+  applied to the material does not cancel. It leaves a residue that varies with the sun, which would read
+  as interiors breathing against the sky rather than as the missed edit it was.
+- **The mesh now tracks the sun, so it must be invalidated like everything else that does.**
+  `GameComponent_SkyFalloffRedraw`'s gate grew a second reason to stay alive; without it the compensation
+  freezes at whatever the sun was doing the last time a lamp was toggled.
+
+**What it does not reach, and why that is the reassuring half.** `CoverAlpha` never *lowers* what vanilla
+baked — that is what keeps this composable with Dub's Skylights and Biomes! Caverns — and vanilla bakes
+`RoofedAreaMinSkyCover` (100) on every roofed cell. So the brightest a roofed cell can render is
+`keep x (1 - 100/255)` = `keep x 0.608`, whatever the floor asks for. On the Cinematic pair at the night
+floor the room lands at 0.304 against 0.500 outdoors where the compounded version gave 0.249: the gap
+closes by 22% and does not shut. Full parity would mean lowering vanilla's own clamp, a separate decision
+with a real interop cost, deliberately not taken here. The upshot is that an interior stays visibly an
+interior rather than dissolving into the ground outside it.
+
+**Measured** (`Tests/Scenarios/indoor_floor_decoupling.json`, sealed 11x11 room, no door so the native
+sky falloff BFS never reaches it and the floor is the only cap in play, clouds off, clock paused, Cinematic
+pinned explicitly):
+
+| arm | sealed centre/corner alpha | room L\* | outside L\* | room / outside |
+|---|---|---|---|---|
+| noon, compounded | 128 / 128 | 19.90 | 41.84 | 0.476 |
+| noon, decoupled | 128 / 128 | 19.90 | 41.84 | 0.476 |
+| midnight, compounded | 128 / 128 | 3.64 | 9.68 | 0.376 |
+| midnight, decoupled | **100 / 100** | **4.66** | 9.68 | **0.481** |
+
+The last column is the result the subsystem exists for: the indoor/outdoor relationship is now the same at
+midnight as at noon (0.481 against 0.476) instead of deepening by a quarter overnight. Whole-frame median
+ΔE is **0.00** because the room is 2.6% of the frame — the honest number is the **masked median 1.09**
+(p90 1.34, peak 2.36) over the pixels that moved, which sits alongside the ozone column (1.48) and site
+altitude (1.88) in this mod's measured set. `overlay_brightness` is pinned identical in both night arms
+(0.3036), which is the control proving only the mesh moved.
+
+Gated by `CelestialLightingFeatures.DecoupledIndoorFloor`, default on; off passes the raw setting to
+`CapOcclusion` exactly as before, which is both the harness baseline and a one-flag revert.
+
+**Still open: the boundary itself.** This changes the two *levels*; it does not change the fact that the
+whole transition from open sky to interior is spent on a single wall tile (inner corners 1.0, outer 0.0,
+centre the mean of the four). That is vanilla's own shading shape and it reads as a hard dark outline
+around every building, with a diagonal wedge at convex corners where one lattice point is interior and its
+diagonal is not. Widening it means occluding a ring of cells *outside* the wall, which is the thing §7b's
+first cut got wrong and had to be reverted — so it wants its own ticket and its own A/B, not a rider on
+this one.
+
 ### 7c. Native under-roof sky falloff — no Ambient Light dependency (`NativeSkyFalloffGrid` /
 `SkyFalloffSource`, issue #124)
 
