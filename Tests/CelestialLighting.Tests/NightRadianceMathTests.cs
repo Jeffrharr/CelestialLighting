@@ -264,6 +264,33 @@ public class NightRadianceMathTests
             Is.EqualTo(0f).Within(Tolerance));
     }
 
+    [TestCase(0f)]
+    [TestCase(0.0001f)]
+    [TestCase(MoonlitNightFloorGlow)]
+    [TestCase(0.5f)]
+    [TestCase(1f)]
+    [TestCase(float.MaxValue)]
+    [TestCase(float.NaN)]
+    public void EclipseFlooredGlow_IgnoresTheFloorEntirelyWhenTheEclipseFloorDoesNotApply(float anyFloor)
+    {
+        // NOT a restatement of the test above, and the difference is what NightRadiance.VisualGlowFor
+        // now depends on: that one pins ONE floor, this one pins that the argument is unread across
+        // every floor there is. The adapter stopped BUILDING the floor on this branch, because doing
+        // so cost 19.5 us a call to produce a number the rule discards -- and that shortcut is only
+        // sound while the false branch is independent of the third argument.
+        //
+        // NaN is in the sweep on purpose: it is the one value that would survive a MathF.Max and show
+        // up downstream, so it fails loudly if the branch is ever rewritten as an unconditional max
+        // with the flag folded into the floor instead.
+        foreach (float glow in new[] { 0f, 0.1f, 0.5f, 1f })
+        {
+            Assert.That(
+                NightRadianceMath.EclipseFlooredGlow(eclipseFloorApplies: false, glow, anyFloor),
+                Is.EqualTo(glow).Within(Tolerance),
+                $"floor {anyFloor} leaked into the no-eclipse branch at glow {glow}");
+        }
+    }
+
     [Test]
     public void EclipseFlooredGlow_EclipseAtNight_IsAWholeNoOp()
     {
