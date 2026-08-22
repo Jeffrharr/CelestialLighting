@@ -217,29 +217,44 @@ public static class VectorLightField
     // Called once per frame from the draw, so by the time any section bakes, every polygon it might
     // ask for is already there. The work is not removed — it is the same builds on the same cadence
     // — it simply stops being charged to, and serialised inside, the regenerate.
-    // Returns whether it built anything, because the caller has to act on that.
     //
     // A SECTION BAKED WHILE A POLYGON WAS STILL DIRTY SKIPPED THAT EMITTER, and nothing would ever
     // dirty the section again — so "the mask catches up next frame" was permanently false and the
     // feature rendered pixel-identical to vanilla with every probe healthy. Whoever builds the
     // polygons has to re-dirty the map afterwards, once, so the sections bake again with them ready.
-    public static bool EnsurePolygons(Map map)
+    //
+    // RETURNS WHERE, NOT WHETHER, and that is issue #188 item A. This used to answer a bool and the
+    // caller turned it into WholeMapChanged, which regenerates every section under the camera
+    // whatever changed and wherever it was — so a door opening across the colony rebaked the
+    // lighting overlay under the player's cursor, nine times per swing. The union of the rebuilt
+    // emitters' reach is enough for the caller to dirty only the sections that can actually look
+    // different, and it costs one struct per frame to carry.
+    public static SectionDirtyMath.CellBounds EnsurePolygons(Map map)
     {
         if (map == null)
-            return false;
+            return default;
 
-        bool built = false;
+        SectionDirtyMath.CellBounds touched = default;
 
         foreach (LightEntry entry in LightsFor(map))
         {
             if (entry.PolygonDirty || entry.Polygon.Count == 0)
             {
                 EnsurePolygon(map, entry);
-                built = true;
+
+                // Accumulated from the emitter's REACH rather than its cell: the polygon that just
+                // changed shape is what the mask subtracts across the emitter's whole square, so the
+                // sections that need rebaking are every one that square touches, not the one the
+                // lamp happens to stand in. MaskReachMargin keeps that in step with the predicate
+                // VectorLightMask.CollectReaching admits emitters by.
+                touched = SectionDirtyMath.Union(
+                    touched,
+                    SectionDirtyMath.Reach(
+                        entry.Cell.x, entry.Cell.z, entry.Radius, VectorLightMask.ReachMargin));
             }
         }
 
-        return built;
+        return touched;
     }
 
     // The visibility polygon for one emitter, built if the world has changed under it since the last

@@ -65,6 +65,12 @@ public static class VectorLightRedraw
             if (VectorLightMask.Active)
                 VectorLightField.EnsurePolygons(maps[i]);
 
+            // WHOLE MAP HERE, AND DELIBERATELY NOT THE NARROW DIRTY Patch_VectorLightDraw NOW USES.
+            // The bounds EnsurePolygons returns describe where the polygons MOVED, which is the
+            // right question for an ordinary invalidation and the wrong one for a feature flag: the
+            // flag changes whether the mask draws at all, so every section holding a baked mask has
+            // to come back whether or not any emitter near it was rebuilt. Discarding the return
+            // value is the point, not an oversight. Issue #188 item A.
             maps[i].mapDrawer?.WholeMapChanged((ulong)MapMeshFlagDefOf.GroundGlow);
         }
     }
