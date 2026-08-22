@@ -812,22 +812,35 @@ public static class ProbeRegistration
         // be used for (what does this one cost), which is what perf_parents.json exists for.
         // Checking the sum against an unarmed parent is also the guard from §27's lesson: a large gap
         // between parent and the sum of its children means the time is somewhere nobody armed.
+        //
+        // NAMED `Apply`, NOT `Postfix`, for the fourteen stages the sky-target composite owns. When
+        // those subsystems each held their own [HarmonyPatch] the entry point really was called
+        // Postfix; the composite (§29) renamed every one of them to `Apply(Map, ref SkyTarget)` and
+        // left `Postfix` on the composite alone. AccessTools.Method then resolved nothing for
+        // thirteen of these arms, and a probe that cannot resolve its target reads zero calls -- the
+        // same reading as a stage that never ran, so the whole breakdown reported the sky chain as
+        // costing almost nothing and passed. The *_patched pins are what eventually said so, which is
+        // exactly the job they were added for; keep them pinned on any arm added here.
         ArmBank("circ_pf_auroracurtaindraw", "CelestialLighting.Patch_AuroraCurtainDraw", "Postfix");
-        ArmBank("circ_pf_cloudcoversky", "CelestialLighting.Patch_CloudCoverSky", "Postfix");
-        ArmBank("circ_pf_lowlightdesaturation", "CelestialLighting.Patch_LowLightDesaturation", "Postfix");
-        ArmBank("circ_pf_auroratint", "CelestialLighting.Patch_AuroraTint", "Postfix");
-        ArmBank("circ_pf_purplelight", "CelestialLighting.Patch_PurpleLight", "Postfix");
-        ArmBank("circ_pf_moonshadowcolor", "CelestialLighting.Patch_MoonShadowColor", "Postfix");
-        ArmBank("circ_pf_limbrefraction", "CelestialLighting.Patch_LimbRefraction", "Postfix");
-        ArmBank("circ_pf_bloodmoon", "CelestialLighting.Patch_BloodMoon", "Postfix");
+        // The composite's own Postfix: every stage below sums into this one, so it is the honest
+        // denominator for our share of CurSkyTarget. The parent arm on CurSkyTarget also contains
+        // vanilla's own work, which this excludes.
+        ArmBank("circ_pf_composite", "CelestialLighting.Patch_SkyTargetComposite", "Postfix");
+        ArmBank("circ_pf_cloudcoversky", "CelestialLighting.Patch_CloudCoverSky", "Apply");
+        ArmBank("circ_pf_lowlightdesaturation", "CelestialLighting.Patch_LowLightDesaturation", "Apply");
+        ArmBank("circ_pf_auroratint", "CelestialLighting.Patch_AuroraTint", "Apply");
+        ArmBank("circ_pf_purplelight", "CelestialLighting.Patch_PurpleLight", "Apply");
+        ArmBank("circ_pf_moonshadowcolor", "CelestialLighting.Patch_MoonShadowColor", "Apply");
+        ArmBank("circ_pf_limbrefraction", "CelestialLighting.Patch_LimbRefraction", "Apply");
+        ArmBank("circ_pf_bloodmoon", "CelestialLighting.Patch_BloodMoon", "Apply");
         ArmBank("circ_pf_nightdesaturationstrength", "CelestialLighting.Patch_NightDesaturationStrength", "Postfix");
-        ArmBank("circ_pf_enclosedambient", "CelestialLighting.Patch_EnclosedAmbient", "Postfix");
-        ArmBank("circ_pf_polarnightblue", "CelestialLighting.Patch_PolarNightBlue", "Postfix");
-        ArmBank("circ_pf_weatherdimming", "CelestialLighting.Patch_WeatherDimming", "Postfix");
-        ArmBank("circ_pf_nightradiance", "CelestialLighting.Patch_NightRadiance", "Postfix");
-        ArmBank("circ_pf_twilightcolor", "CelestialLighting.Patch_TwilightColor", "Postfix");
-        ArmBank("circ_pf_skycolortemperature", "CelestialLighting.Patch_SkyColorTemperature", "Postfix");
-        ArmBank("circ_pf_weathershadowcolor", "CelestialLighting.Patch_WeatherShadowColor", "Postfix");
+        ArmBank("circ_pf_enclosedambient", "CelestialLighting.Patch_EnclosedAmbient", "Apply");
+        ArmBank("circ_pf_polarnightblue", "CelestialLighting.Patch_PolarNightBlue", "Apply");
+        ArmBank("circ_pf_weatherdimming", "CelestialLighting.Patch_WeatherDimming", "Apply");
+        ArmBank("circ_pf_nightradiance", "CelestialLighting.Patch_NightRadiance", "Apply");
+        ArmBank("circ_pf_twilightcolor", "CelestialLighting.Patch_TwilightColor", "Apply");
+        ArmBank("circ_pf_skycolortemperature", "CelestialLighting.Patch_SkyColorTemperature", "Apply");
+        ArmBank("circ_pf_weathershadowcolor", "CelestialLighting.Patch_WeatherShadowColor", "Apply");
 
         // §28 step 3: the shared weather/glow reads underneath the sky postfixes. Same technique that
         // found the MapSky gates -- arm for CALL COUNT and see whether one answer is being rebuilt
