@@ -18,5 +18,9 @@
          correct. A second copy would let the A/B drift away from what is actually verified. -->
     <Compile Include="../../Tests/CelestialLighting.Tests/VectorLightBuildOracle.cs"
              Link="VectorLightBuildOracle.cs" />
+    <!-- Same again for the coverage grid's baseline: the unbounded per-cell loop, linked from the
+         fixture that proves the bounded one reproduces it byte for byte. -->
+    <Compile Include="../../Tests/CelestialLighting.Tests/VectorLightCoverageOracle.cs"
+             Link="VectorLightCoverageOracle.cs" />
   </ItemGroup>
 </Project>
