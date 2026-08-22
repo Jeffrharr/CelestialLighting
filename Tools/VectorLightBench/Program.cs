@@ -47,8 +47,8 @@ public static class Program
     {
         Console.WriteLine(
             $"{"scene",-14}{"segs",6}{"rays",6}{"brute",9}{"build",9}{"gain",8}" +
-            $"{"silh",8}{"cover",8}{"mesh",8}{"total",8}");
-        Console.WriteLine(new string('-', 85));
+            $"{"silh",8}{"cov0",9}{"cover",9}{"gain",8}{"near",7}{"far",7}{"mesh",8}{"total",8}");
+        Console.WriteLine(new string('-', 117));
 
         // Swept TWICE, and the second pass is the one to read. It is not paranoia: the first cut of
         // this tool reported the silhouette pass costing more on an empty window than a cluttered
@@ -59,7 +59,7 @@ public static class Program
         for (int pass = 0; pass < passes; pass++)
         {
             if (pass > 0)
-                Console.WriteLine(new string('-', 85));
+                Console.WriteLine(new string('-', 117));
 
             foreach (Scene scene in Scenes())
                 Report(scene);
@@ -145,23 +145,91 @@ public static class Program
                 VectorLightMath.DefaultBaseRayCount)));
         }
 
+        // The coverage A/B, interleaved for the reason the polygon's is: same machine, same
+        // interference, both arms. cov0 is the unbounded loop, cover is the one that answers a cell
+        // from the polygon's nearest and farthest ray wherever those settle it.
+        //
+        // THE TWO ARMS SPLIT ON THE SCENE, and reading the sweep any other way misses the point. The
+        // farthest bound rejects the square's corners in every scene alike, so it moves the whole
+        // column by a roughly constant quarter. The nearest bound only pays where rays reach the
+        // radius, so it is worth almost everything on `open` and almost nothing in a tight room —
+        // which is the opposite of how the polygon's cull scales, and means the two changes stack
+        // rather than compete.
         int radiusCells = (int)Math.Ceiling(scene.Radius);
-        double cover = Time(() => VectorLightMath.BuildCoverage(
-            polygon, (int)scene.LightX, (int)scene.LightZ, radiusCells,
-            VectorLightMath.DefaultCoverageSamples));
+        byte[] grid = null;
+        byte[] gridReference = null;
+
+        double cover = double.MaxValue;
+        double coverBrute = double.MaxValue;
+
+        for (int round = 0; round < Rounds; round++)
+        {
+            cover = Math.Min(cover, Time(() => grid = VectorLightMath.BuildCoverage(
+                polygon, (int)scene.LightX, (int)scene.LightZ, radiusCells,
+                VectorLightMath.DefaultCoverageSamples)));
+
+            coverBrute = Math.Min(coverBrute, Time(() => gridReference = VectorLightCoverageOracle.BuildCoverage(
+                polygon, (int)scene.LightX, (int)scene.LightZ, radiusCells,
+                VectorLightMath.DefaultCoverageSamples)));
+        }
 
         double mesh = Time(() => VectorLightMath.BuildMesh(
             scene.LightX, scene.LightZ, scene.Radius, polygon, VectorLightMath.DefaultSourceRadius));
 
         // Equality is asserted HERE as well as in the unit test, because a benchmark that quietly
         // times a wrong answer is the classic way an optimisation reports a win it never earned.
-        string verdict = Identical(polygon, reference) ? "" : "   MISMATCH";
+        string verdict = Identical(polygon, reference) && Identical(grid, gridReference)
+            ? ""
+            : "   MISMATCH";
 
         Console.WriteLine(
             $"{scene.Name,-14}{segments.Length,6}{polygon.Count,6}" +
             $"{brute,9:F3}{build,9:F3}{brute / Math.Max(build, 1e-9),7:F2}x" +
-            $"{silh,8:F3}{cover,8:F3}{mesh,8:F3}" +
-            $"{silh + build + cover + mesh,8:F3}{verdict}");
+            $"{silh,8:F3}{coverBrute,9:F3}{cover,9:F3}{coverBrute / Math.Max(cover, 1e-9),7:F2}x" +
+            $"{Nearest(polygon),7:F2}{Farthest(polygon),7:F2}" +
+            $"{mesh,8:F3}{silh + build + cover + mesh,8:F3}{verdict}");
+    }
+
+    // The two bounds the coverage stage answers cells from, reported because they are what PREDICTS
+    // that stage's gain and nothing else in the table hints at them. Read against the radius: `far`
+    // at the radius means rays are escaping and only the square's corners can be rejected; `near` at
+    // the radius means nothing is stopping a ray at all and the whole circle is free. A scene where
+    // both sit well inside the radius is one where the emitter is boxed in, and almost every cell of
+    // its grid is outside the polygon entirely.
+    private static float Nearest(VectorLightMath.LightPolygon polygon)
+    {
+        float nearest = float.MaxValue;
+
+        for (int i = 0; i < polygon.Count; i++)
+            nearest = Math.Min(nearest, polygon.Distances[i]);
+
+        return polygon.Count == 0 ? 0f : nearest;
+    }
+
+    private static float Farthest(VectorLightMath.LightPolygon polygon)
+    {
+        float farthest = 0f;
+
+        for (int i = 0; i < polygon.Count; i++)
+            farthest = Math.Max(farthest, polygon.Distances[i]);
+
+        return farthest;
+    }
+
+    // Bit-for-bit for the coverage grid too, and for the same reason. A bound that answers a cell
+    // wrongly still produces a grid of plausible bytes, so nothing downstream of here would notice.
+    private static bool Identical(byte[] a, byte[] b)
+    {
+        if (a == null || b == null || a.Length != b.Length)
+            return false;
+
+        for (int i = 0; i < a.Length; i++)
+        {
+            if (a[i] != b[i])
+                return false;
+        }
+
+        return true;
     }
 
     // Bit-for-bit, not within a tolerance: the cull is meant to remove work rather than change an
