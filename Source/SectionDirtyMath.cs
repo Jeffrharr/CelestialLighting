@@ -176,6 +176,26 @@ public static class SectionDirtyMath
     // wants and is always inside the map for any index this file returns.
     public static int SectionAnchor(int sectionIndex, int sectionSize) => sectionIndex * sectionSize;
 
+    // How many sections a map of this size has, matching MapDrawer.SectionCount's ceiling division.
+    //
+    // EXISTS FOR THE BASELINE ARM, not for the shipped path. WholeMapChanged dirties every section
+    // without ever counting them, so a section-dirty counter that only the new path increments would
+    // read 0 for the arm it is being compared against — and an A/B whose baseline is zero is not a
+    // comparison, it is a feature-present/absent picture. The flag-off branch charges itself this
+    // number so both arms report the same quantity.
+    public static int SectionCount(int mapWidth, int mapHeight, int sectionSize)
+    {
+        if (mapWidth <= 0 || mapHeight <= 0 || sectionSize <= 0)
+        {
+            return 0;
+        }
+
+        int across = (mapWidth + sectionSize - 1) / sectionSize;
+        int up = (mapHeight + sectionSize - 1) / sectionSize;
+
+        return across * up;
+    }
+
     // Local rather than Mathf, because this file may not reference UnityEngine. Ceiling of a float
     // to an int, matching Mathf.CeilToInt for the non-negative radii an emitter can have.
     private static int CeilToInt(float value) => (int)System.Math.Ceiling(value);

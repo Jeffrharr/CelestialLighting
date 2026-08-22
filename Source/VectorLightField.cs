@@ -155,6 +155,39 @@ public static class VectorLightField
     // shadow, which vector_light_lit_area sees.
     public static int PolygonDeferrals;
 
+    // ---- section accounting (issue #188 item 0) -----------------------------------------------
+    //
+    // THE NUMBER NOTHING IN THIS REPO COULD SEE. Every counter above is about POLYGONS, and #191
+    // used them to establish that a blocker write dirties one or two emitters out of twenty-three —
+    // then headed the finding "one wall does not rebake the map". True of polygons; the sections
+    // were the other half, and that scenario's fifteen probes could not watch one regenerate. So the
+    // map-wide re-dirty went unmeasured in the very run that exonerated its neighbour.
+    //
+    // WHY THEY LIVE HERE AND NOT ON VectorLightMask, where Apply increments one of them from. There
+    // are two reset paths in this subsystem — VectorLightField.ResetCounters, which the bake_reset
+    // probe calls, and VectorLightMask.ResetTelemetry, which ForceRebuild calls — and a counter
+    // split across both drains at different moments in an arm. One home means one reset and no way
+    // for two halves of the same measurement to disagree about which arm they belong to.
+
+    // Sections flagged dirty, summed. Both arms charge themselves: the narrow path counts what it
+    // actually flags, the WholeMapChanged path counts the map's whole section count, because
+    // vanilla dirties them all without ever counting them and a baseline of zero measures nothing.
+    public static int SectionDirties;
+
+    // Frames on which at least one section was flagged. The denominator, and on its own the answer
+    // to "is something dirtying on a cadence rather than on an event".
+    public static int SectionDirtyPasses;
+
+    // Calls into VectorLightMask.Apply, i.e. lighting-overlay section regenerates that actually
+    // reached us. THE OUTCOME MEASURE, and the one that needs no special handling per arm: it counts
+    // work done rather than work requested, so it is directly comparable between the two paths and
+    // between two builds. A flag can halve the flags raised and leave this unchanged, and that would
+    // mean the saving was on sections nobody was looking at anyway.
+    public static int MaskApplies;
+
+    // Cleared per arm, the way the door-aperture counter is, so an arm counts its own bakes from zero
+    // instead of inheriting the previous arm's total.
+
     // Cleared per arm, the way the door-aperture counter is, so an arm counts its own bakes from zero
     // instead of inheriting the previous arm's total.
     public static void ResetCounters()
@@ -166,6 +199,9 @@ public static class VectorLightField
         InvalidationMarks = 0;
         RosterResyncs = 0;
         PolygonDeferrals = 0;
+        SectionDirties = 0;
+        SectionDirtyPasses = 0;
+        MaskApplies = 0;
     }
 
     public static void MarkRosterDirty(Map map)

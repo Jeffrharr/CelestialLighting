@@ -93,8 +93,18 @@ public static class Patch_VectorLightDraw
 
         // The pre-item-A path, kept reachable rather than described. `Any` stands in for the bool
         // EnsurePolygons used to return: it is true exactly when something was built.
-        if (touched.Any)
-            map.mapDrawer?.WholeMapChanged((ulong)MapMeshFlagDefOf.GroundGlow);
+        if (!touched.Any)
+            return;
+
+        map.mapDrawer?.WholeMapChanged((ulong)MapMeshFlagDefOf.GroundGlow);
+
+        // CHARGED FOR WHAT IT DIRTIED, even though vanilla never counts them. WholeMapChanged flags
+        // every section on the map, so this arm's honest figure is the map's section count — and
+        // without it the baseline would read 0 section dirties beside the new path's handful, which
+        // is a feature-present/absent picture rather than a comparison.
+        VectorLightField.SectionDirties +=
+            SectionDirtyMath.SectionCount(map.Size.x, map.Size.z, Section.Size);
+        VectorLightField.SectionDirtyPasses++;
     }
 
     // Turn the cell bounds the field handed back into section dirty flags. Thin, because everything
@@ -129,10 +139,17 @@ public static class Patch_VectorLightDraw
 
         ulong flags = (ulong)MapMeshFlagDefOf.GroundGlow;
 
+        // Counted as a pass regardless of how many sections the range holds, so the ratio against
+        // SectionDirties reads "sections per provocation" — which is the number item A moves, from
+        // the map's whole section count down to a handful.
+        VectorLightField.SectionDirtyPasses++;
+
         for (int sx = minSectionX; sx <= maxSectionX; sx++)
         {
             for (int sz = minSectionZ; sz <= maxSectionZ; sz++)
             {
+                VectorLightField.SectionDirties++;
+
                 IntVec3 anchor = new IntVec3(
                     SectionDirtyMath.SectionAnchor(sx, Section.Size), 0,
                     SectionDirtyMath.SectionAnchor(sz, Section.Size));

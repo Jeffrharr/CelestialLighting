@@ -57,6 +57,29 @@ public sealed class VectorLightBakeProbe : IProbe
         // scenario that stopped provoking anything. A deferral is postponed work, not an error.
         Deferrals,
 
+        // ---- sections (issue #188 item 0) -----------------------------------------------------
+        //
+        // Every metric above is about POLYGONS. #191 used them to establish that a blocker write
+        // dirties one or two emitters out of twenty-three, and headed the finding "one wall does not
+        // rebake the map" -- true of polygons, and silent about sections, because nothing here could
+        // watch one regenerate. These four close that.
+
+        // Sections flagged dirty, and the frames that flagged them. Both paths charge themselves,
+        // the map-wide one at the map's full section count, so the arms report one quantity.
+        SectionDirties,
+        SectionDirtyPasses,
+
+        // Sections flagged per provocation. THE HEADLINE for item A: the map's whole section count
+        // before, a handful after. Read against vector_light_mask_applies, which says how much of
+        // that reduction was work anybody was going to do.
+        SectionsPerPass,
+
+        // Lighting-overlay regenerates that actually ran through the mask. THE OUTCOME, and the only
+        // one of the four that needs no per-arm adjustment: dirty flags are work requested, and
+        // vanilla regenerates only the sections in view, so a change can cut flags fifty-fold and
+        // leave this flat -- which would mean the saving was on sections nobody was looking at.
+        MaskApplies,
+
         // How many emitters the field currently holds. The denominator for MarksPerCall, and the
         // thing that says a scenario's lamps actually registered.
         Emitters,
@@ -132,6 +155,18 @@ public sealed class VectorLightBakeProbe : IProbe
 
         if (metric == Metric.Deferrals)
             return VectorLightField.PolygonDeferrals;
+
+        if (metric == Metric.SectionDirties)
+            return VectorLightField.SectionDirties;
+
+        if (metric == Metric.SectionDirtyPasses)
+            return VectorLightField.SectionDirtyPasses;
+
+        if (metric == Metric.SectionsPerPass)
+            return Ratio(VectorLightField.SectionDirties, VectorLightField.SectionDirtyPasses);
+
+        if (metric == Metric.MaskApplies)
+            return VectorLightField.MaskApplies;
 
         if (metric == Metric.CoverageMean)
             return CoverageMean(map);
