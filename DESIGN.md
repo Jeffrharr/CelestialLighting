@@ -10011,7 +10011,9 @@ Inside a bake, brute was `Build` 74.6%, coverage 23.6%, silhouette 5.1%. Culled 
 through an `atan2`, a `sqrt` and a binary search, and it does not care how much wall is nearby —
 which is why it barely moves across the entire clutter sweep and why it now dominates. That is the
 next phase-6 target, and it is a different shape of problem: not an algorithmic blow-up but a fixed
-per-cell cost paid over a square that is mostly outside the lit circle.
+per-cell cost paid over a square that is mostly outside the lit circle. Phase 7 below took that slice
+and measured 1.21-1.24x on it live, which drops coverage's share of a bake from 49.7% to 44.8% and
+puts `Build` back on top.
 
 #### Counters, not timers
 
@@ -10053,6 +10055,205 @@ nothing to A/B: the output is identical on two runtimes and the offline suite pr
 What stands in for the off arm is `vector_light_bake_brute.json` plus a one-file revert, which is
 what produced the table above.
 
+### Vector lighting, phase 7: the coverage grid was mostly outside the light (`VectorLightMath.BuildCoverage`, `VectorLightCoverageOracle`, epic #174 phase 7)
+
+Phase 6 left the coverage grid as the largest term inside a bake — **50.7% culled, against `Build`'s
+39.9%** — and named it the next target. It is a different shape of problem from the visibility
+polygon, and the difference is the whole of this section: the polygon was an algorithmic blow-up,
+quadratic in the wall count, while coverage is a **fixed per-cell cost paid over a square that is
+mostly not the thing being described**. It barely moved across the entire clutter sweep, from an
+empty window to 480 segments, because it never asked how much wall was nearby.
+
+#### The two bounds, and why they are exact rather than close
+
+`BuildCoverage` samples `(2r+1)²` cells four times each, and each sample costs an `atan2`, a `sqrt`
+and a binary search over the polygon's rays. All of that is spent answering "is this point inside the
+visibility polygon". Two facts make most of it unnecessary:
+
+`BoundaryDistanceAt` returns a **convex combination of two neighbouring polygon distances**. Both it
+and `WrapBoundary` `Clamp01` their interpolant, so neither can overshoot the pair it is interpolating
+between. The polygon's boundary in *every* direction therefore lies between its nearest and its
+farthest ray. So:
+
+- a cell whose farthest sample is nearer than the **nearest ray** is fully lit, whatever bearing its
+  samples turn out to be at;
+- a cell whose nearest sample is beyond the **farthest ray** is fully unlit, on the same reasoning.
+
+Neither case needs a transcendental. This is not an approximation of the grid — it is the same
+answer, reached without asking, exactly as the phase 6 cull was the same solve on a smaller candidate
+set.
+
+**The bounds have to hold in float, not merely in arithmetic**, and that is what `AxisSpan`'s
+signature is about. It is passed the two extreme sample *coordinates*, computed by the identical
+expression `LitFraction` uses to place a sample, rather than the cell's edges. A bound derived from a
+different expression can round the other way by an ulp, and an upper bound an ulp low is a cell
+reported lit that the sampler would have found shadowed — a defect that would appear in one cell of
+one emitter and never reproduce. Sharing the expression makes the endpoints bit-identical to two of
+the samples being bounded; the samples between them are monotonic in the loop index; and IEEE
+multiply, add and `sqrt` are monotonic, so the distance bounds inherit the property. Two `sqrt` per
+cell are kept rather than comparing squares, because squaring is monotonic but not injective and the
+tie case is precisely the boundary.
+
+#### The two bounds pay in different scenes, which is why both are here
+
+`Tools/VectorLightBench` now reports the polygon's nearest and farthest ray per scene, and the gain
+tracks them against the radius:
+
+| scene | segs | near | far | cov0 | cover | gain |
+|---|---|---|---|---|---|---|
+| `open` | 0 | 14.00 | 14.00 | 0.138 | 0.015 | **9.43×** |
+| `room` | 8 | 6.50 | 10.70 | 0.143 | 0.051 | 2.78× |
+| `measured-42` | 48 | 5.50 | 14.00 | 0.167 | 0.123 | **1.36×** |
+| `colony` | 224 | 1.50 | 12.35 | 0.225 | 0.148 | 1.52× |
+| `mid` | 108 | 0.50 | 14.00 | 0.176 | 0.153 | 1.15× |
+
+The **farthest** bound rejects the corners of the square the grid is stored in. A radius-14 emitter
+spends 841 cells describing a 615-cell circle, so 27% of every grid was working its way to a zero
+that was never in doubt — and it is worth that same roughly-constant quarter in every scene alike.
+The **nearest** bound is the one that makes an unobstructed emitter nearly free: with no ray stopped
+short, the nearest ray *is* the radius and the whole circle takes the lit path. It is worth almost
+everything outdoors and almost nothing to a lamp with a wall beside it, which is the opposite of how
+the polygon's cull scales — so the two changes stack rather than compete.
+
+**`measured-42`'s 1.36× is the honest headline**, on the same principle phase 6 applied to its own
+5.6–7.5×: it is the only row that describes the population the live bake arms actually measure. The
+sweep's 36× on `colony-tight` is not a fourth data point, and the near/far columns exist partly to
+say so — that scene's polygon reaches 0.71 cells against a radius of 14, which is a lamp sitting
+inside a wall with essentially its whole grid outside the polygon. The columns were added after that
+number had already been written into a commit message as "a lamp in a tight room".
+
+#### What it subsumes, and the pixel change that is not in it
+
+The obvious cheaper idea is to skip the grid entirely for an emitter `IsUnobstructed` already flags,
+and it is not what landed. Skipping it leaves `CoverageAt` answering 255 everywhere, and two
+consumers read the grid for such an emitter today: the mask when it is lifting, and the pawn-shadow
+gather, which has no `Unobstructed` gate at all. Both would see the **rim** change, where an
+inscribed 48-gon reads as partly shadowed even with nothing in the way. That is defensible as *more*
+correct — `IsUnobstructed`'s own header argues the rim is discretisation rather than shadow — but it
+is a pixel change wearing a performance change's clothes, and it would have shipped inside a commit
+whose claim was that nothing moved. The nearest-ray bound gets the same saving on the same emitters
+and changes nothing anywhere.
+
+#### Identical output is the claim, so it is tested as one
+
+`VectorLightCoverageBoundsTests` asserts **bit-for-bit** equality against `VectorLightCoverageOracle`
+— a verbatim transcription of the unbounded loop, for the two reasons phase 6's oracle is one:
+independent of the code under test because the bounds do not exist in it, but not independently
+*written*, because it doubles as the bench's baseline arm. The scenes are the polygon fixture's own,
+via a shared `VectorLightLayout`, so a geometry that catches something in one stage of a bake is not
+silently untested in the next.
+
+The green was proved by making it red three ways. A too-generous lit bound fails 2 cases; a
+too-aggressive unlit bound fails 7 (including an existing sampling test that had nothing to do with
+this change); and dropping `AxisSpan`'s straddle branch fails the 3 cases written for it and nothing
+else. That last one is the interesting one, and it is why those cases exist at all: the straddle case
+— a cell in the light's own row or column, whose nearest sample is in the middle of its span rather
+than at an end — only bites in a **radius window a few thousandths of a cell wide**, and only at
+**odd** sample counts, where a sample sits exactly on the axis so the true nearest distance is
+attained rather than merely bounded. At the shipped even count the branch is unreachable and every
+other case in the fixture passes without it. A coarser or evener sweep would have passed against a
+broken bound.
+
+#### The live run, and the control that had to be re-measured
+
+`vector_light_bake_bounds.json` joins `vector_light_bake_cull` and `vector_light_bake_brute` as a
+third copy of one scenario differing only in its Circinus run label, for the third time and the same
+reason: the output is bit-identical, so there is nothing to flag between, and the arm has to be the
+**build**. The baseline build is the branch with `VectorLightMath.cs` alone reverted to `main`, so the
+two arms differ in exactly one function and share every probe and every scenario byte.
+
+**The roles of the arms swapped, and that is the point.** `circinus_cover_*` was the *control* in
+phase 6 — the arm nothing touched, which did not move (0.97×), and whose stillness is what made the
+polygon's 2.08× attributable. Here it is the subject, and `circinus_poly_*` and `circinus_silh_*` are
+the controls.
+
+**The first run was thrown away because the controls moved.** Coverage read 1.06×, which looks like a
+result until the untouched stages are read beside it: silhouette +44% and polygon +18% between the
+two arms, on a box carrying a load average of 12 from other agents. By the scenario's own rule that
+is a measurement of the machine. Its children did sum to its parent — 98.8% and 99.8% — so the
+decomposition was sound and only the comparison was worthless.
+
+What replaced it is **four alternating rounds per arm**, minimum taken, on the benchmark's own
+reasoning that scheduler noise is one-sided. The per-run ratio `cover / (poly + silh)` is quoted
+alongside because it is machine-independent within a run, and the two arms' distributions do not
+overlap:
+
+| | base (unbounded) | bounds | ratio |
+|---|---|---|---|
+| `BuildCoverage`, 46 calls, min of 4 | 9.154 ms | 7.370 ms | **1.24×** |
+| `cover / (poly + silh)`, median of 4 | 0.975 | 0.804 | **1.21×** |
+| `EnsurePolygon` total, min of 4 | 18.435 ms | 16.458 ms | 1.12× |
+| worst bake cycle | 9.435 ms | 8.287 ms | 1.14× |
+| controls `(poly + silh) × 46/86` | 9.402 ms | 9.167 ms | 1.03× |
+
+**1.21–1.24× against the offline sweep's 1.36×**, and the gap is expected rather than disappointing:
+Circinus's per-call overhead is an additive term inside the measured milliseconds and does not shrink
+with the work, so an instrumented ratio understates a real one. Coverage's share of a bake falls from
+49.7% to 44.8%, which puts `Build` back on top as the largest single term.
+
+#### The equivalence check that did not exist
+
+The bounds landed with a bit-for-bit offline proof and, at first, **no live check at all** — and it
+turned out there was no way to have one, because nothing in the repo could see a coverage grid.
+Every shape probe here recomputes from the visibility polygon: `vector_light_lit_area`,
+`vector_light_shadow_fraction` and `vector_light_verts` are polygon and mesh quantities, so a change
+that rewrote every byte of every grid would have moved no pin in any scenario in the repo. Coverage
+is what the mask multiplies vanilla's glow by, which makes that the worst place to have a blind spot.
+
+`vector_light_coverage_mean` and `vector_light_coverage_lit_cells` close it, and they are two rather
+than one because the two bounds fail differently. The **lit-cell count** is exactly what the
+nearest-ray path writes, so a bound that is too generous shows there first and unambiguously. The
+**mean** is what moves when the farthest-ray path wrongly zeroes a cell, and it also sees the partial
+values along a shadow edge that a count of 255s cannot. Both read **80.7618713** and **2774** in all
+eight runs across both builds, so the grids are byte-identical on Mono and not merely on CoreCLR —
+which is the half of the claim the offline suite is structurally unable to make.
+
+A mean rather than a sum because a probe reads as a `float` and the sum over 23 radius-10 emitters is
+already around five million: inside float's exact-integer range, but not far enough inside it to lean
+on as the emitter population grows.
+
+#### One wall does not rebake the map (`vector_light_invalidation_radius.json`)
+
+The epic has named `MarkGeometryDirtyAround` as the suspect that turns a single blocker write into a
+map-wide rebake since phase 6 added the counters, and nothing had asked it. The counters were there —
+`vector_light_invalidations`, `vector_light_invalidation_marks` and their ratio
+`vector_light_marks_per_call` — but every scenario carrying them provokes no blocker writes at all,
+so the ratio read 0 and settled nothing. This scenario builds a wall mid-run and reads it.
+
+**It is exonerated.** In the 23-emitter scene the bake arms already use:
+
+| wall cell | emitters | invalidating writes | marks | marks/call | rebakes |
+|---|---|---|---|---|---|
+| `(25, 18)` — inside one lamp's reach | 23 | 1 | 1 | **1.00** | 1 |
+| `(24, 9)` — inside two | 23 | 1 | 2 | **2.00** | 2 |
+
+So "every light that can see that cell, and no other light at all" holds in a real scene and not only
+in the comment, and the rebake count tracks the marks exactly — one mark, one rebuilt polygon.
+
+**Both cells were predicted from the geometry before being measured, and the margin was the hard
+part.** A `TorchLamp` has `glowRadius` 10 and the radius test compares against radius + 1, so a cell
+is marked by any lamp within 11 — while the scene's lamp grid is spaced 13 in x and **11 in z**. That
+puts a great many cells exactly on the boundary, 11² against 11², where the answer is a floating-point
+coin toss. Both cells were chosen by searching for maximum clearance instead: `(25, 18)` sits 101
+squared units clear of any second lamp's boundary and `(24, 9)` 84 clear of any third. A cell picked
+by eye next to a lamp would have been a flake rather than a test.
+
+The measurement is a **ratio**, so `vector_light_emitters` is pinned beside it in every arm: "one wall
+marked two lights" means nothing without "and there were 23 on the map", and the failure being tested
+for is precisely `marks_per_call` climbing towards the emitter count.
+
+Two warts, both recorded because they cost a run each. The arms are separated by
+`vector_light_bake_reset` rather than by being separate runs, since the counters accumulate and arm
+two would otherwise report arm one's marks as well as its own. And the first cut inherited a
+`circinus_available` pin along with the setup steps it copied from `vector_light_bake_cull`, which
+failed a run whose fifteen real probes had all passed — this scenario deliberately loads no Circinus,
+because nothing in it is timed.
+
+#### What it ships as
+
+**Unconditionally on, and unflagged**, for the reason phase 6 gives: a flag is how this repo makes an
+A/B possible and there is nothing to A/B. What stands in for the off arm is
+`vector_light_bake_cull.json` plus a one-file revert.
 
 ## Conflict risk
 
