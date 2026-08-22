@@ -1316,9 +1316,23 @@ public static class VectorLightMath
     //
     // Written as "all four must hold" rather than four early returns in the adapter so the policy is
     // one expression that can be read at a glance and inverted in one place if it is ever wrong.
-    public static bool PawnCastsShadow(bool standing, bool invisible, bool swimming, bool flying)
+    public static bool PawnCastsShadow(
+        bool standing, bool invisible, bool swimming, bool flying, bool hasShadowData)
     {
-        return standing && !invisible && !swimming && !flying;
+        // NO SHADOW DATA MEANS NO SHADOW, which is vanilla's rule stated as one rather than an
+        // oversight on its part. `PawnRenderer` draws `race.specialShadowData` and the body
+        // graphic's `ShadowGraphic`, and the latter is only built when `Graphic.data.shadowData` is
+        // non-null — so a def declaring neither casts nothing, ever, indoors or out.
+        //
+        // This is NOT only a kitten problem, which is what made it worth a fifth clause rather than
+        // a shrug: five vanilla animals declare no shadowData at ANY life stage — Cobra, Duck,
+        // Raccoon, Rat, Squirrel — and they are common enough to wander through a colony constantly.
+        // Every one of them was being drawn a full HUMAN-SIZED shadow, because the caller fell
+        // through to a hardcoded default when the lookup came back empty.
+        //
+        // Drawing nothing is also the better-looking answer independently of fidelity: a missing
+        // shadow reads as the game not bothering, while an obviously oversized one reads as a bug.
+        return standing && !invisible && !swimming && !flying && hasShadowData;
     }
 
     // How far a caster's own footprint reaches along a direction, from the point the footprint is
