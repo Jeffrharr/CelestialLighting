@@ -1208,6 +1208,59 @@ public static class VectorLightMath
         return Clamp01(lampIlluminance / total);
     }
 
+    // The light standing on THE GROUND A SHADOW FALLS ON, which is the denominator that share should
+    // have been taken against all along.
+    //
+    // THE BUG THIS FIXES, being the half of the share model that stayed wrong. `Gather` samples every
+    // lamp's coverage at the pawn's own cell, so the denominator counted the light on the CASTER.
+    // What fills a shadow in is the light on the cells the shadow COVERS, and those are different
+    // cells — up to MaxPawnShadowLength away, on the far side of the caster from the lamp. Two
+    // symmetric errors came out of that. A colonist beside a wall corner had their shadows diluted by
+    // a lamp in the next room that could not reach the floor those shadows fell on, so the shadow was
+    // too faint; and a shadow thrown into a brightly lit aisle stayed as dark as one thrown into a
+    // cupboard, so it was too strong. Issue #166 fixed the mirror of this for the shadow's LENGTH, by
+    // clipping it to the casting lamp's own visibility polygon, and left the opacity asking about the
+    // wrong cells.
+    //
+    // WHY THE BLOCKED LAMP'S OWN TERM IS STILL MEASURED AT THE PAWN while every other lamp's is
+    // measured on the ground. They are not the same question, and sampling both in the same place
+    // would get one of them wrong whichever place was chosen. `blockedIlluminance` is the beam the
+    // caster INTERCEPTS — light that fails to reach the ground precisely because a pawn is standing
+    // in it — so it belongs to the pawn's cell, and it is the very number the numerator is. What the
+    // other lamps deliver is light that does arrive, so it has to be asked where it lands.
+    //
+    // Writing it this way also makes the fraction exact rather than approximately bounded: the
+    // numerator appears in its own denominator, so the share cannot exceed one however far the two
+    // sample points disagree. That is worth more than it sounds. Sampling the whole denominator on
+    // the ground would let a lamp close to the pawn but far from the shadow's midpoint claim a share
+    // above one, and the clamp would hide it as a shadow at full strength — the same silent
+    // saturation the old model produced, arrived at from the other direction.
+    //
+    // A LONE LAMP IS UNCHANGED, which is what keeps this safe to ship: `other` is zero, the total is
+    // the blocked beam itself, PawnShadowShare floors that at FullIlluminance, and the whole
+    // expression collapses to the phase-4 opacity that every committed single-lamp capture pins.
+    public static float ShadowGroundTotal(float blockedIlluminance, float otherIlluminanceOnGround)
+    {
+        return blockedIlluminance + otherIlluminanceOnGround;
+    }
+
+    // How far along its own length to ask a shadow what else is lighting the ground beneath it.
+    //
+    // THE MIDPOINT, and the draw forces the choice rather than leaving it to taste: the quad is flat
+    // and its material carries ONE alpha — see PawnShadowStrength on why vertex colour cannot grade
+    // it here and why a genuinely soft edge needs #151's shader — so a single sample has to stand for
+    // the whole footprint. The midpoint is the only one of the three candidates that is not
+    // systematically wrong at one end. The tip over-reports a lamp that reaches only the far end of
+    // the shadow, and the base reproduces the bug being fixed, because the base IS the caster's cell.
+    //
+    // Measured from the caster's CENTRE, so it carries the trailing edge for the same reason the
+    // draw's transform does: a shadow starts at the silhouette's far edge, not at the pawn's middle,
+    // and half of a length that begins one place cannot be measured from another.
+    public static float ShadowSampleDistance(float trailingEdge, float length)
+    {
+        return trailingEdge + length * 0.5f;
+    }
+
     // How much of a shadow survives the first thing that stops the light (issue #166).
     //
     // THE BUG. Phase 4 asked the occlusion question exactly once, at the caster's own cell — "can

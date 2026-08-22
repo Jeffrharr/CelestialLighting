@@ -995,6 +995,29 @@ public static class CelestialLightingFeatures
     // denominator is pinned to FullIlluminance and the arithmetic is bit-for-bit phase 4's.
     public static bool VectorLightShadowShares = true;
 
+    // Feature key for VectorLightShadowGroundShares.
+    public const string VectorLightShadowGroundSharesKey = "vector_light_shadow_ground_shares";
+
+    // §27: a lamp's share is taken against the light on the ground the shadow falls on, not against
+    // the light on the pawn.
+    //
+    // WHAT IT FIXES, which is the half of the share model above that stayed wrong for three
+    // releases. The denominator was sampled at the caster's own cell, so it counted lamps that light
+    // the PAWN rather than lamps that light the cells the shadow covers — and those are different
+    // cells, up to a full shadow length away. A colonist beside a wall corner had their shadows
+    // thinned by a lamp in the next room that reached them but not their shadow, and a shadow thrown
+    // across a bright aisle stayed as dark as one thrown into a cupboard. See
+    // VectorLightMath.ShadowGroundTotal for why the blocked lamp's own term stays measured at the
+    // pawn while every other lamp's moves to the ground.
+    //
+    // SEPARATE FROM VectorLightShadowShares RATHER THAN FOLDED INTO IT, because the two answer
+    // different questions and an A/B has to be able to tell them apart. With shares off there is no
+    // denominator to place, so this flag does nothing; with shares on and this off, the denominator
+    // is the phase-4b one and the arm reproduces the shipped frame exactly. That gives three arms in
+    // one boot — no shares, shares at the pawn, shares on the ground — which is what makes it
+    // possible to attribute a pixel to this change rather than to the model it refines.
+    public static bool VectorLightShadowGroundShares = true;
+
     // Feature key for VectorLightShadowShape.
     public const string VectorLightShadowShapeKey = "vector_light_shadow_shape";
 
