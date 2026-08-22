@@ -201,6 +201,14 @@ public static class VectorLightMask
         return true;
     }
 
+    // How far past its own radius an emitter still has a say, in cells. Named and public because
+    // SectionDirtyMath.Reach has to agree with it exactly: this constant decides which emitters a
+    // section admits, and that one decides which sections an emitter dirties. They are the same
+    // question asked from the two ends, and if they disagree the losing case is a section that is
+    // never told to rebake — no exception, no probe moves, just one square of map holding a shadow
+    // that has already moved. Issue #188 item A.
+    public const int ReachMargin = 1;
+
     // Which emitters can reach any cell this section's vertices average over. The vertex loop reads
     // one cell further out on the min side than the section itself, because a corner vertex at the
     // section's edge averages the cells on both sides of it.
@@ -210,7 +218,7 @@ public static class VectorLightMask
 
         foreach (VectorLightField.LightEntry entry in VectorLightField.LightsFor(map))
         {
-            int reach = Mathf.CeilToInt(entry.Radius) + 1;
+            int reach = Mathf.CeilToInt(entry.Radius) + ReachMargin;
 
             bool overlaps = entry.Cell.x + reach >= rect.minX - 1
                 && entry.Cell.x - reach <= rect.maxX
