@@ -1,7 +1,10 @@
 {
  "name": "perf_skychain",
- "saveFile": "minimal_colony.rws", "requiredMods": { "astryl.Circinus": "3773680130" },
- "description": "\u00a728 step 2: WHERE inside CurSkyTarget the time goes, broken out per postfix. Shares only -- sixteen simultaneous arms inflate every row by Circinus's per-call transpile cost, so these numbers rank the postfixes against each other and must not be quoted as any one postfix's cost; perf_parents.json is the file for that. The parent arm is kept so the sum of the children can be checked against it: a large unexplained gap means the time is somewhere nobody armed, which is how \u00a727 lost three days to a lazily-built polygon set.",
+ "saveFile": "minimal_colony.rws",
+ "requiredMods": {
+  "astryl.Circinus": "3773680130"
+ },
+ "description": "§28 step 2: WHERE inside CurSkyTarget the time goes, broken out per postfix. Shares only -- sixteen simultaneous arms inflate every row by Circinus's per-call transpile cost, so these numbers rank the postfixes against each other and must not be quoted as any one postfix's cost; perf_parents.json is the file for that. The parent arm is kept so the sum of the children can be checked against it: a large unexplained gap means the time is somewhere nobody armed, which is how §27 lost three days to a lazily-built polygon set. ARMS NAMED `Apply`: the fourteen sky stages stopped being Harmony postfixes when the sky-target composite (§29) took them over, and the arms here still named `Postfix`, so thirteen of sixteen resolved nothing and reported the whole sky chain as free. The *_patched pins are what caught it and are the reason every arm added here must keep one.",
  "steps": [
   {
    "type": "SetTile",
@@ -83,6 +86,14 @@
    "type": "Probe",
    "args": {
     "probeName": "circ_skytarget_patched",
+    "expectedValue": "1",
+    "tolerance": "0.001"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circ_pf_composite_patched",
     "expectedValue": "1",
     "tolerance": "0.001"
    }
@@ -502,6 +513,30 @@
     "probeName": "circ_pf_weathershadowcolor_total_ms",
     "expectedValue": "500",
     "tolerance": "500"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circ_pf_composite_calls",
+    "expectedValue": "1000",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circ_pf_composite_total_ms",
+    "expectedValue": "500",
+    "tolerance": "500"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circ_pf_composite_max_ms",
+    "expectedValue": "50",
+    "tolerance": "50"
    }
   }
  ]
