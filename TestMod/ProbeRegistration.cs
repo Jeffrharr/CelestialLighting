@@ -282,7 +282,10 @@ public static class ProbeRegistration
             "vector_light_roster_resyncs", VectorLightBakeProbe.Metric.RosterResyncs));
         // Issue #188 item B. Pin it WITH vector_light_bakes or not at all: on its own a deferral
         // count cannot tell a working view cull from a scene whose lamps all happen to be off
-        // screen, and the sum of the two is what should stay constant between the flag's arms.
+        // screen. It counts ATTEMPTS rather than emitters -- the cull is re-evaluated every frame,
+        // so one deferred emitter charges one per frame -- which is why the arms assert that the
+        // emitter baked in one and not the other, rather than that the two numbers sum to a
+        // constant.
         ProbeRegistry.Register(new VectorLightBakeProbe(
             "vector_light_bake_deferrals", VectorLightBakeProbe.Metric.Deferrals));
         // Issue #188 item 0. vector_light_sections_per_pass is the headline -- the map's whole

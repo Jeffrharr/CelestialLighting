@@ -146,9 +146,13 @@ public static class VectorLightField
 
     // Builds the view cull declined — a dirty polygon out of camera range, left dirty (issue #188
     // item B). Read BESIDE PolygonBakes rather than alone, because on its own it cannot tell a
-    // working cull from a scene where every lamp happens to be off screen. The pair is the whole
-    // measurement: bakes falling while deferrals rise by the same amount is the cull working, and
-    // both falling together is a scenario that stopped provoking anything.
+    // working cull from a scene where every lamp happens to be off screen.
+    //
+    // IT COUNTS ATTEMPTS, NOT EMITTERS, and the two are easy to confuse. The cull is re-evaluated
+    // every frame, so one emitter left dirty while the camera looks elsewhere charges one deferral
+    // PER FRAME — the number is a backlog-times-duration, not a population. So bakes and deferrals
+    // do not trade one for one, and a scenario cannot assert that their sum is constant; what it
+    // can assert is that the emitter baked in one arm and did not in the other.
     //
     // NOT AN ERROR COUNT. A deferral is work correctly postponed, and the emitter is built on the
     // frame it comes back into range. A deferral that never resolves would show as a light with no
