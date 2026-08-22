@@ -12073,6 +12073,25 @@ own feature flag and its own early-outs — the one-file-per-subsystem layout is
 class holds only the sequence. Circinus can still arm the individual stages when a breakdown is what
 is wanted, which is the right way round (parents to judge, children to find).
 
+**The rename silently disarmed the breakdown for months, and the trap generalises to any future
+rename of a probed method.** The arms in `TestMod/ProbeRegistration.cs` named
+`CelestialLighting.Patch_X.Postfix`, which is what the entry points were called while each subsystem
+held its own `[HarmonyPatch]`. This section renamed all fourteen to `Apply`. `AccessTools.Method`
+then resolved nothing for thirteen of the sixteen arms — and a Circinus probe that cannot resolve its
+target reports **zero calls**, which is the same reading as a stage that never ran. So the sky-chain
+breakdown reported the mod's entire sky pipeline as costing almost nothing, and `perf_skychain`
+*passed* while measuring it, because its rows are deliberately wide-open recording tolerances. The
+three arms that kept working were exactly the three whose entry point is still genuinely a `Postfix`
+(the aurora curtain draw, the night-desaturation wash, and the `CurSkyTarget` parent), which is why
+the file looked plausible rather than obviously broken.
+
+The `*_patched` pins are what eventually caught it, which is the job they exist for; every arm added
+to that bank must keep one. The composite's own `Postfix` is armed too, as the honest denominator:
+`CurSkyTarget` as a parent contains vanilla's work as well as ours, while the composite is precisely
+our share. Measured, 300 frames at 15:00 on the shipped Cinematic preset: `CurSkyTarget` 46.39 ms,
+composite 38.27 ms, the fourteen stages summing to 29.53 ms — no missing time, which is the check
+§27's lazily-built polygon set taught us to run.
+
 **This is explicitly NOT a performance optimisation, and the section says so to stop the wrong reason
 being re-derived later.** Harmony does not dispatch per patch: `MethodCreator.AddPostfixes` emits a
 direct `call` to each postfix into one generated wrapper, so fourteen postfixes were already fourteen
