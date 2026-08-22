@@ -10294,7 +10294,11 @@ A mean rather than a sum because a probe reads as a `float` and the sum over 23 
 already around five million: inside float's exact-integer range, but not far enough inside it to lean
 on as the emitter population grows.
 
-#### One wall does not rebake the map (`vector_light_invalidation_radius.json`)
+#### One wall does not rebake every polygon (`vector_light_invalidation_radius.json`)
+
+*Headed "one wall does not rebake the map" when written. Renamed once the sections were
+measured: it settles the polygon question, never asked the section one, and the answer to
+the section one was no. See phase 8 below.*
 
 The epic has named `MarkGeometryDirtyAround` as the suspect that turns a single blocker write into a
 map-wide rebake since phase 6 added the counters, and nothing had asked it. The counters were there —
@@ -10330,6 +10334,105 @@ two would otherwise report arm one's marks as well as its own. And the first cut
 `circinus_available` pin along with the setup steps it copied from `vector_light_bake_cull`, which
 failed a run whose fifteen real probes had all passed — this scenario deliberately loads no Circinus,
 because nothing in it is timed.
+
+#### Phase 8: one wall DID rebake the map, by the section (issue #188 items A, B and 0)
+
+**The suspect above was the wrong one, and exonerating it is what made that visible.** Phase 7
+established that a blocker write dirties one or two emitters out of twenty-three, and stopped there,
+because every counter in this subsystem is about the field's polygons. The re-dirty that *follows* a
+build was never instrumented — so `vector_light_invalidation_radius.json` flagged all 225 sections of
+its map at the moment it built the wall whose exoneration it was recording, and none of its fifteen
+probes could see it.
+
+**Where it came from.** `Patch_VectorLightDraw` must re-dirty after building polygons: a section that
+bakes while a polygon is still dirty skips that emitter and nothing ever asks it again — the failure
+recorded in `EnsurePolygons`' header, which presented as the whole feature rendering pixel-identical
+to vanilla with every probe healthy. It did so with `WholeMapChanged`, which says *something,
+somewhere* and costs every section under the camera.
+
+That is affordable when a player builds a wall. It is not what provokes it. Door aperture tracking
+quantises a slide into eight steps, so **opening a door invalidates nine times in three quarters of a
+second**, and a door is the most frequent geometry change a colony has. A pawn opening one across the
+map rebaked the lighting overlay, the darkness layer, night desaturation, eave shade and our own mask
+under the player's cursor, for an emitter none of those sections can see.
+
+**Item A — dirty where, not whether.** `EnsurePolygons` returns the union of the reach of the emitters
+it rebuilt, and the draw dirties only the sections that union covers. `SectionDirtyMath.Reach` is not a
+conservative guess: `VectorLightMask.CollectReaching` admits an emitter into a section when
+`cell.x + reach >= rect.minX - 1 && cell.x - reach <= rect.maxX`, which rearranges to *the section rect
+intersects `[cell.x - reach, cell.x + reach + 1]`*. The same question from the other end, so the
+offline test asserts equality in both directions rather than settling for a superset, against a hand
+transcription of the predicate rather than a second call into the code under test. The margin moved to
+`VectorLightMask.ReachMargin` so both ends read one constant — if they drift, the losing case is
+silent: a section never told to rebake, holding a shadow that has already moved.
+
+`regenAdjacentCells` and `regenAdjacentSections` are both false. Both exist for a caller that knows a
+cell changed but not how far it matters; we know exactly, and a ring of provably-clean sections is most
+of the saving back.
+
+**Item B — do not build what nobody is looking at.** `VectorLightOverlay.DrawLight` has culled against
+the camera since phase 1, but `EnsurePolygons` never did, so scrolling away from a lamp stopped it
+being *drawn* and not being *built*. It now takes a build window and leaves out-of-range polygons
+dirty; there is no queue, because the dirty flag already is one. The window is `ViewRect`, expanded by
+1, because vanilla regenerates a one-section fringe past the visible area and culling against the
+tighter rect would leave a stale strip at the screen edge, visible only while scrolling.
+
+**This is safe only because of A**, and the two are separable in the diff and not in the design.
+Deferring a build creates the not-ready-polygon state deliberately and en masse; it is survivable
+because whoever builds a polygon now also dirties the sections it reaches, so an emitter's sections
+rebake on the frame it scrolls back into range. `VectorLightRedraw` deliberately keeps building
+everything — a flag flip's job is to leave the field in a state the next frame can be photographed
+from, and deferring there hands the harness a first frame that is still catching up.
+
+**Item 0 — the instrument, which had to exist first.** Four counters: `vector_light_section_dirties`,
+`_dirty_passes`, `_sections_per_pass` and `_mask_applies`. The map-wide path charges itself
+`SectionDirtyMath.SectionCount` rather than nothing, because a counter only the new path incremented
+would report zero for the arm it is compared against — a feature-present/absent picture rather than a
+baseline. It ceilings, matching `MapDrawer.SectionCount`; flooring would under-report the baseline by
+the short row and column of any map whose size is not a multiple of 17, flattering the ratio.
+
+**Measured**, on the 250×250 scene above, one wall inside one lamp's reach:
+
+| | map-wide (baseline) | narrow (shipped) | |
+|---|---|---|---|
+| sections flagged per provocation | 225 | **4** | 56× |
+| **`mask_applies` — regenerates that ran** | **116** | **8** | **14.5×** |
+
+**Read the second row, not the first.** Dirty flags are work *requested*, and vanilla regenerates only
+the sections in view — a change can cut flags fifty-fold and leave the work flat, which would mean the
+saving was on sections nobody was looking at. `mask_applies` counts lighting-overlay regenerates that
+actually reached the mask, needs no per-arm adjustment, and is the number that says this was real.
+
+The view cull, with the camera moved onto the far-east room at zoom 15 so the west lamps are off
+screen, and the identical provocation in both arms (1 invalidation, 1 mark):
+
+| | cull off | cull on |
+|---|---|---|
+| `vector_light_bakes` | 1 | **0** |
+| `vector_light_bake_deferrals` | 0 | 91 / 45 |
+
+**91 is not 91 emitters, and it is not stable either.** The cull is re-evaluated every frame, so one
+deferred emitter charges one deferral per frame — the counter is a backlog times a duration, and it
+read 91 and 45 on two runs of the same build. So the arms assert the bake pair and merely *report* the
+deferrals. An early version of the comment on that counter claimed bakes and deferrals trade one for
+one; the measurement disproved it, and the comment was wrong before it was right.
+
+Every value pinned at tolerance 0 reproduced across runs, one profiled and one not. The first run
+carried reporting tolerances on all of them, deliberately — they were new instruments with nothing
+measured to pin against, and deriving an expected value instead of measuring one is the thing pins here
+must not be. One pin then failed on the *next* run at expected 0, actual 1, which looked exactly like a
+flaky measurement and was not: `vector_light_bakes` occurs four times in this scenario and the cull
+arms are occurrences two and three, not three and four. The B arms had in fact reported identically on
+both runs. Worth recording because the failure mode of an off-by-one in a pin *index* is a plausible
+wrong number rather than an error.
+
+**Both halves ship on, and both have a flag**, which departs from phase 7's "unflagged, because there
+is nothing to A/B". There is something to A/B here precisely because the change is invisible: off is
+not a skipped branch but the previous behaviour reproduced exactly — the cull's off passes the whole
+map as its window, the dirty's off calls `WholeMapChanged` — so the baseline is reachable in one boot
+rather than by a one-file revert. Both are registered through the two-arg overload, since the three-arg
+one with `defaultEnabled` omitted would let a `ResetAll` leave later arms on the old path while
+claiming to measure the new one.
 
 #### What it ships as
 

@@ -52,9 +52,9 @@ public sealed class VectorLightBakeProbe : IProbe
         RosterResyncs,
 
         // Builds the view cull declined, leaving the polygon dirty until its emitter is back in
-        // range (issue #188 item B). Read BESIDE Bakes and never alone: bakes falling while
-        // deferrals rise by the same amount is the cull working, and both falling together is a
-        // scenario that stopped provoking anything. A deferral is postponed work, not an error.
+        // range (issue #188 item B). Read BESIDE Bakes and never alone. It counts ATTEMPTS: the cull
+        // runs every frame, so one emitter left dirty across a four-frame lapse charges four. A
+        // deferral is postponed work, not an error.
         Deferrals,
 
         // ---- sections (issue #188 item 0) -----------------------------------------------------
