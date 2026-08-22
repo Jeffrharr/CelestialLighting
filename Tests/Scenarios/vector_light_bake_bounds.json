@@ -406,6 +406,22 @@
     {
       "type": "Probe",
       "args": {
+        "probeName": "vector_light_coverage_mean",
+        "expectedValue": "0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_coverage_lit_cells",
+        "expectedValue": "0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
         "probeName": "vector_light_lit_area",
         "expectedValue": "2952.71558",
         "tolerance": "0.01"
