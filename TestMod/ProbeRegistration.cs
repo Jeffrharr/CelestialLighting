@@ -400,6 +400,12 @@ public static class ProbeRegistration
         ProbeRegistry.Register(
             new VectorLightProbe("vector_light_pawn_shadow_tip_fade",
                 VectorLightProbe.Metric.PawnShadowTipFade));
+        // Registered as a PAIR with the tip, and scenarios should pin both: the curve ends at zero
+        // by construction, so the tip says only "something fades" while the midpoint says which
+        // curve reached the GPU.
+        ProbeRegistry.Register(
+            new VectorLightProbe("vector_light_pawn_shadow_mid_fade",
+                VectorLightProbe.Metric.PawnShadowMidFade));
         // Performance, measured through Circinus rather than Dubs, because Circinus reports CALL
         // COUNTS. §27 phase 3 does all its work inside a section regenerate, and the Dubs window that
         // appeared to show it running three times cheaper than the feature-off baseline had simply

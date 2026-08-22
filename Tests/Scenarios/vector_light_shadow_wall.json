@@ -1,7 +1,7 @@
 {
   "name": "vector_light_shadow_wall",
   "saveFile": "minimal_colony.rws",
-  "description": "Issue #166: a lamp shadow stops at the wall instead of crossing it. Two lit rooms separated by a one-cell wall, a colonist standing against that wall, and the lamp lighting them six cells away on the far side — so the shadow runs at the wall and, unclipped, out the other side. THE SECOND LAMP IS LOAD-BEARING, not scenery: an escaped shadow lands on the neighbouring room's floor, and a black quad on UNLIT ground is invisible however wrong it is, so without a lamp over there the bug photographs as nothing. The reach probe is the assertion — unclipped it reads the full geometric length, clipped it reads the distance from the caster to the wall — because the difference on screen is a sliver of overhang past a wall and a median over the frame cannot see it. Peak and rosette are pinned across both arms to show the clip changes how FAR a shadow goes and not how dark it is.",
+  "description": "Issue #166: a lamp shadow stops at the wall instead of crossing it. Two lit rooms separated by a one-cell wall, a colonist standing against that wall, and the lamp lighting them six cells away on the far side \u2014 so the shadow runs at the wall and, unclipped, out the other side. THE SECOND LAMP IS LOAD-BEARING, not scenery: an escaped shadow lands on the neighbouring room's floor, and a black quad on UNLIT ground is invisible however wrong it is, so without a lamp over there the bug photographs as nothing. The reach probe is the assertion \u2014 unclipped it reads the full geometric length (3.0, which at six cells is the MaxPawnShadowLength cap rather than the raw ratio, and moved with it when the lamp height changed), clipped it reads the distance from the caster to the wall (0.35, set by the wall and therefore unmoved by any of that) \u2014 because the difference on screen is a sliver of overhang past a wall and a median over the frame cannot see it. Peak and rosette are pinned across both arms to show the clip changes how FAR a shadow goes and not how dark it is.",
   "steps": [
     {
       "type": "SetTile",
@@ -258,7 +258,7 @@
       "type": "Probe",
       "args": {
         "probeName": "vector_light_pawn_shadow_reach",
-        "expectedValue": "2",
+        "expectedValue": "3.0",
         "tolerance": "0.01"
       }
     },

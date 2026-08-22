@@ -1,7 +1,7 @@
 {
   "name": "vector_light_shadow_shape",
   "saveFile": "minimal_colony.rws",
-  "description": "§27: lamp shadows the length and shape of the ones the game already draws. The same six-torch ring vector_light_shadow_shares uses, so the two are directly comparable, with the flag flipping between phase 4b's geometry and this one. OFF is the previous LOOK, not an absence — the old 1.2/2.4 heights, the old cap of 6 and the 0.32 tip taper, all through the same functions — so the A/B measures a change of shape rather than a feature appearing. The reach probe is the assertion for the length (a ring at four cells threw four cells of shadow and now throws a third of that); the peak and rosette are pinned UNCHANGED across both arms, because geometry must not move the opacity and a change in both at once would mean the two are tangled.",
+  "description": "\u00a727: lamp shadows the length and shape of the ones the game already draws. The same six-torch ring vector_light_shadow_shares uses, so the two are directly comparable, with the flag flipping between phase 4b's geometry and this one. OFF is the previous LOOK, not an absence \u2014 the old 1.2/2.4 heights, the old cap of 6 and the 0.32 tip taper, all through the same functions \u2014 so the A/B measures a change of shape rather than a feature appearing. The reach probe is the assertion for the length (a ring at four cells threw four cells of shadow; the shortening took it to a third of that, and the later lamp-height change took it back to a half, which is the 2.0 pinned here); the peak and rosette are pinned UNCHANGED across both arms, because geometry must not move the opacity and a change in both at once would mean the two are tangled.",
   "steps": [
     {
       "type": "SetTile",
@@ -356,7 +356,7 @@
       "type": "Probe",
       "args": {
         "probeName": "vector_light_pawn_shadow_reach",
-        "expectedValue": "1.3333",
+        "expectedValue": "2.0",
         "tolerance": "0.01"
       }
     },

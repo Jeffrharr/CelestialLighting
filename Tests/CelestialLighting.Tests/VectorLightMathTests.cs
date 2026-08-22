@@ -875,11 +875,11 @@ public class VectorLightMathTests
 
     // Similar triangles: a caster of height t at horizontal distance d from a lamp of height h puts
     // the shadow's tip d*t/(h-t) beyond it. Stated against the SHIPPED constants, where the ratio is
-    // 0.8/2.4 — a third of the distance — so a change to either height fails here with a number that
-    // says which way it moved, rather than only showing up in a capture.
-    [TestCase(1f, 0.3333f)]
-    [TestCase(2f, 0.6667f)]
-    [TestCase(4f, 1.3333f)]
+    // 0.8/1.6 — half the distance — so a change to either height fails here with a number that says
+    // which way it moved, rather than only showing up in a capture.
+    [TestCase(1f, 0.5f)]
+    [TestCase(2f, 1f)]
+    [TestCase(4f, 2f)]
     public void APawnShadowLengthensWithDistanceFromTheLamp(float distance, float expected)
     {
         Assert.That(
@@ -888,17 +888,34 @@ public class VectorLightMathTests
             Is.EqualTo(expected).Within(0.001f));
     }
 
-    // The shortening, pinned as the ratio rather than as three lengths: phase 4 drew a shadow as
-    // long as the distance to the lamp, and this draws a third of it. Both halves of the change are
-    // in this one number — vanilla's 0.8 tallness replacing an invented 1.2, and the lamp moving up
-    // from 2.4 to 3.2 — so it is the thing to assert, not either constant alone.
+    // The ratio, pinned as itself rather than as three lengths, because it is the one number both
+    // constants feed and the thing a reader actually wants to know. Phase 4 drew a shadow as long as
+    // the distance to the lamp; the shortening took it to a third; this takes it back to a half,
+    // which is where it was asked to land once the tip started fading to nothing.
     [Test]
-    public void TheShippedShadowIsOneThirdOfTheDistanceToTheLamp()
+    public void TheShippedShadowIsHalfTheDistanceToTheLamp()
     {
         Assert.That(
             VectorLightMath.PawnShadowLength(
                 3f, VectorLightMath.DefaultPawnHeight, VectorLightMath.DefaultLampHeight),
-            Is.EqualTo(1f).Within(0.001f));
+            Is.EqualTo(1.5f).Within(0.001f));
+    }
+
+    // The cap has to stay out of the way of ordinary distances, which is the thing that broke when
+    // the ratio moved and the cap did not. A torch reaches about six cells; at half the distance
+    // that is a three-cell shadow, so a cap at the old 2 would have flattened every pawn beyond four
+    // cells to one length and quietly deleted the distance relation the test above pins.
+    [Test]
+    public void TheCapDoesNotBiteAtOrdinaryDistances()
+    {
+        float atFullReach = VectorLightMath.PawnShadowLength(
+            6f, VectorLightMath.DefaultPawnHeight, VectorLightMath.DefaultLampHeight);
+
+        Assert.That(atFullReach, Is.EqualTo(VectorLightMath.MaxPawnShadowLength).Within(0.001f));
+        Assert.That(
+            VectorLightMath.PawnShadowLength(
+                4f, VectorLightMath.DefaultPawnHeight, VectorLightMath.DefaultLampHeight),
+            Is.LessThan(VectorLightMath.MaxPawnShadowLength));
     }
 
     // THE DIRECTION THE PHYSICS ACTUALLY RUNS, stated as a test because the intuition goes the other
@@ -1057,18 +1074,29 @@ public class VectorLightMathTests
             Is.EqualTo(illuminance).Within(Tolerance));
     }
 
-    // The fade's two endpoints, which are the only two values it is calibrated on: a shadow leaves
-    // its caster at full strength and reaches its tip at the measured fraction. The second is the
-    // one that matters — k is derived from the tip opacity precisely so the curve cannot drift away
-    // from its own endpoint, and a formulation that re-tuned k independently would pass every
-    // interior check below while landing somewhere else at t = 1.
+    // The fade's two endpoints, which are now STRUCTURAL rather than calibrated: the curve is
+    // (1 - t) / (1 + k*t), so it hits 1 at the caster and 0 at the tip for every front-load value.
+    // Pinned anyway, because "reaches zero" is the whole of what was asked for and the previous
+    // formulation could not express it at any finite k.
     [Test]
-    public void TheFadeRunsFromFullAtTheCasterToTheMeasuredFractionAtTheTip()
+    public void TheFadeRunsFromFullAtTheCasterToNothingAtTheTip()
     {
-        float tip = VectorLightMath.PawnShadowTipOpacity;
+        float k = VectorLightMath.PawnShadowFadeFrontLoad;
 
-        Assert.That(VectorLightMath.PawnShadowFade(0f, tip), Is.EqualTo(1f).Within(Tolerance));
-        Assert.That(VectorLightMath.PawnShadowFade(1f, tip), Is.EqualTo(tip).Within(Tolerance));
+        Assert.That(VectorLightMath.PawnShadowFade(0f, k), Is.EqualTo(1f).Within(Tolerance));
+        Assert.That(VectorLightMath.PawnShadowFade(1f, k), Is.EqualTo(0f).Within(Tolerance));
+    }
+
+    // And it holds for every shape in the family, not just the shipped one -- otherwise the endpoint
+    // is a property of the constant rather than of the curve, and a later retune could quietly
+    // reintroduce the visible edge at the tip that this whole change exists to remove.
+    [TestCase(0f)]
+    [TestCase(0.27f)]
+    [TestCase(1f)]
+    [TestCase(4f)]
+    public void EveryShapeInTheFamilyReachesZeroAtTheTip(float frontLoad)
+    {
+        Assert.That(VectorLightMath.PawnShadowFade(1f, frontLoad), Is.EqualTo(0f).Within(Tolerance));
     }
 
     // The property the shape has to have whatever curve is chosen, stated as a property rather than
@@ -1078,89 +1106,118 @@ public class VectorLightMathTests
     [Test]
     public void TheFadeIsMonotoneAlongTheShadow()
     {
-        float tip = VectorLightMath.PawnShadowTipOpacity;
+        float k = VectorLightMath.PawnShadowFadeFrontLoad;
         float previous = float.MaxValue;
 
         for (int i = 0; i <= 64; i++)
         {
-            float value = VectorLightMath.PawnShadowFade(i / 64f, tip);
+            float value = VectorLightMath.PawnShadowFade(i / 64f, k);
 
             Assert.That(value, Is.LessThanOrEqualTo(previous + Tolerance));
             previous = value;
         }
     }
 
-    // THE FIT AGAINST VANILLA, which is the claim the shape is actually making and the reason the
-    // curve is hyperbolic rather than linear. These are the measured sun-shadow profile from
-    // vector_light_shadow_reference.json, binned along the shadow's own length. An INDEPENDENT
-    // ORACLE in the sense that matters: the numbers come off a capture of vanilla's renderer, not
-    // out of the function under test.
+    // THE FIT AGAINST VANILLA, OVER THE NEAR HALF ONLY, and the restriction is the honest part. The
+    // numbers are the measured sun-shadow profile from vector_light_shadow_reference.json -- an
+    // INDEPENDENT ORACLE in the sense that matters, since they come off a capture of vanilla's
+    // renderer rather than out of the function under test.
     //
-    // NORMALISED THE WAY THE CAPTURE WAS, which is the whole reason this test earns its keep. The
-    // measured column is a ratio to the FIRST BIN — centred at t = 0.05, not at the caster — so
-    // comparing raw fade values against it is comparing two different quantities. It fails loudly at
-    // the first case (the model is 0.93 at t = 0.05 where the measurement is 1.000 by construction),
-    // and the first version of this test did exactly that. Dividing through by the model's own value
-    // at the same reference point puts both sides on one scale.
+    // Vanilla stops at 0.396 and therefore still ends on a visible edge. Ours is required to reach
+    // zero, so it CANNOT agree out there and is not asked to; the departure is deliberate and is
+    // pinned separately below rather than hidden in a loose tolerance. Where the shadow carries most
+    // of its weight, it still tracks.
     //
-    // 0.05 tolerance because the bins are noisy — the far tail sits at ~0.04 absolute alpha on
-    // speckled concrete, and the 0.65 and 0.85 bins are not even monotone with respect to each
-    // other — not because the fit is loose; the worst case below lands at 0.037. A straight line
-    // from 1 to the tip misses the 0.25 bin by 0.14 and fails this at any tolerance worth having,
-    // which is what these cases are here to keep out.
+    // NORMALISED THE WAY THE CAPTURE WAS. The measured column is a ratio to the FIRST BIN -- centred
+    // at t = 0.05, not at the caster -- so comparing raw fade values against it compares two
+    // different quantities. An earlier version of this test did exactly that and failed on its first
+    // case, which is how the shipped constant got corrected.
+    [TestCase(0.15f, 0.830f)]
     [TestCase(0.25f, 0.709f)]
+    [TestCase(0.35f, 0.638f)]
     [TestCase(0.45f, 0.568f)]
-    [TestCase(0.65f, 0.471f)]
-    [TestCase(0.95f, 0.396f)]
-    public void TheFadeTracksVanillasMeasuredSunShadow(float along, float measured)
+    public void TheFadeTracksVanillaOverTheNearHalf(float along, float measured)
     {
         const float referencePoint = 0.05f;
-        float tip = VectorLightMath.PawnShadowTipOpacity;
+        float k = VectorLightMath.PawnShadowFadeFrontLoad;
 
-        float normalised = VectorLightMath.PawnShadowFade(along, tip)
-            / VectorLightMath.PawnShadowFade(referencePoint, tip);
+        float normalised = VectorLightMath.PawnShadowFade(along, k)
+            / VectorLightMath.PawnShadowFade(referencePoint, k);
 
         Assert.That(normalised, Is.EqualTo(measured).Within(0.05f));
     }
 
-    // Proving the red for the test above, because a fit test that cannot fail is decoration. A
-    // straight line is the obvious alternative shape and the one the hyperbola was chosen over, so
-    // it is the right thing to hold up against the same data: it has the identical endpoints and
-    // misses the middle of the shadow by more than twice the tolerance.
-    [Test]
-    public void AStraightLineWouldNotTrackVanillasMeasuredSunShadow()
+    // The departure, pinned as a fact rather than left as a gap in coverage. Past the halfway point
+    // ours is deliberately FAINTER than vanilla, which is what buys the vanishing tip.
+    [TestCase(0.65f, 0.471f)]
+    [TestCase(0.85f, 0.462f)]
+    [TestCase(0.95f, 0.396f)]
+    public void TheFadeDeliberatelyFallsBelowVanillaOverTheFarHalf(float along, float measured)
     {
         const float referencePoint = 0.05f;
-        float tip = VectorLightMath.PawnShadowTipOpacity;
+        float k = VectorLightMath.PawnShadowFadeFrontLoad;
 
-        float LinearFade(float t) => 1f - (1f - tip) * t;
+        float normalised = VectorLightMath.PawnShadowFade(along, k)
+            / VectorLightMath.PawnShadowFade(referencePoint, k);
 
-        float normalised = LinearFade(0.25f) / LinearFade(referencePoint);
-
-        Assert.That(normalised, Is.Not.EqualTo(0.709f).Within(0.05f));
+        Assert.That(normalised, Is.LessThan(measured));
     }
 
-    // The control arm's arithmetic, pinned so the arm cannot quietly stop being a control: a tip
-    // opacity of 1 has to give back exactly the flat shadow that shipped before the fade, at every
-    // point rather than merely at the ends.
-    [TestCase(0f)]
-    [TestCase(0.3f)]
-    [TestCase(0.7f)]
-    [TestCase(1f)]
-    public void AFullTipOpacityReproducesTheFlatShadowExactly(float along)
+    // Proving the red for the fit test, because a fit test that cannot fail is decoration. A
+    // straight line to zero is the obvious alternative and the one the shipped shape was chosen
+    // over: it shares both endpoints and misses the interior, reading 0.789 a quarter of the way
+    // out where vanilla reads 0.709.
+    [Test]
+    public void AStraightLineWouldNotTrackVanillaOverTheNearHalf()
     {
-        Assert.That(VectorLightMath.PawnShadowFade(along, 1f), Is.EqualTo(1f));
+        const float referencePoint = 0.05f;
+
+        float straight = VectorLightMath.PawnShadowFade(0.25f, 0f)
+            / VectorLightMath.PawnShadowFade(referencePoint, 0f);
+
+        Assert.That(straight, Is.Not.EqualTo(0.709f).Within(0.05f));
+    }
+
+    // The vanishing tip costs almost no apparent length, which is the objection to the whole change
+    // and is therefore worth holding rather than asserting in a comment. Above ~0.08 of its own
+    // starting alpha a shadow still reads on a lit floor, and the shipped curve stays there for more
+    // than four fifths of its length -- so "fades to nothing" does not mean "is secretly shorter".
+    [Test]
+    public void TheShadowStaysVisibleForMostOfItsLength()
+    {
+        const float visible = 0.08f;
+        float k = VectorLightMath.PawnShadowFadeFrontLoad;
+        float start = VectorLightMath.PawnShadowFade(0.05f, k);
+        float t = 0f;
+
+        while (t < 1f && VectorLightMath.PawnShadowFade(t, k) / start >= visible)
+            t += 0.001f;
+
+        Assert.That(t, Is.GreaterThan(0.85f));
+    }
+
+    // The control arm's arithmetic, pinned so the arm cannot quietly stop being a control. It works
+    // by postfixing this function to 1 rather than by passing a special shape, so what has to hold
+    // is that a flat ramp is reachable at all -- and that the shipped shape is NOT flat, or the arm
+    // would be comparing a frame against itself.
+    [Test]
+    public void TheShippedShapeIsNotFlat()
+    {
+        float k = VectorLightMath.PawnShadowFadeFrontLoad;
+
+        Assert.That(VectorLightMath.PawnShadowFade(0.5f, k), Is.LessThan(0.9f));
     }
 
     // Out-of-range inputs clamp rather than extrapolate. The ramp texture samples the endpoints
     // directly and a bilinear fetch can reach a hair past them, so an unclamped curve would put a
-    // value above 1 (a shadow darker than its own material) on the first texel.
+    // value above 1 (a shadow darker than its own material) on the first texel and a NEGATIVE one
+    // past the tip, which is an alpha the material cannot represent.
     [TestCase(-0.5f)]
     [TestCase(-0.001f)]
     public void TheFadeClampsBeforeTheCaster(float along)
     {
         Assert.That(
-            VectorLightMath.PawnShadowFade(along, VectorLightMath.PawnShadowTipOpacity),
+            VectorLightMath.PawnShadowFade(along, VectorLightMath.PawnShadowFadeFrontLoad),
             Is.EqualTo(1f).Within(Tolerance));
     }
 
@@ -1169,21 +1226,24 @@ public class VectorLightMathTests
     public void TheFadeClampsBeyondTheTip(float along)
     {
         Assert.That(
-            VectorLightMath.PawnShadowFade(along, VectorLightMath.PawnShadowTipOpacity),
-            Is.EqualTo(VectorLightMath.PawnShadowTipOpacity).Within(Tolerance));
+            VectorLightMath.PawnShadowFade(along, VectorLightMath.PawnShadowFadeFrontLoad),
+            Is.EqualTo(0f).Within(Tolerance));
     }
 
-    // A zero tip would divide by zero. It is clamped rather than honoured because a shadow that
-    // vanishes at its tip is not something any measurement supports — the guard exists so a future
-    // caller cannot turn a mis-set constant into a NaN that propagates into a material colour.
-    [Test]
-    public void AZeroTipOpacityStaysFinite()
+    // A negative front-load would put a pole inside the shadow and flip its sign partway along. No
+    // caller supplies one today; the guard exists so that a future settings slider cannot turn a
+    // mis-typed bound into a shadow that inverts halfway down its own length.
+    [TestCase(-1f)]
+    [TestCase(-0.5f)]
+    public void ANegativeFrontLoadStaysWellFormed(float frontLoad)
     {
-        float value = VectorLightMath.PawnShadowFade(1f, 0f);
+        for (int i = 0; i <= 16; i++)
+        {
+            float value = VectorLightMath.PawnShadowFade(i / 16f, frontLoad);
 
-        Assert.That(float.IsNaN(value), Is.False);
-        Assert.That(float.IsInfinity(value), Is.False);
-        Assert.That(value, Is.GreaterThan(0f));
+            Assert.That(float.IsNaN(value), Is.False);
+            Assert.That(value, Is.InRange(0f, 1f));
+        }
     }
 
     // The physics, stated as the invariant that was missing: blocking one light cannot remove more

@@ -9319,18 +9319,36 @@ lands. One row serves every shadow on the map — the ramp is a function of the 
 shadow, and the per-shadow opacity stays where it already was, in the material colour, which
 `Map/Transparent` multiplies the texel by. It costs no extra draw call and no shader of our own.
 
-**The curve.** `VectorLightMath.PawnShadowFade` is `1/(1 + k·t)` with `k` derived from the tip
-opacity, so there is one number to calibrate and the curve cannot drift away from its own endpoint.
-Hyperbolic rather than linear because that is what the capture says: a straight line with the same
-endpoints misses the quarter-way bin by 0.14 and the halfway bin by 0.13, while the hyperbola tracks
-every bin to within 0.037.
+**The curve, and where it stops matching vanilla on purpose.** `VectorLightMath.PawnShadowFade` is
+`(1 - t) / (1 + k·t)`. It hits 1 at the caster and **exactly 0 at the tip** for every `k`, so both
+endpoints are structural and only the interior needs a number: `PawnShadowFadeFrontLoad` is 0.27,
+swept against the measured bins and agreeing with vanilla to within 0.045 over the near half.
 
-**`PawnShadowTipOpacity` is 0.35, not the measured 0.396, and the gap is a correction rather than
-rounding.** The measured column is normalised to the first bin, centred a twentieth of the way along
-the shadow rather than at the caster. Using 0.396 as a t = 0-anchored constant leaves the whole
-interior about 0.07 too dark — a one-directional systematic that an endpoint-only test cannot see.
-The offline test therefore normalises the model exactly the way the capture was normalised, and it
-caught this: the first version of it failed on a case that was comparing two different quantities.
+**Ending at zero is a look decision and it is the one place this knowingly disagrees with vanilla.**
+Vanilla stops at 0.396, which means vanilla's own shadow still ends on an edge — a faint line where
+the mesh stops. Ours does not. The consequence is that the two curves part company past the halfway
+point (0.512 against 0.568 at t = 0.45, and 0.083 against 0.396 at the tip), and the offline tests
+pin that departure as a fact rather than hiding it in a loose tolerance: one case set asserts
+agreement over the near half, a second asserts we are *below* vanilla over the far half.
+
+An earlier cut of this used `1/(1 + k·t)` with `k` derived from a tip opacity of 0.35 — fitted so the
+tip landed on vanilla's 0.396 once the capture's normalisation offset was corrected for. That family
+cannot reach zero at any finite `k`, so wanting a vanishing tip meant changing the family, not the
+constant. The normalisation correction is still worth recording because it is the kind of error a
+test cannot see from the endpoints: the measured column is a ratio to the first *bin*, centred a
+twentieth of the way along rather than at the caster, and comparing raw model values against it is
+comparing two different quantities. The offline test normalises the model the same way the capture
+was normalised, and caught exactly that on its first run.
+
+**The shadow also got longer, in the same change and partly because of this one.** A tip that fades
+to nothing gives up some apparent length, so `DefaultLampHeight` came back down from 3.2 to 2.4 —
+against vanilla's 0.8 caster height that is a ratio of **0.5**, half the distance to the lamp rather
+than a third. The vanishing tip costs about a tenth of that back: at k = 0.27 the shadow is still
+above the ~0.08 relative alpha that reads on a lit floor until t = 0.91, which is pinned offline so
+"fades to nothing" cannot quietly become "is secretly shorter". `MaxPawnShadowLength` moved 2 → 3 by
+the same factor, and that is load-bearing rather than tidiness: left at 2 the cap would have started
+binding four cells from the lamp — an ordinary distance — flattening every pawn beyond it to one
+length and deleting the distance relation the geometry exists to express.
 
 **A shader swap needs a control arm, so there is one.** Turning this on moves the draw from
 `Map/SolidColor` to `Map/Transparent`. A shader at a different render queue composites against the
@@ -9350,26 +9368,33 @@ attributable:
 | noise floor — same arm, same flags, re-shot | 0 px | 0.000 |
 | sun view, no-shadow arm vs each of the other three | 0 px | 0.000 |
 | **shader swap alone** (new material, curve flattened) | **0 px** | **0.000** |
-| flat shadow → feathered | 1,590 px (0.077%) | **3.500** (p90 4.126, max 4.905) |
+| flat shadow → feathered | 3,105 px (0.150%) | **3.809** (p90 5.546, max 7.356) |
 
 The shader swap costing nothing is the result the control was built for: the render queue copy works,
-so the entire 3.500 is the curve. Opacity along the shadow, normalised to each shadow's own value at
+so the entire 3.809 is the curve. Opacity along the shadow, normalised to each shadow's own value at
 the visible start:
 
 | | 0.05 | 0.25 | 0.45 | 0.65 | 0.95 |
 |---|---|---|---|---|---|
-| flat (before) | 1.000 | 1.020 | 1.013 | 1.003 | 1.019 |
-| feathered (after) | 1.000 | 0.825 | 0.677 | 0.562 | **0.512** |
+| flat (before) | 1.000 | 0.971 | 0.970 | 0.983 | 0.969 |
+| feathered (after) | 1.000 | 0.766 | 0.512 | 0.319 | **0.083** |
 | vanilla sun | 1.000 | 0.709 | 0.568 | 0.471 | **0.396** |
 
-**The lamp shadow reads shallower than vanilla's in that table and the implementation is
-nevertheless exact**, which is worth stating rather than tuning away. The pawn's own sprite covers
-the start of its shadow, so what a capture measures is the *visible* part — about the outer 80% of a
-1.3-cell lamp shadow, against the outer 98% of a 10-cell sun shadow. Accounting for that offset the
-render matches the model to three digits: predicted 0.366 at the corresponding point, measured 0.366.
-The constant stays calibrated in fractions of the shadow's own geometric length, which is the
-quantity vanilla's own profile was fitted in; making the *visible* ends agree instead would be
-fitting to one colonist's sprite.
+The shadow's own extent in the capture went from 51 px to 90 px with the lamp height, and the two
+probes that see the ramp read what the GPU samples rather than what the formula says: tip **0**, mid
+**0.4314**. That midpoint is a measured value and not the formula's 0.4405 on purpose — the probe
+reads a *texel*, so it lands on the nearest texel centre to halfway (32 of 63, t = 0.5079) and is
+then quantised to 8 bits (110/255). Both are real parts of what reaches the screen, which is the
+whole reason that probe reads the texture rather than the curve.
+
+**The measured column is steeper than the model in the far half, and the reason is the pawn.** Its
+own sprite covers the start of its shadow, so a capture sees the *visible* part — roughly the outer
+four fifths — and the binning stretches that window across 0 to 1. So the capture's "0.95" is nearer
+t = 0.96 of the real curve, where the model is genuinely almost gone. The same offset is why the
+comparison against vanilla in that table is not quite like for like: a 10-cell sun shadow loses only
+a fiftieth of its length to the sprite where a 2-cell lamp shadow loses a fifth. The constant stays
+calibrated in fractions of the shadow's own **geometric** length, which is the quantity vanilla's
+profile was fitted in; matching the *visible* ends instead would be fitting to one colonist's sprite.
 
 **Two bugs on the way here, both silent, both of the same family.** Neither threw, neither logged,
 and both left a full set of green probes.
