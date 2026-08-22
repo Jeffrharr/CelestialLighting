@@ -1355,22 +1355,144 @@ public static class VectorLightMath
         if (polygon.Count == 0 || radiusCells < 0)
             return grid;
 
+        // A zero grid is what the loop below produces when there is nothing to sample with, because
+        // LitFraction answers 0 for every cell. Returned here instead so the bounds work — which
+        // divides by this — never sees it.
+        if (samplesPerAxis < 1)
+            return grid;
+
         float lightX = lightCellX + 0.5f;
         float lightZ = lightCellZ + 0.5f;
 
+        RayExtremes(polygon, out float nearestRay, out float farthestRay);
+
+        // The two extreme sample offsets inside a cell, placed by the SAME expression LitFraction
+        // places them with. See AxisSpan for why the expression has to match rather than merely
+        // agree.
+        float step = 1f / samplesPerAxis;
+        float firstSample = (0 + 0.5f) * step;
+        float lastSample = (samplesPerAxis - 1 + 0.5f) * step;
+
         for (int zi = 0; zi < span; zi++)
         {
+            int cellZ = lightCellZ - radiusCells + zi;
+
+            // Hoisted per ROW: the z half of every cell in this row is the same, and the inner loop
+            // runs `span` times for it.
+            AxisSpan(cellZ + firstSample, cellZ + lastSample, lightZ, out float nearZ, out float farZ);
+
             for (int xi = 0; xi < span; xi++)
             {
-                float lit = LitFraction(
-                    polygon, lightX, lightZ,
-                    lightCellX - radiusCells + xi, lightCellZ - radiusCells + zi, samplesPerAxis);
+                int cellX = lightCellX - radiusCells + xi;
 
-                grid[zi * span + xi] = (byte)Math.Round(Clamp01(lit) * 255f);
+                AxisSpan(cellX + firstSample, cellX + lastSample, lightX, out float nearX, out float farX);
+
+                float nearest = (float)Math.Sqrt(nearX * nearX + nearZ * nearZ);
+                float farthest = (float)Math.Sqrt(farX * farX + farZ * farZ);
+
+                grid[zi * span + xi] = CoverageForCell(
+                    polygon, lightX, lightZ, cellX, cellZ, samplesPerAxis,
+                    nearest, farthest, nearestRay, farthestRay);
             }
         }
 
         return grid;
+    }
+
+    // One cell of the coverage grid, answered from the bounds where the bounds can answer it.
+    //
+    // WHY THIS IS NOT AN APPROXIMATION. Every value BoundaryDistanceAt can return is a convex
+    // combination of two neighbouring polygon distances — it and WrapBoundary both Clamp01 their
+    // interpolant, so neither can overshoot the pair it is interpolating — and therefore the polygon
+    // boundary in EVERY direction lies between the nearest and farthest ray. Which makes two whole
+    // classes of cell answerable by a compare:
+    //
+    //   - a cell whose farthest sample is nearer than the NEAREST ray is inside the polygon whatever
+    //     bearing its samples turn out to be at, so it is fully lit;
+    //   - a cell whose nearest sample is farther than the FARTHEST ray is outside it on the same
+    //     reasoning, so it is fully unlit.
+    //
+    // Both are the answer LitFraction would compute, reached without the four atan2s, four sqrts and
+    // four binary searches computing it costs. VectorLightCoverageBoundsTests asserts that bit for
+    // bit against a transcription of the unbounded loop.
+    //
+    // WHAT EACH BOUND IS FOR, because they pay for two different shapes of waste the phase 6
+    // decomposition found. The FARTHEST bound rejects the corners of the square the grid is stored
+    // in: a radius-14 emitter spends 841 cells describing a 615-cell circle, so 27% of the grid was
+    // working its way to a zero that was never in doubt. The NEAREST bound is the one that makes an
+    // UNOBSTRUCTED emitter nearly free — with no ray stopped short, the nearest ray is the radius
+    // itself and every cell inside the circle takes the lit path. In open ground that is most
+    // emitters on the map, and it is why this subsumes the cheaper idea of skipping the grid
+    // outright for such an emitter: that would have changed what CoverageAt answers at the rim,
+    // where an inscribed 48-gon reads as partly shadowed, and this changes nothing anywhere.
+    private static byte CoverageForCell(
+        LightPolygon polygon, float lightX, float lightZ, int cellX, int cellZ, int samplesPerAxis,
+        float nearestSample, float farthestSample, float nearestRay, float farthestRay)
+    {
+        if (farthestSample <= nearestRay)
+            return 255;
+
+        if (nearestSample > farthestRay)
+            return 0;
+
+        float lit = LitFraction(polygon, lightX, lightZ, cellX, cellZ, samplesPerAxis);
+
+        return (byte)Math.Round(Clamp01(lit) * 255f);
+    }
+
+    // How near and how far this polygon's boundary ever gets to the light.
+    //
+    // The same O(count) pass IsUnobstructed already makes, and deliberately not folded into it: that
+    // one asks a question about shadow and this one is a numeric range, and a caller wanting the
+    // range on an obstructed emitter — which is every caller here — would have to ignore its answer.
+    private static void RayExtremes(LightPolygon polygon, out float nearest, out float farthest)
+    {
+        nearest = polygon.Distances[0];
+        farthest = polygon.Distances[0];
+
+        for (int i = 1; i < polygon.Count; i++)
+        {
+            float distance = polygon.Distances[i];
+
+            if (distance < nearest)
+                nearest = distance;
+
+            if (distance > farthest)
+                farthest = distance;
+        }
+    }
+
+    // The nearest and farthest one axis of a cell's sample points gets from the light.
+    //
+    // TAKES THE EXTREME SAMPLE COORDINATES, NOT THE CELL'S EDGES, and the caller computes them with
+    // the identical expression LitFraction uses to place a sample. The bounds have to hold in FLOAT,
+    // not merely in arithmetic: a bound derived from the cell edge is a different expression that
+    // can round the other way by an ulp, and an upper bound that is an ulp low is a cell reported
+    // fully lit that the sampler would have found partly shadowed. Sharing the expression makes the
+    // endpoints bit-identical to two of the samples being bounded, and the samples between them are
+    // monotonic in the loop index, so the interval provably contains all of them.
+    //
+    // Squaring and summing two such bounds preserves the ordering — IEEE multiply, add and sqrt are
+    // all monotonic — so the distance bounds this feeds are exact in the same sense.
+    private static void AxisSpan(float low, float high, float light, out float near, out float far)
+    {
+        float fromLow = low - light;
+        float fromHigh = high - light;
+        float absLow = Math.Abs(fromLow);
+        float absHigh = Math.Abs(fromHigh);
+
+        far = absLow > absHigh ? absLow : absHigh;
+
+        // An interval straddling the light has its closest approach in the middle rather than at
+        // either end. Zero is a lower bound rather than an attained sample, which is all this is
+        // used for: too small a lower bound costs a cell the fast path, never a wrong answer.
+        if (fromLow <= 0f && fromHigh >= 0f)
+        {
+            near = 0f;
+            return;
+        }
+
+        near = absLow < absHigh ? absLow : absHigh;
     }
 
     // Coverage for one cell, or FULLY LIT for a cell outside the emitter's square.
