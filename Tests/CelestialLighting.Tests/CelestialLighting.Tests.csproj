@@ -272,6 +272,13 @@
          same reason: the monotonicity property it exists to hold is a claim about the SHIPPED
          arithmetic, so the tests have to compile the shipped file rather than a copy of it. -->
     <Compile Include="../../Source/VectorLightSaturationMath.cs" Link="VectorLightSaturationMath.cs" />
+    <!-- The one-time update notice's policy half. Depends on nothing else here — it takes the
+         persisted switches and two reachability booleans in and returns what to show and what to
+         write back. Linked rather than copied for the usual reason, and for one specific to it: the
+         claims these tests pin (never shown twice, never shown to a first install, never offers a
+         feature it cannot deliver) are invisible in a screenshot and only reachable by running the
+         shipped file. -->
+    <Compile Include="../../Source/UpdateNoticeMath.cs" Link="UpdateNoticeMath.cs" />
   </ItemGroup>
 
 </Project>
