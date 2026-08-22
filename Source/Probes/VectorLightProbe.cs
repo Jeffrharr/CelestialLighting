@@ -200,17 +200,20 @@ public sealed class VectorLightProbe : IProbe
         // its ends are structural rather than calibrated.
         PawnShadowMidFade,
 
-        // The caster dimensions the draw resolves for the ANIMAL in view, as opposed to the colonist
-        // every other probe here picks. Their own metrics because animals reach their shadow data by
-        // a different route entirely -- a life stage's bodyGraphicData rather than the ThingDef --
-        // and a probe that only ever looked at colonists reported a healthy 0.3/0.8 while every cat
-        // on the map was drawn as a human. Pin BOTH: the wrong source got the height and the width
-        // wrong independently, and each is invisible in the other's number.
+        // The caster dimensions the draw resolves for a NAMED animal kind, as opposed to the
+        // colonist every other probe here picks. Their own metrics because animals reach their
+        // shadow data by a different route entirely -- a life stage's bodyGraphicData rather than
+        // the ThingDef -- and a probe that only ever looked at colonists reported a healthy 0.3/0.8
+        // while every cat on the map was drawn as a human. Pin BOTH: the wrong source got the height
+        // and the width wrong independently, and each is invisible in the other's number.
         AnimalCasterHeight,
         AnimalCasterHalfWidth,
     }
 
     private readonly Metric metric;
+
+    // Null for every metric that is not about one named caster.
+    private readonly string kindDefName;
 
     public string Name { get; }
 
@@ -218,6 +221,17 @@ public sealed class VectorLightProbe : IProbe
     {
         Name = name;
         this.metric = metric;
+    }
+
+    // The kind a caster metric is about, named rather than inferred.
+    //
+    // WHY NOT A THING ID: those are assigned at spawn and differ every run, so a scenario cannot
+    // write one down. Naming the KIND is the same idea a scenario can actually express — it knows
+    // it placed a Cat, because it asked for one.
+    public VectorLightProbe(string name, Metric metric, string kindDefName)
+        : this(name, metric)
+    {
+        this.kindDefName = kindDefName;
     }
 
     public float Read(Map map)
@@ -397,15 +411,21 @@ public sealed class VectorLightProbe : IProbe
         return metric == Metric.PawnShadowAnchorZ ? shadow.offset.z : shadow.BaseX;
     }
 
-    // The animal the camera is looking at, and what the renderer resolves for it.
+    // What the renderer resolves for the NAMED caster, and named is the whole point.
     //
-    // VIEW-SCOPED like the shadow metrics and for the same reason: minimal_colony.rws ships its own
-    // animals, and a map-wide lowest-thing-ID pick would read some muffalo asleep across the map
-    // instead of the cat the scenario placed under the lamp -- a confident wrong number in every arm.
+    // THIS USED TO PICK THE LOWEST THING ID AMONG NON-HUMANLIKES IN VIEW, which worked and was a
+    // trap: it made the answer depend on the order a scenario happened to spawn its animals in. A
+    // file with a cat and a squirrel in it read the cat only because the cat was written first, and
+    // swapping two lines would have silently pointed these at the squirrel -- which has no shadow
+    // data and so reports the human-shaped fallback, i.e. exactly the numbers the scenario exists to
+    // prove are gone. A pin cannot defend itself against reading the wrong subject.
     //
-    // Non-humanlike rather than "not a colonist", because the distinction that matters here is which
-    // ROUTE the shadow data arrives by: humanlikes declare race.specialShadowData, everything else
-    // declares it on a life stage's body graphic.
+    // A thing ID would be the direct way to say it and a scenario cannot: they are assigned at spawn
+    // and differ every run. The kind is the same statement in terms the scenario already used, since
+    // it asked for that kind by name.
+    //
+    // Still VIEW-SCOPED: minimal_colony.rws ships its own animals, so a map-wide search could find
+    // another Cat asleep across the map rather than the one under the lamp.
     private float ReadAnimalCaster(Map map)
     {
         CellRect view = Find.CameraDriver.CurrentViewRect;
@@ -413,16 +433,21 @@ public sealed class VectorLightProbe : IProbe
 
         foreach (Pawn pawn in map.mapPawns.AllPawnsSpawned)
         {
-            if (pawn.RaceProps == null || pawn.RaceProps.Humanlike)
+            if (pawn.kindDef?.defName != kindDefName)
                 continue;
 
             if (!view.Contains(pawn.Position))
                 continue;
 
+            // Lowest thing ID only as a tie-break BETWEEN PAWNS OF THE ASKED-FOR KIND, so two cats
+            // in shot still give a stable answer instead of a frame-order-dependent one.
             if (subject == null || pawn.thingIDNumber < subject.thingIDNumber)
                 subject = pawn;
         }
 
+        // Zero rather than a fallback: no pawn of that kind in view is a broken scenario, and a pin
+        // that fails loudly is the point. A plausible-looking default here would let a scenario that
+        // stopped spawning its cat go on passing.
         if (subject == null)
             return 0f;
 

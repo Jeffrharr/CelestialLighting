@@ -414,15 +414,24 @@ public static class ProbeRegistration
         ProbeRegistry.Register(
             new VectorLightProbe("vector_light_pawn_shadow_mid_fade",
                 VectorLightProbe.Metric.PawnShadowMidFade));
-        // What the draw resolves for an ANIMAL, which reaches its shadow data by a different route
-        // than a colonist and was therefore getting the human-shaped fallback: a cat drawn 0.8 tall
-        // and 0.3 half-wide against a real 0.3 and 0.125. Pin both, in a view holding the animal.
+        // What the draw resolves for a NAMED animal kind, which reaches its shadow data by a
+        // different route than a colonist and was therefore getting the human-shaped fallback: a cat
+        // drawn 0.8 tall and 0.3 half-wide against a real 0.3 and 0.125. Pin both, in a view holding
+        // the animal.
+        //
+        // THE KIND IS IN THE PROBE NAME, deliberately. These first selected the lowest-thing-ID
+        // animal in view, which made the answer depend on the order a scenario spawned its animals
+        // in -- a file with a cat and a squirrel read the cat only because the cat was written
+        // first. A thing ID cannot be written down (they differ every run), so the kind is the
+        // direct way to say which caster is meant. Registering one probe per kind rather than
+        // parameterising at the scenario keeps the pin self-describing: a reader of the JSON can see
+        // it is about a cat.
         ProbeRegistry.Register(
-            new VectorLightProbe("vector_light_animal_caster_height",
-                VectorLightProbe.Metric.AnimalCasterHeight));
+            new VectorLightProbe("vector_light_cat_caster_height",
+                VectorLightProbe.Metric.AnimalCasterHeight, "Cat"));
         ProbeRegistry.Register(
-            new VectorLightProbe("vector_light_animal_caster_half_width",
-                VectorLightProbe.Metric.AnimalCasterHalfWidth));
+            new VectorLightProbe("vector_light_cat_caster_half_width",
+                VectorLightProbe.Metric.AnimalCasterHalfWidth, "Cat"));
         // Performance, measured through Circinus rather than Dubs, because Circinus reports CALL
         // COUNTS. §27 phase 3 does all its work inside a section regenerate, and the Dubs window that
         // appeared to show it running three times cheaper than the feature-off baseline had simply
