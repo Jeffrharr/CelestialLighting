@@ -1294,6 +1294,104 @@ public class VectorLightMathTests
         Assert.That(VectorLightMath.PawnShadowShare(0f, 0f), Is.EqualTo(0f).Within(Tolerance));
     }
 
+    // ---- the share taken on the ground the shadow falls on ---------------------------------
+
+    // Where along the shadow the ground is sampled: the midpoint, measured from the caster's centre,
+    // so it carries the trailing edge the draw's own transform starts from.
+    [TestCase(0.2f, 2f, 1.2f)]
+    [TestCase(0.15f, 0f, 0.15f)]
+    [TestCase(0f, 3f, 1.5f)]
+    public void TheGroundIsSampledAtTheShadowsMidpoint(
+        float trailingEdge, float length, float expected)
+    {
+        Assert.That(
+            VectorLightMath.ShadowSampleDistance(trailingEdge, length),
+            Is.EqualTo(expected).Within(Tolerance));
+    }
+
+    // THE PROPERTY THAT MAKES THIS SAFE TO SHIP, and the same one phase 4b rested on: a lone lamp
+    // comes out of the ground question with exactly what it came out of the pawn-cell question with,
+    // so every committed single-lamp capture and every existing pin stays valid. Swept across the
+    // falloff range rather than tested once, because the floor at FullIlluminance is what makes it
+    // hold for a dim lamp as well as a bright one.
+    //
+    // Pinned against the ILLUMINANCE ITSELF rather than against the pawn-cell call, which would be
+    // the same expression on both sides and would assert nothing: with the denominator floored at
+    // FullIlluminance and a lamp never exceeding it, phase 4's opacity simply IS the illuminance.
+    [TestCase(1f)]
+    [TestCase(0.75f)]
+    [TestCase(0.5f)]
+    [TestCase(0.25f)]
+    [TestCase(0.05f)]
+    public void ALoneLampIsUnchangedByTheGroundQuestion(float blocked)
+    {
+        Assert.That(
+            VectorLightMath.PawnShadowShare(
+                blocked, VectorLightMath.ShadowGroundTotal(blocked, 0f)),
+            Is.EqualTo(blocked).Within(Tolerance));
+    }
+
+    // THE BUG, STATED AS A DIFFERENCE. A second lamp lights the pawn at 0.6 but is walled off from
+    // the floor the shadow falls on. Asked at the caster it dilutes the shadow; asked on the ground
+    // it contributes nothing and the shadow is left at its lone-lamp strength, which is what a
+    // player standing beside that wall sees. The two must NOT agree — an assertion that they differ
+    // is the point, because a regression here reads as the fix silently doing nothing.
+    [Test]
+    public void ALampWalledOffFromTheGroundNoLongerDilutesTheShadow()
+    {
+        const float blocked = 0.8f;
+        const float otherAtPawn = 0.6f;
+
+        float atCaster = VectorLightMath.PawnShadowShare(blocked, blocked + otherAtPawn);
+        float onGround = VectorLightMath.PawnShadowShare(
+            blocked, VectorLightMath.ShadowGroundTotal(blocked, 0f));
+
+        // 0.8 / max(1, 0.8 + 0.6) = 0.571 asked at the caster, against 0.8 / max(1, 0.8) = 0.8 on
+        // the ground. Both written out rather than recomputed, so the test states the numbers a
+        // capture can be held against instead of agreeing with the code under test.
+        Assert.That(atCaster, Is.EqualTo(0.5714286f).Within(Tolerance));
+        Assert.That(onGround, Is.EqualTo(0.8f).Within(Tolerance));
+        Assert.That(onGround, Is.GreaterThan(atCaster));
+    }
+
+    // And the converse direction, which is the half that makes it physics rather than a brightener:
+    // light landing ON the shadow fades it, monotonically. Started past the floor so the assertion is
+    // about the divide rather than about FullIlluminance holding the denominator flat.
+    [Test]
+    public void LightOnTheShadowedGroundMakesItFainter()
+    {
+        const float blocked = 0.9f;
+        float previous = float.MaxValue;
+
+        for (int step = 1; step <= 8; step++)
+        {
+            float other = 0.3f * step;
+            float share = VectorLightMath.PawnShadowShare(
+                blocked, VectorLightMath.ShadowGroundTotal(blocked, other));
+
+            Assert.That(share, Is.LessThan(previous), $"other = {other}");
+            previous = share;
+        }
+    }
+
+    // The bound that comes free from putting the numerator into its own denominator, and the reason
+    // the blocked lamp's term is not itself moved to the ground. However far apart the two sample
+    // points are — a lamp bright at the pawn and dark where its shadow lands is exactly that case —
+    // the share stays a fraction, so it can never saturate to a full-strength shadow the way the
+    // pre-share model did.
+    [TestCase(0.05f, 0f)]
+    [TestCase(0.5f, 0f)]
+    [TestCase(1f, 0f)]
+    [TestCase(1f, 4f)]
+    [TestCase(0.9f, 0.01f)]
+    public void TheShareStaysAFractionHoweverTheSamplesDisagree(float blocked, float other)
+    {
+        float share = VectorLightMath.PawnShadowShare(
+            blocked, VectorLightMath.ShadowGroundTotal(blocked, other));
+
+        Assert.That(share, Is.InRange(0f, 1f));
+    }
+
     // The numbers behind the complaint that prompted this, pinned as a regression: eight lamps used
     // to leave the ground at a pawn's feet all but black, because each arm drew at the full 0.30 and
     // they composite. Under the share model the same eight draw faintly enough that the overlap

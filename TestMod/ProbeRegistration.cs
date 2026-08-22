@@ -396,6 +396,11 @@ public static class ProbeRegistration
             new VectorLightProbe("vector_light_pawn_shadow_peak", VectorLightProbe.Metric.PawnShadowPeak));
         ProbeRegistry.Register(
             new VectorLightProbe("vector_light_pawn_shadow_rosette", VectorLightProbe.Metric.PawnShadowRosette));
+        // How many arms that rosette is made of. Pin it in any arm whose point is that lamps SHARE a
+        // pawn: with one caster the ground-share denominator is the blocked beam by identity, so a
+        // scene that ends up single-lamp measures nothing while staying green in every other number.
+        ProbeRegistry.Register(
+            new VectorLightProbe("vector_light_pawn_shadow_arms", VectorLightProbe.Metric.PawnShadowArms));
         // Issue #166's metric: how far the longest arm reaches, in cells beyond the caster. Pinned
         // in a scenario that puts a wall inside that reach, where an unclipped shadow reads the full
         // geometric length and a clipped one reads the distance to the wall.
@@ -1003,6 +1008,12 @@ public static class ProbeRegistration
         FeatureRegistry.Register(
             CelestialLightingFeatures.VectorLightShadowSharesKey,
             enabled => CelestialLightingFeatures.VectorLightShadowShares = enabled);
+        // Where that denominator is sampled -- the pawn's cell, or the ground the shadow falls on.
+        // Two-arg overload, matching its shipped default of true. No ForceRebuild for the same
+        // reason as the flag above: it moves an alpha, and nothing about it is baked.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightShadowGroundSharesKey,
+            enabled => CelestialLightingFeatures.VectorLightShadowGroundShares = enabled);
         // §27's geometry and #166's clip. Two-arg overloads, matching their shipped default of true.
         // No ForceRebuild on either: both change only what the immediate-mode draw emits per frame,
         // and neither touches a baked section or the visibility polygons they read.

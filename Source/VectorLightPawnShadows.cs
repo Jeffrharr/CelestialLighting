@@ -173,14 +173,7 @@ public static class VectorLightPawnShadows
         Vector3 centre = pawn.DrawPos;
         ShadowData shadow = ShadowDataOf(pawn);
 
-        // Where the caster's footprint actually sits, which is NOT where the pawn is drawn. Vanilla
-        // offsets it by ShadowData.offset — (0, 0, -0.3) for a human, i.e. at the feet — and both
-        // Graphic_Shadow.DrawWorker and Printer_Shadow.PrintShadow honour that. §27 anchored on
-        // DrawPos instead, so a colonist's lamp shadow left their torso while their sun shadow left
-        // their feet, 0.3 cells apart and both on screen at dusk (issue #159). The offset is applied
-        // unrotated for the same reason vanilla's dynamic path applies it unrotated: PawnRenderer
-        // draws pawn shadows as Rot4.North regardless of which way the pawn faces.
-        Vector3 anchor = shadow == null ? centre : centre + shadow.offset;
+        Vector3 anchor = AnchorOf(centre, shadow);
 
         Build(pawn, lights, skyGlow, RoofedAt(map, pawn), Shadows);
 
@@ -223,6 +216,11 @@ public static class VectorLightPawnShadows
         Vector3 centre = pawn.DrawPos;
         ShadowData shadow = ShadowDataOf(pawn);
 
+        // Needed HERE as well as at the draw, and for the first time: the ground a shadow falls on
+        // is measured from the footprint's anchor, not from the pawn's middle, so the denominator
+        // below would be sampled 0.3 cells off a colonist's true shadow if it used `centre`.
+        Vector3 anchor = AnchorOf(centre, shadow);
+
         float halfX = HalfExtent(shadow?.BaseX, shadow);
         float halfZ = HalfExtent(shadow?.BaseZ, shadow);
 
@@ -250,14 +248,16 @@ public static class VectorLightPawnShadows
         {
             Contribution light = Contributions[i];
 
-            float opacity = VectorLightMath.PawnShadowOpacity(
-                light.Illuminance, totalForShare, skyGlow, roofed);
+            // THE BRIGHTEST this shadow could possibly come out, asked before any geometry is built.
+            // The ground question further down can only ever ADD to the denominator, so a lamp
+            // already under the visibility threshold with nothing else lighting its shadow is under
+            // it for good, and everything below is wasted on it. It has to be the best case rather
+            // than the real one now: the real one is not knowable until the shadow has a length, and
+            // the length is the expensive part this gate exists to skip.
+            float brightest = VectorLightMath.PawnShadowOpacity(
+                light.Illuminance, light.Illuminance, skyGlow, roofed);
 
-            // Below a level of 255 the shadow is a rounding artefact rather than a shadow, and
-            // drawing it costs the same as drawing a visible one. It rejects considerably more now
-            // than it used to: dilution is exactly what pushes the fifth and sixth lamp's arms under
-            // the threshold, so the busiest scenes are the ones that get cheaper.
-            if (opacity * 255f < 1f)
+            if (brightest * 255f < 1f)
                 continue;
 
             float length = VectorLightMath.PawnShadowLength(
@@ -288,6 +288,23 @@ public static class VectorLightPawnShadows
             // A shadow with no room left to fall into is not drawn at all: the pawn is standing flat
             // against the thing the lamp's light dies on.
             if (length <= 0f)
+                continue;
+
+            // NOW the denominator, because it needs the shadow's own geometry: what the OTHER lamps
+            // put on the cells this quad covers, sampled at its midpoint. Asked AFTER the clip and
+            // not before it, so a shadow stopped by a wall asks about the ground it actually reaches
+            // rather than the ground it would have reached — the same wall issue #166 was about, now
+            // deciding the alpha as well as the length.
+            float opacity = VectorLightMath.PawnShadowOpacity(
+                light.Illuminance,
+                TotalFor(i, light, totalForShare, anchor, trailingEdge, length),
+                skyGlow, roofed);
+
+            // Below a level of 255 the shadow is a rounding artefact rather than a shadow, and
+            // drawing it costs the same as drawing a visible one. It rejects considerably more than
+            // it used to: dilution is exactly what pushes the fifth and sixth lamp's arms under the
+            // threshold, so the busiest scenes are the ones that get cheaper.
+            if (opacity * 255f < 1f)
                 continue;
 
             into.Add(new DrawnShadow
@@ -386,6 +403,99 @@ public static class VectorLightPawnShadows
             : VectorLightMath.FullIlluminance;
 
         return totalForShare;
+    }
+
+    // Where the caster's footprint actually sits, which is NOT where the pawn is drawn. Vanilla
+    // offsets it by ShadowData.offset — (0, 0, -0.3) for a human, i.e. at the feet — and both
+    // Graphic_Shadow.DrawWorker and Printer_Shadow.PrintShadow honour that. §27 anchored on DrawPos
+    // instead, so a colonist's lamp shadow left their torso while their sun shadow left their feet,
+    // 0.3 cells apart and both on screen at dusk (issue #159). The offset is applied unrotated for
+    // the same reason vanilla's dynamic path applies it unrotated: PawnRenderer draws pawn shadows
+    // as Rot4.North regardless of which way the pawn faces.
+    //
+    // A named function rather than the expression twice, now that the builder needs it too: the
+    // draw's transform and the ground sample below have to agree about where a shadow starts, and
+    // this file has already been bitten once by the same quantity being spelled out in more than one
+    // place.
+    private static Vector3 AnchorOf(Vector3 centre, ShadowData shadow) =>
+        shadow == null ? centre : centre + shadow.offset;
+
+    // The denominator this lamp's share is taken against, which of the three arms is live.
+    //
+    // The arms are ordered by what they can answer, not by preference. With shares off there is no
+    // denominator to place and `totalAtPawn` is already pinned to FullIlluminance by Gather, so this
+    // returns phase 4's arithmetic untouched. With shares on and the ground flag down it is phase
+    // 4b's, sampled at the caster. Only the third arm asks about the ground — and it is skipped when
+    // this pawn has ONE lamp, which is not an optimisation but the same identity the pure core
+    // records: with nothing else lighting the shadow the ground total IS the blocked beam, so the
+    // two arms agree exactly and the lookup would buy a number already in hand.
+    private static float TotalFor(
+        int index, Contribution light, float totalAtPawn, Vector3 anchor, float trailingEdge,
+        float length)
+    {
+        bool grounded = CelestialLightingFeatures.VectorLightShadowShares
+            && CelestialLightingFeatures.VectorLightShadowGroundShares
+            && Contributions.Count > 1;
+
+        if (!grounded)
+            return totalAtPawn;
+
+        float sample = VectorLightMath.ShadowSampleDistance(trailingEdge, length);
+
+        float other = OtherIlluminanceAt(
+            index, anchor.x + light.UnitX * sample, anchor.z + light.UnitZ * sample);
+
+        return VectorLightMath.ShadowGroundTotal(light.Illuminance, other);
+    }
+
+    // What every lamp OTHER than this one is putting on one point of ground.
+    //
+    // Asks the same two things the first pass asks about the pawn's cell — falloff from the lamp,
+    // times the share of that cell the lamp can see — through the same PawnIlluminance, which is the
+    // whole reason that function was split out of the opacity. Two passes asking a subtly different
+    // question is exactly how a denominator stops matching its numerator.
+    //
+    // O(N²) IN THE LAMPS REACHING ONE PAWN, and affordable for the same reason the feature is: N is
+    // the lamps whose radius covers this pawn, which is one or two in a normal colony — where the
+    // caller skips this entirely — and eight in the pathological ring the share model was written
+    // against, for 56 array lookups. It is bounded by the light field, not by the map.
+    //
+    // WHAT IT KNOWINGLY MISSES, because the cheap fix is the wrong trade. It sums over Contributions,
+    // i.e. the lamps that light the PAWN, so a lamp that lights the ground the shadow falls on while
+    // failing to reach the pawn itself contributes nothing and the shadow stays a little too dark.
+    // The case is real but narrow: the shadow is already clipped inside the casting lamp's own
+    // visibility polygon, so the missing lamp has to be one whose pool overlaps that polygon near its
+    // rim without covering the caster. Catching it means a spatial query over every emitter on the
+    // map, per shadow, per frame — which is the map-wide scan the light field exists to avoid, paid
+    // in the hot path to correct a second-order term. Recorded rather than attempted, the way
+    // PawnShadowStrength records the soft edge it cannot draw.
+    private static float OtherIlluminanceAt(int excluded, float x, float z)
+    {
+        int cellX = Mathf.FloorToInt(x);
+        int cellZ = Mathf.FloorToInt(z);
+        float total = 0f;
+
+        for (int i = 0; i < Contributions.Count; i++)
+        {
+            if (i != excluded)
+            {
+                Contribution other = Contributions[i];
+                float dx = x - other.LightX;
+                float dz = z - other.LightZ;
+                float distance = Mathf.Sqrt(dx * dx + dz * dz);
+
+                // CoverageAt answers 255 for a cell outside the emitter's square, which is the right
+                // answer here for the reason its own header gives — and harmless either way, because
+                // Falloff has already returned 0 for anything past the radius.
+                float coverage = VectorLightMath.CoverageAt(
+                    other.Entry.Coverage, other.Entry.Cell.x, other.Entry.Cell.z,
+                    other.Entry.CoverageRadius, cellX, cellZ) / 255f;
+
+                total += VectorLightMath.PawnIlluminance(distance, other.Entry.Radius, coverage);
+            }
+        }
+
+        return total;
     }
 
     // How far this lamp's light reaches along the shadow's own bearing, in cells from the lamp.

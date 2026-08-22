@@ -9092,6 +9092,12 @@ of magnitude. Letting them compete on those numbers would leave torch shadows ha
 asked once, at the caster's own cell, and never about the cells the quad crosses (issue #166). Phase
 4b changes how dark each arm is, not how far it reaches.
 
+*Both halves of that were fixed later, and this paragraph is left standing because it is the reason
+each was looked for.* The length is clipped to the casting lamp's own visibility polygon in "Stopping
+at the wall" below. The denominator asked at the caster's cell — the other consequence of the same
+single question, and the one that survived three more releases because it moves an alpha rather than
+a silhouette — is "Sharing with the ground the shadow falls on", after it.
+
 #### Verification
 
 Six torches ringing one colonist at four cells, roofed and at midnight so that vanilla's
@@ -9244,6 +9250,103 @@ at most 4 levels of luminance. It is plainly visible in the capture once you kno
 it would be entirely invisible to a whole-frame median — which is why the reach probe, not the ΔE, is
 what this fix is signed off on. It is also why the scenario puts a *second lamp* in the far room: on
 unlit ground the same bug photographs as nothing at all.
+
+### Sharing with the ground the shadow falls on (`vector_light_shadow_ground_shares`)
+
+**Problem.** The share model asked its question in the wrong place. `Gather` samples every lamp's
+falloff and coverage at `pawn.Position`, so the denominator was the light standing on the **caster**
+— but what fills a shadow in is the light standing on the cells the shadow **covers**, and those are
+different cells, up to a full `MaxPawnShadowLength` away and on the far side of the pawn from the
+lamp. Two symmetric errors fell out of that. A colonist beside a wall corner had their shadows
+thinned by a lamp in the next room that reached *them* and not the floor their shadow landed on, so
+the shadow was too faint. A shadow thrown across a brightly lit aisle stayed as dark as one thrown
+into a cupboard, so it was too strong. It is the same single question "Stopping at the wall" fixed
+for the shadow's *length*, left unfixed for its *alpha* — and it outlived that fix by three releases
+because a length is a silhouette a screenshot can show and an alpha is not.
+
+**Approach.** Each lamp's shadow now takes its own denominator, sampled at that shadow's own
+midpoint: `ShadowGroundTotal(blocked, other)` where `blocked` is the casting lamp's illuminance at
+the pawn and `other` is what every *other* lamp delivers at the sample point, through the same
+`PawnIlluminance` the first pass uses.
+
+**The two terms are deliberately sampled in different places**, which is the one part worth reading
+twice. `blocked` is the beam the caster *intercepts* — light that fails to reach the ground precisely
+because a pawn stands in it — so it belongs to the pawn's cell, and it is the same number the
+numerator is. Everything else is light that arrives, so it is asked where it lands. That asymmetry
+buys exactness rather than costing it: the numerator appears in its own denominator, so the share
+cannot exceed one however far the two sample points disagree.
+
+**The midpoint, not the tip or the base.** The quad is flat and carries one alpha, so a single sample
+stands for the whole footprint; the tip over-reports a lamp reaching only the far end, and the base
+*is* the caster's cell, which is the bug. It is measured from the footprint anchor rather than
+`DrawPos`, for the reason issue #159 recorded.
+
+**What was rejected.** *Sampling the whole denominator on the ground*, including the blocked lamp's
+own term. It is the more obviously "physical" reading and it is worse twice over: a lone lamp would
+change value, invalidating every committed single-lamp capture and pin, and a lamp bright at the pawn
+but dim at the shadow's midpoint could claim a share above one — saturating to a full-strength shadow
+that the clamp would hide, which is the pre-share failure arrived at from the other side.
+
+*Summing over every emitter on the map* rather than over the lamps already known to light the pawn.
+This is the one thing the implementation knowingly gets wrong: a lamp that lights the shadow's ground
+without reaching the caster contributes nothing, so that shadow stays slightly too dark. The case is
+narrow — the shadow is clipped inside the casting lamp's polygon, so the missing lamp must overlap
+that polygon near its rim while missing the pawn — and closing it means a spatial query over every
+emitter, per shadow, per frame, in the hot path, to correct a second-order term.
+
+**A lone lamp is bit-for-bit unchanged**, which is what made this safe to ship into a calibrated
+feature. With one caster `other` is zero, the total is the blocked beam, `PawnShadowShare` floors it
+at `FullIlluminance`, and the result is the phase-4 opacity exactly. The adapter skips the whole
+question at `Contributions.Count == 1` for that reason — an identity, not an optimisation.
+
+#### Verification
+
+`Tests/Scenarios/vector_light_shadow_ground_shares.json`. Five torches: one three cells west of a
+colonist throwing their shadow east, four in a column to the north lighting the colonist but hidden
+from that eastward floor by a wall stub. Roofed and at midnight, so every shadow in frame is ours.
+
+**Four lamps north rather than one is arithmetic, not decoration.** The denominator is floored at
+full illumination, so a scene whose lamps sum to under 1.0 on the pawn gets the *same* floored
+denominator in both arms and measures a flat nothing. An earlier cut of this scenario used two lamps
+summing to 0.55 and did exactly that — the flag was working and the frames were identical.
+
+| probe | at the caster (shipped) | on the ground (this) |
+|---|---|---|
+| `vector_light_pawn_shadow_arms` | 5 | 5 |
+| `vector_light_pawn_shadow_peak` | 0.1315 | **0.2110** |
+| `vector_light_pawn_shadow_rosette` | 0.3804 | **0.4954** |
+| `vector_light_pawn_shadow_reach` | 3.0000 | 3.0000 |
+
+**`reach` is pinned identical on purpose**: it is the control that says the alphas moved and the
+geometry did not. It earned that place — the first three runs of this scenario had it drifting
+between arms, because the colonist was *walking*. Everything else was then a fact about a different
+scene, in the predicted direction, and would have been believed. Pausing is what fixed it, and the
+harness had no way to do it, so `SetTimeSpeed` is now a step of ours in `TestMod` (the harness
+discovers third-party steps by reflection). The `Profile` step's `timeSpeed` looks like the same
+thing and is not: it needs the analyzer installed, and under `--no-profiler` it skips the entire
+scenario and the run reports **PASS** with every later probe silently unrun.
+
+Frame measurements, A/B against a same-build control captured in a third arm with the flags
+re-stated and nothing changed:
+
+| region | touched | median ΔE | p90 | max |
+|---|---|---|---|---|
+| A/B, every changed pixel | 3.37% | 0.74 | 1.30 | 3.64 |
+| same-build control, every changed pixel | 3.21% | 0.74 | 1.24 | 3.17 |
+| **A/B, solid regions only** | **0.19%** | **1.26** | **2.58** | **3.64** |
+| same-build control, solid regions only | **0.00%** | — | — | — |
+
+**The control is what makes this readable, and without it the honest answer would have been "no".**
+Taken alone the A/B changes 3.4% of the frame at a median ΔE of 0.74 — under the visibility
+threshold, and the sort of number §20c was merged inert on. But the control changes 3.2% at ΔE 0.74,
+so essentially all of it is the renderer's own frame-to-frame dither on the lit floor and belongs to
+neither arm. Splitting the mask by whether a pixel's neighbourhood also changed separates the two
+completely: the control contains **no solid region at all**, while the A/B's solid pixels are exactly
+the two shadow quads at the pawn's feet, at median ΔE **1.26** and p90 **2.58**. The effect is
+visible; the noise around it is eighteen times its area and has no structure.
+
+The whole-frame median is **0.00**, which is the expected reading for an effect occupying 0.19% of a
+frame and is the reason this section quotes a masked number at all.
 
 ### Phase 4d: what vanilla's shadow actually does along its length (`vector_light_shadow_reference`)
 

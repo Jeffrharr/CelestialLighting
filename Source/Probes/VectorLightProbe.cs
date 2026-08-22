@@ -172,6 +172,16 @@ public sealed class VectorLightProbe : IProbe
         PawnShadowPeak,
         PawnShadowRosette,
 
+        // How many lamp shadows this pawn is actually casting.
+        //
+        // A GUARD FOR THE SCENARIO RATHER THAN A MEASUREMENT OF THE MOD, and it exists because the
+        // ground-share arm is meaningless with one lamp: the denominator collapses to the blocked
+        // beam by identity, so a scene that quietly ends up with a single caster measures nothing
+        // while both arms stay green and both screenshots look plausible. vector_light_shadow_wall
+        // is exactly that scene — two lamps in the frame and one reaching the pawn — so it is not a
+        // hypothetical. Pin this beside the alphas in any arm whose point is that lamps SHARE.
+        PawnShadowArms,
+
         // §27 / issue #166: how far the longest of this pawn's lamp shadows actually reaches, in
         // cells beyond the caster.
         //
@@ -296,7 +306,7 @@ public sealed class VectorLightProbe : IProbe
             return CountCasters(map);
 
         if (metric == Metric.PawnShadowPeak || metric == Metric.PawnShadowRosette
-            || metric == Metric.PawnShadowReach)
+            || metric == Metric.PawnShadowReach || metric == Metric.PawnShadowArms)
             return ReadShadow(map);
 
         float litArea = 0f;
@@ -379,6 +389,9 @@ public sealed class VectorLightProbe : IProbe
 
             clear *= 1f - drawn.Opacity;
         }
+
+        if (metric == Metric.PawnShadowArms)
+            return DrawnShadows.Count;
 
         if (metric == Metric.PawnShadowReach)
             return reach;
