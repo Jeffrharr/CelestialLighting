@@ -1,0 +1,55 @@
+{
+  "name": "indoor_floor_decoupling",
+  "saveFile": "minimal_colony.rws",
+  "description": "The two brightness floors stop compounding. MinNightBrightness is a fraction of the undarkened sky; MinIndoorBrightness was a fraction of whatever the pitch-black-night overlay had already left of it, so the shipped Cinematic pair (0.50 / 0.50) rendered 0.50 outdoors against 0.25 indoors while the settings screen showed one number for both. The decoupled arm divides the indoor floor by that same keep factor. Room is SEALED (no door) on purpose: with no opening the native sky falloff BFS never reaches it, so the indoor floor is the only cap acting on the cover and the arms differ in exactly one term. Cinematic is pinned explicitly rather than assumed, because run_test.sh does not reset persisted mod settings and both floors are preset knobs. Clouds are off for the usual reason -- the sheet drifts on the tick counter and lands on the very ground an A/B compares. NOON IS THE CONTROL ARM: the keep factor is 1 in daylight, the division is the identity, and both arms must bake the identical alpha there. A run where noon moved would mean the compensation is reaching an hour it has no business reaching.",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "20" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "40" } },
+    { "type": "SetWeather", "args": { "weatherDef": "Clear", "instant": "true" } },
+
+    { "type": "SetFeature", "args": { "featureName": "realistic_preset", "enabled": "false" } },
+
+    { "type": "SetFeature", "args": { "featureName": "cloud_cover", "enabled": "false" } },
+    { "type": "SetFeature", "args": { "featureName": "cloud_sheet", "enabled": "false" } },
+    { "type": "SetFeature", "args": { "featureName": "cloud_presence", "enabled": "false" } },
+    { "type": "SetFeature", "args": { "featureName": "cloud_deck_varieties", "enabled": "false" } },
+    { "type": "SetFeature", "args": { "featureName": "cloud_volume", "enabled": "false" } },
+
+    { "type": "SetTerrain", "args": { "def": "Concrete", "width": "34", "height": "34", "offset": "0,45", "clear": "true" } },
+    { "type": "PlaceThings", "args": { "def": "Wall", "stuff": "BlocksGranite", "offset": "0,45", "layout": "cells", "clear": "true",
+      "cells": "-5,5; -4,5; -3,5; -2,5; -1,5; 0,5; 1,5; 2,5; 3,5; 4,5; 5,5; -5,-5; -4,-5; -3,-5; -2,-5; -1,-5; 0,-5; 1,-5; 2,-5; 3,-5; 4,-5; 5,-5; -5,-4; -5,-3; -5,-2; -5,-1; -5,0; -5,1; -5,2; -5,3; -5,4; 5,-4; 5,-3; 5,-2; 5,-1; 5,0; 5,1; 5,2; 5,3; 5,4" } },
+    { "type": "SetRoof", "args": { "def": "RoofConstructed", "width": "11", "height": "11", "offset": "0,45" } },
+    { "type": "LookAt", "args": { "offset": "0,45", "zoom": "24" } },
+
+    { "type": "SetTime", "args": { "hour": "12" } },
+    { "type": "SetTimeSpeed", "args": { "speed": "paused" } },
+    { "type": "Screenshot", "args": { "fileName": "ifd_warmup.png" } },
+
+    { "type": "SetFeature", "args": { "featureName": "decoupled_indoor_floor", "enabled": "false" } },
+    { "type": "Probe", "args": { "probeName": "sun_elevation", "expectedValue": "81.72", "tolerance": "0.5" } },
+    { "type": "Probe", "args": { "probeName": "sealed_centre_alpha", "expectedValue": "128", "tolerance": "0" } },
+    { "type": "Probe", "args": { "probeName": "sealed_corner_alpha", "expectedValue": "128", "tolerance": "0" } },
+    { "type": "Screenshot", "args": { "fileName": "ifd_noon_coupled.png" } },
+
+    { "type": "SetFeature", "args": { "featureName": "decoupled_indoor_floor", "enabled": "true" } },
+    { "type": "Probe", "args": { "probeName": "sealed_centre_alpha", "expectedValue": "128", "tolerance": "0" } },
+    { "type": "Probe", "args": { "probeName": "sealed_corner_alpha", "expectedValue": "128", "tolerance": "0" } },
+    { "type": "Screenshot", "args": { "fileName": "ifd_noon_decoupled.png" } },
+
+    { "type": "SetTime", "args": { "hour": "0" } },
+    { "type": "SetTimeSpeed", "args": { "speed": "paused" } },
+
+    { "type": "SetFeature", "args": { "featureName": "decoupled_indoor_floor", "enabled": "false" } },
+    { "type": "Probe", "args": { "probeName": "sun_elevation", "expectedValue": "-58.28", "tolerance": "0.5" } },
+    { "type": "Probe", "args": { "probeName": "sealed_centre_alpha", "expectedValue": "128", "tolerance": "0" } },
+    { "type": "Probe", "args": { "probeName": "sealed_corner_alpha", "expectedValue": "128", "tolerance": "0" } },
+    { "type": "Probe", "args": { "probeName": "overlay_brightness", "expectedValue": "0.3036", "tolerance": "0.01" } },
+    { "type": "Screenshot", "args": { "fileName": "ifd_night_coupled.png" } },
+
+    { "type": "SetFeature", "args": { "featureName": "decoupled_indoor_floor", "enabled": "true" } },
+    { "type": "Probe", "args": { "probeName": "sealed_centre_alpha", "expectedValue": "100", "tolerance": "0" } },
+    { "type": "Probe", "args": { "probeName": "sealed_corner_alpha", "expectedValue": "100", "tolerance": "0" } },
+    { "type": "Probe", "args": { "probeName": "overlay_brightness", "expectedValue": "0.3036", "tolerance": "0.01" } },
+    { "type": "Screenshot", "args": { "fileName": "ifd_night_decoupled.png" } }
+  ]
+}

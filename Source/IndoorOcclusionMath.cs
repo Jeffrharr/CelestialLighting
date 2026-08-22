@@ -178,6 +178,68 @@ public static class IndoorOcclusionMath
             Clamp01(occlusion),
             Min(1f - Clamp01(minIndoorBrightness), 1f - Clamp01(skyFalloffFraction))));
 
+    // --- Decoupling the indoor floor from the outdoor one (the "both sliders say 0.50" problem) ---
+    //
+    // The two floors compound, and neither of them says so. Every lighting-overlay vertex renders as
+    //
+    //     skyColour x (1 - cover)    composed with the artificial glow carried in the vertex's RGB
+    //
+    // where `skyColour` is the one global material §7a has already lerped toward black by its own
+    // `keep` factor, and `cover` is the alpha this file computes. So a sealed room does not render at
+    // MinIndoorBrightness of the sky — it renders at `keep x MinIndoorBrightness` of it. On the shipped
+    // Cinematic preset both knobs sit at 0.50, which comes out as 0.50 outdoors against 0.25 indoors at
+    // the night floor, and 1.00 against 0.50 at noon. `Presets` already records the symptom from the
+    // other side: the pair was raised 0.30 -> 0.50 because "the two floors compound" and 0.30 was
+    // unplayable once multiplied. That is this same fact read as a tuning problem rather than a units
+    // problem.
+    //
+    // It is a units problem. MinNightBrightness is a fraction of the *undarkened* sky; MinIndoorBrightness
+    // was a fraction of whatever §7a had already left of it. Dividing the indoor floor by §7a's own keep
+    // factor puts both in the first unit — `keep x (minIndoor / keep) = minIndoor` — so an interior floors
+    // at MinIndoorBrightness of the same sky MinNightBrightness is a fraction of, and the two numbers can
+    // finally be compared, set equal, or deliberately split by a player who wants interiors darker than
+    // the night outside them.
+    //
+    // Three things worth knowing before touching this:
+    //
+    //   - **Noon is unchanged by construction.** In daylight §7a darkens nothing, keep is 1, and this
+    //     returns minIndoorBrightness untouched — the pre-feature formula exactly. The whole effect of
+    //     the change lives below the point where §7a starts pulling the overlay toward black.
+    //   - **The sky is a multiply with no headroom** (issue #103), so a floor cannot be honoured past the
+    //     point where admitting *all* of the sky still is not bright enough. That is the `keep <= floor`
+    //     branch: the cap saturates at "take the whole sky" and asking for more would be asking the
+    //     multiply for a value above (1,1,1).
+    //
+    //     "All of the sky" is 61% of it, not 100%, and that matters to what the shipped preset actually
+    //     gets. CoverAlpha never LOWERS what vanilla baked, on purpose — that is what keeps this
+    //     composable with mods that write the same alpha — and vanilla bakes RoofedAreaMinSkyCover (100)
+    //     on every roofed cell. So the brightest a roofed cell can render through this path is
+    //     `keep x (1 - 100/255)` = `keep x 0.608`, whatever the floor asks for. On the Cinematic pair
+    //     (0.50 / 0.50) at the night floor that is 0.304 against 0.500 outdoors, where the compounded
+    //     version gave 0.249: the gap closes by 22% and does not shut. Full parity would mean lowering
+    //     vanilla's own clamp, which is a separate decision with a real interop cost, and is deliberately
+    //     not taken here. The upshot is the reassuring one — an interior stays visibly an interior at the
+    //     floor rather than dissolving into the ground outside it.
+    //   - **keep == 0 is not a divide-by-zero to guard, it is the saturated case.** A fully black overlay
+    //     renders black whatever the cover is, so no cap delivers the floor and 1 ("admit everything") is
+    //     the honest best effort — the same answer the branch above gives, which is why this returns
+    //     before dividing rather than clamping afterwards.
+    //
+    // Feeds CapOcclusion's minIndoorBrightness argument in place of the raw setting; with the feature off
+    // the adapter passes the raw setting instead, which is why nothing here needs a flag of its own.
+    public static float EffectiveIndoorFloor(float minIndoorBrightness, float overlayKeep)
+    {
+        float floor = Clamp01(minIndoorBrightness);
+        if (floor <= 0f)
+            return 0f;
+
+        float keep = Clamp01(overlayKeep);
+        if (keep <= floor)
+            return 1f;
+
+        return Clamp01(floor / keep);
+    }
+
     // --- The general "somebody else lit this interior" term (replaces the Ambient Light interop) ---
     //
     // Supersedes a byte-for-byte re-derivation of Ambient Light's own private falloff formula, which we

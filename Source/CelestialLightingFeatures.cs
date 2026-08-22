@@ -235,6 +235,21 @@ public static class CelestialLightingFeatures
     // IndoorOcclusionSettings knobs.
     public static bool IndoorSkyOcclusion = true;
 
+    // Feature key for DecoupledIndoorFloor (see CivilTwilightPersistenceKey for why it lives here).
+    public const string DecoupledIndoorFloorKey = "decoupled_indoor_floor";
+
+    // Stops the two "never fully black" floors from compounding. MinNightBrightness is a fraction of the
+    // undarkened sky; MinIndoorBrightness was a fraction of whatever §7a had already left of it, so the
+    // shipped Cinematic pair (0.50 / 0.50) rendered 0.50 outdoors against 0.25 indoors at the night floor
+    // — two sliders showing the same number and meaning different things. On, §7b divides its floor by
+    // §7a's keep factor (IndoorOcclusionMath.EffectiveIndoorFloor) so both are fractions of the same sky.
+    //
+    // Daylight is untouched either way: keep is 1 whenever §7a is not darkening, and the division is then
+    // the identity. When off, CapOcclusion receives the raw setting exactly as before — the faithful
+    // pre-feature baseline for the harness A/B, and a one-flag revert if the parity reads worse than the
+    // compounding did.
+    public static bool DecoupledIndoorFloor = true;
+
     // Feature key for IndoorGlowPassthrough (see CivilTwilightPersistenceKey for why it lives here).
     public const string IndoorGlowPassthroughKey = "indoor_glow_passthrough";
 

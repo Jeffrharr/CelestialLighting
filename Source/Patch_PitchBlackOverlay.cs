@@ -55,47 +55,27 @@ public static class Patch_PitchBlackOverlay
         if (current.Biome != null && current.Biome.disableSkyLighting)
             return;
 
-        // The floor on the night screen, built up in two passes before it reaches
-        // OverlayBrightnessFactor (which clamps it into [0,1] itself, so there is nothing left to
-        // reconcile once both passes are done).
+        // The whole floor chain — §19's ozone raise, the eclipse-safe visual glow, Anomaly's
+        // UnnaturalDarkness clamp — now lives in NightOverlayKeep, because §7b's baked sky cover divides
+        // its own indoor floor by this identical number to stop the two floors compounding
+        // (IndoorOcclusionMath.EffectiveIndoorFloor). A second transcription of the chain here would
+        // cancel against the first only until somebody edited one of them, and the residue would read as
+        // interiors breathing against the sky rather than as the missed edit it was. That file carries the
+        // reasoning each step of the chain used to carry here; the two properties that must not be lost in
+        // the move are:
         //
-        // Pass 1: §19 may RAISE it while the sun sits in the ozone band, because real polar twilight
-        // is dim but emphatically not black — snow reads blue because scattered skylight still lands
-        // on it, and without this the blue §19 just painted would be multiplied into darkness right
-        // here. OverlayFloorFor only ever raises, and returns this value untouched whenever §19 is
-        // inactive, so this stays a pure addition.
+        //   THIS IS THE MOD'S ONLY SANCTIONED VISUAL-ONLY BRIGHTNESS FLOOR, visual-only by construction
+        //   rather than by care: the factor feeds nothing but MatBases.LightOverlay.color and
+        //   FogOfWar.color below (and §7b's baked alpha, which is equally visual-only), so GlowGrid, plant
+        //   growth, solar output and Dub's Skylights never see it. That is why §19 expresses its floor
+        //   through this factor instead of writing .glow — this postfix runs last on the composed material
+        //   and has the final word on screen brightness, so anything added upstream is multiplied away.
         //
-        // THIS IS THE MOD'S ONLY SANCTIONED VISUAL-ONLY BRIGHTNESS FLOOR, and it is visual-only by
-        // construction rather than by care: OverlayBrightnessFactor feeds nothing but
-        // MatBases.LightOverlay.color and FogOfWar.color below, so GlowGrid, plant growth, solar
-        // output and Dub's Skylights never see it. That is exactly why §19 expresses its floor here
-        // instead of writing .glow or brightening its own target colour — this postfix runs last on
-        // the composed material and lerps toward opaque black, so it has the final word on screen
-        // brightness and anything added upstream would be multiplied away.
-        //
-        // Note also that the feature gate above (NightRadiance && PitchBlackNights) is already
-        // correct for §19's purposes: if either is off nothing darkens the overlay at all, so there
-        // is nothing to floor. Do not "fix" this by hoisting the floor out of the gate.
-        float configuredMinBrightness = OzoneTwilight.OverlayFloorFor(current, NightRadianceSettings.Current.MinNightBrightness);
-
-        // Pass 2: whatever pass 1 landed on, during Anomaly's UnnaturalDarkness it may only ever be
-        // pulled DARKER, never lifted above what the event's own (unfloored) glow already renders —
-        // see NightRadianceMath.EffectiveMinNightBrightness and MapSky.UnnaturalDarknessActive for
-        // why. This runs even on top of §19's raise: a polar-latitude UnnaturalDarkness event still
-        // must not be washed back out. Every other reason the sky is dark keeps pass 1's value
-        // unchanged.
-        // NOT CurSkyGlow directly. An eclipse drives that field to a flat 0 at any hour, so reading it
-        // raw let the event darken a night sky the sun had already left — measured at a median CIELAB
-        // ΔE of 8.61, i.e. obvious. NightRadiance.VisualGlowFor floors it at the night floor for
-        // visual purposes only; SkyTarget.glow itself is untouched, so nothing gameplay-facing moves.
-        // §9's Patch_NightDesaturationStrength reads the same function for the same reason.
-        float visualGlow = NightRadiance.VisualGlowFor(current, __instance.CurSkyGlow);
-
-        float rawBrightness = NightRadianceMath.RawOverlayBrightnessFactor(visualGlow);
-        float minBrightness = NightRadianceMath.EffectiveMinNightBrightness(
-            MapSky.UnnaturalDarknessActive(current), configuredMinBrightness, rawBrightness);
-
-        float keep = NightRadianceMath.OverlayBrightnessFactor(visualGlow, minBrightness);
+        //   The feature gate above (NightRadiance && PitchBlackNights) is already correct for §19's
+        //   purposes: if either is off nothing darkens the overlay, so there is nothing to floor. Do not
+        //   "fix" this by hoisting the floor out of the gate — NightOverlayKeep re-checks the same pair and
+        //   returns 1 for exactly that reason.
+        float keep = NightOverlayKeep.For(current, __instance.CurSkyGlow);
 
         // keep == 1 is the daytime / bright-moon common case: nothing to darken, and it also skips the
         // day branch where the overlay is transparent white (1,1,1,0) and must be left alone.
