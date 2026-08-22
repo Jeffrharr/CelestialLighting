@@ -2304,6 +2304,85 @@ public class ApiCompatibilityTests
             + "projection, which the offline sweep transcribes");
     }
 
+    // --- The one-time update notice (Patch_UpdateNotice / UpdateNotice / Dialog_UpdateNotice) ---
+
+    // Where the notice is raised. This is the ONE patch in the mod whose failure is completely
+    // silent: everything else here draws something every frame, so a dead patch shows up as a sky
+    // that stopped changing, while a dead Init postfix just means a window nobody was expecting
+    // never appears — and the acknowledgement is never written either, so the bug does not even
+    // accumulate into something a player could report.
+    [Test]
+    public void UIRoot_Entry_Init_Exists()
+    {
+        var type = GetType("Verse.UIRoot_Entry");
+        Assert.That(type, Is.Not.Null, "Verse.UIRoot_Entry no longer exists");
+        Assert.That(
+            type!.Methods.Any(m => m.Name == "Init" && m.IsPublic && m.Parameters.Count == 0),
+            Is.True,
+            "UIRoot_Entry.Init() no longer exists or changed signature — Patch_UpdateNotice postfixes "
+            + "it to raise the what's-new notice at the main menu");
+    }
+
+    // Vanilla adds a Dialog_MessageBox from inside Init itself (the missing-Steam-client warning),
+    // which is what makes it a PROVEN place to add a window rather than a plausible one. If that
+    // stops being true the argument in Patch_UpdateNotice's header needs re-checking before the
+    // timing is trusted.
+    [Test]
+    public void UIRoot_Entry_Init_StillAddsAWindowItself()
+    {
+        var type = GetType("Verse.UIRoot_Entry");
+        Assert.That(type, Is.Not.Null, "Verse.UIRoot_Entry no longer exists");
+        var init = type!.Methods.SingleOrDefault(m => m.Name == "Init" && m.Parameters.Count == 0);
+        Assert.That(init?.Body, Is.Not.Null, "UIRoot_Entry.Init has no body to inspect");
+        Assert.That(
+            init!.Body.Instructions.Any(i =>
+                i.Operand is MethodReference called && called.Name == "Add"
+                && called.DeclaringType.Name == "WindowStack"),
+            Is.True,
+            "UIRoot_Entry.Init no longer adds a window of its own — re-verify that the window stack "
+            + "is live at this point before trusting Patch_UpdateNotice's timing");
+    }
+
+    // How CelestialLightingSettings.LoadedFromDisk tells "a settings file existed" from "these are
+    // the field initialisers", which is the entire basis for not showing the notice to a first-time
+    // install. Both halves are vanilla API the mod reads directly rather than patches, so nothing
+    // else in this file would notice a rename.
+    [Test]
+    public void Scribe_StillExposesLoadingVarsMode()
+    {
+        var scribe = GetType("Verse.Scribe");
+        Assert.That(scribe, Is.Not.Null, "Verse.Scribe no longer exists");
+        Assert.That(scribe!.Fields.Any(f => f.Name == "mode" && f.IsStatic), Is.True,
+            "Verse.Scribe.mode no longer exists — CelestialLightingSettings cannot tell a loaded "
+            + "settings file from a fresh one, and the update notice would show on a new install");
+
+        var mode = GetType("Verse.LoadSaveMode");
+        Assert.That(mode, Is.Not.Null, "Verse.LoadSaveMode no longer exists");
+        Assert.That(mode!.Fields.Any(f => f.Name == "LoadingVars"), Is.True,
+            "LoadSaveMode.LoadingVars no longer exists — same consequence as above");
+    }
+
+    // ReadModSettings skipping the load entirely when no file exists is what makes the signal above
+    // meaningful: ExposeData is never called on a first-time install, so LoadedFromDisk stays false.
+    // If this ever gained a "construct and expose defaults anyway" path the notice would start
+    // showing to new players, and nothing else would break.
+    [Test]
+    public void LoadedModManager_ReadModSettings_StillSkipsAMissingFile()
+    {
+        var type = GetType("Verse.LoadedModManager");
+        Assert.That(type, Is.Not.Null, "Verse.LoadedModManager no longer exists");
+        var read = type!.Methods.SingleOrDefault(m => m.Name == "ReadModSettings");
+        Assert.That(read?.Body, Is.Not.Null, "LoadedModManager.ReadModSettings has no body to inspect");
+        Assert.That(
+            read!.Body.Instructions.Any(i =>
+                i.Operand is MethodReference called && called.Name == "Exists"
+                && called.DeclaringType.Name == "File"),
+            Is.True,
+            "LoadedModManager.ReadModSettings no longer guards on the settings file existing — "
+            + "CelestialLightingSettings.LoadedFromDisk may no longer distinguish a returning player "
+            + "from a first-time install");
+    }
+
     // --- helpers ---
 
     private TypeDefinition? GetType(string fullName) =>
