@@ -34,26 +34,26 @@ public class VectorLightBuildCullTests
     [Test]
     public void ASingleWallMatchesTheOracle()
     {
-        AssertIdentical(Grid(g => g.Wall(20, 12, 20, 28)), 14.5f, 20.5f, 14f);
+        AssertIdentical(VectorLightLayout.Grid(g => g.Wall(20, 12, 20, 28)), 14.5f, 20.5f, 14f);
     }
 
     [Test]
     public void AnEmptyWindowMatchesTheOracle()
     {
-        AssertIdentical(Grid(g => { }), 20.5f, 20.5f, 14f);
+        AssertIdentical(VectorLightLayout.Grid(g => { }), 20.5f, 20.5f, 14f);
     }
 
     // Above the threshold, which is the path the whole change exists for.
     [Test]
     public void ACluttereredColonyMatchesTheOracle()
     {
-        AssertIdentical(Grid(RoomBlock), 20.5f, 20.5f, 14f);
+        AssertIdentical(VectorLightLayout.Grid(VectorLightLayout.RoomBlock), 20.5f, 20.5f, 14f);
     }
 
     [Test]
     public void FreeStandingPillarsMatchTheOracle()
     {
-        AssertIdentical(Grid(g => g.Pillars(3)), 20.5f, 20.5f, 14f);
+        AssertIdentical(VectorLightLayout.Grid(g => g.Pillars(3)), 20.5f, 20.5f, 14f);
     }
 
     // ---- the geometry the cull is most likely to get wrong ------------------------------------
@@ -75,7 +75,7 @@ public class VectorLightBuildCullTests
         int wx = 20 + (int)Math.Round(8.0 * Math.Cos(bearing));
         int wz = 20 + (int)Math.Round(8.0 * Math.Sin(bearing));
 
-        AssertIdentical(Grid(g => { g.Pillars(4); g.Wall(wx, wz, wx, wz + 2); }), 20.5f, 20.5f, 14f);
+        AssertIdentical(VectorLightLayout.Grid(g => { g.Pillars(4); g.Wall(wx, wz, wx, wz + 2); }), 20.5f, 20.5f, 14f);
     }
 
     // A light pressed against a wall sees it subtending an enormous arc — approaching a half turn,
@@ -84,7 +84,7 @@ public class VectorLightBuildCullTests
     [Test]
     public void ALightHardAgainstAWallMatchesTheOracle()
     {
-        AssertIdentical(Grid(g => { g.Pillars(4); g.Wall(20, 21, 40, 21); }), 20.5f, 20.5f, 14f);
+        AssertIdentical(VectorLightLayout.Grid(g => { g.Pillars(4); g.Wall(20, 21, 40, 21); }), 20.5f, 20.5f, 14f);
     }
 
     // Sub-cell segments off the integer grid: door leaves, which SegmentsAround appends alongside the
@@ -94,7 +94,7 @@ public class VectorLightBuildCullTests
     public void PartlyOpenDoorLeavesMatchTheOracle()
     {
         List<VectorLightMath.Segment> segments = new List<VectorLightMath.Segment>(
-            Grid(g => { g.Pillars(4); g.Wall(26, 10, 26, 30); }));
+            VectorLightLayout.Grid(g => { g.Pillars(4); g.Wall(26, 10, 26, 30); }));
 
         // Two leaves sliding apart in a doorway at (26, 20), on both faces, exactly as
         // VectorLightBlockers.AddDoorLeaves emits them.
@@ -119,7 +119,7 @@ public class VectorLightBuildCullTests
 
         for (int trial = 0; trial < 200; trial++)
         {
-            Layout layout = new Layout();
+            VectorLightLayout layout = new VectorLightLayout();
             int walls = random.Next(4, 40);
 
             for (int i = 0; i < walls; i++)
@@ -163,72 +163,5 @@ public class VectorLightBuildCullTests
             Assert.That(actual.Angles[i], Is.EqualTo(expected.Angles[i]), $"angle {i} {what}");
             Assert.That(actual.Distances[i], Is.EqualTo(expected.Distances[i]), $"distance {i} {what}");
         }
-    }
-
-    private static VectorLightMath.Segment[] Grid(Action<Layout> build)
-    {
-        Layout layout = new Layout();
-        build(layout);
-        return layout.Segments();
-    }
-
-    private static void RoomBlock(Layout layout)
-    {
-        for (int i = 0; i * 7 < Layout.Size; i++)
-        {
-            layout.Wall(0, i * 7, Layout.Size - 1, i * 7);
-            layout.Wall(i * 7, 0, i * 7, Layout.Size - 1);
-        }
-
-        // Doorways, so the light reaches past its own room and the window fills with wall from the
-        // next one. A sealed grid would leave the polygon bounded by four segments however dense it
-        // looks.
-        for (int i = 0; i * 7 < Layout.Size; i++)
-        {
-            for (int j = 0; j * 7 < Layout.Size; j++)
-                layout.Clear(i * 7, j * 7 + 3);
-        }
-    }
-
-    private sealed class Layout
-    {
-        public const int Size = 41;
-
-        private readonly bool[] blocked = new bool[Size * Size];
-
-        public void Wall(int x0, int z0, int x1, int z1)
-        {
-            for (int z = z0; z <= z1; z++)
-            {
-                for (int x = x0; x <= x1; x++)
-                    Set(x, z);
-            }
-        }
-
-        public void Pillars(int pitch)
-        {
-            for (int z = 0; z < Size; z += pitch)
-            {
-                for (int x = 0; x < Size; x += pitch)
-                    Set(x, z);
-            }
-        }
-
-        public void Clear(int x, int z)
-        {
-            if (Inside(x, z))
-                blocked[z * Size + x] = false;
-        }
-
-        public VectorLightMath.Segment[] Segments() =>
-            VectorLightMath.SilhouetteSegments(blocked, Size, Size, 0, 0);
-
-        private void Set(int x, int z)
-        {
-            if (Inside(x, z))
-                blocked[z * Size + x] = true;
-        }
-
-        private static bool Inside(int x, int z) => x >= 0 && x < Size && z >= 0 && z < Size;
     }
 }
