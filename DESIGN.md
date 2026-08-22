@@ -9477,11 +9477,26 @@ the condition the old scenarios never established. The cat is deterministic desp
 taking an age: `PawnGenerationRequest` defaults to `DevelopmentalStage.Adult`, and only the adult
 stage declares `shadowData`.
 
-**Still open, and deliberately not fixed here.** A pawn with no shadow data anywhere — a *kitten*,
-whose life stage declares none — still gets the human-shaped fallback, where vanilla draws nothing at
-all. And `PawnShadowShare` is evaluated at the pawn's own cell, so a lamp that lights the caster but
-is walled off from the ground its shadow falls on still lightens that shadow; wall shadows do not
-have this problem, because the mask answers per cell.
+**No shadow data means no shadow**, which turned out to be a third bug rather than the edge case it
+first looked like. The fallback that gave a cat a human's rectangle was doing the same for anything
+that declared nothing at all — and **five vanilla animals declare no `shadowData` at any life stage**:
+Cobra, Duck, Raccoon, Rat, Squirrel. Every one of them was being drawn a full human-sized shadow,
+under sprites that are among the smallest in the game, and they are common enough to wander through a
+colony constantly. A kitten is the same case for the same reason.
+
+`PawnCastsShadow` gains a fifth clause, and it is the only one that is not about a pawn's *state*:
+vanilla builds `BodyGraphic.ShadowGraphic` only when `Graphic.data.shadowData` is non-null, so a def
+declaring neither source casts nothing, ever, indoors or out. Drawing nothing is also the better-
+looking answer independently of fidelity — a missing shadow reads as the game not bothering, while an
+obviously oversized one reads as a bug.
+
+The scenario carries a **squirrel** as a third caster that must cast nothing, and asserts it as a
+number: `vector_light_pawn_casters` reads **2 with three pawns in the room**. That is what makes
+"nothing is drawn" a claim rather than an absence nobody checked.
+
+**Still open, and deliberately not fixed here.** `PawnShadowShare` is evaluated at the pawn's own
+cell, so a lamp that lights the caster but is walled off from the ground its shadow falls on still
+lightens that shadow. Wall shadows do not have this problem, because the mask answers per cell.
 
 ### §27 phase 5: the max as the mask's lift (`VectorLightLiftMath`, `vector_light_mask_max`, issue #151)
 

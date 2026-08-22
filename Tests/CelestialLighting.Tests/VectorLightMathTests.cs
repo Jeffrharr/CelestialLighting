@@ -1321,17 +1321,37 @@ public class VectorLightMathTests
     // rather than as a truth table because the failure being guarded against is a clause going
     // MISSING — and a dropped `&& !swimming` passes any test that only ever checks the all-clear
     // and the all-fail.
-    [TestCase(true,  false, false, false, true,  "standing, visible, dry, on the ground")]
-    [TestCase(false, false, false, false, false, "lying down is not a 1.2-cell caster")]
-    [TestCase(true,  true,  false, false, false, "a shadow would give an invisible pawn away")]
-    [TestCase(true,  false, true,  false, false, "half-submerged, so a full blob reads as floating")]
-    [TestCase(true,  false, false, true,  false, "in the air, where a ground caster's shadow is a lie")]
+    [TestCase(true,  false, false, false, true,  true,  "standing, visible, dry, on the ground")]
+    [TestCase(false, false, false, false, true,  false, "lying down is not a 1.2-cell caster")]
+    [TestCase(true,  true,  false, false, true,  false, "a shadow would give an invisible pawn away")]
+    [TestCase(true,  false, true,  false, true,  false, "half-submerged, so a full blob reads as floating")]
+    [TestCase(true,  false, false, true,  true,  false, "in the air, where a ground caster's shadow is a lie")]
+    [TestCase(true,  false, false, false, false, false, "no declared shadow: vanilla draws none either")]
     public void OnlyAnUprightVisibleGroundedPawnCasts(
-        bool standing, bool invisible, bool swimming, bool flying, bool expected, string why)
+        bool standing, bool invisible, bool swimming, bool flying, bool hasShadowData,
+        bool expected, string why)
     {
         Assert.That(
-            VectorLightMath.PawnCastsShadow(standing, invisible, swimming, flying),
+            VectorLightMath.PawnCastsShadow(standing, invisible, swimming, flying, hasShadowData),
             Is.EqualTo(expected), why);
+    }
+
+    // The no-data clause on its own, because it is the one that is not about a pawn's STATE and is
+    // therefore easy to drop in a refactor that reasons about postures.
+    //
+    // NOT A KITTEN EDGE CASE, which is why it is a clause rather than a shrug: five vanilla animals
+    // declare no shadowData at any life stage -- Cobra, Duck, Raccoon, Rat, Squirrel -- and every
+    // one of them was drawn a full HUMAN-SIZED shadow, because the caller fell through to a
+    // hardcoded default when the lookup came back empty.
+    [Test]
+    public void APawnWithNoDeclaredShadowCastsNothingHoweverWellItIsStanding()
+    {
+        Assert.That(
+            VectorLightMath.PawnCastsShadow(
+                standing: true, invisible: false, swimming: false, flying: false,
+                hasShadowData: false),
+            Is.False,
+            "a squirrel has no shadow in vanilla and must not gain one from a lamp");
     }
 
     // Standing is the only clause that has to be TRUE, and the asymmetry is worth a test of its own:
@@ -1340,7 +1360,7 @@ public class VectorLightMathTests
     [Test]
     public void StandingIsRequiredRatherThanMerelyNotVetoing()
     {
-        Assert.That(VectorLightMath.PawnCastsShadow(false, false, false, false), Is.False,
+        Assert.That(VectorLightMath.PawnCastsShadow(false, false, false, false, true), Is.False,
             "a pawn who is doing nothing else wrong still must be standing");
     }
 

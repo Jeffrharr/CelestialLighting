@@ -660,7 +660,12 @@ public static class VectorLightPawnShadows
             standing:  pawn.GetPosture() == PawnPosture.Standing,
             invisible: pawn.IsPsychologicallyInvisible(),
             swimming:  pawn.Swimming || pawn.DrawNonHumanlikeSwimmingGraphic,
-            flying:    pawn.Flying);
+            flying:    pawn.Flying,
+            // The fifth clause, and the only one that is not a pawn STATE: a def that declares no
+            // shadow anywhere casts none in vanilla either. Asked through ShadowDataOf so the
+            // question is answered by the same lookup the draw uses — a separate check here could
+            // pass a pawn the draw then had no rectangle for.
+            hasShadowData: ShadowDataOf(pawn) != null);
     }
 
     // Public because the probe asks THIS function rather than re-deriving the answer, which is the
