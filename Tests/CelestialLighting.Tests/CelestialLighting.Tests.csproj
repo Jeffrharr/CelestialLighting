@@ -295,6 +295,13 @@
          them at runtime — so a copy here could agree with itself while disagreeing with the file
          that ships, and the symptom would be a stale wall in one frame out of nine. -->
     <Compile Include="../../Source/VectorLightSilhouetteMath.cs" Link="VectorLightSilhouetteMath.cs" />
+    <!-- The one-time update notice's policy half. Depends on nothing else here — it takes the
+         persisted switches and two reachability booleans in and returns what to show and what to
+         write back. Linked rather than copied for the usual reason, and for one specific to it: the
+         claims these tests pin (never shown twice, never shown to a first install, never offers a
+         feature it cannot deliver) are invisible in a screenshot and only reachable by running the
+         shipped file. -->
+    <Compile Include="../../Source/UpdateNoticeMath.cs" Link="UpdateNoticeMath.cs" />
   </ItemGroup>
 
 </Project>
