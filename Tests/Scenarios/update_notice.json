@@ -1,0 +1,10 @@
+{
+  "name": "update_notice",
+  "saveFile": "minimal_colony.rws",
+  "description": "Live evidence that Patch_UpdateNotice fires. THE ASSERTION IS A LINE IN Player.log, NOT A STEP, and that is not laziness -- this scenario cannot screenshot the window it tests, because a blocking modal the harness would photograph is by definition one its DialogGuard failed to refuse. Grep the run's Player.log for: RWTH: dismissed blocking dialog CelestialLighting.Dialog_UpdateNotice (suppressed). That single line proves the postfix on UIRoot_Entry.Init applied and ran, that Find.WindowStack was live at that point, that the settings loaded off disk (or ShowIfDue would have returned before constructing anything), and that the notice was due. Reaching the end of the steps proves it strands nothing. Run against main for the control: the type does not exist there, so no line.",
+  "steps": [
+    { "type": "SetTime", "args": { "hour": "12" } },
+    { "type": "FastForward", "args": { "ticks": "120" } },
+    { "type": "Screenshot", "args": { "fileName": "update_notice_after.png" } }
+  ]
+}

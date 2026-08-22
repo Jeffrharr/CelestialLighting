@@ -249,5 +249,17 @@ Requires Harmony.</description>
          (§23b underlight layer, §23c cloud shadows, §25 drawn sheets) stand down and it owns the
          deck; our sky colour keeps running. See DESIGN.md "Interop: Clouds". -->
     <li>brrainz.clouds</li>
+    <!-- Both postfix Verse.UIRoot_Entry.Init, which Patch_UpdateNotice also postfixes to raise the
+         one-time what's-new notice (see DESIGN.md "Update notice"). Harmony runs every postfix, so
+         neither mod loses anything either way — the only thing load order decides is which window
+         ends up on top of the stack at the main menu, and ours going last means the player sees the
+         one that is asking them a question rather than having it hidden underneath. That is a
+         courtesy, not a correctness requirement; nothing here breaks in the other order.
+
+         Popup Framework (ferny.PopupFramework) fires its OnGameStartup popups from the same postfix.
+         Ding on Game Loaded (Mlie.DingOnGameLoaded) plays a sound there and stacks no window at all,
+         so it is declared purely because a shared patch target should be visible in the load graph. -->
+    <li>ferny.PopupFramework</li>
+    <li>Mlie.DingOnGameLoaded</li>
   </loadAfter>
 </ModMetaData>
