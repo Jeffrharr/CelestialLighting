@@ -2,60 +2,61 @@ namespace CelestialLighting;
 
 // The pure policy behind the one-time "what's new" notice (Source/Dialog_UpdateNotice.cs): given
 // what the player already has switched on and what this machine can actually render, does the
-// notice appear at all, what does it say about each new feature, and what do the switches become if
-// they say yes? No UnityEngine, no Verse — the live half is only "read the settings, draw a window,
-// write the settings back".
+// notice appear at all, what does it say about each new feature, and which switch does the one
+// button in it move? No UnityEngine, no Verse — the live half is only "read the settings, draw a
+// window, write the settings back".
 //
 // WHY THIS IS A SEPARATE FILE AND NOT THREE `if`s IN THE DIALOG. Every branch here is a way to get
 // the notice WRONG in a manner nobody notices for a release: showing it to somebody installing for
 // the first time, showing it twice, showing it forever because the acknowledgement never persisted,
-// or — the worst one — offering to enable something that then visibly does nothing because a second
-// switch upstream of it is still off. None of those can be caught by looking at a screenshot, and
-// all of them are one boolean expression each, so they belong somewhere they can be enumerated as
-// test cases. See DESIGN.md "Update notice".
+// or announcing a feature that is not actually running on this machine. None of those can be caught
+// by looking at a screenshot, and all of them are one boolean expression each, so they belong
+// somewhere they can be enumerated as test cases. See DESIGN.md "Update notice".
 
-// Which of the new features the notice can talk about, and in what terms.
-public enum UpdateNoticeOffer
+// What the notice does about a given feature.
+public enum UpdateNoticeRow
 {
-    // The feature cannot run on this install at all — the shader bundle did not load, or another
-    // mod already owns the thing it would draw. NOT MENTIONED, rather than mentioned and greyed:
-    // an offer the player cannot take is worse than silence, because they go looking for the result
-    // and find nothing, and the notice has spent its one appearance saying so.
-    Unavailable,
+    // Not mentioned. Either the feature cannot run on this install, or the player has switched off
+    // something upstream of it — in both cases naming it would send them looking for something that
+    // is not on their screen, and the notice has spent its one appearance doing it.
+    Hidden,
 
-    // Already on. There is nothing to ask, but it is still named in the notice: "here is what is
-    // new" is the other half of what this window is for, and a feature that arrived switched on is
-    // exactly the one a player would otherwise never learn the name of.
-    AlreadyOn,
+    // Named, with nothing to press. "Here is what is new" is half of what this window is for, and a
+    // feature that arrived already switched on is exactly the one a player would otherwise never
+    // learn the name of.
+    Announce,
 
-    // Off, and reachable. This is the row that gets a tickbox.
-    OfferToEnable,
+    // Named, with a button that turns it on. Exactly one feature is ever in this state — see
+    // VectorLightRow.
+    Offer,
 }
 
 // Every persisted switch the notice reads or writes, plus the two live facts that decide whether
 // the volumetric path is reachable. Passed as one value rather than six parameters because the
-// interesting operations (Apply below) return a whole new set, and threading six `out`s through a
-// dialog's button handler is how the cloud chain gets half-applied.
+// operations here return a whole new set, and threading six `out`s through a dialog's button
+// handler is how half of a decision gets applied.
 public readonly struct UpdateNoticeSwitches
 {
-    // §27's master switch. Ships off; nothing upstream of it, so it is the simple case.
+    // The one switch this notice can move. Nothing upstream of it and no hardware requirement — the
+    // shader path and the flat fallback both render something — so the switch alone decides.
     public readonly bool VectorLights;
 
-    // The three-deep chain §25c sits at the bottom of. `CloudVolume` alone renders nothing: with
-    // `CloudSheet` off there are no sheets to march through, and with `CloudCover` off there is no
-    // cloud at all (CloudLayers.SheetAlphaFor asks for both before it asks for a fraction).
+    // The three-deep chain the volumetric renderer sits at the bottom of. `CloudVolume` alone
+    // renders nothing: with `CloudSheet` off there are no sheets to march through, and with
+    // `CloudCover` off there is no cloud at all (CloudLayers.SheetAlphaFor asks for both before it
+    // asks for a fraction). READ-ONLY here — the notice never moves these, see VolumetricCloudRow.
     public readonly bool CloudCover;
     public readonly bool CloudSheet;
     public readonly bool CloudVolume;
 
     // CloudVolumeShader.ShaderLoaded — whether the custom shader is present, supported and is
     // actually ours rather than the default vanilla substitutes for a failed load. False on any
-    // platform whose bundle is missing, where §25c silently draws §25b's baked atlas instead.
+    // platform whose bundle is missing, where the sheets silently draw the baked atlas instead.
     public readonly bool CloudVolumeShaderLoaded;
 
     // CloudsCompat.ModIsInstalled — the Clouds mod hangs its own particle deck over the map, and
-    // our positional cloud lanes (§25 among them) stand down for it. With it installed our sheets
-    // never draw, so there is nothing for the volumetric renderer to render.
+    // our positional cloud lanes stand down for it. With it installed our sheets never draw, so
+    // there is nothing for the volumetric renderer to render.
     public readonly bool ExternalCloudsInstalled;
 
     public UpdateNoticeSwitches(bool vectorLights, bool cloudCover, bool cloudSheet, bool cloudVolume,
@@ -68,6 +69,11 @@ public readonly struct UpdateNoticeSwitches
         CloudVolumeShaderLoaded = cloudVolumeShaderLoaded;
         ExternalCloudsInstalled = externalCloudsInstalled;
     }
+
+    // Same switches with vector lighting on. The one mutation this whole subsystem performs.
+    public UpdateNoticeSwitches WithVectorLights() =>
+        new UpdateNoticeSwitches(true, CloudCover, CloudSheet, CloudVolume, CloudVolumeShaderLoaded,
+            ExternalCloudsInstalled);
 }
 
 public static class UpdateNoticeMath
@@ -96,8 +102,8 @@ public static class UpdateNoticeMath
     // resolved — including when the player dismisses it with Escape — rather than when they accept,
     // so "no thanks" is as final as "yes".
     //
-    // A FIRST-TIME INSTALL STILL WRITES THE ACKNOWLEDGEMENT (see AcknowledgeOnFirstRun): the notice
-    // is skipped, but the version is recorded, or the first time that player opens and closes the
+    // A FIRST-TIME INSTALL STILL WRITES THE ACKNOWLEDGEMENT (see FirstRunSwitches): the notice is
+    // skipped, but the version is recorded, or the first time that player opens and closes the
     // settings screen they would gain a settings file and then be told on the next boot that a
     // feature they have always had is new.
     public static bool ShouldShow(bool installedBefore, int acknowledgedVersion) =>
@@ -115,50 +121,86 @@ public static class UpdateNoticeMath
     // differently should find one of them and not the other.
     public static int AcknowledgeOnFirstRun() => CurrentNoticeVersion;
 
-    // §27. No chain above it and no hardware requirement — the shader path and the flat fallback
-    // both render something — so the switch alone decides.
-    public static UpdateNoticeOffer VectorLightOffer(in UpdateNoticeSwitches switches) =>
-        switches.VectorLights ? UpdateNoticeOffer.AlreadyOn : UpdateNoticeOffer.OfferToEnable;
-
-    // §25c, and the interesting one. Two ways to be unreachable, then the chain.
+    // WHAT A BRAND-NEW INSTALL GETS, and it is not the same as what an upgrade gets: vector lighting
+    // is ON out of the box, and stays off for everybody who already had the mod.
     //
-    // Order matters: unreachability is checked BEFORE the switches, because a player with the Clouds
-    // mod installed may well have all three of ours on — the settings are live and mean something
-    // again the moment they uninstall it — and telling them their volumetric clouds are already
-    // running would be a straightforwardly false statement about their screen.
-    public static UpdateNoticeOffer VolumetricCloudOffer(in UpdateNoticeSwitches switches)
+    // The asymmetry is the whole point rather than an inconsistency. Vector lighting changes how a
+    // colony is LIT — light that bent around a corner no longer arrives, so indirectly lit rooms are
+    // genuinely darker — and the case for defaulting it on or off is completely different for the
+    // two populations. Somebody installing today has no prior expectation to violate; it is simply
+    // how this mod lights a colony, and shipping the mod's best look by default is the right call.
+    // Somebody who has played fifty hours under the old lighting has a very specific expectation,
+    // and silently rewriting it on update is not a default, it is a surprise. They get asked.
+    //
+    // THIS IS WHY THE SCRIBED DEFAULT FOR `vectorLights` MUST STAY `false` even though a new install
+    // now starts true, and it is the sharpest edge in this file. Scribe_Values omits any value equal
+    // to its default, so an existing config written while the feature was off has NO vectorLights
+    // node — flip the scribed default to true and every one of those configs reads back as `on`,
+    // which is exactly the silent rewrite the paragraph above rules out. The new-install default
+    // therefore lives here, on a path that only runs when no settings file existed at all, and the
+    // serialisation default stays as the honest answer to "what did an absent node mean when it was
+    // written".
+    public static UpdateNoticeSwitches FirstRunSwitches(in UpdateNoticeSwitches switches) =>
+        switches.WithVectorLights();
+
+    // The one row with a button — and the one that is either offered or not mentioned, never merely
+    // announced.
+    //
+    // Off is the case the whole notice exists for. ON means this player already went and found the
+    // switch themselves, which for a feature arriving in THIS release means a deliberate act taken
+    // in the last few minutes of settings-screen reading. There is nothing to tell them: an offer
+    // would be a button that changes nothing, and an announcement would be the mod informing
+    // somebody of a decision they just made. So the row disappears, which is also what lets
+    // AnythingToShow below mean something.
+    public static UpdateNoticeRow VectorLightRow(in UpdateNoticeSwitches switches) =>
+        switches.VectorLights ? UpdateNoticeRow.Hidden : UpdateNoticeRow.Offer;
+
+    // ANNOUNCED OR NOT MENTIONED — never offered, and that is a deliberate narrowing rather than a
+    // missing feature.
+    //
+    // The volumetric renderer ships ON underneath switches that also ship on, so for almost every
+    // upgrading player it is simply already running and the honest thing to do is name it. The
+    // players it is NOT running for are the ones who turned "Partial cloud cover" or "Visible
+    // clouds" off, and offering to switch those back on would be this notice overriding a decision
+    // the player made deliberately — for a rendering change to clouds they have already said they
+    // do not want to see. So they are not asked, and not told either: an announcement about a sky
+    // they have switched off is noise.
+    //
+    // Unreachability is folded into the same Hidden result but is checked FIRST, because it is a
+    // different claim. A Clouds user may well have all three of ours on — those settings are live
+    // again the moment they uninstall it — so reading the switches alone would announce volumetric
+    // clouds to somebody whose sky is being drawn by another mod entirely.
+    public static UpdateNoticeRow VolumetricCloudRow(in UpdateNoticeSwitches switches) =>
+        VolumetricCloudsRunning(switches) ? UpdateNoticeRow.Announce : UpdateNoticeRow.Hidden;
+
+    // Whether the volumetric path is actually drawing on this install right now: reachable at all,
+    // and every link of the chain above it closed. Split out from the row above because it is the
+    // interesting half and reads as a claim about the screen rather than about the UI.
+    public static bool VolumetricCloudsRunning(in UpdateNoticeSwitches switches)
     {
         if (!switches.CloudVolumeShaderLoaded || switches.ExternalCloudsInstalled)
-            return UpdateNoticeOffer.Unavailable;
+            return false;
 
-        bool drawnAndMarched = switches.CloudCover && switches.CloudSheet && switches.CloudVolume;
-        return drawnAndMarched ? UpdateNoticeOffer.AlreadyOn : UpdateNoticeOffer.OfferToEnable;
+        return switches.CloudCover && switches.CloudSheet && switches.CloudVolume;
     }
 
     // Whether the notice has anything to ask, as opposed to only things to announce. Drives which
     // buttons the window draws: with nothing offerable it is an OK box, not a yes/no.
     public static bool AnyOffer(in UpdateNoticeSwitches switches) =>
-        VectorLightOffer(switches) == UpdateNoticeOffer.OfferToEnable
-        || VolumetricCloudOffer(switches) == UpdateNoticeOffer.OfferToEnable;
+        VectorLightRow(switches) == UpdateNoticeRow.Offer
+        || VolumetricCloudRow(switches) == UpdateNoticeRow.Offer;
+
+    // Whether the notice has anything to SAY. A window that names nothing is worse than no window:
+    // it spends the one appearance this notice gets and tells the player nothing they can act on.
+    public static bool AnythingToShow(in UpdateNoticeSwitches switches) =>
+        VectorLightRow(switches) != UpdateNoticeRow.Hidden
+        || VolumetricCloudRow(switches) != UpdateNoticeRow.Hidden;
 
     // The switches as they should be after the player's answer.
     //
-    // ENABLING VOLUMETRIC CLOUDS RAISES THE WHOLE CHAIN, and that is the point of routing this
-    // through a function. Setting `CloudVolume` on its own is the failure this file exists to
-    // prevent: the box ticks, the settings screen agrees, and the sky is unchanged because the
-    // player turned "Partial cloud cover" off eleven months ago and has long since forgotten. The
-    // notice asked "do you want this feature", so it delivers the feature, not the leaf switch.
-    //
     // Nothing is ever turned OFF here. A `false` answer means "leave it as it was", not "disable" —
-    // a player who declines the offer must end up exactly where they started, including if they had
-    // already enabled the feature themselves between the update and the notice appearing.
-    public static UpdateNoticeSwitches Apply(in UpdateNoticeSwitches switches,
-        bool enableVectorLights, bool enableVolumetricClouds) =>
-        new UpdateNoticeSwitches(
-            vectorLights: switches.VectorLights || enableVectorLights,
-            cloudCover: switches.CloudCover || enableVolumetricClouds,
-            cloudSheet: switches.CloudSheet || enableVolumetricClouds,
-            cloudVolume: switches.CloudVolume || enableVolumetricClouds,
-            cloudVolumeShaderLoaded: switches.CloudVolumeShaderLoaded,
-            externalCloudsInstalled: switches.ExternalCloudsInstalled);
+    // a player who declines must end up exactly where they started, including if they had already
+    // enabled the feature themselves between the update and the notice appearing.
+    public static UpdateNoticeSwitches Apply(in UpdateNoticeSwitches switches, bool enableVectorLights) =>
+        enableVectorLights ? switches.WithVectorLights() : switches;
 }

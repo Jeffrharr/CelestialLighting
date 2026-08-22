@@ -35,32 +35,48 @@ public static class UpdateNotice
 
         // A brand-new install: no settings file existed, so there is no earlier version of this mod
         // to have an update FROM, and everything the notice would announce is simply part of what
-        // this player just installed.
-        //
-        // The acknowledgement is still written, and that write is the point of this branch rather
-        // than an afterthought. Without it, the first time this player opens and closes the settings
-        // screen they gain a settings file, and the boot after that they read as a returning player
-        // and get told that a feature they have always had is new.
+        // this player just installed. They get vector lighting switched on instead of asked about
+        // it — see UpdateNoticeMath.FirstRunSwitches for why the two populations differ.
         if (!settings.LoadedFromDisk)
         {
-            AcknowledgeFirstRun(settings);
+            SeedFirstRun(settings);
             return;
         }
 
         if (!UpdateNoticeMath.ShouldShow(settings.LoadedFromDisk, settings.updateNoticeVersion))
             return;
 
-        Find.WindowStack.Add(new Dialog_UpdateNotice(ReadSwitches(settings)));
+        UpdateNoticeSwitches switches = ReadSwitches(settings);
+
+        // A window that names nothing is worse than no window: it would spend the one appearance
+        // this notice gets and tell the player nothing. Acknowledge it instead, so the version does
+        // not sit unwritten and re-evaluate this every boot.
+        if (!UpdateNoticeMath.AnythingToShow(switches))
+        {
+            RecordAnswer(enableVectorLights: false);
+            return;
+        }
+
+        Find.WindowStack.Add(new Dialog_UpdateNotice(switches));
     }
 
-    // Records the current notice against an install that will never be shown it, and persists that
-    // immediately — an unwritten acknowledgement is the same as no acknowledgement on the next boot.
-    private static void AcknowledgeFirstRun(CelestialLightingSettings settings)
+    // Applies the new-install defaults and records the notice against an install that will never be
+    // shown it, then persists both immediately — an unwritten acknowledgement is the same as no
+    // acknowledgement on the next boot.
+    //
+    // Writing on this path is the point of it rather than an afterthought. Without it, the first
+    // time this player opens and closes the settings screen they gain a settings file, and the boot
+    // after that they read as a returning player and are told that a feature they have always had
+    // is new.
+    private static void SeedFirstRun(CelestialLightingSettings settings)
     {
+        UpdateNoticeSwitches seeded = UpdateNoticeMath.FirstRunSwitches(ReadSwitches(settings));
         int acknowledged = UpdateNoticeMath.AcknowledgeOnFirstRun();
-        if (settings.updateNoticeVersion == acknowledged)
+
+        if (settings.updateNoticeVersion == acknowledged && settings.vectorLights == seeded.VectorLights)
             return;
 
+        settings.vectorLights = seeded.VectorLights;
         settings.updateNoticeVersion = acknowledged;
         CelestialLightingSettingsMod.Save();
     }
@@ -68,7 +84,7 @@ public static class UpdateNotice
     // Applies the player's answer and marks the notice answered. Called from
     // Dialog_UpdateNotice.PostClose — for EVERY way out of that window, including Escape, so
     // declining is as final as accepting.
-    public static void RecordAnswer(bool enableVectorLights, bool enableVolumetricClouds)
+    public static void RecordAnswer(bool enableVectorLights)
     {
         try
         {
@@ -76,19 +92,16 @@ public static class UpdateNotice
             if (settings == null)
                 return;
 
-            UpdateNoticeSwitches applied = UpdateNoticeMath.Apply(
-                ReadSwitches(settings), enableVectorLights, enableVolumetricClouds);
+            UpdateNoticeSwitches applied = UpdateNoticeMath.Apply(ReadSwitches(settings), enableVectorLights);
 
             settings.vectorLights = applied.VectorLights;
-            settings.cloudCover = applied.CloudCover;
-            settings.cloudSheet = applied.CloudSheet;
-            settings.cloudVolume = applied.CloudVolume;
             settings.updateNoticeVersion = UpdateNoticeMath.Acknowledge(settings.updateNoticeVersion);
 
             // Save rather than a bare field write: WriteSettings persists AND re-runs ApplyToRuntime,
-            // which is what pushes the four booleans into the static flags every patch reads. Skipping
-            // it would leave the player with settings that say the features are on and a game still
-            // rendering them off until the next boot.
+            // which is what pushes the switch into the static flags every patch reads — and, for this
+            // one specifically, what runs VectorLightRedraw.SyncTo, since half of vector lighting is
+            // baked into the lighting overlay's vertex colours and would otherwise keep rendering the
+            // previous answer until the player happened to build something.
             CelestialLightingSettingsMod.Save();
         }
         catch (Exception ex)
@@ -97,11 +110,11 @@ public static class UpdateNotice
         }
     }
 
-    // The persisted switches plus the two live facts that decide whether §25c is reachable at all on
-    // this install. Both reads are cheap and side-effect-free: ShaderLoaded is three field tests
-    // (deliberately NOT CloudVolumeShader.Available, which additionally waits on the background bake
-    // and would read false at the main menu simply because the bake had not finished), and
-    // ModIsInstalled is a memoised walk of the running mod list.
+    // The persisted switches plus the two live facts that decide whether the volumetric path is
+    // reachable at all on this install. Both reads are cheap and side-effect-free: ShaderLoaded is
+    // three field tests (deliberately NOT CloudVolumeShader.Available, which additionally waits on
+    // the background bake and would read false at the main menu simply because the bake had not
+    // finished), and ModIsInstalled is a memoised walk of the running mod list.
     private static UpdateNoticeSwitches ReadSwitches(CelestialLightingSettings settings) =>
         new UpdateNoticeSwitches(
             vectorLights: settings.vectorLights,
