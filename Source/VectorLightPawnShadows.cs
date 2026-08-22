@@ -182,7 +182,7 @@ public static class VectorLightPawnShadows
         // draws pawn shadows as Rot4.North regardless of which way the pawn faces.
         Vector3 anchor = shadow == null ? centre : centre + shadow.offset;
 
-        Build(pawn, lights, skyGlow, Shadows);
+        Build(pawn, lights, skyGlow, RoofedAt(map, pawn), Shadows);
 
         for (int i = 0; i < Shadows.Count; i++)
         {
@@ -216,17 +216,15 @@ public static class VectorLightPawnShadows
     // share and #166's clip are both quantities a screenshot reports only indirectly.
     private static void Build(
         Pawn pawn, Dictionary<object, VectorLightField.LightEntry>.ValueCollection lights,
-        float skyGlow, List<DrawnShadow> into)
+        float skyGlow, bool roofed, List<DrawnShadow> into)
     {
         into.Clear();
 
         Vector3 centre = pawn.DrawPos;
         ShadowData shadow = ShadowDataOf(pawn);
 
-        float halfX = shadow == null
-            ? VectorLightMath.DefaultPawnShadowHalfExtent : shadow.BaseX * 0.5f;
-        float halfZ = shadow == null
-            ? VectorLightMath.DefaultPawnShadowHalfExtent : shadow.BaseZ * 0.5f;
+        float halfX = HalfExtent(shadow?.BaseX, shadow);
+        float halfZ = HalfExtent(shadow?.BaseZ, shadow);
 
         // How TALL the caster is, taken from the same struct the two half-extents above come from.
         // `ShadowData.BaseY` is vanilla's own tallness for this def — the number its own shader
@@ -240,9 +238,7 @@ public static class VectorLightPawnShadows
         // frame rather than approximating it.
         bool shaped = CelestialLightingFeatures.VectorLightShadowShape;
 
-        float casterHeight = !shaped
-            ? VectorLightMath.LegacyPawnHeight
-            : shadow == null ? VectorLightMath.DefaultPawnHeight : shadow.BaseY;
+        float casterHeight = !shaped ? VectorLightMath.LegacyPawnHeight : CasterHeightOf(pawn);
 
         float lampHeight = shaped
             ? VectorLightMath.DefaultLampHeight : VectorLightMath.LegacyLampHeight;
@@ -255,7 +251,7 @@ public static class VectorLightPawnShadows
             Contribution light = Contributions[i];
 
             float opacity = VectorLightMath.PawnShadowOpacity(
-                light.Illuminance, totalForShare, skyGlow);
+                light.Illuminance, totalForShare, skyGlow, roofed);
 
             // Below a level of 255 the shadow is a rounding artefact rather than a shadow, and
             // drawing it costs the same as drawing a visible one. It rejects considerably more now
@@ -432,7 +428,7 @@ public static class VectorLightPawnShadows
         if (lights.Count == 0)
             return;
 
-        Build(pawn, lights, map.skyManager.CurSkyGlow, into);
+        Build(pawn, lights, map.skyManager.CurSkyGlow, RoofedAt(map, pawn), into);
     }
 
     // Which of the two draw paths this shadow takes. The flag is read here rather than at the call
@@ -629,8 +625,22 @@ public static class VectorLightPawnShadows
     // they all fell through to a hardcoded 0.6-wide square against a real width of 0.3 — twice the
     // width of the sun shadow standing beside it, and with no offset (issue #159).
     //
-    // Animals were unaffected, which is exactly why it survived being looked at: they declare theirs
-    // inside graphicData, so they were reading the right rectangle all along.
+    // THE CLAIM THAT ANIMALS WERE UNAFFECTED WAS WRONG, and it survived because it sounded like the
+    // reassuring half of #159. Animals do not declare their shadow on the ThingDef's `graphicData`
+    // at all — a Cat declares it on the **PawnKindDef's adult life stage** `bodyGraphicData`, volume
+    // (0.25, 0.3, 0.25), and `def.graphicData.shadowData` is null. So this returned null for every
+    // animal in the game too, and they all fell through to the same human-shaped fallback: a cat was
+    // drawn 0.8 cells tall against a real 0.3, and at a 0.3 half-width against a real 0.125. That is
+    // a shadow the length of a colonist's and TWICE THE WIDTH of one, under a sprite a third the
+    // size. Reported from play as "a cat just walked through with an enormous shadow".
+    //
+    // The fix reads vanilla's OTHER source rather than a third guess: `PawnRenderer` draws
+    // `race.specialShadowData` and then `BodyGraphic?.ShadowGraphic`, and that second graphic is
+    // built from `Graphic.data.shadowData` — the resolved body graphic, which is where a life
+    // stage's declaration actually ends up. `Graphic.data` is public, so this needs no reflection.
+    // The ThingDef's own graphicData stays on the end as a last resort for defs that declare it
+    // there. Reading the RESOLVED graphic also means an animal gets the shadow of the life stage it
+    // is actually in — a kitten is not a cat — which no def-level read can express.
     // The four live reads behind VectorLightMath.PawnCastsShadow, in one place. Public for the same
     // reason ShadowDataOf is: the probe has to ask the function the renderer asks, or it can report
     // a pawn as suppressed while the screen still draws them.
@@ -657,8 +667,55 @@ public static class VectorLightPawnShadows
     // repo's probe convention (see EaveCellProbe): a probe that recomputes can agree with a formula
     // the screen is not using, and this is precisely a bug about the screen using a different
     // rectangle from the one anyone expected.
+    // How tall the draw treats this caster as being, and how wide its silhouette is from the centre
+    // line. Public, and called by Build rather than duplicated in it, because the PROBE reads these
+    // — and the bug they exist to pin was precisely a fallback firing where real data existed. A
+    // probe with its own copy of the fallback would have agreed with the renderer while both were
+    // wrong, which is the failure mode the repo's ask-the-renderer's-function rule is for.
+    public static float CasterHeightOf(Pawn pawn)
+    {
+        ShadowData shadow = ShadowDataOf(pawn);
+
+        return shadow == null ? VectorLightMath.DefaultPawnHeight : shadow.BaseY;
+    }
+
+    public static float CasterHalfWidthOf(Pawn pawn)
+    {
+        ShadowData shadow = ShadowDataOf(pawn);
+
+        return HalfExtent(shadow?.BaseX, shadow);
+    }
+
+    // The shipped default is a HALF extent already while ShadowData's are full widths, which is why
+    // one branch halves and the other does not. Kept in one place because getting that asymmetry
+    // wrong is invisible until two casters stand side by side.
+    private static float HalfExtent(float? baseExtent, ShadowData shadow) =>
+        shadow == null || baseExtent == null
+            ? VectorLightMath.DefaultPawnShadowHalfExtent
+            : baseExtent.Value * 0.5f;
+
+    // Whether the caster stands under a roof, which is what decides that the map-wide sky glow has
+    // nothing to say about this pawn — see VectorLightMath.DaylightScale.
+    //
+    // Asked at the pawn's own cell, the same cell vanilla's Graphic_Shadow asks about before
+    // refusing to draw a sun shadow, so the two subsystems cannot disagree about who is indoors.
+    // Not asked per shadow cell: a shadow that reaches out through a doorway belongs to a pawn who
+    // is still indoors, and splitting one shadow across two lighting regimes would read as a seam.
+    private static bool RoofedAt(Map map, Pawn pawn) =>
+        map?.roofGrid != null && pawn.Position.InBounds(map) && map.roofGrid.Roofed(pawn.Position);
+
     public static ShadowData ShadowDataOf(Pawn pawn) =>
-        pawn.def?.race?.specialShadowData ?? pawn.def?.graphicData?.shadowData;
+        pawn.def?.race?.specialShadowData
+        ?? BodyGraphicShadowData(pawn)
+        ?? pawn.def?.graphicData?.shadowData;
+
+    // The resolved body graphic's shadow, guarded because it is reachable before the render tree has
+    // initialised — a pawn spawned this frame has no BodyGraphic yet, and asking costs a null rather
+    // than an exception only if every hop is checked. Falling through to the def-level read (and then
+    // to the human-shaped default) for that one frame is the safe direction: it is what shipped for
+    // every animal until now.
+    private static ShadowData BodyGraphicShadowData(Pawn pawn) =>
+        pawn?.Drawer?.renderer?.BodyGraphic?.data?.shadowData;
 
     // The silhouette extruded along +X, at alpha zero throughout so the shader leaves it where it is
     // put. Direction and the push out to the trailing edge both come from the transform; only the

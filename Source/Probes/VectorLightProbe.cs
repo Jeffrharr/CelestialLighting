@@ -199,6 +199,15 @@ public sealed class VectorLightProbe : IProbe
         // The same ramp halfway along, which is what actually identifies the curve now that both of
         // its ends are structural rather than calibrated.
         PawnShadowMidFade,
+
+        // The caster dimensions the draw resolves for the ANIMAL in view, as opposed to the colonist
+        // every other probe here picks. Their own metrics because animals reach their shadow data by
+        // a different route entirely -- a life stage's bodyGraphicData rather than the ThingDef --
+        // and a probe that only ever looked at colonists reported a healthy 0.3/0.8 while every cat
+        // on the map was drawn as a human. Pin BOTH: the wrong source got the height and the width
+        // wrong independently, and each is invisible in the other's number.
+        AnimalCasterHeight,
+        AnimalCasterHalfWidth,
     }
 
     private readonly Metric metric;
@@ -265,6 +274,9 @@ public sealed class VectorLightProbe : IProbe
 
         if (metric == Metric.PawnShadowAnchorZ || metric == Metric.PawnShadowWidth)
             return ReadFootprint(map);
+
+        if (metric == Metric.AnimalCasterHeight || metric == Metric.AnimalCasterHalfWidth)
+            return ReadAnimalCaster(map);
 
         if (metric == Metric.PawnShadowCasters)
             return CountCasters(map);
@@ -383,6 +395,40 @@ public sealed class VectorLightProbe : IProbe
             return 0f;
 
         return metric == Metric.PawnShadowAnchorZ ? shadow.offset.z : shadow.BaseX;
+    }
+
+    // The animal the camera is looking at, and what the renderer resolves for it.
+    //
+    // VIEW-SCOPED like the shadow metrics and for the same reason: minimal_colony.rws ships its own
+    // animals, and a map-wide lowest-thing-ID pick would read some muffalo asleep across the map
+    // instead of the cat the scenario placed under the lamp -- a confident wrong number in every arm.
+    //
+    // Non-humanlike rather than "not a colonist", because the distinction that matters here is which
+    // ROUTE the shadow data arrives by: humanlikes declare race.specialShadowData, everything else
+    // declares it on a life stage's body graphic.
+    private float ReadAnimalCaster(Map map)
+    {
+        CellRect view = Find.CameraDriver.CurrentViewRect;
+        Pawn subject = null;
+
+        foreach (Pawn pawn in map.mapPawns.AllPawnsSpawned)
+        {
+            if (pawn.RaceProps == null || pawn.RaceProps.Humanlike)
+                continue;
+
+            if (!view.Contains(pawn.Position))
+                continue;
+
+            if (subject == null || pawn.thingIDNumber < subject.thingIDNumber)
+                subject = pawn;
+        }
+
+        if (subject == null)
+            return 0f;
+
+        return metric == Metric.AnimalCasterHeight
+            ? VectorLightPawnShadows.CasterHeightOf(subject)
+            : VectorLightPawnShadows.CasterHalfWidthOf(subject);
     }
 
     private static void Accumulate(

@@ -8945,8 +8945,10 @@ were wrong, and the two faults were independent:
   `graphicData.shadowData`; `Races_Humanlike.xml` puts it in `race.specialShadowData`, which is where
   `PawnRenderer.DrawShadowInternal` reads it from. Every colonist in the game therefore fell through
   to a hardcoded `0.6` against a real `BaseX` of `0.3` — twice as wide as the sun shadow beside it.
-  **Animals were unaffected**, declaring theirs inside `graphicData`, which is exactly why this
-  survived being looked at.
+  ~~**Animals were unaffected**, declaring theirs inside `graphicData`, which is exactly why this
+  survived being looked at.~~ **That was wrong, and it is the reason the same bug went on hiding for
+  another two phases** — see "the enormous cat" below. Animals declare theirs in neither field: it
+  lives on the `PawnKindDef`'s life-stage `bodyGraphicData`, so they fell through the same hole.
 
 The fix reads the same data vanilla reads (`race.specialShadowData ?? graphicData.shadowData`) and
 spends it through one pure function, `VectorLightMath.FootprintExtent` — the **support function** of
@@ -9415,6 +9417,71 @@ and both left a full set of green probes.
 recomputed the ramp's endpoint from the formula, which agreed with the flag while the screen sampled a
 stale texture — a probe reporting a model of the frame rather than the frame. Reading the endpoint off
 the texture the live material is actually bound to turned a silent disagreement into a failing pin.
+
+### Phase 4f: two bugs the scenarios could not see (`vector_light_indoor_cat`)
+
+Both reported from **play**, not from a capture, and neither was reachable by any scenario that
+existed — every pawn-shadow scenario before this one ran at night or at dawn, and every one used a
+colonist. That is the finding worth keeping: the suite had grown a shared blind spot, because each
+new scenario was copied from the last one that worked.
+
+**Indoors in daylight, nothing was drawn at all.** `DaylightScale` scaled a lamp shadow by
+`SkyManager.CurSkyGlow` — which is **map-wide**; there is no per-cell version — so at noon it
+returned 0 for every pawn on the map, including a colonist in a sealed, windowless, torch-lit room
+where no daylight arrives and the torch is the only light there is. The premise it encodes ("a torch
+at noon casts nothing anyone can see") is true outdoors and false under a roof.
+
+It now takes `roofed` and returns 1 there. The predicate is **vanilla's own, on the other side of the
+same decision**: `Graphic_Shadow.DrawWorker` refuses to draw a *sun* shadow on a roofed cell, so the
+two rules partition the map with no gap and no overlap. It is asked at the caster's cell, which is
+where vanilla asks it too.
+
+**The beam lane had always done this**, which is what makes the bug embarrassing rather than subtle:
+`VectorLightOverlay.StrengthFor` reads the roof grid and its comment says "keying on the global value
+would put every indoor lamp out at noon". The two lanes never shared the question. `roofed` is a
+required parameter now rather than something each caller remembers to fake, so they cannot drift
+apart again.
+
+**The enormous cat.** `ShadowDataOf` read `race.specialShadowData ?? graphicData.shadowData`. Animals
+declare theirs in **neither**: a `Cat` puts it on the `PawnKindDef`'s adult life stage's
+`bodyGraphicData`, volume `(0.25, 0.3, 0.25)`. So every animal fell through to the human-shaped
+fallback:
+
+| | real cat | drawn as | colonist |
+|---|---|---|---|
+| caster height | 0.3 | **0.8** | 0.8 |
+| half-width | 0.125 | **0.30** | 0.15 |
+
+— a shadow as long as a colonist's and **twice as wide as one**, under a sprite a third the size. It
+now reads `BodyGraphic.data.shadowData`, which is vanilla's *other* source (`PawnRenderer` draws both),
+and therefore also gets the life stage the animal is actually in. `Graphic.data` is public, so no
+reflection.
+
+**Measured, and the red was proven first** by reverting both behaviours on the same build and
+re-running:
+
+| | before | after |
+|---|---|---|
+| shadows off → on, noon, indoors | **0 px changed** | 2,426 px, masked median ΔE **4.288** (p90 8.199) |
+| `vector_light_pawn_shadow_peak` | **0** | 0.29 |
+| `vector_light_animal_caster_height` | 0.800 | **0.300** |
+| `vector_light_animal_caster_half_width` | 0.300 | **0.125** |
+
+The first row is the whole of the first bug in one number: turning the feature on changed **nothing
+whatsoever**. A scenario asserting "the shadow looks right" would have passed on an empty frame.
+
+The scenario puts the two casters **equidistant from one lamp on opposite sides**, so their shadows
+differ only by species — before the fix they were the same size. `sky_glow` is pinned at 1.0 at the
+top because the whole file is meaningless if the run is not actually in daylight, which is exactly
+the condition the old scenarios never established. The cat is deterministic despite `SpawnPawn` not
+taking an age: `PawnGenerationRequest` defaults to `DevelopmentalStage.Adult`, and only the adult
+stage declares `shadowData`.
+
+**Still open, and deliberately not fixed here.** A pawn with no shadow data anywhere — a *kitten*,
+whose life stage declares none — still gets the human-shaped fallback, where vanilla draws nothing at
+all. And `PawnShadowShare` is evaluated at the pawn's own cell, so a lamp that lights the caster but
+is walled off from the ground its shadow falls on still lightens that shadow; wall shadows do not
+have this problem, because the mask answers per cell.
 
 ### §27 phase 5: the max as the mask's lift (`VectorLightLiftMath`, `vector_light_mask_max`, issue #151)
 

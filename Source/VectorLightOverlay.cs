@@ -166,7 +166,12 @@ public static class VectorLightOverlay
         Map map, VectorLightField.LightEntry entry, float skyGlow, bool maxComposing)
     {
         bool sheltered = map.roofGrid.Roofed(entry.Cell);
-        float daylight = VectorLightMath.DaylightScale(sheltered ? 0f : skyGlow);
+
+        // Passed as the roofed FLAG rather than by feeding a fake zero glow, which is how this used
+        // to say it. Same result, but the question is now part of DaylightScale's signature, so the
+        // pawn-shadow lane cannot call it without answering the same one — which it did for a long
+        // time, and spent that whole time drawing nothing indoors at noon.
+        float daylight = VectorLightMath.DaylightScale(skyGlow, sheltered);
 
         // Under the per-fragment max we deliver the WHOLE of our model, because the compensation
         // happens per fragment against vanilla's local value rather than globally against a
