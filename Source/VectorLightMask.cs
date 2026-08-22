@@ -153,6 +153,21 @@ public static class VectorLightMask
         if (reader == null || mesh == null)
             return false;
 
+        // Issue #188 item 0's outcome measure: a lighting-overlay section regenerate that actually
+        // reached us. Counted AFTER the stand-down check above and before any work, so it means
+        // "this section really did rebake through the mask" rather than "something called Apply".
+        //
+        // It lives on VectorLightField rather than beside the telemetry below because that class has
+        // the reset the bake_reset probe calls; a counter split across this file's ResetTelemetry and
+        // that one's ResetCounters would drain at different moments in an arm.
+        //
+        // THIS IS THE NUMBER TO BELIEVE over the section-dirty count. Dirty flags are work REQUESTED
+        // and vanilla only regenerates the sections in view, so a change can cut flags by fifty times
+        // and leave this untouched — which would mean the saving was on sections nobody was looking
+        // at. Comparable between arms and between builds with no per-arm adjustment, because it
+        // counts what happened rather than what was asked for.
+        VectorLightField.MaskApplies++;
+
         bool lifting = Lifting;
         bool correcting = Correcting;
 

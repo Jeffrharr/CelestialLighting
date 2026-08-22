@@ -285,6 +285,19 @@ public static class ProbeRegistration
         // screen, and the sum of the two is what should stay constant between the flag's arms.
         ProbeRegistry.Register(new VectorLightBakeProbe(
             "vector_light_bake_deferrals", VectorLightBakeProbe.Metric.Deferrals));
+        // Issue #188 item 0. vector_light_sections_per_pass is the headline -- the map's whole
+        // section count before item A, a handful after -- but pin vector_light_mask_applies beside
+        // it or the reduction is unfalsifiable. Dirty flags are work REQUESTED and vanilla
+        // regenerates only what is in view, so flags can fall fifty-fold while the work does not
+        // move at all, and that outcome would mean the saving was on sections nobody was looking at.
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_section_dirties", VectorLightBakeProbe.Metric.SectionDirties));
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_section_dirty_passes", VectorLightBakeProbe.Metric.SectionDirtyPasses));
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_sections_per_pass", VectorLightBakeProbe.Metric.SectionsPerPass));
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_mask_applies", VectorLightBakeProbe.Metric.MaskApplies));
         ProbeRegistry.Register(
             new VectorLightBakeProbe("vector_light_emitters", VectorLightBakeProbe.Metric.Emitters));
         // The coverage grid, which until now nothing live could see at all -- every other shape

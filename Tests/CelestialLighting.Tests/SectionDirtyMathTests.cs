@@ -366,6 +366,42 @@ public class SectionDirtyMathTests
             Is.False);
     }
 
+    // ---- section count (issue #188 item 0) ----------------------------------------------------
+
+    // The baseline arm charges itself this number, so it has to match what MapDrawer.SectionCount
+    // would say -- a ceiling division, not a floor. A floor would under-report the baseline on every
+    // map whose size is not a multiple of 17, which is most of them, and would flatter item A's
+    // ratio by exactly the short row and column.
+    [TestCase(51, 51, 9)]
+    [TestCase(52, 51, 12)]
+    [TestCase(17, 17, 1)]
+    [TestCase(250, 250, 225)]
+    [TestCase(60, 35, 12)]
+    public void SectionCountCeilings(int mapWidth, int mapHeight, int expected)
+    {
+        Assert.That(SectionDirtyMath.SectionCount(mapWidth, mapHeight, SectionSize), Is.EqualTo(expected));
+    }
+
+    // Cross-check against the enumerator the differential test uses, so the count and the sweep
+    // cannot disagree about how many sections a map has.
+    [TestCase(51, 51)]
+    [TestCase(60, 35)]
+    [TestCase(250, 250)]
+    public void SectionCountAgreesWithTheSectionSweep(int mapWidth, int mapHeight)
+    {
+        Assert.That(
+            SectionDirtyMath.SectionCount(mapWidth, mapHeight, SectionSize),
+            Is.EqualTo(Sections(mapWidth, mapHeight).Count()));
+    }
+
+    [TestCase(0, 51, 17)]
+    [TestCase(51, 0, 17)]
+    [TestCase(51, 51, 0)]
+    public void DegenerateSectionCountIsZero(int mapWidth, int mapHeight, int sectionSize)
+    {
+        Assert.That(SectionDirtyMath.SectionCount(mapWidth, mapHeight, sectionSize), Is.EqualTo(0));
+    }
+
     private static void AssertSameBounds(
         SectionDirtyMath.CellBounds actual, SectionDirtyMath.CellBounds expected)
     {
