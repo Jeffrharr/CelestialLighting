@@ -70,10 +70,22 @@ public class CelestialLightingSettings : ModSettings
 
     public bool eaveShadows = true;
 
-    // §27 vector light sources. SHIPS OFF: it is the most opinionated thing in the mod, because
-    // light vanilla delivered around a corner no longer arrives at all and indirectly lit rooms are
-    // genuinely darker. That is the feature working, and it is still a large enough taste call to be
-    // opt-in until it has been lived with.
+    // §27 vector light sources. It is the most opinionated thing in the mod, because light vanilla
+    // delivered around a corner no longer arrives at all and indirectly lit rooms are genuinely
+    // darker. That is the feature working, and it is a large enough taste call that the two
+    // populations get different answers:
+    //
+    //   - A NEW INSTALL GETS IT ON, seeded by UpdateNotice.SeedFirstRun. Somebody installing today
+    //     has no prior expectation to violate — this is simply how the mod lights a colony.
+    //   - AN EXISTING INSTALL KEEPS IT OFF and is asked, by the one-time notice. Silently relighting
+    //     a fifty-hour colony on update is not a default, it is a surprise.
+    //
+    // THE FIELD INITIALISER AND THE SCRIBED DEFAULT BOTH STAY `false`, and that is load-bearing
+    // rather than stale. Scribe_Values omits any value equal to its default, so every config written
+    // while this shipped off has NO vectorLights node; making `true` the default here would make all
+    // of them read back as on, which is exactly the silent rewrite the split above exists to
+    // prevent. The new-install default is applied on a path that only runs when no settings file
+    // existed at all. See UpdateNoticeMath.FirstRunSwitches.
     //
     // The composition underneath is deliberately NOT exposed. Mask and beam are what §27 is designed
     // around, and the crossfade survives only as the fallback the code picks for itself when the
