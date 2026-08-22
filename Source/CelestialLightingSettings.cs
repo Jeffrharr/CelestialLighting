@@ -163,6 +163,30 @@ public class CelestialLightingSettings : ModSettings
     //     follow our physical sun, which is a gameplay change (growing hours, solar output). ---
     public SunClockMode sunClock = SunClockMode.LockedToVanilla;
 
+    // --- The one-time "what's new" notice (UpdateNoticeMath / Dialog_UpdateNotice) ---
+
+    // The highest notice this player has been shown and answered. Persisted so the window appears
+    // once and not again; see UpdateNoticeMath.ShouldShow for why this is a sequence number rather
+    // than a bool, and why NeverAcknowledged has to be the scribed default.
+    public int updateNoticeVersion = UpdateNoticeMath.NeverAcknowledged;
+
+    // Whether the settings this object holds came off disk, as opposed to being the field
+    // initialisers above because no settings file existed.
+    //
+    // NOT SCRIBED, deliberately — it is a fact about THIS load, not a stored preference, and
+    // scribing it would make it true forever after the first write. It is the mod's only durable
+    // trace of a previous install: nothing CelestialLighting does is written into a save (About.xml
+    // promises exactly that), so a settings file is the sole evidence that an earlier version ran
+    // here, and it is what keeps the notice off a first-time install.
+    //
+    // ITS ONE BLIND SPOT, stated because it is a deliberate trade and not an oversight: RimWorld
+    // writes a mod's settings file when the settings window closes, so a returning player who has
+    // literally never opened this mod's settings screen has no file and reads as new. They are the
+    // only players who miss the notice, and the alternative — assuming "previous install" by default
+    // — shows a "what's new" window to somebody on their first ever boot, which is the case the
+    // notice was explicitly asked not to cover.
+    public bool LoadedFromDisk { get; private set; }
+
     // Copies a named preset's bundle into the aesthetic knob fields. Kept trivial and delegating to
     // the pure resolver so the correlation between knobs lives in exactly one tested place.
     public void ApplyPreset(CelestialPreset chosen)
@@ -309,6 +333,15 @@ public class CelestialLightingSettings : ModSettings
     public override void ExposeData()
     {
         base.ExposeData();
+
+        // Before any Look, so it is set even if one of them throws. Reaching this branch at all
+        // means Scribe_Deep found a "ModSettings" node in an existing file — LoadedModManager
+        // .ReadModSettings skips the load entirely when the file is absent and hands back a plain
+        // `new CelestialLightingSettings()`, whose ExposeData is never called. That asymmetry is the
+        // whole signal; see the LoadedFromDisk field for what it is used for and what it misses.
+        if (Scribe.mode == LoadSaveMode.LoadingVars)
+            LoadedFromDisk = true;
+
         Scribe_Values.Look(ref preset, "preset", CelestialPreset.Cinematic);
         Scribe_Values.Look(ref civilTwilightPersistence, "civilTwilightPersistence", true);
         Scribe_Values.Look(ref penumbraContrast, "penumbraContrast", true);
@@ -356,5 +389,11 @@ public class CelestialLightingSettings : ModSettings
         Scribe_Values.Look(ref desaturation, "desaturation", Presets.Cinematic.Desaturation);
         Scribe_Values.Look(ref weatherDimmingStrength, "weatherDimmingStrength",
             Presets.Cinematic.WeatherDimming);
+        // NeverAcknowledged as the default is load-bearing rather than tidy: Scribe_Values omits any
+        // value equal to its default, so every config written before this field existed has no node
+        // here and must read back as "has not seen the notice" — which is exactly the population the
+        // notice is for.
+        Scribe_Values.Look(ref updateNoticeVersion, "updateNoticeVersion",
+            UpdateNoticeMath.NeverAcknowledged);
     }
 }
