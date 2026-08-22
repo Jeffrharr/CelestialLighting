@@ -282,6 +282,14 @@ public static class ProbeRegistration
             "vector_light_roster_resyncs", VectorLightBakeProbe.Metric.RosterResyncs));
         ProbeRegistry.Register(
             new VectorLightBakeProbe("vector_light_emitters", VectorLightBakeProbe.Metric.Emitters));
+        // The coverage grid, which until now nothing live could see at all -- every other shape
+        // probe recomputes from the visibility polygon, so a change that rewrote every grid byte
+        // moved nothing in any scenario. Pin both together: lit cells is what the nearest-ray bound
+        // writes directly, and the mean is what the farthest-ray bound and the shadow edges move.
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_coverage_mean", VectorLightBakeProbe.Metric.CoverageMean));
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_coverage_lit_cells", VectorLightBakeProbe.Metric.LitCells));
         // Reads 0 and zeroes the counters, so the counting window can be opened at the same step as
         // the profiling window. See the metric's comment for the mismatch that provoked it.
         ProbeRegistry.Register(

@@ -55,6 +55,29 @@ public sealed class VectorLightBakeProbe : IProbe
         // thing that says a scenario's lamps actually registered.
         Emitters,
 
+        // THE COVERAGE GRID ITSELF, summarised, and the reason it is here is that nothing else
+        // reads it. Every other shape probe in this repo recomputes from the visibility polygon --
+        // lit area, shadow fraction, vertex count are all polygon or mesh quantities -- so a change
+        // to BuildCoverage could rewrite every byte of every grid and no scenario in the repo would
+        // move. The bounds landed with the offline suite asserting them bit-for-bit and no live
+        // check at all, which is the same gap the ray cull was careful to close and would have been
+        // a worse one here: coverage is what the mask multiplies vanilla's glow by.
+        //
+        // TWO NUMBERS BECAUSE THEY FAIL DIFFERENTLY. LitCells counts the cells the grid calls FULLY
+        // lit, which is exactly what the nearest-ray fast path writes, so a bound that is too
+        // generous shows up here first and directly. CoverageMean averages every byte, which is
+        // what moves when the farthest-ray path wrongly zeroes a cell, and it also catches the
+        // partial values at a shadow edge that a count of 255s cannot see. Either alone would leave
+        // one of the two bounds unwatched.
+        //
+        // A MEAN RATHER THAN A SUM, because a probe reads as float: the sum over 23 radius-10
+        // emitters is around five million, which is inside float's exact-integer range but not far
+        // enough inside it to be worth relying on as the population grows. The mean is a byte-scaled
+        // number in [0, 255] that stays exact where it matters and reads as a quantity rather than
+        // as a hash.
+        CoverageMean,
+        LitCells,
+
         // Side-effecting: zeroes every counter above and reads 0, following circinus_*_reset.
         //
         // It exists so the counting window and the PROFILING window can be opened at the same point
@@ -101,6 +124,12 @@ public sealed class VectorLightBakeProbe : IProbe
         if (metric == Metric.RosterResyncs)
             return VectorLightField.RosterResyncs;
 
+        if (metric == Metric.CoverageMean)
+            return CoverageMean(map);
+
+        if (metric == Metric.LitCells)
+            return LitCells(map);
+
         if (metric == Metric.Reset)
         {
             VectorLightField.ResetCounters();
@@ -114,6 +143,54 @@ public sealed class VectorLightBakeProbe : IProbe
     // "nothing happened" and fail its pin, not poison the report with a value JSON cannot carry.
     private static float Ratio(int numerator, int denominator) =>
         denominator == 0 ? 0f : (float)numerator / denominator;
+
+    // Mean coverage byte over every baked grid on the map. Zero when nothing has baked yet, which
+    // reads as "no coverage" and fails a pin rather than dividing by nothing.
+    private static float CoverageMean(Map map)
+    {
+        if (map == null)
+            return 0f;
+
+        double total = 0.0;
+        long cells = 0;
+
+        foreach (VectorLightField.LightEntry entry in VectorLightField.LightsFor(map))
+        {
+            if (entry?.Coverage != null)
+            {
+                for (int i = 0; i < entry.Coverage.Length; i++)
+                    total += entry.Coverage[i];
+
+                cells += entry.Coverage.Length;
+            }
+        }
+
+        return cells == 0 ? 0f : (float)(total / cells);
+    }
+
+    // Cells any emitter calls FULLY lit. An integer small enough to be exact as a float, and the
+    // number the nearest-ray fast path decides directly.
+    private static float LitCells(Map map)
+    {
+        if (map == null)
+            return 0f;
+
+        int lit = 0;
+
+        foreach (VectorLightField.LightEntry entry in VectorLightField.LightsFor(map))
+        {
+            if (entry?.Coverage != null)
+            {
+                for (int i = 0; i < entry.Coverage.Length; i++)
+                {
+                    if (entry.Coverage[i] == 255)
+                        lit++;
+                }
+            }
+        }
+
+        return lit;
+    }
 
     private static float EmitterCount(Map map)
     {

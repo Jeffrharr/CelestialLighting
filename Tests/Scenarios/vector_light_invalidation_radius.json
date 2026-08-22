@@ -1,10 +1,7 @@
 {
-  "name": "vector_light_bake_cull",
+  "name": "vector_light_invalidation_radius",
   "saveFile": "minimal_colony.rws",
-  "requiredMods": {
-    "astryl.Circinus": "3773680130"
-  },
-  "description": "ONE ARM PER RUN, and the arm is the BUILD rather than a flag: the ray cull inside the visibility polygon has no feature switch, because its output is bit-identical to the code it replaces and a flag would be a permanent branch in a pure core bought for a measurement. So this file is run twice -- once against a build with the cull and once against one without -- and the two Circinus run documents are compared, the way the four bake arms already are. Label the culled run 'cull' and the unculled one 'brute'. \n\nTHE SCENE IS LIFTED VERBATIM FROM vector_light_bake_gated so the wall population is the one an existing measurement already used: 23 torch lamps in a granite room grid. That matters more here than anywhere else in the epic, because the cull's whole gain scales with how much wall an emitter can see -- offline it is 1.00x at eight segments and 7.5x at four hundred. vector_light_segments_per_bake is pinned for exactly that reason: it states the population the timing was measured over, and a run that drifts to an emptier scene would report the cull as worthless while measuring something else. \n\nEQUIVALENCE IS CHECKED LIVE, not just offline. The cull claims to change nothing, and the offline suite proves that bit-for-bit on CoreCLR -- but the game is Mono, whose transcendentals are a different implementation, and the offline suite is structurally unable to notice a difference there. vector_light_lit_area, vector_light_shadow_fraction and vector_light_verts are pinned TIGHT against their existing measured values for that reason: they are the live equivalence test, and they are the pins that should bite. The timing pins are recorded rather than asserted. \n\nEXACTLY ONE REBAKE, provoked by toggling penumbra off and back on, following bake_gated: the flag flips stop dirtying the map after the first whole-map rebake, so a second arm in the same process would record nothing while the instrumentation stayed live. The toggle returns the arm to the state it started in, so what is timed is a rebake OF this configuration rather than a transition between two. \n\nCLOUDS ARE OFF. They are not the subject, they drift on the tick counter, and TickLapse runs the clock -- so leaving them on would put a different sky over each arm's frames for no benefit to anything measured here. \n\nPARENTS JUDGE, CHILDREN APPORTION. circinus_bake_* arms VectorLightField.EnsurePolygon, which contains all three stages, and it is the only arm to compare across builds. circinus_poly_*, circinus_silh_* and circinus_cover_* break that total down and must be checked to sum to it before either is believed -- Circinus instruments by transpiling, so its per-call overhead inflates small methods, and a child arm on the very method being optimised is the case where that bites hardest.",
+  "description": "DOES ONE WALL REBAKE THE MAP? The vector-lighting epic names MarkGeometryDirtyAround as the suspect that turns a single blocker write into a map-wide rebake, and until now nothing has actually asked it. The counters exist -- vector_light_invalidations, vector_light_invalidation_marks and their ratio vector_light_marks_per_call -- but the bake arms that carry them provoke no blocker writes at all, so the ratio reads 0 there and settles nothing. This scenario provokes the writes. \n\nTHE MEASUREMENT IS A RATIO, NOT A COUNT, which is why vector_light_emitters is pinned beside it in every arm. 'One wall marked two lights' means nothing without 'and there were 23 on the map'; the failure being tested for is marks_per_call rising towards the emitter count, and a run that quietly drifted to a three-lamp scene would report a healthy ratio while measuring nothing. \n\nTWO ARMS, BOTH PREDICTED FROM THE GEOMETRY BEFORE BEING MEASURED. A TorchLamp's glowRadius is 10 and MarkGeometryDirtyAround tests radius + 1, so a cell is marked by a lamp within 11. The scene's lamp grid is spaced 13 in x and 11 in z, which puts a great many cells exactly ON that boundary -- 11 squared against 11 squared -- so both arms use cells chosen for MARGIN rather than convenience: (25,18) is inside exactly one lamp's reach and 101 squared units clear of any other's boundary, and (24,9) is inside exactly two with 84 to spare. A cell picked by eye next to a lamp would have sat on the knife edge and turned this into a flake. \n\nTHE ARMS ARE SEPARATED BY vector_light_bake_reset, not by being separate runs: the counters accumulate, so arm two would otherwise report arm one's marks as well as its own. \n\nWHAT A FAILURE LOOKS LIKE. marks_per_call at or near 23 means the radius test is not discriminating and every wall really does dirty every light -- the thing the epic suspects. A marks count above the predicted one but far below 23 means the scene has emitters this file does not know about, which is a scenario bug rather than a code one: note that vector_light_emitters is 23 while the grid only places 20 lamps, so the save contributes three of its own, and where they sit is exactly what the pins record. \n\nvector_light_bakes is RECORDED rather than asserted. A mark is a promise to rebake and the rebake follows on the next frame, so the two numbers should agree -- but bakes also counts anything else the frame decided to rebuild, and pinning it would make this scenario fail for reasons that are not about invalidation. \n\nNO CIRCINUS. Nothing here is timed; these are counters the field itself writes, so the profiler would only add a mod dependency and a clock the arms do not want moving. \n\nCLOUDS ARE OFF, and the scene, the lamp grid and the feature set are lifted verbatim from vector_light_bake_cull so the emitter population is the one the bake arms already measured.",
   "steps": [
     {
       "type": "SetTile",
@@ -183,144 +180,9 @@
     {
       "type": "Probe",
       "args": {
-        "probeName": "circinus_run_start_cull",
-        "expectedValue": "1",
+        "probeName": "vector_light_count",
+        "expectedValue": "23",
         "tolerance": "0"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circinus_bake_patched",
-        "expectedValue": "1",
-        "tolerance": "0"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circinus_poly_patched",
-        "expectedValue": "1",
-        "tolerance": "0"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circinus_silh_patched",
-        "expectedValue": "1",
-        "tolerance": "0"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circinus_cover_patched",
-        "expectedValue": "1",
-        "tolerance": "0"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circinus_bake_reset",
-        "expectedValue": "0",
-        "tolerance": "0.001"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_bake_reset",
-        "expectedValue": "0",
-        "tolerance": "0.001"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_penumbra",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_penumbra",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "TickLapse",
-      "args": {
-        "ticks": "6",
-        "steps": "24",
-        "fps": "20",
-        "fileNamePrefix": "bake_discard"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_bakes",
-        "expectedValue": "46",
-        "tolerance": "0"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_bake_hits",
-        "expectedValue": "0",
-        "tolerance": "1000000000.0"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_bake_segments",
-        "expectedValue": "1932",
-        "tolerance": "0"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_segments_per_bake",
-        "expectedValue": "42",
-        "tolerance": "0.5"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_invalidations",
-        "expectedValue": "0",
-        "tolerance": "1000000000.0"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_invalidation_marks",
-        "expectedValue": "0",
-        "tolerance": "1000000000.0"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_marks_per_call",
-        "expectedValue": "0",
-        "tolerance": "1000000000.0"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_roster_resyncs",
-        "expectedValue": "0",
-        "tolerance": "1000000000.0"
       }
     },
     {
@@ -334,121 +196,135 @@
     {
       "type": "Probe",
       "args": {
-        "probeName": "circinus_bake_calls",
+        "probeName": "vector_light_bake_reset",
         "expectedValue": "0",
-        "tolerance": "1000000000.0"
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "0,45",
+        "layout": "cells",
+        "cells": "25,18"
+      }
+    },
+    {
+      "type": "TickLapse",
+      "args": {
+        "ticks": "6",
+        "steps": "4",
+        "fps": "20",
+        "fileNamePrefix": "one_lamp"
       }
     },
     {
       "type": "Probe",
       "args": {
-        "probeName": "circinus_bake_total_ms",
-        "expectedValue": "0",
-        "tolerance": "1000000000.0"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circinus_bake_max_ms",
-        "expectedValue": "0",
-        "tolerance": "1000000000.0"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circinus_poly_calls",
-        "expectedValue": "0",
-        "tolerance": "1000000000.0"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circinus_poly_total_ms",
-        "expectedValue": "0",
-        "tolerance": "1000000000.0"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circinus_silh_calls",
-        "expectedValue": "0",
-        "tolerance": "1000000000.0"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circinus_silh_total_ms",
-        "expectedValue": "0",
-        "tolerance": "1000000000.0"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circinus_cover_calls",
-        "expectedValue": "0",
-        "tolerance": "1000000000.0"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circinus_cover_total_ms",
-        "expectedValue": "0",
-        "tolerance": "1000000000.0"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_coverage_mean",
-        "expectedValue": "0",
-        "tolerance": "1000000000.0"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_coverage_lit_cells",
-        "expectedValue": "0",
-        "tolerance": "1000000000.0"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_lit_area",
-        "expectedValue": "2952.71558",
-        "tolerance": "0.01"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_shadow_fraction",
-        "expectedValue": "0.552861392",
-        "tolerance": "0.0001"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_verts",
-        "expectedValue": "3909",
-        "tolerance": "0"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circinus_run_stop",
+        "probeName": "vector_light_invalidations",
         "expectedValue": "1",
         "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_invalidation_marks",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_marks_per_call",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_emitters",
+        "expectedValue": "23",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_bakes",
+        "expectedValue": "0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_bake_reset",
+        "expectedValue": "0",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "0,45",
+        "layout": "cells",
+        "cells": "24,9"
+      }
+    },
+    {
+      "type": "TickLapse",
+      "args": {
+        "ticks": "6",
+        "steps": "4",
+        "fps": "20",
+        "fileNamePrefix": "two_lamps"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_invalidations",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_invalidation_marks",
+        "expectedValue": "2",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_marks_per_call",
+        "expectedValue": "2",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_emitters",
+        "expectedValue": "23",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_bakes",
+        "expectedValue": "0",
+        "tolerance": "1000000000.0"
       }
     }
   ]
