@@ -48,7 +48,7 @@ public static class Patch_VectorLightDraw
         // overlay, the darkness layer, night desaturation, eave shade and our own mask beneath the
         // player's cursor, for emitters none of which it could reach.
         if (VectorLightMask.Active)
-            DirtyTouchedSections(map, VectorLightField.EnsurePolygons(map));
+            BuildAndDirty(map);
 
         VectorLightOverlay.Draw(map);
 
@@ -56,6 +56,45 @@ public static class Patch_VectorLightDraw
         // cost is proportional to what is on screen, and it needs the polygons the call above has
         // just made sure exist.
         VectorLightPawnShadows.Draw(map);
+    }
+
+    // Build this frame's dirty polygons and dirty whatever they changed. The two halves are one
+    // method because they are one decision: the cull is only safe because the dirty is precise, and
+    // the dirty is only cheap because the cull kept the build local.
+    //
+    // BOTH FLAGS OFF REPRODUCE THE ORIGINAL EXACTLY, which is what makes the arms a baseline rather
+    // than a picture of the feature missing. The cull's "off" is the whole map as the build window,
+    // not a skipped branch; the dirty's "off" is WholeMapChanged, not a wider rect.
+    private static void BuildAndDirty(Map map)
+    {
+        SectionDirtyMath.CellBounds wholeMap =
+            SectionDirtyMath.WholeMap(map.Size.x, map.Size.z);
+
+        // Expanded by 1 to match MapDrawer.ViewRect, which is what decides whether a section
+        // regenerates at all. Culling against the raw camera rect would leave the one-section fringe
+        // that vanilla still regenerates baking against polygons we declined to build — a stale
+        // strip at the edge of the screen, appearing only while scrolling, which is close to the
+        // least debuggable symptom this subsystem could produce.
+        SectionDirtyMath.CellBounds window = wholeMap;
+
+        if (CelestialLightingFeatures.VectorLightViewCull)
+        {
+            CellRect view = Find.CameraDriver.CurrentViewRect.ExpandedBy(1);
+            window = new SectionDirtyMath.CellBounds(view.minX, view.minZ, view.maxX, view.maxZ);
+        }
+
+        SectionDirtyMath.CellBounds touched = VectorLightField.EnsurePolygons(map, window);
+
+        if (CelestialLightingFeatures.VectorLightSectionDirty)
+        {
+            DirtyTouchedSections(map, touched);
+            return;
+        }
+
+        // The pre-item-A path, kept reachable rather than described. `Any` stands in for the bool
+        // EnsurePolygons used to return: it is true exactly when something was built.
+        if (touched.Any)
+            map.mapDrawer?.WholeMapChanged((ulong)MapMeshFlagDefOf.GroundGlow);
     }
 
     // Turn the cell bounds the field handed back into section dirty flags. Thin, because everything

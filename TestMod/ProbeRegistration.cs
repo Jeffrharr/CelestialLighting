@@ -280,6 +280,11 @@ public static class ProbeRegistration
             "vector_light_marks_per_call", VectorLightBakeProbe.Metric.MarksPerCall));
         ProbeRegistry.Register(new VectorLightBakeProbe(
             "vector_light_roster_resyncs", VectorLightBakeProbe.Metric.RosterResyncs));
+        // Issue #188 item B. Pin it WITH vector_light_bakes or not at all: on its own a deferral
+        // count cannot tell a working view cull from a scene whose lamps all happen to be off
+        // screen, and the sum of the two is what should stay constant between the flag's arms.
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_bake_deferrals", VectorLightBakeProbe.Metric.Deferrals));
         ProbeRegistry.Register(
             new VectorLightBakeProbe("vector_light_emitters", VectorLightBakeProbe.Metric.Emitters));
         // The coverage grid, which until now nothing live could see at all -- every other shape
@@ -1050,6 +1055,27 @@ public static class ProbeRegistration
                 VectorLightRedraw.ForceRebuild();
             },
             defaultEnabled: false);
+        // Issue #188's two invalidation flags, both shipping TRUE, so both take the two-arg overload.
+        // The three-arg one with defaultEnabled false would make a ResetAll leave every later arm on
+        // the pre-change path while its description claims to measure the new one — that exact
+        // mistake is on record for realistic_day_length.
+        //
+        // ForceRebuild on both, because they change WHEN sections rebake: a flip with no rebuild
+        // leaves the map showing whatever the previous arm baked, and the A/B measures nothing.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightSectionDirtyKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.VectorLightSectionDirty = enabled;
+                VectorLightRedraw.ForceRebuild();
+            });
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightViewCullKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.VectorLightViewCull = enabled;
+                VectorLightRedraw.ForceRebuild();
+            });
         // Two-arg overload, matching its shipped default of true, and inert while vector_lights is
         // off for the same reason as the mask above.
         FeatureRegistry.Register(

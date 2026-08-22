@@ -144,6 +144,17 @@ public static class VectorLightField
     // would mean something is marking the roster dirty on a cadence rather than on an event.
     public static int RosterResyncs;
 
+    // Builds the view cull declined — a dirty polygon out of camera range, left dirty (issue #188
+    // item B). Read BESIDE PolygonBakes rather than alone, because on its own it cannot tell a
+    // working cull from a scene where every lamp happens to be off screen. The pair is the whole
+    // measurement: bakes falling while deferrals rise by the same amount is the cull working, and
+    // both falling together is a scenario that stopped provoking anything.
+    //
+    // NOT AN ERROR COUNT. A deferral is work correctly postponed, and the emitter is built on the
+    // frame it comes back into range. A deferral that never resolves would show as a light with no
+    // shadow, which vector_light_lit_area sees.
+    public static int PolygonDeferrals;
+
     // Cleared per arm, the way the door-aperture counter is, so an arm counts its own bakes from zero
     // instead of inheriting the previous arm's total.
     public static void ResetCounters()
@@ -154,6 +165,7 @@ public static class VectorLightField
         InvalidationCalls = 0;
         InvalidationMarks = 0;
         RosterResyncs = 0;
+        PolygonDeferrals = 0;
     }
 
     public static void MarkRosterDirty(Map map)
@@ -229,7 +241,22 @@ public static class VectorLightField
     // lighting overlay under the player's cursor, nine times per swing. The union of the rebuilt
     // emitters' reach is enough for the caller to dirty only the sections that can actually look
     // different, and it costs one struct per frame to carry.
-    public static SectionDirtyMath.CellBounds EnsurePolygons(Map map)
+    // BUILDS ONLY WHAT CAN REACH `within`, which is issue #188 item B. An emitter outside it keeps
+    // its dirty flag and is built on the first frame it comes back into range — the caller passes
+    // the camera's view, so that is the frame it scrolls on screen. Nothing is lost by waiting,
+    // because the only consumers of a polygon are the draw and the mask and neither runs for a
+    // section nobody is looking at.
+    //
+    // WHY THIS IS SAFE ONLY BECAUSE OF ITEM A. The header above records the bug where a section
+    // baked while a polygon was still dirty, skipped that emitter, and was never dirtied again. A
+    // view cull creates exactly that state deliberately and en masse, so it depends on the caller
+    // re-dirtying whatever it builds — which is what the returned bounds are for. The two changes
+    // are separable in the diff and not in the design.
+    //
+    // The caller passes SectionDirtyMath.WholeMap to cull nothing, which is how the flag turned off
+    // reproduces the previous behaviour exactly rather than approximately.
+    public static SectionDirtyMath.CellBounds EnsurePolygons(
+        Map map, SectionDirtyMath.CellBounds within)
     {
         if (map == null)
             return default;
@@ -240,17 +267,26 @@ public static class VectorLightField
         {
             if (entry.PolygonDirty || entry.Polygon.Count == 0)
             {
-                EnsurePolygon(map, entry);
+                // Accumulated from the emitter's REACH rather than its cell: the polygon that is
+                // about to change shape is what the mask subtracts across the emitter's whole
+                // square, so the sections that need rebaking are every one that square touches, not
+                // the one the lamp happens to stand in. VectorLightMask.ReachMargin keeps that in
+                // step with the predicate CollectReaching admits emitters by.
+                SectionDirtyMath.CellBounds reach = SectionDirtyMath.Reach(
+                    entry.Cell.x, entry.Cell.z, entry.Radius, VectorLightMask.ReachMargin);
 
-                // Accumulated from the emitter's REACH rather than its cell: the polygon that just
-                // changed shape is what the mask subtracts across the emitter's whole square, so the
-                // sections that need rebaking are every one that square touches, not the one the
-                // lamp happens to stand in. MaskReachMargin keeps that in step with the predicate
-                // VectorLightMask.CollectReaching admits emitters by.
-                touched = SectionDirtyMath.Union(
-                    touched,
-                    SectionDirtyMath.Reach(
-                        entry.Cell.x, entry.Cell.z, entry.Radius, VectorLightMask.ReachMargin));
+                // Computed BEFORE the build rather than after, because it is also the cull test and
+                // an emitter that fails it must not be built at all. Deferring the build leaves
+                // PolygonDirty set, which is the entire mechanism — there is no separate queue.
+                if (SectionDirtyMath.Intersects(reach, within))
+                {
+                    EnsurePolygon(map, entry);
+                    touched = SectionDirtyMath.Union(touched, reach);
+                }
+                else
+                {
+                    PolygonDeferrals++;
+                }
             }
         }
 

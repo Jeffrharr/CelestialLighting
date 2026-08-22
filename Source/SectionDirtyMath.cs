@@ -94,6 +94,36 @@ public static class SectionDirtyMath
             a.MaxZ > b.MaxZ ? a.MaxZ : b.MaxZ);
     }
 
+    // Whether two inclusive rectangles share any cell. Used to ask "can this emitter change anything
+    // the camera is looking at", which is issue #188 item B's whole question.
+    //
+    // Empty bounds intersect nothing, including other empty bounds. That is the useful answer rather
+    // than a philosophical one: an emitter with no reach cannot affect a view, and a view with no
+    // extent cannot be affected by anything.
+    public static bool Intersects(CellBounds a, CellBounds b)
+    {
+        if (!a.Any || !b.Any)
+        {
+            return false;
+        }
+
+        return a.MinX <= b.MaxX && a.MaxX >= b.MinX
+            && a.MinZ <= b.MaxZ && a.MaxZ >= b.MinZ;
+    }
+
+    // The whole of a map, as bounds. The "cull nothing" argument for EnsurePolygons, and the thing a
+    // flag turned off passes so that off reproduces the pre-cull behaviour exactly rather than
+    // approximately.
+    public static CellBounds WholeMap(int mapWidth, int mapHeight)
+    {
+        if (mapWidth <= 0 || mapHeight <= 0)
+        {
+            return default;
+        }
+
+        return new CellBounds(0, 0, mapWidth - 1, mapHeight - 1);
+    }
+
     // The inclusive range of section indices these bounds overlap, clipped to a map of this size.
     //
     // Returns false when the bounds are empty or fall entirely outside the map, which the adapter

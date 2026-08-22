@@ -51,6 +51,12 @@ public sealed class VectorLightBakeProbe : IProbe
         // tracks the frame number means something is dirtying the roster on a cadence.
         RosterResyncs,
 
+        // Builds the view cull declined, leaving the polygon dirty until its emitter is back in
+        // range (issue #188 item B). Read BESIDE Bakes and never alone: bakes falling while
+        // deferrals rise by the same amount is the cull working, and both falling together is a
+        // scenario that stopped provoking anything. A deferral is postponed work, not an error.
+        Deferrals,
+
         // How many emitters the field currently holds. The denominator for MarksPerCall, and the
         // thing that says a scenario's lamps actually registered.
         Emitters,
@@ -123,6 +129,9 @@ public sealed class VectorLightBakeProbe : IProbe
 
         if (metric == Metric.RosterResyncs)
             return VectorLightField.RosterResyncs;
+
+        if (metric == Metric.Deferrals)
+            return VectorLightField.PolygonDeferrals;
 
         if (metric == Metric.CoverageMean)
             return CoverageMean(map);

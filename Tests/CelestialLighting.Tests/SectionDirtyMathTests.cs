@@ -198,6 +198,78 @@ public class SectionDirtyMathTests
         });
     }
 
+    // ---- intersects and whole-map (issue #188 item B) ------------------------------------------
+
+    // The cull's predicate, as a truth table over the four ways two rectangles can miss plus the
+    // touching case. Touching counts as intersecting because both rectangles are INCLUSIVE: an
+    // emitter whose reach ends on the view's first column does reach a cell the camera shows.
+    [TestCase(0, 0, 5, 5, 6, 0, 10, 5, false, TestName = "Intersects_missesToTheEast")]
+    [TestCase(0, 0, 5, 5, 5, 0, 10, 5, true, TestName = "Intersects_touchesToTheEast")]
+    [TestCase(6, 0, 10, 5, 0, 0, 5, 5, false, TestName = "Intersects_missesToTheWest")]
+    [TestCase(0, 0, 5, 5, 0, 6, 5, 10, false, TestName = "Intersects_missesToTheNorth")]
+    [TestCase(0, 6, 5, 10, 0, 0, 5, 5, false, TestName = "Intersects_missesToTheSouth")]
+    [TestCase(0, 0, 5, 5, 3, 3, 9, 9, true, TestName = "Intersects_overlapsAtACorner")]
+    [TestCase(0, 0, 20, 20, 5, 5, 9, 9, true, TestName = "Intersects_containsEntirely")]
+    public void IntersectsAnswersTheOverlapQuestion(
+        int aMinX, int aMinZ, int aMaxX, int aMaxZ,
+        int bMinX, int bMinZ, int bMaxX, int bMaxZ, bool expected)
+    {
+        SectionDirtyMath.CellBounds a = new SectionDirtyMath.CellBounds(aMinX, aMinZ, aMaxX, aMaxZ);
+        SectionDirtyMath.CellBounds b = new SectionDirtyMath.CellBounds(bMinX, bMinZ, bMaxX, bMaxZ);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(SectionDirtyMath.Intersects(a, b), Is.EqualTo(expected));
+            Assert.That(SectionDirtyMath.Intersects(b, a), Is.EqualTo(expected), "not symmetric");
+        });
+    }
+
+    // Empty intersects nothing, including itself. An emitter with no reach cannot affect a view and
+    // a view with no extent cannot be affected, so the cull declining both is the useful answer.
+    [Test]
+    public void EmptyBoundsIntersectNothing()
+    {
+        SectionDirtyMath.CellBounds real = new SectionDirtyMath.CellBounds(0, 0, 10, 10);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(SectionDirtyMath.Intersects(default, real), Is.False);
+            Assert.That(SectionDirtyMath.Intersects(real, default), Is.False);
+            Assert.That(SectionDirtyMath.Intersects(default, default), Is.False);
+        });
+    }
+
+    // THE PROPERTY THE FLAG-OFF ARM DEPENDS ON. Passing WholeMap as the build window must cull
+    // nothing, or "off reproduces the previous behaviour exactly" is false and the baseline arm is
+    // measuring a third thing that never shipped. Swept over emitters hanging off every edge,
+    // because those are the ones whose reach is partly outside the map.
+    [TestCase(51, 51)]
+    [TestCase(60, 35)]
+    [TestCase(250, 250)]
+    public void WholeMapCullsNothingThatOverlapsTheMap(int mapWidth, int mapHeight)
+    {
+        SectionDirtyMath.CellBounds whole = SectionDirtyMath.WholeMap(mapWidth, mapHeight);
+
+        for (int x = 0; x < mapWidth; x += 7)
+        {
+            for (int z = 0; z < mapHeight; z += 7)
+            {
+                SectionDirtyMath.CellBounds reach = SectionDirtyMath.Reach(x, z, 12f, ReachMargin);
+
+                Assert.That(
+                    SectionDirtyMath.Intersects(reach, whole), Is.True,
+                    $"emitter ({x},{z}) culled against the whole map");
+            }
+        }
+    }
+
+    [TestCase(0, 51)]
+    [TestCase(51, 0)]
+    public void WholeMapOfADegenerateMapIsEmpty(int mapWidth, int mapHeight)
+    {
+        Assert.That(SectionDirtyMath.WholeMap(mapWidth, mapHeight).Any, Is.False);
+    }
+
     // ---- section range ------------------------------------------------------------------------
 
     // THE TRUNCATION TRAP, stated as its own test because the differential above would catch it only
