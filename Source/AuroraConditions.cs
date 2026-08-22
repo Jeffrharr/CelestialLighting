@@ -1,4 +1,3 @@
-using System;
 using RimWorld;
 using UnityEngine;
 using Verse;
@@ -48,34 +47,6 @@ public static class AuroraConditions
     // loading.
     private static GameConditionDef _flareDefCache;
 
-    // The fifth GameConditionManager chain walk, memoised on the same terms as MapSky's four. That
-    // file's header says "all four gates that walk the chain are memoised" and draws the dividing
-    // line at the WALK rather than the call count -- this one sits in a different file and was simply
-    // missed by it, while being the most expensive walk of the set: ActiveTintDriver does up to THREE
-    // (IsAlwaysDarkOutside, then Aurora, then SolarFlare), and it is asked twice per CurSkyTarget by
-    // the sky tint and twice more per frame by the curtain draw.
-    //
-    // The whole-mod sweep is what promoted this from tidiness to a fix. At 15:00 with no aurora and
-    // no flare -- the state a colony is in essentially always -- the tint stage measured 8.3 us a
-    // call and the curtain draw 5.7, together about a quarter of the entire sky chain, to answer
-    // "nothing is happening" four times over.
-    //
-    // SOUND FOR THE REASON MAPSKY'S ARE, and worth restating because a condition list looks like the
-    // kind of thing a frame key cannot track: GeometryStamp carries the TICK as well as the frame,
-    // and conditions are registered and ended on the tick, so a stamp that is still valid is a stamp
-    // across which no condition can have appeared or gone. That is why vanilla's own cachedAlwaysDark
-    // needs RegisterCondition/OnConditionEnd hooks and this needs none -- vanilla caches ACROSS ticks
-    // and we do not.
-    //
-    // Caching the GameCondition reference rather than a bool is likewise safe within a tick: callers
-    // read live state off it (RampFor reads TicksLeft), and the object handed back is the same object
-    // a fresh walk would have found, not a snapshot of it.
-    private static readonly GeometryMemo<GameCondition> TintDriverMemo = new GeometryMemo<GameCondition>();
-
-    // Static delegate, per GeometryMemo's convention: building the lambda at the call site would
-    // allocate a closure per call, which is the cost this change exists to remove wearing a hat.
-    private static readonly Func<Map, GameCondition> ComputeTintDriver = ComputeTintDriverFor;
-
     private static GameConditionDef FlareDef
     {
         get
@@ -89,30 +60,39 @@ public static class AuroraConditions
     // The active auroral-driver condition on this map, or null if none is active. Callers gate all
     // tinting on a non-null return.
     //
+    // DELIBERATELY NOT MEMOISED, and this is a measured decision rather than an oversight, because
+    // everything about the shape of this method argues for memoising it and one measurement says no.
+    //
+    // The argument for: MapSky's header states that "all four gates that walk the
+    // GameConditionManager chain are memoised" and draws its dividing line at the WALK rather than
+    // the call count. This is a fifth walk in another file, it does up to three per call
+    // (IsAlwaysDarkOutside, then Aurora, then SolarFlare), and it is asked four times a frame -- twice
+    // per CurSkyTarget by the sky tint and twice by the curtain draw. On paper it is the most
+    // expensive member of the set.
+    //
+    // The measurement: memoised on GeometryStamp exactly as MapSky's four are, perf_skychain over 300
+    // frames at 15:00 with neither an aurora nor a flare running, both callers got SLOWER by more
+    // than their own run-to-run spread -- Patch_AuroraTint.Apply 8.16 -> 9.99 us a call (spread
+    // 8-11%), Patch_AuroraCurtainDraw.Postfix 5.28 -> 7.40 (spread 5-6%). Consistent in direction
+    // across both, which run-to-run noise is not.
+    //
+    // The reason, and the part worth carrying to the next candidate: FrameStamp.Current() is not
+    // free. It reads Time.frameCount and Find.TickManager.TicksAbs and then builds Variant() out of
+    // two dev flags and the SunClock mode, and it is paid on the memo's HITS as well as its misses --
+    // three of every four calls here. Underneath it, GetActiveCondition is a direct def compare that
+    // short-circuits on a colony's usually-empty condition list, which is a far cheaper walk than
+    // SkyBlackedOut's delegate-based test of every condition. So the memo cost more than the work it
+    // removed.
+    //
+    // What generalises: a chain walk is not automatically worth a stamp. MapSky's line is right for
+    // the gates it was drawn around and does not extend to a walk cheaper than FrameStamp.Current(),
+    // so measure before adding the fifth memo rather than arguing from the fourth.
+    //
     // The vanilla Aurora event wins when both are somehow running at once: it is the named,
     // player-facing event with its own letter and joy bonus, so its colour cycle should be the one
     // on screen. A flare tinting on top of it would only mix two unrelated hues.
     public static GameCondition ActiveTintDriver(Map map)
     {
-        // Null map and no-TickManager both bypass the memo rather than being cached under a made-up
-        // key, exactly as MapSky.HasSky's do and for the same two reasons: the first has no uniqueID
-        // to key on, and the second is every context outside a running game (main menu, world
-        // generation, mod init), where FrameStamp.Current would dereference a null Find.TickManager.
-        // Both fall through to the pre-memo code path, so the answer off-game is what it always was.
-        if (map == null || Find.TickManager == null)
-            return ComputeTintDriverFor(map);
-
-        return TintDriverMemo.Get(map.uniqueID, FrameStamp.Current(), map, ComputeTintDriver);
-    }
-
-    private static GameCondition ComputeTintDriverFor(Map map)
-    {
-        // Null map answers null -- no map, no driver, no tint. Previously this method dereferenced
-        // map unconditionally and the null case never arose because every caller had a live map; it
-        // is spelled out now because the bypass above can route a null here.
-        if (map == null)
-            return null;
-
         // Always-dark maps (undercave and friends) have no sky to tint, and vanilla's own aurora
         // stands itself down there too — GameCondition_Aurora returns a null SkyTarget and a zero
         // lerp factor when IsAlwaysDarkOutside. Matching that keeps us from painting an aurora onto
