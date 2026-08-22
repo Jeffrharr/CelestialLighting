@@ -98,12 +98,30 @@ public static class NightRadiance
     // Memoising UNDERNEATH it instead costs nothing and carries no such hazard: the two MapSky gates
     // on the next line are the only expensive reads reachable from here and both are now per-frame
     // memos, while FloorGlowFor's moon geometry is memoised by §12 and its cloud opacity by §28's
-    // weather pass. What is left in this method is a comparison and a lerp -- the DrawsShadows case,
-    // cheaper than the dictionary lookup that would cache it.
+    // weather pass.
+    //
+    // THE FLOOR IS EVALUATED LAZILY, and the sentence that used to sit here -- "what is left in this
+    // method is a comparison and a lerp" -- was the reasoning that hid why it had to be. That claim
+    // was true of everything except the third argument, which was built unconditionally and then
+    // thrown away on every frame without an eclipse, i.e. on essentially all of them. FloorGlowFor is
+    // not a comparison and a lerp: it reads the settings, resolves the moon through §12's seam, asks
+    // the vacuum gate, and multiplies in §21's cavity gain, which walks the snow and sand grids. The
+    // whole-mod sweep measured this method at 19.5 us a call against 0.14 for the cheapest stage in
+    // the sky chain, which is what turned a plausible piece of reasoning into a measurement.
+    //
+    // Skipping it is exact rather than an approximation, and NightRadianceMath.EclipseFlooredGlow is
+    // still the authority for the case that does apply: its false branch is `glow` for EVERY value of
+    // nightFloorGlow, so an unevaluated floor and an evaluated-then-discarded one cannot differ.
+    // EclipseFlooredGlow_IgnoresTheFloorEntirelyWhenTheEclipseFloorDoesNotApply pins that property
+    // over a sweep of floors, so this shortcut fails a test rather than a screenshot if the rule ever
+    // grows a second use for the argument.
     public static float VisualGlowFor(Map map, float currentGlow)
     {
         bool eclipseFloorApplies = MapSky.EclipseActive(map) && !MapSky.UnnaturalDarknessActive(map);
 
-        return NightRadianceMath.EclipseFlooredGlow(eclipseFloorApplies, currentGlow, FloorGlowFor(map));
+        if (!eclipseFloorApplies)
+            return currentGlow;
+
+        return NightRadianceMath.EclipseFlooredGlow(true, currentGlow, FloorGlowFor(map));
     }
 }
