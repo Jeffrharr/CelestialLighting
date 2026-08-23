@@ -9060,6 +9060,27 @@ sentinel rather than a comparison across two different ray sets, and an emitter 
 is not counted as agreement: with no emitter comparable at all the probe returns −1, so a run where
 the bake never happened fails the pin instead of passing it vacuously.
 
+#### What the profile leaves behind
+
+**Three runs of the fixed build put the counts at 44/44/44 every time and the overlay's total at
+16.36, 18.56 and 22.91 ms.** That spread — a factor of 1.4 across one unchanged binary — is the
+argument for the counts being pinned at tolerance 0 and the timings only recorded, and it is worth
+keeping in view before anyone reads a 10% movement here as a result.
+
+**The coverage grid is now the co-equal largest stage of a bake, and it is the obvious next target.**
+Per call it costs about what the polygon does — 0.2395 against 0.2325 ms in the before run, 0.166
+against 0.181 in the after — so with the duplicate gone, `BuildCoverage` and `Build` split a bake
+roughly evenly between them. That is consistent with `Tools/VectorLightBench` rather than a surprise:
+coverage dominates in an uncluttered window and the polygon dominates in a busy one, and this plate
+sits between the two. Nothing here says it is *wasteful*, only that it is now where the time is.
+
+Two things this pass deliberately did not touch, both recorded so the next reader does not have to
+rediscover the reasoning. `VectorLightMask.CollectReaching` walks every emitter on the map per
+section regenerate, which is bounded by section count times lamp count and was nowhere near the top
+of the table. And issue #188 item C — caching the silhouette across a door's aperture steps — is
+half-collected already: the window scan now runs once per bake rather than twice, so what remains for
+item C is the other half rather than the whole of it.
+
 ### The flicker question, and what it turned out to be
 
 Watching a run, the light reads as though it flickers slightly.
