@@ -69,6 +69,28 @@ public sealed class VectorLightProbe : IProbe
         // quietly show the crossfade instead.
         MaskAvailable,
 
+        // How far the polygon the draw REUSED differs from the one it would have built for itself,
+        // in cells, worst case over every emitter on the map. Zero is the claim.
+        //
+        // THE ONE PROBE HERE THAT IS A DIFFERENTIAL TEST RATHER THAN A MEASUREMENT, and it needs an
+        // independent oracle to be worth anything. It has one: VectorLightOverlay.Rebuild used to
+        // scan the emitter's window and build its own polygon, so the oracle is literally the code
+        // path that was removed, run again here against the cached polygon the draw now uses. That
+        // is not the same shape as an A-minus-B test computing both sides with the code under test,
+        // which asserts x - x == 0 and passes on a build where both halves are wrong together.
+        //
+        // WHY A DISTANCE AND NOT A BOOL. The two polygons are supposed to be bit-identical — same
+        // function, same arguments, same frame — so any non-zero answer at all is a finding, and a
+        // magnitude says whether it is a rounding difference or a different shape. A ray count that
+        // does not match reports RayCountMismatch instead, because the per-ray comparison has no
+        // meaning across two different ray sets.
+        //
+        // NEGATIVE MEANS NOTHING WAS COMPARED, which a pin at 0 must fail rather than pass. An
+        // emitter whose polygon is dirty or empty has nothing cached to check, and a scene where
+        // that is true of every emitter — the mask switched off, a bake that never ran — would
+        // otherwise report a clean zero for the reason that makes the check vacuous.
+        PolygonReuseError,
+
         // §27 phase 5: how many cells the last whole-map rebake put a lift on, and the largest single
         // channel of lift it wrote.
         //
@@ -309,6 +331,9 @@ public sealed class VectorLightProbe : IProbe
             || metric == Metric.PawnShadowReach || metric == Metric.PawnShadowArms)
             return ReadShadow(map);
 
+        if (metric == Metric.PolygonReuseError)
+            return ReadPolygonReuseError(map);
+
         float litArea = 0f;
         float openArea = 0f;
         float penumbraArea = 0f;
@@ -322,6 +347,59 @@ public sealed class VectorLightProbe : IProbe
         }
 
         return Report(count, litArea, openArea, vertices, penumbraArea);
+    }
+
+    // What a ray-count disagreement reports, chosen to be far outside any distance a real difference
+    // could produce: the polygons are at most one map diagonal apart, and no emitter has a radius
+    // anywhere near this.
+    private const float RayCountMismatch = 9999f;
+
+    // The cached polygon against a freshly built one, worst case over the map. See the metric's own
+    // comment for why this is a differential test with a real oracle rather than a measurement.
+    private static float ReadPolygonReuseError(Map map)
+    {
+        float worst = -1f;
+
+        foreach (VectorLightField.LightEntry entry in VectorLightField.LightsFor(map))
+        {
+            // Nothing cached to check. Deliberately not treated as agreement — `worst` stays at its
+            // "nothing compared" sentinel unless some emitter actually gets compared.
+            if (entry.PolygonDirty || entry.Polygon.Count == 0)
+                continue;
+
+            // The oracle: the exact call VectorLightOverlay.Rebuild made before it started reusing
+            // the field's polygon, arguments and all.
+            VectorLightMath.Segment[] segments =
+                VectorLightBlockers.SegmentsAround(map, entry.Cell, entry.Radius);
+
+            VectorLightMath.LightPolygon fresh = VectorLightMath.Build(
+                entry.Cell.x + 0.5f, entry.Cell.z + 0.5f, entry.Radius, segments,
+                VectorLightMath.DefaultBaseRayCount);
+
+            if (fresh.Count != entry.Polygon.Count)
+                return RayCountMismatch;
+
+            worst = System.Math.Max(worst, RayError(entry.Polygon, fresh));
+        }
+
+        return worst;
+    }
+
+    // The largest disagreement between two polygons of equal ray count, over both of the numbers a
+    // ray carries. Angles are compared alongside distances because two polygons can hold the same
+    // set of distances in a different order and describe entirely different shapes.
+    private static float RayError(
+        VectorLightMath.LightPolygon cached, VectorLightMath.LightPolygon fresh)
+    {
+        float worst = 0f;
+
+        for (int i = 0; i < cached.Count; i++)
+        {
+            worst = System.Math.Max(worst, System.Math.Abs(cached.Distances[i] - fresh.Distances[i]));
+            worst = System.Math.Max(worst, System.Math.Abs(cached.Angles[i] - fresh.Angles[i]));
+        }
+
+        return worst;
     }
 
     // Asks VectorLightPawnShadows.CastsShadow, never its own copy of the four tests: a probe with a

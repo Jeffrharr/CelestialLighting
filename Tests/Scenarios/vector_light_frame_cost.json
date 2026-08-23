@@ -1,7 +1,7 @@
 {
   "name": "vector_light_frame_cost",
   "saveFile": "minimal_colony.rws",
-  "description": "Where vector lighting's frame actually goes, by CALL COUNT rather than by duration, on the same 20-lamp five-room plate every other cost figure for this subsystem was measured on. vector_light_perf.json already reports what Patch_VectorLightDraw:Postfix costs; what no instrument in the repo could report is how many times each stage inside it runs, and that turns out to be the question. The visibility polygon is 83-94% of a bake in any cluttered scene (Tools/VectorLightBench) and is reached by two independent paths in the same frame - VectorLightField.EnsurePolygon bakes it for the mask, VectorLightOverlay.Rebuild bakes it again for the mesh - so circ_vlpolygon_calls read against vector_light_bakes is the whole finding: they are supposed to be equal, and they are 82 against 44. Pinned at tolerance 0 because a count is exact where a timing on this box is not - the untouched control arms moved by a factor of 1.4-2.0 between two runs an hour apart. Armed as a bank rather than one arm per run, which is sound here because these are distinct methods read at one instant to break down one frame budget, not one method compared across two feature states. Read TotalMs/Calls for a per-call cost, never AvgMs, which is per cycle. Every cloud lane is off: the sheet drifts on the tick counter and would put a moving, expensive draw inside a window whose job is to attribute time to this subsystem. The shipped-on configuration is stated flag by flag for the same reason. Timings are RECORDED with wide tolerances; the pins that bite are circinus_available, vector_light_count, every *_patched, the four call counts at tolerance 0. THIS RUN REPORTS Pass=false WITH EVERY PROBE GREEN, and the three setup errors behind it are expected rather than tolerated. Two are the plate's own, inherited along with it from vector_light_mask_max_perf: the terrain rect straddles four SteamGeyser cells SetTerrain cannot clear. The third and fourth are SpawnPawn placing 1 of 2 in two of the three rooms, the second cell in each being occupied - which is why vector_light_pawn_casters is pinned at the 6 that were measured rather than at the 6 that were asked for, and the two numbers agreeing here is a coincidence worth naming rather than a check.",
+  "description": "Where vector lighting's frame actually goes, by CALL COUNT rather than by duration, on the same 20-lamp five-room plate every other cost figure for this subsystem was measured on. vector_light_perf.json already reports what Patch_VectorLightDraw:Postfix costs; what no instrument in the repo could report is how many times each stage inside it runs, and that turns out to be the question. The visibility polygon is 83-94% of a bake in any cluttered scene (Tools/VectorLightBench) and is reached by two independent paths in the same frame - VectorLightField.EnsurePolygon bakes it for the mask, VectorLightOverlay.Rebuild bakes it again for the mesh - so circ_vlpolygon_calls read against vector_light_bakes is the whole finding: they are supposed to be equal, and they were 82 against 44. They are pinned equal now, at tolerance 0, because a count is exact where a timing on this box is not: the untouched control arms moved by a factor of 1.4-2.0 between two runs an hour apart, so a regression that put the second build back would be invisible in every millisecond here and unmissable in the counts. Armed as a bank rather than one arm per run, which is sound here because these are distinct methods read at one instant to break down one frame budget, not one method compared across two feature states. Read TotalMs/Calls for a per-call cost, never AvgMs, which is per cycle. Every cloud lane is off: the sheet drifts on the tick counter and would put a moving, expensive draw inside a window whose job is to attribute time to this subsystem. The shipped-on configuration is stated flag by flag for the same reason. Timings are RECORDED with wide tolerances; the pins that bite are circinus_available, vector_light_count, every *_patched, the four call counts at tolerance 0, and vector_light_polygon_reuse_error. THIS RUN REPORTS Pass=false WITH EVERY PROBE GREEN, and the three setup errors behind it are expected rather than tolerated. Two are the plate's own, inherited along with it from vector_light_mask_max_perf: the terrain rect straddles four SteamGeyser cells SetTerrain cannot clear. The third and fourth are SpawnPawn placing 1 of 2 in two of the three rooms, the second cell in each being occupied - which is why vector_light_pawn_casters is pinned at the 6 that were measured rather than at the 6 that were asked for, and the two numbers agreeing here is a coincidence worth naming rather than a check.",
   "requiredMods": {
     "astryl.Circinus": "3773680130"
   },
@@ -396,6 +396,14 @@
     {
       "type": "Probe",
       "args": {
+        "probeName": "vector_light_polygon_reuse_error",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
         "probeName": "vector_light_bakes",
         "expectedValue": "44",
         "tolerance": "0"
@@ -405,7 +413,7 @@
       "type": "Probe",
       "args": {
         "probeName": "circ_vlpolygon_calls",
-        "expectedValue": "82",
+        "expectedValue": "44",
         "tolerance": "0"
       }
     },
@@ -413,7 +421,7 @@
       "type": "Probe",
       "args": {
         "probeName": "circ_vlsegments_calls",
-        "expectedValue": "82",
+        "expectedValue": "44",
         "tolerance": "0"
       }
     },
