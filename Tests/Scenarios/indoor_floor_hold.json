@@ -1,0 +1,47 @@
+{
+  "name": "indoor_floor_hold",
+  "saveFile": "minimal_colony.rws",
+  "description": "A scene to LOOK AT, not a scenario to assert on — run it with --hold and the game is handed back with this world state intact. It builds the three interiors the decoupled indoor floor reads differently across, side by side under one sky: a sealed room (no opening, so the under-roof falloff BFS never reaches it and the floor is the only cap), a doored room (where the falloff gradient and the floor compose), and a doored room with a torch in one corner (so a lit interior and an unlit one sit in the same frame under the same light). Ends at midnight with the flag ON, because that is the arm the change introduces; flip it with the dev-menu action under 'Celestial Lighting' to see the other one, and step the floor itself with the second action. Clouds are off so nothing drifts across the ground between two looks. The only pin is sun_elevation: this scenario asserts nothing about the effect, but a clock that landed somewhere other than deep night would make everything below it a picture of the wrong thing.",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "20" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "40" } },
+    { "type": "SetWeather", "args": { "weatherDef": "Clear", "instant": "true" } },
+
+    { "type": "SetFeature", "args": { "featureName": "realistic_preset", "enabled": "false" } },
+    { "type": "SetFeature", "args": { "featureName": "indoor_sky_occlusion", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "native_sky_falloff", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "pitch_black_nights", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "night_radiance", "enabled": "true" } },
+
+    { "type": "SetFeature", "args": { "featureName": "cloud_cover", "enabled": "false" } },
+    { "type": "SetFeature", "args": { "featureName": "cloud_sheet", "enabled": "false" } },
+    { "type": "SetFeature", "args": { "featureName": "cloud_presence", "enabled": "false" } },
+    { "type": "SetFeature", "args": { "featureName": "cloud_deck_varieties", "enabled": "false" } },
+    { "type": "SetFeature", "args": { "featureName": "cloud_volume", "enabled": "false" } },
+
+    { "type": "SetTerrain", "args": { "def": "Concrete", "width": "46", "height": "24", "offset": "0,45", "clear": "true" } },
+
+    { "type": "PlaceThings", "args": { "def": "Wall", "stuff": "BlocksGranite", "offset": "-15,45", "layout": "cells", "clear": "true",
+      "cells": "-4,4; -3,4; -2,4; -1,4; 0,4; 1,4; 2,4; 3,4; 4,4; -4,-4; -3,-4; -2,-4; -1,-4; 0,-4; 1,-4; 2,-4; 3,-4; 4,-4; -4,-3; -4,-2; -4,-1; -4,0; -4,1; -4,2; -4,3; 4,-3; 4,-2; 4,-1; 4,0; 4,1; 4,2; 4,3" } },
+    { "type": "SetRoof", "args": { "def": "RoofConstructed", "width": "9", "height": "9", "offset": "-15,45" } },
+
+    { "type": "PlaceThings", "args": { "def": "Wall", "stuff": "BlocksGranite", "offset": "0,45", "layout": "cells", "clear": "false",
+      "cells": "-5,5; -4,5; -3,5; -2,5; -1,5; 0,5; 1,5; 2,5; 3,5; 4,5; 5,5; -5,-5; -4,-5; -3,-5; -2,-5; -1,-5; 1,-5; 2,-5; 3,-5; 4,-5; 5,-5; -5,-4; -5,-3; -5,-2; -5,-1; -5,0; -5,1; -5,2; -5,3; -5,4; 5,-4; 5,-3; 5,-2; 5,-1; 5,0; 5,1; 5,2; 5,3; 5,4" } },
+    { "type": "PlaceThings", "args": { "def": "Door", "stuff": "BlocksGranite", "offset": "0,45", "layout": "cells", "clear": "false", "cells": "0,-5" } },
+    { "type": "SetRoof", "args": { "def": "RoofConstructed", "width": "11", "height": "11", "offset": "0,45" } },
+
+    { "type": "PlaceThings", "args": { "def": "Wall", "stuff": "BlocksGranite", "offset": "16,45", "layout": "cells", "clear": "false",
+      "cells": "-5,5; -4,5; -3,5; -2,5; -1,5; 0,5; 1,5; 2,5; 3,5; 4,5; 5,5; -5,-5; -4,-5; -3,-5; -2,-5; -1,-5; 1,-5; 2,-5; 3,-5; 4,-5; 5,-5; -5,-4; -5,-3; -5,-2; -5,-1; -5,0; -5,1; -5,2; -5,3; -5,4; 5,-4; 5,-3; 5,-2; 5,-1; 5,0; 5,1; 5,2; 5,3; 5,4" } },
+    { "type": "PlaceThings", "args": { "def": "Door", "stuff": "BlocksGranite", "offset": "16,45", "layout": "cells", "clear": "false", "cells": "0,-5" } },
+    { "type": "PlaceThings", "args": { "def": "TorchLamp", "offset": "16,45", "layout": "cells", "clear": "false", "cells": "-3,3" } },
+    { "type": "SetRoof", "args": { "def": "RoofConstructed", "width": "11", "height": "11", "offset": "16,45" } },
+
+    { "type": "LookAt", "args": { "offset": "0,45", "zoom": "40" } },
+
+    { "type": "SetTime", "args": { "hour": "0" } },
+    { "type": "Probe", "args": { "probeName": "sun_elevation", "expectedValue": "-58.28", "tolerance": "1.0" } },
+
+    { "type": "SetFeature", "args": { "featureName": "decoupled_indoor_floor", "enabled": "true" } },
+    { "type": "Screenshot", "args": { "fileName": "ifh_scene.png" } }
+  ]
+}
