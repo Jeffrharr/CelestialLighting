@@ -13977,125 +13977,117 @@ does not prove the mod loaded.** `SkyTargetCompositeTests` now pins the paramete
 defined stage is called exactly once, and that nothing else patches `CurSkyTarget`.
 
 
-## Update notice: telling an existing install what is new (`UpdateNoticeMath` / `Dialog_UpdateNotice`)
 
-Two features ship in this release that a returning player would never find on their own, and they
-fail to be discovered in opposite directions.
+## Update notice: one question, asked once (`UpdateNoticeMath` / `Dialog_UpdateNotice`)
 
-§27 vector lighting is the largest change to how a colony looks that this mod has made — light that
-vanilla delivered around a corner no longer arrives at all, so indirectly lit rooms are genuinely
-darker. §25c volumetric clouds arrive already switched on, which is worse in the other direction:
-the sky quietly starts rendering differently, and a player who wants their frames back has no way to
-connect what they are seeing to a setting they have never heard of.
+Two features ship in this release that a player would never find on their own, and they fail to be
+discovered in opposite directions.
 
-So there is a one-time window at the main menu that names both and gives one button to switch vector
-lighting on. The whole of it is four files, and only one of them contains a decision.
+§27 vector lighting ships **off**, so the only route to it is reading a list of thirty checkboxes and
+noticing one that was not there before. §25c volumetric clouds arrive already **on**, which is worse
+the other way: the sky quietly starts rendering differently, and a player who wants their frames back
+has no way to connect what they are seeing to a setting they have never heard of.
 
-### Two populations, two defaults
+So there is a one-time window at the main menu that names both and gives one button. The whole of it
+is four files, and only one of them contains a decision.
 
-**A new install gets vector lighting ON. An existing one does not, and is asked.** That asymmetry is
-the single most important thing in this subsystem, and it is a product decision rather than an
-implementation detail: the case for the default is completely different for the two groups.
-Somebody installing today has no prior expectation to violate — this is simply how the mod lights a
-colony, and shipping its best look by default is right. Somebody who has played fifty hours under
-the old lighting has a very specific expectation, and silently rewriting it on update is not a
-default, it is a surprise.
+### Everybody is asked, and nobody is opted in
 
-**The scribed default for `vectorLights` therefore stays `false`, and that is the sharpest edge in
-the whole feature.** `Scribe_Values` omits any value equal to its default, so every config written
-while the feature shipped off has *no* `vectorLights` node at all. Flip the scribed default to
-`true` and every one of those configs reads back as *on* — which is exactly the silent relighting
-the split above exists to prevent, delivered by a one-word change that looks like tidying up. The
-new-install default lives in `UpdateNoticeMath.FirstRunSwitches`, on a path that only runs when no
-settings file existed; the serialisation default stays as the honest answer to "what did an absent
-node mean when it was written".
+**Vector lighting ships off for every install, new and upgrading alike, and every install sees the
+notice once.**
+
+This is the second design, and the first one is worth recording because its reasoning was seductive
+and wrong. That version suppressed the notice for a first-time install and switched vector lighting
+on for them instead, arguing that somebody installing today has no prior expectation to violate — it
+is simply how this mod lights a colony, so ship the best look by default and only ask the people
+whose existing colonies would change.
+
+That argument is about the **look**, and the look is not what distinguishes this feature. **Cost is.**
+Vector lighting is the most expensive thing this mod does, by a wide margin as a share of its
+per-frame budget. A default that quietly spends a player's frame budget is not the same kind of
+default as one that quietly changes a colour, and a new player is *less* equipped to diagnose a
+mysterious framerate than a returning one, not more. So the asymmetry went away: everyone gets asked,
+and the answer is theirs.
+
+The code got smaller for it. There is no seeding path, so there is no branch that has to remember to
+persist a version it never displayed, and `ShouldShow` takes one argument.
+
+### What `installedBefore` still decides
+
+Only what the window **says**.
+
+| | Title | Cloud row |
+|---|---|---|
+| Upgrade | "Celestial Lighting — what's new" | Announced |
+| First install | "Celestial Lighting — one setting worth choosing" | Hidden |
+
+Nothing in this mod is "new" to somebody who has never run it — every effect arrived at the same
+moment, five minutes ago — so singling one out as a recent addition is a sentence that means nothing
+to them, and calling their window "what's new" is a claim about a history they do not have.
+
+That is also a much better place for the signal's blind spot to sit. `LoadedFromDisk` is set from
+`Scribe.mode == LoadingVars` inside `ExposeData` and is false exactly when
+`LoadedModManager.ReadModSettings` found no file — the only durable trace an earlier version leaves,
+since nothing this mod does is written into a save. RimWorld writes a mod's settings file when the
+settings *window* closes, so a returning player who never opened that screen reads as new. Under the
+first design that cost them the notice **and** handed them a default they never chose. Now it costs
+them one paragraph about clouds.
 
 ### The volumetric cloud row is announced, never offered
 
 The renderer ships on underneath switches that also ship on, so for almost every upgrading player it
-is simply already running and the honest thing to do is name it.
+is already running and the honest thing is to name it.
 
-The players it is *not* running for are the ones who turned "Partial cloud cover" or "Visible
-clouds" off. Offering to switch those back on would be the notice overriding a decision the player
-made deliberately, for a rendering change to clouds they have already said they do not want to see —
-so they are not asked, and not told either. An announcement about a sky somebody has switched off is
-noise. `VolumetricCloudRow` collapses to `Announce` or `Hidden`, and `VolumetricCloudsRunning` holds
-the chain rule that decides which: `cloudVolume` renders nothing with `cloudSheet` off and nothing at
-all with `cloudCover` off, because `CloudLayers.SheetAlphaFor` asks for both before it asks for a
-fraction.
+The players it is *not* running for are the ones who turned "Partial cloud cover" or "Visible clouds"
+off. Offering to switch those back on would be the notice overriding a decision the player made
+deliberately, about clouds they have already said they do not want to see — so they are not asked,
+and not told either. An announcement about a sky somebody has switched off is noise.
+`VolumetricCloudsRunning` holds the chain rule: `cloudVolume` renders nothing with `cloudSheet` off
+and nothing at all with `cloudCover` off, because `CloudLayers.SheetAlphaFor` asks for both before it
+asks for a fraction.
 
 Two further ways to be unreachable fold into the same `Hidden`, checked **first**: the shader bundle
 did not load (only Linux bundles are built today, so this is not hypothetical), or the Clouds mod is
 installed and our positional lanes have stood down for it. Ordering matters because a Clouds user may
 well have all three of ours on — those settings are live again the moment they uninstall it — so
-reading the switches alone would announce volumetric clouds to somebody whose sky is being drawn by
-another mod entirely.
+reading the switches alone would announce volumetric clouds to somebody whose sky is drawn by another
+mod entirely.
 
-### The four ways to get the notice itself wrong
+### The failures that are invisible
 
-Every one of them is invisible. A notice that shows twice, or shows to somebody on their first ever
-boot, or announces a feature that is not actually running, all look identical in a screenshot to one
-that works — the difference is a boolean nobody sees until a player complains. That is the argument
-for `UpdateNoticeMath` being a Verse-free file with its own `[TestCase]`s, and the four failures are
-written there as the tests' names.
-
-**Shown to a first-time install.** The only durable trace an earlier version of this mod leaves
-behind is its **settings file** — nothing it does is written into a save, which About.xml promises
-outright — so `CelestialLightingSettings.LoadedFromDisk` is set from `Scribe.mode == LoadingVars`
-inside `ExposeData`, and is false exactly when `LoadedModManager.ReadModSettings` found no file and
-handed back the field initialisers.
-
-That signal has one blind spot, and it is a deliberate trade rather than an oversight: RimWorld
-writes a mod's settings file when the settings *window* closes, so a returning player who has
-literally never opened this mod's settings screen reads as new. They miss the notice — and, now that
-the two populations get different defaults, they also silently get vector lighting switched on, which
-is the more consequential half. The alternative is to assume "previous install" by default, which
-shows a what's-new window to somebody on their first ever boot and denies them the feature's own
-default. One population gets a wrong announcement; the other gets a wrong look. The second is
-reversible with one checkbox and the first is not, so it is the one taken.
+A notice that shows twice, or announces a feature that is not actually running, or opts somebody into
+the expensive one, all look identical in a screenshot to one that works — the difference is a boolean
+nobody sees until a player complains. That is the argument for `UpdateNoticeMath` being a Verse-free
+file with its own `[TestCase]`s, and the failures are written there as the tests' names.
 
 **Shown twice.** `updateNoticeVersion` is a persisted sequence number, not a bool, so a later release
-can show its own notice without resurrecting this one for players who already dismissed it.
-`NeverAcknowledged == 0` has to *be* the scribed default and not merely equal it: `Scribe_Values`
-omits any value equal to its default, so every config written before this field existed has no node
-here and must read back as "has not seen it" — precisely the population the notice is for.
+can show its own notice without resurrecting this one. `NeverAcknowledged == 0` has to *be* the
+scribed default and not merely equal it: `Scribe_Values` omits any value equal to its default, so
+every config written before this field existed has no node here and must read back as "has not seen
+it".
 
 The acknowledgement is written in `PostClose`, which fires for *every* exit — both buttons, Escape,
 Enter, and anything that closes the stack from underneath us. Writing it in the enable handler
 instead would bring the window back every boot for everyone who said no, which is the exact failure
 "only shows once" is about.
 
-**A first install never writes anything.** This one only bites later. Skipping the notice for a new
-player is not enough on its own: the first time they open and close the settings screen they gain a
-settings file, and on the next boot they read as a returning player and get the notice after all. So
-the new-install path writes both the seeded default and the acknowledgement (`SeedFirstRun`) rather
-than simply returning.
-
-**A window with nothing in it.** Reachable, and not exotic: vector lighting already on, plus a machine
-whose cloud shader never loaded, which is every Mac and Windows install today. Raising it would spend
-the one appearance this notice gets and say nothing, so `AnythingToShow` gates it and the
-acknowledgement is written anyway — otherwise the version sits unwritten and the whole decision is
-re-evaluated every boot.
-
-### One button, not a tickbox per feature
-
-Only one of the two features is offerable at all, so a checkbox plus an Apply button would be two
-clicks and a moment's reading to express one yes. It is also the more honest shape for what is being
-asked: the button says *"Turn on vector lighting"* rather than "OK" or "Apply", because the player is
-one click from a colony that is lit differently and the click should not be ambiguous about which of
-the two features above it acts on.
-
-`enableVectorLights` is set only by that button and by Enter, which is its keyboard form — and Enter
-only when the button is actually on screen, so a player shown an announcement-only window cannot
-enable a feature they were never offered a control for. Everything else is a decline. That matters
-because the exit path is `PostClose`, which fires for ways out nobody chose: Escape, another mod
-closing the stack, the test harness's blocking-dialog sweep. Anything inferred there would take all
+**Opted in by accident.** `enableVectorLights` is set only by the button and by Enter, and by Enter
+only when that button is on screen. Everything else is a decline. The flag exists rather than reading
+UI state at `PostClose` because that method fires for ways out nobody chose — Escape, another mod
+closing the stack, the harness's blocking-dialog sweep — and anything inferred there would take all
 of them as consent.
 
-`VectorLightRow` returns `Hidden` rather than `Announce` when the feature is already on. For a
-feature arriving in *this* release, "already on" means the player went and found the switch minutes
-ago; an offer would be a button that changes nothing and an announcement would be the mod informing
-them of their own decision. It is also what lets `AnythingToShow` mean something.
+**A window with nothing in it.** Reachable, and not exotic: vector lighting already on plus a machine
+whose cloud shader never loaded, which is every Mac and Windows install today. `AnythingToShow` gates
+it, and the acknowledgement is written anyway — otherwise the version sits unwritten and the whole
+decision is re-evaluated every boot.
+
+**`VectorLightRow` returns `Hidden`, not `Announce`, when the feature is already on.** For a feature
+arriving in *this* release that means the player found the switch themselves minutes ago: an offer
+would be a button that changes nothing, an announcement would be the mod informing them of their own
+decision. It is also what lets `AnythingToShow` mean something — an earlier cut had it returning
+`Announce`, which made `AnythingToShow` unconditionally true and the empty-window guard dead code.
+The tests caught that, not a screenshot.
 
 ### Why `UIRoot_Entry.Init`
 
@@ -14104,54 +14096,64 @@ entry UI root exists — there is no window stack to add to yet. `Init` is the f
 is, and vanilla adds a `Dialog_MessageBox` from inside that very method (the missing-Steam-client
 warning), so it is a *proven* place to put a window rather than a plausible one. It also runs after
 `VersionUpdateDialogMaker`, which puts our notice on top of RimWorld's own version dialog rather than
-under it. `ApiCompatibilityTests` pins both the method and the fact that vanilla still stacks a
-window there.
+under it. `ApiCompatibilityTests` pins both the method and the fact that vanilla still stacks a window
+there.
 
 `Init` runs again every time the player returns to the main menu from a game, which is the other
-reason "only once" is a persisted acknowledgement rather than a static bool here — a static bool
-would also be correct for one session and wrong the moment somebody quit before answering.
+reason "only once" is a persisted acknowledgement rather than a static bool — a static bool would
+also be correct for one session and wrong the moment somebody quit before answering.
 
 The postfix cannot throw out: `UpdateNotice.ShowIfDue` swallows and logs, because a what's-new window
 is not worth a broken main menu to anybody.
 
-### What was not verified
+### Seeing it: two scenarios, and why it takes two
 
-**The layout was never seen rendered**, and that is worth stating rather than leaving as an absence.
-It is `Widgets` and a `Listing_Standard` laid out on the same arithmetic as `Dialog_MessageBox`, so
-the failure mode is cosmetic rather than silent, but it is untested.
+The notice needed both halves of the harness work in RimWorldTestHarness#42 before it could be
+photographed at all, and the two scenarios prove different things.
 
-The harness gained a `--keep-dialogs` flag for exactly this class of problem (RimWorldTestHarness
-PR #42) and it does not help here, for a reason no flag can fix: each `UIRoot` owns its own
-`WindowStack`, so a window raised at the main menu is discarded the moment `UIRoot_Play` takes over —
-which every scenario does before its first step. `--keep-dialogs` photographs a window raised *during*
-a scenario; this one cannot be.
-
-What `Tests/Scenarios/update_notice.json` *does* prove is that everything up to the draw call works on
-a real boot, and the evidence is a line in `Player.log` rather than a step outcome:
+`Tests/Scenarios/update_notice.json` proves the **real startup path** fires. Its assertion is a line
+in `Player.log`, not a step outcome:
 
 ```
 RWTH: dismissed blocking dialog CelestialLighting.Dialog_UpdateNotice (suppressed)
 ```
 
-That one line carries four facts. The postfix on `UIRoot_Entry.Init` applied and ran;
-`Find.WindowStack` was live at that point (`Add` was reached without throwing); the settings had
-loaded off disk, or `ShowIfDue` would have returned before constructing anything; and `ShouldShow`
-said yes. The type name is self-identifying and does not exist on `main`, which makes it a control on
-its own.
+That one line carries four facts: the postfix on `UIRoot_Entry.Init` applied and ran,
+`Find.WindowStack` was live at that point, the settings had loaded off disk (or `ShowIfDue` would have
+returned before constructing anything), and `ShouldShow` said yes. The type name does not exist on
+`main`, which makes it a control on its own. Two traps go with it — `(suppressed)` means the Add-time
+prefix refused the window so `PostClose` never ran and the scenario is repeatable, and
+`ScenarioReport.DismissedDialogs` comes back **empty** despite the log line, because
+`DialogGuard.Reset()` runs at step 0 and the suppression happens before it. Asserting on that field is
+the obvious way to write this test and would pass green forever without checking anything.
 
-Two things about that line are worth knowing before reading a report. `(suppressed)` means the
-**Add-time prefix** refused it, so `PostClose` never runs, the acknowledgement is never written, and
-the scenario is therefore repeatable rather than one-shot. And `ScenarioReport.DismissedDialogs` comes
-back **empty** despite the log line, because the suppression happens before the scenario's first step
-and `DialogGuard.Reset()` runs at step 0. Asserting on that field is the obvious way to write this
-test and it would pass green forever without checking anything.
+`Tests/Scenarios/update_notice_shot.json` photographs the **window**, and cannot use the startup path
+to do it: each `UIRoot` owns its own `WindowStack`, so a window raised at the menu is discarded when
+`UIRoot_Play` takes over, which every scenario does before its first step. No flag fixes that. It
+raises the dialog inside the scenario with the harness's `RaiseWindow` step, under `--keep-dialogs` so
+the guard leaves it up, and `Dialog_UpdateNotice`'s parameterless constructor reads the same live
+settings the real path does — which is why that constructor exists.
 
-To look at the window by hand: clear `<updateNoticeVersion>` from
-`Config/Mod_<folder>_CelestialLightingSettingsMod.xml` and boot normally. Note that `<folder>` is the
-**install directory name**, not the packageId — `Mod.GetSettings` passes `Content.FolderName` — so a
-Workshop install and a local dev symlink keep separate settings files and therefore separate
-acknowledgements. That is correct rather than a wart: they are separate installs, and the one that
-has never run is genuinely a first-time install.
+**Which of the two states is shot is decided by the settings file, not by the scenario**, because the
+notice reads persisted state. `<vectorLights>False</vectorLights>` with no `<updateNoticeVersion>`
+gives the upgrade case; deleting the settings file entirely gives the first-install case. Both waits
+are in **frames**, not ticks: a `forcePause` modal stops the clock, so a tick-based wait hangs there.
+
+**Looking at it earned its keep twice, and both faults were layout rather than logic.** At a flat 520
+the upgrade case pushed its closing line below the fold behind a scrollbar — so the one sentence
+telling the player they can change their mind was the one they could not see. At a flat 620 the
+first-install case, which has one feature block instead of two, sat above 200px of empty black. The
+height now follows the content (`BaseHeight` + `CloudRowHeight`), and the scroll view stays for the
+UI-scale and font settings that can push any content past any fixed height.
+
+Captures live in `Tests/Screenshots/update_notice_*.png`.
+
+To re-arm the notice by hand: clear `<updateNoticeVersion>` from
+`Config/Mod_<folder>_CelestialLightingSettingsMod.xml` and boot normally. `<folder>` is the **install
+directory name**, not the packageId — `Mod.GetSettings` passes `Content.FolderName` — so a Workshop
+install and a local dev symlink keep separate settings files and therefore separate acknowledgements.
+That is correct rather than a wart: they are separate installs, and the one that has never run is
+genuinely a first-time install.
 
 The standing cost is one refused window per harness boot of this mod, for as long as the notice's
 version is current. It never stacks, so it pauses nothing and appears in no frame.
