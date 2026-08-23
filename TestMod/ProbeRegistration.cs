@@ -254,6 +254,12 @@ public static class ProbeRegistration
         ProbeRegistry.Register(new VectorLightProbe("vector_light_verts", VectorLightProbe.Metric.Vertices));
         ProbeRegistry.Register(
             new VectorLightProbe("vector_light_penumbra_area", VectorLightProbe.Metric.PenumbraArea));
+        // The draw takes its polygon from the field instead of building a second copy of it, and
+        // this is what says the two are the same polygon. Pinned at 0 with tolerance 0 — the claim
+        // is bit-identity, not closeness — and it reads -1 rather than 0 when there was nothing
+        // cached to compare, so a scenario that stopped baking fails here instead of passing.
+        ProbeRegistry.Register(new VectorLightProbe(
+            "vector_light_polygon_reuse_error", VectorLightProbe.Metric.PolygonReuseError));
         // Bake accounting for the vector lights (§27 P2 phase 6). Counters the bake itself wrote,
         // NOT a recomputation — see VectorLightBakeProbe's header. The pair to read together is
         // vector_light_bakes and vector_light_bake_segments: a bake count is only interpretable
@@ -895,6 +901,47 @@ public static class ProbeRegistration
         // comparing two different amounts of instrumentation and its TotalMs delta would mean
         // nothing.
         ArmBank("circ_configure", "CelestialLighting.CloudVolumeShader", "Configure");
+
+        // Vector lighting's own frame, armed the same way and for the same reason the sky chain was.
+        // Every performance number this subsystem carries so far came from Dubs windows on
+        // `Patch_VectorLightDraw:Postfix` — one duration for the whole of it — and a duration cannot
+        // answer the question that turns out to matter here, which is HOW MANY TIMES a polygon gets
+        // built in a frame.
+        //
+        // THE PARENT. Everything below hangs off this postfix, so it is the denominator and the only
+        // arm an A/B between two builds should be judged on (see the shed/instrumentation note above,
+        // and Circinus's own advice: children find, parents judge).
+        ArmBank("circ_vldraw", "CelestialLighting.Patch_VectorLightDraw", "Postfix");
+
+        // Its three children, which between them are the whole of it: build this frame's dirty
+        // polygons and dirty the sections they touched, draw the emitters in view, draw the pawn
+        // shadows those emitters throw. A gap between the parent and the sum of these three is the
+        // §27 lesson repeating — that is exactly how a polygon set being built lazily inside a timed
+        // scope hid 43 ms.
+        ArmBank("circ_vlbuilddirty", "CelestialLighting.Patch_VectorLightDraw", "BuildAndDirty");
+        ArmBank("circ_vloverlay", "CelestialLighting.VectorLightOverlay", "Draw");
+        ArmBank("circ_vlpawnshadows", "CelestialLighting.VectorLightPawnShadows", "Draw");
+
+        // THE VISIBILITY POLYGON, AND THIS IS THE ARM THE WHOLE BANK EXISTS FOR. Tools/VectorLightBench
+        // puts `Build` at 83-94% of a bake in any scene resembling a built colony, and it is reached
+        // by two independent paths in the same frame: VectorLightField.EnsurePolygon bakes it for the
+        // mask, and VectorLightOverlay.Rebuild bakes it again for the mesh. Nothing in the repo could
+        // see that, because `vector_light_bakes` counts only the first of the two. Read this against
+        // `vector_light_bakes` in the same window: the ratio between them is the number of times one
+        // polygon was built, and it is supposed to be 1.
+        ArmBank("circ_vlpolygon", "CelestialLighting.VectorLightMath", "Build");
+
+        // The two stages either side of it, so the polygon's share is a share of something measured
+        // rather than of the parent. SegmentsAround is the window scan — a bool[] the size of the
+        // emitter's square plus an edifice-grid read per cell — and is reached by the same two paths,
+        // so its count should track the polygon's exactly.
+        ArmBank("circ_vlsegments", "CelestialLighting.VectorLightBlockers", "SegmentsAround");
+        ArmBank("circ_vlcoverage", "CelestialLighting.VectorLightMath", "BuildCoverage");
+
+        // The mask, which runs inside a section regenerate rather than in the draw and so appears in
+        // neither the parent above nor any frame-cost table. `circ_lightoverlay` already measures the
+        // vanilla bake it rides on; this separates our postfix from it.
+        ArmBank("circ_vlmask", "CelestialLighting.VectorLightMask", "Apply");
 
         // Inertness guard for the removed across-map shadow tilt (issues #11, #26). These three
         // originally asked "does §3's gradient actually render?"; now they assert it does NOT, at
