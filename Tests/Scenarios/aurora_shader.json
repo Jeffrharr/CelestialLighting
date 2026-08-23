@@ -37,7 +37,7 @@
 
     { "type": "Probe", "args": { "probeName": "aurora_shader_active", "expectedValue": "1", "tolerance": "0.001" } },
     { "type": "Probe", "args": { "probeName": "aurora_curtain", "expectedValue": "0.55", "tolerance": "0.02" } },
-    { "type": "Probe", "args": { "probeName": "aurora_shader_agreement", "expectedValue": "0.01", "tolerance": "0.02" } },
+    { "type": "Probe", "args": { "probeName": "aurora_shader_agreement", "expectedValue": "0.0004", "tolerance": "0.003" } },
 
     { "type": "Screenshot", "args": { "fileName": "aurora_shader_shader_wide.png" } },
 
