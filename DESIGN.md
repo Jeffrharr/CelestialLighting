@@ -2342,6 +2342,30 @@ function of `TicksGame` and an unpaused pair measures drift instead of resolutio
 runs **first, with the clock running**, because the bake fills six rows per tick, so an arm that
 pauses and then bakes captures an empty curtain and reads as the feature working spectacularly.
 
+Measured, against a same-build control that touches **0.00%** of the frame — the pause is what buys
+that, and it makes this A/B unusually clean for this repo:
+
+| pair | masked median ΔE | masked p90 | frame touched | peak |
+|---|---|---|---|---|
+| bake vs bake (control) | 0.00 | 0.00 | 0.00% | 0.00 |
+| bake vs shader | **1.34** | **3.39** | 9.24% | 10.91 |
+
+Quoted **masked**, over the pixels the curtain actually occupies, because a bounded patch over ~9%
+of the frame reads 0.00 on a whole-frame median and very nearly 0.00 on its p90 — the failure mode
+that has hidden bounded effects in this repo before. Against the measured set, that puts the
+renderer change between the ozone column (1.48) and site altitude (1.88) at the median, and above
+both at the p90, which is the honest description: it is a **refinement of an effect that was already
+there**, not a new one. The difference concentrates on the ray edges and the hem line, which is
+exactly where a magnified texture loses and a per-fragment field does not.
+
+**A zoomed arm was tried and removed rather than committed.** Magnification is the quantity under
+test, so a close camera should widen the gap. But displays are placed from a seed into horizontal
+bands, a zoom-to-centre landed on empty sky, and it measured 0.00 on both the A/B *and* its own
+same-build control — the signature of an effect that is not in frame, not of one that is inert.
+Committed as an arm it would have read as the second. Aiming a camera at a live display needs a
+probe-driven `LookAt` the harness does not offer, so the number above is the default camera's and
+understates the close-in case by an unmeasured amount.
+
 ### 11b. The contour field, and why it is kept but not drawn (sketch — not implemented)
 
 `Source/AuroraCurtain.cs` draws the **contour** where two counter-drifting fBm fields are equal. It was
