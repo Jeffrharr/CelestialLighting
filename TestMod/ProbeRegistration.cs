@@ -99,6 +99,15 @@ public static class ProbeRegistration
         // cannot supply — what a frame of field regeneration costs under RimWorld's own Mono runtime.
         ProbeRegistry.Register(new AuroraCurtainProbe());
         ProbeRegistry.Register(new AuroraCurtainCostProbe());
+        // Issue #196. The port's guard rail: aurora_shader_agreement renders CelestialAurora.shader
+        // and compares it against AuroraCurtainHemRays, because moving the field into HLSL is the one
+        // change in this repo that can be wrong while every offline test stays green — the tests
+        // would be pinning a C# twin that no longer draws. aurora_shader_active says which renderer
+        // is live, which any arm claiming to exercise the shader has to pin: the shader path degrades
+        // to the bake silently by design, and an overlay run takes AssetBundles from the STALE main
+        // checkout, so "I added a shader" and "the shader is running" are different facts.
+        ProbeRegistry.Register(new AuroraShaderAgreementProbe());
+        ProbeRegistry.Register(new AuroraShaderActiveProbe());
         // Issue #60. aurora_curtain_cost above answers "what does one bake slice cost"; this family
         // answers the question that one structurally cannot — how often each stage of the draw path
         // is entered per FRAME, and what the postfix costs on a frame that bakes nothing at all.
@@ -1468,6 +1477,17 @@ public static class ProbeRegistration
         FeatureRegistry.Register(
             CelestialLightingFeatures.AuroraCurtainKey,
             enabled => CelestialLightingFeatures.AuroraCurtain = enabled);
+        // Which RENDERER draws the curtain, not whether one is drawn. Off bakes the field on the CPU
+        // exactly as it shipped before the shader existed; on evaluates it per fragment. Registered
+        // with the default-true overload because true is the shipped default, so a ResetAll between
+        // scenarios leaves later ones on the renderer subscribers actually get.
+        //
+        // Turning it ON does not guarantee the shader path: AuroraShader.Available is checked first,
+        // so on a machine with no bundle this arm quietly measures the bake twice. A scenario that
+        // cares must pin aurora_shader_active alongside whatever else it measures.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.AuroraShaderFieldKey,
+            enabled => CelestialLightingFeatures.AuroraShaderField = enabled);
         FeatureRegistry.Register(
             CelestialLightingFeatures.EclipseDarkeningKey,
             enabled => CelestialLightingFeatures.EclipseDarkening = enabled);

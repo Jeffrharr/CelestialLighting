@@ -35,6 +35,7 @@ public static class BuildShaderBundles
     {
         "Assets/Data/joof.celestiallighting/Materials/CelestialCloudVolume.shader",
         "Assets/Data/joof.celestiallighting/Materials/VectorLightMax.shader",
+        "Assets/Data/joof.celestiallighting/Materials/CelestialAurora.shader",
     };
 
     public static void Build()

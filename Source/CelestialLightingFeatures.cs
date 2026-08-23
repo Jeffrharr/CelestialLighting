@@ -117,6 +117,31 @@ public static class CelestialLightingFeatures
     // all", and a curtain drawing with that master off would be an aurora the player switched off.
     public static bool AuroraCurtain = true;
 
+    // Feature key for AuroraShaderField (see CivilTwilightPersistenceKey for why it lives here).
+    public const string AuroraShaderFieldKey = "aurora_shader";
+
+    // Whether the aurora curtain's field is evaluated PER FRAGMENT by CelestialAurora.shader, or
+    // baked on the CPU into a 192-square texture and stretched over the sheets (issue #196).
+    //
+    // SHIPS ON, with the bake as the fallback behind it rather than as the default. The reason is
+    // resolution and not cost: 192 texels over a sheet 88 cells wide is 2.2 texels per cell,
+    // magnified bilinearly, and the rays are the most recognisable thing about an aurora. The bake it
+    // replaces cost ~450 µs per tick during a rare night-only event, so nobody was waiting for the
+    // milliseconds.
+    //
+    // IT DEGRADES ON ITS OWN, without this flag, wherever it cannot run: a missing AssetBundle, a
+    // bundle built for another OS, a shader the card will not compile. AuroraCurtainOverlay checks
+    // AuroraShader.Available AHEAD of this flag, so "on" never means an empty sky.
+    //
+    // OFF REPRODUCES THE BAKE EXACTLY, and that is the whole point of the flag rather than a courtesy.
+    // Both paths take the same field, the same palette, the same driver tint, the same sheet layout
+    // and the same per-display alpha; only the renderer changes. So the live A/B measures sharpness,
+    // which is the claim — not "the aurora looks different now", which would also be true if the port
+    // had a typo in it. AuroraShaderAgreementProbe is the other half of that guarantee: it renders
+    // the shader and compares it against AuroraCurtainHemRays, so a divergence fails loudly instead
+    // of quietly shipping a different aurora.
+    public static bool AuroraShaderField = true;
+
     // Feature key for NightRadiance (see CivilTwilightPersistenceKey for why the const lives here).
     public const string NightRadianceKey = "night_radiance";
 

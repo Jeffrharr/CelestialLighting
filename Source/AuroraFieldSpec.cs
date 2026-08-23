@@ -93,13 +93,25 @@ public sealed class AuroraFieldSpec
     // paths produce identical pixels, which AuroraCurtainHemRaysTests asserts byte for byte.
     public readonly bool CachesColumnTable;
 
+    // Whether CelestialAurora.shader implements THIS field, and so whether the curtain may be drawn
+    // per fragment instead of from a bake (issue #196).
+    //
+    // A property of the field rather than a global, because the shader is a port of hem-rays
+    // specifically — every constant, seed offset and curve in it is copied from
+    // AuroraCurtainHemRays. Pointing it at the contour field would not degrade, it would draw the
+    // wrong aurora, so the fallback has to be selected by which field is active and not only by
+    // whether a bundle loaded.
+    public readonly bool HasFragmentShader;
+
     public readonly AuroraSheetSpec[] Sheets;
 
     public AuroraFieldSpec(
         string name, int resolutionX, int resolutionY, float tintWeight, int driftWrapTicks,
-        int refreshRows, AuroraFillRows fill, AuroraSheetSpec[] sheets, bool cachesColumnTable = false)
+        int refreshRows, AuroraFillRows fill, AuroraSheetSpec[] sheets, bool cachesColumnTable = false,
+        bool hasFragmentShader = false)
     {
         CachesColumnTable = cachesColumnTable;
+        HasFragmentShader = hasFragmentShader;
         Name = name;
         ResolutionX = resolutionX;
         ResolutionY = resolutionY;
@@ -143,7 +155,8 @@ public static class AuroraFieldRegistry
                 alpha: 1f,
                 spansMapVertically: false),
         },
-        cachesColumnTable: true);
+        cachesColumnTable: true,
+        hasFragmentShader: true);
 
     // Contour: two counter-panning sheets over the whole map. A single panning plane translates
     // rigidly, and rigid translation of the whole sky reads as the camera moving rather than the aurora
