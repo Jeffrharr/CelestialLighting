@@ -214,17 +214,13 @@ public static class VectorLightOverlay
     {
         entry.GeometryDirty = false;
 
-        VectorLightMath.Segment[] segments =
-            VectorLightBlockers.SegmentsAround(map, entry.Cell, entry.Radius);
-
         // The light sits at the CENTRE of its cell, which is where its sprite is drawn and where
         // vanilla's flood seeds. Using the cell's corner instead offsets every shadow by half a cell
         // — small enough to look like imprecision rather than an error.
         float lightX = entry.Cell.x + 0.5f;
         float lightZ = entry.Cell.z + 0.5f;
 
-        VectorLightMath.LightPolygon polygon = VectorLightMath.Build(
-            lightX, lightZ, entry.Radius, segments, VectorLightMath.DefaultBaseRayCount);
+        VectorLightMath.LightPolygon polygon = PolygonFor(map, entry, lightX, lightZ);
 
         // The feature flag is a source radius of zero and nothing else. A point source has no
         // penumbra by definition, so off emits no wedge geometry and leaves every V at 0, which is
@@ -244,6 +240,49 @@ public static class VectorLightOverlay
         // than resampled here so an off-screen or non-max light never pays for it: DrawLight is the
         // only place that knows whether the shader is actually composing this frame.
         entry.SampleDirty = true;
+    }
+
+    // The visibility polygon this mesh is extruded from — the one the field already holds whenever
+    // it holds one, and a fresh build only when it does not.
+    //
+    // IT WAS BEING BUILT TWICE PER FRAME, and nothing in the repo could see it. With the mask on —
+    // which is the shipped configuration — Patch_VectorLightDraw runs VectorLightField.EnsurePolygons
+    // immediately before this pass, so by the time an emitter reaches Rebuild its polygon has already
+    // been baked from the same cell, the same radius and the same segment window, in the same frame,
+    // with no tick in between. Rebuilding it here scanned the emitter's whole square a second time
+    // and re-cast every ray against every wall to arrive at an answer that was sitting on the entry.
+    // Tools/VectorLightBench puts that build at 83-94% of a bake in any cluttered scene, so the
+    // duplicate was most of the cost of every geometry change a colony makes.
+    //
+    // The counter could not see it either, which is why it survived: `vector_light_bakes` is
+    // incremented inside EnsurePolygon and this path never touched it, so the probe reported one
+    // bake per emitter while two were happening. It is a Circinus arm on VectorLightMath.Build,
+    // read against that counter, that shows the pair — see Tests/Scenarios/vector_light_frame_cost.
+    //
+    // WHY A FALLBACK RATHER THAN JUST CALLING EnsurePolygon. With the mask off nothing builds
+    // polygons at all, and EnsurePolygon would also bake the coverage grid and the unobstructed
+    // flag, neither of which this pass has any use for — so the mask-off arm would come out slower
+    // than it is today. Building locally in that case is exactly what this method did before, which
+    // is what makes the change bit-identical in every configuration rather than only in the shipped
+    // one.
+    //
+    // THE CULLS ARE NESTED, so the reuse is not a coincidence to be checked frame by frame. The
+    // build window is MapDrawer's view rect (camera + 1 cell) tested against ceil(radius) +
+    // VectorLightMask.ReachMargin; DrawLight's own cull is the raw camera rect tested against
+    // (int)radius + 1. The first admits everything the second does, so an emitter that gets this far
+    // was built this frame — and if some later edit breaks that nesting, the fallback below is a
+    // slower frame rather than a wrong one.
+    private static VectorLightMath.LightPolygon PolygonFor(
+        Map map, VectorLightField.LightEntry entry, float lightX, float lightZ)
+    {
+        if (!entry.PolygonDirty && entry.Polygon.Count > 0)
+            return entry.Polygon;
+
+        VectorLightMath.Segment[] segments =
+            VectorLightBlockers.SegmentsAround(map, entry.Cell, entry.Radius);
+
+        return VectorLightMath.Build(
+            lightX, lightZ, entry.Radius, segments, VectorLightMath.DefaultBaseRayCount);
     }
 
     private static void UploadMesh(

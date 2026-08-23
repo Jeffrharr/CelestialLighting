@@ -143,15 +143,23 @@ steps.append(feature("vector_light_penumbra", True))
 steps.append(step("TickLapse", ticks="10", steps="60",
                   fileNamePrefix="vlframecost_discard", fps="20"))
 
+# THE ONE PIN HERE THAT IS AN ASSERTION RATHER THAN A RECORDING, and it is the correctness half of
+# the whole change. The draw stopped building its own polygon and takes the field's instead; this
+# rebuilds one the old way and compares. Tolerance 0 because the claim is that they are the same
+# polygon, not that they are close. It reads -1 when nothing was cached to compare against, which a
+# pin at 0 fails — so a run where the bake never happened cannot pass this vacuously.
+steps.append(probe("vector_light_polygon_reuse_error", "0", "0"))
+
 # CALL COUNTS, PINNED TIGHT, because they are exact and they are the finding. `vector_light_bakes`
 # counts what VectorLightField built; circ_vlpolygon_calls counts every polygon anybody built, and
-# circ_vlsegments_calls every window scan. They come out 44 / 82 / 82, which says one polygon is
-# built TWICE: once by the field for the mask, once again by the draw for the mesh. Pinned at what
-# was measured rather than at what ought to be true, so the fix has a baseline to move.
+# circ_vlsegments_calls every window scan. All three being 44 is the statement that one polygon is
+# built once. They were 44 / 82 / 82 before the draw stopped duplicating the field's work, and a
+# regression that reintroduced the second build would put them back — which no timing on this
+# machine could be trusted to show.
 EXACT = [
     ("vector_light_bakes", "44", "0"),
-    ("circ_vlpolygon_calls", "82", "0"),
-    ("circ_vlsegments_calls", "82", "0"),
+    ("circ_vlpolygon_calls", "44", "0"),
+    ("circ_vlsegments_calls", "44", "0"),
     ("circ_vlcoverage_calls", "44", "0"),
 ]
 
@@ -197,10 +205,11 @@ out = {
         "scene (Tools/VectorLightBench) and is reached by two independent paths in the same frame - "
         "VectorLightField.EnsurePolygon bakes it for the mask, VectorLightOverlay.Rebuild bakes it "
         "again for the mesh - so circ_vlpolygon_calls read against vector_light_bakes is the whole "
-        "finding: they are supposed to be equal, and they are 82 against 44. Pinned at tolerance 0 "
-        "because a count is exact where a timing on this box is not - the untouched control arms "
-        "moved by a factor of 1.4-2.0 between two runs an hour apart. Armed as a bank rather than "
-        "one arm per run, which "
+        "finding: they are supposed to be equal, and they were 82 against 44. They are pinned equal "
+        "now, at tolerance 0, because a count is exact where a timing on this box is not: the "
+        "untouched control arms moved by a factor of 1.4-2.0 between two runs an hour apart, so a "
+        "regression that put the second build back would be invisible in every millisecond here and "
+        "unmissable in the counts. Armed as a bank rather than one arm per run, which "
         "is sound here because these are distinct methods read at one instant to break down one "
         "frame budget, not one method compared across two feature states. Read TotalMs/Calls for a "
         "per-call cost, never AvgMs, which is per cycle. Every cloud lane is off: the sheet drifts "
@@ -208,7 +217,7 @@ out = {
         "attribute time to this subsystem. The shipped-on configuration is stated flag by flag for "
         "the same reason. Timings are RECORDED with wide tolerances; the pins that bite are "
         "circinus_available, vector_light_count, every *_patched, the four call counts at tolerance "
-        "0. THIS RUN REPORTS Pass=false WITH EVERY PROBE "
+        "0, and vector_light_polygon_reuse_error. THIS RUN REPORTS Pass=false WITH EVERY PROBE "
         "GREEN, and the three setup errors behind it are expected rather than tolerated. Two are "
         "the plate's own, inherited along with it from vector_light_mask_max_perf: the terrain rect "
         "straddles four SteamGeyser cells SetTerrain cannot clear. The third and fourth are "
