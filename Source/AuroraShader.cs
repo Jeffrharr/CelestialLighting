@@ -6,12 +6,14 @@ namespace CelestialLighting;
 // Loads the aurora curtain's fragment program and builds the materials that drive it (DESIGN.md
 // §11a, issue #196).
 //
-// WHAT IT REPLACES. The curtain's field used to be baked on the CPU into a 192-square RGBA texture
-// and stretched over sheets 88 cells wide — 2.2 texels per cell, magnified bilinearly. The shader
-// evaluates the same field per fragment, so the rays are as sharp as the screen. The bake it removes
-// cost ~450 µs per tick while an aurora was up, which is real but was never the problem: resolution
-// was. Saying so plainly here because a reader who assumes this was a performance change will draw
-// the wrong conclusion from the numbers in Tests/Scenarios/aurora_curtain.json.
+// WHAT IT REPLACES. The curtain's field used to be baked into a 192-square RGBA texture and stretched
+// over sheets 88 cells wide — 2.2 texels per cell, magnified bilinearly, so the rays reached the
+// screen as soft vertical smears and the hem as a broad band rather than a line. The shader evaluates
+// the same field per fragment, at the resolution of the screen, and the field advances continuously
+// rather than one completed sweep at a time.
+//
+// NOT A PERFORMANCE CHANGE. The bake was cheap and this is not a way to buy frames back; the mod's
+// settings screen deliberately offers no toggle for it. See CelestialLightingFeatures.AuroraShaderField.
 //
 // THE PURE CORE STAYS, IN BOTH OF ITS JOBS. AuroraCurtainHemRays is still the fallback renderer when
 // this cannot load, and it is still the reference the port is checked against — see
@@ -97,6 +99,16 @@ public static class AuroraShader
     {
         material.SetColor(DriverTintId, new Color(tint.r, tint.g, tint.b, weight));
     }
+
+    // A material on the loaded shader, for callers that need one outside the sheet pool —
+    // AuroraShaderAgreementProbe renders through this.
+    //
+    // IT HAS TO COME FROM HERE, and the probe learned that the expensive way: Shader.Find cannot see a
+    // shader that arrived in an AssetBundle. It searches shaders built into the player and the
+    // Resources folder, finds nothing, returns null, and `new Material(null)` throws
+    // "Value cannot be null. Parameter name: shader" — which reads as the shader having failed to
+    // load when it had in fact loaded perfectly and was sitting in this class's own field.
+    public static Material NewFieldMaterial() => Available ? NewMaterial() : null;
 
     private static Material NewMaterial()
     {

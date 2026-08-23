@@ -121,25 +121,37 @@ public static class CelestialLightingFeatures
     public const string AuroraShaderFieldKey = "aurora_shader";
 
     // Whether the aurora curtain's field is evaluated PER FRAGMENT by CelestialAurora.shader, or
-    // baked on the CPU into a 192-square texture and stretched over the sheets (issue #196).
+    // baked into a 192-square texture and stretched over the sheets (issue #196).
     //
-    // SHIPS ON, with the bake as the fallback behind it rather than as the default. The reason is
-    // resolution and not cost: 192 texels over a sheet 88 cells wide is 2.2 texels per cell,
-    // magnified bilinearly, and the rays are the most recognisable thing about an aurora. The bake it
-    // replaces cost ~450 µs per tick during a rare night-only event, so nobody was waiting for the
-    // milliseconds.
+    // WHAT IT CHANGES IS WHAT THE CURTAIN LOOKS LIKE. The bake gives a sheet 88 cells wide 2.2 texels
+    // per cell, so everything the field draws arrives through a bilinear magnification: the rays come
+    // out as soft vertical smears rather than as rays, the hem is a broad band rather than a line, and
+    // the violet fringe under it blends into the green above it. Evaluated per fragment, all three are
+    // drawn at the resolution of the screen. The gap widens the closer the camera gets, because the
+    // magnification factor is what the camera controls.
+    //
+    // It also lets the field advance CONTINUOUSLY. The bake reaches the screen one completed sweep at
+    // a time and is cross-faded between the last two, so its motion is quantised and it lags; the
+    // shader is evaluated at the current tick, so the curtain simply moves.
+    //
+    // THIS IS NOT A PERFORMANCE SWITCH AND SHOULD NOT BE DESCRIBED AS ONE. There is no "turn it off if
+    // you are short of frames" here — unlike the volumetric cloud beside it, which is genuinely a
+    // GPU-cost trade a player might want to make. The field is three curtains of one-dimensional value
+    // noise over bounded patches during a rare night-only event, and the path it replaces was doing
+    // the same arithmetic on the CPU. Whichever way this flag sits, nobody is buying frames with it,
+    // which is why the mod's settings screen does not offer it.
     //
     // IT DEGRADES ON ITS OWN, without this flag, wherever it cannot run: a missing AssetBundle, a
     // bundle built for another OS, a shader the card will not compile. AuroraCurtainOverlay checks
     // AuroraShader.Available AHEAD of this flag, so "on" never means an empty sky.
     //
-    // OFF REPRODUCES THE BAKE EXACTLY, and that is the whole point of the flag rather than a courtesy.
-    // Both paths take the same field, the same palette, the same driver tint, the same sheet layout
-    // and the same per-display alpha; only the renderer changes. So the live A/B measures sharpness,
-    // which is the claim — not "the aurora looks different now", which would also be true if the port
-    // had a typo in it. AuroraShaderAgreementProbe is the other half of that guarantee: it renders
-    // the shader and compares it against AuroraCurtainHemRays, so a divergence fails loudly instead
-    // of quietly shipping a different aurora.
+    // OFF REPRODUCES THE BAKE EXACTLY, and that is the point of the flag rather than a courtesy. Both
+    // paths take the same field, palette, driver tint, sheet layout and per-display alpha; only the
+    // renderer changes. So the live A/B measures resolution, which is the claim — not "the aurora
+    // looks different now", which would also be true if the port had a typo in it.
+    // AuroraShaderAgreementProbe is the other half of that guarantee: it renders the shader and
+    // compares it against AuroraCurtainHemRays, so a divergence fails loudly instead of quietly
+    // shipping a different aurora.
     public static bool AuroraShaderField = true;
 
     // Feature key for NightRadiance (see CivilTwilightPersistenceKey for why the const lives here).

@@ -2059,12 +2059,80 @@ Two deliberate departures from the original:
   fold and pinch. That is the "undulate" half of the requirement, and it is free: same sample count
   either way.
 
-**Why a CPU texture and not a shader.** RimWorld 1.6 is Unity 2022.3.35f1 and mods *can* load custom
-shaders from an `AssetBundle`, so this was a real option. Against it: a bundle must be built in the
-matching Unity Editor and shipped as per-platform binary blobs, and this repo ships no binary assets
-at all. In favour of the CPU: the cost is bounded by *resolution*, and an aurora is the one effect
-that loses nothing to blur. So the field is baked small — 192² for the shipping field — and drawn
-over the map as a small number of bounded quads (see *Sheet geometry* below).
+**Why a CPU texture and not a shader — and why that answer expired (issue #196).** The original
+reasoning ran: RimWorld 1.6 is Unity 2022.3.35f1 and mods *can* load custom shaders from an
+`AssetBundle`, but a bundle must be built in the matching Unity Editor and shipped as per-platform
+binary blobs, and *this repo ships no binary assets at all*. In favour of the CPU: the cost is bounded
+by *resolution*, and an aurora is the one effect that loses nothing to blur.
+
+**Both halves of that turned out to be wrong, in opposite ways.**
+
+The precedent objection died on its own. The volumetric cloud (§25c) and vector lighting (§27) both
+needed fragment programs, both shipped, and `1.6/AssetBundles/celestiallighting_shaders_{linux,win,mac}`
+now carries three shaders built by `Tools/ShaderBundle/build.sh`. The aurora shader is a line in an
+array and a rebuild; `publish.sh` stages the directory, so it ships with no change at all.
+
+The blur claim was a rationalisation of the cap rather than an observation about auroras. 192² texels
+over a sheet `CellsPerRepeatX = 88` wide is **2.2 texels per cell**, magnified bilinearly, and the
+rays — the most recognisable thing about an aurora — are the first casualty. The tell is that the code
+had already been shaped around it twice: `AuroraCurtainHemRays` takes **one** ray octave, not two,
+because "at this texture resolution the half-size features fall below what bilinear filtering can
+hold", and the paragraph above declares blur harmless. Neither is a statement about how an aurora
+looks; both are the texel budget talking.
+
+So `Shaders/CelestialAurora.shader` evaluates the same field **per fragment**, and the rays are as
+sharp as the screen. `AuroraShader` loads it, `AuroraCurtainOverlay` chooses between the two
+renderers per frame, and `CelestialLightingFeatures.AuroraShaderField` (`aurora_shader`) switches
+them for the A/B.
+
+**This is not a performance change and the numbers should not be read as one.** The bake cost ~450 µs
+per tick (`aurora_curtain_cost`) while an aurora was up — about 2.7% of one core, during a rare
+night-only event. What the shader removes as a *side effect* is the machinery that existed only to
+make baking affordable: the rolling row cursor, the per-sweep pinning of `time` and of the driver
+tint, the cached `ColumnTable`, the two textures and the exact-linear cross-fade between completed
+sweeps, the second draw call per live display, and the ~0.5 s of display lag the cross-fade cost.
+Every artifact that scheduler was built to work around — the shear between a tile's top and bottom,
+the colour gradient across one tile during a palette transition, the ~9 visible steps a 280-tick
+transition was quantised into — is **absent by construction** rather than mitigated. All of it is
+retained on the fallback path and described below, because that path still runs wherever the shader
+cannot.
+
+**Degrading is the default, not the exception.** A missing bundle, a bundle built for another OS, or
+a card that will not compile the pass all land on `AuroraShader.Available == false`, and the curtain
+is baked exactly as it was before. `AuroraCurtainOverlay` asks availability *ahead* of the feature
+flag, so "on" never means an empty sky. `AuroraFieldSpec.HasFragmentShader` gates it further: the
+shader is a port of the hem-rays field specifically, so pointing it at the contour field (§11b) would
+not degrade, it would draw the wrong aurora.
+
+**The risk this carries, which is new for the repo.** This is the first place where an offline-tested
+pure core stops governing the pixels. §25c does not have the problem — `CloudRaymarchMath` bakes a
+density field on the CPU and the shader only marches it — but here the whole field is HLSL. The
+failure mode is the dangerous kind: a transposed seed offset or a dropped `- 0.5` produces a
+perfectly plausible aurora, on a subsystem whose entire output is *plausible drifting light*, while
+every offline test stays green because they all pin a C# twin that no longer draws anything. There is
+no screenshot that shows it and no reviewer who can see it.
+
+Two guards answer that, and they are part of the feature rather than attached to it:
+
+- **`AuroraShaderPortTests`** reads the shader as *text* and pins its constants, its three curtain
+  rows positionally, its palette, its four seed offsets and its hash multipliers against
+  `AuroraCurtainHemRays` / `AuroraNoise` / `AuroraMath`. It runs offline on every commit with no GPU
+  and no bundle, which is what makes it the guard that actually fires — and it was verified to fail
+  on a scalar constant, a transposed curtain argument and an altered seed offset *before* being
+  trusted, because a differential test nobody has seen go red is not evidence.
+- **`aurora_shader_agreement`** renders the shader to a `RenderTexture`, reads it back and compares
+  it against `AuroraCurtainHemRays.At` at fragment centres. It reports a **mean** and not a max, and
+  that is a real distinction rather than a softened threshold: the field is lattice noise, so a
+  fragment sitting exactly on a lattice boundary can flip to a neighbouring cell on any last-bit
+  float difference, and a neighbouring cell's hash is not a nearby value but an unrelated one. A max
+  would report that as total disagreement forever.
+
+`aurora_shader_active` reports which renderer is live, and any scenario arm claiming to exercise the
+shader must pin it. The path degrades silently by design, and a harness `--mod-overlay` run takes
+`AssetBundles` from the **stale main checkout** while swapping only assemblies — so a worktree that
+has added a shader and not staged its bundles gets a mod that asks for the shader, does not find it,
+and quietly bakes. Pass the bundles through `--install <worktree>/1.6/AssetBundles:<main>/1.6/AssetBundles`,
+which is ledger-protected and rolled back, and pin the probe so the arm cannot lie about itself.
 
 **Pure core / adapter split**, as everywhere else:
 
@@ -2235,8 +2303,15 @@ postfix guards `__instance == map.gameConditionManager` to fire once rather than
 list into every save, making one close to irreversible — see the `MapComponent_SunShadowAxis`
 tombstone for what removing one later costs.
 
-**Performance.** This is the only part of the mod doing per-pixel CPU work, so it has a budget and a
-measurement rather than a hope.
+**Performance — and note that everything from here to the end of this subsection describes the
+FALLBACK path.** The rolling refresh, the sweep schedule, the cross-fade, the slice-cost table and
+the resolution lever below are all properties of the CPU bake, which runs only where the fragment
+shader above cannot. On the shipped path there is no buffer, no sweep and no cross-fade. It is kept
+in full rather than trimmed because the bake still ships, still runs on any machine without a usable
+bundle, and is still what `aurora_curtain_cost` measures.
+
+This is the only part of the mod doing per-pixel CPU work, so it has a budget and a measurement
+rather than a hope.
 
 The dominant term is structural: everything is gated on
 `Aurora && AuroraCurtain && ActiveTintDriver(map) != null && strength > 0`, evaluated *before* any
@@ -2300,6 +2375,11 @@ Resolution is the lever of last resort — 96² is a 1.8× saving and 64² a 4×
 change. `Resolution` and `RowsPerUpdate` are public so `AuroraCurtainCostProbe` times the values
 actually shipped rather than a copy that can drift out of step with them.
 
+That lever is also the clearest statement of what the fragment shader is for. On this path resolution
+buys sharpness and costs CPU, so the two are traded against each other and 192² is where the trade
+was struck. On the shader path resolution is not a parameter at all — the field is evaluated wherever
+a fragment is — so the trade simply stops existing.
+
 **Two precision traps, both wrapped.** The drift clock is `TicksGame`, which grows without bound:
 
 - `AuroraCurtain.DriftWrapTicks` (1,400,000) wraps the tick count **in integer arithmetic before the
@@ -2329,6 +2409,16 @@ on. `Wave` is also pinned tileable at both seams. `aurora_curtain` is the live s
 timing, and `Tests/Scenarios/aurora_curtain.json` is a timelapse pair (off, then on) because this is a
 temporal effect and a still A/B cannot show drift. It also pins the flag rule end-to-end: with the
 curtain off, `aurora_tint` must read 0.18, and with it on, 0.075.
+
+Those tests all describe the field. Once the field is drawn by HLSL they describe a **reference
+implementation** rather than the renderer, which is exactly why `AuroraShaderPortTests` and
+`aurora_shader_agreement` exist above — the first pins the shader's copied numbers against the core
+offline, the second checks the rendered result against it live.
+`Tests/Scenarios/aurora_shader.json` is the A/B, and two things about its shape are load-bearing
+rather than incidental: the clock is **paused** before either arm is captured, because the field is a
+function of `TicksGame` and an unpaused pair measures drift instead of resolution; and the bake arm
+runs **first, with the clock running**, because the bake fills six rows per tick, so an arm that
+pauses and then bakes captures an empty curtain and reads as the feature working spectacularly.
 
 ### 11b. The contour field, and why it is kept but not drawn (sketch — not implemented)
 
