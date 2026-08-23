@@ -33,17 +33,7 @@ public static class UpdateNotice
         if (settings == null)
             return;
 
-        // A brand-new install: no settings file existed, so there is no earlier version of this mod
-        // to have an update FROM, and everything the notice would announce is simply part of what
-        // this player just installed. They get vector lighting switched on instead of asked about
-        // it — see UpdateNoticeMath.FirstRunSwitches for why the two populations differ.
-        if (!settings.LoadedFromDisk)
-        {
-            SeedFirstRun(settings);
-            return;
-        }
-
-        if (!UpdateNoticeMath.ShouldShow(settings.LoadedFromDisk, settings.updateNoticeVersion))
+        if (!UpdateNoticeMath.ShouldShow(settings.updateNoticeVersion))
             return;
 
         UpdateNoticeSwitches switches = ReadSwitches(settings);
@@ -51,34 +41,13 @@ public static class UpdateNotice
         // A window that names nothing is worse than no window: it would spend the one appearance
         // this notice gets and tell the player nothing. Acknowledge it instead, so the version does
         // not sit unwritten and re-evaluate this every boot.
-        if (!UpdateNoticeMath.AnythingToShow(switches))
+        if (!UpdateNoticeMath.AnythingToShow(switches, settings.LoadedFromDisk))
         {
             RecordAnswer(enableVectorLights: false);
             return;
         }
 
-        Find.WindowStack.Add(new Dialog_UpdateNotice(switches));
-    }
-
-    // Applies the new-install defaults and records the notice against an install that will never be
-    // shown it, then persists both immediately — an unwritten acknowledgement is the same as no
-    // acknowledgement on the next boot.
-    //
-    // Writing on this path is the point of it rather than an afterthought. Without it, the first
-    // time this player opens and closes the settings screen they gain a settings file, and the boot
-    // after that they read as a returning player and are told that a feature they have always had
-    // is new.
-    private static void SeedFirstRun(CelestialLightingSettings settings)
-    {
-        UpdateNoticeSwitches seeded = UpdateNoticeMath.FirstRunSwitches(ReadSwitches(settings));
-        int acknowledged = UpdateNoticeMath.AcknowledgeOnFirstRun();
-
-        if (settings.updateNoticeVersion == acknowledged && settings.vectorLights == seeded.VectorLights)
-            return;
-
-        settings.vectorLights = seeded.VectorLights;
-        settings.updateNoticeVersion = acknowledged;
-        CelestialLightingSettingsMod.Save();
+        Find.WindowStack.Add(new Dialog_UpdateNotice(switches, settings.LoadedFromDisk));
     }
 
     // Applies the player's answer and marks the notice answered. Called from
@@ -109,6 +78,26 @@ public static class UpdateNotice
             Log.Error($"[CelestialLighting] Update notice failed to apply its answer. {ex}");
         }
     }
+
+    // The switches as they stand right now. Public for Dialog_UpdateNotice's parameterless
+    // constructor, which is how the test harness raises the window by type name; everything inside
+    // this file has a settings instance in hand already and uses the private overload.
+    public static UpdateNoticeSwitches CurrentSwitches()
+    {
+        CelestialLightingSettings settings = CelestialLightingSettingsMod.Settings;
+        return settings == null
+            // Not a plausible state at any point a window can be constructed — the Mod subclass is
+            // built during mod loading — but the dialog reads this before it can check anything, so
+            // an all-off answer is better than a null dereference in a constructor.
+            ? new UpdateNoticeSwitches(false, false, false, false, false, false)
+            : ReadSwitches(settings);
+    }
+
+    // Whether this install has run an earlier version of the mod. Public for the same reason as
+    // CurrentSwitches above. See CelestialLightingSettings.LoadedFromDisk for what answers it and
+    // for the one case it gets wrong.
+    public static bool InstalledBefore() =>
+        CelestialLightingSettingsMod.Settings?.LoadedFromDisk ?? false;
 
     // The persisted switches plus the two live facts that decide whether the volumetric path is
     // reachable at all on this install. Both reads are cheap and side-effect-free: ShaderLoaded is

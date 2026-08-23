@@ -170,11 +170,13 @@ public class CelestialLightingSettingsMod : Mod
         listing.CheckboxLabeled("      Volumetric clouds (GPU)", ref Settings.cloudVolume,
             "Light the clouds by marching through a real 3-D model of them instead of tinting a flat picture. Each cloud shadows its own underside, so a low sun lights the tops while the bulk beneath stays dark, and the shape of that shading changes through the day rather than just its brightness.\n\nTurn this OFF if you are short of frames: it is the one cloud setting whose cost is on the graphics card, and it scales with how much of the screen has cloud on it. With it off the same clouds are drawn the flat way, which is what earlier versions did. It also switches itself off automatically on hardware that cannot run it, so nothing disappears.");
         ShowExternalCloudSource(listing);
-        // §27. The label says "experimental" because the tooltip cannot be read from the mod list,
-        // and this is the one switch on this screen that changes how a colony is LIT rather than
-        // what colour the sky is — a player who turns it on and dislikes it should be able to find
-        // their way back without reading anything.
-        listing.CheckboxLabeled("Vector light sources (experimental)", ref Settings.vectorLights,
+        // §27. THE COST IS IN THE LABEL, on the same rule as the auroral curtain below: this is the
+        // most expensive thing the mod does, and a player hunting for frames should find it here
+        // without hovering. "Experimental" stays alongside it because the tooltip cannot be read
+        // from the mod list, and this is the one switch on this screen that changes how a colony is
+        // LIT rather than what colour the sky is — somebody who turns it on and dislikes it should
+        // be able to find their way back without reading anything.
+        listing.CheckboxLabeled("Vector light sources (experimental, performance cost)", ref Settings.vectorLights,
             "Render artificial light as a shape cast from each lamp rather than as vanilla's flood fill: a beam through a doorway, a hard shadow behind a rock, firelight spilling out of a window. Vanilla's lighting records how far light travelled and never which direction it came from, so none of those can exist in it.\n\nThe trade is that light which reached a room only by bending around a corner no longer arrives, so indirectly lit rooms are genuinely darker than you are used to. Gameplay light is untouched — plant growth, work speed, pawn vision and mood read exactly the same numbers with this on or off. Visual only.");
         listing.CheckboxLabeled("    Pawn shadows from lamps", ref Settings.vectorLightPawnShadows,
             "Pawns throw a shadow away from each lamp lighting them, lengthening with distance the way a shadow does as the sun sinks. Vanilla cannot do this: its pawn shadow takes its direction from a single value shared by every shadow on the map, which is right for the sun and meaningless for a torch.\n\nDrawn indoors and under eaves too, unlike vanilla's, since a lamp indoors is the whole point. A pawn a lamp cannot actually see — behind a wall — casts nothing from it. Costs one quad per pawn per nearby lamp, the same order as vanilla's own pawn shadows.");
@@ -220,11 +222,16 @@ public class CelestialLightingSettingsMod : Mod
         Settings.purpleLightStrength = LabeledSlider(listing, "  Purple light strength", Settings.purpleLightStrength, 0f, 1f);
         listing.CheckboxLabeled("Auroral sky tint", ref Settings.aurora,
             "Shift the night sky toward auroral colours during a solar flare or an aurora event, and at no other time. A flare gets a slow green/red shimmer; an aurora event borrows the colour vanilla is already cycling through, which its own sky render is too bright to show.");
-        // The cost is in the LABEL, not only the tooltip. This is the one setting in the mod with a
-        // real per-frame price, and a player who never hovers should still be told before they turn it
-        // on — particularly since it is on by default.
+        // The cost is in the LABEL, not only the tooltip — the same rule §27's switch above now
+        // follows. A player who never hovers should still be told before they turn this on,
+        // particularly since it is on by default.
+        //
+        // IT IS NO LONGER "the one setting with a real per-frame price" and the tooltip no longer
+        // says so. §27 is both more expensive and paid on every frame rather than only during an
+        // aurora, so leaving that claim here would have sent a player hunting for frames to the
+        // second-place switch with the mod's own assurance that it was the only one.
         listing.CheckboxLabeled("    Auroral curtain (performance cost)", ref Settings.auroraCurtain,
-            "Draw a drifting auroral curtain over the map instead of tinting the whole sky one flat colour — a bright wandering hem with vertical rays standing on it, several colours at once, folding and undulating.\n\nThis is the only part of the mod with a per-frame render cost. Measured on this machine's Mono runtime it is roughly 0.3-0.4 ms per frame of field regeneration — about 2% of a 60fps frame — plus one extra draw call. That is paid ONLY while an aurora or solar flare is actually running, which is rare and short; the rest of the time this subsystem is a single null check and allocates nothing.\n\nIf your framerate is already marginal, or a profiler points at CelestialLighting during an aurora, this is the switch. Turning it off falls back to the flat sky tint at its full solo strength, so you lose the curtain, not the aurora.");
+            "Draw a drifting auroral curtain over the map instead of tinting the whole sky one flat colour — a bright wandering hem with vertical rays standing on it, several colours at once, folding and undulating.\n\nMeasured on this machine's Mono runtime it is roughly 0.3-0.4 ms per frame of field regeneration — about 2% of a 60fps frame — plus one extra draw call. That is paid ONLY while an aurora or solar flare is actually running, which is rare and short; the rest of the time this subsystem is a single null check and allocates nothing. \"Vector light sources\" above is the mod's expensive setting and is paid whenever lamps are on screen; this one is second, and a distant second in any hour without an aurora in it.\n\nIf your framerate is already marginal during an aurora specifically, or a profiler points at CelestialLighting while one is running, this is the switch. Turning it off falls back to the flat sky tint at its full solo strength, so you lose the curtain, not the aurora.");
         listing.CheckboxLabeled("Eclipse effects", ref Settings.eclipseDarkening,
             "Master toggle for CelestialLighting's eclipse handling. Off = vanilla eclipses (flat dim, storyteller timing) and none of the modes below. On = reshaped darkening plus the eclipse mode selected below.");
         DrawEclipseModeRadio(listing);

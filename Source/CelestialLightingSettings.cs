@@ -70,22 +70,20 @@ public class CelestialLightingSettings : ModSettings
 
     public bool eaveShadows = true;
 
-    // §27 vector light sources. It is the most opinionated thing in the mod, because light vanilla
-    // delivered around a corner no longer arrives at all and indirectly lit rooms are genuinely
-    // darker. That is the feature working, and it is a large enough taste call that the two
-    // populations get different answers:
+    // §27 vector light sources. SHIPS OFF FOR EVERYBODY, new install and upgrade alike, and every
+    // install is asked once by the notice (UpdateNoticeMath / Dialog_UpdateNotice) rather than opted
+    // in.
     //
-    //   - A NEW INSTALL GETS IT ON, seeded by UpdateNotice.SeedFirstRun. Somebody installing today
-    //     has no prior expectation to violate — this is simply how the mod lights a colony.
-    //   - AN EXISTING INSTALL KEEPS IT OFF and is asked, by the one-time notice. Silently relighting
-    //     a fifty-hour colony on update is not a default, it is a surprise.
+    // TWO SEPARATE REASONS, and the second is the one that settled it. It is the most opinionated
+    // thing in the mod — light vanilla delivered around a corner no longer arrives, so indirectly
+    // lit rooms are genuinely darker, which is the feature working and still a large taste call. And
+    // it is the most expensive thing the mod does, by a wide margin as a share of its per-frame
+    // budget. A default that quietly spends a player's frame budget is not the same kind of default
+    // as one that quietly changes a colour, so nobody gets it without being told it exists.
     //
-    // THE FIELD INITIALISER AND THE SCRIBED DEFAULT BOTH STAY `false`, and that is load-bearing
-    // rather than stale. Scribe_Values omits any value equal to its default, so every config written
-    // while this shipped off has NO vectorLights node; making `true` the default here would make all
-    // of them read back as on, which is exactly the silent rewrite the split above exists to
-    // prevent. The new-install default is applied on a path that only runs when no settings file
-    // existed at all. See UpdateNoticeMath.FirstRunSwitches.
+    // An earlier cut of the notice gave it to first-time installs by default on the grounds that
+    // they have no prior expectation to violate. That reasoning holds for the LOOK and ignores the
+    // COST, which is why it did not survive: see UpdateNoticeMath.ShouldShow.
     //
     // The composition underneath is deliberately NOT exposed. Mask and beam are what §27 is designed
     // around, and the crossfade survives only as the fallback the code picks for itself when the
