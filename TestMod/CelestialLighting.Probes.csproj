@@ -116,6 +116,12 @@
     <Compile Include="../Source/Probes/AuroraTintProbe.cs" Link="AuroraTintProbe.cs" />
     <Compile Include="../Source/Probes/AuroraCurtainProbe.cs" Link="AuroraCurtainProbe.cs" />
     <Compile Include="../Source/Probes/AuroraCurtainCostProbe.cs" Link="AuroraCurtainCostProbe.cs" />
+    <!-- Issue #196's guard rail. The agreement probe is what keeps AuroraCurtainHemRays meaningful
+         once the field it defines is drawn by HLSL instead of by it: it renders the shader and
+         compares the two. The active probe says which renderer a scenario actually got, which
+         matters because the shader path degrades to the bake silently. -->
+    <Compile Include="../Source/Probes/AuroraShaderAgreementProbe.cs" Link="AuroraShaderAgreementProbe.cs" />
+    <Compile Include="../Source/Probes/AuroraShaderActiveProbe.cs" Link="AuroraShaderActiveProbe.cs" />
     <!-- Issue #60's measurement pass: times the shipped draw path in place, from out here, so the
          shipped assembly never carries the stopwatches. Same arrangement as GeometryEvalCountProbe. -->
     <Compile Include="../Source/Probes/AuroraPathTimingProbe.cs" Link="AuroraPathTimingProbe.cs" />

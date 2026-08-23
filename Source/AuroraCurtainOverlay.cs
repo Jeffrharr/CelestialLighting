@@ -71,6 +71,19 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
 
     private static readonly SheetMaterial[] PrevSheets = BuildSheetMaterials();
 
+    // The shader path's materials, or null where the fragment program could not be loaded.
+    //
+    // ONE SET, against the CPU path's two. The pair above exists to cross-fade between the last two
+    // completed bake sweeps, which is the only thing that moves a bounded patch's interior when the
+    // field comes from a texture. A fragment program evaluates the field at the current tick, so
+    // there is nothing to cross-fade: one draw call per live display instead of two, and no
+    // half-sweep of display lag.
+    //
+    // Wrapped in SheetMaterial for the same reason the others are — every read and write of
+    // Material.color / mainTextureScale / mainTextureOffset is two native round trips, and the
+    // placement code that writes them is shared between both paths.
+    private static readonly SheetMaterial[] ShaderSheets = BuildShaderSheetMaterials();
+
     // One unit quad in the XZ plane, centred on the origin, scaled per sheet by the draw matrix.
     //
     // Vertex order, UVs and triangle winding are copied exactly from the decompiled
@@ -129,6 +142,17 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
     // state was prepared for. Recomputing it there would work but would silently desynchronise the
     // moment either call site changed.
     private float _driftPhase;
+
+    // The shader path's per-frame uniforms, resolved in PlaceSheets and written to each live sheet's
+    // material there. Unused by the bake, which folds the same two values into the pixels instead.
+    private float _fieldTime;
+
+    private Color _driverTint = Color.white;
+
+    private float _driverTintWeight;
+
+    // Which renderer Advance chose for this frame. See Advance for why it is resolved per frame.
+    private bool _shaderActive;
 
     // The tick this aurora began. Seeds the whole SEQUENCE of displays (AuroraDisplays salts it with
     // the slot and the generation), and doubles as the clock that sequence is measured from, so slot 0
@@ -213,7 +237,23 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
         }
 
         AuroraFieldSpec spec = Spec;
-        EnsureAllocated(spec);
+
+        // WHICH RENDERER DRAWS THIS FRAME, decided once here and read everywhere else.
+        //
+        // Resolved per frame rather than cached at startup because the feature flag is a live toggle:
+        // the harness flips it between arms, and a cached answer would leave one arm measuring the
+        // other one's renderer. It is three field reads, so per-frame costs nothing worth saving.
+        //
+        // Availability is checked ahead of the flag inside AuroraShader.Active, so "on" never means
+        // an empty sky on a machine with no usable bundle — it means the bake, quietly.
+        _shaderActive = spec.HasFragmentShader && AuroraShader.Active;
+
+        // Only the bake needs a texture and a pixel buffer. Skipping the allocation on the shader
+        // path is what keeps ~300 KB and the first sweep's work off a machine that will never look at
+        // either — and if the flag flips back mid-session, this allocates then, and the field fills
+        // itself in over one sweep exactly as it does when an aurora begins.
+        if (!_shaderActive)
+            EnsureAllocated(spec);
 
         // Wrap in INTEGER arithmetic before the cast. A float cannot represent every integer past
         // ~16.7M, i.e. ~278 in-game days, so casting TicksGame raw would make an old colony's aurora
@@ -235,13 +275,21 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
         //
         // Placement still updates every frame. It is a handful of float operations, it keeps alpha
         // responsive as the condition fades, and it is not what the profiler was pointing at.
-        if (ticksGame != _lastBakedTick)
+        //
+        // NONE OF THIS APPLIES TO THE SHADER PATH, which is the point of it. There is no buffer to
+        // fill a slice of, so there is no sweep, no row cursor, no pinned sweep time and no pinned
+        // sweep tint — the fragment program is handed the current tick and evaluates the field at it.
+        // Every artifact this scheduler was built to avoid (the shear between a tile's top and
+        // bottom, the colour gradient across one tile during a palette transition, the ~9 visible
+        // steps a 280-tick transition was quantised into) is absent by construction rather than
+        // worked around.
+        if (!_shaderActive && ticksGame != _lastBakedTick)
         {
             _lastBakedTick = ticksGame;
             Regenerate(spec, wrapped, tint, tintWeight);
         }
 
-        PlaceSheets(spec, map, ticksGame, wrapped, strength);
+        PlaceSheets(spec, map, ticksGame, wrapped, strength, tint, tintWeight);
         return true;
     }
 
@@ -410,9 +458,19 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
     // drift out of step with the field's own clock, and reproducible — the same tick always yields the
     // same pan, which is what lets a harness scenario screenshot this at all. The modulo keeps the
     // offset inside one texture repeat; wrapping there is exactly seamless because the field tiles.
-    private void PlaceSheets(AuroraFieldSpec spec, Map map, int ticksGame, int wrapped, float strength)
+    private void PlaceSheets(
+        AuroraFieldSpec spec, Map map, int ticksGame, int wrapped, float strength, Color tint,
+        float tintWeight)
     {
         _driftPhase = AuroraCurtainHemRays.Oscillate(wrapped * AuroraCurtainHemRays.DriftRate);
+
+        // The clock and the colour the fragment program needs, held for the placement calls below.
+        // Fields rather than parameters threaded three deep, for the same reason _driftPhase is one:
+        // recomputing them at the point of use would work and would silently desynchronise the moment
+        // either call site changed.
+        _fieldTime = wrapped;
+        _driverTint = tint;
+        _driverTintWeight = tintWeight;
 
         if (spec.Sheets[0].SpansMapVertically)
         {
@@ -450,12 +508,41 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
         // display's peak brightness, and `display.Alpha` is where it is in its own few-hour life.
         float alpha = strength * p.Alpha * display.Alpha;
 
+        SetSlot(slot, p, alpha);
+    }
+
+    // This frame's material state for one slot, on whichever renderer Advance chose.
+    //
+    // Both paths take the SAME placement and the SAME alpha, which is what makes the feature flag a
+    // real A/B: everything about where a display is, how big it is, which way it is mirrored and how
+    // bright it is has already been decided by the time either renderer sees it. Only the thing that
+    // fills the quad differs.
+    private void SetSlot(int slot, in AuroraSheetPlacement p, float alpha)
+    {
+        if (_shaderActive)
+        {
+            SetShaderSheet(ShaderSheets[slot], p, alpha);
+            return;
+        }
+
         // Split across the two fields being cross-faded. The two alphas sum to `alpha` at every t, so
         // the display's brightness is unaffected by where in the sweep it is caught — under additive
         // blending the split is a lerp, not a doubling. See Upload.
         float t = SweepProgress;
         SetSheet(Sheets[slot], p, alpha * t);
         SetSheet(PrevSheets[slot], p, alpha * (1f - t));
+    }
+
+    // The shader path's sheet: the same three writes the bake path makes, plus the two uniforms that
+    // carry what the bake would have folded into its pixels — the field's clock and the driver's
+    // colour.
+    //
+    // The full alpha, undivided. There is no second field to share it with.
+    private void SetShaderSheet(SheetMaterial mat, in AuroraSheetPlacement p, float alpha)
+    {
+        SetSheet(mat, p, alpha);
+        AuroraShader.SetFieldTime(mat.Mat, _fieldTime);
+        AuroraShader.SetDriverTint(mat.Mat, _driverTint, _driverTintWeight);
     }
 
     // Three writes, of which only the last one usually lands. A display's UV scale is fixed for its
@@ -506,6 +593,11 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
     // The contour field's path, unchanged: whole-map planes that tile and pan their UVs. It has no
     // per-display lifecycle because its sheets are the sky rather than patches in it — every sheet is
     // always live, and slot i is placement i.
+    //
+    // BAKE-ONLY, and structurally so rather than by omission: CelestialAurora.shader is a port of the
+    // hem-rays field, so AuroraFieldSpec.HasFragmentShader is false for the contour field and Advance
+    // can never choose the shader on the frames this runs. Pointing the shader at this path would not
+    // degrade, it would draw the wrong aurora.
     private void PlaceSpanningSheets(AuroraFieldSpec spec, Map map, int wrapped, float strength)
     {
         _liveCount = AuroraSheetLayout.PlacementCount(spec, map.Size.z);
@@ -565,6 +657,24 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
             filterMode = FilterMode.Bilinear,
         };
 
+    // The shader path's materials, wrapped so placement code can write them through the same eliding
+    // setters the bake path uses. Null — not an empty array — when the fragment program could not be
+    // loaded, so the one honest answer to "is the shader path available" has one representation.
+    private static SheetMaterial[] BuildShaderSheetMaterials()
+    {
+        Material[] mats = AuroraShader.BuildSheetMaterials(AuroraSheetLayout.MaxSheets);
+
+        if (mats == null)
+            return null;
+
+        SheetMaterial[] sheets = new SheetMaterial[mats.Length];
+
+        for (int i = 0; i < mats.Length; i++)
+            sheets[i] = new SheetMaterial(mats[i]);
+
+        return sheets;
+    }
+
     private static SheetMaterial[] BuildSheetMaterials()
     {
         SheetMaterial[] mats = new SheetMaterial[AuroraSheetLayout.MaxSheets];
@@ -617,7 +727,7 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
 
     public override void DrawOverlay(Map map)
     {
-        if (_texNew == null)
+        if (!ReadyToDraw())
             return;
 
         // ABOVE FogOfWar, and every part of that is deliberate.
@@ -656,12 +766,32 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
                 Quaternion.identity,
                 new Vector3(p.Width, 1f, p.Height));
 
-            // Both halves of the cross-fade, at the same place and the same size — the only difference
-            // is which sweep's field they carry and how much of it they contribute. Either can be
-            // skipped at the ends of a sweep, where its share rounds to nothing.
-            DrawSheet(Sheets[slot], trs);
-            DrawSheet(PrevSheets[slot], trs);
+            DrawDisplay(slot, trs);
         }
+    }
+
+    // Whether this frame's chosen renderer has what it needs to draw. The bake needs its texture; the
+    // shader needs its materials, which are null exactly when the bundle did not load — and in that
+    // case Advance could not have chosen it, so the second arm is a guard against a future caller
+    // rather than a reachable state today.
+    private bool ReadyToDraw() => _shaderActive ? ShaderSheets != null : _texNew != null;
+
+    // One display, on whichever renderer is live.
+    //
+    // The bake draws BOTH halves of the cross-fade, at the same place and the same size — the only
+    // difference is which sweep's field they carry and how much of it they contribute, and either can
+    // be skipped at the ends of a sweep where its share rounds to nothing. The shader draws once,
+    // because there is no older field to fade from: it evaluates this tick's field directly.
+    private void DrawDisplay(int slot, Matrix4x4 trs)
+    {
+        if (_shaderActive)
+        {
+            DrawSheet(ShaderSheets[slot], trs);
+            return;
+        }
+
+        DrawSheet(Sheets[slot], trs);
+        DrawSheet(PrevSheets[slot], trs);
     }
 
     // Reads the alpha SheetMaterial recorded rather than Material.color, which is a native shader
@@ -686,6 +816,15 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
             Sheets[i].SetColour(color);
             PrevSheets[i].SetColour(color);
         }
+
+        // And the shader path's, for exactly the same reason. A sheet left at its last alpha after a
+        // Reset is the stale-material-on-screen case this exists to prevent, and it does not care
+        // which renderer drew it.
+        if (ShaderSheets == null)
+            return;
+
+        for (int i = 0; i < ShaderSheets.Length; i++)
+            ShaderSheets[i].SetColour(color);
     }
 
     // Called when the sky state is being torn down or reset. Park EVERY sheet transparent — not just
