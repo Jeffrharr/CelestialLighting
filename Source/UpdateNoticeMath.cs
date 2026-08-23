@@ -98,16 +98,26 @@ public static class UpdateNoticeMath
     // when the game read one (CelestialLightingSettings.LoadedFromDisk) — the only durable trace an
     // earlier version of this mod leaves behind, since nothing it does is written into a save.
     //
+    // SHOWN TO EVERY INSTALL, NEW OR UPGRADING, and that is a deliberate reversal of where this
+    // started. The first cut suppressed it for a first-time install and switched vector lighting on
+    // for them instead, on the reasoning that somebody installing today has no prior expectation to
+    // violate. What that reasoning left out is COST: vector lighting is the most expensive thing this
+    // mod does, by a wide margin as a share of its per-frame budget. A default that quietly spends a
+    // player's frame budget is not the same kind of default as one that quietly changes a colour, and
+    // nobody should be opted into the expensive one without being told it exists. So everybody is
+    // asked, and the mod ships with it off for everybody.
+    //
+    // `installedBefore` therefore no longer gates the window — it only decides what the window SAYS
+    // (see VolumetricCloudRow, and the title Dialog_UpdateNotice picks). That is a much better place
+    // for its blind spot to sit: a returning player who never opened the settings screen reads as new
+    // and now loses only the cloud announcement, rather than the whole notice plus a wrong default.
+    //
     // `acknowledgedVersion` is what keeps it to once. It is persisted the moment the notice is
     // resolved — including when the player dismisses it with Escape — rather than when they accept,
-    // so "no thanks" is as final as "yes".
-    //
-    // A FIRST-TIME INSTALL STILL WRITES THE ACKNOWLEDGEMENT (see FirstRunSwitches): the notice is
-    // skipped, but the version is recorded, or the first time that player opens and closes the
-    // settings screen they would gain a settings file and then be told on the next boot that a
-    // feature they have always had is new.
-    public static bool ShouldShow(bool installedBefore, int acknowledgedVersion) =>
-        installedBefore && acknowledgedVersion < CurrentNoticeVersion;
+    // so "no thanks" is as final as "yes". A first install writes it on close like anybody else,
+    // which is why there is no longer a seeding path that has to remember to write it.
+    public static bool ShouldShow(int acknowledgedVersion) =>
+        acknowledgedVersion < CurrentNoticeVersion;
 
     // What the acknowledgement becomes once the notice has been resolved, however it was resolved.
     // Never moves backwards: a player who ran a later build and then rolled back keeps their higher
@@ -115,36 +125,9 @@ public static class UpdateNoticeMath
     public static int Acknowledge(int acknowledgedVersion) =>
         acknowledgedVersion > CurrentNoticeVersion ? acknowledgedVersion : CurrentNoticeVersion;
 
-    // The same value, for the install that never saw the notice because it is brand new. A separate
-    // named function rather than a second call to Acknowledge because the two are the same number
-    // for entirely different reasons, and a future notice that wants to greet new installs
-    // differently should find one of them and not the other.
-    public static int AcknowledgeOnFirstRun() => CurrentNoticeVersion;
-
-    // WHAT A BRAND-NEW INSTALL GETS, and it is not the same as what an upgrade gets: vector lighting
-    // is ON out of the box, and stays off for everybody who already had the mod.
-    //
-    // The asymmetry is the whole point rather than an inconsistency. Vector lighting changes how a
-    // colony is LIT — light that bent around a corner no longer arrives, so indirectly lit rooms are
-    // genuinely darker — and the case for defaulting it on or off is completely different for the
-    // two populations. Somebody installing today has no prior expectation to violate; it is simply
-    // how this mod lights a colony, and shipping the mod's best look by default is the right call.
-    // Somebody who has played fifty hours under the old lighting has a very specific expectation,
-    // and silently rewriting it on update is not a default, it is a surprise. They get asked.
-    //
-    // THIS IS WHY THE SCRIBED DEFAULT FOR `vectorLights` MUST STAY `false` even though a new install
-    // now starts true, and it is the sharpest edge in this file. Scribe_Values omits any value equal
-    // to its default, so an existing config written while the feature was off has NO vectorLights
-    // node — flip the scribed default to true and every one of those configs reads back as `on`,
-    // which is exactly the silent rewrite the paragraph above rules out. The new-install default
-    // therefore lives here, on a path that only runs when no settings file existed at all, and the
-    // serialisation default stays as the honest answer to "what did an absent node mean when it was
-    // written".
-    public static UpdateNoticeSwitches FirstRunSwitches(in UpdateNoticeSwitches switches) =>
-        switches.WithVectorLights();
-
     // The one row with a button — and the one that is either offered or not mentioned, never merely
-    // announced.
+    // announced. Offered to EVERY install; see ShouldShow for why a new one is asked rather than
+    // given it.
     //
     // Off is the case the whole notice exists for. ON means this player already went and found the
     // switch themselves, which for a feature arriving in THIS release means a deliberate act taken
@@ -170,8 +153,16 @@ public static class UpdateNoticeMath
     // different claim. A Clouds user may well have all three of ours on — those settings are live
     // again the moment they uninstall it — so reading the switches alone would announce volumetric
     // clouds to somebody whose sky is being drawn by another mod entirely.
-    public static UpdateNoticeRow VolumetricCloudRow(in UpdateNoticeSwitches switches) =>
-        VolumetricCloudsRunning(switches) ? UpdateNoticeRow.Announce : UpdateNoticeRow.Hidden;
+    //
+    // AND IT IS HIDDEN OUTRIGHT FROM A FIRST-TIME INSTALL, which is the one thing `installedBefore`
+    // still decides. Nothing here is "new" to somebody who has never run this mod: every effect it
+    // has arrived at once, five minutes ago, and singling one out as a recent addition is a sentence
+    // that means nothing to them. They get the vector-light question and nothing else, which is also
+    // why Dialog_UpdateNotice does not call their window "what's new".
+    public static UpdateNoticeRow VolumetricCloudRow(in UpdateNoticeSwitches switches, bool installedBefore) =>
+        installedBefore && VolumetricCloudsRunning(switches)
+            ? UpdateNoticeRow.Announce
+            : UpdateNoticeRow.Hidden;
 
     // Whether the volumetric path is actually drawing on this install right now: reachable at all,
     // and every link of the chain above it closed. Split out from the row above because it is the
@@ -186,15 +177,18 @@ public static class UpdateNoticeMath
 
     // Whether the notice has anything to ask, as opposed to only things to announce. Drives which
     // buttons the window draws: with nothing offerable it is an OK box, not a yes/no.
+    //
+    // Takes no `installedBefore` because it cannot matter: the only offerable row is the vector-light
+    // one, and that is offered to both populations alike. Left as a function rather than inlined so
+    // the day a second offer exists, there is one place that already asks the question.
     public static bool AnyOffer(in UpdateNoticeSwitches switches) =>
-        VectorLightRow(switches) == UpdateNoticeRow.Offer
-        || VolumetricCloudRow(switches) == UpdateNoticeRow.Offer;
+        VectorLightRow(switches) == UpdateNoticeRow.Offer;
 
     // Whether the notice has anything to SAY. A window that names nothing is worse than no window:
     // it spends the one appearance this notice gets and tells the player nothing they can act on.
-    public static bool AnythingToShow(in UpdateNoticeSwitches switches) =>
+    public static bool AnythingToShow(in UpdateNoticeSwitches switches, bool installedBefore) =>
         VectorLightRow(switches) != UpdateNoticeRow.Hidden
-        || VolumetricCloudRow(switches) != UpdateNoticeRow.Hidden;
+        || VolumetricCloudRow(switches, installedBefore) != UpdateNoticeRow.Hidden;
 
     // The switches as they should be after the player's answer.
     //
