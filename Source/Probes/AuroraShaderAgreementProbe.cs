@@ -89,7 +89,7 @@ public sealed class AuroraShaderAgreementProbe : IProbe
     // rather than guessed at here.
     private static Texture2D RenderField()
     {
-        Material material = new Material(Shader.Find(AuroraShader.ShaderName));
+        Material material = AuroraShader.NewFieldMaterial();
 
         // One repeat, no offset. This is what the sheet materials would carry for an unmirrored
         // display, and it makes the rendered tile directly comparable to a CPU bake of the same tile.

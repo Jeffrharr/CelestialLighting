@@ -1,0 +1,54 @@
+{
+  "name": "aurora_shader",
+  "description": "Issue #196: the aurora curtain drawn by CelestialAurora.shader against the same field baked into a 192-square texture. The claim is SHARPNESS, so the arms have to differ by the renderer and by nothing else, and three things enforce that. (1) The bake is filled by RUNNING THE CLOCK AT NORMAL SPEED FOR 250 FRAMES, not by AdvanceTicks: the bake lays down six rows per RENDERED FRAME whose tick changed, so a step that advances 200 ticks inside one frame bakes six rows and leaves 186 of 192 empty. That is not a subtle error -- the first run of this scenario made it, and it reads as the shader being spectacularly better rather than as the baseline being blank. (2) The clock is PAUSED before either arm is captured, because the field is a function of TicksGame and an unpaused pair measures drift rather than resolution; the same-build control pins that at 0.00%. (3) The bake arm runs FIRST, because its texture is only allocated when its renderer is chosen and it cannot fill once the clock stops. Every cloud lane is off: they drift on the tick counter and land on exactly the terrain an A/B compares. Captured at TWO zooms, because the quantity under test is magnification: the bake is 2.2 texels per cell, so how far it is stretched over the screen -- and therefore how much the two renderers can differ -- is a function of the camera. Quoting only the wide pair would understate the effect at the zoom a player inspects something at.",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    { "type": "SetFeature", "args": { "featureName": "cloud_cover", "enabled": "false" } },
+    { "type": "SetFeature", "args": { "featureName": "cloud_sheet", "enabled": "false" } },
+    { "type": "SetFeature", "args": { "featureName": "cloud_presence", "enabled": "false" } },
+    { "type": "SetFeature", "args": { "featureName": "cloud_deck_varieties", "enabled": "false" } },
+    { "type": "SetFeature", "args": { "featureName": "cloud_volume", "enabled": "false" } },
+
+    { "type": "SetTile", "args": { "latitude": "20" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "40" } },
+    { "type": "SetTime", "args": { "hour": "1" } },
+    { "type": "SetWeather", "args": { "weatherDef": "Clear" } },
+
+    { "type": "StartCondition", "args": { "conditionDef": "Aurora", "durationHours": "24", "agedHours": "2" } },
+
+    { "type": "Screenshot", "args": { "fileName": "aurora_shader_hud_discard.png" } },
+
+    { "type": "SetFeature", "args": { "featureName": "aurora_shader", "enabled": "false" } },
+
+    { "type": "SetTimeSpeed", "args": { "speed": "normal" } },
+    { "type": "Wait", "args": { "frames": "250" } },
+
+    { "type": "Probe", "args": { "probeName": "aurora_curtain", "expectedValue": "0.55", "tolerance": "0.02" } },
+    { "type": "Probe", "args": { "probeName": "aurora_shader_active", "expectedValue": "0", "tolerance": "0.001" } },
+
+    { "type": "SetTimeSpeed", "args": { "speed": "paused" } },
+    { "type": "Wait", "args": { "frames": "30" } },
+
+    { "type": "Screenshot", "args": { "fileName": "aurora_shader_bake_wide.png" } },
+    { "type": "Screenshot", "args": { "fileName": "aurora_shader_bake_wide_control.png" } },
+
+    { "type": "SetFeature", "args": { "featureName": "aurora_shader", "enabled": "true" } },
+    { "type": "Wait", "args": { "frames": "30" } },
+
+    { "type": "Probe", "args": { "probeName": "aurora_shader_active", "expectedValue": "1", "tolerance": "0.001" } },
+    { "type": "Probe", "args": { "probeName": "aurora_curtain", "expectedValue": "0.55", "tolerance": "0.02" } },
+    { "type": "Probe", "args": { "probeName": "aurora_shader_agreement", "expectedValue": "0.01", "tolerance": "0.02" } },
+
+    { "type": "Screenshot", "args": { "fileName": "aurora_shader_shader_wide.png" } },
+
+    { "type": "LookAt", "args": { "zoom": "12" } },
+    { "type": "Wait", "args": { "frames": "30" } },
+    { "type": "Screenshot", "args": { "fileName": "aurora_shader_shader_zoom.png" } },
+
+    { "type": "SetFeature", "args": { "featureName": "aurora_shader", "enabled": "false" } },
+    { "type": "Wait", "args": { "frames": "30" } },
+    { "type": "Probe", "args": { "probeName": "aurora_shader_active", "expectedValue": "0", "tolerance": "0.001" } },
+    { "type": "Screenshot", "args": { "fileName": "aurora_shader_bake_zoom.png" } },
+    { "type": "Screenshot", "args": { "fileName": "aurora_shader_bake_zoom_control.png" } }
+  ]
+}

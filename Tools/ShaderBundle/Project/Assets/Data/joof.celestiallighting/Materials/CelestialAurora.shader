@@ -1,14 +1,14 @@
 // The aurora curtain's field, evaluated per fragment instead of baked into a 192-square texture
 // (DESIGN.md §11a, issue #196).
 //
-// WHY THIS IS A SHADER, AND WHY THAT IS NOT A PERFORMANCE CLAIM. The CPU bake costs ~450 µs per tick
-// while an aurora is up — about 2.7% of one core, during a rare night-only event. Nobody needed that
-// back. What the bake could not give is RESOLUTION: 192 texels stretched over a sheet 88 cells wide
-// is 2.2 texels per cell, magnified bilinearly, and the rays are the single most recognisable thing
-// about an aurora. Two decisions in AuroraCurtainHemRays are concessions to that cap rather than
-// statements about how an aurora looks — the one-octave ray limit ("half-size features fall below
-// what bilinear filtering can hold") and §11a's "an aurora is the one effect that loses nothing to
-// blur". Both are answered here by evaluating the field at the resolution of the screen.
+// WHY THIS IS A SHADER. Not to buy frames back — the bake was cheap. What the bake could not give is
+// RESOLUTION: 192 texels stretched over a sheet 88 cells wide is 2.2 texels per cell, magnified
+// bilinearly, and the rays are the single most recognisable thing about an aurora. Two decisions in
+// AuroraCurtainHemRays are concessions to that cap rather than statements about how an aurora looks —
+// the one-octave ray limit ("half-size features fall below what bilinear filtering can hold") and
+// §11a's "an aurora is the one effect that loses nothing to blur". Both are answered here by
+// evaluating the field at the resolution of the screen, and the gap widens as the camera closes in,
+// because magnification is exactly what the camera controls.
 //
 // WHAT IT DELETES IS THE LARGER PRIZE. Everything the CPU path does to make baking affordable — the
 // rolling row cursor, pinning `time` and the driver tint per sweep, the cached ColumnTable, the two
