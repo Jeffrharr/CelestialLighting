@@ -98,6 +98,17 @@ public static class VectorLightOverlay
     private static void DrawLight(
         Map map, VectorLightField.LightEntry entry, CellRect view, float skyGlow, float altitude)
     {
+        // THE CAMERA CULL COMES FIRST, which is what Overlaps' own header has always claimed and
+        // what this method did not do. Everything below is proportional to what is on screen; the
+        // cull is the thing that makes that true, so anything asked before it is asked about every
+        // emitter on the map, every frame, including the overwhelming majority that are nowhere near
+        // the camera. StrengthFor is a roof-grid lookup and a daylight curve — small, and small
+        // multiplied by a built-up colony's lamp count is the shape of cost this subsystem is
+        // supposed to avoid. Both tests are pure, so the order between them changes nothing except
+        // who pays.
+        if (!Overlaps(view, entry))
+            return;
+
         // TWO ANSWERS, NOT ONE, and keeping them apart is what makes the control arm possible.
         // `maxDrawing` is which material the pass goes through — asked for AND possible, since a
         // machine that cannot run the shader has to compose the old way instead. `maxComposing` is
@@ -108,7 +119,7 @@ public static class VectorLightOverlay
 
         float strength = StrengthFor(map, entry, skyGlow, maxComposing);
 
-        if (strength <= 0f || !Overlaps(view, entry))
+        if (strength <= 0f)
             return;
 
         if (entry.GeometryDirty || entry.Mesh == null)

@@ -351,10 +351,19 @@ public static class VectorLightPawnShadows
             float lightZ = entry.Cell.z + 0.5f;
             float dx = centre.x - lightX;
             float dz = centre.z - lightZ;
-            float distance = Mathf.Sqrt(dx * dx + dz * dz);
 
-            if (distance > entry.Radius)
+            // SQUARED AGAINST SQUARED, so a lamp on the far side of the colony costs one multiply
+            // rather than a square root. This loop is over EVERY emitter on the map and it runs once
+            // per pawn in view per frame, so the reject is the hot line here, not the accept —
+            // VectorLightField.MarkGeometryDirtyAround already spells the same test the same way for
+            // the same reason. The root survives for the lamps that pass, which need the real
+            // distance for the falloff and the bearing.
+            float distanceSquared = dx * dx + dz * dz;
+
+            if (distanceSquared > entry.Radius * entry.Radius)
                 continue;
+
+            float distance = Mathf.Sqrt(distanceSquared);
 
             // The occlusion question, answered by phase 3's baked grid in one lookup. Asked before
             // any geometry is built, because a pawn the lamp cannot see is the common case in a
