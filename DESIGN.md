@@ -8958,6 +8958,108 @@ comparable number. `SectionLayerDrawCounters:NoteDraw` costs 0.09–0.12 ms and 
 shipped. And the analyzer transplants timing calls into every patched method, so all of these are
 ceilings.
 
+### The polygon was built twice, and only a call count could see it (`vector_light_frame_cost`)
+
+The table above is a **duration**, for the whole of `Patch_VectorLightDraw:Postfix`, and a duration
+cannot say how many times anything inside it ran. Arming the path through Circinus instead — one arm
+per stage, counts as well as milliseconds — answered a question nobody had asked, on the first run:
+
+| arm | calls, before | calls, after |
+|---|---|---|
+| `VectorLightMath.Build` — the visibility polygon | **82** | **44** |
+| `VectorLightBlockers.SegmentsAround` — the window scan | **82** | **44** |
+| `VectorLightMath.BuildCoverage` | 44 | 44 |
+| `VectorLightMask.Apply` | 224 | 224 |
+| `vector_light_bakes` (the field's own counter) | 44 | 44 |
+
+**Forty-four polygons were being built eighty-two times.** With the mask on — which is what a player
+who switches vector lighting on actually gets — `Patch_VectorLightDraw` runs
+`VectorLightField.EnsurePolygons` immediately before the draw, so every emitter's polygon is baked
+from its cell, its radius and its segment window before `VectorLightOverlay.Rebuild` is reached.
+Rebuild then scanned the same window again and re-cast every ray against every wall, to arrive at an
+answer already sitting on the entry. `Tools/VectorLightBench` puts that build at 83–94% of a bake in
+any cluttered scene, so the duplicate was most of the cost of every geometry change a colony makes.
+
+**Why it survived being looked at twice.** `vector_light_bakes` is incremented inside
+`EnsurePolygon`, and the draw's build never went near it — so the probe reported one bake per
+emitter while two were happening, and reported it *correctly*, for the quantity it actually counts.
+Dubs reported one number for the postfix as a whole. Neither instrument was wrong; neither could see
+a stage being entered twice, which is the class of fault a call count exists for and the reason §28
+went to Circinus in the first place.
+
+The fix is `VectorLightOverlay.PolygonFor`: take the field's polygon when the field has one, build
+locally when it does not. **The fallback is not defensive padding.** With the mask off nothing builds
+polygons at all, and routing that case through `EnsurePolygon` would also bake a coverage grid and an
+unobstructed flag the draw has no use for — so the mask-off arm would come out slower than before.
+Building locally there is exactly what the method already did, which is what makes this bit-identical
+in every configuration rather than only in the shipped one.
+
+#### What it cost, and the caveat that has to come first
+
+**The box moved between the two runs, and the untouched arms say by how much.** `BuildCoverage`
+(44 identical calls of untouched code) went 10.54 → 7.32 ms, a factor of 0.695; `VectorLightMask.Apply`
+(224 identical calls, likewise untouched) went 15.17 → 7.45, a factor of 0.491. Two controls that
+disagree with each other by that much are the measurement saying, in its own words, that no raw
+before/after millisecond here is worth quoting.
+
+| arm | before | after | after ÷ before |
+|---|---|---|---|
+| `Patch_VectorLightDraw:Postfix`, total | 58.13 ms | 29.16 ms | 0.502 |
+| **`Patch_VectorLightDraw:Postfix`, worst cycle** | **12.21 ms** | **1.93 ms** | **0.158** |
+| `VectorLightOverlay.Draw`, total | 39.23 ms | 16.36 ms | 0.417 |
+| **`VectorLightOverlay.Draw`, worst cycle** | **12.10 ms** | **1.83 ms** | **0.151** |
+| `VectorLightPawnShadows.Draw`, total | 13.48 ms | 8.45 ms | 0.627 |
+| *control:* `BuildCoverage` | 10.54 ms | 7.32 ms | *0.695* |
+| *control:* `VectorLightMask.Apply` | 15.17 ms | 7.45 ms | *0.491* |
+
+So the honest arithmetic is **within-run**, where the machine cancels. In the before run the polygon
+cost 19.07 ms over 82 calls and the window scan 4.68 over the same 82, i.e. 0.2325 and 0.0571 ms per
+call; the 38 duplicate calls are therefore **11.0 ms** of a 58.13 ms parent — 19% of the whole
+subsystem's frame budget, all of it inside the overlay draw.
+
+That prediction can be checked against the after run rather than asserted. Scaling the before
+overlay by the coverage control gives 39.23 × 0.695 = 27.3 ms for an unchanged build on the faster
+box; subtracting the predicted 11.0 leaves **16.3 ms**, against a measured **16.36**. Two independent
+routes to the same number is what makes this a measurement rather than a ratio taken on a noisy
+afternoon.
+
+**The worst cycle is the number that matters most, and it is the one a mean would have hidden.** A
+frame that rebuilds twenty-two meshes used to pay twenty-two polygon builds on top of the twenty-two
+the field had already done; it now pays none. 12.21 ms → 1.93 ms is a dropped frame becoming an
+ordinary one, and it survives normalisation by even the friendlier control (12.21 × 0.695 = 8.5
+expected, 1.93 measured).
+
+#### Two smaller things found in the same pass
+
+**The camera cull was running second.** `Overlaps`' own header says it culls "before doing anything
+else", and `DrawLight` asked `StrengthFor` first — a roof-grid lookup and a daylight curve, paid for
+every emitter on the map every frame, including all the ones nowhere near the camera. Both tests are
+pure, so the order changes nothing except who pays. Invisible in this scenario, which deliberately
+frames all 22 emitters at once; the case it is for is the built-up colony where the cull rejects most
+of them.
+
+**The pawn-shadow gather took a square root to decide it was not interested.** `Gather` walks every
+emitter on the map once per pawn in view per frame, and rejected the distant ones by comparing
+`Mathf.Sqrt(dx² + dz²)` against the radius. Squared against squared is the same test one multiply
+cheaper, and it is the spelling `MarkGeometryDirtyAround` already uses for the same reason. The root
+survives for the lamps that pass, which need the real distance anyway. `VectorLightPawnShadows.Draw`
+went 13.48 → 8.45 ms against a control at 0.695 — about 0.9 ms once normalised, which is a real
+direction on an unconvincing margin, so it is recorded as a tidy-up rather than as a win.
+
+#### The pin that says it is the same polygon
+
+A performance change whose whole claim is "this is the answer you already had" needs a check that the
+two answers are the same, and `vector_light_lit_area` cannot be it: that probe builds its *own* third
+copy of the polygon, so it would agree with itself on a build where the cache was wrong.
+
+`vector_light_polygon_reuse_error` is the differential instead, and it has a genuine independent
+oracle — **the code path that was deleted**. It rebuilds each emitter's polygon the way `Rebuild`
+used to, compares against the cached one ray by ray on both angle and distance, and reports the worst
+disagreement in cells. It reads **0.0000 at tolerance 0**. A ray-count mismatch returns a 9999
+sentinel rather than a comparison across two different ray sets, and an emitter with nothing cached
+is not counted as agreement: with no emitter comparable at all the probe returns −1, so a run where
+the bake never happened fails the pin instead of passing it vacuously.
+
 ### The flicker question, and what it turned out to be
 
 Watching a run, the light reads as though it flickers slightly.
