@@ -1596,17 +1596,50 @@ means baking before `regionAndRoomUpdater.TryRebuildDirtyRegionsAndRooms()` and
 change. That is the same ordering constraint that ruled out `SkyManagerUpdate` as a trigger, and it
 rules out the wide window for the same reason.
 
-**A thread pool is not the lever, but Mono's thread injection might be.** Replacing `Parallel.For`
-with `ThreadPool.QueueUserWorkItem` changes nothing: blocking is a property of joining, not of the
-pool, and `Parallel.For` already runs on the .NET thread pool. What is worth investigating is that
-RimWorld runs on **Mono** (`MonoBleedingEdge`, `mscorlib.dll` — there is no `System.Private.CoreLib`
-in the Managed folder), whose pool injects threads far more lazily than CoreCLR's, and this workload
-is **bursty**: a whole-map rebake, then nothing for seconds. If the pool is cold at each burst, part
-of every gather is spent waiting for threads to be created rather than doing work — which would also
-explain variance that six interleaved pairs could not see through. A set of persistent workers parked
-on a semaphore and woken per batch would remove that, and it is a change to how the *synchronous*
-section is scheduled rather than an attempt to background it. Unmeasured, and the next thing to try
-if this subsystem is revisited.
+**A thread pool is not the lever, and Mono's thread injection turned out not to be either.**
+Replacing `Parallel.For` with `ThreadPool.QueueUserWorkItem` changes nothing: blocking is a property
+of joining, not of the pool, and `Parallel.For` already runs on the .NET thread pool. The hypothesis
+worth testing was narrower — RimWorld runs on **Mono** (`MonoBleedingEdge`, `mscorlib.dll`, no
+`System.Private.CoreLib`), whose pool injects threads on a timer rather than eagerly, and this
+workload is **bursty**: a whole-map rebake asks for every core at once, then nothing happens for
+seconds and the pool retires the threads. If it were cold at each burst, part of every gather would be
+spent waiting for threads to exist.
+
+`SectionWorkerPool` (branch `occlusion-gather-pool`) tests that: threads created on the first batch
+and parked in a semaphore wait forever, same signature as `CloudBake.Rows`, same one-index-at-a-time
+dynamic partitioning, same worker-count policy, so the call site is a one-line difference. Three
+interleaved pairs:
+
+| median of three | `Parallel.For` | parked threads |
+|---|---|---|
+| `frame_max_ms` | 65.17 | 65.73 |
+| `frame_avg_ms`, 74 frames | 6.46 | 4.94 |
+| `mesh_total_ms` | 434.07 | 346.02 |
+
+The aggregate rows lean toward the pool and the worst-frame row is a tie, with every range overlapping
+and the pairs disagreeing (the pool wins 1 and 3, loses 2). **Below the noise floor, like everything
+else in this section.**
+
+**Not shipped, and the reason is the ratio of risk to evidence.** The pool is a hand-rolled threading
+primitive — threads that never exit, a shared cursor, a semaphore, failure propagation across a thread
+boundary — added to a mod that real people run, in exchange for no demonstrated gain.
+`CloudBake.Rows` is one line, is already used by the cloud bake, and is already pinned
+serial-equals-parallel. The branch keeps the implementation and its ten offline tests (which do pass,
+including failure propagation and pool reuse across batches) for whoever revisits this with a quieter
+machine.
+
+#### The measurement floor, which is the real finding
+
+Three separate scheduling questions were asked of this subsystem — prefix versus postfix trigger, and
+`Parallel.For` versus parked threads — across twelve interleaved pairs. **Every one came back inside
+the noise.** This box swings roughly 2x run to run on identical code: `frame_max_ms` on the *same*
+build spans 37.07 to 84.73 in three consecutive runs.
+
+So the honest boundary is: **the gather phase itself is a large, repeatable win, and every variant of
+how it is scheduled is unmeasurable here.** Anyone returning to this should either budget n >= 15 per
+arm or find a quieter machine before believing a scheduling result, and should not read the earlier
+sections of this write-up as evidence that any particular variant is faster — two of them said so and
+both were wrong.
 
 #### Measured
 
