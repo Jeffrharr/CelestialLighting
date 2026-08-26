@@ -178,6 +178,15 @@ public static class VectorLightMask
         && !CelestialLightingFeatures.VectorLightApertureBeam
         && VectorLightShader.MaxActive;
 
+    // Whether the visibility floor runs this frame. Separate flag from BentPath and read separately,
+    // because the two claim cells for different reasons and an arm that could not turn one off
+    // without the other could not tell which of them moved the frame.
+    public static bool DimFloor =>
+        Active
+        && CelestialLightingFeatures.VectorLightDimFloor
+        && !CelestialLightingFeatures.VectorLightApertureBeam
+        && VectorLightShader.MaxActive;
+
     // Rewrites one section's lighting overlay in place. Returns false when it declined to, so the
     // caller can fall through to the crossfade rather than leaving the section unlit or unmasked.
     public static bool Apply(Map map, Mesh mesh, List<Vector3> verts, CellRect rect)
@@ -590,6 +599,7 @@ public static class VectorLightMask
         // having the shape it was profiled in.
         bool replacing = Replacing;
         bool bentPath = BentPath;
+        bool dimFloor = DimFloor;
         float radius = light.glowRadius;
         float radiusSquared = radius * radius;
         ColorInt colour = light.glowColor;
@@ -624,7 +634,7 @@ public static class VectorLightMask
                 // read vanilla's own delivered distance before it can decide, and that read is what
                 // this skip exists to avoid — so with it on the skip goes, and the shipped path
                 // keeps its shape only because the flag is off there.
-                if (coverage >= 255 && !lifting && !replacing && !bentPath)
+                if (coverage >= 255 && !lifting && !replacing && !bentPath && !dimFloor)
                     continue;
 
                 IntVec3 cell = new IntVec3(x, 0, z);
@@ -678,10 +688,18 @@ public static class VectorLightMask
                 // VectorLightOverlay.SurvivingShare asks the identical question of the identical
                 // pure predicate, so the field the fragment program subtracts describes what this
                 // loop left behind.
-                bool detoured = bentPath
-                    && VectorLightLiftMath.VanillaBentToArrive(x - lightX, z - lightZ, own.a, anyOwn);
+                // EITHER REASON IS SUFFICIENT. The detour test asks whether vanilla took a longer
+                // route here; the floor asks whether what it delivered is worth keeping at all. They
+                // claim almost disjoint sets — the first fires on aperture fringes at coverage 0,
+                // the second on everything dim — and a cell only has to satisfy one of them.
+                bool claimed = (bentPath
+                        && VectorLightLiftMath.VanillaBentToArrive(
+                            x - lightX, z - lightZ, own.a, anyOwn))
+                    || (dimFloor
+                        && VectorLightLiftMath.VanillaTooDimToKeep(
+                            Math.Max(own.r, Math.Max(own.g, own.b))));
 
-                int shadowed = replacing || detoured ? 255 : 255 - coverage;
+                int shadowed = replacing || claimed ? 255 : 255 - coverage;
 
                 if (shadowed > 0 && anyOwn)
                 {
@@ -697,7 +715,7 @@ public static class VectorLightMask
                     // off this cell" rather than "the rule matched". Those differ at every cell
                     // vanilla never lit — the far side of an open door — which the rule claims and
                     // where claiming it changes nothing.
-                    if (detoured)
+                    if (claimed)
                         BentSamples++;
                 }
 

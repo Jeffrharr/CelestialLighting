@@ -11244,6 +11244,73 @@ the probe reports `ours` on the **unseeded** curve while the shipped composition
 one, which at that cell is 0.0910. Against the quantity the shader actually uses, vanilla supplies
 99% of it. There is no missing third.
 
+#### The visibility floor: pick the renderer by what vanilla's share is worth (`vector_light_dim_floor`)
+
+The per-cell detour rule above is inert, and finding out why produced the identity that closes the
+whole operator question:
+
+```
+vanilla + max(0, ours - vanilla)  ==  max(vanilla, ours)
+```
+
+exactly, at every cell. **The subtraction is not an alternative to a pixel-level max — it IS the max**,
+written as an increment because the frame already holds vanilla. `TheShippedCompositionAlreadyIsAPixelMax`
+pins it over the whole gate scene. So no rearrangement of the operator can help, and the two variants
+that keep suggesting themselves are both worse: `max(vanilla, ours - vanilla)` collapses to `vanilla`
+wherever the two models agree, so the frame ends up holding vanilla twice — modelled at **179×** the
+current fan term at the lamp cell and **225×** at the room edge, i.e. epic #145's summed models.
+
+What actually differs between a doorway and a gap is **which renderer carries the max**. Past a door
+vanilla is 0, so the fan carries all of it. Past a gap vanilla is 0.0902 against our 0.0911, so
+vanilla's lighting overlay carries 99% of it and the fan carries 0.9%. At these levels the two paths
+do not deliver alike, and the frames say so: **+2.34 L\*** past the door against **+0.36** past the
+gap, from cones of identical shape and near-identical glow.
+
+So this rule picks the renderer on whether vanilla's delivered share is worth anything on screen,
+rather than on how the light got there. Below **0.10** of full glow (26 of 255) the cell goes to our
+model whole: the mask removes vanilla's contribution and the fan draws the model, exactly as it
+already does past a door.
+
+##### What it measures
+
+| arm | door −7 | **gap +7** | gap +8 | lamp | 2 cells out | room corner |
+|---|---|---|---|---|---|---|
+| branch as it stood | +2.34 | **+0.36** | +0.20 | +0.00 | +0.13 | +0.50 |
+| **visibility floor** | +2.34 | **+2.19** | +0.51 | +0.00 | +0.13 | +0.50 |
+| aperture beam (rejected) | +2.34 | +2.08 | +0.51 | **−3.44** | **−2.14** | −0.19 |
+
+It reaches doorway parity at the gap and beats the global replacement there, while costing nothing
+anywhere else — every indoor column is identical to the previous arm to the hundredth. Per region,
+against the arm one flag away: room interior median ΔE **0.000, max 0.00**; outside the door
+**0.000, max 0.00**; outside the gap max **5.25** on 7.2% of that region. Whole-frame masked median
+**1.76** on 0.30% of pixels.
+
+The near field is never at risk because it is nowhere near the floor: vanilla delivers **0.6745** at
+the lamp cell, six times clear of 0.10. `TheNearFieldIsWellAboveTheFloor` and
+`TheFloorClaimsTheGroundOutsideAndNothingInsideTheRoom` pin that margin from both sides, so a change
+to the constant fails offline rather than in a screenshot. The value has measured room either side —
+0.15 starts eating the lamp's own room (8 cells), 0.05 misses 3 of the outdoor cells.
+
+##### The risk it does not clear, and the scene that would show it
+
+"Dim because it came through a hole" and "dim because it is the outer rim of the lamp" are **the same
+number** to this rule, so every light's rim changes renderer too. If the two delivery paths differ,
+that draws an edge exactly there — a ring at each lamp's edge. `vector_light_floor_home` reads **125**
+on the gate scene: roofed cells claimed, summed over every emitter on the map, overwhelmingly
+off-screen rims. This room shows no indoor change at all, so the risk is unmeasured rather than
+cleared, and the scene that would settle it is a single lamp alone in a large room — which the suite
+does not have.
+
+The floor is a hard threshold on purpose. A ramp soft enough to hide a ring cannot claim the gap: the
+gap cell sits at 0.0902, **above** most of the rim it would have to be blended across.
+
+##### A number withdrawn
+
+An earlier reading of this put the two delivery paths ~70× apart per unit of glow. That compared the
+mod's delta past the door against its delta past the gap, which is not the same quantity, and the
+door's own doorstep shading confounds it further. The measured path difference is nearer 2–3×. The
+floor's result does not depend on it, and the figure should not be carried forward.
+
 ### Vector lighting, phase 6: the visibility polygon was quadratic (`VectorLightMath.AngularIndex`, `VectorLightBakeProbe`, epic #174 phase 6)
 
 Phase 6 of the vector-lighting epic is about the **bakes** rather than the draw. The draw was already

@@ -43,6 +43,15 @@ public sealed class VectorLightBentProbe : IProbe, IProbeMetadata
         // with the flag on or off; this one is the outcome, and it is what separates "the rule has
         // nothing here to claim" from "the rule never ran".
         Applied,
+
+        // Unroofed cells the VISIBILITY FLOOR claims, as opposed to the detour rule. Reported
+        // separately because the two rules claim nearly disjoint sets and a combined count could
+        // not say which one a frame moved.
+        FloorBeyond,
+
+        // Roofed cells the floor claims — the one that says whether it has reached into the lamp's
+        // own room, which is what the near field is lost through.
+        FloorHome,
     }
 
     private readonly Metric metric;
@@ -59,7 +68,9 @@ public sealed class VectorLightBentProbe : IProbe, IProbeMetadata
     {
         Metric.Home =>
             "roofed cells the per-cell replacement claims — the near field, which must stay vanilla's",
-        Metric.Beyond => "unroofed cells the per-cell replacement claims from vanilla",
+        Metric.Beyond => "unroofed cells the detour rule claims from vanilla",
+        Metric.FloorBeyond => "unroofed cells the visibility floor claims from vanilla",
+        Metric.FloorHome => "roofed cells the visibility floor claims — the near-field risk, in cells",
         _ => "cell-emitter pairs the mask really took vanilla's light off, since the last rebake",
     };
 
@@ -107,7 +118,9 @@ public sealed class VectorLightBentProbe : IProbe, IProbeMetadata
             {
                 IntVec3 cell = new IntVec3(x, 0, z);
 
-                if (!cell.InBounds(map) || map.roofGrid.Roofed(cell) != (metric == Metric.Home))
+                bool wantRoofed = metric == Metric.Home || metric == Metric.FloorHome;
+
+                if (!cell.InBounds(map) || map.roofGrid.Roofed(cell) != wantRoofed)
                     continue;
 
                 int local = light.WorldToLocalIndex(cell);
@@ -124,11 +137,16 @@ public sealed class VectorLightBentProbe : IProbe, IProbeMetadata
                 if (!delivered)
                     continue;
 
-                if (VectorLightLiftMath.VanillaBentToArrive(
-                        x - light.position.x, z - light.position.z, own.a, delivered: true))
-                {
+                bool floorRule = metric == Metric.FloorBeyond || metric == Metric.FloorHome;
+
+                bool takes = floorRule
+                    ? VectorLightLiftMath.VanillaTooDimToKeep(
+                        Mathf.Max(own.r, Mathf.Max(own.g, own.b)))
+                    : VectorLightLiftMath.VanillaBentToArrive(
+                        x - light.position.x, z - light.position.z, own.a, delivered: true);
+
+                if (takes)
                     claimed++;
-                }
             }
         }
 

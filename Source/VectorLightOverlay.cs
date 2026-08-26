@@ -650,6 +650,7 @@ public static class VectorLightOverlay
         // once per texel of every emitter's square whenever a light resamples.
         bool gapParity = CelestialLightingFeatures.VectorLightGapParity;
         bool bentPath = VectorLightMask.BentPath;
+        bool dimFloor = VectorLightMask.DimFloor;
 
         NativeArray<Color32> texels = field.GetRawTextureData<Color32>();
 
@@ -664,7 +665,8 @@ public static class VectorLightOverlay
             int cellX = start.x + i % diameter;
             int cellZ = start.z + i / diameter;
 
-            int share = SurvivingShare(entry, glow, cellX, cellZ, lightCell, gapParity, bentPath);
+            int share = SurvivingShare(
+                entry, glow, cellX, cellZ, lightCell, gapParity, bentPath, dimFloor);
 
             // Integer, and rounded the way a byte scale should be: (v * c + 127) / 255 rather than a
             // float multiply, so a fully covered cell (255) returns its own value unchanged instead
@@ -696,15 +698,21 @@ public static class VectorLightOverlay
     // claimed cell kept part of its vanilla light, which it does not.
     private static int SurvivingShare(
         VectorLightField.LightEntry entry, Color32 glow, int cellX, int cellZ, IntVec3 lightCell,
-        bool gapParity, bool bentPath)
+        bool gapParity, bool bentPath, bool dimFloor)
     {
         bool delivered = glow.r != 0 || glow.g != 0 || glow.b != 0;
 
-        // The identical predicate the mask ran, on the identical inputs — vanilla's own accumulated
-        // distance out of the alpha channel, against the straight run to the same offset. The two
-        // sides cannot drift apart without the pure core changing under both of them.
+        // The identical predicates the mask ran, on the identical inputs — vanilla's own accumulated
+        // distance out of the alpha channel, and its own delivered peak. The two sides cannot drift
+        // apart without the pure core changing under both of them.
         if (bentPath && VectorLightLiftMath.VanillaBentToArrive(
                 cellX - lightCell.x, cellZ - lightCell.z, glow.a, delivered))
+        {
+            return 0;
+        }
+
+        if (dimFloor && VectorLightLiftMath.VanillaTooDimToKeep(
+                Mathf.Max(glow.r, Mathf.Max(glow.g, glow.b))))
         {
             return 0;
         }
