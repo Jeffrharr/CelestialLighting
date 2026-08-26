@@ -301,7 +301,7 @@ public class VectorLightCoverageBoundsTests
 
             threaded[job] = VectorLightMath.BuildCoverage(
                 polygons[i], scenes[i].cellX, scenes[i].cellZ,
-                (int)Math.Ceiling(scenes[i].radius), Samples, scratch.Value);
+                (int)Math.Ceiling(scenes[i].radius), Samples, scratch.Value!);
         });
 
         for (int job = 0; job < threaded.Length; job++)

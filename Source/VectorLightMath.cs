@@ -1524,12 +1524,14 @@ public static class VectorLightMath
     // as long as the mod is loaded, against an allocation on every bake.
     public sealed class CoverageScratch
     {
-        internal float[] NearX;
-        internal float[] FarX;
-        internal int[] LitCounts;
-        internal bool[] Sampled;
-        internal float[] Cos;
-        internal float[] Sin;
+        // Empty rather than null, so a scratch is usable the moment it is constructed and Grow has
+        // one shape to handle rather than two. Every one of these is replaced on the first bake.
+        internal float[] NearX = new float[0];
+        internal float[] FarX = new float[0];
+        internal int[] LitCounts = new int[0];
+        internal bool[] Sampled = new bool[0];
+        internal float[] Cos = new float[0];
+        internal float[] Sin = new float[0];
 
         internal void EnsureColumns(int span)
         {
