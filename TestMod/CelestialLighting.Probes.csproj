@@ -73,6 +73,7 @@
     <Compile Include="../Source/Probes/VectorLightProbe.cs" Link="VectorLightProbe.cs" />
     <Compile Include="../Source/Probes/VectorLightBakeProbe.cs" Link="VectorLightBakeProbe.cs" />
     <Compile Include="../Source/Probes/VectorLightBeyondProbe.cs" Link="VectorLightBeyondProbe.cs" />
+    <Compile Include="../Source/Probes/VectorLightBentProbe.cs" Link="VectorLightBentProbe.cs" />
     <!-- §27e: vanilla's gameplay light at a named cell, the only probe that can tell the drawn-only
          arm from the glow-grid-driven one, since our polygon is identical in both. -->
     <Compile Include="../Source/Probes/GlowGridCellProbe.cs" Link="GlowGridCellProbe.cs" />

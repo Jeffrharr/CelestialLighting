@@ -55,16 +55,27 @@ namespace CelestialLighting;
 // makes that a measurement rather than an assertion.
 public static class VectorLightLiftMath
 {
+    // ComputeGlowGridsJob's own step costs, in the hundredths of a cell it accumulates in: `(i < 4)
+    // ? 100 : 141` per step, on top of PrepareFill's `value.intDist = 100` seed at the light's own
+    // cell. INTEGERS FIRST and the float forms derived from them, because the two are used for
+    // different jobs and drifting apart would be silent — the floats calibrate our curve against
+    // vanilla's, and the integers below reproduce vanilla's accumulator exactly.
+    public const int SeedStepCost = 100;
+
+    public const int CardinalStepCost = 100;
+
+    public const int DiagonalStepCost = 141;
+
     // What ComputeGlowGridsJob.PrepareFill seeds the light's own cell at, in cells: `value.intDist =
     // 100` against a CardinalCost of 100. Vanilla's falloff therefore never sees a distance below 1
     // and sees `octile + 1` at every other cell, which is the offset our straight line has to carry
     // to be the same quantity.
-    public const float VanillaSeedDistance = 1f;
+    public const float VanillaSeedDistance = SeedStepCost / 100f;
 
     // ComputeGlowGridsJob's own step costs, as cells rather than as the hundredths it accumulates in.
-    public const float CardinalStep = 1f;
+    public const float CardinalStep = CardinalStepCost / 100f;
 
-    public const float DiagonalStep = 1.41f;
+    public const float DiagonalStep = DiagonalStepCost / 100f;
 
     // The distance to evaluate our falloff at, for a cell our polygon can see by a clear line.
     //
@@ -91,6 +102,99 @@ public static class VectorLightLiftMath
         float shorter = Math.Min(ax, az);
 
         return longer - shorter + shorter * DiagonalStep + VanillaSeedDistance;
+    }
+
+    // ---- WHICH RENDERER OWNS A CELL ----
+    //
+    // The composition above puts our excess on top of whatever vanilla delivered, and that is right
+    // wherever vanilla delivered the light by the same route we did. Where it did not — an aperture,
+    // a corner, an open door — the two halves split the delivery: vanilla's share arrives at CELL
+    // resolution as a soft blob and ours arrives at POLYGON resolution as a wedge, and the sum of a
+    // blob and a wedge is a blob. So the per-cell rule is a MAX DELIVERED BY ONE RENDERER rather
+    // than a sum of two:
+    //
+    //   vanilla >= ours  -> leave vanilla alone, draw nothing. This is the near field, and it is what
+    //                       keeps a torch looking like a torch. Losing it is what sank the aperture
+    //                       beam, which replaced globally and took the lamp cell 19.89 -> 17.87 L*.
+    //   vanilla <  ours  -> the mask removes vanilla's whole contribution at that cell and the fan
+    //                       draws our whole model there, at the polygon's own resolution.
+    //
+    // WHY THE TEST IS ON DISTANCE AND NOT ON THE TWO BRIGHTNESSES, which is the trap this rule dies
+    // in if taken literally. Our model evaluates the seeded curve at the straight-line distance and
+    // vanilla evaluates the same curve at its OCTILE distance, and the octile metric overestimates
+    // every direction off the eight principal ones by up to 8%. So on a perfectly clear sightline
+    // `ours > vanilla` is true almost everywhere, by the octile residue alone — a literal
+    // brightness comparison hands us the entire near field, replacement goes global, and the torch's
+    // radiance is gone again. That residue is real light and the fan already delivers it additively;
+    // it is not a reason to take the cell over.
+    //
+    // What the rule actually wants to ask is "did vanilla's flood have to BEND to get here", and
+    // vanilla answers that itself. ComputeGlowGridsJob is a Dijkstra fill over the octile metric, so
+    // the cost it accumulates to an unobstructed cell is EXACTLY the octile distance to it, and any
+    // cell it had to detour to costs strictly more. It then writes that accumulated distance into
+    // the alpha channel of its own per-light array (`colorInt.a = (int)num2`, preserved through
+    // ProjectToColor32Fast as `(byte)a`), which is a number this mod is already holding in both
+    // places the decision has to be made. Nothing is recomputed and nothing is estimated.
+    //
+    // TRUNCATION IS WHAT MAKES IT ROBUST rather than a rounding hazard. Alpha is a whole number of
+    // cells, so the comparison is between two truncated integers and a float discrepancy of a few
+    // ulps cannot flip it. The one family of distances where a float round could cross an integer
+    // boundary is the exact multiples of 100 — which is `shorter == 0`, the cardinal runs, where both
+    // sides are exact integers anyway. The cost is resolution: a detour of under a cell is invisible
+    // to this test, and that is the right answer, since a cell vanilla reached by nearly the straight
+    // line is a cell vanilla lit correctly.
+    //
+    // ON OPEN GROUND THE TWO SIDES ARE THE SAME INTEGER, not merely close, so the near field is
+    // protected EXACTLY rather than by a tolerance that could be wrong. That is the property the
+    // aperture beam did not have and could not be given, and it is why this can be a hard rule with
+    // no strength knob attached to it.
+    //
+    // HOW MUCH THIS CLAIMS, MEASURED OFFLINE BEFORE IT WAS BUILT, because the answer is small enough
+    // that finding out afterwards would have read as a broken feature. Modelled over the gate scene
+    // (a radius-10 torch six cells inside a room with a one-cell gap in one wall and a door in the
+    // other), of every cell vanilla lights, the rule claims TWO — the fringe cells either side of the
+    // aperture's cone, each holding 7 levels of glow. Everything else is either a clear run for both
+    // models or a cell vanilla never reached, where the composition already behaves this way.
+    //
+    // That is not a defect in the rule, it is what our polygon and vanilla's flood sharing a BLOCKER
+    // SET implies. Where they see the same walls, the only thing they can disagree about is the
+    // metric, and the seed match above already removes that. Real disagreement needs the two to see
+    // different geometry, which in this game means an open door — where vanilla delivers nothing and
+    // the composition has always degenerated to our whole model on its own. So the rule's honest
+    // scope is the fringe of an aperture cone, and its value is that it states the composition's
+    // intent as one rule instead of leaving a doorway and a gap on two different accidental paths.
+
+    // What vanilla's accumulator would hold at a cell it reached by a clear straight run: its own
+    // step costs, in its own hundredths, seed included. The integer twin of OctileFloodDistance.
+    public static int ClearRunStepCost(int dx, int dz)
+    {
+        int ax = Math.Abs(dx);
+        int az = Math.Abs(dz);
+        int longer = Math.Max(ax, az);
+        int shorter = Math.Min(ax, az);
+
+        return (longer - shorter) * CardinalStepCost + shorter * DiagonalStepCost + SeedStepCost;
+    }
+
+    // The same run as ComputeGlowGridsJob would have written it into alpha — `(int)(intDist / 100f)`,
+    // which for a non-negative accumulator is integer division by the cardinal step.
+    public static int ClearRunDistance(int dx, int dz) =>
+        ClearRunStepCost(dx, dz) / CardinalStepCost;
+
+    // Whether vanilla's flood arrived at this cell by a longer route than the straight line our
+    // polygon can see along — i.e. whether this is a cell our model should own outright.
+    //
+    // `delivered` false means vanilla never arrived at all, which is the far side of an open door
+    // (the glow grid never learns a door opened) and the last cell of every light's rim (vanilla
+    // stops at octile + 1 > radius where a straight line reaches to radius). Both are ours by the
+    // same rule, and both are already what the composition does today, since there is no vanilla
+    // light at such a cell either to keep or to subtract.
+    public static bool VanillaBentToArrive(int dx, int dz, int deliveredDistance, bool delivered)
+    {
+        if (!delivered)
+            return true;
+
+        return deliveredDistance > ClearRunDistance(dx, dz);
     }
 
     // One emitter's colour at one cell, in the byte space vanilla writes into its per-light array.
