@@ -1607,10 +1607,39 @@ any shorter. It is evidence the phase fired, nothing more.
 **The gather arm is also markedly steadier**: 35.55-46.00 against the baseline's 50.47-65.93. That is
 the shape a rolling batch is supposed to have and the reason the worst frame is the number to read.
 
-**The withdrawn prefix version measured better**, and the comparison is recorded rather than dropped:
-on its own three pairs it read a median 64.48 -> 33.85, i.e. 1.90x. The two batches were taken hours
-apart with different baselines (64.48 against 55.77), so the difference is not controlled and should
-not be treated as the cost of the trigger change. It is a loose end, not a finding.
+**The withdrawn prefix trigger is not faster — it is slower**, and the way that was established is
+worth more than the result. An early, uncontrolled reading had the prefix at a median 64.48 -> 33.85
+(1.90x) against the postfix's 55.77 -> 41.89 (1.33x), which looked like a real cost of having moved
+the trigger. The two batches were taken hours apart against different baselines, so nothing followed
+from the gap. Re-run properly — the two triggers against *each other*, interleaved, one sitting, one
+instrument, with the prefix as a **one-file diff on top of the shipped implementation** so the phase's
+own latch composes them and no second code path exists to explain a difference
+(branch `occlusion-gather-prefix`, `Patch_SkyOcclusionGather.cs`):
+
+| `mesh_max_ms` | postfix (shipped) | prefix |
+|---|---|---|
+| pair 1 | 42.47 | 63.56 |
+| pair 2 | 39.49 | 52.90 |
+| pair 3 | 67.36 | 61.50 |
+| **median** | **42.47** | **61.50** |
+
+| `mesh_total_ms`, 76 calls | postfix | prefix |
+|---|---|---|
+| pair 1 | 364.91 | 471.33 |
+| pair 2 | 338.72 | 364.27 |
+| pair 3 | 440.37 | 514.92 |
+| **median** | **364.91** | **471.33** |
+
+The worst-frame row splits 2-1 and its pair 3 goes the other way, so read `mesh_total_ms` beside it:
+that aggregates 76 calls instead of reporting one, and the postfix wins **all three pairs** on it. So
+the trigger that avoided the new vanilla patch surface is also the faster one, and the earlier 1.90x
+was an artefact of comparing across batches — which is exactly the failure mode the interleaving rule
+exists to prevent, reproduced here by ignoring it.
+
+**Why the prefix would be slower is not established.** A plausible reading is that gathering at the
+top of the mesh update pays the thread-pool spin-up before vanilla has touched anything, while
+gathering from the first postfix overlaps it with work already in flight — but that is a hypothesis
+and no arm here tests it. It is recorded as an open question rather than an explanation.
 
 #### Verification status, stated honestly
 
