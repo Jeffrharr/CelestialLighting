@@ -106,6 +106,8 @@ public sealed class VectorLightBakeProbe : IProbe
         UploadWallMs,
         UploadMeshWallMs,
         UploadFieldWallMs,
+        FieldTextureUploads,
+        FieldUvOnlyUploads,
 
         // ---- sections (issue #188 item 0) -----------------------------------------------------
         //
@@ -226,6 +228,12 @@ public sealed class VectorLightBakeProbe : IProbe
 
         if (metric == Metric.UploadFieldWallMs)
             return (float)VectorLightField.UploadFieldWallMs;
+
+        if (metric == Metric.FieldTextureUploads)
+            return VectorLightField.FieldTextureUploads;
+
+        if (metric == Metric.FieldUvOnlyUploads)
+            return VectorLightField.FieldUvOnlyUploads;
 
         if (metric == Metric.ParallelBakePasses)
             return VectorLightField.ParallelBakePasses;

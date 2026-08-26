@@ -131,7 +131,13 @@ public static class VectorLightOverlay
         // Only under the max, and only when something moved. Off-screen lights never get here at
         // all — the cull above is what keeps this proportional to what is being looked at — so a
         // colony switching a lamp pays for resampling the handful of lights currently in view.
-        if (maxDrawing && entry.SampleDirty)
+        //
+        // TWO REASONS TO COME IN HERE, AND THEY COST DIFFERENT AMOUNTS. SampleDirty means vanilla's
+        // glow under this emitter moved, so the texture has to be refilled and pushed to the GPU.
+        // FieldUvsDirty means only OUR geometry moved: the mesh was rebuilt, which cleared every
+        // channel on it including UV1, so the coordinates have to be written again — and the texture
+        // they index has not changed at all. See UploadVanillaField.
+        if (maxDrawing && (entry.SampleDirty || entry.FieldUvsDirty))
             UploadVanillaField(map, entry);
 
         // Per-draw colour goes through a MaterialPropertyBlock and not Material.color. Graphics.DrawMesh
@@ -253,10 +259,17 @@ public static class VectorLightOverlay
         UploadMesh(entry, built, altitude);
         VectorLightField.UploadMeshWallMs += clock.Elapsed.TotalMilliseconds;
 
-        // New geometry means every sample belongs to a vertex that no longer exists. Marked rather
-        // than resampled here so an off-screen or non-max light never pays for it: DrawLight is the
-        // only place that knows whether the shader is actually composing this frame.
-        entry.SampleDirty = true;
+        // New geometry means UV1 is gone — Mesh.Clear wipes every channel — and every coordinate in
+        // it belonged to a vertex that no longer exists. Marked rather than rewritten here so an
+        // off-screen or non-max light never pays for it: DrawLight is the only place that knows
+        // whether the shader is actually composing this frame.
+        //
+        // NOT SampleDirty, WHICH IS THE WHOLE POINT. Our geometry moving says nothing about what
+        // vanilla is delivering here. The commonest reason this method runs at all is a door sliding
+        // through its quantisation steps, and RimWorld's glow grid never learns a door opened — so
+        // the texture is byte-for-byte what it already was, nine times a swing. Setting SampleDirty
+        // here refilled and re-uploaded it every one of those times.
+        entry.FieldUvsDirty = true;
     }
 
     // The visibility polygon this mesh is extruded from — the one the field already holds whenever
@@ -432,7 +445,17 @@ public static class VectorLightOverlay
     // schedules a recompute, so GroundGlowAt and everything built on it return what they always did.
     private static void UploadVanillaField(Map map, VectorLightField.LightEntry entry)
     {
+        // Read before they are cleared: which of the two jobs below actually has to happen.
+        //
+        // BOTH FLAGS ARE CLEARED ON EVERY EXIT, including the two early returns, exactly as the
+        // single flag was. An emitter with no per-light array to compose against is not a request to
+        // retry next frame — it is a stand-down, and re-entering here every frame to discover that
+        // again would cost more than the upload this method exists to do.
+        bool glowMoved = entry.SampleDirty
+            || !CelestialLightingFeatures.VectorLightGlowTextureHold;
+
         entry.SampleDirty = false;
+        entry.FieldUvsDirty = false;
 
         VectorLightMath.LightMesh built = entry.Built;
 
@@ -463,17 +486,36 @@ public static class VectorLightOverlay
         // large at all.
         System.Diagnostics.Stopwatch clock = System.Diagnostics.Stopwatch.StartNew();
 
-        EnsureField(entry, diameter);
-        CopyField(entry.VanillaField, colors, diameter);
+        // A NEW TEXTURE MUST BE FILLED WHATEVER THE FLAGS SAY. EnsureField only allocates when the
+        // diameter changed, and a freshly allocated Texture2D holds whatever was in that memory —
+        // skipping the copy because vanilla's glow had not moved would compose against uninitialised
+        // texels, which renders as one emitter subtracting garbage and looks like a shader bug.
+        bool fresh = EnsureField(entry, diameter);
+
+        if (glowMoved || fresh)
+        {
+            CopyField(entry.VanillaField, colors, diameter);
+            VectorLightField.FieldTextureUploads++;
+        }
+        else
+        {
+            VectorLightField.FieldUvOnlyUploads++;
+        }
+
+        // ALWAYS, and not gated on anything. UV1 lives on the mesh, and the mesh was cleared by the
+        // rebuild that brought us here; the texture is a separate object and survives. So the cheap
+        // half is the half that is never skippable and the expensive half is the one that is.
         UploadFieldUvs(entry, built, light.localGlowGridStartPos, diameter);
 
         VectorLightField.UploadFieldWallMs += clock.Elapsed.TotalMilliseconds;
     }
 
-    private static void EnsureField(VectorLightField.LightEntry entry, int diameter)
+    // Returns whether it had to allocate, which the caller needs: a new texture has never been
+    // filled, so it must be filled even when vanilla's glow has not moved.
+    private static bool EnsureField(VectorLightField.LightEntry entry, int diameter)
     {
         if (entry.VanillaField != null && entry.VanillaField.width == diameter)
-            return;
+            return false;
 
         if (entry.VanillaField != null)
             Object.Destroy(entry.VanillaField);
@@ -490,6 +532,8 @@ public static class VectorLightOverlay
             // cell-shaped staircase, which is precisely the resolution this pass exists to escape.
             filterMode = FilterMode.Bilinear,
         };
+
+        return true;
     }
 
     // WRITTEN INTO THE TEXTURE'S OWN BUFFER, NOT THROUGH SetPixels32. The array overload demands an

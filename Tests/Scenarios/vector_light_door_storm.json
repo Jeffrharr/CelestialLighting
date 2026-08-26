@@ -1,7 +1,7 @@
 {
   "name": "vector_light_door_storm",
   "saveFile": "minimal_colony.rws",
-  "description": "Issue #188 item C: does holding a light's silhouette across a door swing actually remove work. One wooden door in a room's east wall, eight TorchLamps all within its reach, and 12 open/close swings per arm, over four arms alternating vector_light_silhouette_cache off/on/off/on in ONE process. Interleaved rather than blocked because this box has measured one unchanged binary spanning 37-85 ms on frame_max_ms across three runs, and vector_light_bake_wall_ms moving 40% between two runs of the same build -- a block design would hand whichever arm ran in the quiet half a win it did not earn. READ THE RATIOS, NOT THE TOTALS. A door animates on the tick counter while the harness renders frames, so how many quantisation steps a swing crosses is machine-dependent and the counts drift between arms; vector_light_gather_wall_ms divided by (hits + rebuilds) does not, and neither does hits as a share of that sum. vector_light_bake_wall_ms is the CONTROL -- the memo touches the gather and not the bake, so a bake clock that moves with the flag means the gather number is measuring something else. The one exact pin is that an off arm reports exactly zero hits, because that is a statement about a code path rather than about a duration, and an off arm that reported one would mean every ratio here compares an arm against itself. Clouds are off: the sheet drifts on the tick counter and would put the two arms' screenshots under different weather.",
+  "description": "Issue #188 item C and the glow-texture hold, measured together on the provocation they both exist for: door swings. One wooden door in a room's east wall, eight TorchLamps all within its reach, and 8 open/close swings per arm, over SIX arms in ONE process -- a 2x2 of vector_light_silhouette_cache and vector_light_glow_texture_hold, one factor moving at a time, with the baseline and the both-on arm repeated at the end. Interleaved rather than blocked because this box has measured one unchanged binary spanning 37-85 ms on frame_max_ms across three runs, and vector_light_bake_wall_ms moving 40% between two runs of the same build. THREE CLOCKS, AND EACH FLAG SHOULD MOVE EXACTLY ONE. The memo touches the gather (vector_light_gather_wall_ms); the hold touches the texture half of the upload (vector_light_upload_field_ms). vector_light_bake_wall_ms and vector_light_upload_mesh_ms must not move with either, and are the controls. READ THE RATIOS, NOT THE TOTALS. A door animates on the tick counter while the harness renders frames, so how many quantisation steps a swing crosses is machine-dependent and the counts drift between arms. The two exact pins are that an off arm reports exactly zero silhouette hits and exactly zero UV-only uploads, because those are statements about code paths rather than durations, and an off arm reporting one would mean every ratio here compares an arm against itself. WHY THE HOLD IS LEGITIMATE: the shipped mod never writes vanilla's glow grid when a door opens -- the only two writes are behind vector_light_door_glow_blocker, which ships off -- so the per-emitter glow texture is byte-for-byte unchanged across a swing. Clouds are off: the sheet drifts on the tick counter and would put the arms' screenshots under different weather.",
   "steps": [
     {
       "type": "SetTile",
@@ -328,6 +328,13 @@
       }
     },
     {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_glow_texture_hold",
+        "enabled": "false"
+      }
+    },
+    {
       "type": "Probe",
       "args": {
         "probeName": "vector_light_bake_reset",
@@ -339,110 +346,6 @@
       "type": "SetTimeSpeed",
       "args": {
         "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "25"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "25"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "25"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "25"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "25"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "25"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "25"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "25"
       }
     },
     {
@@ -715,70 +618,110 @@
       "type": "Probe",
       "args": {
         "probeName": "vector_light_silhouette_hits",
-        "expectedValue": "800",
-        "tolerance": "800"
+        "expectedValue": "550",
+        "tolerance": "550"
       }
     },
     {
       "type": "Probe",
       "args": {
         "probeName": "vector_light_silhouette_rebuilds",
-        "expectedValue": "800",
-        "tolerance": "800"
+        "expectedValue": "550",
+        "tolerance": "550"
       }
     },
     {
       "type": "Probe",
       "args": {
         "probeName": "vector_light_gather_wall_ms",
-        "expectedValue": "40",
-        "tolerance": "40"
+        "expectedValue": "24",
+        "tolerance": "24"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_field_uv_only_uploads",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_field_texture_uploads",
+        "expectedValue": "550",
+        "tolerance": "550"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_field_uv_only_uploads",
+        "expectedValue": "550",
+        "tolerance": "550"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_upload_field_ms",
+        "expectedValue": "9",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_upload_mesh_ms",
+        "expectedValue": "12",
+        "tolerance": "10"
       }
     },
     {
       "type": "Probe",
       "args": {
         "probeName": "vector_light_bake_wall_ms",
-        "expectedValue": "260",
-        "tolerance": "260"
+        "expectedValue": "180",
+        "tolerance": "180"
       }
     },
     {
       "type": "Probe",
       "args": {
         "probeName": "vector_light_bakes",
-        "expectedValue": "1600",
-        "tolerance": "1600"
+        "expectedValue": "600",
+        "tolerance": "600"
       }
     },
     {
       "type": "Probe",
       "args": {
         "probeName": "vector_light_invalidations",
-        "expectedValue": "220",
-        "tolerance": "220"
+        "expectedValue": "90",
+        "tolerance": "90"
       }
     },
     {
       "type": "Probe",
       "args": {
         "probeName": "vector_light_invalidation_marks",
-        "expectedValue": "1700",
-        "tolerance": "1700"
+        "expectedValue": "700",
+        "tolerance": "700"
       }
     },
     {
       "type": "Probe",
       "args": {
         "probeName": "door_aperture_bakes",
-        "expectedValue": "220",
-        "tolerance": "220"
+        "expectedValue": "90",
+        "tolerance": "90"
       }
     },
     {
       "type": "Screenshot",
       "args": {
-        "fileName": "doorstorm_off1.png"
+        "fileName": "doorstorm_1_baseline.png"
       }
     },
     {
@@ -908,6 +851,13 @@
       }
     },
     {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_glow_texture_hold",
+        "enabled": "false"
+      }
+    },
+    {
       "type": "Probe",
       "args": {
         "probeName": "vector_light_bake_reset",
@@ -919,110 +869,6 @@
       "type": "SetTimeSpeed",
       "args": {
         "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "25"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "25"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "25"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "25"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "25"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "25"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "25"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "25"
       }
     },
     {
@@ -1287,70 +1133,110 @@
       "type": "Probe",
       "args": {
         "probeName": "vector_light_silhouette_hits",
-        "expectedValue": "800",
-        "tolerance": "800"
+        "expectedValue": "550",
+        "tolerance": "550"
       }
     },
     {
       "type": "Probe",
       "args": {
         "probeName": "vector_light_silhouette_rebuilds",
-        "expectedValue": "800",
-        "tolerance": "800"
+        "expectedValue": "550",
+        "tolerance": "550"
       }
     },
     {
       "type": "Probe",
       "args": {
         "probeName": "vector_light_gather_wall_ms",
-        "expectedValue": "40",
-        "tolerance": "40"
+        "expectedValue": "24",
+        "tolerance": "24"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_field_uv_only_uploads",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_field_texture_uploads",
+        "expectedValue": "550",
+        "tolerance": "550"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_field_uv_only_uploads",
+        "expectedValue": "550",
+        "tolerance": "550"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_upload_field_ms",
+        "expectedValue": "9",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_upload_mesh_ms",
+        "expectedValue": "12",
+        "tolerance": "10"
       }
     },
     {
       "type": "Probe",
       "args": {
         "probeName": "vector_light_bake_wall_ms",
-        "expectedValue": "260",
-        "tolerance": "260"
+        "expectedValue": "180",
+        "tolerance": "180"
       }
     },
     {
       "type": "Probe",
       "args": {
         "probeName": "vector_light_bakes",
-        "expectedValue": "1600",
-        "tolerance": "1600"
+        "expectedValue": "600",
+        "tolerance": "600"
       }
     },
     {
       "type": "Probe",
       "args": {
         "probeName": "vector_light_invalidations",
-        "expectedValue": "220",
-        "tolerance": "220"
+        "expectedValue": "90",
+        "tolerance": "90"
       }
     },
     {
       "type": "Probe",
       "args": {
         "probeName": "vector_light_invalidation_marks",
-        "expectedValue": "1700",
-        "tolerance": "1700"
+        "expectedValue": "700",
+        "tolerance": "700"
       }
     },
     {
       "type": "Probe",
       "args": {
         "probeName": "door_aperture_bakes",
-        "expectedValue": "220",
-        "tolerance": "220"
+        "expectedValue": "90",
+        "tolerance": "90"
       }
     },
     {
       "type": "Screenshot",
       "args": {
-        "fileName": "doorstorm_on2.png"
+        "fileName": "doorstorm_2_memo.png"
       }
     },
     {
@@ -1480,6 +1366,13 @@
       }
     },
     {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_glow_texture_hold",
+        "enabled": "true"
+      }
+    },
+    {
       "type": "Probe",
       "args": {
         "probeName": "vector_light_bake_reset",
@@ -1491,110 +1384,6 @@
       "type": "SetTimeSpeed",
       "args": {
         "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "25"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "25"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "25"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "25"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "25"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "25"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "25"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "25"
       }
     },
     {
@@ -1867,70 +1656,102 @@
       "type": "Probe",
       "args": {
         "probeName": "vector_light_silhouette_hits",
-        "expectedValue": "800",
-        "tolerance": "800"
+        "expectedValue": "550",
+        "tolerance": "550"
       }
     },
     {
       "type": "Probe",
       "args": {
         "probeName": "vector_light_silhouette_rebuilds",
-        "expectedValue": "800",
-        "tolerance": "800"
+        "expectedValue": "550",
+        "tolerance": "550"
       }
     },
     {
       "type": "Probe",
       "args": {
         "probeName": "vector_light_gather_wall_ms",
-        "expectedValue": "40",
-        "tolerance": "40"
+        "expectedValue": "24",
+        "tolerance": "24"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_field_texture_uploads",
+        "expectedValue": "550",
+        "tolerance": "550"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_field_uv_only_uploads",
+        "expectedValue": "550",
+        "tolerance": "550"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_upload_field_ms",
+        "expectedValue": "9",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_upload_mesh_ms",
+        "expectedValue": "12",
+        "tolerance": "10"
       }
     },
     {
       "type": "Probe",
       "args": {
         "probeName": "vector_light_bake_wall_ms",
-        "expectedValue": "260",
-        "tolerance": "260"
+        "expectedValue": "180",
+        "tolerance": "180"
       }
     },
     {
       "type": "Probe",
       "args": {
         "probeName": "vector_light_bakes",
-        "expectedValue": "1600",
-        "tolerance": "1600"
+        "expectedValue": "600",
+        "tolerance": "600"
       }
     },
     {
       "type": "Probe",
       "args": {
         "probeName": "vector_light_invalidations",
-        "expectedValue": "220",
-        "tolerance": "220"
+        "expectedValue": "90",
+        "tolerance": "90"
       }
     },
     {
       "type": "Probe",
       "args": {
         "probeName": "vector_light_invalidation_marks",
-        "expectedValue": "1700",
-        "tolerance": "1700"
+        "expectedValue": "700",
+        "tolerance": "700"
       }
     },
     {
       "type": "Probe",
       "args": {
         "probeName": "door_aperture_bakes",
-        "expectedValue": "220",
-        "tolerance": "220"
+        "expectedValue": "90",
+        "tolerance": "90"
       }
     },
     {
       "type": "Screenshot",
       "args": {
-        "fileName": "doorstorm_off3.png"
+        "fileName": "doorstorm_3_hold.png"
       }
     },
     {
@@ -2060,6 +1881,13 @@
       }
     },
     {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_glow_texture_hold",
+        "enabled": "true"
+      }
+    },
+    {
       "type": "Probe",
       "args": {
         "probeName": "vector_light_bake_reset",
@@ -2071,110 +1899,6 @@
       "type": "SetTimeSpeed",
       "args": {
         "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "25"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "25"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "25"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "25"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "25"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "25"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "25"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "25"
       }
     },
     {
@@ -2439,70 +2163,1132 @@
       "type": "Probe",
       "args": {
         "probeName": "vector_light_silhouette_hits",
-        "expectedValue": "800",
-        "tolerance": "800"
+        "expectedValue": "550",
+        "tolerance": "550"
       }
     },
     {
       "type": "Probe",
       "args": {
         "probeName": "vector_light_silhouette_rebuilds",
-        "expectedValue": "800",
-        "tolerance": "800"
+        "expectedValue": "550",
+        "tolerance": "550"
       }
     },
     {
       "type": "Probe",
       "args": {
         "probeName": "vector_light_gather_wall_ms",
-        "expectedValue": "40",
-        "tolerance": "40"
+        "expectedValue": "24",
+        "tolerance": "24"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_field_texture_uploads",
+        "expectedValue": "550",
+        "tolerance": "550"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_field_uv_only_uploads",
+        "expectedValue": "550",
+        "tolerance": "550"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_upload_field_ms",
+        "expectedValue": "9",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_upload_mesh_ms",
+        "expectedValue": "12",
+        "tolerance": "10"
       }
     },
     {
       "type": "Probe",
       "args": {
         "probeName": "vector_light_bake_wall_ms",
-        "expectedValue": "260",
-        "tolerance": "260"
+        "expectedValue": "180",
+        "tolerance": "180"
       }
     },
     {
       "type": "Probe",
       "args": {
         "probeName": "vector_light_bakes",
-        "expectedValue": "1600",
-        "tolerance": "1600"
+        "expectedValue": "600",
+        "tolerance": "600"
       }
     },
     {
       "type": "Probe",
       "args": {
         "probeName": "vector_light_invalidations",
-        "expectedValue": "220",
-        "tolerance": "220"
+        "expectedValue": "90",
+        "tolerance": "90"
       }
     },
     {
       "type": "Probe",
       "args": {
         "probeName": "vector_light_invalidation_marks",
-        "expectedValue": "1700",
-        "tolerance": "1700"
+        "expectedValue": "700",
+        "tolerance": "700"
       }
     },
     {
       "type": "Probe",
       "args": {
         "probeName": "door_aperture_bakes",
-        "expectedValue": "220",
-        "tolerance": "220"
+        "expectedValue": "90",
+        "tolerance": "90"
       }
     },
     {
       "type": "Screenshot",
       "args": {
-        "fileName": "doorstorm_on4.png"
+        "fileName": "doorstorm_4_both.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_suppress",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_beam",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_open_doors",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_aperture",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_glow_blocker",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_view_cull",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_section_dirty",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_parallel_bake",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_cover",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_sheet",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_presence",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_deck_varieties",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_silhouette_cache",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_glow_texture_hold",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_bake_reset",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "normal"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "25"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "25"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "25"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "25"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "25"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "25"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "25"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "25"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "25"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "25"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "25"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "25"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "25"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "25"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "25"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "25"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "90"
+      }
+    },
+    {
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "paused"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "2"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "door_aperture",
+        "expectedValue": "0",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_count",
+        "expectedValue": "11",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_lit_area",
+        "expectedValue": "1907.62598",
+        "tolerance": "2"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_shadow_fraction",
+        "expectedValue": "0.329346061",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_silhouette_hits",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_silhouette_hits",
+        "expectedValue": "550",
+        "tolerance": "550"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_silhouette_rebuilds",
+        "expectedValue": "550",
+        "tolerance": "550"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_gather_wall_ms",
+        "expectedValue": "24",
+        "tolerance": "24"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_field_uv_only_uploads",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_field_texture_uploads",
+        "expectedValue": "550",
+        "tolerance": "550"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_field_uv_only_uploads",
+        "expectedValue": "550",
+        "tolerance": "550"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_upload_field_ms",
+        "expectedValue": "9",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_upload_mesh_ms",
+        "expectedValue": "12",
+        "tolerance": "10"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_bake_wall_ms",
+        "expectedValue": "180",
+        "tolerance": "180"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_bakes",
+        "expectedValue": "600",
+        "tolerance": "600"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_invalidations",
+        "expectedValue": "90",
+        "tolerance": "90"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_invalidation_marks",
+        "expectedValue": "700",
+        "tolerance": "700"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "door_aperture_bakes",
+        "expectedValue": "90",
+        "tolerance": "90"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorstorm_5_baseline.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_suppress",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_beam",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_open_doors",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_aperture",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_glow_blocker",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_view_cull",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_section_dirty",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_parallel_bake",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_cover",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_sheet",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_presence",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_deck_varieties",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_silhouette_cache",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_glow_texture_hold",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_bake_reset",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "normal"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "25"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "25"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "25"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "25"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "25"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "25"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "25"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "25"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "25"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "25"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "25"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "25"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "25"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "25"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "25"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "25"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "90"
+      }
+    },
+    {
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "paused"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "2"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "door_aperture",
+        "expectedValue": "0",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_count",
+        "expectedValue": "11",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_lit_area",
+        "expectedValue": "1907.62598",
+        "tolerance": "2"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_shadow_fraction",
+        "expectedValue": "0.329346061",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_silhouette_hits",
+        "expectedValue": "550",
+        "tolerance": "550"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_silhouette_rebuilds",
+        "expectedValue": "550",
+        "tolerance": "550"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_gather_wall_ms",
+        "expectedValue": "24",
+        "tolerance": "24"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_field_texture_uploads",
+        "expectedValue": "550",
+        "tolerance": "550"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_field_uv_only_uploads",
+        "expectedValue": "550",
+        "tolerance": "550"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_upload_field_ms",
+        "expectedValue": "9",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_upload_mesh_ms",
+        "expectedValue": "12",
+        "tolerance": "10"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_bake_wall_ms",
+        "expectedValue": "180",
+        "tolerance": "180"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_bakes",
+        "expectedValue": "600",
+        "tolerance": "600"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_invalidations",
+        "expectedValue": "90",
+        "tolerance": "90"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_invalidation_marks",
+        "expectedValue": "700",
+        "tolerance": "700"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "door_aperture_bakes",
+        "expectedValue": "90",
+        "tolerance": "90"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorstorm_6_both.png"
       }
     }
   ]

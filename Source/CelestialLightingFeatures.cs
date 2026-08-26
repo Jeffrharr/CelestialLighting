@@ -1330,6 +1330,31 @@ public static class CelestialLightingFeatures
     // window on every bake, which is what the previous shape did, so the arm is a baseline rather
     // than a picture of the feature missing.
     public static bool VectorLightSilhouetteCache = true;
+
+    // Feature key for VectorLightGlowTextureHold.
+    public const string VectorLightGlowTextureHoldKey = "vector_light_glow_texture_hold";
+
+    // Keep an emitter's copy of vanilla's glow when only OUR geometry moved, instead of refilling
+    // and re-uploading a texture that is byte-for-byte what it already was.
+    //
+    // WHY THE TWO COME APART. The per-emitter field is vanilla's own delivered glow over that
+    // emitter's square, and the fragment program indexes it through UV1 — where each vertex sits in
+    // the square. A rebuild clears UV1, because Mesh.Clear wipes every channel, so the coordinates
+    // always have to be written again. The TEXTURE only goes stale when vanilla's glow moves, and
+    // the commonest thing that provokes a rebuild does not move it: a door slides through eight
+    // quantisation steps and RimWorld's glow grid is never told a door opened.
+    //
+    // AND WE DO NOT TELL IT, which is the contract this rests on rather than an accident.
+    // CelestialLighting writes the glow grid in exactly two places, both behind
+    // vector_light_door_glow_blocker, which ships off — so with the shipped flags a door swing leaves
+    // gameplay light untouched, and the texture with it. Under that flag the write goes through
+    // vanilla's LightBlockerAdded/Removed, which we postfix, so it arrives back as a real
+    // invalidation and the texture is correctly refilled. Nothing special-cases it.
+    //
+    // Measured by vector_light_field_texture_uploads beside vector_light_field_uv_only_uploads, read
+    // as a pair for the usual reason, and by vector_light_upload_field_ms which is the half of the
+    // upload clock this moves. Off refills on every refresh, which is what the previous shape did.
+    public static bool VectorLightGlowTextureHold = true;
 }
 
 public enum SunClockMode
