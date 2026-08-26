@@ -213,10 +213,12 @@ public static class SkyOcclusionGather
         // rooms pays for all 361. An even split by COUNT is an uneven split by WORK, and a static
         // partition finishes when its unluckiest block does.
         //
-        // Routed through CloudBake.Rows rather than calling Parallel.For directly so this inherits
-        // the mod's one worker-count policy (one core left for the game, serial at two cores or
-        // fewer) and the scheduler that CloudBakeTests already pins serial-equals-parallel.
-        CloudBake.Rows(Candidates.Count, (start, end) =>
+        // Routed through SectionWorkerPool rather than CloudBake.Rows on this branch: same signature,
+        // same dynamic one-index-at-a-time partitioning, same worker-count policy, but the threads are
+        // parked between batches instead of being asked of Mono's thread pool each time. See that
+        // file for the hypothesis; this call site is deliberately a one-line difference from the
+        // CloudBake.Rows version so the A/B has nothing else in it.
+        SectionWorkerPool.Run(Candidates.Count, (start, end) =>
         {
             for (int i = start; i < end; i++)
                 built[i] = Patch_IndoorSkyOcclusion.BuildWindow(map, CandidateRects[i], falloff);

@@ -155,6 +155,10 @@
          big enough to be worth a worker, and whether a section's flags say it is about to regenerate.
          Linked next to the window it batches, since the pair only makes sense read together. -->
     <Compile Include="../../Source/SkyOcclusionGatherMath.cs" Link="SkyOcclusionGatherMath.cs" />
+    <!-- The parked-thread alternative to CloudBake.Rows. Linked so the property that matters (every
+         index visited exactly once, result independent of worker count) is pinned offline rather
+         than inferred from a frame time. -->
+    <Compile Include="../../Source/SectionWorkerPool.cs" Link="SectionWorkerPool.cs" />
     <!-- §7c pure core (native under-roof sky falloff, no Ambient Light dependency). Mirrors
          IndoorOcclusionMath's AmbientLightSkyFraction in shape but is its own file and its own
          formula, deliberately not shared code — see its header. -->
