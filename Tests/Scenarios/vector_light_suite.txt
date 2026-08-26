@@ -1,0 +1,65 @@
+# CelestialLighting vector-lighting gate — REQUIRED for any change that touches vector lighting.
+#
+#   ../RimWorldTestHarness/Runner/run_test.sh \
+#       --suite Tests/Scenarios/vector_light_suite.txt \
+#       --mod <main checkout> --mod-overlay <worktree> --mod <worktree>/TestMod \
+#       --install <worktree>/1.6/AssetBundles:<main checkout>/1.6/AssetBundles \
+#       --no-profiler
+#
+# All four flags are load-bearing and the --install is the one that gets forgotten: --mod-overlay
+# swaps ASSEMBLIES ONLY, so without it the branch's shader bundle never reaches the run, the max
+# composition silently stands down, and every arm quietly measures the previous renderer while
+# reporting green. vector_light_shader_max_available is pinned in the arms that claim the shader, so
+# a forgotten --install fails loudly rather than photographing the wrong thing.
+#
+# WHY THIS FILE EXISTS AND WHY THE FIRST ENTRY IS NOT OPTIONAL.
+#
+# Every vector-lighting scenario in this repo before it put its opening in a DOOR, and a door is the
+# single most flattering aperture the subsystem has. RimWorld's glow grid never learns a door opened,
+# so beyond one vanilla delivers nothing at all — which means max(0, ours - vanilla) is our whole
+# model, we own the render outright, and the composition photographs as working perfectly whatever
+# state it is in. Two separate defects hid behind exactly that:
+#
+#   - the additive pass could not light a surface at all (it raised the level while destroying 43% of
+#     the ground's readable texture), and every doorway capture looked like a success;
+#   - the fragment program subtracted vanilla's light twice, and past a door the value it
+#     double-subtracted was zero, so nothing showed.
+#
+# vector_light_gap_vs_door.json is the scenario that cannot be fooled that way: it puts a door and a
+# bare one-cell gap in one frame, four cells from their own torches, onto the same open ground. The
+# gap is where vanilla is ALREADY lighting the cells our polygon claims, which is the case that tells
+# a working composition from a degenerate one. Run it on anything that touches the polygon, the
+# coverage grid, the mask, the suppression, the shader or the field upload — including changes whose
+# stated purpose is performance, since the geometry it measures is exactly what a bake optimisation
+# is most likely to change by accident.
+#
+# It is a GATE rather than a pass/fail: its probes pin the shader being available and the frames being
+# taken, and the numbers that matter are read out of the captures. Quote the outdoor L* table for both
+# openings in the PR, and quote the DOOR column even when only the gap moved — a change that shifts
+# the door column is a change to the case that already worked.
+#
+# WHAT IS SAFE TO BATCH HERE. Everything below leaves MAP residue (walls, roofs, terrain, doors) and
+# nothing below starts a GameCondition, so the harness's own reload between scenarios is sufficient.
+# Do NOT add a condition-driven scenario to this file — see core_design_suite.txt's header for what
+# that silently does to the scenario after it.
+
+# The gate. Both apertures in one frame; nothing else here can catch a degenerate composition.
+vector_light_gap_vs_door.json
+
+# The compositing itself: does the beam LIGHT the floor beyond an opening, or only glow over it?
+# Carries the texture-readability measurement, which is the instrument that caught the additive pass
+# while both the level and the whole-frame dE were moving the right way.
+vector_light_surface_lift.json
+
+# The sealed room — the level check every composition has to pass, and the one the doorway scenes
+# cannot ask, since a room with any opening is an OUTDOOR room as far as RimWorld is concerned.
+vector_light_indoor_level.json
+
+# Real shadows, so a composition change cannot buy its level by refilling the darkness the mask just
+# carved. vector_light_penumbra_area is pinned across the arms and must not move.
+vector_light_shader_max_penumbra.json
+
+# Two differently-sized emitter fields in one scene. The per-emitter texture upload threw on the
+# second radius once and the probes were blind to it — the evidence for this one is the run's
+# Player.log, not its dE.
+vector_light_mixed_radii.json
