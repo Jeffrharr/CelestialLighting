@@ -577,6 +577,29 @@ public static class ProbeRegistration
         ProbeRegistry.Register(new CircinusProbe("circinus_occl_window_max_ms", CircinusProbe.Metric.MaxMs, occlusion, "BuildWindow"));
         ProbeRegistry.Register(new CircinusProbe("circinus_occl_window_reset", CircinusProbe.Metric.Reset, occlusion, "BuildWindow"));
 
+        // THE WHOLE FRAME'S MAP UPDATE — the scope at which a frame actually drops.
+        //
+        // Map.MapUpdate is everything this map does in one Update: the sky manager, the glow grid, the
+        // region rebuild, mapDrawer.MapMeshDrawerUpdate_First, DrawMapMesh, dynamic things, the
+        // condition draws. A Circinus cycle IS a rendered frame, so MaxMs here is the worst single
+        // frame's map update, and 16.67 ms is the 60 fps budget it has to fit inside.
+        //
+        // WHY THIS EXISTS ALONGSIDE circinus_mesh_*. The narrower arm can only see what happens inside
+        // the mesh update, so it cannot answer "would this trigger have had more time to bake" — the
+        // question that decides between the two gather triggers. This one can, because anything a
+        // trigger gained by starting earlier would have to show up as time recovered somewhere else in
+        // the same frame. (It cannot, in fact: CloudBake.Rows ends in Parallel.For, which BLOCKS the
+        // calling thread until every worker is done, so both triggers put the same synchronous wait
+        // inside the same method and neither runs ahead in the background. The arm is here to test
+        // that argument rather than to assert it.)
+        const string mapType = "Verse.Map";
+        ProbeRegistry.Register(new CircinusProbe("circinus_frame_patched", CircinusProbe.Metric.Patched, mapType, "MapUpdate"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_frame_calls", CircinusProbe.Metric.Calls, mapType, "MapUpdate"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_frame_total_ms", CircinusProbe.Metric.TotalMs, mapType, "MapUpdate"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_frame_max_ms", CircinusProbe.Metric.MaxMs, mapType, "MapUpdate"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_frame_avg_ms", CircinusProbe.Metric.AvgMs, mapType, "MapUpdate"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_frame_reset", CircinusProbe.Metric.Reset, mapType, "MapUpdate"));
+
         // THE FRAME, not the call — the one arm that can judge the gather phase.
         //
         // MapDrawer.MapMeshDrawerUpdate_First is the call that runs vanilla's whole regenerate loop:
