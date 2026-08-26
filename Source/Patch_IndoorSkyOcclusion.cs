@@ -102,7 +102,20 @@ public static class Patch_IndoorSkyOcclusion
             return;
 
         float indoorFloor = ResolveIndoorFloor(map);
-        SkyOcclusionWindow window = BuildWindow(map, rect);
+
+        // The gather phase, triggered from here rather than from a patch of its own: whichever
+        // section's postfix runs first in a frame builds every other candidate's window across cores,
+        // and the rest of the frame's postfixes then find theirs already done. Deliberately NOT a
+        // Prefix on MapDrawer.MapMeshDrawerUpdate_First, which is the natural hook and would have put
+        // this mod on a third vanilla member in the render loop — see SkyOcclusionGather's header for
+        // that decision and for why the ordering guarantee survives it.
+        SkyOcclusionGather.EnsureGathered(map);
+
+        // A miss is ordinary and not a fallback: Section.DrawSection -> RegenerateDirtyLayers is a
+        // second entry point into Regenerate, running later in the same MapUpdate, and a section
+        // arriving through it was never a candidate. So is every section on a frame where the phase
+        // stood down. The gather phase is an optimisation and never a precondition.
+        SkyOcclusionWindow window = SkyOcclusionGather.TakeOrBuild(map, section, rect);
         float[] corners = BuildCornerOcclusion(window, rect, indoorFloor);
         WriteCorners(colors, corners);
         WriteCentres(window, rect, colors, firstCenterInd, corners, indoorFloor);
@@ -136,11 +149,23 @@ public static class Patch_IndoorSkyOcclusion
     // through a path that null-checked, bounds-checked and index-computed twice per call. Measured,
     // that ceremony was 109.1 µs of this postfix's 228 — several times what the two array reads it
     // guarded actually cost. See NativeSkyFalloffGrid.Reader.
-    private static SkyOcclusionWindow BuildWindow(Map map, CellRect rect)
+    //
+    // THE READER IS A PARAMETER, NOT BUILT HERE, and that is what lets the gather phase run this loop
+    // on a worker thread. SkyFalloffSource.ForSection can run the whole-map BFS
+    // (NativeSkyFalloffGrid.EnsureCurrent writes static grids), so it has to happen on the main thread
+    // exactly once before any worker starts. Callers on the render path pass one they built there;
+    // SkyOcclusionGather passes the single one it built for the whole batch. Taking it as an argument
+    // makes "somebody else already did the unsafe part" a signature rather than a comment.
+    //
+    // Everything left in this method is a read: the roof grid, the edifice grid, immutable def fields,
+    // the region grid via RoomLookup.RoomAtNoRebuild, and the reader's own arrays. Two threads on two
+    // sections therefore write disjoint windows and share nothing — see SkyOcclusionGather for the
+    // two lazy caches that argument depends on, and where they get warmed.
+    internal static SkyOcclusionWindow BuildWindow(
+        Map map, CellRect rect, SkyFalloffSource.SectionReader falloff)
     {
         SkyOcclusionWindow window = SkyOcclusionWindow.ForSection(
             rect.minX, rect.minZ, rect.maxX, rect.maxZ, map.Size.x, map.Size.z);
-        SkyFalloffSource.SectionReader falloff = SkyFalloffSource.ForSection(map);
 
         for (int z = window.MinZ; z <= window.MaxZ; z++)
         {

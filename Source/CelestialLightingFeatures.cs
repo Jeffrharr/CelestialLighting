@@ -272,6 +272,26 @@ public static class CelestialLightingFeatures
     // IndoorOcclusionSettings knobs.
     public static bool IndoorSkyOcclusion = true;
 
+    // Feature key for IndoorOcclusionGather (see CivilTwilightPersistenceKey for why it lives here).
+    public const string IndoorOcclusionGatherKey = "indoor_occlusion_gather";
+
+    // Indoor sky occlusion's gather phase: build every dirty on-screen section's window across cores
+    // on MapMeshDrawerUpdate_First, instead of one at a time inside each section's regenerate. Purely
+    // a change of WHEN and WHERE the work happens — the same windows, the same values, the same
+    // frame — so the only acceptable A/B result is a median CIELAB dE of 0.00, and any visible
+    // difference is a bug rather than a trade-off.
+    //
+    // OFF REPRODUCES THE PREVIOUS BEHAVIOUR EXACTLY rather than skipping the work: with the flag
+    // down, Gather returns before collecting anything and every section builds its own window inline
+    // through TakeOrBuild's miss path, which is the code that ran before this existed. That is what
+    // makes the off arm a baseline instead of a picture of indoor occlusion being absent.
+    //
+    // Defaults ON. It is not a taste call and there is nothing for a player to judge — the shipped
+    // expensive-feature-is-opt-in rule is about cost the player chooses to pay, and this only ever
+    // subtracts cost. SkyOcclusionGather.ParallelSafe is the safety valve that decides per install,
+    // and it stands the phase down on its own where another mod owns the glow accessors.
+    public static bool IndoorOcclusionGather = true;
+
     // Feature key for DecoupledIndoorFloor (see CivilTwilightPersistenceKey for why it lives here).
     public const string DecoupledIndoorFloorKey = "decoupled_indoor_floor";
 

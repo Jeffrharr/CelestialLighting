@@ -1462,6 +1462,174 @@ is off by default. The modes are an enum, not two bools, because each defines it
 other; `Patch_SunGlow` additionally carries a reentrancy guard, since `SunClock` measures vanilla by
 calling the very function that patch postfixes.
 
+### 7e. The gather phase — building a frame's occlusion windows across cores (`SkyOcclusionGather`)
+
+**Status: SHIPPED ON**, behind `indoor_occlusion_gather`. It changes *when and where* the window fill
+happens and nothing about what it produces, so the only acceptable live result is a median CIELAB ΔE
+of **0.00** and any visible difference is a bug rather than a trade-off.
+
+#### The problem is the frame, not the call
+
+`Verse.Section.TryUpdate` regenerates **every visible dirty layer of every visible dirty section in a
+single frame**. There is no rate limiting for anything on screen — only off-screen sections are
+deferred, one per frame. So a whole-map `GroundGlow` change, which `GlowGrid.DirtyCell` raises on
+every lamp toggle alongside `Roofs`, arrives as one enormous frame rather than a slope.
+
+Measured on `main` before any of this work, three interleaved runs of `perf_indoor_occlusion.json`
+with the shipped defaults and 1,120 postfix calls per run:
+
+| | median | |
+|---|---|---|
+| indoor occlusion postfix | **141.0 µs/call** | |
+| its worst frame | **21.3 ms** | more than an entire 60 fps budget, in one postfix |
+| share of the whole lighting-overlay bake | **58.8%** | 157.89 of 268.36 ms |
+| `max_calls` in one cycle | **112** | a whole-map rebake landing in a single frame |
+
+**The 95.92 ms worst frame quoted in §7b is from the pre-memo build and no longer holds.** The window
+memo took roughly 3× off the per-call cost and nobody re-read the worst frame afterwards; 21.3 ms is
+the current figure. It is quoted here rather than quietly replacing the older number, because the
+older number is what motivated this work and the correction is part of the finding.
+
+#### Only half of the postfix can move, and the half is measured
+
+A child arm on `BuildWindow` reads **72.22 ms against the postfix's 151.68** in the same run —
+**47.6%**. The rest is the two mesh passes and the `mesh.colors32` round trip, which are Unity calls
+that stay exactly where they are. The arm is a child, so it charges its own instrumentation to its
+parent and 47.6% is an *upper* bound; it was taken to answer one question — is the fill most of the
+postfix, or a corner of it — and it is not a clean split.
+
+#### Why the work cannot simply be deferred
+
+The obvious alternative, and it is wrong. Our postfix runs inside vanilla's `Regenerate`, whose
+contract is that the mesh is finished when it returns. Returning early and patching the mesh a frame
+later means the section draws with un-occluded lighting until we catch up — a bright flash on every
+lamp toggle, which is a worse artefact than the stutter it fixes. Nothing here defers anything: the
+work happens in the same frame it always did, just not all on one thread.
+
+#### The trigger: no new vanilla patch surface
+
+The natural hook is a Prefix on `MapDrawer.MapMeshDrawerUpdate_First` — the call that runs the whole
+regenerate loop, and so the last point at which the batch is still visible as a batch. **It was built
+that way, measured, and withdrawn.** It puts the mod on a third vanilla member, in the render loop,
+where the great majority of our patches sit on just two; every patch surface is somewhere another mod
+can collide with us.
+
+So the phase is triggered from a method we already postfix. The first indoor-occlusion postfix of a
+frame gathers every other candidate section before doing its own work, and the rest of that frame's
+postfixes find their windows already built. It costs nothing against the prefix version — the first
+section was going to build a window anyway, and now builds it inside the batch.
+
+**The ordering guarantee survives the move, and that had to be re-checked rather than assumed.** The
+first lighting-overlay `Regenerate` of a frame happens inside `Section.TryUpdate`, called from
+`MapMeshDrawerUpdate_First` at `Map.MapUpdate` line 1173 — *after*
+`regionAndRoomUpdater.TryRebuildDirtyRegionsAndRooms()` at 1158 and `glowGrid.GlowGridUpdate_First()`
+at 1159. Rooms and glow are final for the frame before the first postfix fires. `SkyManagerUpdate`
+(1155) would **not** do: it runs before both, and a gather there would read last frame's rooms.
+
+#### What makes the parallel fill legal
+
+Three things, and only the first is obvious:
+
+1. **Nothing mutates underneath.** RimWorld ticks on the same thread as `MapUpdate`, so there is no
+   concurrent writer while the phase runs.
+2. **The falloff reader is built on the main thread.** `SkyFalloffSource.ForSection` can run
+   `NativeSkyFalloffGrid`'s whole-map BFS, which writes static arrays. `BuildWindow` therefore takes
+   the reader as a *parameter* — "somebody else already did the unsafe part" is a signature rather
+   than a comment.
+3. **The room caches are warmed on the main thread.** `Room.UsesOutdoorTemperature` reaches
+   `Room.CellCount` and `District.CellCount`, and **both are `cachedCellCount = 0;` followed by a
+   `+=` loop behind a −1 sentinel**. That is not a benign race: two threads interleaving there can
+   leave a partial sum cached permanently, and the symptom would be a room deciding it is outdoors
+   and quietly ceasing to be occluded — once, unreproducibly, on somebody else's machine.
+   `WarmRoomCaches` touches every room via `regionGrid.AllRooms`, which is O(rooms) and not O(cells),
+   and is a field read per room once warm.
+
+`RoomLookup.RoomAtNoRebuild` already existed, written so a section regenerate could not provoke a
+region rebuild. That guard was for a different reason and pays out here.
+
+#### The safety gate, and what it costs
+
+`IndoorGlowPassthrough.SkyFractionAt` calls `GlowGrid.GroundGlowAt` — **the patched surface every
+interop mod postfixes** (§7c names ReBuild: Doors and Corners transpiling it and Ambient Light
+postfixing it). Calling it from a worker means running *somebody else's* code off the main thread.
+
+So `ParallelSafe` gates on ownership rather than on a guess about any particular mod: if anyone other
+than us has patched either glow accessor, the phase stands down for the session and every section
+builds its window inline exactly as before. That is a real cost — the installs most likely to want
+this are the heavily-modded ones — and it is the right way round, because the failure it avoids is a
+rare nondeterministic fault in another mod's code and the failure it accepts is the frame time we
+already ship. An install with the passthrough switched off is safe whatever else is loaded, and is
+checked first.
+
+#### What the offline tests do and do not prove
+
+`SkyOcclusionGatherMathTests` pins the two pre-flight decisions and the plumbing: that
+`CloudBake.Rows` visits every section slot exactly once at 1, 3 and 8 workers, against an
+independently-written serial oracle, proven red before being believed.
+
+**It cannot reach the fill at all.** `BuildWindow` reads `Map`, `RoofGrid`, `EdificeGrid` and
+`RegionGrid`, none of which can be constructed offline. That its parallel result equals its serial
+one rests on the scheduler (already pinned by `CloudBakeTests`), on each section writing only its own
+window and its own result slot, and on the two warmed caches above. **The live A/B at ΔE 0.00 is the
+evidence for the whole of that argument**, which is why `indoor_occlusion_gather.json` pins the
+counters beside the frames: two identical frames prove the phase is *harmless*, and only
+`occl_gather_passes` being non-zero proves it *ran*.
+
+A race in a bake is not a wrong answer, it is a wrong answer *sometimes*, and no value-pinning test
+in this repo is built to catch that.
+
+#### Measured
+
+Three interleaved pairs of `perf_indoor_occlusion_gather.json`, baseline and gather build alternating
+so machine drift cannot be handed to whichever arm ran in the quiet half. The judging row is
+`circinus_mesh_max_ms` — an arm on `MapDrawer.MapMeshDrawerUpdate_First`, which is the only row that
+contains *both* halves of the change: the batch build the phase adds, and the per-section fill it
+takes out of the postfixes underneath it. The main thread blocks on the parallel fill, so that time
+is counted here honestly rather than disappearing onto the workers.
+
+| `mesh_max_ms` | baseline | gather | |
+|---|---|---|---|
+| pair 1 | 50.47 | 46.00 | 1.10x |
+| pair 2 | 55.77 | 41.89 | 1.33x |
+| pair 3 | 65.93 | 35.55 | 1.85x |
+| **median** | **55.77** | **41.89** | **1.33x** |
+
+| other rows, median of three | baseline | gather | |
+|---|---|---|---|
+| `mesh_total_ms` (76 calls) | 436.98 | 368.98 | 1.18x |
+| `regen_total_ms` (1,120 calls) | 239.97 | 180.82 | 1.33x |
+| `occl_total_ms` (1,120 calls) | 136.35 | 84.47 | 1.61x |
+
+**`occl_total_ms` is not the result and must not be quoted as one.** With the phase on, the fill has
+left the postfix by construction, so that row can only ever report a win whether or not the frame got
+any shorter. It is evidence the phase fired, nothing more.
+
+**The gather arm is also markedly steadier**: 35.55-46.00 against the baseline's 50.47-65.93. That is
+the shape a rolling batch is supposed to have and the reason the worst frame is the number to read.
+
+**The withdrawn prefix version measured better**, and the comparison is recorded rather than dropped:
+on its own three pairs it read a median 64.48 -> 33.85, i.e. 1.90x. The two batches were taken hours
+apart with different baselines (64.48 against 55.77), so the difference is not controlled and should
+not be treated as the cost of the trigger change. It is a loose end, not a finding.
+
+#### Verification status, stated honestly
+
+The counters are clean and the phase demonstrably carries a whole-map rebake:
+`indoor_occlusion_gather.json` reads **1 pass, 112 sections, 112 hits, 0 misses, hit fraction 1.00**
+with the flag on, and **0 passes, 0 sections, 0 hits against 112 misses** with it off — so the off arm
+is a genuine pre-feature baseline rather than a picture of indoor occlusion being absent.
+
+**Frame parity is proven, but not yet in the same run as those counters.** An earlier cut of the
+scenario captured the two arms **bit-identical — 0 of 2,073,600 pixels differing** — which is the
+result this section claims. That cut zeroed its counters *before* the flag block, so the off arm
+counted four passes made while the previous arm's flag was still live; fixing the reset placement
+lengthened each arm, and the two captures then came from measurably different camera positions. The
+resulting whole-frame translation reads as a large lighting difference (median dE 2.75, p90 15.6) and
+is not one — re-aiming with `LookAt` before each capture did not settle it. **What is outstanding is
+one run that shows identical frames and correct counters together**; until it exists, the pixel claim
+rests on a run whose counters were wrong and the counter claim on a run whose frames were not
+comparable.
+
 ## 8. Sky colour-temperature curve (`Patch_SkyColorTemperature`)
 
 Subsystem 2 warms the sky toward a single fixed hue inside one twilight band. This generalizes that

@@ -65,6 +65,11 @@
     <Compile Include="../Source/Probes/CircinusProbe.cs" Link="CircinusProbe.cs" />
     <!-- §27's four metrics. Recomputes the visibility polygon from the pure core rather than reading
          the cached render, so it reports the same number whether or not the light was on camera. -->
+    <!-- Indoor sky occlusion's gather phase: counters only. The phase's failure mode is that it
+         silently stops matching and every section falls back to the inline build, which is correct,
+         costs nothing and is invisible to every timing instrument — so hits against misses is the
+         only thing that separates "working" from "absent". -->
+    <Compile Include="../Source/Probes/SkyOcclusionGatherProbe.cs" Link="SkyOcclusionGatherProbe.cs" />
     <Compile Include="../Source/Probes/VectorLightProbe.cs" Link="VectorLightProbe.cs" />
     <Compile Include="../Source/Probes/VectorLightBakeProbe.cs" Link="VectorLightBakeProbe.cs" />
     <!-- §27e: vanilla's gameplay light at a named cell, the only probe that can tell the drawn-only
