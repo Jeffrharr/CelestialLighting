@@ -1,7 +1,6 @@
 {
   "name": "vector_light_gap_vs_door",
   "saveFile": "minimal_colony.rws",
-  "description": "Does light spilling outdoors through a GAP look like light spilling outdoors through a DOOR? Two identical roofed rooms in ONE frame, one torch each, each torch four cells from its own west opening onto the same open ground. The only difference between them is one wall cell: the north room's opening holds a wooden door, the south room's is bare floor. That single cell is the whole independent variable, and it changes the composition's input completely -- RimWorld's glow grid floods straight through a gap and NEVER learns a door opened, so the same lamp at the same distance presents a large vanilla term in one case and exactly zero in the other. The vanilla arm is where that asymmetry is measured: the ground west of the gap is lit and the ground west of the door is not, with no mod running at all. Arms: vanilla, the shader max as shipped, the surface lift, and the shader max again as a same-build control for the run-to-run pixel floor. Gravel everywhere so the readable texture inside each beam is comparable between the two openings and between the arms; every cloud flag off and stated, because the whole measured region is open ground. NOTE that a gap makes its room OUTDOOR as far as RimWorld is concerned however thoroughly it is roofed, so the two rooms' INTERIORS are not comparable and nothing here compares them -- the measurement is on the open ground west of both openings. Two diagnostic arms follow the control and are the reason this scenario can say WHICH half is responsible: mask-only (the shader stood down, so only suppression and its restoration run) and no-suppress (vanilla left intact underneath). Past a gap the max has nothing to add because vanilla already delivered our own value, so anything the ground loses there is the restoring half rather than the drawing half. Two further arms turn on vector_light_gap_parity, which weights the vanilla field the fragment program subtracts by this emitter's coverage -- what vanilla still contributes ON SCREEN after the mask, rather than what its glow grid holds. Past a door the two are the same number (the grid is zero there), so those arms are what say the fix is confined to the case it was built for.",
   "hideUi": true,
   "steps": [
     {
@@ -26,9 +25,9 @@
     {
       "type": "SetTerrain",
       "args": {
-        "width": "54",
-        "height": "40",
-        "offset": "-7,45",
+        "width": "60",
+        "height": "34",
+        "offset": "0,45",
         "clear": "true",
         "def": "Gravel"
       }
@@ -40,7 +39,7 @@
         "offset": "0,45",
         "layout": "cells",
         "clear": "true",
-        "cells": "-8,4; 0,4; -8,5; 0,5; -8,6; 0,6; 0,7; -8,8; 0,8; -8,9; 0,9; -8,10; 0,10; -7,4; -7,10; -6,4; -6,10; -5,4; -5,10; -4,4; -4,10; -3,4; -3,10; -2,4; -2,10; -1,4; -1,10; -8,-10; 0,-10; -8,-9; 0,-9; -8,-8; 0,-8; 0,-7; -8,-6; 0,-6; -8,-5; 0,-5; -8,-4; 0,-4; -7,-10; -7,-4; -6,-10; -6,-4; -5,-10; -5,-4; -4,-10; -4,-4; -3,-10; -3,-4; -2,-10; -2,-4; -1,-10; -1,-4",
+        "cells": "-6,-4; 6,-4; -6,-3; 6,-3; -6,-2; 6,-2; -6,-1; 6,-1; -6,1; 6,1; -6,2; 6,2; -6,3; 6,3; -6,4; 6,4; -5,-4; -5,4; -4,-4; -4,4; -3,-4; -3,4; -2,-4; -2,4; -1,-4; -1,4; 0,-4; 0,4; 1,-4; 1,4; 2,-4; 2,4; 3,-4; 3,4; 4,-4; 4,4; 5,-4; 5,4",
         "def": "Wall"
       }
     },
@@ -50,7 +49,7 @@
         "stuff": "WoodLog",
         "offset": "0,45",
         "layout": "cells",
-        "cells": "-8,7",
+        "cells": "-6,0",
         "def": "Door"
       }
     },
@@ -59,25 +58,16 @@
       "args": {
         "offset": "0,45",
         "layout": "cells",
-        "cells": "-4,7; -4,-7",
+        "cells": "0,0",
         "def": "TorchLamp"
       }
     },
     {
       "type": "SetRoof",
       "args": {
-        "width": "9",
-        "height": "7",
-        "offset": "-4,52",
-        "def": "RoofConstructed"
-      }
-    },
-    {
-      "type": "SetRoof",
-      "args": {
-        "width": "9",
-        "height": "7",
-        "offset": "-4,38",
+        "width": "13",
+        "height": "9",
+        "offset": "0,45",
         "def": "RoofConstructed"
       }
     },
@@ -90,14 +80,14 @@
     {
       "type": "LookAt",
       "args": {
-        "offset": "-7,45",
+        "offset": "0,45",
         "zoom": "13"
       }
     },
     {
       "type": "SetDoorOpen",
       "args": {
-        "offset": "-8,52",
+        "offset": "-6,45",
         "open": "true"
       }
     },
@@ -182,6 +172,20 @@
       "type": "SetFeature",
       "args": {
         "featureName": "vector_light_surface_lift",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_gap_parity",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_aperture_beam",
         "enabled": "false"
       }
     },
@@ -342,6 +346,20 @@
     {
       "type": "SetFeature",
       "args": {
+        "featureName": "vector_light_gap_parity",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_aperture_beam",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
         "featureName": "vector_light_open_doors",
         "enabled": "true"
       }
@@ -482,6 +500,20 @@
       "type": "SetFeature",
       "args": {
         "featureName": "vector_light_surface_lift",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_gap_parity",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_aperture_beam",
         "enabled": "false"
       }
     },
@@ -642,6 +674,20 @@
     {
       "type": "SetFeature",
       "args": {
+        "featureName": "vector_light_gap_parity",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_aperture_beam",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
         "featureName": "vector_light_open_doors",
         "enabled": "true"
       }
@@ -790,6 +836,356 @@
       "type": "SetFeature",
       "args": {
         "featureName": "vector_light_surface_lift",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_gap_parity",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_aperture_beam",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_open_doors",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_glow_blocker",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_aperture",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_cover",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_sheet",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_presence",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_deck_varieties",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_shader_max_available",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "gapdoor_parity_lift.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_suppress",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_beam",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max_lift",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max_seed",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max_subtract",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_surface_lift",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_gap_parity",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_aperture_beam",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_open_doors",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_glow_blocker",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_aperture",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_cover",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_sheet",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_presence",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_deck_varieties",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_shader_max_available",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "gapdoor_aperture.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_suppress",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_beam",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max_lift",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max_seed",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max_subtract",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_surface_lift",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_gap_parity",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_aperture_beam",
         "enabled": "false"
       }
     },
@@ -862,620 +1258,7 @@
       "args": {
         "fileName": "gapdoor_shadermax_control.png"
       }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_lights",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_penumbra",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_suppress",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_blend",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_beam",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max_lift",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max_seed",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_shader_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_shader_max_subtract",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_surface_lift",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_open_doors",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_door_glow_blocker",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_door_aperture",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "cloud_cover",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "cloud_sheet",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "cloud_presence",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "cloud_deck_varieties",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "cloud_volume",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "gapdoor_mask_only.png"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_lights",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_penumbra",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_suppress",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_blend",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_beam",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max_lift",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max_seed",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_shader_max",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_shader_max_subtract",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_surface_lift",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_open_doors",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_door_glow_blocker",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_door_aperture",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "cloud_cover",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "cloud_sheet",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "cloud_presence",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "cloud_deck_varieties",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "cloud_volume",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "gapdoor_no_suppress.png"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_lights",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_penumbra",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_suppress",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_blend",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_beam",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max_lift",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max_seed",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_shader_max",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_shader_max_subtract",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_surface_lift",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_open_doors",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_door_glow_blocker",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_door_aperture",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "cloud_cover",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "cloud_sheet",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "cloud_presence",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "cloud_deck_varieties",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "cloud_volume",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_gap_parity",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_shader_max_available",
-        "expectedValue": "1",
-        "tolerance": "0"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "gapdoor_parity_shadermax.png"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_lights",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_penumbra",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_suppress",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_blend",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_beam",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max_lift",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max_seed",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_shader_max",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_shader_max_subtract",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_surface_lift",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_open_doors",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_door_glow_blocker",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_door_aperture",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "cloud_cover",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "cloud_sheet",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "cloud_presence",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "cloud_deck_varieties",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "cloud_volume",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_gap_parity",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_shader_max_available",
-        "expectedValue": "1",
-        "tolerance": "0"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "gapdoor_parity_lift.png"
-      }
     }
-  ]
+  ],
+  "description": "Does light through a bare GAP look like light through a DOOR? ONE roofed room, ONE torch dead centre, TWO openings on opposite walls at the same z -- so both beams run along the same row, six cells from the same lamp, mirrored, and the only difference between them is one wall cell: the west opening holds a wooden door, the east is bare floor. THE SYMMETRY IS THE FIX. An earlier cut put the two openings in two rooms at different z and was unusable: the frame's outdoor ground sweeps 4.73 to 7.67 across z with no lamp near most of those rows, so the two openings never sat on one baseline and their raw levels were not comparable. Here they do. Why a gap is the case that matters: RimWorld's glow grid never learns a door opened, so beyond a door vanilla delivers nothing, max(0, ours - vanilla) is our whole model, and the composition photographs as working perfectly whatever state it is in. Two real defects hid behind exactly that. Beyond a gap vanilla's flood takes a short path through the aperture and delivers close to what our own model claims, so the max is degenerate there BY CONSTRUCTION -- which is why the aperture arm stops composing a max and lets our model replace vanilla inside the polygon instead. Gravel everywhere so readable texture is comparable; every cloud flag off and stated, since the whole measured region is open ground. Note the room has openings, so RimWorld calls it an OUTDOOR room however thoroughly it is roofed -- that applies to both beams equally now, which is the other thing the single-room layout buys."
 }

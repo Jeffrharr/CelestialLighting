@@ -11044,72 +11044,69 @@ The room the beam is **not** for, which is the test every composition here has t
 Masked median CIELAB ΔE over the pixels the lift lights (1.38% of the frame): **1.36** against the
 shader max, **4.79** against vanilla, where the shader max itself measures 3.76 against vanilla.
 
-#### An aperture is not a door, and only one of the two is our render
+#### An aperture is not a door, until our model owns it too
 
-Asked directly, because "does light through a gap look like light through a door" is a question the
-doorway scenarios cannot answer: `Tests/Scenarios/vector_light_gap_vs_door.json` puts two identical
-roofed rooms in one frame, one torch each, each torch four cells from its own west opening onto the
-same open ground. The only difference is one wall cell — a wooden door in the north room, bare floor
-in the south. Outdoor ground, L\*:
+Asked directly, because the doorway scenarios cannot: `Tests/Scenarios/vector_light_gap_vs_door.json`
+puts **one** roofed room with **one** torch dead centre and **two** openings on opposite walls at the
+same z, so both beams run along the same row, six cells from the same lamp, mirrored, and the only
+difference is one wall cell — a wooden door west, bare floor east.
 
-| cells out | vanilla | shader max | surface lift | + gap parity |
+**The symmetry is load-bearing and the first cut lacked it.** That version put the two openings in two
+rooms at different z, and the frame's outdoor ground sweeps 4.73 to 7.67 across z with no lamp near
+most of those rows, so the openings never sat on one baseline. In the symmetric scene the off-axis
+background two cells out measures **6.30 on both sides**, so the two are finally comparable — and the
+right comparison is each beam's **delta over its own vanilla**, because a door is a solid roof-holding
+edifice that shades the ground beside it (3.69 there) while a gap is a hole (6.80). That difference is
+inherent to the two openings, not a defect and not removable.
+
+**Why a gap never read as a beam, and it was never the geometry.** An offline dump of the shipped core
+— a lamp sealed in a roofed room with one bare gap — puts the polygon at the **full radius** through
+the aperture, coverage **255 along its axis**, and a penumbra that widens with distance exactly as an
+aperture should. The wedge is built. What kills it is the composition: vanilla's flood takes a *short*
+path through an open hole and arrives at close to our own straight-line value, so `max(0, ours −
+vanilla)` is degenerate there **by construction** and the fan draws nothing. Beyond a *door* the same
+arithmetic yields our whole model, because the glow grid never learns a door opened and vanilla
+delivers exactly zero. **The doorway beam was never more correct — it was the only one of the two that
+was ours.**
+
+Two changes follow, and neither asks how the light left the room:
+
+- **`vector_light_gap_parity`** uploads `vanilla × coverage` rather than the raw glow grid, because the
+  mask has already removed part of that light and the fragment program was subtracting it twice. Past
+  a door the raw value is zero, so the **door column is byte-identical either way** — which is what
+  says the fix is confined to the case it was built for.
+- **`vector_light_aperture_beam`** stops composing a max at all: the mask gives up the emitter's whole
+  vanilla contribution and the fan delivers the model instead of the difference. Inside the polygon
+  that is a *replacement*, not the sum epic #145 rejected.
+
+Outdoor ground on the beam axis, each against its own vanilla:
+
+| cells out | door vanilla | door (lift) | gap vanilla | gap (aperture beam) |
 |---|---|---|---|---|
-| **door** 1 | 3.66 | 7.71 | 9.21 | 9.21 |
-| **door** 2 | 4.87 | 8.20 | 11.38 | 11.38 |
-| **gap** 1 | 7.67 | **6.22** | 6.22 | 6.83 |
-| **gap** 2 | 7.69 | **6.58** | 6.59 | 7.15 |
+| 1 | 3.69 | **+2.78** | 6.80 | **+2.57** |
+| 2 | 4.65 | **+1.95** | 7.51 | **+1.93** |
+| 3 | 5.59 | +0.20 | 6.77 | +0.14 |
 
-**Past a door we add 5.5 L\*; past a gap we were subtracting 1.4.** The mod made that ground *darker*
-than vanilla and drew no beam at all, one wall cell away from its most vivid effect.
+**That is parity.** The aperture delivers the same lift as the doorway to within 0.2 L\*, from the same
+arithmetic, with no aperture-specific rule anywhere in it. The door column does not move under the
+aperture flag at all — a doorway already arrives at that state on its own, which is the check that the
+two cases really are one case.
 
-**Two separate causes, and the diagnostic arms separate them.** With the shader stood down entirely,
-`mask_only` already reads 6.17 against vanilla's 7.67 — so the loss is not the drawing half:
+**The cost is the lit room, and it is the blend's ceiling rather than the composition.** Replacing
+vanilla means the fan has to deliver a torch's *near field*, where the model asks for a factor well
+above the `Blend DstColor One` limit of 2× — the saturation
+`JustPastAnOpenDoorTheModelAsksForMoreThanTheBlendCanGive` pins offline. So the room dims:
 
-1. **A double subtraction, which is a real defect and is fixed.** The mask has already scaled each
-   cell's vanilla light by this emitter's coverage; the fragment program then subtracted the **raw**
-   glow-grid value on top, removing the same light twice. Past a door the raw value is exactly zero —
-   RimWorld's glow grid never learns a door opened — so zero subtracted twice is still zero, and every
-   doorway scenario in this repo measured the composition working perfectly. Past a one-cell gap the
-   grid floods straight through and the double subtraction is the whole result.
-   `vector_light_gap_parity` uploads `vanilla × coverage` instead, and the **door column is
-   byte-identical either way**, which is what says the fix is confined to the case it was built for.
-2. **A residual that is still unexplained, and the first guess about it was wrong.** The obvious
-   reading — the mask trimming vanilla to our own coverage, our polygon being right that a narrow
-   aperture only partly lights those cells — is **contradicted by the geometry**. An offline probe of
-   the shipped core (a lamp four cells behind a one-cell gap, radius 12) reports the polygon reaching
-   the **full radius through the gap** and coverage of **255 on the axis for seven cells beyond it**,
-   and `CoverageAt` returns 255 outside the grid rather than 0. There is nothing there for the mask
-   to trim. Something else in the subsystem is taking that light off, and it has not been found yet.
+| | vanilla | aperture beam |
+|---|---|---|
+| lamp cell | 19.89 | 17.87 (**−2.02**) |
+| 2 cells from the lamp | 9.68 | 7.16 (**−2.52**) |
+| room corner | 5.52 | 6.63 (+1.11) |
 
-   Two isolation attempts have already failed to narrow it and are recorded so they are not repeated:
-   the `no_suppress` arm is **inert**, because `Patch_VectorLightSuppress` runs
-   `if (VectorLightMask.Active && ApplyMask(...)) return;` before it ever reads
-   `VectorLightSuppress` — turning that flag off while the mask is on changes nothing, which is
-   exactly what it measured. A real isolation has to turn `vector_light_mask` off as well.
-
-   **And the scene's own baseline is confounded**, which has to be fixed before the residual is worth
-   chasing. In the vanilla arm the outdoor ground at one x sweeps 4.73 to 7.67 across the frame with
-   no lamp anywhere near most of those rows, so the two openings do not sit on the same background —
-   the door's is among the darkest and the gap's among the brightest. Every *delta* quoted above is
-   against that opening's own vanilla and is sound; the raw vanilla column is not a like-for-like
-   comparison between the two openings, and the claim that the whole 3.66-against-7.67 difference is
-   vanilla flooding through the gap is **not supported by this scene**.
-
-**The structural half of the answer still holds, and it is the part to design against.** Through a
-door vanilla delivers nothing, so `max(0, ours − vanilla)` is our whole model and we own the render —
-crisp, warm, at polygon resolution. Through a gap vanilla's flood reaches the same cells, so the max
-is degenerate there **by construction** and what the player sees is vanilla's own octile flood at cell
-resolution. The beam past a door is not more correct than the one past a gap; it is the only one of
-the two that is ours. Making an aperture look the same means letting our model own that render too —
-suppressing vanilla's flood through the aperture and drawing the polygon, rather than drawing only
-the excess. That is a change to the composition rather than a knob, and the geometry to do it is
-already correct and already built: the probe above is the evidence.
-
-**It was not lost to a performance change**, which is the first thing to check and is now checked. The
-same offline probe run against `4929726` (ray culling), `5238738`, `6277c52` (the coverage bounds) and
-their parents reports the identical polygon reach of 12.00 and the identical coverage of 255 through
-the gap at every one of them. The geometry has never regressed; the beam is composed away, not
-culled away.
+−2.5 L\* in the room is visible at a glance and is why this ships **OFF**. The composition is right and
+the delivery is short: the ceiling that makes the surface lift safe everywhere else is exactly what
+stops a replacement carrying a bright lamp's own cell. Lifting it needs a second pass or a target the
+hardware will not clamp, and that is the next question rather than a tuning one.
 
 #### What it ships as, and the one thing it does not fix
 

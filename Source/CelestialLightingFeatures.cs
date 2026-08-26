@@ -980,6 +980,36 @@ public static class CelestialLightingFeatures
     // OFF while it is measured. Off uploads the raw field exactly as before.
     public static bool VectorLightGapParity = false;
 
+    // Feature key for VectorLightApertureBeam.
+    public const string VectorLightApertureBeamKey = "vector_light_aperture_beam";
+
+    // Our model REPLACES this emitter's vanilla light inside the polygon, instead of the fan
+    // composing a max against it.
+    //
+    // WHAT IT IS FOR. Light through a bare gap does not read as a beam the way light through a door
+    // does, and the reason is not geometry: an offline dump of the shipped core puts the polygon at
+    // the full radius through a one-cell gap with coverage 255 along its axis and a penumbra that
+    // widens with distance, exactly as an aperture should. The beam is composed away rather than
+    // culled away. Vanilla's flood takes a SHORT path through an open hole and arrives at close to
+    // our own straight-line value, so max(0, ours - vanilla) is degenerate there by construction and
+    // the fan draws nothing. Beyond a DOOR the same arithmetic gives our whole model, because
+    // RimWorld's glow grid never learns a door opened and vanilla delivers exactly zero — which is
+    // why a doorway has always looked right and an aperture never has.
+    //
+    // NOT AN APERTURE-SPECIFIC RULE. Nothing in it asks how the light left the room; it removes the
+    // emitter's vanilla contribution wherever the mask runs and lets the fan deliver the model. A
+    // doorway already arrives at that state on its own, so this makes the two cases the same
+    // arithmetic rather than adding a second path that has to agree with the first.
+    //
+    // THE RISK IT HAS TO CLEAR is epic #145's rejected option, where drawing our model over an
+    // UNsuppressed flood summed two lighting models and landed a room 6 L* bright. This is a
+    // replacement and not a sum — the mask takes the emitter's light off before the fan puts ours
+    // back — and under the surface lift the result is bounded by the blend's own 2x ceiling as well.
+    // The lit ROOM is what to watch in the A/B, not the beam.
+    //
+    // OFF while it is measured.
+    public static bool VectorLightApertureBeam = false;
+
     // Feature key for VectorLightMaskMax.
     public const string VectorLightMaskMaxKey = "vector_light_mask_max";
 
