@@ -1355,6 +1355,17 @@ public static class ProbeRegistration
             },
             defaultEnabled: false);
 
+        // THREE-ARG, and for the usual reason: this ships OFF while it is measured, and the two-arg
+        // overload would turn it on for every later §27 scenario a suite reset touched.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightGapParityKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.VectorLightGapParity = enabled;
+                VectorLightRedraw.ForceRebuild();
+            },
+            defaultEnabled: false);
+
         // Two-arg, matching phase 5b's shipped default of true. The registry default is what a suite
         // reset restores between scenarios, so it has to be the SHIPPED value — registered false,
         // every §27 scenario after this one would silently measure the pre-fix composition.

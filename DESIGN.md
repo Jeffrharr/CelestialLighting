@@ -11044,6 +11044,50 @@ The room the beam is **not** for, which is the test every composition here has t
 Masked median CIELAB ΔE over the pixels the lift lights (1.38% of the frame): **1.36** against the
 shader max, **4.79** against vanilla, where the shader max itself measures 3.76 against vanilla.
 
+#### An aperture is not a door, and only one of the two is our render
+
+Asked directly, because "does light through a gap look like light through a door" is a question the
+doorway scenarios cannot answer: `Tests/Scenarios/vector_light_gap_vs_door.json` puts two identical
+roofed rooms in one frame, one torch each, each torch four cells from its own west opening onto the
+same open ground. The only difference is one wall cell — a wooden door in the north room, bare floor
+in the south. Outdoor ground, L\*:
+
+| cells out | vanilla | shader max | surface lift | + gap parity |
+|---|---|---|---|---|
+| **door** 1 | 3.66 | 7.71 | 9.21 | 9.21 |
+| **door** 2 | 4.87 | 8.20 | 11.38 | 11.38 |
+| **gap** 1 | 7.67 | **6.22** | 6.22 | 6.83 |
+| **gap** 2 | 7.69 | **6.58** | 6.59 | 7.15 |
+
+**Past a door we add 5.5 L\*; past a gap we were subtracting 1.4.** The mod made that ground *darker*
+than vanilla and drew no beam at all, one wall cell away from its most vivid effect.
+
+**Two separate causes, and the diagnostic arms separate them.** With the shader stood down entirely,
+`mask_only` already reads 6.17 against vanilla's 7.67 — so the loss is not the drawing half:
+
+1. **A double subtraction, which is a real defect and is fixed.** The mask has already scaled each
+   cell's vanilla light by this emitter's coverage; the fragment program then subtracted the **raw**
+   glow-grid value on top, removing the same light twice. Past a door the raw value is exactly zero —
+   RimWorld's glow grid never learns a door opened — so zero subtracted twice is still zero, and every
+   doorway scenario in this repo measured the composition working perfectly. Past a one-cell gap the
+   grid floods straight through and the double subtraction is the whole result.
+   `vector_light_gap_parity` uploads `vanilla × coverage` instead, and the **door column is
+   byte-identical either way**, which is what says the fix is confined to the case it was built for.
+2. **A design limit, which is not a defect and is not fixed.** The rest of the deficit is the mask
+   trimming vanilla to our own coverage — our polygon correctly says a one-cell aperture leaves those
+   cells only *partly* able to see the lamp, while vanilla's flood bends around and fills them. That
+   is our model being right, not wrong.
+
+**And the vividness itself does not survive either fix, for a structural reason worth stating plainly.
+Through a door, vanilla delivers nothing, so `max(0, ours − vanilla)` is our whole model and we own
+the render — crisp, warm, at polygon resolution. Through a gap, vanilla already delivers close to what
+our model claims, so the max is near-degenerate by construction and what the player sees is vanilla's
+own octile flood at cell resolution.** The beam past a door is not more correct than the one past a
+gap; it is the only one of the two that is ours. Making an aperture look the same would mean letting
+our model own that render too — suppressing vanilla's flood through the aperture and drawing the
+polygon, rather than drawing only the excess — which is a change to the composition rather than a
+knob, and is not attempted here.
+
 #### What it ships as, and the one thing it does not fix
 
 **OFF**, pending a look at it in a real colony rather than in a fixture. Off reproduces the shader max

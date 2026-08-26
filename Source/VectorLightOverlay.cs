@@ -495,7 +495,7 @@ public static class VectorLightOverlay
             return;
 
         EnsureField(entry, diameter);
-        CopyField(entry.VanillaField, colors, diameter);
+        CopyField(entry, entry.VanillaField, colors, diameter, light.localGlowGridStartPos);
         UploadFieldUvs(entry, built, light.localGlowGridStartPos, diameter);
     }
 
@@ -535,7 +535,23 @@ public static class VectorLightOverlay
     // exactly diameter*diameter Color32s in the row order SetPixels32 was writing, so the copy stays a
     // straight per-texel write with no second buffer to keep in step. Same argument as
     // AuroraCurtainOverlay's LoadRawTextureData, one step further: no intermediate array at all.
-    private static void CopyField(Texture2D field, UnsafeList<Color32> colors, int diameter)
+    // WEIGHTED BY COVERAGE, WHICH IS WHAT MAKES A GAP BEHAVE LIKE A DOOR. What the fragment program
+    // needs to subtract is what vanilla still contributes ON SCREEN, and that is not what the glow
+    // grid holds. The mask has already scaled each cell's vanilla light by this emitter's coverage
+    // there — how much of the cell our polygon can actually see — so subtracting the raw grid value
+    // takes off light the mask has removed already, twice.
+    //
+    // PAST A DOOR IT NEVER MATTERED AND THAT IS WHY IT SURVIVED. RimWorld's glow grid never learns a
+    // door opened, so beyond one the raw value is exactly zero, the double-subtraction is zero, and
+    // every doorway scenario in this repo measures the composition working perfectly. Past a one-cell
+    // GAP the grid floods straight through: coverage there is well under 1 because our polygon
+    // correctly says a narrow aperture leaves those cells only partly able to see the lamp, while
+    // vanilla's flood bends around and fills them. Measured on vector_light_gap_vs_door.json, the
+    // ground one cell outside a gap sat at 6.22 L* against vanilla's 7.67 — our own beam subtracted
+    // itself out of existence and took some of vanilla's light with it.
+    private static void CopyField(
+        VectorLightField.LightEntry entry, Texture2D field, UnsafeList<Color32> colors, int diameter,
+        IntVec3 start)
     {
         int count = diameter * diameter;
         NativeArray<Color32> texels = field.GetRawTextureData<Color32>();
@@ -543,6 +559,23 @@ public static class VectorLightOverlay
         for (int i = 0; i < count; i++)
         {
             Color32 glow = colors[i];
+
+            // Texel i covers cell i of the emitter's square, in the same row order UploadFieldUvs
+            // maps vertices into — so the cell this texel speaks for is start + (i % d, i / d), and
+            // the coverage grid is indexed in world cells around the emitter rather than in this
+            // square's local ones.
+            byte coverage = CelestialLightingFeatures.VectorLightGapParity
+                ? VectorLightMath.CoverageAt(
+                    entry.Coverage, entry.Cell.x, entry.Cell.z, entry.CoverageRadius,
+                    start.x + i % diameter, start.z + i / diameter)
+                : (byte)255;
+
+            // Integer, and rounded the way a byte scale should be: (v * c + 127) / 255 rather than a
+            // float multiply, so a fully covered cell (255) returns its own value unchanged instead
+            // of drifting a level on the way through.
+            glow.r = (byte)((glow.r * coverage + 127) / 255);
+            glow.g = (byte)((glow.g * coverage + 127) / 255);
+            glow.b = (byte)((glow.b * coverage + 127) / 255);
 
             // ALPHA IS NOT OPACITY IN THIS BUFFER. ComputeGlowGridsJob writes the accumulated
             // DISTANCE into it (`colorInt.a = (int)num2`), so copying it through would hand the
