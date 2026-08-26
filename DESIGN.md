@@ -11103,10 +11103,31 @@ above the `Blend DstColor One` limit of 2× — the saturation
 | 2 cells from the lamp | 9.68 | 7.16 (**−2.52**) |
 | room corner | 5.52 | 6.63 (+1.11) |
 
-−2.5 L\* in the room is visible at a glance and is why this ships **OFF**. The composition is right and
-the delivery is short: the ceiling that makes the surface lift safe everywhere else is exactly what
-stops a replacement carrying a bright lamp's own cell. Lifting it needs a second pass or a target the
-hardware will not clamp, and that is the next question rather than a tuning one.
+−2.5 L\* in the room is visible at a glance, and on the frames it is worse than the table suggests:
+**the torch stops looking like a torch.** What is lost is its radiance — the warm near-field falloff
+around the lamp itself — which is the single clearest example of a cell vanilla already gets right,
+and therefore exactly what the max was built to leave alone. The beam reaches parity with a doorway
+and the lamp at the centre of the room is wrong. That is a bad trade, and it ships **OFF**.
+
+**So a global replacement is the wrong shape, and the next attempt should not be a gentler version of
+it.** The max is not a compromise to be relaxed; leaving vanilla holding the cells it already gets
+right is what keeps a lamp looking like a lamp.
+
+**What the arms do establish is a contradiction, and resolving it is the next step.** Three numbers,
+at the same cells one to two cells beyond the gap:
+
+- the aperture arm proves our model has **+2.57 L\*** to give there, since it delivers exactly that;
+- the max arm proves the fragment program computes **`ours − vanilla` ≈ 0** there, since it draws
+  nothing;
+- the frame proves vanilla contributes only **+0.5 L\*** over the local background (6.80 against 6.30).
+
+All three cannot hold. Either `ours` is not what the aperture arm's brightness implies — the surface
+lift's multiply amplifies, so its output is not a direct read of the model — or the field the shader
+samples reports light the frame does not contain. **The next move is a probe reporting `ours` and the
+sampled `vanilla` side by side for one named cell beyond the gap**, not another composition. This
+repo has now theorised its way to a plausible wrong answer about that pair three times: #151's
+interpolated-value sampling, this section's withdrawn coverage-trimming account, and the double
+subtraction that was real but explained only half the deficit.
 
 #### What it ships as, and the one thing it does not fix
 
