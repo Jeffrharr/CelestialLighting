@@ -1031,6 +1031,44 @@ public static class CelestialLightingFeatures
     // OFF, and kept only as the arm that produced the finding above.
     public static bool VectorLightApertureBeam = false;
 
+    // Feature key for VectorLightBentPath.
+    public const string VectorLightBentPathKey = "vector_light_bent_path";
+
+    // The aperture beam's replacement, decided PER CELL instead of per emitter.
+    //
+    // WHAT THE APERTURE BEAM GOT RIGHT AND WRONG. Handing our model the whole of an emitter's field
+    // reached doorway parity and cost the torch its near-field radiance, because once vanilla's
+    // contribution is gone the fan has to deliver a lamp's own falloff on its own and the model
+    // there asks for more than Blend DstColor One's 2x ceiling can give. The level was never the
+    // problem: the cells around a lamp are cells vanilla already lights correctly, and taking them
+    // was pure loss.
+    //
+    // So the replacement is made cell by cell. Vanilla keeps every cell it reached by the same route
+    // our polygon sees along, and our model takes only the cells vanilla had to DETOUR to — which
+    // is the aperture fringe and the far side of an open door, i.e. exactly the region the whole
+    // subsystem exists for. See VectorLightLiftMath's ownership header for why the test is on
+    // vanilla's own accumulated distance rather than on the two brightnesses; a brightness
+    // comparison claims most of an open-ground lamp and rebuilds the aperture beam by accident.
+    //
+    // TWO HALVES THAT HAVE TO AGREE, which is the thing to be careful with when editing either. The
+    // mask decides how much of an emitter's vanilla light to take OFF a cell, and the per-emitter
+    // texture the fragment program subtracts has to describe what the mask LEFT. They call the same
+    // pure predicate for that reason; a disagreement is either light removed and never redrawn or
+    // light subtracted twice, and neither announces itself.
+    //
+    // HOW MUCH IT CLAIMS, MODELLED OFFLINE FIRST: two cells of the gate scene, holding 7 levels of
+    // glow each. This is a small effect by construction rather than by tuning — our polygon and
+    // vanilla's flood share a blocker set, so the only geometry they genuinely disagree about is an
+    // open door, and there vanilla delivers nothing and the composition already degenerates to our
+    // whole model. It states one rule where a doorway and a gap previously arrived at two different
+    // places by accident, and that is its whole claim.
+    //
+    // Inert unless VectorLightMask is on, and subsumed by VectorLightApertureBeam when that is on —
+    // a global replacement has already taken every cell this could.
+    //
+    // OFF while it is measured.
+    public static bool VectorLightBentPath = false;
+
     // Feature key for VectorLightMaskMax.
     public const string VectorLightMaskMaxKey = "vector_light_mask_max";
 

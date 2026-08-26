@@ -556,7 +556,11 @@ public static class VectorLightOverlay
 
         if (glowMoved || fresh || (geometryMoved && CoverageWeighted))
         {
-            CopyField(entry, entry.VanillaField, colors, diameter, light.localGlowGridStartPos);
+            // light.position rather than entry.Cell, because the mask's own loop measures its offsets
+            // from light.position and the two sides of the per-cell rule have to agree cell for cell.
+            CopyField(
+                entry, entry.VanillaField, colors, diameter, light.localGlowGridStartPos,
+                light.position);
             VectorLightField.FieldTextureUploads++;
         }
         else
@@ -638,9 +642,15 @@ public static class VectorLightOverlay
 
     private static void CopyField(
         VectorLightField.LightEntry entry, Texture2D field, UnsafeList<Color32> colors, int diameter,
-        IntVec3 start)
+        IntVec3 start, IntVec3 lightCell)
     {
         int count = diameter * diameter;
+
+        // Both read once and threaded down, for the reason the mask's own locals are: this runs
+        // once per texel of every emitter's square whenever a light resamples.
+        bool gapParity = CelestialLightingFeatures.VectorLightGapParity;
+        bool bentPath = VectorLightMask.BentPath;
+
         NativeArray<Color32> texels = field.GetRawTextureData<Color32>();
 
         for (int i = 0; i < count; i++)
@@ -651,18 +661,17 @@ public static class VectorLightOverlay
             // maps vertices into — so the cell this texel speaks for is start + (i % d, i / d), and
             // the coverage grid is indexed in world cells around the emitter rather than in this
             // square's local ones.
-            byte coverage = CelestialLightingFeatures.VectorLightGapParity
-                ? VectorLightMath.CoverageAt(
-                    entry.Coverage, entry.Cell.x, entry.Cell.z, entry.CoverageRadius,
-                    start.x + i % diameter, start.z + i / diameter)
-                : (byte)255;
+            int cellX = start.x + i % diameter;
+            int cellZ = start.z + i / diameter;
+
+            int share = SurvivingShare(entry, glow, cellX, cellZ, lightCell, gapParity, bentPath);
 
             // Integer, and rounded the way a byte scale should be: (v * c + 127) / 255 rather than a
             // float multiply, so a fully covered cell (255) returns its own value unchanged instead
             // of drifting a level on the way through.
-            glow.r = (byte)((glow.r * coverage + 127) / 255);
-            glow.g = (byte)((glow.g * coverage + 127) / 255);
-            glow.b = (byte)((glow.b * coverage + 127) / 255);
+            glow.r = (byte)((glow.r * share + 127) / 255);
+            glow.g = (byte)((glow.g * share + 127) / 255);
+            glow.b = (byte)((glow.b * share + 127) / 255);
 
             // ALPHA IS NOT OPACITY IN THIS BUFFER. ComputeGlowGridsJob writes the accumulated
             // DISTANCE into it (`colorInt.a = (int)num2`), so copying it through would hand the
@@ -674,6 +683,37 @@ public static class VectorLightOverlay
         }
 
         field.Apply(updateMipmaps: false);
+    }
+
+    // How much of this emitter's vanilla light the MASK LEFT STANDING at one cell, as the byte scale
+    // the copy above applies. This is the whole of what the fragment program is entitled to subtract:
+    // subtracting more takes off light nobody is drawing, and subtracting less sums two models.
+    //
+    // THE ORDER OF THE TWO RULES IS NOT ARBITRARY. The per-cell replacement is all-or-nothing and
+    // wins outright, because where it fires the mask has already removed the cell's whole
+    // contribution and there is no remaining share for the coverage weighting to describe. Asking
+    // coverage first and then zeroing would give the same answer and read as though a partly-covered
+    // claimed cell kept part of its vanilla light, which it does not.
+    private static int SurvivingShare(
+        VectorLightField.LightEntry entry, Color32 glow, int cellX, int cellZ, IntVec3 lightCell,
+        bool gapParity, bool bentPath)
+    {
+        bool delivered = glow.r != 0 || glow.g != 0 || glow.b != 0;
+
+        // The identical predicate the mask ran, on the identical inputs — vanilla's own accumulated
+        // distance out of the alpha channel, against the straight run to the same offset. The two
+        // sides cannot drift apart without the pure core changing under both of them.
+        if (bentPath && VectorLightLiftMath.VanillaBentToArrive(
+                cellX - lightCell.x, cellZ - lightCell.z, glow.a, delivered))
+        {
+            return 0;
+        }
+
+        if (!gapParity)
+            return 255;
+
+        return VectorLightMath.CoverageAt(
+            entry.Coverage, entry.Cell.x, entry.Cell.z, entry.CoverageRadius, cellX, cellZ);
     }
 
     // Where each vertex sits in the emitter's square, in [0, 1] on both axes.

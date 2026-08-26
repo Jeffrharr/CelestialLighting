@@ -92,6 +92,13 @@ public class VectorLightLiftMathTests
         public float At(int x, int z) =>
             dist.TryGetValue((x, z), out int d) ? d / 100f : float.PositiveInfinity;
 
+        // What vanilla writes into that array's ALPHA at this cell: `colorInt.a = (int)num2`, the
+        // accumulated distance truncated to whole cells, and written only where the cell got light
+        // at all. Zero therefore means "nothing delivered here" and never "delivered, at distance
+        // zero" — the flood seeds its own cell at one cell, so no lit cell can carry a zero.
+        public int Alpha(int x, int z, int colourChannel, float radius) =>
+            Channel(x, z, colourChannel, radius) <= 0 ? 0 : (int)At(x, z);
+
         // What vanilla writes into its per-light array for this cell, one channel.
         public int Channel(int x, int z, int colourChannel, float radius)
         {
@@ -367,5 +374,223 @@ public class VectorLightLiftMathTests
         Assert.That(r, Is.EqualTo(100));
         Assert.That(g, Is.EqualTo(50));
         Assert.That(b, Is.EqualTo(25));
+    }
+
+    // ---- which renderer owns a cell -------------------------------------------------------
+    //
+    // The rule under test decides, per cell, whether our model REPLACES vanilla's contribution or
+    // leaves it standing. Both directions are load-bearing and they fail in opposite ways: claiming
+    // too much takes the near-field radiance off every lamp (which is what the global aperture beam
+    // did, 19.89 -> 17.87 L* on the lamp cell), and claiming too little leaves an aperture's light
+    // split between two renderers at two resolutions, which is the shape problem it exists for.
+    //
+    // The vanilla side of every one of these comes from GlowFlood, not from the rule's own
+    // arithmetic run twice.
+
+    // The integer accumulator, against the flood's own. Everything below rests on this being what
+    // vanilla really counts to a cell it reached in a straight run.
+    [TestCase(0, 0)]
+    [TestCase(1, 0)]
+    [TestCase(4, 0)]
+    [TestCase(3, 3)]
+    [TestCase(5, 2)]
+    [TestCase(-7, 3)]
+    [TestCase(2, -6)]
+    public void ClearRunStepCostMatchesTheFloodsAccumulator(int dx, int dz)
+    {
+        GlowFlood flood = OpenGround(20f);
+
+        Assert.That(
+            VectorLightLiftMath.ClearRunStepCost(dx, dz) / 100f,
+            Is.EqualTo(flood.At(dx, dz)).Within(Tolerance));
+    }
+
+    // And the truncation, against the byte the flood would have written. Separate from the test
+    // above because the truncation is the part that makes the comparison robust, so it is worth
+    // failing on its own rather than inside a distance assertion.
+    [TestCase(1, 0)]
+    [TestCase(3, 2)]
+    [TestCase(4, 4)]
+    [TestCase(8, 3)]
+    public void ClearRunDistanceIsTheAlphaTheFloodWouldWrite(int dx, int dz)
+    {
+        GlowFlood flood = OpenGround(20f);
+
+        Assert.That(
+            VectorLightLiftMath.ClearRunDistance(dx, dz),
+            Is.EqualTo(flood.Alpha(dx, dz, Lamp[0], 20f)));
+    }
+
+    // THE PROPERTY THAT KEEPS A TORCH LOOKING LIKE A TORCH. Over every cell of an open-ground lamp,
+    // the rule must claim nothing that vanilla lit. Swept rather than sampled, because the failure
+    // this guards against is one direction of one radius quietly crossing a boundary, and a handful
+    // of TestCases would photograph exactly the directions that already work.
+    [Test]
+    public void NothingVanillaLitIsClaimedOnOpenGround()
+    {
+        const float radius = 12f;
+        GlowFlood flood = OpenGround(radius);
+        List<(int, int)> claimed = new List<(int, int)>();
+        int lit = 0;
+
+        for (int dz = -13; dz <= 13; dz++)
+        {
+            for (int dx = -13; dx <= 13; dx++)
+            {
+                int channel = flood.Channel(dx, dz, Lamp[0], radius);
+
+                if (channel <= 0)
+                    continue;
+
+                lit++;
+
+                if (VectorLightLiftMath.VanillaBentToArrive(
+                        dx, dz, flood.Alpha(dx, dz, Lamp[0], radius), delivered: true))
+                {
+                    claimed.Add((dx, dz));
+                }
+            }
+        }
+
+        // The cell count is asserted alongside, so a sweep that matched nothing at all cannot pass
+        // as a clean result — an empty region claims nothing however wrong the rule is. Pinned at
+        // the measured count rather than a floor, so a change to the radius cutoff has to be
+        // noticed here rather than absorbed.
+        Assert.That(lit, Is.EqualTo(341));
+        Assert.That(claimed, Is.Empty);
+    }
+
+    // PROVING THE RED, and the reason the rule is written on distance rather than on the two
+    // brightnesses. The obvious reading of "vanilla < ours" is a level comparison, and on open
+    // ground — where the answer must be "leave every cell alone" — a level comparison claims most
+    // of the lamp, because the octile metric runs long off the eight principal directions and our
+    // straight line is genuinely shorter. Without this test the distance form reads as paranoia.
+    [Test]
+    public void ALevelComparisonWouldClaimMostOfAnOpenGroundLamp()
+    {
+        const float radius = 12f;
+        GlowFlood flood = OpenGround(radius);
+        int lit = 0;
+        int wouldClaim = 0;
+
+        for (int dz = -13; dz <= 13; dz++)
+        {
+            for (int dx = -13; dx <= 13; dx++)
+            {
+                int vanilla = flood.Channel(dx, dz, Lamp[0], radius);
+
+                if (vanilla <= 0)
+                    continue;
+
+                lit++;
+
+                if (OurChannel(dx, dz, radius, Lamp[0], matchSeed: true) > vanilla)
+                    wouldClaim++;
+            }
+        }
+
+        Assert.That(wouldClaim, Is.GreaterThan(lit / 2));
+    }
+
+    // A cell vanilla never reached is ours by the same rule, with no special case for how it failed
+    // to get there. Beyond the radius the flood stops at octile + 1 > radius while a straight line
+    // reaches to radius; behind a wall it stops because there is no route at all.
+    [Test]
+    public void ACellVanillaNeverReachedIsOurs()
+    {
+        Assert.That(
+            VectorLightLiftMath.VanillaBentToArrive(9, 0, 0, delivered: false), Is.True);
+    }
+
+    // ---- the aperture, which is what the rule is for -------------------------------------
+    //
+    // The gate scene's own geometry: a radius-10 torch six cells inside a room, one wall carrying a
+    // single-cell gap on the torch's own row. The flood has to route THROUGH that hole, so its cost
+    // to a cell outside is the octile distance to the hole plus the octile distance on from it —
+    // which equals the direct octile inside the aperture's cone and exceeds it outside.
+
+    private const float TorchRadius = 10f;
+
+    private static GlowFlood GapRoom()
+    {
+        return new GlowFlood(
+            (x, z) =>
+            {
+                bool sideWall = (x == -6 || x == 6) && z >= -4 && z <= 4 && z != 0;
+                bool endWall = (z == -4 || z == 4) && x >= -6 && x <= 6;
+
+                // The door column is a blocker to vanilla whatever the door is doing: RimWorld
+                // writes def.blockLight into lightBlockers once, at spawn, and opening the door
+                // touches the glow grid not at all.
+                bool door = x == -6 && z == 0;
+
+                return sideWall || endWall || door;
+            },
+            0, 0, TorchRadius);
+    }
+
+    // ON THE APERTURE'S AXIS THE RULE CLAIMS NOTHING, and that is correct rather than a miss.
+    // Routing through a hole on the lamp's own row costs exactly the direct octile distance for the
+    // cells straight out from it, so vanilla delivers precisely what our model claims and there is
+    // no reason to take the cell off it.
+    [TestCase(7)]
+    [TestCase(8)]
+    public void TheApertureAxisIsNotClaimed(int dx)
+    {
+        GlowFlood flood = GapRoom();
+
+        Assert.That(flood.Channel(dx, 0, Lamp[0], TorchRadius), Is.GreaterThan(0));
+        Assert.That(
+            VectorLightLiftMath.VanillaBentToArrive(
+                dx, 0, flood.Alpha(dx, 0, Lamp[0], TorchRadius), delivered: true),
+            Is.False);
+    }
+
+    // THE FRINGE IS WHAT IT CLAIMS. Off the axis the detour through the hole costs more than the
+    // straight line, so vanilla's flood is genuinely dimmer there than a clear run would be, and
+    // this is the region where its cell-resolution blob is filling in the shoulder of a beam.
+    [TestCase(7, 2)]
+    [TestCase(7, -2)]
+    public void TheApertureFringeIsClaimed(int dx, int dz)
+    {
+        GlowFlood flood = GapRoom();
+
+        Assert.That(flood.Channel(dx, dz, Lamp[0], TorchRadius), Is.GreaterThan(0));
+        Assert.That(
+            VectorLightLiftMath.VanillaBentToArrive(
+                dx, dz, flood.Alpha(dx, dz, Lamp[0], TorchRadius), delivered: true),
+            Is.True);
+    }
+
+    // AND NOTHING INSIDE THE ROOM IS CLAIMED, which is the aperture-scene form of the open-ground
+    // sweep: the torch is six cells from either wall and every cell between it and them is a clear
+    // run for both models. A rule that took the room would be the global replacement again, and
+    // this scene is where that was measured as a loss.
+    [Test]
+    public void NothingInsideTheLampsOwnRoomIsClaimed()
+    {
+        GlowFlood flood = GapRoom();
+        List<(int, int)> claimed = new List<(int, int)>();
+        int lit = 0;
+
+        for (int dz = -3; dz <= 3; dz++)
+        {
+            for (int dx = -5; dx <= 5; dx++)
+            {
+                if (flood.Channel(dx, dz, Lamp[0], TorchRadius) <= 0)
+                    continue;
+
+                lit++;
+
+                if (VectorLightLiftMath.VanillaBentToArrive(
+                        dx, dz, flood.Alpha(dx, dz, Lamp[0], TorchRadius), delivered: true))
+                {
+                    claimed.Add((dx, dz));
+                }
+            }
+        }
+
+        Assert.That(lit, Is.EqualTo(77));
+        Assert.That(claimed, Is.Empty);
     }
 }
