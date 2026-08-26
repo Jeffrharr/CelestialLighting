@@ -9195,6 +9195,229 @@ of the table. And issue #188 item C — caching the silhouette across a door's a
 half-collected already: the window scan now runs once per bake rather than twice, so what remains for
 item C is the other half rather than the whole of it.
 
+#### Taking the next target, and finding the instrument could not score it
+
+The coverage grid named above as the obvious next target was taken, three ways at once. The x half of
+a cell's bound was hoisted out of the inner loop, where it had been recomputed once per cell rather
+than once per column. The two whole-cell bounds moved to squared distances, dropping two square roots
+a cell, each nudged the safe way — the lit bound down, the unlit bound up — so both stay strictly no
+more permissive than the forms they replace and any cell whose classification moves falls onto the
+sampled path and returns the identical byte. And the sampler stopped asking `atan2` for a bearing it
+mostly did not need.
+
+**That last one is the interesting one, and it starts from where the existing bounds stop paying.**
+Both are taken over the WHOLE polygon, so one wall anywhere in range drops the nearest ray to that
+wall's distance and withdraws the fully-lit path from every direction, including the ones with
+nothing in them. On the 42-segment plate that leaves 10.6% of cells fully lit, 22.8% fully unlit —
+which is 1 − π/4, i.e. the square's corners and nothing else — and 66.6% still sampling. An indoor
+lamp is the common case and it was getting almost nothing from either bound. Bounding per WEDGE
+instead settles 86% of those samples on the plate and 91–97% on the cluttered scenes. Reaching the
+wedge without an `atan2` is what the row walk is for: hold z fixed and a sample's bearing is monotone
+in x, so a cursor advancing on a cross product finds the bracket, and the bearing is only computed
+for what the wedge cannot settle.
+
+Two shapes were tried for that cursor and only the second is defensible. Stepping it one ray at a
+time is amortised O(1) per sample only when a row holds more samples than the polygon holds rays, and
+this is the other way round — 58 samples against 184 rays on the plate and 1,388 in a tight colony —
+so a stepping row walks the whole fan to answer 58 questions and hands back what the missing
+transcendentals saved. Galloping costs O(log gap), which is bounded both by the binary search it
+replaces and by the distance actually travelled.
+
+**Offline, interleaved in one process against a transcription of the previous shape, that is 1.21x on
+the measured plate** and 1.09–1.27x across the cluttered scenes, byte-identical everywhere, with no
+scene reading below 1.00.
+
+The three-arm split is worth reading, because it says the two cheap changes and the cursor pay in
+opposite places. The hoist and the squared bounds are worth about 1.00x wherever cells actually
+sample — 0.99x on the plate — and 1.32x on open ground and 1.88x on the sealed room, because what
+they buy is cheaper FAST-PATH cells and those two scenes are made of almost nothing else. The cursor
+is therefore the whole of the gain on every scene that resembles a built colony, and the two small
+changes are the whole of it on the scenes that do not.
+
+**Live, none of that reproduces, and the honest reading is that `vector_light_frame_cost` cannot
+score a change this size.** Three alternating pairs, rebuilding between each so the machine's drift
+is shared rather than handed to one arm:
+
+| arm | coverage ms | polygon ms | control basket | cov/basket |
+|---|---|---|---|---|
+| prior | 8.719 | 8.431 | 33.345 | 0.2615 |
+| new | 7.905 | 7.326 | 26.597 | 0.2972 |
+| prior | 12.609 | 22.807 | 55.374 | 0.2277 |
+| new | 7.286 | 7.507 | 24.648 | 0.2956 |
+| prior | 7.142 | 7.000 | 23.140 | 0.3087 |
+| new | 6.983 | 9.927 | 25.030 | 0.2790 |
+
+The raw column tells a flattering story — 7.39 ms mean against 9.49 — and it is meaningless, because
+the untouched control basket moved with it, 25.4 against 37.3. Normalised within each run the new
+build's coverage share is 6–9% *higher*, which is the wrong sign; but that is not a result either,
+because the same statistic on ONE binary reads 1.03, 0.55 and 1.02 (`cov/poly`, the three baseline
+runs), and five historical runs on unchanged binaries span 0.194–0.372 on `cov/basket`. The gap
+between the arm means is a third of the spread on a fixed build.
+
+**The trap worth naming: the first pair read 0.91x on the subject arm and looked like a win.** Every
+untouched control arm in that same pair had moved further — 0.76 to 0.88 — so what was measured was a
+machine that happened to be quieter during the second run. A Circinus A/B is only ever the subject
+divided by its controls, and a subject that moved LESS than its controls has not moved at all.
+
+Why the instrument cannot do better here is structural rather than bad luck: the scenario bakes 44
+times in its window, which is 7–9 ms of coverage work in total, and Mono's JIT warm-up is a large
+fraction of that. Resolving a 15% change needs a scenario that drives far more bakes — repeated
+invalidation across a `TickLapse` rather than a single settle — and that is what to build before
+anyone tries to score the next change to this stage. Until then the branch's status is exactly:
+byte-identical, faster on the desktop CLR, and unmeasurable in the game. The section below is what
+changed that — not by measuring this better, but by making a change large enough that a purpose-built
+instrument could see it, and by discovering along the way that the existing bank could not have.
+
+**One thing the live runs did change, on a hypothesis the live runs themselves could not test.** The cursor
+arrangement needs six working arrays a bake where the per-cell shape needed only the grid it
+returns — about 1.8 KB per radius-14 emitter against the grid's 841 bytes, and 44 bakes a window.
+Mono's allocator is much weaker than the desktop CLR's, which is exactly the shape of cost that would
+show up live and hide offline, so those arrays now come from a `CoverageScratch` the caller owns and
+reuses.
+
+The offline sweep corroborates the mechanism without being able to confirm it for Mono: before the
+pooling, three of the cheap scenes read slightly BELOW parity — `room` 0.98x, `rooms` 0.98x,
+`pillars-r7` 0.95x — and with the caller reusing one scratch the same three read 1.01x, 1.04x and
+1.00x. Those are the scenes with the fewest sampled cells to spread an allocation over, which is
+where an allocation cost should surface first. It is evidence on the wrong runtime, and it is quoted
+as that rather than as a live result.
+
+The scratch is a parameter rather than a static inside the pure core deliberately: the offline fixtures
+call `BuildCoverage` directly and NUnit is free to run fixtures in parallel, so a hidden buffer is a
+data race waiting for somebody to add `[Parallelizable]`, and a torn grid reads as a formula bug. The
+buffers are grown and never shrunk, and nothing clears them between bakes — the claim being that the
+classification pass overwrites every entry it goes on to read. That claim is what
+`AReusedScratchMatchesAFreshOne` exists to hold: bakes of descending size share one scratch and are
+compared against fresh ones, and when the reset was deliberately removed it was the ONLY test in the
+fixture that failed. The oracle comparisons all passed, because each of them hands in a clean buffer.
+
+#### Threading the bake, and an instrument that could not see it
+
+The coverage work above ends with the branch "byte-identical, faster on the desktop CLR, and
+unmeasurable in the game". Threading the bake is what changed that, and it changed it for a reason
+worth stating plainly: the two are not alternatives. Making a bake 1.2x cheaper and running twenty of
+them at once multiply, and only the second one is large enough for this repo's instruments to see.
+
+**WHAT IS SAFE TO THREAD IS DECIDED BY WHAT TOUCHES THE MAP.** `EnsurePolygons` now runs in three
+passes instead of one. Selecting walks the emitter dictionary and applies the view cull. Gathering
+calls `VectorLightBlockers.SegmentsAround` for each survivor, which reads the edifice grid, door
+state and thing positions — the only live-state read in a bake, and it stays on the calling thread.
+Baking is then arithmetic over a `Segment[]` that writes only to the entry it was handed, so two of
+them cannot observe each other, and that is the pass handed to `Parallel.For`.
+
+**THE SOUNDNESS ARGUMENT IS ABOUT THE CALLER, NOT THE CODE.** RimWorld ticks and draws on one thread,
+and this runs inside the draw through `Patch_VectorLightDraw`. While the join is outstanding the main
+thread is blocked inside it and therefore not ticking, so no door opens, no wall moves and nothing
+despawns underneath a worker. That is a property of *where* `EnsurePolygons` is called from — which is
+why moving that call is a threading change rather than a refactor, and why this is behind a flag
+rather than unconditional.
+
+Below four emitters the batch is baked on the calling thread. A fan-out has to wake pool threads,
+hand out ranges and join, which is tens of microseconds against a bake's ~0.35 ms; that is a good
+trade on the frame a map loads or a wall goes up in a lit building, and a bad one in the steady
+state, where the dirty flags do their job and a frame bakes nothing at all.
+
+**THE EXISTING PROFILE COULD NOT SCORE ANY OF THIS, and finding out why is the more durable result.**
+`circ_vlbuilddirty` arms `BuildAndDirty`, which contains `EnsurePolygons` and therefore contains every
+`Build` and `BuildCoverage` call in the window — and it reads 1.3–1.5 ms in a window where the arms on
+those two children read 6–9 ms each. Circinus totals are **exclusive of armed children**. That makes
+the whole bank blind to threading by construction rather than by noise: threading does not reduce the
+time the stages spend, it moves that time onto other threads, and no arm in the bank measures a wait.
+This is a different failure from the one the coverage change hit, and it is worse, because more runs
+would never have fixed it.
+
+`vector_light_bake_wall_ms` is the answer: a stopwatch on the **calling thread** around the bake pass
+only, excluding the gather, which is identical work on the same thread in both arms. The serial path
+accumulates every bake because it runs them; the threaded path accumulates the fan-out and the join,
+and the workers' own time lands nowhere. Three alternating pairs, one binary, the flag the only
+difference:
+
+| arm | calling-thread bake ms | draw max ms | fan-outs |
+|---|---|---|---|
+| serial | 20.895 | 9.316 | 0 |
+| serial | 14.409 | 1.833 | 0 |
+| serial | 14.738 | 2.693 | 0 |
+| threaded | 9.250 | 4.253 | 2 |
+| threaded | 12.642 | 3.548 | 2 |
+| threaded | 3.384 | 1.815 | 2 |
+
+**Mean 16.68 ms against 8.43 ms, and — the part that matters on a box this noisy — the two ranges do
+not overlap.** (That 2x is scenario-bound and the section after this one supersedes it: measured over
+forty consecutive passes rather than two, with the thread pool warm, the same code reads 4.7x.) The worst threaded run beat the best serial one, 12.64 against 14.41, over a batch of
+22 emitters baked twice per window. Roughly 2x, on a four-core Steam Deck, which is what an uneven
+per-emitter cost plus a join gets you rather than the four the core count suggests.
+
+**WHAT IT COSTS, recorded because it is the honest half.** The threaded run that came closest to the
+serial arm is also the one that recorded a single `Build` call above 20 ms and a `circ_vlpolygon`
+total of 57 ms, against 7–10 ms everywhere else. A worker that gets descheduled still has to be
+joined, so a contended machine's worst frame is worse under threading than the mean suggests — the
+main thread waits for the slowest worker rather than for the sum. It still beat every serial run, but
+it is why the per-call maxima in `vector_light_frame_cost` were widened rather than left to fail
+intermittently: a maximum measured on a thread nobody waits on in isolation has stopped being a bound
+on anything a player experiences, and `vector_light_bake_wall_ms` is what now means what it used to.
+
+**THE SCRATCH BUFFERS ARE WHY THIS WAS A FEW LINES RATHER THAN A REWRITE.** The coverage work handed
+`BuildCoverage`'s six working arrays to the caller as a parameter, on the argument that a static
+inside the pure core is a data race waiting for somebody to mark an NUnit fixture parallelisable.
+That decision is what let the field answer threading with a `[ThreadStatic]` scratch and change
+nothing in `VectorLightMath` at all. Two emitters sharing one scratch would not crash; they would
+interleave writes into the same column and row arrays and produce a coverage grid with a few wrong
+bytes — one cell of one shadow at the wrong depth, which no probe pins and no CIELAB comparison
+separates from noise. `ConcurrentBakesMatchSerialOnes` holds that claim with 240 real `Parallel.For`
+jobs against serial answers, and it fails immediately when the two are made to share.
+
+#### The bake storm, and what the frame window actually does
+
+The section above measures the threaded bake at about 2x and says so with three pairs. That number is
+an artefact of the scenario it was taken in, and `vector_light_bake_storm` is what shows it.
+
+**THE PROBLEM WAS TWO SAMPLES, NOT NOISE.** `vector_light_frame_cost` spans roughly 480 frames and
+bakes on two of them, which is the honest steady state of a colony — the dirty flags do their job and
+most frames bake nothing at all. That is the right shape for asking what a colony costs and the wrong
+one for asking what a bake costs: the event under measurement occupies 0.4% of the window, and one of
+those two fan-outs is paying for a cold thread pool. The storm fires forty inert feature toggles, each
+of which calls `ForceRebuild` and so drops and rebakes all 22 emitters, putting forty bake-heavy
+frames in the window instead of two.
+
+With the pool warm across forty consecutive passes, the calling thread's own time in the bake reads:
+
+| arm | bakes | passes | calling-thread bake ms | draw total ms | draw max ms | Build max ms |
+|---|---|---|---|---|---|---|
+| serial | 880 | 40 | 403.1 | 177.5 | 13.4 | 6.97 |
+| serial | 880 | 40 | 288.5 | 107.0 | 21.3 | 4.13 |
+| threaded | 880 | 40 | 72.4 | 101.6 | 22.6 | 13.92 |
+| threaded | 880 | 40 | 73.3 | 98.7 | 15.4 | 15.51 |
+
+**4.7x rather than 2x**, and the threaded arm is the stable one — 72.4 against 73.3, a 1.2% spread,
+where the serial arm moved 40% between the same two runs. The earlier figure understated the design
+because pool spin-up was amortised over two passes instead of forty; both numbers are real, and which
+one a player sees depends on whether their colony is baking once or rebuilding a district.
+
+`vector_light_bakes` reads 880 in all four runs, both arms, no drift — which is what makes the
+durations comparable at all and why that pin is exact rather than tolerant.
+
+**THE FRAME WINDOW DOES COME DOWN, BY MUCH LESS.** The draw total falls from 142.2 ms to 100.1 ms on
+the means, about 1.42x, and the two ranges do not overlap — the slower threaded run still beat the
+faster serial one, 101.6 against 107.0. That is the honest headline for the feature as a player
+experiences it: a bake made four times cheaper is a draw made half again cheaper, because the bake was
+never the whole of the draw.
+
+**AND THE WORST FRAME DOES NOT MOVE AT ALL.** `circ_vldraw_max_ms` reads 13.4 and 21.3 serial against
+22.6 and 15.4 threaded — no signal in either direction. This is the most useful thing the storm says,
+because it names the next target rather than the last one. `ForceRebuild` drops every mesh, so each of
+these frames also destroys and re-uploads 22 Unity meshes, and mesh upload is a main-thread API that
+no amount of threading touches. The worst frame in this subsystem is now geometry UPLOAD, not geometry
+CONSTRUCTION. Anyone reaching for the next optimisation here should start there and not in
+`VectorLightMath`.
+
+Two caveats on reading this file. The storm's provocation is heavier than the event it stands in for —
+a wall going up in a lit room dirties one or two emitters, not all 22, and does not drop their meshes —
+so it is a stress case rather than a simulation, and its draw maxima carry mesh work a real
+invalidation would not. And `circ_vlpolygon_max_ms` roughly triples under threading, 4–7 ms serial
+against 14–16 ms threaded, which is the descheduling cost made visible: a worker that loses its slot
+still has to be joined. It cost nothing here because the join was still far ahead, but it is why the
+per-call maxima in both files are recorded on a wide tolerance rather than pinned.
+
 ### The flicker question, and what it turned out to be
 
 Watching a run, the light reads as though it flickers slightly.
