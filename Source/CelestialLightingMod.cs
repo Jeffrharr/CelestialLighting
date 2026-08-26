@@ -6,12 +6,18 @@ namespace CelestialLighting;
 [StaticConstructorOnStartup]
 public static class CelestialLightingMod
 {
+    // The Harmony instance id, named here rather than written twice. SkyOcclusionGather compares
+    // Patch.owner against it to tell our own patches on a vanilla method apart from another mod's,
+    // and a literal that drifted from the one PatchAll registers under would read as "every patch on
+    // this method is foreign" — which fails safe, and silently.
+    public const string HarmonyId = "celestiallighting";
+
     // StaticConstructorOnStartup ensures this runs after all mods are loaded and RimWorld's own
     // static initialization is complete. PatchAll() scans this assembly for [HarmonyPatch]
     // classes and applies them.
     static CelestialLightingMod()
     {
-        new Harmony("celestiallighting").PatchAll();
+        new Harmony(HarmonyId).PatchAll();
 
         // Tell Realistic Axial Tilt, if present, to stand its own lighting patches down — we render
         // the sky, it owns the planet's solar geometry. Done here rather than lazily because it must

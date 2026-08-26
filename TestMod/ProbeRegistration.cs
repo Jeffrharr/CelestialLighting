@@ -547,6 +547,73 @@ public static class ProbeRegistration
         ProbeRegistry.Register(new CircinusProbe("circinus_occl_max_ms", CircinusProbe.Metric.MaxMs, occlusion, "Postfix"));
         ProbeRegistry.Register(new CircinusProbe("circinus_occl_max_calls", CircinusProbe.Metric.MaxCallsPerCycle, occlusion, "Postfix"));
 
+        // A CHILD ARM, AND CHILD ARMS ARE FOR FINDING RATHER THAN JUDGING. Instrumenting a method
+        // called from inside an already-armed one charges the child's own instrumentation to the
+        // parent, so the parent's total inflates and the two rows must never be read as a clean
+        // split. What this arm is for is the one question the postfix's own row cannot answer:
+        // whether the window FILL — the part that could move to another thread — is most of the
+        // postfix or a corner of it. The two mesh passes and the mesh.colors32 round trip cannot move
+        // anywhere, so a gather phase is only worth building if this row is large.
+        //
+        // Read it in a run of its own and compare against an unarmed run's circinus_occl_total_ms to
+        // see the inflation; do not compare arm to arm inside one run, and do not leave it armed for
+        // the A/B that judges the change.
+        //
+        // DO NOT ARM THIS WITH THE GATHER PHASE ON. Once SkyOcclusionGather is running, BuildWindow is
+        // called from worker threads, and arming it means Circinus's own instrumentation runs off the
+        // main thread — which is neither something Circinus promises nor something this repo has any
+        // reason to find out about the hard way. The number this arm exists for was taken on the
+        // serial build, before the phase existed, and that is the only build it is safe on. The A/B
+        // that judges the phase arms circinus_mesh_* and circinus_occl_*, both main-thread only.
+        //
+        // BuildWindow is private and Circinus arms it by name through AccessTools, which finds
+        // non-public members — but a method small enough for the JIT to have inlined it before
+        // Circinus arms reads zero calls and is indistinguishable from one that never ran. Pin
+        // circinus_occl_window_calls against circinus_occl_calls: BuildWindow is called exactly once
+        // per postfix, so anything other than equality means the arm did not take.
+        ProbeRegistry.Register(new CircinusProbe("circinus_occl_window_patched", CircinusProbe.Metric.Patched, occlusion, "BuildWindow"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_occl_window_calls", CircinusProbe.Metric.Calls, occlusion, "BuildWindow"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_occl_window_total_ms", CircinusProbe.Metric.TotalMs, occlusion, "BuildWindow"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_occl_window_max_ms", CircinusProbe.Metric.MaxMs, occlusion, "BuildWindow"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_occl_window_reset", CircinusProbe.Metric.Reset, occlusion, "BuildWindow"));
+
+        // THE FRAME, not the call — the one arm that can judge the gather phase.
+        //
+        // MapDrawer.MapMeshDrawerUpdate_First is the call that runs vanilla's whole regenerate loop:
+        // it walks every section, and Section.TryUpdate regenerates every visible dirty layer of every
+        // visible dirty section before it returns. The gather phase runs as a Prefix on this same
+        // method, so BOTH halves of the change are inside this arm — the batch build we added and the
+        // per-section work we took out of the postfixes underneath it. The main thread blocks on the
+        // parallel fill, so its wall time is counted here honestly rather than disappearing onto the
+        // workers.
+        //
+        // WHY circinus_occl_* CANNOT JUDGE THIS ON ITS OWN, and would flatter it badly. With the phase
+        // on, the postfix no longer contains the window fill, so its row falls by construction whether
+        // or not the frame got any shorter — the work moved, and an arm on the place it moved out of
+        // can only ever report a win. MaxMs here is the worst frame of the thing that actually
+        // stutters; read that first and the postfix row second.
+        //
+        // Registered on the gather branch and cherry-picked back onto the baseline's probe bridge, so
+        // the same instrument reads both builds. An arm that exists in only one of two builds is not a
+        // comparison.
+        const string meshDrawer = "Verse.MapDrawer";
+        ProbeRegistry.Register(new CircinusProbe("circinus_mesh_patched", CircinusProbe.Metric.Patched, meshDrawer, "MapMeshDrawerUpdate_First"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_mesh_calls", CircinusProbe.Metric.Calls, meshDrawer, "MapMeshDrawerUpdate_First"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_mesh_total_ms", CircinusProbe.Metric.TotalMs, meshDrawer, "MapMeshDrawerUpdate_First"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_mesh_max_ms", CircinusProbe.Metric.MaxMs, meshDrawer, "MapMeshDrawerUpdate_First"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_mesh_reset", CircinusProbe.Metric.Reset, meshDrawer, "MapMeshDrawerUpdate_First"));
+
+        // Indoor sky occlusion's gather phase, by counter rather than by clock. See
+        // SkyOcclusionGatherProbe for why a timing probe cannot see this feature fail: a phase that
+        // stops matching produces the right pixels at the old cost and reads as "no regression".
+        ProbeRegistry.Register(new SkyOcclusionGatherProbe("occl_gather_passes", SkyOcclusionGatherProbe.Metric.Passes));
+        ProbeRegistry.Register(new SkyOcclusionGatherProbe("occl_gather_sections", SkyOcclusionGatherProbe.Metric.Sections));
+        ProbeRegistry.Register(new SkyOcclusionGatherProbe("occl_gather_hits", SkyOcclusionGatherProbe.Metric.Hits));
+        ProbeRegistry.Register(new SkyOcclusionGatherProbe("occl_gather_misses", SkyOcclusionGatherProbe.Metric.Misses));
+        ProbeRegistry.Register(new SkyOcclusionGatherProbe("occl_gather_hit_fraction", SkyOcclusionGatherProbe.Metric.HitFraction));
+        ProbeRegistry.Register(new SkyOcclusionGatherProbe("occl_gather_sections_per_pass", SkyOcclusionGatherProbe.Metric.SectionsPerPass));
+        ProbeRegistry.Register(new SkyOcclusionGatherProbe("occl_gather_reset", SkyOcclusionGatherProbe.Metric.Reset));
+
         // The barrier between the discarded warm-up rebake and the measured one. CollectStatistics
         // accumulates across Circinus's whole 2000-cycle ring, so without a reset the measured rebake
         // would be reported with the feature-off rebake that preceded it still inside it — which
@@ -1618,6 +1685,24 @@ public static class ProbeRegistration
                 CelestialLightingFeatures.IndoorGlowPassthrough = enabled;
                 IndoorOcclusionRedraw.ForceRebuild();
             });
+        // The gather phase. Same baked-mesh situation as the §7b-family flags around it, so the toggle
+        // needs the same forced rebuild — but for a different reason than they do: those flags change
+        // what gets baked, and this one changes only WHERE the bake happens. The rebuild is what makes
+        // the arm measure anything at all, since without it the meshes baked before the flip stay on
+        // screen and both arms photograph the same pass.
+        //
+        // Registered with the default-TRUE overload to match the shipped default. A ResetAll that put
+        // it back to false would leave every later scenario in a suite measuring the serial path while
+        // its comments claimed the shipped one.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.IndoorOcclusionGatherKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.IndoorOcclusionGather = enabled;
+                IndoorOcclusionRedraw.ForceRebuild();
+            },
+            defaultEnabled: true);
+
         // §7c / NativeSkyFalloff: same baked-mesh situation as the two §7b-family flags immediately
         // above (SkyFalloffSource feeds the identical CapOcclusion call inside that same postfix), so
         // the toggle needs the same forced rebuild.

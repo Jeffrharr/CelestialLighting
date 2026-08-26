@@ -151,6 +151,10 @@
     <!-- §7b's baked verdict window: geometry, storage and reads only, so it is Verse-free too and the
          lattice-equivalence tests can drive the real shipped buffer rather than a stand-in. -->
     <Compile Include="../../Source/SkyOcclusionWindow.cs" Link="SkyOcclusionWindow.cs" />
+    <!-- The two decisions the gather phase makes before it touches anything live: whether a batch is
+         big enough to be worth a worker, and whether a section's flags say it is about to regenerate.
+         Linked next to the window it batches, since the pair only makes sense read together. -->
+    <Compile Include="../../Source/SkyOcclusionGatherMath.cs" Link="SkyOcclusionGatherMath.cs" />
     <!-- §7c pure core (native under-roof sky falloff, no Ambient Light dependency). Mirrors
          IndoorOcclusionMath's AmbientLightSkyFraction in shape but is its own file and its own
          formula, deliberately not shared code — see its header. -->

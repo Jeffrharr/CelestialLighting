@@ -1,0 +1,1156 @@
+{
+ "name": "perf_indoor_occlusion_gather",
+ "saveFile": "minimal_colony.rws",
+ "requiredMods": {
+  "astryl.Circinus": "3773680130"
+ },
+ "description": "perf_indoor_occlusion with an arm on MapDrawer.MapMeshDrawerUpdate_First added, which is the call that judges the gather phase. BUILD-AGNOSTIC ON PURPOSE: it names no gather feature key and reads no gather counter, so the identical file runs against a baseline build that has neither, and the only difference between the two runs is whether the gather phase exists. READ circinus_mesh_max_ms FIRST -- it is the worst frame of the thing that actually stutters, and it is the only row that contains BOTH halves of the change (the batch build the phase adds, and the per-section fill it takes out of the postfixes below it). circinus_occl_total_ms falling is NOT the result: with the phase on, the fill has left the postfix by construction, so that row can only ever report a win whether or not the frame got shorter. It is quoted as evidence the phase fired at all, nothing more. Interleave the two builds -- two runs of ONE build came out 883 ms and 2151 ms on this machine, so a block design hands whichever build ran in the quiet half a win it did not earn.",
+ "steps": [
+  {
+   "type": "SetTile",
+   "args": {
+    "latitude": "45"
+   }
+  },
+  {
+   "type": "SetSeason",
+   "args": {
+    "dayOfYear": "40"
+   }
+  },
+  {
+   "type": "SetWeather",
+   "args": {
+    "weatherDef": "Clear",
+    "instant": "true"
+   }
+  },
+  {
+   "type": "SetTerrain",
+   "args": {
+    "def": "Concrete",
+    "width": "70",
+    "height": "49",
+    "offset": "8,60",
+    "clear": "true"
+   }
+  },
+  {
+   "type": "PlaceThings",
+   "args": {
+    "def": "Wall",
+    "stuff": "BlocksGranite",
+    "offset": "8,60",
+    "layout": "cells",
+    "clear": "true",
+    "cells": "-33,-23; -33,-22; -33,-21; -33,-20; -33,-19; -33,-18; -33,-17; -33,-16; -33,-15; -33,-14; -33,-13; -33,-12; -33,-11; -33,-10; -33,-9; -33,-8; -33,-7; -33,-6; -33,-5; -33,-4; -33,-3; -33,-2; -33,-1; -33,0; -33,1; -33,2; -33,3; -33,4; -33,5; -33,6; -33,7; -33,8; -33,9; -33,10; -33,11; -33,12; -33,13; -33,14; -33,15; -33,16; -33,17; -33,18; -33,19; -33,20; -33,21; -32,-23; -32,-12; -32,-1; -32,10; -32,21; -31,-23; -31,-12; -31,-1; -31,10; -31,21; -30,-23; -30,-12; -30,-1; -30,10; -30,21; -29,-23; -29,-12; -29,-1; -29,10; -29,21; -28,-23; -28,-12; -28,-1; -28,10; -28,21; -27,-23; -27,21; -26,-23; -26,-12; -26,-1; -26,10; -26,21; -25,-23; -25,-12; -25,-1; -25,10; -25,21; -24,-23; -24,-12; -24,-1; -24,10; -24,21; -23,-23; -23,-12; -23,-1; -23,10; -23,21; -22,-23; -22,-12; -22,-1; -22,10; -22,21; -21,-23; -21,-12; -21,-1; -21,10; -21,21; -20,-23; -20,-22; -20,-21; -20,-20; -20,-19; -20,-17; -20,-16; -20,-15; -20,-14; -20,-13; -20,-12; -20,-11; -20,-10; -20,-9; -20,-8; -20,-6; -20,-5; -20,-4; -20,-3; -20,-2; -20,-1; -20,0; -20,1; -20,2; -20,3; -20,5; -20,6; -20,7; -20,8; -20,9; -20,10; -20,11; -20,12; -20,13; -20,14; -20,16; -20,17; -20,18; -20,19; -20,20; -20,21; -19,-23; -19,-12; -19,-1; -19,10; -19,21; -18,-23; -18,-12; -18,-1; -18,10; -18,21; -17,-23; -17,-12; -17,-1; -17,10; -17,21; -16,-23; -16,-12; -16,-1; -16,10; -16,21; -15,-23; -15,-12; -15,-1; -15,10; -15,21; -14,-23; -14,21; -13,-23; -13,-12; -13,-1; -13,10; -13,21; -12,-23; -12,-12; -12,-1; -12,10; -12,21; -11,-23; -11,-12; -11,-1; -11,10; -11,21; -10,-23; -10,-12; -10,-1; -10,10; -10,21; -9,-23; -9,-12; -9,-1; -9,10; -9,21; -8,-23; -8,-12; -8,-1; -8,10; -8,21; -7,-23; -7,-22; -7,-21; -7,-20; -7,-19; -7,-17; -7,-16; -7,-15; -7,-14; -7,-13; -7,-12; -7,-11; -7,-10; -7,-9; -7,-8; -7,-6; -7,-5; -7,-4; -7,-3; -7,-2; -7,-1; -7,0; -7,1; -7,2; -7,3; -7,5; -7,6; -7,7; -7,8; -7,9; -7,10; -7,11; -7,12; -7,13; -7,14; -7,16; -7,17; -7,18; -7,19; -7,20; -7,21; -6,-23; -6,-12; -6,-1; -6,10; -6,21; -5,-23; -5,-12; -5,-1; -5,10; -5,21; -4,-23; -4,-12; -4,-1; -4,10; -4,21; -3,-23; -3,-12; -3,-1; -3,10; -3,21; -2,-23; -2,-12; -2,-1; -2,10; -2,21; -1,-23; -1,21; 0,-23; 0,-12"
+   }
+  },
+  {
+   "type": "PlaceThings",
+   "args": {
+    "def": "Wall",
+    "stuff": "BlocksGranite",
+    "offset": "8,60",
+    "layout": "cells",
+    "cells": "0,-1; 0,10; 0,21; 1,-23; 1,-12; 1,-1; 1,10; 1,21; 2,-23; 2,-12; 2,-1; 2,10; 2,21; 3,-23; 3,-12; 3,-1; 3,10; 3,21; 4,-23; 4,-12; 4,-1; 4,10; 4,21; 5,-23; 5,-12; 5,-1; 5,10; 5,21; 6,-23; 6,-22; 6,-21; 6,-20; 6,-19; 6,-17; 6,-16; 6,-15; 6,-14; 6,-13; 6,-12; 6,-11; 6,-10; 6,-9; 6,-8; 6,-6; 6,-5; 6,-4; 6,-3; 6,-2; 6,-1; 6,0; 6,1; 6,2; 6,3; 6,5; 6,6; 6,7; 6,8; 6,9; 6,10; 6,11; 6,12; 6,13; 6,14; 6,16; 6,17; 6,18; 6,19; 6,20; 6,21; 7,-23; 7,-12; 7,-1; 7,10; 7,21; 8,-23; 8,-12; 8,-1; 8,10; 8,21; 9,-23; 9,-12; 9,-1; 9,10; 9,21; 10,-23; 10,-12; 10,-1; 10,10; 10,21; 11,-23; 11,-12; 11,-1; 11,10; 11,21; 12,-23; 12,21; 13,-23; 13,-12; 13,-1; 13,10; 13,21; 14,-23; 14,-12; 14,-1; 14,10; 14,21; 15,-23; 15,-12; 15,-1; 15,10; 15,21; 16,-23; 16,-12; 16,-1; 16,10; 16,21; 17,-23; 17,-12; 17,-1; 17,10; 17,21; 18,-23; 18,-12; 18,-1; 18,10; 18,21; 19,-23; 19,-22; 19,-21; 19,-20; 19,-19; 19,-17; 19,-16; 19,-15; 19,-14; 19,-13; 19,-12; 19,-11; 19,-10; 19,-9; 19,-8; 19,-6; 19,-5; 19,-4; 19,-3; 19,-2; 19,-1; 19,0; 19,1; 19,2; 19,3; 19,5; 19,6; 19,7; 19,8; 19,9; 19,10; 19,11; 19,12; 19,13; 19,14; 19,16; 19,17; 19,18; 19,19; 19,20; 19,21; 20,-23; 20,-12; 20,-1; 20,10; 20,21; 21,-23; 21,-12; 21,-1; 21,10; 21,21; 22,-23; 22,-12; 22,-1; 22,10; 22,21; 23,-23; 23,-12; 23,-1; 23,10; 23,21; 24,-23; 24,-12; 24,-1; 24,10; 24,21; 25,-23; 25,21; 26,-23; 26,-12; 26,-1; 26,10; 26,21; 27,-23; 27,-12; 27,-1; 27,10; 27,21; 28,-23; 28,-12; 28,-1; 28,10; 28,21; 29,-23; 29,-12; 29,-1; 29,10; 29,21; 30,-23; 30,-12; 30,-1; 30,10; 30,21; 31,-23; 31,-12; 31,-1; 31,10; 31,21; 32,-23; 32,-22; 32,-21; 32,-20; 32,-19; 32,-18; 32,-17; 32,-16; 32,-15; 32,-14; 32,-13; 32,-12; 32,-11; 32,-10; 32,-9; 32,-8; 32,-7; 32,-6; 32,-5; 32,-4; 32,-3; 32,-2; 32,-1; 32,0; 32,1; 32,2; 32,3; 32,4; 32,5; 32,6; 32,7; 32,8; 32,9; 32,10; 32,11; 32,12; 32,13; 32,14; 32,15; 32,16; 32,17; 32,18; 32,19; 32,20; 32,21"
+   }
+  },
+  {
+   "type": "SetRoof",
+   "args": {
+    "def": "RoofConstructed",
+    "width": "66",
+    "height": "45",
+    "offset": "8,60"
+   }
+  },
+  {
+   "type": "PlaceThings",
+   "args": {
+    "def": "TorchLamp",
+    "offset": "8,60",
+    "layout": "cells",
+    "cells": "-29,-19; -29,-8; -29,3; -29,14; -16,-19; -16,-8; -16,3; -16,14; -3,-19; -3,-8; -3,3; -3,14; 10,-19; 10,-8; 10,3; 10,14; 23,-19; 23,-8; 23,3; 23,14"
+   }
+  },
+  {
+   "type": "SetTime",
+   "args": {
+    "hour": "12"
+   }
+  },
+  {
+   "type": "LookAt",
+   "args": {
+    "offset": "8,60",
+    "zoom": "60"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "realistic_preset",
+    "enabled": "false"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_glow_passthrough",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "native_sky_falloff",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "AdvanceTicks",
+   "args": {
+    "ticks": "250"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "30"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circinus_available",
+    "expectedValue": "1",
+    "tolerance": "0"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circinus_occl_patched",
+    "expectedValue": "1",
+    "tolerance": "0"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circinus_mesh_patched",
+    "expectedValue": "1",
+    "tolerance": "0"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circinus_regen_patched",
+    "expectedValue": "1",
+    "tolerance": "0"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circinus_occl_reset",
+    "expectedValue": "0",
+    "tolerance": "0.001"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circinus_mesh_reset",
+    "expectedValue": "0",
+    "tolerance": "0.001"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circinus_reset",
+    "expectedValue": "0",
+    "tolerance": "0.001"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "indoor_sky_occlusion",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "6"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circinus_occl_patched",
+    "expectedValue": "1",
+    "tolerance": "0"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circinus_mesh_patched",
+    "expectedValue": "1",
+    "tolerance": "0"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circinus_cycles",
+    "expectedValue": "0",
+    "tolerance": "1000000000.0"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circinus_occl_calls",
+    "expectedValue": "0",
+    "tolerance": "1000000000.0"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circinus_occl_total_ms",
+    "expectedValue": "0",
+    "tolerance": "1000000000.0"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circinus_occl_max_ms",
+    "expectedValue": "0",
+    "tolerance": "1000000000.0"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circinus_occl_max_calls",
+    "expectedValue": "0",
+    "tolerance": "1000000000.0"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circinus_mesh_calls",
+    "expectedValue": "0",
+    "tolerance": "1000000000.0"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circinus_mesh_total_ms",
+    "expectedValue": "0",
+    "tolerance": "1000000000.0"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circinus_mesh_max_ms",
+    "expectedValue": "0",
+    "tolerance": "1000000000.0"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circinus_regen_calls",
+    "expectedValue": "0",
+    "tolerance": "1000000000.0"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circinus_regen_total_ms",
+    "expectedValue": "0",
+    "tolerance": "1000000000.0"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "native_falloff_depth",
+    "expectedValue": "0",
+    "tolerance": "1000000000.0"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "native_falloff_fraction",
+    "expectedValue": "0",
+    "tolerance": "1000000000.0"
+   }
+  },
+  {
+   "type": "Screenshot",
+   "args": {
+    "fileName": "occl_perf_warmup.png"
+   }
+  },
+  {
+   "type": "Screenshot",
+   "args": {
+    "fileName": "occl_perf_noon.png"
+   }
+  }
+ ]
+}
