@@ -944,6 +944,33 @@ public static class CelestialLightingFeatures
     // A/B measures the compositing and nothing else.
     public static bool VectorLightSurfaceLift = false;
 
+    // Feature key for VectorLightGapParity.
+    public const string VectorLightGapParityKey = "vector_light_gap_parity";
+
+    // Subtract what vanilla still contributes ON SCREEN, rather than what its glow grid holds.
+    //
+    // THE DEFECT, MEASURED. Two identical roofed rooms, one torch each, each torch four cells from
+    // its own opening onto the same open ground; the only difference is one wall cell, a door in one
+    // and a bare gap in the other. Past the door the composition adds 5.5 L*. Past the gap it
+    // SUBTRACTS 1.4 — the ground outside comes out darker than vanilla and no beam is drawn at all.
+    // One wall cell, and the two openings look nothing like each other.
+    //
+    // WHY. Phase 3's mask has already scaled each cell's vanilla light by this emitter's coverage,
+    // which is how much of the cell our polygon can actually see. The fragment program then subtracts
+    // the RAW glow-grid value on top of that, so the part the mask already removed is removed twice.
+    // Past a door that is invisible: RimWorld's glow grid never learns a door opened, the raw value
+    // beyond one is exactly zero, and zero subtracted twice is still zero — which is why every
+    // doorway scenario in this repo measured the composition working perfectly. Past a one-cell gap
+    // the grid floods straight through, coverage is well under 1, and the double subtraction is the
+    // entire result.
+    //
+    // NOT A GAP-SPECIFIC RULE, which is the thing worth being clear about. Nothing here asks how the
+    // light got out. The composition was always meant to subtract what vanilla delivers where we are
+    // drawing, and this makes it do that; a door is simply the case where the two answers coincide.
+    //
+    // OFF while it is measured. Off uploads the raw field exactly as before.
+    public static bool VectorLightGapParity = false;
+
     // Feature key for VectorLightMaskMax.
     public const string VectorLightMaskMaxKey = "vector_light_mask_max";
 
