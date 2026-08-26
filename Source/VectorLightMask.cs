@@ -144,6 +144,13 @@ public static class VectorLightMask
     public static bool Correcting =>
         Active && CelestialLightingFeatures.VectorLightMaskSaturation;
 
+    // Whether the aperture beam runs this frame: our model replaces this emitter's vanilla light
+    // inside the polygon rather than the fan composing a max against it. Requires the shader, since
+    // the fan is what delivers the replacement — without it the mask would take vanilla's light away
+    // and nothing would put it back.
+    public static bool Replacing =>
+        Active && CelestialLightingFeatures.VectorLightApertureBeam && VectorLightShader.MaxActive;
+
     // Rewrites one section's lighting overlay in place. Returns false when it declined to, so the
     // caller can fall through to the crossfade rather than leaving the section unlit or unmasked.
     public static bool Apply(Map map, Mesh mesh, List<Vector3> verts, CellRect rect)
@@ -549,6 +556,12 @@ public static class VectorLightMask
         // is that the loop below runs a few hundred times per emitter per section and every line
         // inside it that does not depend on the cell is a line that should not be there.
         bool matchSeed = CelestialLightingFeatures.VectorLightMaskMaxSeed;
+
+        // Read ONCE per emitter and threaded down as a local, for the reason Lifting's header gives:
+        // the loop below runs a few hundred times per emitter per section, and with the flag off
+        // every added branch has to be one bool compare against a local or the shipped path stops
+        // having the shape it was profiled in.
+        bool replacing = Replacing;
         float radius = light.glowRadius;
         float radiusSquared = radius * radius;
         ColorInt colour = light.glowColor;
@@ -576,7 +589,11 @@ public static class VectorLightMask
                 // before the glow read because the array index is the dearer of the two. Under the
                 // max a fully lit cell is exactly where the lift lands, so the skip is conditional
                 // on there being no lift to compute rather than unconditional.
-                if (coverage >= 255 && !lifting)
+                //
+                // AND UNDER THE APERTURE BEAM THE SKIP CANNOT FIRE AT ALL, because a fully lit cell
+                // is exactly where a replacement has the most to take away. Removing this emitter's
+                // whole contribution is the point there, not an edge case.
+                if (coverage >= 255 && !lifting && !replacing)
                     continue;
 
                 IntVec3 cell = new IntVec3(x, 0, z);
@@ -601,9 +618,30 @@ public static class VectorLightMask
                 // alone, which is a passing arm rather than an obvious failure.
                 bool anyOwn = own.r != 0 || own.g != 0 || own.b != 0;
 
-                if (coverage < 255 && anyOwn)
+                // THE APERTURE BEAM REPLACES RATHER THAN TRIMS. Normally the mask removes only the
+                // SHADOWED share of this emitter's light and leaves the rest of vanilla's flood
+                // standing, and the fan then adds the excess of our model over it. That composition
+                // is degenerate wherever vanilla already delivers what our model claims — which is
+                // precisely an open aperture, where vanilla's flood takes a short path through the
+                // hole and arrives at close to our own straight-line value. The beam is composed
+                // away rather than culled away: the polygon is built, the coverage is 255 along it,
+                // and there is simply no excess left to draw.
+                //
+                // With this on, every cell in the emitter's reach gives up ALL of that emitter's
+                // vanilla light, and VectorLightOverlay drops _VanillaWeight to zero so the fan
+                // delivers the whole model instead of the difference. Inside the polygon that is a
+                // replacement rather than a sum — which is what keeps it clear of epic #145's
+                // rejected option, where drawing over an UNsuppressed flood landed a room 6 L* high.
+                //
+                // NOT AN APERTURE-SPECIFIC RULE, and that is deliberate. Nothing here asks how the
+                // light left the room. A doorway already looks like this because vanilla delivers
+                // nothing beyond a door and the max degenerates to our whole model on its own; this
+                // makes an aperture reach the same place by the same arithmetic rather than by a
+                // second code path that has to agree with the first.
+                int shadowed = replacing ? 255 : 255 - coverage;
+
+                if (shadowed > 0 && anyOwn)
                 {
-                    int shadowed = 255 - coverage;
 
                     // Integer throughout: these are bytes scaled by a byte, so the float round-trip
                     // the first version did per channel bought nothing but conversions.
