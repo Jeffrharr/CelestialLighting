@@ -1603,6 +1603,156 @@ public class VectorLightMathTests
         return VectorLightMath.Build(8.5f, 8.5f, 10f, segments, 48);
     }
 
+    // ---- surface lift: an aperture and a door are the same expression -----------
+
+    // THE ORACLE, and the test the rest of this section is worthless without. Everything below
+    // asserts an ORDERING or a LIMIT, and this repo has already shipped a divisor with vanilla
+    // missing from it -- a mistake that leaves every ordering and every limit intact, because it
+    // scales the whole family. Checked by mutation: dropping `+ vanilla` from the divisor passes all
+    // six of the tests below and fails only this one.
+    //
+    // What the lift is FOR is taking a cell from the light it renders at to the light our model says
+    // it should render at. That statement is independent of how the factor is computed, so it can be
+    // written down from the two endpoints and used to judge the arithmetic rather than restating it.
+    [TestCase(0.30f, 0.10f, 0.13f)]   // through a gap, far side: vanilla partly caught up
+    [TestCase(0.30f, 0.26f, 0.13f)]   // through a gap, close: vanilla nearly there
+    [TestCase(0.12f, 0.05f, 0.208f)]  // outdoors under a night sky
+    [TestCase(0.05f, 0f, 0.208f)]     // through a door, but far out where the falloff has run down
+    public void TheFactorTakesTheCellFromWhatItRendersAtToWhatOurModelClaims(
+        float ours, float vanilla, float ambient)
+    {
+        float factor = VectorLightMath.SurfaceLiftFactor(ours, vanilla, ambient);
+
+        // Derived from the two endpoints, not from the implementation: the cell currently receives
+        // (ambient + vanilla) and should receive (ambient + ours).
+        float before = ambient + vanilla;
+        float after = ambient + ours;
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(factor, Is.LessThan(VectorLightMath.SurfaceLiftCeiling),
+                "this case is meant to be within the blend's reach; see the saturation test");
+            Assert.That(factor * before, Is.EqualTo(after).Within(1e-4f));
+        });
+    }
+
+    // AND THE CASE THAT CANNOT BE DELIVERED, which the oracle above found rather than the design
+    // predicting it. Just past an open door at midnight, vanilla is zero and our model wants the cell
+    // taken from the bare ambient to ambient plus a torch's near-field -- a factor of 3.3, where the
+    // blend tops out at 2. So the brightest part of a doorway beam is SATURATED: it renders one stop
+    // over the floor and the falloff only begins to shape it further out.
+    //
+    // Recorded as a test rather than as a caveat because it is the one place the composition does not
+    // do what its own arithmetic says, and a later change that quietly moved the ceiling -- an HDR
+    // target, a different blend -- would change how every doorway beam looks while every other
+    // assertion here still passed.
+    [Test]
+    public void JustPastAnOpenDoorTheModelAsksForMoreThanTheBlendCanGive()
+    {
+        const float ambient = VectorLightMath.SurfaceLiftNightAmbient
+            * VectorLightMath.SurfaceLiftRoofedSkyShare;
+        const float ours = 0.30f;
+
+        float wanted = (ambient + ours) / ambient;
+        float delivered = VectorLightMath.SurfaceLiftFactor(ours, 0f, ambient);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(wanted, Is.GreaterThan(VectorLightMath.SurfaceLiftCeiling));
+            Assert.That(delivered, Is.EqualTo(VectorLightMath.SurfaceLiftCeiling).Within(Tolerance));
+        });
+    }
+
+    // THE WHOLE ANSWER TO "does a gap look like a door", stated as arithmetic. The composition takes
+    // three numbers and knows nothing about how the light reached the cell. What differs between an
+    // open gap and an open door is entirely `vanilla`: RimWorld's glow grid floods straight through
+    // a gap and never learns a door opened, so the same lamp at the same distance presents the same
+    // `ours` against a large vanilla in one case and a zero vanilla in the other.
+    [Test]
+    public void TheLiftAsksOnlyWhatIsThereAndNotHowTheLightGotOut()
+    {
+        const float ours = 0.30f;
+        const float ambient = 0.13f;
+
+        // Two cells, same lamp, same distance, same floor. Through a door vanilla delivered nothing;
+        // through a gap it delivered most of what our own model claims.
+        float throughADoor = VectorLightMath.SurfaceLiftFactor(ours, 0f, ambient);
+        float throughAGap = VectorLightMath.SurfaceLiftFactor(ours, 0.26f, ambient);
+
+        Assert.That(throughADoor, Is.GreaterThan(throughAGap));
+
+        // And the gap's cell is not left dark to compensate: vanilla is already lighting it, through
+        // the lighting overlay's own multiply, which is the mechanism that shows a floor's texture in
+        // the first place. The lift has little left to add there BECAUSE the cell is already lit.
+        Assert.That(throughAGap, Is.GreaterThan(1f));
+    }
+
+    // Monotone in vanilla, which is the general form of the pair above and the property that says a
+    // gap needs no special case. Swept rather than sampled at two points, because "a gap is dimmer
+    // than a door" is satisfiable by a formula that does something erratic in between.
+    [Test]
+    public void TheLiftFallsAwaySmoothlyAsVanillaCatchesUp()
+    {
+        const float ours = 0.30f;
+        const float ambient = 0.13f;
+        float previous = float.MaxValue;
+
+        for (int i = 0; i <= 30; i++)
+        {
+            float vanilla = ours * i / 30f;
+            float factor = VectorLightMath.SurfaceLiftFactor(ours, vanilla, ambient);
+
+            Assert.That(factor, Is.LessThanOrEqualTo(previous + Tolerance),
+                $"factor rose at vanilla = {vanilla}");
+            previous = factor;
+        }
+
+        // And it arrives exactly at "change nothing" rather than merely near it.
+        Assert.That(
+            VectorLightMath.SurfaceLiftFactor(ours, ours, ambient),
+            Is.EqualTo(1f).Within(Tolerance));
+    }
+
+    // Where vanilla is the brighter of the two the pass must contribute NOTHING, which is the max's
+    // own clamp and the reason this composition needs no strength knob. An open gap close to a lamp
+    // is the case that reaches it: vanilla's octile flood can beat our straight line outright.
+    [TestCase(0.30f, 0.30f)]
+    [TestCase(0.30f, 0.45f)]
+    [TestCase(0f, 0.10f)]
+    public void VanillaAtOrAboveOurModelLeavesTheFrameAlone(float ours, float vanilla)
+    {
+        Assert.That(
+            VectorLightMath.SurfaceLiftFactor(ours, vanilla, 0.13f),
+            Is.EqualTo(1f).Within(Tolerance));
+    }
+
+    // The ceiling is the render target's, not a taste value, so it holds however extreme the inputs.
+    // Asserted against a lamp far brighter than anything RimWorld ships and an ambient at the floor,
+    // because that is the combination that would run away if the clamp were dropped.
+    [TestCase(1f, 0f, 0.001f)]
+    [TestCase(100f, 0f, 0.13f)]
+    [TestCase(0.30f, 0f, 0.13f)]
+    public void TheLiftNeverMoreThanDoublesWhatItLandsOn(float ours, float vanilla, float ambient)
+    {
+        Assert.That(
+            VectorLightMath.SurfaceLiftFactor(ours, vanilla, ambient),
+            Is.LessThanOrEqualTo(VectorLightMath.SurfaceLiftCeiling + Tolerance));
+    }
+
+    // A DARK CELL AND A DIM ONE ARE THE SAME RATIO, which is the half of the report that said the
+    // beam was "a lot brighter than outdoors". An additive pass puts the same absolute light into
+    // both, so on the darker one it is an enormous relative lift and on the brighter one it is
+    // nothing. This is the same fraction of whatever it lands on.
+    [Test]
+    public void TheSameBeamIsTheSameFractionOfADarkFloorAndABrightOne()
+    {
+        // Half the ambient, half the model's reach: the same ratio, so the same factor.
+        float dark = VectorLightMath.SurfaceLiftFactor(0.10f, 0f, 0.10f);
+        float bright = VectorLightMath.SurfaceLiftFactor(0.20f, 0f, 0.20f);
+
+        Assert.That(dark, Is.EqualTo(bright).Within(Tolerance));
+    }
+
     // ---- surface lift ---------------------------------------------------------
 
     // THE PROPERTY THE WHOLE PHASE IS, stated as arithmetic before it is measured on screen: the

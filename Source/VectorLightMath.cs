@@ -1105,6 +1105,46 @@ public static class VectorLightMath
     // test since phase 1. This is the binary version of it, and the two should move together.
     public const float SurfaceLiftRoofedSkyShare = 1f - 100f / 255f;
 
+    // What the surface lift multiplies the frame by at one fragment. THE CANONICAL STATEMENT OF THE
+    // COMPOSITION, and the shader's `frag` is a transcription of it.
+    //
+    // WHY IT LIVES HERE WHEN NOTHING IN THE MOD CALLS IT. The arithmetic runs on the GPU, so the
+    // shipped path cannot go through this method — but a formula that exists only in HLSL is a
+    // formula with no offline test, and this repo's rule is that the maths is pure and pinned. The
+    // properties below are the ones that would otherwise be checkable only by booting the game and
+    // looking, which is exactly the bar the unit tests exist to clear before a live run is spent.
+    // Keep the two in step: an edit here that is not mirrored in VectorLightMax.shader is a silent
+    // divergence, because the tests would still pass.
+    //
+    // THE PROPERTY THAT MATTERS FOR AN APERTURE VERSUS A DOOR, and the reason this is worth pinning
+    // at all: the composition is a function of THESE THREE NUMBERS and of nothing else. It has no
+    // idea whether the light reached the cell through a doorway, through a gap in a wall, or across
+    // open ground. What differs between those cases is entirely `vanilla` — RimWorld's glow grid
+    // floods through a gap and never learns a door opened — and the factor is monotone decreasing in
+    // it, falling to exactly 1 where vanilla already delivered our own model's value. So a gap is not
+    // a special case that needs its own handling; it is the same expression evaluated where vanilla
+    // is large, and it self-limits there for the same reason the max does.
+    public static float SurfaceLiftFactor(float ours, float vanilla, float ambient)
+    {
+        float excess = ours - vanilla;
+
+        // Vanilla already at or above our model: contribute nothing at all, not merely a little.
+        // This is the max's own clamp, and it is what keeps the pass from lighting a cell twice.
+        if (excess <= 0f)
+            return 1f;
+
+        float lift = excess / (ambient + vanilla);
+
+        // THE HARDWARE'S CLAMP, WRITTEN DOWN. A UNORM render target clamps a fragment's output to
+        // [0, 1] before blending, so `dst * (1 + output)` can never exceed twice the destination
+        // however much light the model claims. Reproducing it here rather than leaving the tests to
+        // assert an unbounded value is what makes an offline number comparable to a pixel.
+        return 1f + (lift > 1f ? 1f : lift);
+    }
+
+    // The most this pass can do to a pixel: one stop over whatever it lands on. See the clamp above.
+    public const float SurfaceLiftCeiling = 2f;
+
     // How much light an unlit cell receives, given the sky over the map and whether the cell is under
     // a roof. This is the DIVISOR'S SKY HALF and not the whole divisor: the fragment program adds
     // vanilla's own delivered glow to it per fragment, because that is the only place vanilla's
