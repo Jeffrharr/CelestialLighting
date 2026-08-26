@@ -245,7 +245,13 @@ public static class VectorLightOverlay
 
         entry.LitArea = PolygonArea(polygon);
         entry.Built = built;
+
+        // Clocked separately from the bake and the gather, because it is the one third of the frame
+        // neither of those can reach and the one third that cannot be threaded away. See
+        // VectorLightField.UploadWallMs.
+        System.Diagnostics.Stopwatch clock = System.Diagnostics.Stopwatch.StartNew();
         UploadMesh(entry, built, altitude);
+        VectorLightField.UploadMeshWallMs += clock.Elapsed.TotalMilliseconds;
 
         // New geometry means every sample belongs to a vertex that no longer exists. Marked rather
         // than resampled here so an off-screen or non-max light never pays for it: DrawLight is the
@@ -290,7 +296,7 @@ public static class VectorLightOverlay
             return entry.Polygon;
 
         VectorLightMath.Segment[] segments =
-            VectorLightBlockers.SegmentsAround(map, entry.Cell, entry.Radius);
+            VectorLightBlockers.SegmentsAround(map, entry.Cell, entry.Radius, memo: null);
 
         return VectorLightMath.Build(
             lightX, lightZ, entry.Radius, segments, VectorLightMath.DefaultBaseRayCount);
@@ -451,9 +457,17 @@ public static class VectorLightOverlay
         if (diameter <= 0 || colors.Length < diameter * diameter)
             return;
 
+        // Inside the same clock as the mesh write, because from the frame's point of view they are
+        // one thing: geometry and its texture handed to Unity on the main thread. Splitting them
+        // would answer a question nobody has yet, and the first question is whether the total is
+        // large at all.
+        System.Diagnostics.Stopwatch clock = System.Diagnostics.Stopwatch.StartNew();
+
         EnsureField(entry, diameter);
         CopyField(entry.VanillaField, colors, diameter);
         UploadFieldUvs(entry, built, light.localGlowGridStartPos, diameter);
+
+        VectorLightField.UploadFieldWallMs += clock.Elapsed.TotalMilliseconds;
     }
 
     private static void EnsureField(VectorLightField.LightEntry entry, int diameter)

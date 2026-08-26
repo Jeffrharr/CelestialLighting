@@ -100,6 +100,13 @@ public sealed class VectorLightBakeProbe : IProbe
         // control on the run rather than a second opinion about it.
         GatherWallMs,
 
+        // Wall-clock milliseconds handing built geometry to Unity: the mesh channels and the
+        // per-emitter glow texture. THE THIRD OF THE FRAME NEITHER CLOCK ABOVE CAN SEE, and the
+        // third that cannot be threaded, because every call in it is a Unity object write.
+        UploadWallMs,
+        UploadMeshWallMs,
+        UploadFieldWallMs,
+
         // ---- sections (issue #188 item 0) -----------------------------------------------------
         //
         // Every metric above is about POLYGONS. #191 used them to establish that a blocker write
@@ -210,6 +217,15 @@ public sealed class VectorLightBakeProbe : IProbe
 
         if (metric == Metric.GatherWallMs)
             return (float)VectorLightField.GatherWallMs;
+
+        if (metric == Metric.UploadWallMs)
+            return (float)VectorLightField.UploadWallMs;
+
+        if (metric == Metric.UploadMeshWallMs)
+            return (float)VectorLightField.UploadMeshWallMs;
+
+        if (metric == Metric.UploadFieldWallMs)
+            return (float)VectorLightField.UploadFieldWallMs;
 
         if (metric == Metric.ParallelBakePasses)
             return VectorLightField.ParallelBakePasses;

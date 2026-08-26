@@ -132,6 +132,22 @@ steps.append(probe("vector_light_serial_bakes", str(REBUILDS // 2), str(REBUILDS
 # happen at all.
 steps.append(probe("vector_light_bake_wall_ms", "240", "220"))
 
+# THE OTHER TWO THIRDS OF THE SAME FRAME, added when the storm was turned on the question PR #203
+# left open: it found the worst frame unmoved by threading and named mesh upload as the suspect,
+# which was an inference from a number that did not move rather than a measurement of anything.
+# These three clocks partition the work -- read the map, do arithmetic on it, hand it to Unity -- so
+# the suspect can be weighed rather than nominated.
+#
+# THE STORM IS THE RIGHT PROVOCATION FOR THE UPLOAD CLOCK AND THE WRONG ONE FOR THE GATHER CLOCK, and
+# both matter. ForceRebuild drops every mesh, so every pass re-uploads all 22; it also drops every
+# silhouette memo, so every gather is a rescan and the memo can never help here. The gather number
+# below is therefore a WORST CASE for it, not a steady state -- vector_light_door_storm is where that
+# is measured.
+steps.append(probe("vector_light_gather_wall_ms", "150", "150"))
+steps.append(probe("vector_light_upload_wall_ms", "150", "150"))
+steps.append(probe("vector_light_upload_mesh_ms", "150", "150"))
+steps.append(probe("vector_light_upload_field_ms", "150", "150"))
+
 # THE FRAME-LEVEL QUESTION, and the reason this file exists rather than a longer run of the other one.
 # A total over hundreds of frames cannot show a saving on the few that bake; a MAXIMUM can, because
 # the frames that bake are the worst frames. With forty of them in the window the maximum is sampled

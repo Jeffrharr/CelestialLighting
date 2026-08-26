@@ -220,6 +220,8 @@ public static class VectorLightField
         LargestBakeBatch = 0;
         BakeWallMs = 0.0;
         GatherWallMs = 0.0;
+        UploadMeshWallMs = 0.0;
+        UploadFieldWallMs = 0.0;
 
         // Lives on VectorLightBlockers because that is what increments it, and is drained from here
         // because there is one reset path per arm and a counter that drains on a different schedule
@@ -424,6 +426,31 @@ public static class VectorLightField
     // Summed, not averaged, for the reason above: what a player feels is the frame that rescanned
     // twenty-two windows at once, not the mean over the four hundred frames that rescanned none.
     public static double GatherWallMs;
+
+    // The THIRD half of the same frame, and the one neither clock above can reach: handing the built
+    // geometry to Unity. Mesh.SetVertices / SetUVs / SetTriangles, and the per-emitter glow texture's
+    // GetRawTextureData copy and Apply.
+    //
+    // WHY IT IS WORTH A CLOCK OF ITS OWN. Threading the bake took the calling thread's bake time from
+    // 403 ms to 72 and did not move the worst frame at all, which is only explicable if the worst
+    // frame is somewhere else. The candidate named at the time was mesh upload: a rebuild drops every
+    // mesh, and Mesh.SetVertices is a main-thread API no amount of threading touches. That was an
+    // inference from a number that did not move, which is the weakest kind of evidence there is --
+    // consistent with upload being expensive, and equally consistent with the cost being anywhere
+    // else in the draw. This measures it instead.
+    //
+    // NOT THREADABLE, and that is the point of separating it rather than folding it into the bake.
+    // Every call inside it is a Unity object write; there is no version of this that moves to a pool
+    // thread. If it turns out to be the expensive half, the answer has to be doing less of it.
+    //
+    // SPLIT IN TWO, because "upload" is two different APIs with two different costs and optimising
+    // the wrong one is the documented way to waste a day here: a mesh channel write is a managed
+    // list copied into native memory, and a texture Apply is a GPU transfer. A single total would
+    // have said which third of the frame to look at and nothing about what to do when you got there.
+    public static double UploadMeshWallMs;
+    public static double UploadFieldWallMs;
+
+    public static double UploadWallMs => UploadMeshWallMs + UploadFieldWallMs;
 
     // The largest batch either path has been handed. The number that says whether a scenario
     // exercised the threaded path at all, and by how much — a fan-out count of 1 over a batch of 4

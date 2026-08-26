@@ -717,6 +717,38 @@
     {
       "type": "Probe",
       "args": {
+        "probeName": "vector_light_gather_wall_ms",
+        "expectedValue": "150",
+        "tolerance": "150"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_upload_wall_ms",
+        "expectedValue": "150",
+        "tolerance": "150"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_upload_mesh_ms",
+        "expectedValue": "150",
+        "tolerance": "150"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_upload_field_ms",
+        "expectedValue": "150",
+        "tolerance": "150"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
         "probeName": "circ_vldraw_max_ms",
         "expectedValue": "20",
         "tolerance": "80"
