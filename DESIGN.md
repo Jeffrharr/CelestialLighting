@@ -11073,20 +11073,43 @@ than vanilla and drew no beam at all, one wall cell away from its most vivid eff
    grid floods straight through and the double subtraction is the whole result.
    `vector_light_gap_parity` uploads `vanilla × coverage` instead, and the **door column is
    byte-identical either way**, which is what says the fix is confined to the case it was built for.
-2. **A design limit, which is not a defect and is not fixed.** The rest of the deficit is the mask
-   trimming vanilla to our own coverage — our polygon correctly says a one-cell aperture leaves those
-   cells only *partly* able to see the lamp, while vanilla's flood bends around and fills them. That
-   is our model being right, not wrong.
+2. **A residual that is still unexplained, and the first guess about it was wrong.** The obvious
+   reading — the mask trimming vanilla to our own coverage, our polygon being right that a narrow
+   aperture only partly lights those cells — is **contradicted by the geometry**. An offline probe of
+   the shipped core (a lamp four cells behind a one-cell gap, radius 12) reports the polygon reaching
+   the **full radius through the gap** and coverage of **255 on the axis for seven cells beyond it**,
+   and `CoverageAt` returns 255 outside the grid rather than 0. There is nothing there for the mask
+   to trim. Something else in the subsystem is taking that light off, and it has not been found yet.
 
-**And the vividness itself does not survive either fix, for a structural reason worth stating plainly.
-Through a door, vanilla delivers nothing, so `max(0, ours − vanilla)` is our whole model and we own
-the render — crisp, warm, at polygon resolution. Through a gap, vanilla already delivers close to what
-our model claims, so the max is near-degenerate by construction and what the player sees is vanilla's
-own octile flood at cell resolution.** The beam past a door is not more correct than the one past a
-gap; it is the only one of the two that is ours. Making an aperture look the same would mean letting
-our model own that render too — suppressing vanilla's flood through the aperture and drawing the
-polygon, rather than drawing only the excess — which is a change to the composition rather than a
-knob, and is not attempted here.
+   Two isolation attempts have already failed to narrow it and are recorded so they are not repeated:
+   the `no_suppress` arm is **inert**, because `Patch_VectorLightSuppress` runs
+   `if (VectorLightMask.Active && ApplyMask(...)) return;` before it ever reads
+   `VectorLightSuppress` — turning that flag off while the mask is on changes nothing, which is
+   exactly what it measured. A real isolation has to turn `vector_light_mask` off as well.
+
+   **And the scene's own baseline is confounded**, which has to be fixed before the residual is worth
+   chasing. In the vanilla arm the outdoor ground at one x sweeps 4.73 to 7.67 across the frame with
+   no lamp anywhere near most of those rows, so the two openings do not sit on the same background —
+   the door's is among the darkest and the gap's among the brightest. Every *delta* quoted above is
+   against that opening's own vanilla and is sound; the raw vanilla column is not a like-for-like
+   comparison between the two openings, and the claim that the whole 3.66-against-7.67 difference is
+   vanilla flooding through the gap is **not supported by this scene**.
+
+**The structural half of the answer still holds, and it is the part to design against.** Through a
+door vanilla delivers nothing, so `max(0, ours − vanilla)` is our whole model and we own the render —
+crisp, warm, at polygon resolution. Through a gap vanilla's flood reaches the same cells, so the max
+is degenerate there **by construction** and what the player sees is vanilla's own octile flood at cell
+resolution. The beam past a door is not more correct than the one past a gap; it is the only one of
+the two that is ours. Making an aperture look the same means letting our model own that render too —
+suppressing vanilla's flood through the aperture and drawing the polygon, rather than drawing only
+the excess. That is a change to the composition rather than a knob, and the geometry to do it is
+already correct and already built: the probe above is the evidence.
+
+**It was not lost to a performance change**, which is the first thing to check and is now checked. The
+same offline probe run against `4929726` (ray culling), `5238738`, `6277c52` (the coverage bounds) and
+their parents reports the identical polygon reach of 12.00 and the identical coverage of 255 through
+the gap at every one of them. The geometry has never regressed; the beam is composed away, not
+culled away.
 
 #### What it ships as, and the one thing it does not fix
 

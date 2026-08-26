@@ -955,7 +955,8 @@ public static class CelestialLightingFeatures
     // SUBTRACTS 1.4 — the ground outside comes out darker than vanilla and no beam is drawn at all.
     // One wall cell, and the two openings look nothing like each other.
     //
-    // WHY. Phase 3's mask has already scaled each cell's vanilla light by this emitter's coverage,
+    // WHY, FOR THE HALF THAT IS UNDERSTOOD. Phase 3's mask has already scaled each cell's vanilla
+    // light by this emitter's coverage,
     // which is how much of the cell our polygon can actually see. The fragment program then subtracts
     // the RAW glow-grid value on top of that, so the part the mask already removed is removed twice.
     // Past a door that is invisible: RimWorld's glow grid never learns a door opened, the raw value
@@ -967,6 +968,14 @@ public static class CelestialLightingFeatures
     // NOT A GAP-SPECIFIC RULE, which is the thing worth being clear about. Nothing here asks how the
     // light got out. The composition was always meant to subtract what vanilla delivers where we are
     // drawing, and this makes it do that; a door is simply the case where the two answers coincide.
+    //
+    // WHAT THIS DOES NOT EXPLAIN, stated here because the flag's name suggests more than it delivers.
+    // It recovers roughly half the gap's deficit and no more. The obvious account of the rest — the
+    // mask trimming vanilla to our coverage — is contradicted by the geometry: an offline probe of the
+    // shipped core puts the polygon at the full radius through a one-cell gap with coverage 255 on the
+    // axis for seven cells beyond it, and CoverageAt answers 255 outside its grid rather than 0. See
+    // DESIGN.md for what has been ruled out, including the fact that the scenario's vanilla baseline
+    // is itself confounded and has to be fixed before the residual is worth chasing.
     //
     // OFF while it is measured. Off uploads the raw field exactly as before.
     public static bool VectorLightGapParity = false;

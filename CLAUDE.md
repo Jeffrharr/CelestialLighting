@@ -142,6 +142,24 @@ to leave them on and accept the noise — say so in its description when you do.
   measure p90 **6.15** at noon and p90 **0.00–1.29** across the sunset, i.e. verified by probe and
   close to invisible in the frames; the section says so rather than quoting only the daylight number.
 
+**Vector lighting has a required gate: `Tests/Scenarios/vector_light_suite.txt`, headed by
+`vector_light_gap_vs_door.json`.** Run it for any change touching the polygon, the coverage grid, the
+mask, the suppression, the shader or the per-emitter field upload — *including* changes whose stated
+purpose is performance, since the geometry it measures is what a bake optimisation is most likely to
+alter by accident. Quote the outdoor L\* table for **both** openings in the PR, the door column
+included even when only the gap moved.
+
+The reason it is mandatory rather than encouraged: every vector-lighting scenario written before it
+put its opening in a **door**, and a door is the most flattering aperture the subsystem has.
+RimWorld's glow grid never learns a door opened, so beyond one vanilla delivers nothing, our model
+owns the render outright, and the composition photographs as working perfectly whatever state it is
+in. Two defects hid behind exactly that — an additive pass that could not light a surface at all, and
+a fragment program subtracting vanilla's light twice where the double-subtracted value happened to be
+zero. A bare one-cell **gap** is the case where vanilla is already lighting the cells our polygon
+claims, which is what separates a working composition from a degenerate one. Note that the scenario's
+raw vanilla column is *not* a like-for-like comparison between its two openings — the frame's
+background is not uniform — so read the deltas against each opening's own vanilla arm.
+
 Scenario notes: `Tests/Scenarios/core_design_suite.txt` batches the scenarios that are safe to run in
 one RimWorld load. Anything that leaves a `GameCondition` behind is deliberately excluded and must
 run as its own process — the file lists them and says why.
