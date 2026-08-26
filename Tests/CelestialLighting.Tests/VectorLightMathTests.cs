@@ -1603,6 +1603,93 @@ public class VectorLightMathTests
         return VectorLightMath.Build(8.5f, 8.5f, 10f, segments, 48);
     }
 
+    // ---- surface lift ---------------------------------------------------------
+
+    // THE PROPERTY THE WHOLE PHASE IS, stated as arithmetic before it is measured on screen: the
+    // beam is a fixed RATIO against whatever it lands on, not a fixed amount of light. A cell twice
+    // as dark asks for twice the multiplier to end up the same fraction brighter, and that is the
+    // half of the report that says the beam is "a lot brighter than outdoors" -- an absolute
+    // addition on a dark floor is an enormous relative lift, and on a bright one it is nothing.
+    // Asked UNDER A ROOF, where DaylightScale is a constant 1, so the assertion is about the divide
+    // and only the divide. Both skies have to clear the night floor or the property is the floor's
+    // rather than the ratio's -- 0.25 is the tightest pair member that still says something.
+    [TestCase(0.25f, 0.5f)]
+    [TestCase(0.5f, 1f)]
+    public void SurfaceAmbientTracksTheSkyOverIt(float sky, float doubleSky)
+    {
+        float dark = VectorLightMath.SurfaceAmbient(sky, roofed: true);
+        float bright = VectorLightMath.SurfaceAmbient(doubleSky, roofed: true);
+
+        Assert.That(bright, Is.EqualTo(2f * dark).Within(Tolerance));
+    }
+
+    // The divide cannot run away. A cell whose ambient approached zero would ask for an unbounded
+    // multiplier, and multiplying a genuinely black cell cannot light it at all, so the floor is
+    // what makes the composition defined rather than what makes it tidy.
+    [TestCase(0f)]
+    [TestCase(0.001f)]
+    [TestCase(-1f)]
+    public void SurfaceAmbientIsFlooredSoTheDivideCannotRunAway(float sky)
+    {
+        Assert.That(
+            VectorLightMath.SurfaceAmbient(sky, roofed: false),
+            Is.EqualTo(VectorLightMath.SurfaceLiftNightAmbient).Within(Tolerance));
+    }
+
+    // A roof does not make the sky irrelevant HERE, which is the opposite of what it does to the
+    // daylight curve, and the two are not in tension. DaylightScale asks "should this lamp be
+    // visible at all", and a roof settles that outright. This asks "how much light is already
+    // reaching the floor the beam lands on", and a roof takes its share of that whatever the hour.
+    //
+    // THE ORDER IS THE ASSERTION. Floor first, roof share second: at midnight the sky term is the
+    // floor rather than zero, so a roofed midnight cell must sit BELOW an open midnight one and not
+    // level with it. The first cut applied the floor last, which collapsed the two onto one number
+    // at exactly the hour they differ most -- and the live frames put the real ratio at 0.606
+    // against the 0.608 this predicts.
+    [TestCase(0f)]
+    [TestCase(0.5f)]
+    [TestCase(1f)]
+    public void ARoofTakesItsShareOfWhateverSkyThereIsIncludingTheFloor(float sky)
+    {
+        float open = VectorLightMath.SurfaceAmbient(sky, roofed: false);
+        float roofed = VectorLightMath.SurfaceAmbient(sky, roofed: true);
+
+        Assert.That(
+            roofed,
+            Is.EqualTo(open * VectorLightMath.SurfaceLiftRoofedSkyShare).Within(Tolerance));
+        Assert.That(roofed, Is.LessThan(open));
+    }
+
+    // At the reference this is calibrated against -- a roofed room at midnight, which is the scene
+    // the report came from -- the ambient is the roofed share of the night floor and NOTHING ELSE.
+    // The "nothing else" is the assertion: DefaultStrength was folded into this quantity in the first
+    // cut and under-delivered the beam by a factor of three, so what catches that is a test pinning
+    // the whole expression rather than one pinning it up to a constant.
+    [Test]
+    public void AtMidnightIndoorsTheAmbientIsTheRoofedShareOfTheNightFloor()
+    {
+        Assert.That(
+            VectorLightMath.SurfaceAmbient(0f, roofed: true),
+            Is.EqualTo(
+                    VectorLightMath.SurfaceLiftNightAmbient
+                    * VectorLightMath.SurfaceLiftRoofedSkyShare)
+                .Within(Tolerance));
+    }
+
+    // The measurement the roof share was checked against, restated as the test that catches it
+    // drifting. A roofed unlit cell and an unroofed one -- same gravel, same midnight frame --
+    // rendered at 0.0465 and 0.0767, a ratio of 0.606 against the 0.608 vanilla's own
+    // RoofedAreaMinSkyCover predicts. That agreement is the reason only ONE number here is fitted.
+    [Test]
+    public void TheRoofedShareIsTheOneTheLiveFramesMeasured()
+    {
+        float predicted =
+            VectorLightMath.SurfaceAmbient(0f, roofed: true)
+            / VectorLightMath.SurfaceAmbient(0f, roofed: false);
+
+        Assert.That(predicted, Is.EqualTo(0.606f).Within(0.005f));
+    }
+
     // ---- daylight -----------------------------------------------------------------------
 
     [TestCase(0f, 1f)]

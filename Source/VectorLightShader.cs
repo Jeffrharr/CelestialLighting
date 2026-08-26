@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Rendering;
 using Verse;
 
 namespace CelestialLighting;
@@ -40,6 +41,14 @@ public static class VectorLightShader
 
     private static readonly int VanillaTexId = Shader.PropertyToID("_VanillaTex");
 
+    // The blend factors, driven from the material because render state cannot come from a
+    // MaterialPropertyBlock. The surface lift is exactly this pair and nothing else.
+    private static readonly int SrcBlendId = Shader.PropertyToID("_SrcBlend");
+
+    private static readonly int DstBlendId = Shader.PropertyToID("_DstBlend");
+
+    private static readonly int SkyAmbientId = Shader.PropertyToID("_SkyAmbient");
+
     private static readonly Shader Loaded = Load();
 
     // Whether the max composition can actually be drawn. Read this rather than the feature flag
@@ -50,9 +59,23 @@ public static class VectorLightShader
     public static bool MaxActive =>
         CelestialLightingFeatures.VectorLightShaderMax && Available;
 
-    public static Material NewMaterial(Texture2D gradient)
+    // Whether §27 should compose as a surface lift this frame: asked for, and drawable. The blend
+    // state lives on the material built from our shader, so a machine that fell back to MoteGlow
+    // gets the additive pass and this answers false however the flag is set.
+    public static bool SurfaceLiftActive =>
+        CelestialLightingFeatures.VectorLightSurfaceLift && MaxActive;
+
+    public static Material NewMaterial(Texture2D gradient, bool surfaceLift)
     {
         Material material = new Material(Loaded) { mainTexture = gradient };
+
+        // ADDING LIGHT VERSUS BRIGHTENING WHAT IS THERE, and the fragment program does not know
+        // which it is doing. One/One makes the pass additive — the frame gains the program's output.
+        // DstColor/One makes it dst * (1 + output), so the beam scales the surface it lands on and
+        // carries that surface's own texture into the lit region. See the surface lift in DESIGN.md for
+        // why a lamp beam wants the second and §11a's aurora wants the first.
+        material.SetFloat(SrcBlendId, (float)(surfaceLift ? BlendMode.DstColor : BlendMode.One));
+        material.SetFloat(DstBlendId, (float)BlendMode.One);
 
         // COPY MoteGlow'S RENDER QUEUE RATHER THAN DECLARING ONE, and this is the single most
         // expensive thing learned building this feature. An additive pass is order-independent only
@@ -91,6 +114,15 @@ public static class VectorLightShader
     public static void SetVanillaTexture(MaterialPropertyBlock props, Texture texture)
     {
         props.SetTexture(VanillaTexId, texture);
+    }
+
+    // The sky half of the surface lift's divisor, in vanilla's glow units. ZERO IS THE ADDITIVE PASS,
+    // not a disabled lift: the fragment program divides only when this is positive, so one property
+    // selects the composition and there is no second flag inside the shader to disagree with the
+    // blend state on the material.
+    public static void SetSkyAmbient(MaterialPropertyBlock props, float ambient)
+    {
+        props.SetFloat(SkyAmbientId, ambient);
     }
 
     private static Shader Load()

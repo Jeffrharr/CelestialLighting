@@ -10935,6 +10935,136 @@ composition to the byte — which is what makes `vector_light_column.json`'s swe
 assertion. It keeps a flag because of the cost above, and because an A/B needs somewhere to stand.
 
 
+### Vector lighting: the beam brightens the surface it lands on (`VectorLightMath.SurfaceAmbient`, `vector_light_surface_lift`)
+
+Reported from play, and both halves of the sentence turn out to be one defect:
+
+> The vector lighting through a door is a lot brighter than outdoors and notably, doesn't actually
+> light the other room up — no features are lit, just the additional glow.
+
+**It is the compositing, not the level.** The shader max draws an *additive* pass above the lighting
+overlay's multiply, so it adds the same amount of light to a pixel regardless of what that pixel is.
+The ground beyond a doorway has already been multiplied near-black; adding a smooth wedge on top of
+it produces a smooth wedge. The floor's own texture is still there underneath, at unchanged
+*absolute* contrast against a mean the beam has raised — which is exactly what "no features are lit,
+just the additional glow" describes, and it is measurable rather than a matter of taste. Under the
+beam, one cell past an open door, the readable high-frequency contrast of the gravel goes from
+**0.0691 unlit to 0.0393** — the additive pass destroys 43% of it while making the region brighter.
+
+Light on a surface is `albedo × illuminance`, and the frame already holds `albedo × ambient`. So the
+beam has to **scale** what is there rather than add beside it. `Blend DstColor One` makes the frame
+`dst × (1 + output)`, and the fragment program's output is unchanged — the same number means "how
+much light to add" under one blend and "how much brighter to make what is here" under the other. That
+is the whole feature: **one blend factor**, plus the divisor that gives the factor its meaning.
+
+**Why §11a and §23b stay additive, since this contradicts the idiom they set.** An aurora and an
+underlit cloud base are emitting *media* seen in the sky. They are not supposed to reveal the terrain
+under them, and adding is right for both. A lamp beam falls on a floor. Vector lighting took its
+compositing from the wrong neighbour; issue #103's additive-overlay epic is about sky *headroom*, not
+about surfaces, so nothing there is reversed.
+
+#### The divisor, which is where both mistakes were
+
+A cell rendering at `ambient + vanilla` should end up at `ambient + ours`, so the factor is
+
+    (ambient + ours) / (ambient + vanilla)  =  1 + excess / (ambient + vanilla)
+
+and `excess` is the max the shader already computes. Two things went wrong on the way to that, and
+both were caught by measurement rather than by reading:
+
+- **`DefaultStrength` was in the numerator, and it does not belong.** It reads plausibly — the same
+  constant the sibling path uses, divided by the ambient — and it under-delivered the beam to a
+  quarter of what the additive pass put in the same cells, which looks like a calibration needing a
+  nudge rather than a term that should not be there. The live frames separated the two: the ratio
+  between delivered and needed came out at **3.20, 2.96 and 3.04** at three distances along one beam,
+  and an error the same size at every distance is a stray factor, not a curve slightly off.
+  `DefaultStrength` exists because an additive pass has no idea what it is adding to. The lift needs
+  no such number — every term is already in vanilla's glow units — and having none is the same
+  self-limiting property the max claims.
+- **Vanilla was left out of the divisor, and that over-lit the room the beam was not for.** Dividing
+  by the sky ambient alone lifted the dim corner of an already-lit room by **+2.82 L\*** against the
+  additive pass's +1.23 — the same failure the flat beam was rejected for, in the one place this
+  composition is supposed to contribute nothing. The corner is dim, so the divisor was small, so the
+  two models' small residual disagreement was amplified. Adding vanilla's own per-fragment glow to
+  the divisor takes it to **+1.15**, and beyond an open door vanilla is exactly zero, so the term
+  costs nothing where the feature actually lives.
+
+**The sky half of the divisor is one fitted number and one of vanilla's own.**
+`SurfaceLiftNightAmbient = 0.208` is what an unroofed cell receives under a dark sky, and it cannot be
+read off `CurSkyGlow` — what the divide needs is glow units, and what a frame shows is `albedo ×
+ambient`. The albedo also cancels: the additive pass puts `DefaultStrength × ours` into the frame
+with no albedo on it, so `ours` is recoverable from one arm's pixel increment. The roofed case is
+**not** fitted: `SectionLayer_LightingOverlay` forces a roofed vertex to at least
+`RoofedAreaMinSkyCover = 100` of 255, so a roofed cell gets `1 − 100/255 = 0.608` of the open sky, and
+the two unlit cells in the live frame — same gravel, same midnight — measured **0.0465 and 0.0767, a
+ratio of 0.606**. That agreement was not arranged and is the reason only one number here is fitted.
+
+The floor is applied **before** the roof share. Getting that order wrong is not cosmetic: it collapses
+the indoor and outdoor cases onto one number at exactly the hour they differ most, because at midnight
+the sky term *is* the floor rather than zero.
+
+**The ceiling is two times, and it is the blend's rather than a choice.** A UNORM render target clamps
+the fragment output to [0, 1] before blending, so `dst × (1 + output)` can never exceed `2 × dst` — one
+stop over whatever the beam lands on. That bound is why this needs no separate guard against washing a
+room out, and it is also the reason the beam core flattens slightly where the model asks for more than
+the blend can deliver.
+
+#### Verification
+
+`Tests/Scenarios/vector_light_surface_lift.json`. One torch, dead centre of a small roofed room, **four
+cells from each of two doors**: the east door opens into a second roofed room, the west door opens to
+the open sky. Both beams therefore have the same geometry and differ only in what they land on, which
+is the comparison the report is making. Gravel everywhere, indoors and out, so how much of the ground's
+own speckle survives inside each beam is attributable. Every cloud flag off and stated — half the scene
+is open ground directly under a measured beam. The `phase6` arm is shot twice, first and last, and the
+two are **byte-identical**, so the run-to-run pixel floor here is zero.
+
+Midnight, past the east door into the unlit room — level in L\*, and readable gravel contrast beside it:
+
+| cells past the door | vanilla | shader max | surface lift | van. texture | shader max | surface lift |
+|---|---|---|---|---|---|---|
+| 1 | 3.25 | 8.17 | 7.91 | 0.0691 | **0.0393** | 0.0702 |
+| 2 | 3.38 | 6.89 | **7.31** | 0.0679 | **0.0472** | 0.0729 |
+| 3 | 3.48 | 5.75 | **6.09** | 0.0648 | **0.0493** | 0.0705 |
+| 4 | 3.33 | 4.38 | **4.48** | 0.0603 | **0.0551** | 0.0673 |
+
+The level is the same or slightly higher; the texture column is the feature. The additive pass runs
+30–43% below the *unlit* baseline inside its own beam, and the lift runs at or above it — brightening
+a textured surface raises its readable contrast, which is what light does and what an addition cannot.
+
+The room the beam is **not** for, which is the test every composition here has to pass:
+
+| | vanilla | shader max | surface lift |
+|---|---|---|---|
+| lamp cell | 27.72 | +0.00 | +0.00 |
+| 2 cells from the lamp | 13.49 | +0.05 | +0.06 |
+| room corner | 9.09 | +1.03 | **+1.15** |
+| room wall edge | 8.94 | +1.04 | **+1.19** |
+
+Masked median CIELAB ΔE over the pixels the lift lights (1.38% of the frame): **1.36** against the
+shader max, **4.79** against vanilla, where the shader max itself measures 3.76 against vanilla.
+
+#### What it ships as, and the one thing it does not fix
+
+**OFF**, pending a look at it in a real colony rather than in a fixture. Off reproduces the shader max
+exactly — same material program, same gradient, one blend factor and one property apart — so the arm
+is a real baseline.
+
+Two honest costs, both visible in the committed captures:
+
+- **The beam takes a tint from what it lands on.** `dst × (1 + output)` multiplies the ambient's own
+  colour into the lamp's, so a warm torch beam over a cold night floor comes out less warm than the
+  additive version — visible as a slight green cast at the mouth of the beam in
+  `Tests/Screenshots/surfacelift_beam_texture.png`. The physically right operation is
+  `dst + albedo × lamp`, and albedo is the one thing a blend cannot recover.
+- **A lamp indoors still throws a visible beam onto sunlit ground at noon**, and the lift makes it
+  **+1.79 L\*** stronger than the shader max does. This is not new and it is not the compositing:
+  `StrengthFor` asks the roof grid at the *emitter's* cell, so a roofed lamp keeps full daylight
+  strength even where its beam lands in the open. §7c's `NativeSkyFalloffGrid` answers "how much sky
+  reaches this cell" properly and is the upgrade `StrengthFor`'s header has been naming since phase 1;
+  until then the amplification is recorded rather than hidden. Indoors at noon the lift correctly goes
+  the *other* way, landing **1.12 L\*** below the shader max, because a brighter floor needs less lift.
+
 ### Vector lighting, phase 6: the visibility polygon was quadratic (`VectorLightMath.AngularIndex`, `VectorLightBakeProbe`, epic #174 phase 6)
 
 Phase 6 of the vector-lighting epic is about the **bakes** rather than the draw. The draw was already

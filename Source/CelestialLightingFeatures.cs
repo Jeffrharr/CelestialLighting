@@ -896,6 +896,54 @@ public static class CelestialLightingFeatures
     // ON.
     public static bool VectorLightShaderMaxSubtract = true;
 
+    // Feature key for VectorLightSurfaceLift.
+    public const string VectorLightSurfaceLiftKey = "vector_light_surface_lift";
+
+    // The surface lift: the beam brightens the surface it lands on instead of adding light beside it.
+    //
+    // THE REPORT, WORD FOR WORD. "The vector lighting through a door is a lot brighter than outdoors
+    // and notably, doesn't actually light the other room up — no features are lit, just the
+    // additional glow." Both halves are one property of the compositing. Phase 6's pass is ADDITIVE
+    // and sits above the lighting overlay's multiply, so it adds a fixed amount of light to a pixel
+    // regardless of what that pixel is: the ground beyond a doorway has been multiplied near-black,
+    // and a smooth wedge added on top of it is a smooth wedge. The floor's own texture is still
+    // there underneath, at unchanged absolute contrast against a mean the beam has raised — which is
+    // exactly what "no features are lit, just the additional glow" describes.
+    //
+    // WHAT CHANGES. The blend, and the divisor that gives the same output its new meaning. At
+    // Blend One One the frame gains the fragment program's number; at Blend DstColor One the frame is
+    // multiplied by one plus it. Light on a surface is albedo * illuminance and the frame already
+    // holds albedo * ambient, so multiplying is what carries the ground's texture into the lit
+    // region. The program divides its excess by (sky ambient + vanilla's own glow here), which is
+    // the factor that takes a cell from what it renders at to what our model says it should render
+    // at — so the level becomes a RATIO against its surroundings rather than an absolute amount of
+    // light, and that is the half that answers "a lot brighter than outdoors".
+    //
+    // MEASURED, on one torch four cells from each of two open doors at midnight. Under the beam, one
+    // cell past the door, the readable contrast of the gravel goes 0.0691 unlit -> 0.0393 additive
+    // -> 0.0702 lifted: the additive pass destroys 43% of the ground's texture while brightening it,
+    // and the lift restores it. The room the beam is NOT for moves +1.03 -> +1.15 L*, i.e. the
+    // self-limiting property survives. See DESIGN.md for the two mistakes made reaching that.
+    //
+    // WHY §11a AND §23b STAY ADDITIVE, since this contradicts the idiom they established. An aurora
+    // and an underlit cloud base are emitting MEDIA seen in the sky; they are not supposed to reveal
+    // the terrain under them, and adding is right for both. A lamp beam falls on a floor. §27 took
+    // its compositing from the wrong neighbour, and issue #103's additive-overlay epic is about sky
+    // headroom rather than about surfaces, so nothing there is being reversed.
+    //
+    // THE CEILING IS THE BLEND'S. A UNORM target clamps the fragment output to [0, 1] before
+    // blending, so the frame can never be more than doubled — one stop over the ambient, whatever
+    // that ambient is. That is a bound rather than a knob, and it is why this needs no separate
+    // guard against washing a room out the way the flat beam did.
+    //
+    // Requires the shader, like phase 6 itself: the blend state lives on the material built from it,
+    // so a machine that fell back to MoteGlow gets the additive pass and this flag does nothing.
+    //
+    // OFF, pending a look at it in a real colony rather than in a fixture. Off reproduces the shader
+    // max exactly — same program, same gradient, one blend factor and one property apart — so the
+    // A/B measures the compositing and nothing else.
+    public static bool VectorLightSurfaceLift = false;
+
     // Feature key for VectorLightMaskMax.
     public const string VectorLightMaskMaxKey = "vector_light_mask_max";
 
