@@ -287,6 +287,14 @@
          drift and still pass, and the failure that produces is silent: a section never told to
          rebake, holding a shadow that has already moved. -->
     <Compile Include="../../Source/SectionDirtyMath.cs" Link="SectionDirtyMath.cs" />
+    <!-- How one light's occluder set is assembled, and when the static half of it can be held across
+         a bake instead of rescanned (issue #188 item C). AFTER VectorLightMath and DoorApertureMath
+         above, which it builds segments with and measures door leaves through. Linked rather than
+         copied for the sharpest reason in this list: the property under test is that the reused path
+         and the rescanning path produce the SAME segments, and the shipped adapter picks between
+         them at runtime — so a copy here could agree with itself while disagreeing with the file
+         that ships, and the symptom would be a stale wall in one frame out of nine. -->
+    <Compile Include="../../Source/VectorLightSilhouetteMath.cs" Link="VectorLightSilhouetteMath.cs" />
   </ItemGroup>
 
 </Project>

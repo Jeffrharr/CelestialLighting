@@ -29,9 +29,14 @@ public static class VectorLightInvalidation
         VectorLightField.MarkRosterDirty(GlowGridAccess.GetMap(grid));
     }
 
+    // The one caller that carries a moved BLOCKER, which is why it is also the one that may throw
+    // away a recorded silhouette. LightBlockerAdded/Removed are called only from Building.SpawnSetup
+    // and DeSpawn, so this fires exactly when the whole-cell occluder grid around a cell changes and
+    // at no other time — see issue #188 item C for what rests on that being true.
     public static void BlockerChanged(GlowGrid grid, IntVec3 cell)
     {
-        VectorLightField.MarkGeometryDirtyAround(GlowGridAccess.GetMap(grid), cell);
+        VectorLightField.MarkGeometryDirtyAround(
+            GlowGridAccess.GetMap(grid), cell, blockerMoved: true);
     }
 }
 
@@ -124,7 +129,12 @@ public static class VectorLightDoorEvents
 
         if (CelestialLightingFeatures.VectorLightOpenDoors)
         {
-            VectorLightField.MarkGeometryDirtyAround(map, door.Position);
+            // NOT a blocker move, even though this is the first tick of a swing. A door about to
+            // slide is still whatever it was — the whole-cell grid changes when the aperture leaves
+            // zero, which is a step or two later, and the memo notices that by re-reading the door
+            // rather than by being told. If the door was BUILT rather than opened, LightBlockerAdded
+            // fired and already invalidated it.
+            VectorLightField.MarkGeometryDirtyAround(map, door.Position, blockerMoved: false);
 
             // Phase 2: the notification only fires at the START of the slide, so hand the door to the
             // component that will keep dirtying it, once per quantisation step, until the leaves stop

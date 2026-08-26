@@ -94,6 +94,17 @@ public static class VectorLightField
         // "the lit region changed shape" without going anywhere near a pixel. Issue #3 records two
         // wrong conclusions drawn from pixel measurement on exactly this kind of effect.
         public float LitArea;
+
+        // A FOURTH KIND OF STALENESS, and the one that is deliberately NOT provoked by the other
+        // three. The whole-cell occluder silhouette inside this light's window changes only when a
+        // blocker is built or removed; a door sliding through its eight quantisation steps dirties
+        // the polygon eight more times and leaves the silhouette alone. Issue #188 item C is that
+        // observation, and this is where the answer is kept between bakes.
+        //
+        // Allocated lazily on the first gather rather than with the entry, so an emitter that never
+        // bakes — off screen behind the view cull, or on a map nobody is looking at — costs nothing
+        // but the null. VectorLightBlockers owns everything in it; nothing here reads it.
+        public VectorLightSilhouetteMath.Memo Silhouette;
     }
 
     private sealed class MapLights
@@ -208,6 +219,12 @@ public static class VectorLightField
         SerialBakePasses = 0;
         LargestBakeBatch = 0;
         BakeWallMs = 0.0;
+        GatherWallMs = 0.0;
+
+        // Lives on VectorLightBlockers because that is what increments it, and is drained from here
+        // because there is one reset path per arm and a counter that drains on a different schedule
+        // from its neighbours is a counter that will one day belong to the previous arm.
+        VectorLightBlockers.ResetCounters();
         SectionDirties = 0;
         SectionDirtyPasses = 0;
         MaskApplies = 0;
@@ -229,9 +246,21 @@ public static class VectorLightField
             entry.SampleDirty = true;
     }
 
-    // A blocker appeared or vanished at `cell`: every light that can see that cell now throws a
-    // different shape, and no other light is affected at all.
-    public static void MarkGeometryDirtyAround(Map map, IntVec3 cell)
+    // Something at `cell` changed the shape every light that can see it throws, and no other light
+    // is affected at all.
+    //
+    // `blockerMoved` SEPARATES THE TWO KINDS OF CHANGE THAT REACH HERE, which is issue #188 item C.
+    // A wall built or mined rewrites the whole-cell occluder grid; a door sliding through one of its
+    // quantisation steps does not, because a part-open door is a hole in that grid whatever step it
+    // is on. Both dirty the polygon, and only the first can invalidate a recorded silhouette — so
+    // collapsing them would rescan every window nine times a swing and leave nothing to reuse, which
+    // is exactly the cost the memo exists to remove.
+    //
+    // NO DEFAULT ON THE PARAMETER, deliberately. A caller that has not thought about which kind of
+    // change it is carrying is the one way this goes quietly wrong: passing true where false belongs
+    // costs performance and nothing else, passing false where true belongs holds a stale wall, and a
+    // default would pick one of those silently for whoever adds the next call site.
+    public static void MarkGeometryDirtyAround(Map map, IntVec3 cell, bool blockerMoved)
     {
         if (map == null || !ByMap.TryGetValue(map.uniqueID, out MapLights lights))
             return;
@@ -256,6 +285,9 @@ public static class VectorLightField
                 // that cell, so the samples go with the geometry. A rebuild resamples anyway; this
                 // is for the case where the rebuild is skipped because the light is off-screen.
                 entry.SampleDirty = true;
+
+                if (blockerMoved && entry.Silhouette != null)
+                    entry.Silhouette.Invalidate();
             }
         }
     }
@@ -379,6 +411,20 @@ public static class VectorLightField
     // exists to avoid.
     public static double BakeWallMs;
 
+    // The calling thread's time in the GATHER — reading each emitter's occluder set off the map —
+    // over the same window, and the number the silhouette memo moves.
+    //
+    // WHY IT IS A SECOND CLOCK RATHER THAN A WIDER ONE. BakeWallMs above deliberately starts after
+    // the gather, because the gather was identical work in both of ITS arms and including it would
+    // have diluted a threading ratio with a constant. The memo is the mirror image: it removes work
+    // from the gather and changes nothing about the bake, so it is invisible to that clock for
+    // exactly the same reason. Two clocks over two halves, and a change to either half is scored by
+    // the half it touched while the other stands as a control.
+    //
+    // Summed, not averaged, for the reason above: what a player feels is the frame that rescanned
+    // twenty-two windows at once, not the mean over the four hundred frames that rescanned none.
+    public static double GatherWallMs;
+
     // The largest batch either path has been handed. The number that says whether a scenario
     // exercised the threaded path at all, and by how much — a fan-out count of 1 over a batch of 4
     // has verified almost nothing about a design meant for a whole-map rebake.
@@ -442,14 +488,25 @@ public static class VectorLightField
 
         // The half that touches the map. Also where the counters are kept, so they stay increments
         // on one thread rather than an interlocked write per bake.
+        //
+        // TIMED SEPARATELY FROM THE BAKE, and the two clocks are the reason either change can be
+        // scored. Threading moved work off this thread without making less of it, so only a
+        // calling-thread stopwatch around the bake could see it; the silhouette memo does the
+        // opposite — it removes work from this loop and moves nothing — so only a stopwatch around
+        // the gather can see THAT. One clock over both halves would have shown each change diluted
+        // by the other half's constant.
+        System.Diagnostics.Stopwatch gatherClock = System.Diagnostics.Stopwatch.StartNew();
+
         for (int i = 0; i < batch.Count; i++)
         {
             LightEntry entry = batch[i];
 
-            BatchSegments[i] = VectorLightBlockers.SegmentsAround(map, entry.Cell, entry.Radius);
+            BatchSegments[i] = GatherFor(map, entry);
             PolygonBakes++;
             BakeSegments += BatchSegments[i].Length;
         }
+
+        GatherWallMs += gatherClock.Elapsed.TotalMilliseconds;
 
         // Started AFTER the gather, so the two arms are compared over the half that actually
         // differs. The gather is identical work on the same thread either way, and including it
@@ -505,13 +562,29 @@ public static class VectorLightField
             return;
         }
 
-        VectorLightMath.Segment[] segments =
-            VectorLightBlockers.SegmentsAround(map, entry.Cell, entry.Radius);
+        VectorLightMath.Segment[] segments = GatherFor(map, entry);
 
         PolygonBakes++;
         BakeSegments += segments.Length;
 
         BakeGathered(entry, segments);
+    }
+
+    // One emitter's occluder set, read off the live map.
+    //
+    // THE ONLY PLACE EITHER SPELLING TOUCHES THE MAP, which is what makes the threading argument in
+    // BakeSelected checkable by reading rather than by tracing: the batch path and the one-at-a-time
+    // path both come through here, on the calling thread, before any pool thread exists.
+    //
+    // The memo is allocated on first use rather than with the entry. An emitter the view cull keeps
+    // deferring never reaches this line, and one that does reaches it every time thereafter, so the
+    // allocation lands exactly where it starts paying for itself. Issue #188 item C.
+    private static VectorLightMath.Segment[] GatherFor(Map map, LightEntry entry)
+    {
+        entry.Silhouette = entry.Silhouette ?? new VectorLightSilhouetteMath.Memo();
+
+        return VectorLightBlockers.SegmentsAround(
+            map, entry.Cell, entry.Radius, entry.Silhouette);
     }
 
     // One emitter's bake, once its silhouette is in hand.

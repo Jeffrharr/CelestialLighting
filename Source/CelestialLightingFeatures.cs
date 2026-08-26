@@ -1303,6 +1303,33 @@ public static class CelestialLightingFeatures
     // calling thread, which is what the previous shape did, so the arm is a baseline rather than a
     // picture of the feature missing.
     public static bool VectorLightParallelBake = true;
+
+    // Feature key for VectorLightSilhouetteCache.
+    public const string VectorLightSilhouetteCacheKey = "vector_light_silhouette_cache";
+
+    // Issue #188 item C: hold a light's whole-cell occluder silhouette across a door swing instead of
+    // rescanning its window nine times to rebuild the same wall.
+    //
+    // WHAT IS STATIC AND WHAT MOVES. The aperture is quantised into eight steps, so one swing dirties
+    // every light that can see the door nine times. Eight of those nine differ only in where the two
+    // door LEAVES are — sub-cell segments that ride alongside the silhouette rather than through it —
+    // while the whole-cell grid moves exactly once, between the shut step and the first open one.
+    // VectorLightBlockers records the silhouette and the doors inside it; a later bake re-reads only
+    // those doors, and reuses the silhouette when none of them has changed which side of the
+    // whole-cell question it is on.
+    //
+    // WHY IT IS SAFE TO HOLD, and it is the same argument the invalidation is built on: the static
+    // half moves only when a light blocker is built or removed, and vanilla says so at the moment it
+    // happens through GlowGrid.LightBlockerAdded/Removed. Those are already patched, so the memo is
+    // invalidated by the same write that dirties the polygon. A door SLIDING fires neither, which is
+    // both why the swing is cheap here and why MarkGeometryDirtyAround had to grow a parameter
+    // saying which of the two kinds of change it is carrying.
+    //
+    // Measured by vector_light_silhouette_hits beside vector_light_silhouette_rebuilds — a hit count
+    // alone cannot tell a working memo from a scene where nothing ever asks twice. Off rescans the
+    // window on every bake, which is what the previous shape did, so the arm is a baseline rather
+    // than a picture of the feature missing.
+    public static bool VectorLightSilhouetteCache = true;
 }
 
 public enum SunClockMode
