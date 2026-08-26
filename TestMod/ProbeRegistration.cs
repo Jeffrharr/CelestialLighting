@@ -319,6 +319,21 @@ public static class ProbeRegistration
         // it is the one number in the bank that a threaded bake can move at all.
         ProbeRegistry.Register(new VectorLightBakeProbe(
             "vector_light_bake_wall_ms", VectorLightBakeProbe.Metric.BakeWallMs));
+        // Issue #188 item C, and the same rule as the three above: PIN BOTH COUNTS OR NEITHER. A hit
+        // count on its own reads as a working memo in a scene where nothing ever asks twice, and a
+        // rebuild count on its own reads as a broken one in a scene that is genuinely building
+        // walls. Their sum is how many occluder sets were assembled, which is what turns either of
+        // them into a share.
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_silhouette_hits", VectorLightBakeProbe.Metric.SilhouetteHits));
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_silhouette_rebuilds", VectorLightBakeProbe.Metric.SilhouetteRebuilds));
+        // RECORDED, NEVER PINNED TIGHTLY, for the same reason as vector_light_bake_wall_ms: a
+        // duration on a contended box. It is the OTHER half of the same window -- the gather, where
+        // the memo works -- and the two are worth reading together, because a change that touches
+        // one leaves the other standing as a control on how loaded the machine was that run.
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_gather_wall_ms", VectorLightBakeProbe.Metric.GatherWallMs));
         // Issue #188 item 0. vector_light_sections_per_pass is the headline -- the map's whole
         // section count before item A, a handful after -- but pin vector_light_mask_applies beside
         // it or the reduction is unfalsifiable. Dirty flags are work REQUESTED and vanilla
@@ -1299,6 +1314,18 @@ public static class ProbeRegistration
             enabled =>
             {
                 CelestialLightingFeatures.VectorLightParallelBake = enabled;
+                VectorLightRedraw.ForceRebuild();
+            });
+        // ForceRebuild for the same reason again, and the rebuild is doing something slightly
+        // different here: ClearAll drops the entries, and every memo goes with them. That is what an
+        // arm switching this flag NEEDS — a memo carried over from the previous arm would be reused
+        // by an arm that is supposed to be the baseline, or refused by one that is not, and either
+        // way the first few gathers of the arm would belong to its neighbour.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightSilhouetteCacheKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.VectorLightSilhouetteCache = enabled;
                 VectorLightRedraw.ForceRebuild();
             });
         // Two-arg overload, matching its shipped default of true, and inert while vector_lights is

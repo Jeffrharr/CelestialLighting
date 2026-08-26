@@ -78,6 +78,28 @@ public sealed class VectorLightBakeProbe : IProbe
         // children and threading moves time rather than removing it. See VectorLightField.BakeWallMs.
         BakeWallMs,
 
+        // ---- the silhouette memo (issue #188 item C) ---------------------------------------------
+
+        // Gathers that reused a recorded silhouette, and gathers that had to rescan the window.
+        //
+        // MEANINGLESS APART, in the same way the two bake-pass counts are. A hit count alone cannot
+        // separate a working memo from a scene where nothing ever asked twice, and a rebuild count
+        // alone cannot separate a memo that never helps from one that is being correctly refused
+        // because walls really are going up. Their SUM is the number of times an occluder set was
+        // assembled at all, which is what makes each of them a share rather than a raw tally.
+        SilhouetteHits,
+        SilhouetteRebuilds,
+
+        // Wall-clock milliseconds the calling thread spent in the GATHER — reading each emitter's
+        // occluder set off the map — as opposed to baking a polygon out of it.
+        //
+        // THE ONLY METRIC HERE THAT CAN SCORE THE MEMO, and for the mirror image of the reason
+        // BakeWallMs is the only one that can score threading. BakeWallMs starts after the gather on
+        // purpose, so it is blind to this change by construction; this one stops before the bake, so
+        // it is blind to threading. Read both, and whichever half a change did not touch is a
+        // control on the run rather than a second opinion about it.
+        GatherWallMs,
+
         // ---- sections (issue #188 item 0) -----------------------------------------------------
         //
         // Every metric above is about POLYGONS. #191 used them to establish that a blocker write
@@ -179,6 +201,15 @@ public sealed class VectorLightBakeProbe : IProbe
 
         if (metric == Metric.BakeWallMs)
             return (float)VectorLightField.BakeWallMs;
+
+        if (metric == Metric.SilhouetteHits)
+            return VectorLightBlockers.SilhouetteHits;
+
+        if (metric == Metric.SilhouetteRebuilds)
+            return VectorLightBlockers.SilhouetteRebuilds;
+
+        if (metric == Metric.GatherWallMs)
+            return (float)VectorLightField.GatherWallMs;
 
         if (metric == Metric.ParallelBakePasses)
             return VectorLightField.ParallelBakePasses;
