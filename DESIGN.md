@@ -1578,6 +1578,36 @@ counters beside the frames: two identical frames prove the phase is *harmless*, 
 A race in a bake is not a wrong answer, it is a wrong answer *sometimes*, and no value-pinning test
 in this repo is built to catch that.
 
+
+#### Why this is not backgrounded
+
+The obvious next step is to stop blocking: kick the batch off early and join it at first use, at which
+point an earlier trigger buys real latency hiding. Two things make that a worse trade than it sounds.
+
+**The window is tiny.** Between entering `MapMeshDrawerUpdate_First` and the first lighting-overlay
+`Regenerate` sit the global-layer loop and the earlier layers of the first dirty section — a few
+hundred microseconds against a batch measured in milliseconds. Hiding roughly 5% of a 10 ms fill is
+not worth an asynchronous correctness argument.
+
+**Widening it crosses the settle point.** The genuinely large window is between the tick that raises
+the dirty flag (`GlowGrid.DirtyCell`, `MapMeshDirty`) and the draw that consumes it. Baking there
+means baking before `regionAndRoomUpdater.TryRebuildDirtyRegionsAndRooms()` and
+`glowGrid.GlowGridUpdate_First()` have run for the frame — against rooms and glow that are about to
+change. That is the same ordering constraint that ruled out `SkyManagerUpdate` as a trigger, and it
+rules out the wide window for the same reason.
+
+**A thread pool is not the lever, but Mono's thread injection might be.** Replacing `Parallel.For`
+with `ThreadPool.QueueUserWorkItem` changes nothing: blocking is a property of joining, not of the
+pool, and `Parallel.For` already runs on the .NET thread pool. What is worth investigating is that
+RimWorld runs on **Mono** (`MonoBleedingEdge`, `mscorlib.dll` — there is no `System.Private.CoreLib`
+in the Managed folder), whose pool injects threads far more lazily than CoreCLR's, and this workload
+is **bursty**: a whole-map rebake, then nothing for seconds. If the pool is cold at each burst, part
+of every gather is spent waiting for threads to be created rather than doing work — which would also
+explain variance that six interleaved pairs could not see through. A set of persistent workers parked
+on a semaphore and woken per batch would remove that, and it is a change to how the *synchronous*
+section is scheduled rather than an attempt to background it. Unmeasured, and the next thing to try
+if this subsystem is revisited.
+
 #### Measured
 
 Three interleaved pairs of `perf_indoor_occlusion_gather.json`, baseline and gather build alternating
@@ -1607,39 +1637,34 @@ any shorter. It is evidence the phase fired, nothing more.
 **The gather arm is also markedly steadier**: 35.55-46.00 against the baseline's 50.47-65.93. That is
 the shape a rolling batch is supposed to have and the reason the worst frame is the number to read.
 
-**The withdrawn prefix trigger is not faster — it is slower**, and the way that was established is
-worth more than the result. An early, uncontrolled reading had the prefix at a median 64.48 -> 33.85
-(1.90x) against the postfix's 55.77 -> 41.89 (1.33x), which looked like a real cost of having moved
-the trigger. The two batches were taken hours apart against different baselines, so nothing followed
-from the gap. Re-run properly — the two triggers against *each other*, interleaved, one sitting, one
-instrument, with the prefix as a **one-file diff on top of the shipped implementation** so the phase's
-own latch composes them and no second code path exists to explain a difference
-(branch `occlusion-gather-prefix`, `Patch_SkyOcclusionGather.cs`):
+**The two triggers are indistinguishable on this machine, and the honest answer took three tries to
+reach.** The sequence is worth keeping because each step looked conclusive and the first two were
+wrong:
 
-| `mesh_max_ms` | postfix (shipped) | prefix |
-|---|---|---|
-| pair 1 | 42.47 | 63.56 |
-| pair 2 | 39.49 | 52.90 |
-| pair 3 | 67.36 | 61.50 |
-| **median** | **42.47** | **61.50** |
+1. An uncontrolled reading had the prefix at 1.90x against the postfix's 1.33x — two batches taken
+   hours apart against different baselines, so nothing followed from it.
+2. Run against each other, interleaved, three pairs: the postfix won `mesh_total_ms` in all three and
+   the median worst frame 42.47 against 61.50. That looked like a settled result.
+3. Three more pairs at a wider scope reversed it. Across all six pairs `mesh_max_ms` reads a median
+   **47.41 (postfix) against 52.44 (prefix)**, with ranges of 39.5–67.8 and 32.8–63.6 — almost
+   entirely overlapping, and the two batches disagreeing on the winner.
 
-| `mesh_total_ms`, 76 calls | postfix | prefix |
-|---|---|---|
-| pair 1 | 364.91 | 471.33 |
-| pair 2 | 338.72 | 364.27 |
-| pair 3 | 440.37 | 514.92 |
-| **median** | **364.91** | **471.33** |
+A `Verse.Map.MapUpdate` arm was added for step 3 to answer the one question the narrower arm
+structurally cannot: whether a trigger that starts the batch earlier gets more time to finish and so
+drops fewer frames. Median `frame_max_ms` **56.75 (postfix) against 44.27 (prefix)**, median
+`frame_avg_ms` over 74 frames **5.05 against 4.59** — the same overlap, the other way round.
 
-The worst-frame row splits 2-1 and its pair 3 goes the other way, so read `mesh_total_ms` beside it:
-that aggregates 76 calls instead of reporting one, and the postfix wins **all three pairs** on it. So
-the trigger that avoided the new vanilla patch surface is also the faster one, and the earlier 1.90x
-was an artefact of comparing across batches — which is exactly the failure mode the interleaving rule
-exists to prevent, reproduced here by ignoring it.
+**It cannot differ, and the mechanism says so before the measurement does.** `CloudBake.Rows` ends in
+`Parallel.For`, which **blocks the calling thread until every worker is done**. Both triggers
+therefore put the same synchronous wait inside the same method a few hundred microseconds apart, and
+neither runs ahead in the background. There is no baking window for an earlier start to exploit, so
+the only thing six pairs could ever have measured is noise — which is exactly what they measured.
 
-**Why the prefix would be slower is not established.** A plausible reading is that gathering at the
-top of the mesh update pays the thread-pool spin-up before vanilla has touched anything, while
-gathering from the first postfix overlaps it with work already in flight — but that is a hypothesis
-and no arm here tests it. It is recorded as an open question rather than an explanation.
+The shipped trigger is the postfix, chosen because it adds no vanilla patch surface. Nothing in these
+numbers argues against that, and nothing in them argues for it either.
+
+**What would make the trigger matter is making the fill asynchronous**, and the window is the reason
+it has not been done. See "Why this is not backgrounded" below.
 
 #### Verification status, stated honestly
 

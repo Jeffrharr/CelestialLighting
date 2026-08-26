@@ -4,7 +4,7 @@
  "requiredMods": {
   "astryl.Circinus": "3773680130"
  },
- "description": "perf_indoor_occlusion with an arm on MapDrawer.MapMeshDrawerUpdate_First added, which is the call that judges the gather phase. BUILD-AGNOSTIC ON PURPOSE: it names no gather feature key and reads no gather counter, so the identical file runs against a baseline build that has neither, and the only difference between the two runs is whether the gather phase exists. READ circinus_mesh_max_ms FIRST -- it is the worst frame of the thing that actually stutters, and it is the only row that contains BOTH halves of the change (the batch build the phase adds, and the per-section fill it takes out of the postfixes below it). circinus_occl_total_ms falling is NOT the result: with the phase on, the fill has left the postfix by construction, so that row can only ever report a win whether or not the frame got shorter. It is quoted as evidence the phase fired at all, nothing more. Interleave the two builds -- two runs of ONE build came out 883 ms and 2151 ms on this machine, so a block design hands whichever build ran in the quiet half a win it did not earn.",
+ "description": "perf_indoor_occlusion with an arm on MapDrawer.MapMeshDrawerUpdate_First added, which is the call that judges the gather phase. BUILD-AGNOSTIC ON PURPOSE: it names no gather feature key and reads no gather counter, so the identical file runs against a baseline build that has neither, and the only difference between the two runs is whether the gather phase exists. READ circinus_mesh_max_ms FIRST -- it is the worst frame of the thing that actually stutters, and it is the only row that contains BOTH halves of the change (the batch build the phase adds, and the per-section fill it takes out of the postfixes below it). circinus_occl_total_ms falling is NOT the result: with the phase on, the fill has left the postfix by construction, so that row can only ever report a win whether or not the frame got shorter. It is quoted as evidence the phase fired at all, nothing more. Interleave the two builds -- two runs of ONE build came out 883 ms and 2151 ms on this machine, so a block design hands whichever build ran in the quiet half a win it did not earn. A SECOND, WIDER ARM on Verse.Map.MapUpdate answers the question circinus_mesh_* structurally cannot: whether a trigger that starts the batch earlier gets more time to finish and so drops fewer frames. A Circinus cycle is a rendered frame, so circinus_frame_max_ms is the worst single frame's map update against a 16.67 ms 60 fps budget. It cannot in fact differ for that reason -- CloudBake.Rows ends in Parallel.For, which blocks the caller until every worker is done, so neither trigger runs ahead in the background -- and the arm exists to test that argument rather than to assert it.",
  "steps": [
   {
    "type": "SetTile",
@@ -154,6 +154,14 @@
   {
    "type": "Probe",
    "args": {
+    "probeName": "circinus_frame_patched",
+    "expectedValue": "1",
+    "tolerance": "0"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
     "probeName": "circinus_regen_patched",
     "expectedValue": "1",
     "tolerance": "0"
@@ -236,6 +244,14 @@
    "type": "Probe",
    "args": {
     "probeName": "circinus_mesh_reset",
+    "expectedValue": "0",
+    "tolerance": "0.001"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circinus_frame_reset",
     "expectedValue": "0",
     "tolerance": "0.001"
    }
@@ -1047,6 +1063,14 @@
   {
    "type": "Probe",
    "args": {
+    "probeName": "circinus_frame_patched",
+    "expectedValue": "1",
+    "tolerance": "0"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
     "probeName": "circinus_cycles",
     "expectedValue": "0",
     "tolerance": "1000000000.0"
@@ -1104,6 +1128,38 @@
    "type": "Probe",
    "args": {
     "probeName": "circinus_mesh_max_ms",
+    "expectedValue": "0",
+    "tolerance": "1000000000.0"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circinus_frame_calls",
+    "expectedValue": "0",
+    "tolerance": "1000000000.0"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circinus_frame_total_ms",
+    "expectedValue": "0",
+    "tolerance": "1000000000.0"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circinus_frame_max_ms",
+    "expectedValue": "0",
+    "tolerance": "1000000000.0"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "circinus_frame_avg_ms",
     "expectedValue": "0",
     "tolerance": "1000000000.0"
    }
