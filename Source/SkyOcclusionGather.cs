@@ -213,11 +213,12 @@ public static class SkyOcclusionGather
         // rooms pays for all 361. An even split by COUNT is an uneven split by WORK, and a static
         // partition finishes when its unluckiest block does.
         //
-        // Routed through SectionWorkerPool rather than CloudBake.Rows on this branch: same signature,
-        // same dynamic one-index-at-a-time partitioning, same worker-count policy, but the threads are
-        // parked between batches instead of being asked of Mono's thread pool each time. See that
-        // file for the hypothesis; this call site is deliberately a one-line difference from the
-        // CloudBake.Rows version so the A/B has nothing else in it.
+        // SectionWorkerPool rather than CloudBake.Rows, and the split between the two is BY WORKLOAD
+        // SHAPE rather than by benchmark: parked threads here because the gather is a repeated short
+        // burst, Parallel.For for the cloud bakes because those are one-shot at load. See
+        // SectionWorkerPool's header for the argument and for the honest note that the live A/B could
+        // not separate the two. The call site is a one-line difference from the CloudBake.Rows
+        // version, deliberately, so switching back is a one-line change too.
         SectionWorkerPool.Run(Candidates.Count, (start, end) =>
         {
             for (int i = start; i < end; i++)

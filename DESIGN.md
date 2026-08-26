@@ -1596,19 +1596,29 @@ means baking before `regionAndRoomUpdater.TryRebuildDirtyRegionsAndRooms()` and
 change. That is the same ordering constraint that ruled out `SkyManagerUpdate` as a trigger, and it
 rules out the wide window for the same reason.
 
-**A thread pool is not the lever, and Mono's thread injection turned out not to be either.**
+**A thread pool is not the lever; Mono's thread injection is where the gather's batch now runs.**
 Replacing `Parallel.For` with `ThreadPool.QueueUserWorkItem` changes nothing: blocking is a property
-of joining, not of the pool, and `Parallel.For` already runs on the .NET thread pool. The hypothesis
-worth testing was narrower — RimWorld runs on **Mono** (`MonoBleedingEdge`, `mscorlib.dll`, no
-`System.Private.CoreLib`), whose pool injects threads on a timer rather than eagerly, and this
+of joining, not of the pool, and `Parallel.For` already runs on the .NET thread pool. The narrower
+hypothesis was the one worth testing — RimWorld runs on **Mono** (`MonoBleedingEdge`, `mscorlib.dll`,
+no `System.Private.CoreLib`), whose pool injects threads on a timer rather than eagerly, and this
 workload is **bursty**: a whole-map rebake asks for every core at once, then nothing happens for
-seconds and the pool retires the threads. If it were cold at each burst, part of every gather would be
-spent waiting for threads to exist.
+seconds and the pool retires the threads. A cold pool at each burst spends part of every gather
+waiting for threads to exist.
 
-`SectionWorkerPool` (branch `occlusion-gather-pool`) tests that: threads created on the first batch
-and parked in a semaphore wait forever, same signature as `CloudBake.Rows`, same one-index-at-a-time
-dynamic partitioning, same worker-count policy, so the call site is a one-line difference. Three
-interleaved pairs:
+`SectionWorkerPool` parks its threads instead: created on the first batch, then asleep in a semaphore
+wait forever, so the second burst and the two-hundredth cost the same. Same signature as
+`CloudBake.Rows`, same one-index-at-a-time dynamic partitioning, same worker-count policy, so the call
+site is a one-line difference either way.
+
+**The split is by workload shape, and that is the whole basis for it:**
+
+| | scheduler | why |
+|---|---|---|
+| occlusion gather | **`SectionWorkerPool`** | repeated short burst, long idle gaps — the pattern lazy injection handles worst |
+| cloud atlas + volume bakes | **`CloudBake.Rows`** | one-shot at load, hundreds of ms — injection amortises to nothing, and `Parallel.For` is the simpler dependency |
+
+**It ships on that argument and not on a measurement**, which is worth stating plainly rather than
+letting the table above imply otherwise. Three interleaved pairs:
 
 | median of three | `Parallel.For` | parked threads |
 |---|---|---|
@@ -1616,17 +1626,18 @@ interleaved pairs:
 | `frame_avg_ms`, 74 frames | 6.46 | 4.94 |
 | `mesh_total_ms` | 434.07 | 346.02 |
 
-The aggregate rows lean toward the pool and the worst-frame row is a tie, with every range overlapping
-and the pairs disagreeing (the pool wins 1 and 3, loses 2). **Below the noise floor, like everything
-else in this section.**
+The aggregate rows lean toward the pool, the worst-frame row is a tie, every range overlaps and the
+pairs disagree about the winner. **Inside the noise floor**, like every other scheduling question
+asked of this subsystem.
 
-**Not shipped, and the reason is the ratio of risk to evidence.** The pool is a hand-rolled threading
-primitive — threads that never exit, a shared cursor, a semaphore, failure propagation across a thread
-boundary — added to a mod that real people run, in exchange for no demonstrated gain.
-`CloudBake.Rows` is one line, is already used by the cloud bake, and is already pinned
-serial-equals-parallel. The branch keeps the implementation and its ten offline tests (which do pass,
-including failure propagation and pool reuse across batches) for whoever revisits this with a quieter
-machine.
+**The standing risk, stated rather than buried.** This is a hand-rolled threading primitive — threads
+that never exit, a shared cursor, a semaphore, failure propagation across a thread boundary — carrying
+no measured win, in a mod real people run. Three things contain it: ten offline tests that run each
+batch twenty-five times rather than once (the pool *reuses* its threads, so a cursor that failed to
+reset passes on the first pass and fails on the second); a failure that propagates to
+`SkyOcclusionGather`'s stand-down catch rather than vanishing on a worker; and a call site that reverts
+to `CloudBake.Rows` in one line. If this subsystem ever misbehaves in the field, that revert is the
+first thing to try.
 
 #### The measurement floor, which is the real finding
 

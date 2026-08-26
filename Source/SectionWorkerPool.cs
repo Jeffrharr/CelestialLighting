@@ -22,6 +22,27 @@ namespace CelestialLighting;
 // pool. See DESIGN.md for why the fill is not made asynchronous (the window before first consumption
 // is a few hundred microseconds, and the wide window crosses the point where rooms and glow settle).
 //
+// WHERE THIS IS USED, AND WHERE CloudBake.Rows STILL IS. The split is by WORKLOAD SHAPE, not by
+// benchmark:
+//
+//   this pool      — the occlusion gather. A repeated short burst, many times a session, with long
+//                    idle gaps between. Exactly the pattern a lazily-injecting pool handles worst.
+//   CloudBake.Rows — the cloud atlas and volume bakes. One-shot at load, hundreds of milliseconds
+//                    long, so any injection delay is amortised into nothing and Parallel.For's
+//                    partitioner is strictly the simpler dependency.
+//
+// SHIPPED ON THE ARGUMENT ABOVE, NOT ON A MEASUREMENT, and that is worth stating rather than
+// implying. Three interleaved pairs against Parallel.For put median frame_max_ms at 65.73 against
+// 65.17 — the aggregate rows lean this way (frame_avg_ms 4.94 against 6.46, mesh_total_ms 346.02
+// against 434.07) and the worst-frame row is a tie, with every range overlapping. That is inside this
+// machine's noise floor, which spans 37.07 to 84.73 ms on ONE build across three consecutive runs.
+// The mechanism is the reason this is here; the numbers neither support nor refute it.
+//
+// So the standing risk is honest and small: a hand-rolled threading primitive carrying no measured
+// win. It is contained by the ten offline tests below it, by the fact that a failure propagates to
+// SkyOcclusionGather's stand-down catch rather than vanishing on a worker, and by the call site being
+// a one-line revert to CloudBake.Rows.
+//
 // NO UNITY TYPES, same discipline as CloudBake, so the test project links this exact file and the
 // serial-equals-parallel property can be pinned offline.
 public static class SectionWorkerPool
