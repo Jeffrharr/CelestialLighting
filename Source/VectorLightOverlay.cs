@@ -45,6 +45,12 @@ public static class VectorLightOverlay
     // way: the composition changes what the fragment program does with the curve, never the curve.
     private static readonly Dictionary<int, Texture2D> GradientsByRadius = new Dictionary<int, Texture2D>();
 
+    // The surface lift's materials. Separate from MaxMaterialsByRadius because the surface lift IS a
+    // material property — blend state cannot be set per draw — so the two compositions cannot share
+    // one material however identical everything else about them is. Same gradient, same program,
+    // render queue; one blend factor apart.
+    private static readonly Dictionary<int, Material> LiftMaterialsByRadius = new Dictionary<int, Material>();
+
     // Vanilla's delivered glow per vertex, in UV1. Vector4 rather than Vector3 because Unity's mesh
     // API takes UV channels as float4 and a float3 overload would silently pad anyway.
     private static readonly List<Vector4> VanillaUvs = new List<Vector4>();
@@ -117,7 +123,12 @@ public static class VectorLightOverlay
         bool maxDrawing = VectorLightShader.MaxActive;
         bool maxComposing = maxDrawing && CelestialLightingFeatures.VectorLightShaderMaxSubtract;
 
-        float strength = StrengthFor(map, entry, skyGlow, maxComposing);
+        // The surface lift. Only meaningful under the max — the fallback path draws through MoteGlow, whose
+        // blend we do not own — and it changes both which material this draw goes through and how
+        // the strength scalar is calibrated, so the two have to be decided from one answer.
+        bool surfaceLift = maxComposing && VectorLightShader.SurfaceLiftActive;
+
+        float strength = StrengthFor(map, entry, skyGlow, maxComposing, surfaceLift);
 
         if (strength <= 0f)
             return;
@@ -159,10 +170,19 @@ public static class VectorLightOverlay
         {
             VectorLightShader.SetVanillaWeight(entry.Props, maxComposing && composed ? 1f : 0f);
             VectorLightShader.SetVanillaTexture(entry.Props, entry.VanillaField);
+
+            // Set on every max draw and not only on the lift ones, because the property block is
+            // per emitter and reused frame to frame: an emitter that drew under the lift and then
+            // under the additive pass would otherwise keep dividing by a stale ambient. Zero is the
+            // additive pass, so writing it unconditionally is what makes the two arms exclusive.
+            VectorLightShader.SetSkyAmbient(
+                entry.Props,
+                surfaceLift ? VectorLightMath.SurfaceAmbient(skyGlow, map.roofGrid.Roofed(entry.Cell)) : 0f);
         }
 
         Graphics.DrawMesh(
-            entry.Mesh, Vector3.zero, Quaternion.identity, MaterialFor(entry.Radius, maxDrawing),
+            entry.Mesh, Vector3.zero, Quaternion.identity,
+            MaterialFor(entry.Radius, maxDrawing, surfaceLift),
             0, null, 0, entry.Props);
     }
 
@@ -180,7 +200,8 @@ public static class VectorLightOverlay
     // answers "how much sky reaches this cell" properly and is the principled upgrade here; the binary
     // roof test is the prototype's version of it.
     private static float StrengthFor(
-        Map map, VectorLightField.LightEntry entry, float skyGlow, bool maxComposing)
+        Map map, VectorLightField.LightEntry entry, float skyGlow, bool maxComposing,
+        bool surfaceLift)
     {
         bool sheltered = map.roofGrid.Roofed(entry.Cell);
 
@@ -189,6 +210,17 @@ public static class VectorLightOverlay
         // pawn-shadow lane cannot call it without answering the same one — which it did for a long
         // time, and spent that whole time drawing nothing indoors at noon.
         float daylight = VectorLightMath.DaylightScale(skyGlow, sheltered);
+
+        // THE SURFACE LIFT CHANGES WHAT THIS SCALAR MEANS, which is why it returns before every other
+        // branch rather than scaling one of them. Under the additive blend the number is an amount of
+        // light to add and needs a level; under DstColor/One it is a factor to brighten the frame by,
+        // and the factor itself is computed per fragment against the sky ambient plus vanilla's own
+        // local glow — the only place vanilla's value is known at better than cell resolution. So the
+        // only thing left for a per-draw scalar to say is whether this lamp competes with the sky at
+        // all, and that is exactly the daylight curve. No DefaultStrength here, deliberately: see
+        // SurfaceAmbient's header for the three-times error that putting it here produced.
+        if (surfaceLift)
+            return daylight;
 
         // Under the per-fragment max we deliver the WHOLE of our model, because the compensation
         // happens per fragment against vanilla's local value rather than globally against a
@@ -367,10 +399,10 @@ public static class VectorLightOverlay
         return total;
     }
 
-    private static Material MaterialFor(float radius, bool max)
+    private static Material MaterialFor(float radius, bool max, bool surfaceLift)
     {
         int key = Mathf.RoundToInt(radius * 4f);
-        Dictionary<int, Material> cache = max ? MaxMaterialsByRadius : MaterialsByRadius;
+        Dictionary<int, Material> cache = CacheFor(max, surfaceLift);
 
         if (!cache.TryGetValue(key, out Material material))
         {
@@ -384,12 +416,23 @@ public static class VectorLightOverlay
             // the unseeded curve, which is why the two caches hold different textures for one radius.
             Texture2D gradient = GradientFor(key, max);
             material = max
-                ? VectorLightShader.NewMaterial(gradient)
+                ? VectorLightShader.NewMaterial(gradient, surfaceLift)
                 : new Material(ShaderDatabase.MoteGlow) { mainTexture = gradient };
             cache[key] = material;
         }
 
         return material;
+    }
+
+    // Which of the three material caches this draw belongs in. Named rather than nested in
+    // MaterialFor's lookup because "which program, and which blend" is two questions and reading
+    // them as one conditional expression is what makes a third composition easy to mis-key.
+    private static Dictionary<int, Material> CacheFor(bool max, bool surfaceLift)
+    {
+        if (!max)
+            return MaterialsByRadius;
+
+        return surfaceLift ? LiftMaterialsByRadius : MaxMaterialsByRadius;
     }
 
     // One gradient per radius, shared by both material caches — the curve does not depend on which
