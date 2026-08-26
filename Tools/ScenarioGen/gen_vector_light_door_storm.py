@@ -44,10 +44,11 @@ ORIGIN = "0,45"
 # Swings per arm. Each is an open and a close, and each of those crosses up to nine quantisation
 # steps, so an arm provokes on the order of 200 invalidation rounds.
 #
-# TWELVE RATHER THAN TWO, because the quantity is a duration on a contended box and the only defence
-# against that is sample size; and rather than a hundred, because every swing is 50 frames of wall
-# clock and four arms of a hundred swings is a twenty-minute run for numbers that stop moving.
-SWINGS = 12
+# EIGHT RATHER THAN THE ORIGINAL TWELVE, because the arm count went from four to six when the glow
+# texture hold arrived and the run has to stay inside a few minutes. The quantity is a duration on a
+# contended box, so sample size is the only defence against noise -- but six arms of eight swings
+# samples the comparison more times than four arms of twelve did.
+SWINGS = 8
 
 # Frames to hold after each SetDoorOpen. A wooden door takes tens of ticks to slide and the harness
 # runs one step per frame, so this has to cover the whole animation -- a swing cut short mid-slide
@@ -155,18 +156,20 @@ def setup():
     return steps
 
 
-def arm(cache_on, index):
+def arm(cache_on, hold_on, index):
     """One arm: state the flags, drop everything, zero the counters, then storm the door."""
-    on = "true" if cache_on else "false"
-    tag = ("on" if cache_on else "off") + str(index)
+    tag = f"{index}_{ARM_NAMES[(cache_on, hold_on)]}"
 
     steps = [step("SetFeature", featureName=k, enabled=v) for k, v in BASE_FLAGS]
 
-    # LAST OF THE FLAGS, so its ForceRebuild is the one that lands immediately before the reset. Every
+    # LAST OF THE FLAGS, so their ForceRebuild is what lands immediately before the reset. Every
     # SetFeature above also rebuilds, and the field has to be dropped AFTER the arm's configuration is
     # complete rather than in the middle of it, or the arm's first gathers bake against a half-applied
     # scene -- the harness runs one step per frame, so a frame really is rendered between two flags.
-    steps.append(step("SetFeature", featureName="vector_light_silhouette_cache", enabled=on))
+    steps.append(step("SetFeature", featureName="vector_light_silhouette_cache",
+                      enabled="true" if cache_on else "false"))
+    steps.append(step("SetFeature", featureName="vector_light_glow_texture_hold",
+                      enabled="true" if hold_on else "false"))
 
     # Zeroes every counter this arm reports, including the two new ones. After the rebuild, so the
     # rebuild's own 8 gathers are not charged to the arm.
@@ -196,12 +199,12 @@ def arm(cache_on, index):
     steps.append(step("SetTimeSpeed", speed="paused"))
     steps.append(step("Wait", frames="2"))
 
-    steps += arm_probes(cache_on)
+    steps += arm_probes(cache_on, hold_on)
     steps.append(step("Screenshot", fileName=f"doorstorm_{tag}.png"))
     return steps
 
 
-def arm_probes(cache_on):
+def arm_probes(cache_on, hold_on):
     steps = []
 
     # ---- the behaviour half. IDENTICAL ACROSS ALL FOUR ARMS OR THE REST IS WORTHLESS ------------
@@ -239,13 +242,21 @@ def arm_probes(cache_on):
     if not cache_on:
         steps.append(probe("vector_light_silhouette_hits", "0", "0"))
 
+    # EVERY COUNT PIN BELOW IS DELIBERATELY LOOSE, and one of them was a notch too tight on its
+    # second run: vector_light_field_texture_uploads read 888 against a band that stopped at 880.
+    # The counts are a function of how many quantisation steps eight swings crossed, which is a
+    # function of how fast the machine was running, so a band fitted to one run's observations is a
+    # band that fails on the next. Observed maxima over two runs: hits 784, rebuilds 921, texture
+    # uploads 888, UV-only 880, marks 1016. The numbers to actually READ here are the durations and
+    # the two exact-zero pins; these exist to catch a run where the storm did not storm.
+    #
     # RECORDED, NOT ASSERTED, and read as a PAIR. A hit count alone cannot separate a working memo
     # from a scene where nothing ever asks twice; a rebuild count alone cannot separate a memo that
     # never helps from one correctly refusing because walls really are going up. Their sum is how many
     # occluder sets were assembled, which is what turns either into a share -- and the share is the
     # number that survives the swing count drifting between arms.
-    steps.append(probe("vector_light_silhouette_hits", "800", "800"))
-    steps.append(probe("vector_light_silhouette_rebuilds", "800", "800"))
+    steps.append(probe("vector_light_silhouette_hits", "550", "550"))
+    steps.append(probe("vector_light_silhouette_rebuilds", "550", "550"))
 
     # THE MEASUREMENT. Milliseconds the calling thread spent reading occluder sets off the map.
     #
@@ -254,51 +265,113 @@ def arm_probes(cache_on):
     # enough to be interesting on one arm fails on the other. Divide it by hits plus rebuilds before
     # comparing anything; the totals are only comparable if the swings landed the same way, and they
     # will not have.
-    steps.append(probe("vector_light_gather_wall_ms", "40", "40"))
+    # SPANS BOTH SIDES OF ITS OWN FLAG, so the tolerance looks loose. Measured on the 2x2:
+    # 37.97 / 35.21 / 37.01 with the memo off against 7.75 / 7.17 / 8.14 with it on -- 4.79x, and
+    # the hold-only arm sits with the other memo-off arms, which is what says the two flags are
+    # independent rather than merely believed to be.
+    steps.append(probe("vector_light_gather_wall_ms", "24", "24"))
+
+    # ---- the other headline, and the other flag ------------------------------------------------
+    #
+    # The glow-texture hold moves the FIELD half of the upload clock and nothing else. With the hold
+    # off every refresh refills the texture and pushes it to the GPU; with it on, a refresh provoked
+    # only by our own geometry rewrites UV1 and leaves the texture alone -- which is legitimate
+    # precisely because the shipped mod never writes vanilla's glow grid when a door opens.
+    if not hold_on:
+        # EXACT, and the mirror of the silhouette pin above: with the hold off there is no path that
+        # can skip a texture upload, so a single UV-only refresh would mean the flag does not reach
+        # the uploader and every ratio below compares an arm against itself.
+        steps.append(probe("vector_light_field_uv_only_uploads", "0", "0"))
+
+    steps.append(probe("vector_light_field_texture_uploads", "550", "550"))
+    steps.append(probe("vector_light_field_uv_only_uploads", "550", "550"))
+    # The same shape for the other flag. Measured: 13.32 / 12.82 / 12.49 with the hold off against
+    # 3.33 / 3.25 / 3.32 with it on -- 3.90x -- and the memo-only arm sits with the hold-off arms.
+    steps.append(probe("vector_light_upload_field_ms", "9", "9"))
+
+    # THE CONTROL FOR THE HOLD. Mesh channel writes happen on every rebuild whatever the texture
+    # does, so this must not move with either flag.
+    # Measured 11.10-12.32 across all six arms, no pattern in the flags. Pinned TIGHTER than the two
+    # above precisely because it is a control: a control with a tolerance wide enough to swallow the
+    # effect it is controlling for is not a control.
+    steps.append(probe("vector_light_upload_mesh_ms", "12", "10"))
 
     # THE CONTROL, and the reason both clocks exist. The memo removes work from the gather and changes
     # nothing about the bake, so this should read the same in every arm. If it moves with the flag,
     # something other than the gather changed and the gather number is not what it claims to be.
-    steps.append(probe("vector_light_bake_wall_ms", "260", "260"))
+    steps.append(probe("vector_light_bake_wall_ms", "180", "180"))
 
     # How much work there was to do, so the durations above can be read against a population rather
     # than in the abstract. vector_light_bakes is the denominator of the bake clock and
     # invalidation_marks is roughly the denominator of the gather clock.
-    steps.append(probe("vector_light_bakes", "1600", "1600"))
-    steps.append(probe("vector_light_invalidations", "220", "220"))
-    steps.append(probe("vector_light_invalidation_marks", "1700", "1700"))
-    steps.append(probe("door_aperture_bakes", "220", "220"))
+    steps.append(probe("vector_light_bakes", "600", "600"))
+    steps.append(probe("vector_light_invalidations", "90", "90"))
+    steps.append(probe("vector_light_invalidation_marks", "700", "700"))
+    steps.append(probe("door_aperture_bakes", "90", "90"))
     return steps
 
 
 steps = setup()
 
-# off, on, off, on -- the off arms bracket the on arms. See the module docstring for why a block
-# design would not survive this machine.
-for index, cache_on in enumerate([False, True, False, True], start=1):
-    steps += arm(cache_on, index)
+# A 2x2 WITH REPEATS, ONE FACTOR MOVING AT A TIME, rather than sweeping both flags together.
+#
+# The two changes are orthogonal BY CONSTRUCTION -- the silhouette memo touches the gather and the
+# glow-texture hold touches the upload, and each has its own clock -- so sweeping them together
+# would probably have been fine. Probably is not a measurement. Arms 2 and 3 move one factor each
+# against arm 1, which is what turns "each flag moves only its own clock" from an argument about the
+# code into something the report either shows or does not.
+#
+# Arm 1 is the full baseline: both flags off, i.e. the shape that shipped before this branch. Arm 4
+# is both on, i.e. what ships after it. Arms 5 and 6 repeat 1 and 4 at the end of the run, so the
+# headline comparison is bracketed and a machine that got slower or quieter partway through is
+# visible rather than absorbed.
+ARM_NAMES = {
+    (False, False): "baseline",
+    (True, False): "memo",
+    (False, True): "hold",
+    (True, True): "both",
+}
+
+ARMS = [
+    (False, False),   # 1  baseline
+    (True, False),    # 2  silhouette memo only
+    (False, True),    # 3  glow texture hold only
+    (True, True),     # 4  both
+    (False, False),   # 5  baseline again
+    (True, True),     # 6  both again
+]
+
+for index, (cache_on, hold_on) in enumerate(ARMS, start=1):
+    steps += arm(cache_on, hold_on, index)
 
 out = {
     "name": "vector_light_door_storm",
     "saveFile": "minimal_colony.rws",
     "description": (
-        "Issue #188 item C: does holding a light's silhouette across a door swing actually remove "
-        f"work. One wooden door in a room's east wall, eight TorchLamps all within its reach, and "
-        f"{SWINGS} open/close swings per arm, over four arms alternating "
-        "vector_light_silhouette_cache off/on/off/on in ONE process. Interleaved rather than blocked "
-        "because this box has measured one unchanged binary spanning 37-85 ms on frame_max_ms across "
-        "three runs, and vector_light_bake_wall_ms moving 40% between two runs of the same build -- a "
-        "block design would hand whichever arm ran in the quiet half a win it did not earn. "
+        "Issue #188 item C and the glow-texture hold, measured together on the provocation they both "
+        "exist for: door swings. One wooden door in a room's east wall, eight TorchLamps all within "
+        "its reach, and " + str(SWINGS) + " open/close swings per arm, over SIX arms in ONE "
+        "process -- a 2x2 of "
+        "vector_light_silhouette_cache and vector_light_glow_texture_hold, one factor moving at a "
+        "time, with the baseline and the both-on arm repeated at the end. Interleaved rather than "
+        "blocked because this box has measured one unchanged binary spanning 37-85 ms on "
+        "frame_max_ms across three runs, and vector_light_bake_wall_ms moving 40% between two runs "
+        "of the same build. "
+        "THREE CLOCKS, AND EACH FLAG SHOULD MOVE EXACTLY ONE. The memo touches the gather "
+        "(vector_light_gather_wall_ms); the hold touches the texture half of the upload "
+        "(vector_light_upload_field_ms). vector_light_bake_wall_ms and vector_light_upload_mesh_ms "
+        "must not move with either, and are the controls. "
         "READ THE RATIOS, NOT THE TOTALS. A door animates on the tick counter while the harness "
         "renders frames, so how many quantisation steps a swing crosses is machine-dependent and the "
-        "counts drift between arms; vector_light_gather_wall_ms divided by (hits + rebuilds) does "
-        "not, and neither does hits as a share of that sum. vector_light_bake_wall_ms is the CONTROL "
-        "-- the memo touches the gather and not the bake, so a bake clock that moves with the flag "
-        "means the gather number is measuring something else. The one exact pin is that an off arm "
-        "reports exactly zero hits, because that is a statement about a code path rather than about a "
-        "duration, and an off arm that reported one would mean every ratio here compares an arm "
-        "against itself. Clouds are off: the sheet drifts on the tick counter and would put the two "
-        "arms' screenshots under different weather."
+        "counts drift between arms. "
+        "The two exact pins are that an off arm reports exactly zero silhouette hits and exactly "
+        "zero UV-only uploads, because those are statements about code paths rather than durations, "
+        "and an off arm reporting one would mean every ratio here compares an arm against itself. "
+        "WHY THE HOLD IS LEGITIMATE: the shipped mod never writes vanilla's glow grid when a door "
+        "opens -- the only two writes are behind vector_light_door_glow_blocker, which ships off -- "
+        "so the per-emitter glow texture is byte-for-byte unchanged across a swing. "
+        "Clouds are off: the sheet drifts on the tick counter and would put the arms' screenshots "
+        "under different weather."
     ),
     "steps": steps,
 }
@@ -307,4 +380,4 @@ with open(TARGET, "w") as f:
     json.dump(out, f, indent=2)
     f.write("\n")
 
-print(f"wrote {TARGET}: {len(steps)} steps, {SWINGS} swings x 4 arms")
+print(f"wrote {TARGET}: {len(steps)} steps, {SWINGS} swings x {len(ARMS)} arms")

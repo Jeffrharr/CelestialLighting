@@ -105,6 +105,17 @@ public static class VectorLightField
         // bakes — off screen behind the view cull, or on a map nobody is looking at — costs nothing
         // but the null. VectorLightBlockers owns everything in it; nothing here reads it.
         public VectorLightSilhouetteMath.Memo Silhouette;
+
+        // A FIFTH KIND OF STALENESS, split off SampleDirty for the same reason the silhouette was
+        // split off PolygonDirty: the two things it stood for do not change together and one of them
+        // is far more expensive than the other.
+        //
+        // UV1 carries where each vertex sits inside the emitter's square, so it goes stale when OUR
+        // geometry moves — and Mesh.Clear wipes the channel on every rebuild regardless. SampleDirty
+        // means the TEXTURE those coordinates index is stale, which happens when vanilla's glow moves
+        // and not otherwise. A door sliding moves our vertices nine times and vanilla's glow not at
+        // all, because RimWorld's glow grid never learns a door opened.
+        public bool FieldUvsDirty = true;
     }
 
     private sealed class MapLights
@@ -222,6 +233,8 @@ public static class VectorLightField
         GatherWallMs = 0.0;
         UploadMeshWallMs = 0.0;
         UploadFieldWallMs = 0.0;
+        FieldTextureUploads = 0;
+        FieldUvOnlyUploads = 0;
 
         // Lives on VectorLightBlockers because that is what increments it, and is drained from here
         // because there is one reset path per arm and a counter that drains on a different schedule
@@ -286,7 +299,18 @@ public static class VectorLightField
                 // A wall appearing or vanishing also rewrites vanilla's geodesic distances through
                 // that cell, so the samples go with the geometry. A rebuild resamples anyway; this
                 // is for the case where the rebuild is skipped because the light is off-screen.
-                entry.SampleDirty = true;
+                //
+                // ONLY WHEN A BLOCKER MOVED, which is the same distinction the silhouette memo
+                // needs and the reason one parameter serves both. A door sliding does not rewrite
+                // vanilla's distances: its glow grid is not told, and the shipped mod never tells it.
+                //
+                // IT IS TOLD UNDER vector_light_door_glow_blocker, and that case routes itself
+                // correctly with no special handling here. That flag makes VectorLightDoorEvents
+                // call glowGrid.LightBlockerAdded/Removed, which Patch_VectorLightBlockerAdded and
+                // its sibling postfix — so the write arrives back through BlockerChanged with
+                // blockerMoved true, and the samples are invalidated because they really did move.
+                if (blockerMoved)
+                    entry.SampleDirty = true;
 
                 if (blockerMoved && entry.Silhouette != null)
                     entry.Silhouette.Invalidate();
@@ -449,6 +473,15 @@ public static class VectorLightField
     // have said which third of the frame to look at and nothing about what to do when you got there.
     public static double UploadMeshWallMs;
     public static double UploadFieldWallMs;
+
+    // The two ways a glow-field refresh can end: the texture refilled and pushed to the GPU, or only
+    // UV1 rewritten because the texture was already right.
+    //
+    // A RATIO, LIKE THE SILHOUETTE COUNTERS, and for the same reason: the duration above cannot say
+    // whether it fell because the work got cheaper or because a scene happened to ask for less of
+    // it. Their sum is how many field refreshes happened at all.
+    public static int FieldTextureUploads;
+    public static int FieldUvOnlyUploads;
 
     public static double UploadWallMs => UploadMeshWallMs + UploadFieldWallMs;
 

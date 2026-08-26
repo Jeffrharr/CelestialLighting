@@ -347,6 +347,13 @@ public static class ProbeRegistration
             "vector_light_upload_mesh_ms", VectorLightBakeProbe.Metric.UploadMeshWallMs));
         ProbeRegistry.Register(new VectorLightBakeProbe(
             "vector_light_upload_field_ms", VectorLightBakeProbe.Metric.UploadFieldWallMs));
+        // How the field refreshes split. PIN BOTH OR NEITHER: a UV-only count on its own reads as a
+        // working hold in a scene where nothing ever refreshes twice, and a texture-upload count on
+        // its own reads as a broken one in a scene where vanilla's glow really is moving.
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_field_texture_uploads", VectorLightBakeProbe.Metric.FieldTextureUploads));
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_field_uv_only_uploads", VectorLightBakeProbe.Metric.FieldUvOnlyUploads));
         // Issue #188 item 0. vector_light_sections_per_pass is the headline -- the map's whole
         // section count before item A, a handful after -- but pin vector_light_mask_applies beside
         // it or the reduction is unfalsifiable. Dirty flags are work REQUESTED and vanilla
@@ -1339,6 +1346,17 @@ public static class ProbeRegistration
             enabled =>
             {
                 CelestialLightingFeatures.VectorLightSilhouetteCache = enabled;
+                VectorLightRedraw.ForceRebuild();
+            });
+        // ForceRebuild again, and here it is doing the most work of any of them: ClearAll drops every
+        // entry, so both dirty flags start true and the arm's first refresh is a full one whichever
+        // way the flag is set. Without it an arm switching this on would inherit textures the
+        // previous arm had already uploaded and report a hold rate belonging to its neighbour.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightGlowTextureHoldKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.VectorLightGlowTextureHold = enabled;
                 VectorLightRedraw.ForceRebuild();
             });
         // Two-arg overload, matching its shipped default of true, and inert while vector_lights is
