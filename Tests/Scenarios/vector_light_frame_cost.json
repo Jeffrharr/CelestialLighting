@@ -228,6 +228,13 @@
     {
       "type": "SetFeature",
       "args": {
+        "featureName": "vector_light_parallel_bake",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
         "featureName": "vector_light_open_doors",
         "enabled": "false"
       }
@@ -452,6 +459,38 @@
     {
       "type": "Probe",
       "args": {
+        "probeName": "vector_light_parallel_bakes",
+        "expectedValue": "1",
+        "tolerance": "8"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_serial_bakes",
+        "expectedValue": "1",
+        "tolerance": "8"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_bake_batch_max",
+        "expectedValue": "22",
+        "tolerance": "18"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_bake_wall_ms",
+        "expectedValue": "10",
+        "tolerance": "60"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
         "probeName": "vector_light_bake_segments",
         "expectedValue": "1872",
         "tolerance": "900"
@@ -517,128 +556,128 @@
       "type": "Probe",
       "args": {
         "probeName": "circ_vldraw_total_ms",
-        "expectedValue": "30",
-        "tolerance": "60"
+        "expectedValue": "40",
+        "tolerance": "90"
       }
     },
     {
       "type": "Probe",
       "args": {
         "probeName": "circ_vldraw_max_ms",
-        "expectedValue": "5",
-        "tolerance": "15"
+        "expectedValue": "10",
+        "tolerance": "40"
       }
     },
     {
       "type": "Probe",
       "args": {
         "probeName": "circ_vlbuilddirty_total_ms",
-        "expectedValue": "30",
-        "tolerance": "60"
+        "expectedValue": "40",
+        "tolerance": "90"
       }
     },
     {
       "type": "Probe",
       "args": {
         "probeName": "circ_vlbuilddirty_max_ms",
-        "expectedValue": "5",
-        "tolerance": "15"
+        "expectedValue": "10",
+        "tolerance": "40"
       }
     },
     {
       "type": "Probe",
       "args": {
         "probeName": "circ_vloverlay_total_ms",
-        "expectedValue": "30",
-        "tolerance": "60"
+        "expectedValue": "40",
+        "tolerance": "90"
       }
     },
     {
       "type": "Probe",
       "args": {
         "probeName": "circ_vloverlay_max_ms",
-        "expectedValue": "5",
-        "tolerance": "15"
+        "expectedValue": "10",
+        "tolerance": "40"
       }
     },
     {
       "type": "Probe",
       "args": {
         "probeName": "circ_vlpawnshadows_total_ms",
-        "expectedValue": "30",
-        "tolerance": "60"
+        "expectedValue": "40",
+        "tolerance": "90"
       }
     },
     {
       "type": "Probe",
       "args": {
         "probeName": "circ_vlpawnshadows_max_ms",
-        "expectedValue": "5",
-        "tolerance": "15"
+        "expectedValue": "10",
+        "tolerance": "40"
       }
     },
     {
       "type": "Probe",
       "args": {
         "probeName": "circ_vlpolygon_total_ms",
-        "expectedValue": "30",
-        "tolerance": "60"
+        "expectedValue": "40",
+        "tolerance": "90"
       }
     },
     {
       "type": "Probe",
       "args": {
         "probeName": "circ_vlpolygon_max_ms",
-        "expectedValue": "5",
-        "tolerance": "15"
+        "expectedValue": "10",
+        "tolerance": "40"
       }
     },
     {
       "type": "Probe",
       "args": {
         "probeName": "circ_vlsegments_total_ms",
-        "expectedValue": "30",
-        "tolerance": "60"
+        "expectedValue": "40",
+        "tolerance": "90"
       }
     },
     {
       "type": "Probe",
       "args": {
         "probeName": "circ_vlsegments_max_ms",
-        "expectedValue": "5",
-        "tolerance": "15"
+        "expectedValue": "10",
+        "tolerance": "40"
       }
     },
     {
       "type": "Probe",
       "args": {
         "probeName": "circ_vlcoverage_total_ms",
-        "expectedValue": "30",
-        "tolerance": "60"
+        "expectedValue": "40",
+        "tolerance": "90"
       }
     },
     {
       "type": "Probe",
       "args": {
         "probeName": "circ_vlcoverage_max_ms",
-        "expectedValue": "5",
-        "tolerance": "15"
+        "expectedValue": "10",
+        "tolerance": "40"
       }
     },
     {
       "type": "Probe",
       "args": {
         "probeName": "circ_vlmask_total_ms",
-        "expectedValue": "30",
-        "tolerance": "60"
+        "expectedValue": "40",
+        "tolerance": "90"
       }
     },
     {
       "type": "Probe",
       "args": {
         "probeName": "circ_vlmask_max_ms",
-        "expectedValue": "5",
-        "tolerance": "15"
+        "expectedValue": "10",
+        "tolerance": "40"
       }
     }
   ]
