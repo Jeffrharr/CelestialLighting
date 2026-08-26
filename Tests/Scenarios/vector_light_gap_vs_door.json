@@ -588,6 +588,38 @@
       }
     },
     {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_beyond_ours",
+        "expectedValue": "0",
+        "tolerance": "99999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_beyond_vanilla",
+        "expectedValue": "0",
+        "tolerance": "99999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_beyond_excess",
+        "expectedValue": "0",
+        "tolerance": "99999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_beyond_cells",
+        "expectedValue": "0",
+        "tolerance": "99999"
+      }
+    },
+    {
       "type": "SetFeature",
       "args": {
         "featureName": "vector_lights",
@@ -924,6 +956,38 @@
       }
     },
     {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_beyond_ours",
+        "expectedValue": "0",
+        "tolerance": "99999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_beyond_vanilla",
+        "expectedValue": "0",
+        "tolerance": "99999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_beyond_excess",
+        "expectedValue": "0",
+        "tolerance": "99999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_beyond_cells",
+        "expectedValue": "0",
+        "tolerance": "99999"
+      }
+    },
+    {
       "type": "SetFeature",
       "args": {
         "featureName": "vector_lights",
@@ -1089,6 +1153,38 @@
       "type": "Screenshot",
       "args": {
         "fileName": "gapdoor_aperture.png"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_beyond_ours",
+        "expectedValue": "0",
+        "tolerance": "99999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_beyond_vanilla",
+        "expectedValue": "0",
+        "tolerance": "99999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_beyond_excess",
+        "expectedValue": "0",
+        "tolerance": "99999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_beyond_cells",
+        "expectedValue": "0",
+        "tolerance": "99999"
       }
     },
     {
@@ -1260,5 +1356,5 @@
       }
     }
   ],
-  "description": "Does light through a bare GAP look like light through a DOOR? ONE roofed room, ONE torch dead centre, TWO openings on opposite walls at the same z -- so both beams run along the same row, six cells from the same lamp, mirrored, and the only difference between them is one wall cell: the west opening holds a wooden door, the east is bare floor. THE SYMMETRY IS THE FIX. An earlier cut put the two openings in two rooms at different z and was unusable: the frame's outdoor ground sweeps 4.73 to 7.67 across z with no lamp near most of those rows, so the two openings never sat on one baseline and their raw levels were not comparable. Here they do. Why a gap is the case that matters: RimWorld's glow grid never learns a door opened, so beyond a door vanilla delivers nothing, max(0, ours - vanilla) is our whole model, and the composition photographs as working perfectly whatever state it is in. Two real defects hid behind exactly that. Beyond a gap vanilla's flood takes a short path through the aperture and delivers close to what our own model claims, so the max is degenerate there BY CONSTRUCTION -- which is why the aperture arm stops composing a max and lets our model replace vanilla inside the polygon instead. Gravel everywhere so readable texture is comparable; every cloud flag off and stated, since the whole measured region is open ground. Note the room has openings, so RimWorld calls it an OUTDOOR room however thoroughly it is roofed -- that applies to both beams equally now, which is the other thing the single-room layout buys."
+  "description": "Does light through a bare GAP look like light through a DOOR? ONE roofed room, ONE torch dead centre, TWO openings on opposite walls at the same z -- so both beams run along the same row, six cells from the same lamp, mirrored, and the only difference between them is one wall cell: the west opening holds a wooden door, the east is bare floor. THE SYMMETRY IS THE FIX. An earlier cut put the two openings in two rooms at different z and was unusable: the frame's outdoor ground sweeps 4.73 to 7.67 across z with no lamp near most of those rows, so the two openings never sat on one baseline and their raw levels were not comparable. Here they do. Why a gap is the case that matters: RimWorld's glow grid never learns a door opened, so beyond a door vanilla delivers nothing, max(0, ours - vanilla) is our whole model, and the composition photographs as working perfectly whatever state it is in. Two real defects hid behind exactly that. Beyond a gap vanilla's flood takes a short path through the aperture and delivers close to what our own model claims, so the max is degenerate there BY CONSTRUCTION -- which is why the aperture arm stops composing a max and lets our model replace vanilla inside the polygon instead. Gravel everywhere so readable texture is comparable; every cloud flag off and stated, since the whole measured region is open ground. Note the room has openings, so RimWorld calls it an OUTDOOR room however thoroughly it is roofed -- that applies to both beams equally now, which is the other thing the single-room layout buys. Three arms also report vector_light_beyond_{ours,vanilla,excess,cells}: our model's glow and the vanilla glow the shader subtracts, side by side, peaked over the cells beyond the emitter's own room. They are reported with a wide tolerance rather than pinned, because they are the numbers a composition is being designed FROM -- three arms produced facts that could not all hold, and no fourth composition should be attempted until this pair has been read."
 }
