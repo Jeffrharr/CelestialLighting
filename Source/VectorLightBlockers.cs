@@ -25,9 +25,9 @@ namespace CelestialLighting;
 // set: 961 cells and a silhouette extraction over two edge grids the same size. Issue #188 item C is
 // the observation that one door swing asks nine times and gets the same wall on eight of them, so
 // the assembly is split — this file reads live state, and VectorLightSilhouetteMath decides when the
-// previous read is still the answer and turns either one into segments. The memo-taking overload is
-// what the field uses; the plain one rescans unconditionally, which is what the probes and the
-// offline fixtures want.
+// previous read is still the answer and turns either one into segments. The field hands in the
+// emitter's memo; the probes hand in null, because a probe asking what the map says must not be
+// answered by a cache.
 public static class VectorLightBlockers
 {
     // Doors found by the current scan, and doors re-read from a memo. Two lists rather than one
@@ -65,14 +65,16 @@ public static class VectorLightBlockers
     // and light nothing at all — where vanilla's flood simply starts on that cell and spreads out.
     // This is the one place §27 knowingly disagrees with the blocker grid, and it disagrees in the
     // direction that keeps a lit thing lit.
-    public static VectorLightMath.Segment[] SegmentsAround(Map map, IntVec3 centre, float radius)
-    {
-        return SegmentsAround(map, centre, radius, memo: null);
-    }
-
-    // The same answer, recording what it can into `memo` and reusing what is still true.
     //
-    // BYTE-IDENTICAL TO THE PLAIN OVERLOAD BY CONSTRUCTION rather than by luck: both paths end in
+    // `memo` may be null, and passing null is a full rescan. It is a REQUIRED parameter rather than
+    // an optional one, and this method is deliberately NOT an overload pair, because the profiler
+    // arms it BY NAME: `circ_vlsegments` resolves CelestialLighting.VectorLightBlockers:SegmentsAround
+    // through AccessTools, and two methods of that name make the arm throw "Ambiguous match" at
+    // scenario time. That was not hypothetical -- the first cut of the memo added a four-argument
+    // overload beside the three-argument one and took the arm out of the bake storm, which is the
+    // scenario that exists to watch this exact call.
+    //
+    // BYTE-IDENTICAL WITH AND WITHOUT A MEMO BY CONSTRUCTION rather than by luck: both paths end in
     // VectorLightSilhouetteMath.Assemble over the same door records in the same window scan order,
     // and the only thing the memo supplies is a silhouette array a rescan would have rebuilt element
     // for element. VectorLightSilhouetteMathTests pins that over a whole nine-step swing against an

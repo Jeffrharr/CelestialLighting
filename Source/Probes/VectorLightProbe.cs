@@ -370,7 +370,7 @@ public sealed class VectorLightProbe : IProbe
             // The oracle: the exact call VectorLightOverlay.Rebuild made before it started reusing
             // the field's polygon, arguments and all.
             VectorLightMath.Segment[] segments =
-                VectorLightBlockers.SegmentsAround(map, entry.Cell, entry.Radius);
+                VectorLightBlockers.SegmentsAround(map, entry.Cell, entry.Radius, memo: null);
 
             VectorLightMath.LightPolygon fresh = VectorLightMath.Build(
                 entry.Cell.x + 0.5f, entry.Cell.z + 0.5f, entry.Radius, segments,
@@ -552,7 +552,7 @@ public sealed class VectorLightProbe : IProbe
         ref int vertices, ref float penumbraArea)
     {
         VectorLightMath.Segment[] segments =
-            VectorLightBlockers.SegmentsAround(map, entry.Cell, entry.Radius);
+            VectorLightBlockers.SegmentsAround(map, entry.Cell, entry.Radius, memo: null);
 
         VectorLightMath.LightPolygon polygon = VectorLightMath.Build(
             entry.Cell.x + 0.5f, entry.Cell.z + 0.5f, entry.Radius, segments,

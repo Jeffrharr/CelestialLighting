@@ -334,6 +334,19 @@ public static class ProbeRegistration
         // one leaves the other standing as a control on how loaded the machine was that run.
         ProbeRegistry.Register(new VectorLightBakeProbe(
             "vector_light_gather_wall_ms", VectorLightBakeProbe.Metric.GatherWallMs));
+        // The third clock. Read all three together or none: they partition one frame's vector-light
+        // work into the half that reads the map, the half that does arithmetic on it, and the half
+        // that hands the result to Unity, and a change to any one of them is only interpretable
+        // against what the other two did on the same run.
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_upload_wall_ms", VectorLightBakeProbe.Metric.UploadWallMs));
+        // The same total split by API, because they are not the same cost: a mesh channel write
+        // copies a managed list into native memory, and Texture2D.Apply is a GPU transfer. Optimising
+        // the smaller of the two is the documented way to spend a day here for nothing.
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_upload_mesh_ms", VectorLightBakeProbe.Metric.UploadMeshWallMs));
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_upload_field_ms", VectorLightBakeProbe.Metric.UploadFieldWallMs));
         // Issue #188 item 0. vector_light_sections_per_pass is the headline -- the map's whole
         // section count before item A, a handful after -- but pin vector_light_mask_applies beside
         // it or the reduction is unfalsifiable. Dirty flags are work REQUESTED and vanilla
