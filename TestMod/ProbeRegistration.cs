@@ -1424,6 +1424,18 @@ public static class ProbeRegistration
             },
             defaultEnabled: false);
 
+        // The four halves of one question, registered over one shared walk. Pinned together or not
+        // at all: a peak of zero means something entirely different when the cell count is zero, and
+        // reading one without the other is how a probe reports a healthy number about nothing.
+        ProbeRegistry.Register(new VectorLightBeyondProbe(
+            "vector_light_beyond_ours", VectorLightBeyondProbe.Metric.Ours));
+        ProbeRegistry.Register(new VectorLightBeyondProbe(
+            "vector_light_beyond_vanilla", VectorLightBeyondProbe.Metric.Vanilla));
+        ProbeRegistry.Register(new VectorLightBeyondProbe(
+            "vector_light_beyond_excess", VectorLightBeyondProbe.Metric.Excess));
+        ProbeRegistry.Register(new VectorLightBeyondProbe(
+            "vector_light_beyond_cells", VectorLightBeyondProbe.Metric.Cells));
+
         // THREE-ARG, same reason as its neighbours: ships OFF while it is measured.
         FeatureRegistry.Register(
             CelestialLightingFeatures.VectorLightApertureBeamKey,
