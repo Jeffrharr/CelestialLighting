@@ -1046,6 +1046,99 @@ public static class VectorLightMath
     // move: this is a fitted value and its inputs are all upstream of it.
     public const float DefaultStrength = 0.35f;
 
+    // THE SURFACE LIFT. WHAT AN UNLIT CELL RENDERS AT, in the units DefaultStrength is expressed in, and
+    // the divisor that turns "how much light to add" into "how much brighter to make what is here".
+    //
+    // THE SURFACE LIFT IN ONE PARAGRAPH. Phase 6's beam is additive, so it adds the same amount of
+    // light to a pixel whether that pixel is bare rock or a white floor — which is not what light
+    // does. Light on a surface is albedo * illuminance, and the frame already holds albedo *
+    // ambient, so the beam has to MULTIPLY rather than add if it is to carry the ground's own
+    // texture with it. Reported from play as "the beam through a door does not light the other room
+    // up, no features are lit, just the additional glow", and every word of that is the compositing
+    // rather than the level: an additive wedge over a floor the lighting overlay has multiplied
+    // near-black is a wedge, not a lit floor.
+    //
+    // Under Blend DstColor One the frame becomes dst * (1 + ours * strength). We want the beam's
+    // contribution to be albedo * ours, and dst is albedo * ambient, so the strength that delivers
+    // it is DefaultStrength / ambient — the same constant, divided by the brightness of the surface
+    // it is landing on. That is what makes this a RATIO rather than a second brightness knob: the
+    // beam is always the same amount brighter than its surroundings, wherever those surroundings
+    // happen to sit.
+    //
+    // NOT A REPLACEMENT FOR DaylightScale, which still runs. The divide answers "how much brighter
+    // than here", and the daylight curve answers "should a lamp be visible against this sky at all";
+    // the two are different questions and dropping either one is a measurable regression. Keeping
+    // both is also what makes the live A/B a clean one — the surface-lift arm changes the
+    // compositing and nothing else.
+    //
+    // THE FLOOR IS WHAT STOPS THE DIVIDE EXPLODING, and it is a MEASUREMENT rather than a derivation.
+    // A cell whose ambient approached zero would ask for an unbounded multiplier, and a genuinely
+    // black cell cannot be lit by multiplying it at all. RimWorld never renders an open cell black —
+    // the night sky has its own floor — and this is that floor, for an unroofed cell under a dark
+    // sky.
+    //
+    // HOW IT WAS MEASURED, because it cannot be read off CurSkyGlow. What the divide needs is the
+    // ambient in the same units as `ours`, i.e. glow, and what a frame shows is albedo * ambient.
+    // The albedo is unknown and it also CANCELS: the additive pass delivers DefaultStrength * ours
+    // straight into the frame with no albedo on it, so `ours` is recoverable from one arm's pixel
+    // increment, and the multiplier that would have put the same light there is ours / ambient. Read
+    // off vector_light_surface_lift.json's midnight frames, two cells beyond an open door:
+    //
+    //     additive increment 0.0329 -> ours 0.094;  needed multiplier 0.723  ->  ambient 0.130
+    //
+    // under a roof, and the unroofed ambient is 1.65x that. Re-measure rather than re-derive if
+    // DefaultStrength, the falloff curve, or the mod's own night floor move: every input is upstream.
+    public const float SurfaceLiftNightAmbient = 0.208f;
+
+    // How much of the sky reaches a ROOFED cell, as a share. SectionLayer_LightingOverlay forces a
+    // roofed vertex to at least RoofedAreaMinSkyCover = 100 of 255 sky cover, so the brightest a
+    // roofed cell renders is (1 - 100/255) = 0.608 of the open sky above it.
+    //
+    // THE MEASUREMENT AGREES WITH VANILLA'S CONSTANT TO THREE FIGURES, which is the strongest thing
+    // that can be said for this whole calibration and was not arranged. A roofed unlit cell and an
+    // unroofed one, same gravel, same midnight frame, render at 0.0465 and 0.0767 — a ratio of
+    // 0.606 against the 0.608 the constant predicts. So the roof term is vanilla's own arithmetic
+    // rather than a second fitted number, and only the night floor above is fitted.
+    //
+    // §7c's NativeSkyFalloffGrid answers this properly, per cell, and is the principled upgrade —
+    // the same upgrade VectorLightOverlay.StrengthFor's own header has been naming for the roof
+    // test since phase 1. This is the binary version of it, and the two should move together.
+    public const float SurfaceLiftRoofedSkyShare = 1f - 100f / 255f;
+
+    // How much light an unlit cell receives, given the sky over the map and whether the cell is under
+    // a roof. This is the DIVISOR'S SKY HALF and not the whole divisor: the fragment program adds
+    // vanilla's own delivered glow to it per fragment, because that is the only place vanilla's
+    // value is known at better than cell resolution. See the shader for the full expression and for
+    // what leaving vanilla out of it cost.
+    //
+    // THERE IS NO STRENGTH CONSTANT ANYWHERE ON THE LIFT PATH, AND ITS ABSENCE IS THE POINT.
+    // DefaultStrength exists because an additive pass has no idea what it is adding to — it had to be
+    // fitted, once, against one scene, and its own header says to re-measure rather than re-derive
+    // it. The lift needs no such number: the factor that takes a cell from (ambient + vanilla) to
+    // (ambient + ours) is arithmetic, and every term in it is already in vanilla's glow units.
+    // Self-limiting in the same sense the max is, and for the same reason — there is nothing to pick.
+    //
+    // FITTING DefaultStrength IN WAS THE FIRST CUT AND IT WAS WRONG BY 3x. It read plausibly — the
+    // same constant the sibling path uses, divided by the ambient — and it under-delivered the beam
+    // to a quarter of what the additive pass put in the same cells, which looks exactly like a
+    // calibration that needs nudging rather than like a term that does not belong. The live frames
+    // are what separated the two: the ratio between what the lift delivered and what it needed to
+    // deliver came out at 3.20, 2.96 and 3.04 at three distances along one beam, and an error that
+    // is the same size at every distance is a stray factor rather than a curve that is slightly off.
+    //
+    // THE FLOOR IS APPLIED BEFORE THE ROOF SHARE, and getting that order wrong is not cosmetic: it
+    // was wrong in the first cut and it collapsed the indoor and outdoor cases onto one number at
+    // night, which is exactly when they differ most. A roof takes its share of whatever sky there
+    // is, and at midnight "whatever sky there is" is the floor rather than zero — so a roofed
+    // midnight floor sits at 0.608 of an open one and not level with it. Measured: 0.606.
+    public static float SurfaceAmbient(float curSkyGlow, bool roofed)
+    {
+        float sky = Clamp01(curSkyGlow);
+        float open = sky > SurfaceLiftNightAmbient ? sky : SurfaceLiftNightAmbient;
+
+        return roofed ? open * SurfaceLiftRoofedSkyShare : open;
+    }
+
     // How much of vanilla's own flood survives underneath §27, as a fraction — the CROSSFADE between
     // the two lighting models rather than a choice of one.
     //

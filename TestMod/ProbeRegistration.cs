@@ -1400,6 +1400,19 @@ public static class ProbeRegistration
                 VectorLightRedraw.ForceRebuild();
             });
 
+        // THREE-ARG, because the surface lift ships OFF while its level is calibrated. The
+        // two-arg overload registers a default of true, so a suite's ResetAll would turn the lift on
+        // for every later §27 scenario in the batch and each of them would measure a compositing its
+        // own JSON never asked for.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightSurfaceLiftKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.VectorLightSurfaceLift = enabled;
+                VectorLightRedraw.ForceRebuild();
+            },
+            defaultEnabled: false);
+
         // Two-arg, matching phase 5b's shipped default of true. The registry default is what a suite
         // reset restores between scenarios, so it has to be the SHIPPED value — registered false,
         // every §27 scenario after this one would silently measure the pre-fix composition.
