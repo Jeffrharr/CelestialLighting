@@ -1470,6 +1470,87 @@ public static class VectorLightMath
         return halfX * Math.Abs(x) + halfZ * Math.Abs(z);
     }
 
+    // How much slack the SQUARED forms of the two bounds carry, as a relative fraction.
+    //
+    // The classification below compares squared distances so the two Math.Sqrt a cell used to cost
+    // disappear, and squaring a bound is not exact in float: `nearestRay * nearestRay` can round up,
+    // which would make the fully-lit test very slightly more permissive than the `farthest <=
+    // nearestRay` it replaces, and a cell admitted to the lit path that the sampler would have found
+    // partly shadowed is a wrong byte rather than a slow one. Nudging each bound the safe way — the
+    // lit bound down, the unlit bound up — makes both tests strictly no more permissive than before,
+    // so a cell whose classification moves at all moves onto the SAMPLED path and comes back with
+    // the identical answer.
+    //
+    // 1e-6 rather than an ulp because float carries about 1.2e-7 of relative resolution and the
+    // squares are two roundings deep; it is also small enough to be free, shrinking the fully-lit
+    // disc of a radius-14 emitter by about seven millionths of a cell.
+    private const float BoundSlack = 1e-6f;
+
+    // How far either side of the cursor's bracket the wedge bound is taken.
+    //
+    // The cursor finds which pair of rays a sample falls between using a cross product rather than
+    // an angle (see SampleRow), and a cross product and an atan2 can disagree about the order of two
+    // rays only when those rays are closer together than float can resolve — about 1e-7 radians,
+    // three orders of magnitude below CornerRayEpsilon, which is the smallest gap the polygon
+    // deliberately builds. Widening the window absorbs that: a min/max over a SUPERSET of the true
+    // wedge still bounds the boundary in the sample's direction, so the early-out stays exact.
+    //
+    // Two rather than one because being off by one needs two rays inside the rounding window and
+    // being off by two needs three, and the cost of the extra pair is two float compares against an
+    // atan2's worth of work. It is not a tolerance on the answer — if the window ever failed to
+    // contain the bracket the grid would differ from VectorLightCoverageOracle's byte for byte, and
+    // VectorLightCoverageBoundsTests asserts exactly that.
+    private const int CursorSlack = 2;
+
+    // The working arrays one coverage bake needs, held by whoever bakes repeatedly.
+    //
+    // WHY THIS IS A PARAMETER AND NOT A STATIC IN HERE. The cursor arrangement needs six arrays a
+    // bake — two column spans, two row accumulators, and a sine and a cosine per ray — where the
+    // per-cell shape before it needed only the grid it returns. That is about 1.8 KB per radius-14
+    // emitter against the grid's 841 bytes, and the live scenario bakes 44 times in its window. A
+    // static would collect it in one place, but it would also make this file's one genuinely pure
+    // core stateful and non-reentrant: the offline fixtures call BuildCoverage directly and NUnit is
+    // free to run fixtures in parallel, so a hidden buffer is a data race waiting for somebody to
+    // add `[Parallelizable]` and a corrupted grid that reads as a formula bug. Handing ownership to
+    // the caller keeps the function a function.
+    //
+    // OPTIONAL RATHER THAN REQUIRED, unlike the `inVacuum` gate this file's neighbours carry. That
+    // one is defaulted nowhere because forgetting it changes the ANSWER; forgetting this one only
+    // costs the allocations the old shape paid anyway, so tests, the bench and the preview tools can
+    // keep calling with five arguments and mean it.
+    //
+    // GROWN, NEVER SHRUNK. A map's emitters differ in radius and in how much wall they see, so the
+    // arrays settle at the largest emitter's size and stay there — a few kilobytes per map, held for
+    // as long as the mod is loaded, against an allocation on every bake.
+    public sealed class CoverageScratch
+    {
+        internal float[] NearX;
+        internal float[] FarX;
+        internal int[] LitCounts;
+        internal bool[] Sampled;
+        internal float[] Cos;
+        internal float[] Sin;
+
+        internal void EnsureColumns(int span)
+        {
+            NearX = Grow(NearX, span);
+            FarX = Grow(FarX, span);
+            LitCounts = Grow(LitCounts, span);
+            Sampled = Grow(Sampled, span);
+        }
+
+        internal void EnsureRays(int count)
+        {
+            Cos = Grow(Cos, count);
+            Sin = Grow(Sin, count);
+        }
+
+        private static T[] Grow<T>(T[] array, int length)
+        {
+            return array != null && array.Length >= length ? array : new T[length];
+        }
+    }
+
     // One emitter's cell coverage, baked once per polygon instead of per section.
     //
     // WHY THIS EXISTS: 239 MICROSECONDS PER SECTION. Phase 3 first asked LitFraction per cell per
@@ -1488,8 +1569,14 @@ public static class VectorLightMath
     // A BYTE RATHER THAN A FLOAT, deliberately. The consumer multiplies vanilla's glow bytes by
     // (1 - coverage) and rounds, so a 1/255 quantisation of the coverage is finer than the thing it
     // is modulating and cannot be seen. It also keeps a radius-14 emitter's grid under a kilobyte.
+    //
+    // WALKED BY SAMPLE ROW RATHER THAN BY CELL, which is what the split between the classification
+    // pass and SampleRow is for. A cell's four samples are answered one row at a time so that a
+    // single cursor can serve a whole row of them: see SampleRow for why a row's bearings are
+    // monotone in x, and why that is worth restructuring a loop over.
     public static byte[] BuildCoverage(
-        LightPolygon polygon, int lightCellX, int lightCellZ, int radiusCells, int samplesPerAxis)
+        LightPolygon polygon, int lightCellX, int lightCellZ, int radiusCells, int samplesPerAxis,
+        CoverageScratch scratch = null)
     {
         int span = radiusCells * 2 + 1;
         byte[] grid = new byte[span * span];
@@ -1515,6 +1602,43 @@ public static class VectorLightMath
         float firstSample = (0 + 0.5f) * step;
         float lastSample = (samplesPerAxis - 1 + 0.5f) * step;
 
+        // Borrowed rather than allocated. See CoverageScratch — an unowned call still works, it just
+        // pays for its own arrays the way every call used to.
+        CoverageScratch working = scratch ?? new CoverageScratch();
+        working.EnsureColumns(span);
+
+        // Hoisted per COLUMN, the mirror of the row hoist below and for the same reason. A cell's x
+        // span depends only on which column it sits in, and the previous shape asked for it once per
+        // CELL — span times per column rather than once. Nothing about the answer moves; the loop
+        // simply stops asking the same question span times over.
+        float[] nearX = working.NearX;
+        float[] farX = working.FarX;
+
+        for (int xi = 0; xi < span; xi++)
+        {
+            int cellX = lightCellX - radiusCells + xi;
+
+            AxisSpan(cellX + firstSample, cellX + lastSample, lightX, out nearX[xi], out farX[xi]);
+        }
+
+        // Squared, and nudged the safe way. See BoundSlack.
+        float nearestRaySq = nearestRay * nearestRay * (1f - BoundSlack);
+        float farthestRaySq = farthestRay * farthestRay * (1f + BoundSlack);
+
+        // Built on FIRST USE rather than up front, because an emitter can finish the whole grid
+        // without ever needing it — a lamp sealed into a small room answers 99.9% of its cells from
+        // the farthest bound alone, and paying a sine and a cosine per ray for a fan nothing reads
+        // would make the cheapest emitter on the map measurably more expensive.
+        RayFan fan = default;
+        bool fanBuilt = false;
+
+        // One row's worth of scratch, reused down the grid rather than reallocated per row. Neither
+        // array needs clearing between rows OR between bakes: the classification pass writes every
+        // entry of both up to `span` before anything reads them.
+        int[] litCounts = working.LitCounts;
+        bool[] sampled = working.Sampled;
+        int perCell = samplesPerAxis * samplesPerAxis;
+
         for (int zi = 0; zi < span; zi++)
         {
             int cellZ = lightCellZ - radiusCells + zi;
@@ -1523,31 +1647,341 @@ public static class VectorLightMath
             // runs `span` times for it.
             AxisSpan(cellZ + firstSample, cellZ + lastSample, lightZ, out float nearZ, out float farZ);
 
+            float nearZSq = nearZ * nearZ;
+            float farZSq = farZ * farZ;
+
+            bool anySampled = false;
+
             for (int xi = 0; xi < span; xi++)
             {
-                int cellX = lightCellX - radiusCells + xi;
+                float farSq = farX[xi] * farX[xi] + farZSq;
+                float nearSq = nearX[xi] * nearX[xi] + nearZSq;
 
-                AxisSpan(cellX + firstSample, cellX + lastSample, lightX, out float nearX, out float farX);
+                bool fullyLit = farSq <= nearestRaySq;
+                bool fullyUnlit = !fullyLit && nearSq > farthestRaySq;
 
-                float nearest = (float)Math.Sqrt(nearX * nearX + nearZ * nearZ);
-                float farthest = (float)Math.Sqrt(farX * farX + farZ * farZ);
+                // Written now rather than after the sampling pass so the two fast classes need no
+                // second visit; a sampled cell overwrites its zero below.
+                grid[zi * span + xi] = fullyLit ? (byte)255 : (byte)0;
 
-                grid[zi * span + xi] = CoverageForCell(
-                    polygon, lightX, lightZ, cellX, cellZ, samplesPerAxis,
-                    nearest, farthest, nearestRay, farthestRay);
+                sampled[xi] = !fullyLit && !fullyUnlit;
+                litCounts[xi] = 0;
+                anySampled = anySampled || sampled[xi];
+            }
+
+            if (anySampled)
+            {
+                if (!fanBuilt)
+                {
+                    fan = RayFan.For(polygon, working);
+                    fanBuilt = true;
+                }
+
+                for (int iz = 0; iz < samplesPerAxis; iz++)
+                {
+                    SampleRow(
+                        polygon, fan, lightX, lightZ, lightCellX - radiusCells,
+                        cellZ + (iz + 0.5f) * step, span, samplesPerAxis, step, sampled, litCounts);
+                }
+
+                for (int xi = 0; xi < span; xi++)
+                {
+                    if (sampled[xi])
+                    {
+                        grid[zi * span + xi] =
+                            (byte)Math.Round(Clamp01((float)litCounts[xi] / perCell) * 255f);
+                    }
+                }
             }
         }
 
         return grid;
     }
 
-    // One cell of the coverage grid, answered from the bounds where the bounds can answer it.
+    // One polygon's ray directions, plus the index range over which its stored order is also its
+    // GEOMETRIC order.
     //
-    // WHY THIS IS NOT AN APPROXIMATION. Every value BoundaryDistanceAt can return is a convex
-    // combination of two neighbouring polygon distances — it and WrapBoundary both Clamp01 their
-    // interpolant, so neither can overshoot the pair it is interpolating — and therefore the polygon
-    // boundary in EVERY direction lies between the nearest and farthest ray. Which makes two whole
-    // classes of cell answerable by a compare:
+    // WHY THE RANGE IS NARROWER THAN THE ARRAY. Angles are sorted as stored floats, and a few of
+    // them are not in atan2's own range: AddBaseRays puts a ray at exactly -pi, and AddCornerRay
+    // offsets an endpoint bearing by CornerRayEpsilon, which pushes a corner near +pi past it. Those
+    // rays sort at the ends of the array while pointing at the SAME place as rays at the other end,
+    // so a geometric comparison and an index comparison disagree about them — a ray stored at -pi is
+    // anticlockwise of every bearing in the upper half plane, and a cursor walking on cross products
+    // would never get past index 0. Rays strictly inside (-pi, pi) have no such quarrel, and since
+    // the array is sorted they are one contiguous run.
+    private readonly struct RayFan
+    {
+        public readonly float[] Cos;
+        public readonly float[] Sin;
+        public readonly int First;
+        public readonly int Last;
+
+        private RayFan(float[] cos, float[] sin, int first, int last)
+        {
+            Cos = cos;
+            Sin = sin;
+            First = first;
+            Last = last;
+        }
+
+        // The arrays come from the caller's scratch and may be LONGER than the fan, which is why
+        // First and Last exist as indices rather than the fan being described by its array length.
+        public static RayFan For(LightPolygon polygon, CoverageScratch scratch)
+        {
+            scratch.EnsureRays(polygon.Count);
+
+            float[] cos = scratch.Cos;
+            float[] sin = scratch.Sin;
+
+            int first = polygon.Count;
+            int last = -1;
+
+            for (int i = 0; i < polygon.Count; i++)
+            {
+                float angle = polygon.Angles[i];
+
+                cos[i] = (float)Math.Cos(angle);
+                sin[i] = (float)Math.Sin(angle);
+
+                bool inRange = angle > -(float)Math.PI && angle < (float)Math.PI;
+
+                if (inRange && i < first)
+                    first = i;
+
+                if (inRange)
+                    last = i;
+            }
+
+            return new RayFan(cos, sin, first, last);
+        }
+    }
+
+    // Every sample at one z, walked with a cursor into the polygon instead of a binary search each.
+    //
+    // WHY A ROW IS THE UNIT. Hold z fixed and a sample's bearing is MONOTONE in x: above the light
+    // atan2 runs from just under +pi at the far left down to just over 0 at the far right, and below
+    // it from just over -pi up to just under 0. Either way a row's bearings occupy one contiguous
+    // arc that never crosses the +-pi seam, so sweeping x in the direction that makes the bearing
+    // rise turns "which two rays does this sample fall between" into a cursor that only ever moves
+    // forward, so each search starts where the last one finished rather than at the middle of the
+    // fan. See Advance for why it gallops from there rather than stepping.
+    //
+    // WHAT ACTUALLY PAYS FOR THE RESTRUCTURE IS THE ATAN2, though, not the search. The cursor
+    // advances on a CROSS PRODUCT (see Behind) rather than on a bearing, so a sample the wedge bound
+    // can settle never computes its bearing at all. Measured over the bench's scenes, the wedge
+    // settles 86% of sampled points on the 42-segment plate and 91-97% on the cluttered ones, so the
+    // transcendental survives on roughly one sample in seven.
+    //
+    // The cells the classification pass already answered are skipped rather than walked, and the
+    // cursor does not mind: it advances lazily on the next sample that needs it, so a gap costs the
+    // steps it would have cost anyway.
+    private static void SampleRow(
+        LightPolygon polygon, RayFan fan, float lightX, float lightZ, int firstCellX,
+        float z, int span, int samplesPerAxis, float step, bool[] sampled, int[] litCounts)
+    {
+        float dz = z - lightZ;
+
+        // A row through the light's own centre line has no monotone bearing to walk — it is pi to
+        // the left of the light and 0 to the right, with nothing in between — so it goes to the
+        // exact path whole. Only reachable with an odd samplesPerAxis, since an even one straddles
+        // the centre rather than landing on it.
+        if (dz == 0f)
+        {
+            ExactRow(
+                polygon, lightX, lightZ, firstCellX, z, span, samplesPerAxis, step,
+                sampled, litCounts);
+
+            return;
+        }
+
+        bool leftwards = dz > 0f;
+        int cursor = fan.First;
+
+        for (int c = 0; c < span; c++)
+        {
+            int xi = leftwards ? span - 1 - c : c;
+
+            if (sampled[xi])
+            {
+                int cellX = firstCellX + xi;
+                int lit = 0;
+
+                for (int s = 0; s < samplesPerAxis; s++)
+                {
+                    // The samples inside a cell are walked the same way round as the cells are, so x
+                    // is monotone across the whole row rather than only between cells.
+                    int ix = leftwards ? samplesPerAxis - 1 - s : s;
+                    float x = cellX + (ix + 0.5f) * step;
+                    float dx = x - lightX;
+
+                    cursor = Advance(fan, cursor, dx, dz);
+
+                    if (SampleLit(polygon, fan, cursor, lightX, lightZ, x, z, dx, dz))
+                        lit++;
+                }
+
+                litCounts[xi] += lit;
+            }
+        }
+    }
+
+    // The last ray at or below this sample's bearing, searched forward from where the previous
+    // sample left the cursor.
+    //
+    // GALLOPING RATHER THAN STEPPING, and the difference is the whole of the row walk's cost. A
+    // plain `while (next ray is behind me) cursor++` is amortised O(1) per sample only when there
+    // are more samples in a row than there are rays in the polygon, and this subsystem is the other
+    // way round: a radius-14 row holds 58 samples while the polygon holds 184 rays on the measured
+    // plate and 1,388 in a tight colony, so a stepping row would walk the whole fan to answer 58
+    // questions and hand back what the missing atan2s saved.
+    //
+    // An exponential probe followed by a binary refine costs O(log gap) instead, which is bounded by
+    // the binary search it replaces AND by the distance actually travelled, so it cannot lose to
+    // either shape. The cursor is still monotone across the row — the search only ever starts where
+    // the last one finished — which is what keeps the total sub-linear in the fan.
+    //
+    // THE STEPPING VERSION WAS NOT A/B'd AGAINST THIS ONE, and the argument above is why rather than
+    // a measurement: it was written first, read slower on a cross-run comparison, and cross-run is
+    // exactly what this box cannot support — the untouched prior arm alone moves 0.0152 to 0.0253 ms
+    // on `open` between two runs. Anyone who wants the number should put both arms in one process
+    // the way Tools/VectorLightBench interleaves its own.
+    private static int Advance(RayFan fan, int cursor, float dx, float dz)
+    {
+        int low = cursor;
+        int high = fan.Last;
+        int step = 1;
+        bool bounded = false;
+
+        while (!bounded)
+        {
+            int probe = low + step;
+
+            if (probe > fan.Last)
+            {
+                bounded = true;
+            }
+            else if (Behind(fan, probe, dx, dz))
+            {
+                low = probe;
+                step += step;
+            }
+            else
+            {
+                high = probe - 1;
+                bounded = true;
+            }
+        }
+
+        while (low < high)
+        {
+            // Rounded UP, because this searches for the last index that passes rather than the first
+            // that fails; rounding down would leave `low` where it started and spin.
+            int mid = low + (high - low + 1) / 2;
+
+            if (Behind(fan, mid, dx, dz))
+                low = mid;
+            else
+                high = mid - 1;
+        }
+
+        return low;
+    }
+
+    // Whether ray `index` is at or below this sample's bearing.
+    //
+    // `cos * dz - sin * dx` is the cross product of the ray's direction with the sample's, so its
+    // sign answers "is the sample anticlockwise of this ray" — the same question `Angles[k] <=
+    // angle` asks, reached without an atan2 to compare against. It is only a faithful stand-in
+    // within the fan's in-range run, which is what RayFan.First and RayFan.Last bound.
+    private static bool Behind(RayFan fan, int index, float dx, float dz)
+    {
+        return fan.Cos[index] * dz - fan.Sin[index] * dx >= 0f;
+    }
+
+    // Whether one sample is lit, from the wedge it fell in wherever that settles it.
+    //
+    // WHY A WEDGE BOUND IS EXACT AND NOT A SHORTCUT. BoundaryDistanceAt interpolates between two
+    // neighbouring ray distances and Clamp01s its interpolant, so whatever it would answer for this
+    // bearing lies between the smallest and largest distance in the window the bearing fell in. A
+    // sample nearer than the smallest is therefore inside the polygon and one farther than the
+    // largest is outside it, whatever the exact bearing turns out to be — the same argument the two
+    // whole-cell bounds rest on, made over four rays instead of over the whole fan, which is why it
+    // still pays for a lamp with a wall somewhere in range.
+    //
+    // Everything the window cannot settle goes to IsLit, which is the original path unchanged: the
+    // bearing, the binary search, the lerp. That is also what catches the wrap wedge, where the
+    // cursor sits at one end of the fan and the window will not fit.
+    private static bool SampleLit(
+        LightPolygon polygon, RayFan fan, int cursor,
+        float lightX, float lightZ, float x, float z, float dx, float dz)
+    {
+        // Spelled exactly as IsLit spells it, for the reason AxisSpan is: a distance that agrees to
+        // within an ulp rather than bit for bit can put a sample the other side of a bound.
+        float distance = (float)Math.Sqrt(dx * dx + dz * dz);
+
+        int low = cursor - CursorSlack;
+        int high = cursor + 1 + CursorSlack;
+
+        if (low >= fan.First && high <= fan.Last)
+        {
+            float min = polygon.Distances[low];
+            float max = min;
+
+            for (int i = low + 1; i <= high; i++)
+            {
+                float boundary = polygon.Distances[i];
+
+                if (boundary < min)
+                    min = boundary;
+
+                if (boundary > max)
+                    max = boundary;
+            }
+
+            if (distance <= min)
+                return true;
+
+            if (distance > max)
+                return false;
+        }
+
+        return IsLit(polygon, lightX, lightZ, x, z);
+    }
+
+    // One sample row answered the long way, for the degenerate case SampleRow hands over.
+    private static void ExactRow(
+        LightPolygon polygon, float lightX, float lightZ, int firstCellX,
+        float z, int span, int samplesPerAxis, float step, bool[] sampled, int[] litCounts)
+    {
+        for (int xi = 0; xi < span; xi++)
+        {
+            if (sampled[xi])
+            {
+                int cellX = firstCellX + xi;
+                int lit = 0;
+
+                for (int ix = 0; ix < samplesPerAxis; ix++)
+                {
+                    if (IsLit(polygon, lightX, lightZ, cellX + (ix + 0.5f) * step, z))
+                        lit++;
+                }
+
+                litCounts[xi] += lit;
+            }
+        }
+    }
+
+    // How near and how far this polygon's boundary ever gets to the light.
+    //
+    // The same O(count) pass IsUnobstructed already makes, and deliberately not folded into it: that
+    // one asks a question about shadow and this one is a numeric range, and a caller wanting the
+    // range on an obstructed emitter — which is every caller here — would have to ignore its answer.
+    //
+    // WHY THE WHOLE-CELL BOUNDS BUILT FROM THIS PAIR ARE NOT AN APPROXIMATION. Every value
+    // BoundaryDistanceAt can return is a convex combination of two neighbouring polygon distances —
+    // it and WrapBoundary both Clamp01 their interpolant, so neither can overshoot the pair it is
+    // interpolating — and therefore the polygon boundary in EVERY direction lies between the nearest
+    // and farthest ray. Which makes two whole classes of cell answerable by a compare:
     //
     //   - a cell whose farthest sample is nearer than the NEAREST ray is inside the polygon whatever
     //     bearing its samples turn out to be at, so it is fully lit;
@@ -1567,26 +2001,14 @@ public static class VectorLightMath
     // emitters on the map, and it is why this subsumes the cheaper idea of skipping the grid
     // outright for such an emitter: that would have changed what CoverageAt answers at the rim,
     // where an inscribed 48-gon reads as partly shadowed, and this changes nothing anywhere.
-    private static byte CoverageForCell(
-        LightPolygon polygon, float lightX, float lightZ, int cellX, int cellZ, int samplesPerAxis,
-        float nearestSample, float farthestSample, float nearestRay, float farthestRay)
-    {
-        if (farthestSample <= nearestRay)
-            return 255;
-
-        if (nearestSample > farthestRay)
-            return 0;
-
-        float lit = LitFraction(polygon, lightX, lightZ, cellX, cellZ, samplesPerAxis);
-
-        return (byte)Math.Round(Clamp01(lit) * 255f);
-    }
-
-    // How near and how far this polygon's boundary ever gets to the light.
     //
-    // The same O(count) pass IsUnobstructed already makes, and deliberately not folded into it: that
-    // one asks a question about shadow and this one is a numeric range, and a caller wanting the
-    // range on an obstructed emitter — which is every caller here — would have to ignore its answer.
+    // WHERE THEY STOP PAYING, which is what SampleRow's cursor exists for. Both are taken over the
+    // WHOLE polygon, so one wall anywhere in range drops the nearest ray to that wall's distance and
+    // withdraws the lit path from every direction — including the ones with nothing in them. On the
+    // 42-segment plate Tools/VectorLightBench calls the measured population, that leaves 10.6% of
+    // cells fully lit, 22.8% fully unlit — which is 1 - pi/4, i.e. the square's corners and nothing
+    // else — and 66.6% still sampling. An indoor lamp is the common case, and it was getting almost
+    // nothing from either bound.
     private static void RayExtremes(LightPolygon polygon, out float nearest, out float farthest)
     {
         nearest = polygon.Distances[0];

@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace CelestialLighting.Tests;
 
@@ -194,6 +196,116 @@ public class VectorLightCoverageBoundsTests
 
             AssertIdentical(layout.Segments(), lightX, lightZ, radius, Samples, $"trial {trial}");
         }
+    }
+
+    // ---- the scratch buffers -------------------------------------------------------------------
+
+    // A REUSED SCRATCH MUST ANSWER WHAT A FRESH ONE WOULD, and the case that would catch it failing
+    // is a big emitter followed by a small one: the arrays are grown and never shrunk, so the second
+    // bake reads buffers still holding the first bake's numbers past its own span and ray count.
+    // Nothing clears them — the claim is that the classification pass overwrites every entry it goes
+    // on to read — and a stale byte here would render as one cell of one shadow at the wrong depth,
+    // which no probe in the repo pins and no screenshot would separate from noise.
+    //
+    // Descending sizes, and both of the two dimensions that grow independently: `radiusCells` sizes
+    // the column and row arrays, while the ray count sizes the sine and cosine arrays and is set by
+    // how much wall the emitter can see, not by its radius.
+    [Test]
+    public void AReusedScratchMatchesAFreshOne()
+    {
+        VectorLightMath.CoverageScratch shared = new VectorLightMath.CoverageScratch();
+
+        (int cellX, int cellZ, float radius, Action<VectorLightLayout> build)[] bakes =
+        {
+            (20, 20, 14f, g => g.Pillars(3)),
+            (20, 20, 4f, g => g.Wall(17, 17, 23, 23)),
+            (20, 20, 12f, VectorLightLayout.RoomBlock),
+            (20, 20, 3f, g => { }),
+            (20, 20, 14f, g => g.Wall(20, 12, 20, 28)),
+        };
+
+        for (int i = 0; i < bakes.Length; i++)
+        {
+            (int cellX, int cellZ, float radius, Action<VectorLightLayout> build) bake = bakes[i];
+
+            VectorLightMath.LightPolygon polygon = VectorLightMath.Build(
+                bake.cellX + 0.5f, bake.cellZ + 0.5f, bake.radius,
+                VectorLightLayout.Grid(bake.build), Rays);
+
+            int radiusCells = (int)Math.Ceiling(bake.radius);
+
+            byte[] reused = VectorLightMath.BuildCoverage(
+                polygon, bake.cellX, bake.cellZ, radiusCells, Samples, shared);
+
+            // A scratch of its own, so the comparison is against a buffer that cannot be carrying
+            // anything — the same argument the oracle makes about the algorithm.
+            byte[] fresh = VectorLightMath.BuildCoverage(
+                polygon, bake.cellX, bake.cellZ, radiusCells, Samples,
+                new VectorLightMath.CoverageScratch());
+
+            Assert.That(reused, Is.EqualTo(fresh), $"bake {i} (radius {bake.radius})");
+        }
+    }
+
+    // THE HAZARD THE THREADED BAKE INTRODUCES, tested at the only level it can be: the pure core.
+    // VectorLightField.BakeSelected hands a batch of emitters to Parallel.For, and every one of them
+    // calls BuildCoverage. If two of those shared a scratch their writes would interleave inside the
+    // same column and row arrays, and the result would not be a crash — it would be a handful of
+    // wrong bytes in a coverage grid, i.e. one cell of one shadow at the wrong depth, which nothing
+    // downstream validates. The field answers that with a [ThreadStatic] scratch; this asserts the
+    // arrangement actually produces serial answers.
+    //
+    // A REAL Parallel.For RATHER THAN A SIMULATION, because the thing under test is whether
+    // thread-local ownership holds when the pool decides how to schedule, and a hand-rolled loop
+    // over N fake "workers" would be testing the loop. Enough emitters and enough repeats that the
+    // pool has to reuse threads, which is the case where a leaked buffer would show.
+    [Test]
+    public void ConcurrentBakesMatchSerialOnes()
+    {
+        (int cellX, int cellZ, float radius, Action<VectorLightLayout> build)[] scenes =
+        {
+            (20, 20, 14f, g => g.Pillars(3)),
+            (20, 20, 9f, VectorLightLayout.RoomBlock),
+            (20, 20, 4f, g => g.Wall(17, 17, 23, 23)),
+            (14, 20, 14f, g => g.Wall(20, 12, 20, 28)),
+            (20, 20, 12f, g => g.Pillars(5)),
+            (20, 20, 6f, g => { }),
+        };
+
+        VectorLightMath.LightPolygon[] polygons = new VectorLightMath.LightPolygon[scenes.Length];
+        byte[][] serial = new byte[scenes.Length][];
+
+        for (int i = 0; i < scenes.Length; i++)
+        {
+            polygons[i] = VectorLightMath.Build(
+                scenes[i].cellX + 0.5f, scenes[i].cellZ + 0.5f, scenes[i].radius,
+                VectorLightLayout.Grid(scenes[i].build), Rays);
+
+            serial[i] = VectorLightMath.BuildCoverage(
+                polygons[i], scenes[i].cellX, scenes[i].cellZ,
+                (int)Math.Ceiling(scenes[i].radius), Samples,
+                new VectorLightMath.CoverageScratch());
+        }
+
+        // The field's ownership rule, reproduced: one scratch per thread, created on first use.
+        ThreadLocal<VectorLightMath.CoverageScratch> scratch =
+            new ThreadLocal<VectorLightMath.CoverageScratch>(
+                () => new VectorLightMath.CoverageScratch());
+
+        const int Repeats = 40;
+        byte[][] threaded = new byte[scenes.Length * Repeats][];
+
+        Parallel.For(0, scenes.Length * Repeats, job =>
+        {
+            int i = job % scenes.Length;
+
+            threaded[job] = VectorLightMath.BuildCoverage(
+                polygons[i], scenes[i].cellX, scenes[i].cellZ,
+                (int)Math.Ceiling(scenes[i].radius), Samples, scratch.Value);
+        });
+
+        for (int job = 0; job < threaded.Length; job++)
+            Assert.That(threaded[job], Is.EqualTo(serial[job % scenes.Length]), $"job {job}");
     }
 
     // ---- helpers -------------------------------------------------------------------------------
