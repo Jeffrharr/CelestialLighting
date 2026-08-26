@@ -57,6 +57,27 @@ public sealed class VectorLightBakeProbe : IProbe
         // deferral is postponed work, not an error.
         Deferrals,
 
+        // ---- the threaded bake ------------------------------------------------------------------
+        //
+        // Bake passes handed out across threads, and passes that ran on the calling thread because
+        // the batch was under the threshold. MEANINGLESS APART. Most frames bake nothing, and a
+        // frame that bakes one emitter is supposed to stay serial, so a fan-out count of zero is the
+        // correct answer for almost every scenario in the repo — it separates "the flag is off" from
+        // "nothing worth threading happened" only when the serial count is read next to it.
+        ParallelBakePasses,
+        SerialBakePasses,
+
+        // The largest batch either path was handed. The one number that says whether a scenario
+        // exercised the threaded path with enough work to mean anything: a fan-out over a batch of
+        // four has taken the branch without testing the design, and pinning this is what stops an
+        // arm quietly degrading into that.
+        LargestBakeBatch,
+
+        // Wall-clock milliseconds the calling thread spent baking. THE ONLY METRIC HERE THAT CAN
+        // SCORE THE THREADED PATH, because the Circinus arms report time exclusive of their armed
+        // children and threading moves time rather than removing it. See VectorLightField.BakeWallMs.
+        BakeWallMs,
+
         // ---- sections (issue #188 item 0) -----------------------------------------------------
         //
         // Every metric above is about POLYGONS. #191 used them to establish that a blocker write
@@ -155,6 +176,18 @@ public sealed class VectorLightBakeProbe : IProbe
 
         if (metric == Metric.Deferrals)
             return VectorLightField.PolygonDeferrals;
+
+        if (metric == Metric.BakeWallMs)
+            return (float)VectorLightField.BakeWallMs;
+
+        if (metric == Metric.ParallelBakePasses)
+            return VectorLightField.ParallelBakePasses;
+
+        if (metric == Metric.SerialBakePasses)
+            return VectorLightField.SerialBakePasses;
+
+        if (metric == Metric.LargestBakeBatch)
+            return VectorLightField.LargestBakeBatch;
 
         if (metric == Metric.SectionDirties)
             return VectorLightField.SectionDirties;

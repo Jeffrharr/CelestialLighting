@@ -69,6 +69,13 @@ SHIPPED = [
     # so a scenario that leaves them implicit measures whatever the last person to open the settings
     # screen left behind. They change the segment set a bake is handed, which is the quantity this
     # file exists to count.
+    # THE THREADED BAKE, stated for the reason the three below are. It ships ON, and a frame-cost
+    # table is exactly the thing it changes: with it on, a batch of four or more emitters is baked
+    # across pool threads, so circ_vlpolygon and circ_vlcoverage stop being wall-clock slices of one
+    # thread's frame. The counts do not move -- the same methods run the same number of times -- which
+    # is why the pins here are counts and the milliseconds are only recorded.
+    ("vector_light_parallel_bake", True),
+
     ("vector_light_open_doors", False),
     ("vector_light_door_aperture", False),
     ("vector_light_door_glow_blocker", False),
@@ -173,6 +180,17 @@ for name, expected, tolerance in EXACT:
 RECORDED = [
     ("vector_light_bake_hits", "0", "400"),
     ("vector_light_bake_deferrals", "0", "100"),
+    # The threaded bake, all three together. A fan-out count alone cannot separate "the flag is off"
+    # from "no frame here ever had four dirty emitters at once", and the batch maximum is what says
+    # the threaded path was handed enough work to be worth measuring rather than merely entered.
+    ("vector_light_parallel_bakes", "1", "8"),
+    ("vector_light_serial_bakes", "1", "8"),
+    ("vector_light_bake_batch_max", "22", "18"),
+    # The calling thread's own time in the bake, which is the only number here the threaded path can
+    # move: the Circinus arms report time exclusive of their armed children, so they are blind to a
+    # join by construction. Recorded with a wide tolerance for the reason every duration in this file
+    # is -- it is a stopwatch on a contended box.
+    ("vector_light_bake_wall_ms", "10", "60"),
     ("vector_light_bake_segments", "1872", "900"),
     ("vector_light_mask_applies", "224", "150"),
     ("vector_light_pawn_casters", "6", "4"),
@@ -186,9 +204,19 @@ RECORDED = [
 # Timings last, all on one wide recording tolerance: the point of having them in the report at all is
 # that a later reader can see the shape, and a per-metric tolerance would imply a precision the box
 # does not have.
+#
+# WIDER SINCE THE BAKE WAS THREADED, and the reason is a property of what these now measure rather
+# than of the box. Build and BuildCoverage run on pool threads, so their per-call wall time includes
+# however long a worker sat descheduled -- one run here recorded a single Build call above 20 ms and
+# a total of 57 ms while the main thread's own bake time was 12.6 ms, better than every serial run.
+# A per-call maximum on a thread nobody is waiting on in isolation is no longer a bound on anything a
+# player experiences, so pinning it tightly buys flaky failures and no information.
+#
+# THE NUMBER THAT REPLACED IT IS vector_light_bake_wall_ms, which is the calling thread's own time
+# and therefore still means what a maximum used to mean here.
 for arm in ARMS:
-    RECORDED.append((arm + "_total_ms", "30", "60"))
-    RECORDED.append((arm + "_max_ms", "5", "15"))
+    RECORDED.append((arm + "_total_ms", "40", "90"))
+    RECORDED.append((arm + "_max_ms", "10", "40"))
 
 for name, expected, tolerance in RECORDED:
     steps.append(probe(name, expected, tolerance))

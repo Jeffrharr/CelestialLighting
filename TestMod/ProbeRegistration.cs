@@ -303,6 +303,22 @@ public static class ProbeRegistration
         // constant.
         ProbeRegistry.Register(new VectorLightBakeProbe(
             "vector_light_bake_deferrals", VectorLightBakeProbe.Metric.Deferrals));
+        // The threaded bake. PIN ALL THREE OR NONE. A fan-out count on its own cannot separate "the
+        // flag is off" from "no frame in this scenario ever had four dirty emitters at once", which
+        // is the normal state of a colony and therefore the state most arms are in; the serial count
+        // says the batching ran at all, and the batch maximum says whether the threaded path was
+        // handed enough work for its cost to be a measurement rather than a branch taken.
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_parallel_bakes", VectorLightBakeProbe.Metric.ParallelBakePasses));
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_serial_bakes", VectorLightBakeProbe.Metric.SerialBakePasses));
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_bake_batch_max", VectorLightBakeProbe.Metric.LargestBakeBatch));
+        // RECORDED, NEVER PINNED TIGHTLY. It is a duration on a contended box, which this repo has
+        // measured moving by a factor of two across one unchanged binary; it earns its place because
+        // it is the one number in the bank that a threaded bake can move at all.
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_bake_wall_ms", VectorLightBakeProbe.Metric.BakeWallMs));
         // Issue #188 item 0. vector_light_sections_per_pass is the headline -- the map's whole
         // section count before item A, a handful after -- but pin vector_light_mask_applies beside
         // it or the reduction is unfalsifiable. Dirty flags are work REQUESTED and vanilla
@@ -1181,6 +1197,18 @@ public static class ProbeRegistration
             enabled =>
             {
                 CelestialLightingFeatures.VectorLightViewCull = enabled;
+                VectorLightRedraw.ForceRebuild();
+            });
+        // ForceRebuild for the same reason as the two above, and one that is specific to this flag:
+        // it decides HOW a batch is baked, not whether, so without a rebuild the arm inherits
+        // whatever the previous arm already baked and every emitter is clean. The fan-out count then
+        // reads zero and the arm looks like a feature that does not work rather than one that was
+        // never given anything to do.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightParallelBakeKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.VectorLightParallelBake = enabled;
                 VectorLightRedraw.ForceRebuild();
             });
         // Two-arg overload, matching its shipped default of true, and inert while vector_lights is

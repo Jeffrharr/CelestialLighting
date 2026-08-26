@@ -1257,6 +1257,32 @@ public static class CelestialLightingFeatures
     // Measured by vector_light_bake_deferrals beside vector_light_bakes. Off builds every dirty
     // polygon on the map exactly as before.
     public static bool VectorLightViewCull = true;
+
+    // Feature key for VectorLightParallelBake.
+    public const string VectorLightParallelBakeKey = "vector_light_parallel_bake";
+
+    // Hand a frame's visibility polygons out across threads instead of baking them one after another.
+    //
+    // WHAT IS SAFE TO THREAD AND WHY. VectorLightField.BakeSelected splits the bake in two: reading
+    // the map for each emitter's silhouette stays on the calling thread, and everything after it is
+    // arithmetic over a Segment[] that writes only to the entry it was handed. The frames this
+    // rescues are the ones that bake a whole room's worth of lamps at once — a map load, a wall going
+    // up in a lit building, a whole-map rebake — which is where the dropped frame is. The steady
+    // state bakes nothing at all, and a batch below the threshold does not fan out.
+    //
+    // WHY IT IS SOUND TO DO THIS AT ALL, which is a property of the CALLER rather than of the code.
+    // RimWorld ticks and draws on one thread, and this runs inside the draw. While the join is
+    // outstanding the main thread is blocked inside it and therefore not ticking, so no door opens
+    // and no wall moves under a worker. Anything that later calls EnsurePolygons from somewhere else
+    // has to re-establish that, and it is the reason this is a flag rather than an unconditional
+    // change.
+    //
+    // Measured by vector_light_parallel_bakes and vector_light_bake_batch_max, which have to be read
+    // together: a fan-out count says the path was taken and the batch size says whether it was ever
+    // handed enough work to be worth taking. Off bakes the same batch in the same order on the
+    // calling thread, which is what the previous shape did, so the arm is a baseline rather than a
+    // picture of the feature missing.
+    public static bool VectorLightParallelBake = true;
 }
 
 public enum SunClockMode

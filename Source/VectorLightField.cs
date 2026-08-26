@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using UnityEngine;
 using Verse;
 
@@ -203,6 +204,10 @@ public static class VectorLightField
         InvalidationMarks = 0;
         RosterResyncs = 0;
         PolygonDeferrals = 0;
+        ParallelBakePasses = 0;
+        SerialBakePasses = 0;
+        LargestBakeBatch = 0;
+        BakeWallMs = 0.0;
         SectionDirties = 0;
         SectionDirtyPasses = 0;
         MaskApplies = 0;
@@ -303,6 +308,8 @@ public static class VectorLightField
 
         SectionDirtyMath.CellBounds touched = default;
 
+        BakeBatch.Clear();
+
         foreach (LightEntry entry in LightsFor(map))
         {
             if (entry.PolygonDirty || entry.Polygon.Count == 0)
@@ -320,7 +327,10 @@ public static class VectorLightField
                 // PolygonDirty set, which is the entire mechanism — there is no separate queue.
                 if (SectionDirtyMath.Intersects(reach, within))
                 {
-                    EnsurePolygon(map, entry);
+                    // COLLECTED RATHER THAN BUILT HERE, so the bake can be handed out across
+                    // threads. The selection walks a dictionary and the bake does not, which is the
+                    // whole reason the two are now separate passes — see BakeSelected.
+                    BakeBatch.Add(entry);
                     touched = SectionDirtyMath.Union(touched, reach);
                 }
                 else
@@ -330,13 +340,163 @@ public static class VectorLightField
             }
         }
 
+        BakeSelected(map, BakeBatch);
+
         return touched;
+    }
+
+    // This frame's selected emitters and the segment window each was gathered with.
+    //
+    // STATIC AND REUSED, which is safe for the same reason the batch can be threaded at all:
+    // EnsurePolygons is called once per frame from the draw, on the main thread, and returns before
+    // anything else can call it. Nothing here survives the call — the list is cleared on entry and
+    // the segment slots are released on exit.
+    private static readonly List<LightEntry> BakeBatch = new List<LightEntry>();
+    private static VectorLightMath.Segment[][] BatchSegments = new VectorLightMath.Segment[0][];
+
+    // How many bake passes were handed out across threads, and how many ran on the calling thread
+    // because the batch was too small to be worth it. Read as a pair: fan-outs alone cannot tell a
+    // working threshold from a scene that never bakes more than one emitter at a time, which is
+    // most frames.
+    public static int ParallelBakePasses;
+    public static int SerialBakePasses;
+
+    // Wall-clock milliseconds the CALLING THREAD spent inside the bake, summed over passes.
+    //
+    // WHY THIS EXISTS WHEN THERE IS ALREADY A CIRCINUS ARM ON EVERY STAGE. Those arms report time
+    // EXCLUSIVE of their armed children — measured, not assumed: circ_vlbuilddirty reads 1.3-1.5 ms
+    // in a window where the Build and BuildCoverage arms inside it read 6-9 ms each. That makes them
+    // blind to this change by construction. Threading does not reduce the total time the stages
+    // spend, it moves that time onto other threads; what it reduces is how long the main thread
+    // waits, and no arm in the bank measures a wait.
+    //
+    // MEASURED FROM THE CALLING THREAD ONLY, which is the whole point. The serial path accumulates
+    // every bake because it runs them; the threaded path accumulates the fan-out and the join, and
+    // the workers' own time lands nowhere. That is the comparison a player experiences as a frame.
+    //
+    // A double, and summed rather than averaged, because passes per window vary with what got dirty
+    // and a mean would hide a single catastrophic frame — the one thing a rolling-refresh design
+    // exists to avoid.
+    public static double BakeWallMs;
+
+    // The largest batch either path has been handed. The number that says whether a scenario
+    // exercised the threaded path at all, and by how much — a fan-out count of 1 over a batch of 4
+    // has verified almost nothing about a design meant for a whole-map rebake.
+    public static int LargestBakeBatch;
+
+    // Below this many emitters the batch is baked on the calling thread.
+    //
+    // A FAN-OUT IS NOT FREE: Parallel.For has to wake pool threads, hand out ranges and join, which
+    // is tens of microseconds against a bake's ~0.35 ms. That is a fine trade on the frame a map
+    // loads or a wall goes up in a lit room, and a bad one in the steady state, where the dirty flag
+    // does its job and a frame bakes nothing at all or one emitter after a door swings.
+    //
+    // FOUR RATHER THAN TWO because the win has to clear the join as well as pay for it, and rather
+    // than sixteen because the frames worth rescuing are the ones that bake a room's worth of lamps
+    // at once, not only the whole-map rebake. It is deliberately not a setting: a threshold nobody
+    // can measure the effect of is a knob that only generates support questions.
+    private const int ParallelBakeMinimum = 4;
+
+    // The coverage bake's working arrays, one set per thread that ever bakes.
+    //
+    // THREAD-LOCAL RATHER THAN ONE STATIC, and this is load-bearing rather than defensive. Two
+    // emitters baking concurrently through one scratch would interleave their writes into the same
+    // column and row arrays, and the result is not a crash — it is a coverage grid with a few wrong
+    // bytes, which renders as one cell of one shadow at the wrong depth. No probe in the repo pins
+    // that and no CIELAB comparison separates it from noise, so it is exactly the class of defect
+    // that ships. The buffers are a few kilobytes per worker and the pool reuses its threads.
+    //
+    // See VectorLightMath.CoverageScratch for why the pure core takes this as a parameter rather
+    // than keeping a static of its own — that decision is what makes this one a local matter here
+    // instead of a rewrite there.
+    [System.ThreadStatic]
+    private static VectorLightMath.CoverageScratch ThreadScratch;
+
+    private static VectorLightMath.CoverageScratch Scratch
+    {
+        get { return ThreadScratch ?? (ThreadScratch = new VectorLightMath.CoverageScratch()); }
+    }
+
+    // Bake every selected emitter, across threads when there are enough of them to pay for it.
+    //
+    // THE SPLIT IS BETWEEN LIVE STATE AND ARITHMETIC, and it is the only reason this is safe.
+    // Gathering the silhouette reads the map — the edifice grid, door state, thing positions — and
+    // that happens here, serially, on the main thread. Everything after it is arithmetic over a
+    // Segment[] and writes only to the entry it was handed, so two bakes cannot observe each other.
+    //
+    // WHY THE MAIN THREAD BEING BLOCKED IS THE ARGUMENT. RimWorld ticks and draws on one thread, and
+    // this runs inside the draw via Patch_VectorLightDraw. While the join is outstanding the main
+    // thread is inside Parallel.For and therefore not ticking, so nothing can spawn, despawn, open a
+    // door or move a wall underneath a worker. That is a property of WHERE this is called from, not
+    // of this method, which is why moving the call is a threading change and not a refactor.
+    private static void BakeSelected(Map map, List<LightEntry> batch)
+    {
+        if (batch.Count == 0)
+            return;
+
+        if (LargestBakeBatch < batch.Count)
+            LargestBakeBatch = batch.Count;
+
+        if (BatchSegments.Length < batch.Count)
+            BatchSegments = new VectorLightMath.Segment[batch.Count][];
+
+        // The half that touches the map. Also where the counters are kept, so they stay increments
+        // on one thread rather than an interlocked write per bake.
+        for (int i = 0; i < batch.Count; i++)
+        {
+            LightEntry entry = batch[i];
+
+            BatchSegments[i] = VectorLightBlockers.SegmentsAround(map, entry.Cell, entry.Radius);
+            PolygonBakes++;
+            BakeSegments += BatchSegments[i].Length;
+        }
+
+        // Started AFTER the gather, so the two arms are compared over the half that actually
+        // differs. The gather is identical work on the same thread either way, and including it
+        // would dilute the ratio with a constant.
+        System.Diagnostics.Stopwatch clock = System.Diagnostics.Stopwatch.StartNew();
+
+        if (ShouldFanOut(batch.Count))
+        {
+            ParallelBakePasses++;
+            Parallel.For(0, batch.Count, i => BakeGathered(batch[i], BatchSegments[i]));
+        }
+        else
+        {
+            SerialBakePasses++;
+
+            for (int i = 0; i < batch.Count; i++)
+                BakeGathered(batch[i], BatchSegments[i]);
+        }
+
+        BakeWallMs += clock.Elapsed.TotalMilliseconds;
+
+        // Dropped rather than left for the next frame to overwrite: a whole-map rebake's segment
+        // arrays are the largest thing this subsystem allocates, and holding them until the next
+        // bake means holding them for as long as nobody builds a wall.
+        for (int i = 0; i < batch.Count; i++)
+            BatchSegments[i] = null;
+    }
+
+    private static bool ShouldFanOut(int count)
+    {
+        // OFF REPRODUCES THE SERIAL PATH EXACTLY rather than skipping the bake — the batch is baked
+        // in index order on the calling thread, which is the order EnsurePolygons built it in and
+        // therefore the order the previous shape baked in.
+        return CelestialLightingFeatures.VectorLightParallelBake
+            && count >= ParallelBakeMinimum
+            && System.Environment.ProcessorCount > 1;
     }
 
     // The visibility polygon for one emitter, built if the world has changed under it since the last
     // time anybody asked. Shared by the draw and by §27 phase 3's mask so the two cannot disagree
     // about the shape of a shadow — a disagreement would show as the mask darkening cells the draw
     // had just lit.
+    //
+    // The one-at-a-time entry point. EnsurePolygons does not route through it, because gathering and
+    // baking have to be separable for the batch to be threaded; this keeps the single-emitter
+    // spelling for anything that wants one, and both spellings end in BakeGathered so they cannot
+    // disagree about what a bake is.
     public static void EnsurePolygon(Map map, LightEntry entry)
     {
         if (!entry.PolygonDirty && entry.Polygon.Count > 0)
@@ -351,6 +511,22 @@ public static class VectorLightField
         PolygonBakes++;
         BakeSegments += segments.Length;
 
+        BakeGathered(entry, segments);
+    }
+
+    // One emitter's bake, once its silhouette is in hand.
+    //
+    // NOTHING IN HERE MAY TOUCH THE MAP, because this is what runs on a pool thread. Everything it
+    // reads is either a value already on the entry or the Segment[] it was handed, and everything it
+    // writes is a field of that same entry — so two of these running at once cannot observe each
+    // other, and the join that ends the batch is what publishes the writes to the main thread.
+    //
+    // `Math.Ceiling` rather than `Mathf.CeilToInt`, which is the one line where that rule bites. The
+    // two are the same arithmetic and Mathf is pure managed code, so the swap changes no answer —
+    // but "no UnityEngine calls on this path" is a rule that has to be checkable by reading, and a
+    // Mathf call sitting here invites the next person to reach for a Mathf member that is not pure.
+    private static void BakeGathered(LightEntry entry, VectorLightMath.Segment[] segments)
+    {
         entry.Polygon = VectorLightMath.Build(
             entry.Cell.x + 0.5f, entry.Cell.z + 0.5f, entry.Radius, segments,
             VectorLightMath.DefaultBaseRayCount);
@@ -358,12 +534,15 @@ public static class VectorLightField
         // Baked alongside the polygon, on the same cadence and for the same reason: both change only
         // when somebody builds or removes a wall in range, and both are asked for once per cell of
         // every section that overlaps this emitter.
-        entry.CoverageRadius = Mathf.CeilToInt(entry.Radius);
+        entry.CoverageRadius = (int)System.Math.Ceiling(entry.Radius);
         entry.Coverage = VectorLightMath.BuildCoverage(
             entry.Polygon, entry.Cell.x, entry.Cell.z, entry.CoverageRadius,
-            VectorLightMath.DefaultCoverageSamples);
+            VectorLightMath.DefaultCoverageSamples, Scratch);
         entry.Unobstructed = VectorLightMath.IsUnobstructed(entry.Polygon, entry.Radius);
 
+        // LAST, DELIBERATELY. The flag is what every other reader uses to decide the entry is
+        // usable, so it must not be cleared until the three fields above are written. On the
+        // threaded path the join is the barrier that makes that ordering visible to the main thread.
         entry.PolygonDirty = false;
     }
 
