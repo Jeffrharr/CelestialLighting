@@ -117,6 +117,13 @@ public static class VectorLightMask
     // minus the corrected one.
     public static int SaturationRelief;
 
+    // How many cell-emitter pairs the per-cell replacement actually took light off, since the last
+    // reset. The OUTCOME measure for that rule rather than a description of the scene: a probe that
+    // counts which cells the rule WOULD claim reads the same number whether the flag is on or off,
+    // and cannot tell a working feature from one whose patch failed to apply. This only moves when
+    // the mask really removed a cell's vanilla contribution, so a zero under the flag is a finding.
+    public static long BentSamples;
+
     public static void ResetTelemetry()
     {
         LiftSamples = 0;
@@ -124,6 +131,7 @@ public static class VectorLightMask
         SaturatedSamples = 0;
         SaturationSkipped = 0;
         SaturationRelief = 0;
+        BentSamples = 0;
     }
 
     // Whether phase 3 can run: the per-light arrays have to be readable, or there is nothing to
@@ -150,6 +158,25 @@ public static class VectorLightMask
     // and nothing would put it back.
     public static bool Replacing =>
         Active && CelestialLightingFeatures.VectorLightApertureBeam && VectorLightShader.MaxActive;
+
+    // Whether the PER-CELL replacement runs this frame — the aperture beam's rule applied only to the
+    // cells vanilla detoured to, instead of to an emitter's whole field.
+    //
+    // Requires the shader for the same reason Replacing does: the mask takes vanilla's light off and
+    // only the fan can put ours back, so without a fragment program this would carve darkness and
+    // deliver nothing. Stood down while the aperture beam is on, which has already taken every cell
+    // this could and more — running both would be one rule shadowing the other rather than two
+    // effects, and an arm that set both would report the aperture beam's numbers under this flag's
+    // name.
+    //
+    // READ BY VectorLightOverlay TOO. The field upload has to describe exactly the light this mask
+    // left standing, so both sides ask this one property rather than each reading the feature flag
+    // and the shader's availability for themselves.
+    public static bool BentPath =>
+        Active
+        && CelestialLightingFeatures.VectorLightBentPath
+        && !CelestialLightingFeatures.VectorLightApertureBeam
+        && VectorLightShader.MaxActive;
 
     // Rewrites one section's lighting overlay in place. Returns false when it declined to, so the
     // caller can fall through to the crossfade rather than leaving the section unlit or unmasked.
@@ -562,6 +589,7 @@ public static class VectorLightMask
         // every added branch has to be one bool compare against a local or the shipped path stops
         // having the shape it was profiled in.
         bool replacing = Replacing;
+        bool bentPath = BentPath;
         float radius = light.glowRadius;
         float radiusSquared = radius * radius;
         ColorInt colour = light.glowColor;
@@ -590,10 +618,13 @@ public static class VectorLightMask
                 // max a fully lit cell is exactly where the lift lands, so the skip is conditional
                 // on there being no lift to compute rather than unconditional.
                 //
-                // AND UNDER THE APERTURE BEAM THE SKIP CANNOT FIRE AT ALL, because a fully lit cell
+                // AND UNDER EITHER REPLACEMENT THE SKIP CANNOT FIRE AT ALL, because a fully lit cell
                 // is exactly where a replacement has the most to take away. Removing this emitter's
-                // whole contribution is the point there, not an edge case.
-                if (coverage >= 255 && !lifting && !replacing)
+                // whole contribution is the point there, not an edge case. The per-cell rule has to
+                // read vanilla's own delivered distance before it can decide, and that read is what
+                // this skip exists to avoid — so with it on the skip goes, and the shipped path
+                // keeps its shape only because the flag is off there.
+                if (coverage >= 255 && !lifting && !replacing && !bentPath)
                     continue;
 
                 IntVec3 cell = new IntVec3(x, 0, z);
@@ -638,7 +669,19 @@ public static class VectorLightMask
                 // nothing beyond a door and the max degenerates to our whole model on its own; this
                 // makes an aperture reach the same place by the same arithmetic rather than by a
                 // second code path that has to agree with the first.
-                int shadowed = replacing ? 255 : 255 - coverage;
+                //
+                // THE PER-CELL RULE IS THE SAME REPLACEMENT WITH A PREDICATE IN FRONT OF IT. Where
+                // vanilla reached the cell by the route our polygon sees along, it delivered our
+                // model's own value and there is nothing to gain by taking the cell off it — that is
+                // the near field, and it is what the global version spent to buy the aperture. Where
+                // vanilla DETOURED, our model is the better description and takes the cell whole.
+                // VectorLightOverlay.SurvivingShare asks the identical question of the identical
+                // pure predicate, so the field the fragment program subtracts describes what this
+                // loop left behind.
+                bool detoured = bentPath
+                    && VectorLightLiftMath.VanillaBentToArrive(x - lightX, z - lightZ, own.a, anyOwn);
+
+                int shadowed = replacing || detoured ? 255 : 255 - coverage;
 
                 if (shadowed > 0 && anyOwn)
                 {
@@ -649,6 +692,13 @@ public static class VectorLightMask
                     cellShadow[index].g += own.g * shadowed / 255;
                     cellShadow[index].b += own.b * shadowed / 255;
                     any = true;
+
+                    // Counted HERE and not beside the predicate, so it means "the rule took light
+                    // off this cell" rather than "the rule matched". Those differ at every cell
+                    // vanilla never lit — the far side of an open door — which the rule claims and
+                    // where claiming it changes nothing.
+                    if (detoured)
+                        BentSamples++;
                 }
 
                 if (lifting && coverage > 0)

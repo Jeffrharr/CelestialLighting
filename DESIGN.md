@@ -11150,6 +11150,100 @@ Two honest costs, both visible in the committed captures:
   until then the amplification is recorded rather than hidden. Indoors at noon the lift correctly goes
   the *other* way, landing **1.12 L\*** below the shader max, because a brighter floor needs less lift.
 
+#### The per-cell max: the replacement decided cell by cell, and why it is inert (`vector_light_bent_path`)
+
+The global replacement above is the right idea applied at the wrong granularity. It buys the aperture
+by spending the near field, and the near field is precisely the set of cells vanilla already gets
+right. So the obvious repair is to decide **per cell** instead of per emitter:
+
+- **vanilla ≥ ours** — vanilla reached the cell the same way our polygon sees it, so leave it alone
+  and draw nothing. This is the near field, and it is what keeps a torch looking like a torch.
+- **vanilla < ours** — vanilla's flood had to bend to arrive, so the mask removes its whole
+  contribution at that cell and the fan delivers our model there at the polygon's own resolution.
+
+i.e. `max(vanilla, ours)` **delivered by whichever renderer wins**, rather than summed.
+
+##### The test has to be on distance, not on the two brightnesses
+
+Read literally, "vanilla < ours" is a level comparison, and a level comparison rebuilds the global
+replacement by accident. Our model evaluates the seeded curve at the straight-line distance while
+vanilla evaluates the same curve at its **octile** distance, and the octile metric runs up to 8% long
+off the eight principal directions. So on a perfectly clear sightline `ours > vanilla` holds almost
+everywhere. Swept offline over a radius-12 lamp on open ground, a level comparison claims **more than
+half** of the 341 cells vanilla lights — the whole near field, and the torch's radiance with it. That
+sweep is `ALevelComparisonWouldClaimMostOfAnOpenGroundLamp`, and it exists so the distance form below
+reads as a correction rather than as caution.
+
+What the rule wants to ask is *did vanilla's flood detour to get here*, and **vanilla answers that
+itself**. `ComputeGlowGridsJob` is a Dijkstra fill over the octile metric, so its accumulated cost to
+an unobstructed cell is exactly the octile distance and to a detoured one is strictly more; it then
+writes that distance into the alpha channel of its own per-light array (`colorInt.a = (int)num2`,
+preserved through `ProjectToColor32Fast`). That is a number the mod is already holding in both places
+the decision is made, so nothing is recomputed and nothing is estimated. Because alpha is truncated to
+whole cells, the comparison is between two integers that are **equal by construction** on open ground
+— the near field is protected exactly, not by a tolerance.
+
+##### Both halves have to agree, and they call one predicate
+
+The mask decides how much of an emitter's vanilla light to take *off* a cell; the per-emitter texture
+the fragment program subtracts has to describe what the mask *left*. `VectorLightMask.AccumulateEmitter`
+and `VectorLightOverlay.SurvivingShare` therefore call the same pure `VanillaBentToArrive`. A
+disagreement between them is either light removed and never redrawn or light subtracted twice, and
+neither announces itself.
+
+##### It is inert, and the reason is structural rather than a tuning failure
+
+Modelled offline against a transcription of the flood before it was built, then confirmed live: on the
+gate scene the rule claims **two** of the cells vanilla lights, at 7 levels of glow each. Live, the
+probes read `vector_light_bent_home` **0**, `vector_light_bent_beyond` **2**, and
+`vector_light_bent_applied` **0 → 2** across the flag — so the rule really ran and really took light
+off exactly those two cells.
+
+The frames are **bit-identical**: median ΔE 0.0000, p90 0.0000, max 0.00, zero pixels changed, against
+a same-build control that also reads zero. The outdoor L\* table does not move a hundredth:
+
+| arm | door −7 | door −8 | gap +7 | gap +8 |
+|---|---|---|---|---|
+| vanilla | 4.52 | 5.10 | 7.65 | 6.85 |
+| branch, `bent_path` off | 6.86 | 5.69 | 8.01 | 7.05 |
+| branch, `bent_path` **on** | 6.86 | 5.69 | 8.01 | 7.05 |
+| aperture beam (rejected) | 6.86 | 5.69 | 9.73 | 7.37 |
+
+**Why:** the two claimed cells sit at **coverage 0**, so the mask had already removed 100% of vanilla's
+light there through `255 − coverage`, and the rule changes `shadowed` from 255 to 255. Dumping the
+shipped `BuildCoverage` for this geometry shows the cone past a one-cell gap is exactly one cell wide —
+coverage 255 only on the lamp's own row, 0 on every row either side.
+
+That is not an accident of this scene. **Our polygon is cast against the same blockers vanilla floods
+around.** A cell vanilla had to detour to is a cell with no clear straight line, which is a cell our
+polygon cannot see either — so "vanilla detoured" and "our polygon covers it" are very nearly disjoint.
+They overlap only in the sub-cell fringe where coverage is partial, and the one place the two models
+genuinely see different geometry is an **open door**, where vanilla delivers zero and the composition
+already degenerates to our whole model on its own. `max(0, ours − vanilla)` was never leaving light on
+the table.
+
+##### What this rules out, and what it points at instead
+
+Ships **OFF**, and unlike the aperture beam it is off because it is inert rather than because it is
+harmful. It is kept because it closes the branch of the search that says the composition is picking
+the wrong term.
+
+The measurement that reopens the question is the one above rather than this rule: at the same cells,
+one cell past each opening, the mod adds **+2.34 L\*** past the door and **+0.36 L\*** past the gap,
+and the cones are the same shape. The difference is entirely in what the fan is *permitted* to draw —
+past the door vanilla is 0, so `excess = ours`; past the gap vanilla is 0.0902 against our seeded
+0.0910, so `excess ≈ 0`. **The two renderers are not calibrated against each other**: the same
+0.09 of glow is worth about +0.1 L\* delivered through vanilla's lighting overlay at night and about
++7 L\* delivered through the fan's surface lift. A max over two quantities that render at seventy
+times different intensities picks the arithmetically larger and the visually smaller. That, and not
+the choice of operator, is what the next attempt has to address.
+
+Note also that the *"vanilla supplies about two thirds of the light beyond a gap"* reading of
+`vector_light_beyond_ours` **0.1358** against `vector_light_beyond_vanilla` **0.0902** does not hold:
+the probe reports `ours` on the **unseeded** curve while the shipped composition draws the **seeded**
+one, which at that cell is 0.0910. Against the quantity the shader actually uses, vanilla supplies
+99% of it. There is no missing third.
+
 ### Vector lighting, phase 6: the visibility polygon was quadratic (`VectorLightMath.AngularIndex`, `VectorLightBakeProbe`, epic #174 phase 6)
 
 Phase 6 of the vector-lighting epic is about the **bakes** rather than the draw. The draw was already

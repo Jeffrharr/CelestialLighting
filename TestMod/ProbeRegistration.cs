@@ -1388,6 +1388,34 @@ public static class ProbeRegistration
             },
             defaultEnabled: false);
 
+        // THREE-ARG, same reason again: ships OFF while it is measured, and the two-arg overload
+        // would leave it on for every later §27 scenario a suite reset touched.
+        //
+        // ForceRebuild because both halves of this rule are latched. The mask's half is baked into
+        // the lighting overlay during a section regenerate, and the fragment program's half rides in
+        // a per-emitter texture that is only re-uploaded when the entry is marked dirty — so
+        // flipping the flag changes nothing on screen until something else provokes both. Clearing
+        // the field is what provokes both at once.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightBentPathKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.VectorLightBentPath = enabled;
+                VectorLightRedraw.ForceRebuild();
+            },
+            defaultEnabled: false);
+
+        // The two halves of one question, and pinned together for the same reason the four above
+        // are: "how many cells changed hands" is only a finding next to "and none of them were the
+        // lamp's own near field". Either one alone reads as healthy while the rule is broken in the
+        // direction the other one watches.
+        ProbeRegistry.Register(new VectorLightBentProbe(
+            "vector_light_bent_home", VectorLightBentProbe.Metric.Home));
+        ProbeRegistry.Register(new VectorLightBentProbe(
+            "vector_light_bent_beyond", VectorLightBentProbe.Metric.Beyond));
+        ProbeRegistry.Register(new VectorLightBentProbe(
+            "vector_light_bent_applied", VectorLightBentProbe.Metric.Applied));
+
         // Two-arg, matching phase 5b's shipped default of true. The registry default is what a suite
         // reset restores between scenarios, so it has to be the SHIPPED value — registered false,
         // every §27 scenario after this one would silently measure the pre-fix composition.
