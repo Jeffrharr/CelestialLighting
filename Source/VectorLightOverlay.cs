@@ -168,7 +168,15 @@ public static class VectorLightOverlay
 
         if (maxDrawing)
         {
-            VectorLightShader.SetVanillaWeight(entry.Props, maxComposing && composed ? 1f : 0f);
+            // ZERO UNDER THE APERTURE BEAM, and that is the whole of its draw-side half. The mask
+            // has just taken this emitter's vanilla light off the frame entirely, so there is
+            // nothing left to subtract and the fan has to deliver the model rather than the
+            // difference. Subtracting a field the mask has already removed would darken the beam by
+            // exactly the light it is replacing.
+            bool replacing = VectorLightMask.Replacing;
+
+            VectorLightShader.SetVanillaWeight(
+                entry.Props, maxComposing && composed && !replacing ? 1f : 0f);
             VectorLightShader.SetVanillaTexture(entry.Props, entry.VanillaField);
 
             // Set on every max draw and not only on the lift ones, because the property block is

@@ -1424,6 +1424,16 @@ public static class ProbeRegistration
             },
             defaultEnabled: false);
 
+        // THREE-ARG, same reason as its neighbours: ships OFF while it is measured.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightApertureBeamKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.VectorLightApertureBeam = enabled;
+                VectorLightRedraw.ForceRebuild();
+            },
+            defaultEnabled: false);
+
         // Two-arg, matching phase 5b's shipped default of true. The registry default is what a suite
         // reset restores between scenarios, so it has to be the SHIPPED value — registered false,
         // every §27 scenario after this one would silently measure the pre-fix composition.
