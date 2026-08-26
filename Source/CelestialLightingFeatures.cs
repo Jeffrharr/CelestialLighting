@@ -1005,9 +1005,30 @@ public static class CelestialLightingFeatures
     // UNsuppressed flood summed two lighting models and landed a room 6 L* bright. This is a
     // replacement and not a sum — the mask takes the emitter's light off before the fan puts ours
     // back — and under the surface lift the result is bounded by the blend's own 2x ceiling as well.
-    // The lit ROOM is what to watch in the A/B, not the beam.
     //
-    // OFF while it is measured.
+    // AND IT DOES NOT CLEAR THE OPPOSITE RISK, WHICH IS THE FINDING. It buys the aperture beam by
+    // spending exactly what the max exists to protect: the torch's own RADIANCE. Judged on the
+    // frames rather than the table — the beam reaches parity with a doorway to within 0.2 L* and the
+    // lamp still looks wrong, because the warm near-field falloff around it is gone. Measured, the
+    // lamp cell goes 19.89 -> 17.87 and two cells out 9.68 -> 7.16.
+    //
+    // The cause is not the composition and cannot be tuned out of it. Once vanilla's contribution is
+    // removed, the fan has to deliver a lamp's near field on its own, and that is where the model
+    // asks for a multiplier far above Blend DstColor One's ceiling of 2x — the saturation
+    // JustPastAnOpenDoorTheModelAsksForMoreThanTheBlendCanGive pins offline. The max was never a
+    // compromise: leaving vanilla holding the cells it already gets right is what keeps a lamp
+    // looking like a lamp, and this trades that away wholesale to fix one region.
+    //
+    // SO A GLOBAL REPLACEMENT IS THE WRONG SHAPE, and the next attempt should not be a gentler
+    // version of it. What the arms actually establish is a contradiction worth resolving first: the
+    // aperture arm proves our model has +2.57 L* to give at those cells, the max arm proves the
+    // fragment program computes ours - vanilla ~ 0 there, and the frame shows vanilla contributing
+    // only +0.5 over the local background. Two of those three cannot all hold. The next step is a
+    // probe reporting `ours` and the sampled `vanilla` side by side for ONE named cell beyond the
+    // gap — not another composition. This repo has three times now theorised its way to a plausible
+    // wrong answer about that pair.
+    //
+    // OFF, and kept only as the arm that produced the finding above.
     public static bool VectorLightApertureBeam = false;
 
     // Feature key for VectorLightMaskMax.
