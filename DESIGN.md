@@ -11291,18 +11291,45 @@ the lamp cell, six times clear of 0.10. `TheNearFieldIsWellAboveTheFloor` and
 to the constant fails offline rather than in a screenshot. The value has measured room either side —
 0.15 starts eating the lamp's own room (8 cells), 0.05 misses 3 of the outdoor cells.
 
-##### The risk it does not clear, and the scene that would show it
+##### The ring is real, and it is why this ships off (`Tests/Scenarios/vector_light_ring.json`)
 
 "Dim because it came through a hole" and "dim because it is the outer rim of the lamp" are **the same
-number** to this rule, so every light's rim changes renderer too. If the two delivery paths differ,
-that draws an edge exactly there — a ring at each lamp's edge. `vector_light_floor_home` reads **125**
-on the gate scene: roofed cells claimed, summed over every emitter on the map, overwhelmingly
-off-screen rims. This room shows no indoor change at all, so the risk is unmeasured rather than
-cleared, and the scene that would settle it is a single lamp alone in a large room — which the suite
-does not have.
+number** to this rule, so every light's rim changes renderer too — and if the two delivery paths
+differ, that draws an edge exactly there.
 
-The floor is a hard threshold on purpose. A ramp soft enough to hide a ring cannot claim the gap: the
-gap cell sits at 0.0902, **above** most of the rim it would have to be blended across.
+**It does.** One `TorchLamp` alone in a sealed 21×21 roofed room at midnight, floor off against floor
+on, one flag apart:
+
+| r (cells) | 4.75 | 5.25 | 5.75 | **6.25** | 6.75 | 7.25 | 7.75 | 8.25 |
+|---|---|---|---|---|---|---|---|---|
+| mean ΔE | 0.08 | 0.78 | 2.97 | **5.01** | 4.38 | 2.08 | 0.72 | 0.10 |
+| Δ L\* | +0.03 | +0.59 | +2.27 | **+3.90** | +3.39 | +1.62 | +0.52 | +0.06 |
+
+A clean annulus: **zero inside it and zero outside it**, spanning 5.1–7.8 cells with its median at
+**6.6** — which is the 26/255 contour for a peak-184 lamp, where the rule's own threshold predicts it
+to the half-cell. 2.56% of the frame, masked median ΔE **3.29**, peak **+3.90 L\***, against a
+same-build control that changes **0.00%** of pixels. It is plainly visible in the frame as a bright
+halo interrupting what should be a smooth falloff, and its inner edge is **scalloped rather than
+circular** — vanilla's flood iso-distance curves are octagons, so the artefact advertises its own
+cause.
+
+This is the gate scene's `vector_light_floor_home` of 125 made visible: those were roofed rim cells
+all along, and that room was simply too small to contain any of them (5 cells deep, where vanilla
+still delivers 46/255).
+
+##### Why the obvious repairs do not work
+
+The floor is a hard threshold on purpose. **A ramp cannot fix this**: the gap cell sits at 0.0902,
+*above* most of the rim it would have to be blended across, so any ramp soft enough to hide the ring
+has already stopped claiming the gap. Nor is the value the problem — moving the threshold moves the
+ring's radius and nothing else, because a lamp's falloff crosses every level somewhere.
+
+The rule is asking a question that cannot separate the two cases, and the fix has to be a different
+question. What distinguishes the gap cells from the rim cells is not the level: it is that at the rim
+our model and vanilla **agree** and vanilla is simply the far end of the same falloff, while past an
+aperture they agree only because vanilla arrived by a route that happens to be the same length. A
+discriminator that survives this has to combine the level with something that says the light is
+leaving a region — which is where the next attempt should start.
 
 ##### A number withdrawn
 

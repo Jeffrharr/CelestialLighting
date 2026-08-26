@@ -63,3 +63,10 @@ vector_light_shader_max_penumbra.json
 # second radius once and the probes were blind to it — the evidence for this one is the run's
 # Player.log, not its dE.
 vector_light_mixed_radii.json
+
+# One lamp alone in a sealed 21x21 roofed room -- the scene the other four cannot ask. Every room
+# above is small enough that vanilla still delivers well above the visibility floor everywhere in it,
+# so none of them can see what the floor does at a lamp's OUTER RIM. This one can, and the answer is
+# a ring: measured at 6.6 cells, +3.90 L* at its peak, against a same-build control of exactly zero.
+# Run it on any change to the claim predicate or to DimDeliveryFloor.
+vector_light_ring.json
