@@ -697,10 +697,18 @@ public static class CelestialLightingFeatures
     // spilling out of a window, none of which vanilla's grid can express: it records how far light
     // travelled and never which direction it came from.
     //
-    // SHIPS OFF. It is a prototype, and it is the most opinionated thing in the mod — turning it on
-    // makes indirectly-lit rooms genuinely darker, because light that vanilla delivered along a path
-    // bending around a corner no longer arrives at all. That is the feature working, and it is still
-    // a large enough taste call to be opt-in until it has been lived with.
+    // THIS FLAG'S DEFAULT IS NOT THE SHIPPED DEFAULT, and the gap is deliberate. A new install gets
+    // vector lighting ON (UpdateNotice.SeedFirstRun seeds the setting, ApplyToRuntime pushes it in
+    // here), while an existing install keeps it off until the one-time notice is answered. The static
+    // initialiser stays FALSE because it is also the value FeatureRegistry.ResetAll restores between
+    // scenarios in a suite: registered as true, §27 would switch itself on for every later scenario
+    // in the file and rewrite their lighting. See TestMod/ProbeRegistration.cs, which says the same
+    // thing from the other end.
+    //
+    // It is the most opinionated thing in the mod — turning it on makes indirectly-lit rooms
+    // genuinely darker, because light that vanilla delivered along a path bending around a corner no
+    // longer arrives at all. That is the feature working, and it is a large enough taste call that
+    // an upgrading player is asked rather than switched.
     //
     // OFF REPRODUCES VANILLA EXACTLY, which matters more here than for most flags because the feature
     // has a suppressing half: with this false, Patch_VectorLightSuppress returns before touching the
@@ -802,7 +810,7 @@ public static class CelestialLightingFeatures
     // the mask is what the subsystem is designed around now: it is the only composition that
     // carves a real shadow without suppressing anybody else's light, and two later features are
     // built on it — the beam below, and phase 4's pawn shadows, which ask its coverage grid
-    // whether a lamp can see a pawn at all. Inert unless VectorLights is on, which ships OFF.
+    // whether a lamp can see a pawn at all. Inert unless VectorLights is on.
     public static bool VectorLightMask = true;
 
     // Feature key for VectorLightMaskBeam.
@@ -876,7 +884,7 @@ public static class CelestialLightingFeatures
     // with no strength to choose. VectorLightSettings.BeamStrength now governs only the fallback
     // path below.
     //
-    // Inert unless VectorLights is on, which still ships OFF.
+    // Inert unless VectorLights is on.
     public static bool VectorLightShaderMax = true;
 
     // Feature key for VectorLightShaderMaxSubtract.
@@ -1326,7 +1334,7 @@ public static class CelestialLightingFeatures
     //
     // ON BY DEFAULT. This makes a shadow fainter over most of its length and never darker, so the
     // conservative direction and the correct one agree for once; and pawn shadows only render at all
-    // once vector lighting itself is opted into, which still ships off.
+    // once vector lighting itself is on.
     public static bool VectorLightShadowFeather = true;
 
     // Feature key for VectorLightOpenDoors.

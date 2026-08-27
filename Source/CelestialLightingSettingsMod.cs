@@ -10,6 +10,11 @@ namespace CelestialLighting;
 // expose them to the patches through a static accessor.
 public class CelestialLightingSettingsMod : Mod
 {
+    // Laid over a disabled slider, because Widgets.HorizontalSlider paints its own colours and cannot
+    // be greyed from outside. Alpha rather than a flat colour so the rail and handle stay legible as
+    // the same control the player will get back, only dimmed.
+    private static readonly Color DisabledDimming = new Color(0f, 0f, 0f, 0.45f);
+
     // Static so the Harmony patches (which are static classes RimWorld constructs, not things we can
     // hand a reference to) can read the live settings. Assigned in the constructor below, which
     // RimWorld calls once at startup before any patch runs during gameplay.
@@ -170,21 +175,41 @@ public class CelestialLightingSettingsMod : Mod
         listing.CheckboxLabeled("      Volumetric clouds (GPU)", ref Settings.cloudVolume,
             "Light the clouds by marching through a real 3-D model of them instead of tinting a flat picture. Each cloud shadows its own underside, so a low sun lights the tops while the bulk beneath stays dark, and the shape of that shading changes through the day rather than just its brightness.\n\nTurn this OFF if you are short of frames: it is the one cloud setting whose cost is on the graphics card, and it scales with how much of the screen has cloud on it. With it off the same clouds are drawn the flat way, which is what earlier versions did. It also switches itself off automatically on hardware that cannot run it, so nothing disappears.");
         ShowExternalCloudSource(listing);
-        // §27. THE COST IS IN THE LABEL, on the same rule as the auroral curtain below: this is the
-        // most expensive thing the mod does, and a player hunting for frames should find it here
-        // without hovering. "Experimental" stays alongside it because the tooltip cannot be read
-        // from the mod list, and this is the one switch on this screen that changes how a colony is
-        // LIT rather than what colour the sky is — somebody who turns it on and dislikes it should
-        // be able to find their way back without reading anything.
-        listing.CheckboxLabeled("Vector light sources (experimental, performance cost)", ref Settings.vectorLights,
+        // §27. The label says "experimental" because the tooltip cannot be read from the mod list,
+        // and this is the one switch on this screen that changes how a colony is LIT rather than
+        // what colour the sky is — a player who turns it on and dislikes it should be able to find
+        // their way back without reading anything.
+        //
+        // IT NO LONGER CARRIES A COST WARNING. It did for one revision, on the rule the auroral
+        // curtain below follows, back when this was the mod's expensive outlier by a wide margin.
+        // The optimisation work took that away, and a warning left standing after the thing it warns
+        // about has gone is worse than none: it sends a player hunting for frames to a switch that
+        // is not the answer, and it argues against a feature that now ships on for new installs.
+        listing.CheckboxLabeled("Vector light sources (experimental)", ref Settings.vectorLights,
             "Render artificial light as a shape cast from each lamp rather than as vanilla's flood fill: a beam through a doorway, a hard shadow behind a rock, firelight spilling out of a window. Vanilla's lighting records how far light travelled and never which direction it came from, so none of those can exist in it.\n\nThe trade is that light which reached a room only by bending around a corner no longer arrives, so indirectly lit rooms are genuinely darker than you are used to. Gameplay light is untouched — plant growth, work speed, pawn vision and mood read exactly the same numbers with this on or off. Visual only.");
-        listing.CheckboxLabeled("    Pawn shadows from lamps", ref Settings.vectorLightPawnShadows,
+        // EVERYTHING BELOW HERE IS GATED ON THE MASTER SWITCH, greyed and unclickable while it is
+        // off. All three are inert without it — ApplyToRuntime pushes them into flags that
+        // Patch_VectorLightSuppress never reaches — so an off master with a sub-option ticked is a
+        // control that reads as doing something and does nothing.
+        //
+        // GATED, NOT HIDDEN, and not forced off either. Greying keeps them visible so a player can
+        // see what turning the master on would get them, and leaving the stored values alone means
+        // switching the master back on restores the choices they made rather than a fresh set of
+        // defaults.
+        //
+        // The other nested groups on this screen (the cloud lanes, the auroral curtain) are
+        // deliberately left ungated for now: each of those sub-switches does something visible on
+        // its own terms, and this is the group where the master's state is genuinely load-bearing.
+        bool vectorLightsOn = Settings.vectorLights;
+        GatedCheckbox(listing, "    Pawn shadows from lamps", ref Settings.vectorLightPawnShadows,
+            vectorLightsOn,
             "Pawns throw a shadow away from each lamp lighting them, lengthening with distance the way a shadow does as the sun sinks. Vanilla cannot do this: its pawn shadow takes its direction from a single value shared by every shadow on the map, which is right for the sun and meaningless for a torch.\n\nDrawn indoors and under eaves too, unlike vanilla's, since a lamp indoors is the whole point. A pawn a lamp cannot actually see — behind a wall — casts nothing from it. Costs one quad per pawn per nearby lamp, the same order as vanilla's own pawn shadows.");
         // §27e. Nested under the master switch because it is meaningless without it, and shipped
         // OFF because it is the mod's one deliberate disagreement with gameplay light — the tooltip
         // says so outright rather than burying it, since a player who cares about that distinction
         // is exactly the player who will come looking for this switch.
-        listing.CheckboxLabeled("    Light through open doors", ref Settings.vectorLightOpenDoors,
+        GatedCheckbox(listing, "    Light through open doors", ref Settings.vectorLightOpenDoors,
+            vectorLightsOn,
             "Light spills through a door while it is open, and the beam narrows and widens with the leaves as they slide. Shut doors block light exactly as they always did, and so does every wall.\n\nThis is the one place the mod knowingly draws light the game itself does not deliver: RimWorld's lighting never learns that a door opened, so plants still will not grow in that beam and pawns still cannot see down it. It is off by default for that reason. What it costs you is a beam that appears and disappears as pawns walk through doorways \u2014 whether that reads as light spilling out or as the lighting glitching is a taste call, which is why you get to make it.");
         // A per-effect intensity, so LabeledSlider rather than AestheticSlider: moving it must not
         // flip the preset radio to Custom. 1.0 is the level §27 first shipped at, kept reachable
@@ -208,8 +233,8 @@ public class CelestialLightingSettingsMod : Mod
         // loaded or compiled, so it is left in place rather than removed: a player on that path has
         // exactly the knob they had before, and one on the shader path has a control that correctly
         // has nothing to do.
-        Settings.vectorLightBeamStrength = LabeledSlider(listing, "    Lamp beam strength",
-            Settings.vectorLightBeamStrength, 0f, 1f);
+        GatedSlider(listing, "    Lamp beam strength", ref Settings.vectorLightBeamStrength, 0f, 1f,
+            vectorLightsOn);
         listing.CheckboxLabeled("Sky colour-temperature", ref Settings.skyColorTemperature,
             "Warm the sky toward the horizon on a continuous, altitude-keyed curve.");
         listing.CheckboxLabeled("Polar night blue", ref Settings.polarNightBlue,
@@ -222,16 +247,15 @@ public class CelestialLightingSettingsMod : Mod
         Settings.purpleLightStrength = LabeledSlider(listing, "  Purple light strength", Settings.purpleLightStrength, 0f, 1f);
         listing.CheckboxLabeled("Auroral sky tint", ref Settings.aurora,
             "Shift the night sky toward auroral colours during a solar flare or an aurora event, and at no other time. A flare gets a slow green/red shimmer; an aurora event borrows the colour vanilla is already cycling through, which its own sky render is too bright to show.");
-        // The cost is in the LABEL, not only the tooltip — the same rule §27's switch above now
-        // follows. A player who never hovers should still be told before they turn this on,
-        // particularly since it is on by default.
+        // The cost is in the LABEL, not only the tooltip. A player who never hovers should still be
+        // told before they turn this on, particularly since it is on by default.
         //
-        // IT IS NO LONGER "the one setting with a real per-frame price" and the tooltip no longer
-        // says so. §27 is both more expensive and paid on every frame rather than only during an
-        // aurora, so leaving that claim here would have sent a player hunting for frames to the
-        // second-place switch with the mod's own assurance that it was the only one.
+        // THE TOOLTIP NO LONGER CLAIMS TO BE "the only part of the mod with a per-frame render
+        // cost". That was true when it was written and is not a claim worth restating: it is a
+        // statement about every other subsystem, made in the one place nobody would look to check
+        // it, and it went stale the first time another lane started drawing something.
         listing.CheckboxLabeled("    Auroral curtain (performance cost)", ref Settings.auroraCurtain,
-            "Draw a drifting auroral curtain over the map instead of tinting the whole sky one flat colour — a bright wandering hem with vertical rays standing on it, several colours at once, folding and undulating.\n\nMeasured on this machine's Mono runtime it is roughly 0.3-0.4 ms per frame of field regeneration — about 2% of a 60fps frame — plus one extra draw call. That is paid ONLY while an aurora or solar flare is actually running, which is rare and short; the rest of the time this subsystem is a single null check and allocates nothing. \"Vector light sources\" above is the mod's expensive setting and is paid whenever lamps are on screen; this one is second, and a distant second in any hour without an aurora in it.\n\nIf your framerate is already marginal during an aurora specifically, or a profiler points at CelestialLighting while one is running, this is the switch. Turning it off falls back to the flat sky tint at its full solo strength, so you lose the curtain, not the aurora.");
+            "Draw a drifting auroral curtain over the map instead of tinting the whole sky one flat colour — a bright wandering hem with vertical rays standing on it, several colours at once, folding and undulating.\n\nMeasured on this machine's Mono runtime it is roughly 0.3-0.4 ms per frame of field regeneration — about 2% of a 60fps frame — plus one extra draw call. That is paid ONLY while an aurora or solar flare is actually running, which is rare and short; the rest of the time this subsystem is a single null check and allocates nothing.\n\nIf your framerate is already marginal during an aurora specifically, or a profiler points at CelestialLighting while one is running, this is the switch. Turning it off falls back to the flat sky tint at its full solo strength, so you lose the curtain, not the aurora.");
         listing.CheckboxLabeled("Eclipse effects", ref Settings.eclipseDarkening,
             "Master toggle for CelestialLighting's eclipse handling. Off = vanilla eclipses (flat dim, storyteller timing) and none of the modes below. On = reshaped darkening plus the eclipse mode selected below.");
         DrawEclipseModeRadio(listing);
@@ -427,6 +451,72 @@ public class CelestialLightingSettingsMod : Mod
         if (updated != value)
             Settings.MarkAestheticKnobsCustom();
         return updated;
+    }
+
+    // A checkbox that is only clickable while its parent switch is on, for a sub-option that is inert
+    // without it. Vanilla's Listing_Standard.CheckboxLabeled has no disabled form — only the Widgets
+    // overload underneath it does — so this is that overload plus the tooltip and highlight handling
+    // the listing version would have done, and nothing more.
+    //
+    // The label is greyed as well as the box. Widgets.CheckboxLabeled dims only the tick texture, and
+    // a full-brightness label above a dimmed box reads as a rendering glitch rather than as a control
+    // waiting on something.
+    private void GatedCheckbox(Listing_Standard listing, string label, ref bool value, bool enabled,
+        string tooltip = null)
+    {
+        Rect rect = listing.GetRect(Text.CalcHeight(label, listing.ColumnWidth));
+        rect.width = Mathf.Min(rect.width + 24f, listing.ColumnWidth);
+
+        if (!tooltip.NullOrEmpty())
+        {
+            if (Mouse.IsOver(rect))
+                Widgets.DrawHighlight(rect);
+
+            // The tooltip stays live while disabled on purpose: "what would this do if I turned the
+            // switch above on" is exactly the question a greyed control provokes.
+            TooltipHandler.TipRegion(rect, tooltip);
+        }
+
+        Color previous = GUI.color;
+        if (!enabled)
+            GUI.color = Widgets.InactiveColor;
+
+        Widgets.CheckboxLabeled(rect, label, ref value, disabled: !enabled);
+
+        GUI.color = previous;
+        listing.Gap(listing.verticalSpacing);
+    }
+
+    // LabeledSlider's gated counterpart, and the reason it cannot just wrap that one in a GUI.enabled
+    // block: Widgets.HorizontalSlider reads Event.current directly rather than honouring GUI.enabled,
+    // so a disabled-looking slider drawn on the input events would still play the drag sound, swallow
+    // the click, and only snap back once its discarded result failed to be stored.
+    //
+    // Drawing it on Repaint alone is what actually makes it inert — the mouse events never reach the
+    // widget at all — and the dimming pass on top is because HorizontalSlider sets GUI.color itself
+    // for the rail and the handle, so greying it from out here has no effect.
+    private void GatedSlider(Listing_Standard listing, string label, ref float value, float min,
+        float max, bool enabled, string tooltip = null)
+    {
+        if (enabled)
+        {
+            value = LabeledSlider(listing, label, value, min, max, tooltip);
+            return;
+        }
+
+        Color previous = GUI.color;
+        GUI.color = Widgets.InactiveColor;
+        listing.Label($"{label}: {value:0.00}", tooltip: tooltip);
+        GUI.color = previous;
+
+        Rect rect = listing.GetRect(22f);
+        if (Event.current.type == EventType.Repaint)
+        {
+            Widgets.HorizontalSlider(rect, value, min, max);
+            Widgets.DrawRectFast(rect, DisabledDimming);
+        }
+
+        listing.Gap(listing.verticalSpacing);
     }
 
     // A plain labeled slider with no side effects on the preset selection. tooltip is optional so every
