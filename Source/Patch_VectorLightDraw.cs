@@ -184,18 +184,22 @@ public static class Patch_VectorLightDraw
             {
                 int slot = sz * across + sx;
 
-                if (Flagged[slot])
-                    continue;
+                // Already flagged by an earlier emitter this frame. Nothing to hold in mind past
+                // this line — the section is dirty either way, and the only thing the second visit
+                // would change is the count.
+                if (!Flagged[slot])
+                {
+                    Flagged[slot] = true;
+                    flagged = true;
+                    VectorLightField.SectionDirties++;
 
-                Flagged[slot] = true;
-                flagged = true;
-                VectorLightField.SectionDirties++;
+                    IntVec3 anchor = new IntVec3(
+                        SectionDirtyMath.SectionAnchor(sx, Section.Size), 0,
+                        SectionDirtyMath.SectionAnchor(sz, Section.Size));
 
-                IntVec3 anchor = new IntVec3(
-                    SectionDirtyMath.SectionAnchor(sx, Section.Size), 0,
-                    SectionDirtyMath.SectionAnchor(sz, Section.Size));
-
-                drawer.MapMeshDirty(anchor, flags, regenAdjacentCells: false, regenAdjacentSections: false);
+                    drawer.MapMeshDirty(
+                        anchor, flags, regenAdjacentCells: false, regenAdjacentSections: false);
+                }
             }
         }
 
