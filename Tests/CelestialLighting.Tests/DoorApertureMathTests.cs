@@ -437,4 +437,101 @@ public class DoorApertureMathTests
                 + $"{(hole ? "opened" : "stayed blocked")}");
         }
     }
+
+    // ---- and the bit is only written when it MOVED --------------------------------------------
+
+    // THE FOUR STATES, AND ONLY TWO OF THEM ARE WRITES. The grid does not care -- both vanilla calls
+    // are a plain Set -- but our own Patch_VectorLightBlockerAdded postfixes them into
+    // MarkGeometryDirtyAround with `blockerMoved: true`, which discards the silhouette memo every
+    // light near the door was reusing. So a write we did not need is a window rescan we did not need.
+    [TestCase(true,  true,  true)]    // want a hole, currently blocked -> open it
+    [TestCase(true,  false, false)]   // want a hole, already a hole    -> nothing to do
+    [TestCase(false, true,  false)]   // want it blocked, already is    -> nothing to do
+    [TestCase(false, false, true)]    // want it blocked, currently open -> restore it
+    public void TheBlockerBitIsWrittenOnlyWhenItMoves(
+        bool holeWanted, bool currentlyBlocked, bool expected)
+    {
+        Assert.That(
+            DoorApertureMath.GlowGridWriteNeeded(
+                holeWanted, blockerStateKnown: true, currentlyBlocked),
+            Is.EqualTo(expected));
+    }
+
+    // AN UNREADABLE BIT WRITES ANYWAY, and the direction is chosen rather than defaulted. A RimWorld
+    // rename or an uncreated array during map setup costs the rescan the skip was saving; guessing
+    // the other way would leave a door lighting a room it does not open onto, which has no symptom
+    // until somebody looks at the right wall.
+    [TestCase(true, true)]
+    [TestCase(true, false)]
+    [TestCase(false, true)]
+    [TestCase(false, false)]
+    public void AnUnreadableBlockerBitIsAlwaysWritten(bool holeWanted, bool currentlyBlocked)
+    {
+        Assert.That(
+            DoorApertureMath.GlowGridWriteNeeded(
+                holeWanted, blockerStateKnown: false, currentlyBlocked),
+            Is.True);
+    }
+
+    // WITH THE FEATURE OFF, NOTHING IS EVER WRITTEN -- which is the claim that is NOT about doors.
+    // Every door answers `holeWanted` false with the flag down, and a door's cell starts blocked and
+    // is only ever unblocked by us, so the skip is total: no writes, therefore no invalidations,
+    // therefore the silhouette memo behaves exactly as it did before this feature existed. This
+    // repo's rule that a flag turned off reproduces the pre-feature behaviour is usually a statement
+    // about what is on screen; here it has to hold for the invalidation CADENCE too, and only a
+    // performance scenario can see the difference.
+    [Test]
+    public void WithTheFeatureOffAShutMapNeverWritesTheGrid()
+    {
+        // A door that was never opened: blocked, and no hole wanted.
+        Assert.That(
+            DoorApertureMath.GlowGridWriteNeeded(
+                holeWanted: false, blockerStateKnown: true, currentlyBlocked: true),
+            Is.False);
+
+        // And a full swing under the flag, tick by tick, asks for nothing at any point in it. The
+        // fraction is swept because the flag is folded into `holeWanted` at the call site rather
+        // than guarding it -- so this is the composed statement, not a restatement of the case above.
+        for (int tick = 0; tick <= 45; tick++)
+        {
+            float rendered = DoorApertureMath.RenderedOpenFraction(
+                trackingLeaves: true, tick / 45f, DoorApertureMath.DefaultQuantisationSteps);
+
+            // `false &&` is what CelestialLightingFeatures.VectorLightDoorGlowBlocker contributes
+            // when it is off, spelled out rather than referenced so this file stays Verse-free.
+            bool holeWanted = false && DoorApertureMath.GlowGridHoleWanted(
+                blocksLightWhenShut: true, headingOpen: true, rendered);
+
+            Assert.That(
+                DoorApertureMath.GlowGridWriteNeeded(holeWanted, true, currentlyBlocked: true),
+                Is.False, $"tick {tick} wrote the grid with the feature off");
+        }
+    }
+
+    // AND WITH IT ON, A SWING WRITES EXACTLY ONCE. Not zero -- the hole has to open -- and not the
+    // four the unconditional reconcile cost. Counted over a whole swing rather than asserted at one
+    // tick, because the count is the quantity the memo's measurement is sensitive to.
+    [Test]
+    public void AnOpenSwingWritesTheGridExactlyOnce()
+    {
+        bool blocked = true;
+        int writes = 0;
+
+        for (int tick = 0; tick <= 45; tick++)
+        {
+            float rendered = DoorApertureMath.RenderedOpenFraction(
+                trackingLeaves: true, tick / 45f, DoorApertureMath.DefaultQuantisationSteps);
+            bool holeWanted = DoorApertureMath.GlowGridHoleWanted(
+                blocksLightWhenShut: true, headingOpen: true, rendered);
+
+            if (DoorApertureMath.GlowGridWriteNeeded(holeWanted, true, blocked))
+            {
+                writes++;
+                blocked = !holeWanted;
+            }
+        }
+
+        Assert.That(writes, Is.EqualTo(1));
+        Assert.That(blocked, Is.False, "the swing has to leave the cell a hole");
+    }
 }

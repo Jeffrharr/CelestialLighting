@@ -2246,6 +2246,50 @@ public class ApiCompatibilityTests
             "GlowGrid.glowPool no longer exists — GlowGridPerLight cannot read per-emitter glow");
     }
 
+    // §27e reads GlowGrid.lightBlockers to answer "is this cell already a blocker", so a door's
+    // reconcile can skip the write when the bit already holds what it wants. That skip is worth a
+    // silhouette rescan per door swing, and GlowGridAccess degrades to writing unconditionally when
+    // the field cannot be found — so a rename costs performance silently rather than loudly, which
+    // is exactly the failure mode this file exists to convert into a build error.
+    [Test]
+    public void GlowGrid_StillKeepsTheBlockerBitsWeReadBeforeWriting()
+    {
+        var type = GetType("Verse.GlowGrid");
+        Assert.That(type, Is.Not.Null, "Verse.GlowGrid no longer exists");
+
+        var field = type!.Fields.FirstOrDefault(f => f.Name == "lightBlockers");
+        Assert.That(field, Is.Not.Null,
+            "GlowGrid.lightBlockers no longer exists — §27e's door reconcile falls back to writing "
+            + "the bit on every door event, which discards the silhouette memo four times a swing");
+        Assert.That(field!.FieldType.FullName, Is.EqualTo("Unity.Collections.NativeBitArray"),
+            "GlowGrid.lightBlockers changed type — GlowGridAccess.TryGetBlocksLight reads it as a "
+            + "NativeBitArray and indexes it with map.cellIndices.CellToIndex");
+
+        // Both writes we call, and the pair our own postfixes hang off. If either is renamed the
+        // reconcile stops moving the bit at all, which reads as the feature being switched off.
+        Assert.That(type.Methods.Any(m => m.Name == "LightBlockerAdded"), Is.True,
+            "GlowGrid.LightBlockerAdded no longer exists");
+        Assert.That(type.Methods.Any(m => m.Name == "LightBlockerRemoved"), Is.True,
+            "GlowGrid.LightBlockerRemoved no longer exists");
+    }
+
+    // The index GlowGridAccess turns a cell into before touching those bits. GlowGrid's own
+    // `indices` is private and is assigned from map.cellIndices in the constructor, so we use the
+    // public one — this pins that they are still the same kind of thing.
+    [Test]
+    public void CellIndices_StillMapsACellToAnIndex()
+    {
+        var type = GetType("Verse.CellIndices");
+        Assert.That(type, Is.Not.Null, "Verse.CellIndices no longer exists");
+        Assert.That(
+            type!.Methods.Any(m => m.Name == "CellToIndex"
+                && m.Parameters.Count == 1
+                && m.Parameters[0].ParameterType.FullName == "Verse.IntVec3"),
+            Is.True,
+            "CellIndices.CellToIndex(IntVec3) no longer exists — GlowGridAccess cannot locate a "
+            + "cell's blocker bit");
+    }
+
     [Test]
     public void ColorInt_StillProjectsRatherThanClipping()
     {
