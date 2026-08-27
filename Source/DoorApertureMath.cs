@@ -156,8 +156,31 @@ public static class DoorApertureMath
     // and a scenario that has jumped the clock is not ticking, so a door opened by the harness stays
     // at 0 forever and a rule keyed on it can never fire -- the feature would read as dead in every
     // capture while working in play, which is the most expensive kind of wrong there is.
-    public static float RenderedOpenFraction(bool trackingLeaves, float openFraction)
+    //
+    // AND IT IS THE QUANTISED APERTURE, NOT THE RAW SLIDE. VectorLightBlockers.ApertureOf calls
+    // Quantise before it places a single leaf, so the fan is only ever drawn at k/steps -- the raw
+    // ratio is a number no renderer here has ever used. Reading it made this function contradict its
+    // own name for every fraction between two steps, and that gap was not academic:
+    // GameComponent_DoorAperture.Advance ends a swing on the QUANTISED aperture, asks this question
+    // once in the same call, and then drops the door from its watch set forever. A wooden door
+    // slides in 45 ticks and eight steps round up from 7.5, so the swing was declared over at tick
+    // 43 with the raw fraction still at 0.956, GlowGridHoleWanted refused it, and nothing ever asked
+    // again -- the shipped default measured a shut door's glow beyond a door standing wide open
+    // while the arm one flag away read a hole. Quantising here makes the two the same expression on
+    // the same input, so they cannot answer differently however the step count moves.
+    //
+    // The step count is a parameter rather than DefaultQuantisationSteps read from inside, because
+    // the coupling to the renderer's own quantisation is the load-bearing part: a caller passing a
+    // different count than VectorLightBlockers uses reopens exactly this bug, and a parameter is
+    // where that is visible.
+    public static float RenderedOpenFraction(
+        bool trackingLeaves, float openFraction, int quantisationSteps)
     {
-        return trackingLeaves ? openFraction : FullyOpen;
+        if (!trackingLeaves)
+        {
+            return FullyOpen;
+        }
+
+        return Quantise(openFraction, quantisationSteps);
     }
 }
