@@ -398,6 +398,13 @@
       }
     },
     {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_upload_dynamic",
+        "enabled": "false"
+      }
+    },
+    {
       "type": "Probe",
       "args": {
         "probeName": "vector_light_bake_reset",
@@ -880,499 +887,6 @@
       "type": "SetFeature",
       "args": {
         "featureName": "vector_light_upload_bounds",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_upload_direct",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_bake_reset",
-        "expectedValue": "0",
-        "tolerance": "0"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "TickLapse",
-      "args": {
-        "ticks": "1",
-        "steps": "8",
-        "fileNamePrefix": "meshstorm_2_bounds_discard",
-        "fps": "20"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_count",
-        "expectedValue": "22",
-        "tolerance": "0"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_bake_batch_max",
-        "expectedValue": "22",
-        "tolerance": "0"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_bakes",
-        "expectedValue": "880",
-        "tolerance": "0"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_verts",
-        "expectedValue": "3775",
-        "tolerance": "0"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_lit_area",
-        "expectedValue": "2829.1687",
-        "tolerance": "0.001"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_upload_mesh_ms",
-        "expectedValue": "150",
-        "tolerance": "150"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_upload_field_ms",
-        "expectedValue": "150",
-        "tolerance": "150"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_upload_wall_ms",
-        "expectedValue": "150",
-        "tolerance": "150"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_gather_wall_ms",
-        "expectedValue": "150",
-        "tolerance": "150"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_bake_wall_ms",
-        "expectedValue": "240",
-        "tolerance": "220"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circ_vldraw_max_ms",
-        "expectedValue": "20",
-        "tolerance": "80"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circ_vldraw_total_ms",
-        "expectedValue": "200",
-        "tolerance": "800"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circ_vlbuilddirty_max_ms",
-        "expectedValue": "20",
-        "tolerance": "80"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circ_vlbuilddirty_total_ms",
-        "expectedValue": "200",
-        "tolerance": "800"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circ_vloverlay_max_ms",
-        "expectedValue": "20",
-        "tolerance": "80"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circ_vloverlay_total_ms",
-        "expectedValue": "200",
-        "tolerance": "800"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circ_vlpolygon_max_ms",
-        "expectedValue": "20",
-        "tolerance": "80"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circ_vlpolygon_total_ms",
-        "expectedValue": "200",
-        "tolerance": "800"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circ_vlcoverage_max_ms",
-        "expectedValue": "20",
-        "tolerance": "80"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circ_vlcoverage_total_ms",
-        "expectedValue": "200",
-        "tolerance": "800"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circ_vlsegments_max_ms",
-        "expectedValue": "20",
-        "tolerance": "80"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circ_vlsegments_total_ms",
-        "expectedValue": "200",
-        "tolerance": "800"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "meshstorm_2_bounds.png"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_upload_bounds",
         "enabled": "false"
       }
     },
@@ -1380,6 +894,13 @@
       "type": "SetFeature",
       "args": {
         "featureName": "vector_light_upload_direct",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_upload_dynamic",
         "enabled": "true"
       }
     },
@@ -1676,7 +1197,7 @@
       "args": {
         "ticks": "1",
         "steps": "8",
-        "fileNamePrefix": "meshstorm_3_direct_discard",
+        "fileNamePrefix": "meshstorm_2_dynamic_discard",
         "fps": "20"
       }
     },
@@ -1859,500 +1380,7 @@
     {
       "type": "Screenshot",
       "args": {
-        "fileName": "meshstorm_3_direct.png"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_upload_bounds",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_upload_direct",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_bake_reset",
-        "expectedValue": "0",
-        "tolerance": "0"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "TickLapse",
-      "args": {
-        "ticks": "1",
-        "steps": "8",
-        "fileNamePrefix": "meshstorm_4_both_discard",
-        "fps": "20"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_count",
-        "expectedValue": "22",
-        "tolerance": "0"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_bake_batch_max",
-        "expectedValue": "22",
-        "tolerance": "0"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_bakes",
-        "expectedValue": "880",
-        "tolerance": "0"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_verts",
-        "expectedValue": "3775",
-        "tolerance": "0"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_lit_area",
-        "expectedValue": "2829.1687",
-        "tolerance": "0.001"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_upload_mesh_ms",
-        "expectedValue": "150",
-        "tolerance": "150"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_upload_field_ms",
-        "expectedValue": "150",
-        "tolerance": "150"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_upload_wall_ms",
-        "expectedValue": "150",
-        "tolerance": "150"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_gather_wall_ms",
-        "expectedValue": "150",
-        "tolerance": "150"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_bake_wall_ms",
-        "expectedValue": "240",
-        "tolerance": "220"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circ_vldraw_max_ms",
-        "expectedValue": "20",
-        "tolerance": "80"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circ_vldraw_total_ms",
-        "expectedValue": "200",
-        "tolerance": "800"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circ_vlbuilddirty_max_ms",
-        "expectedValue": "20",
-        "tolerance": "80"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circ_vlbuilddirty_total_ms",
-        "expectedValue": "200",
-        "tolerance": "800"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circ_vloverlay_max_ms",
-        "expectedValue": "20",
-        "tolerance": "80"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circ_vloverlay_total_ms",
-        "expectedValue": "200",
-        "tolerance": "800"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circ_vlpolygon_max_ms",
-        "expectedValue": "20",
-        "tolerance": "80"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circ_vlpolygon_total_ms",
-        "expectedValue": "200",
-        "tolerance": "800"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circ_vlcoverage_max_ms",
-        "expectedValue": "20",
-        "tolerance": "80"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circ_vlcoverage_total_ms",
-        "expectedValue": "200",
-        "tolerance": "800"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circ_vlsegments_max_ms",
-        "expectedValue": "20",
-        "tolerance": "80"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circ_vlsegments_total_ms",
-        "expectedValue": "200",
-        "tolerance": "800"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "meshstorm_4_both.png"
+        "fileName": "meshstorm_2_dynamic.png"
       }
     },
     {
@@ -2370,6 +1398,13 @@
       }
     },
     {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_upload_dynamic",
+        "enabled": "false"
+      }
+    },
+    {
       "type": "Probe",
       "args": {
         "probeName": "vector_light_bake_reset",
@@ -2662,7 +1697,7 @@
       "args": {
         "ticks": "1",
         "steps": "8",
-        "fileNamePrefix": "meshstorm_5_baseline_discard",
+        "fileNamePrefix": "meshstorm_3_baseline_discard",
         "fps": "20"
       }
     },
@@ -2845,7 +1880,507 @@
     {
       "type": "Screenshot",
       "args": {
-        "fileName": "meshstorm_5_baseline.png"
+        "fileName": "meshstorm_3_baseline.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_upload_bounds",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_upload_direct",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_upload_dynamic",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_bake_reset",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "TickLapse",
+      "args": {
+        "ticks": "1",
+        "steps": "8",
+        "fileNamePrefix": "meshstorm_4_dynamic_discard",
+        "fps": "20"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_count",
+        "expectedValue": "22",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_bake_batch_max",
+        "expectedValue": "22",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_bakes",
+        "expectedValue": "880",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_verts",
+        "expectedValue": "3775",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_lit_area",
+        "expectedValue": "2829.1687",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_upload_mesh_ms",
+        "expectedValue": "150",
+        "tolerance": "150"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_upload_field_ms",
+        "expectedValue": "150",
+        "tolerance": "150"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_upload_wall_ms",
+        "expectedValue": "150",
+        "tolerance": "150"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_gather_wall_ms",
+        "expectedValue": "150",
+        "tolerance": "150"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_bake_wall_ms",
+        "expectedValue": "240",
+        "tolerance": "220"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vldraw_max_ms",
+        "expectedValue": "20",
+        "tolerance": "80"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vldraw_total_ms",
+        "expectedValue": "200",
+        "tolerance": "800"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlbuilddirty_max_ms",
+        "expectedValue": "20",
+        "tolerance": "80"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlbuilddirty_total_ms",
+        "expectedValue": "200",
+        "tolerance": "800"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vloverlay_max_ms",
+        "expectedValue": "20",
+        "tolerance": "80"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vloverlay_total_ms",
+        "expectedValue": "200",
+        "tolerance": "800"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlpolygon_max_ms",
+        "expectedValue": "20",
+        "tolerance": "80"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlpolygon_total_ms",
+        "expectedValue": "200",
+        "tolerance": "800"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlcoverage_max_ms",
+        "expectedValue": "20",
+        "tolerance": "80"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlcoverage_total_ms",
+        "expectedValue": "200",
+        "tolerance": "800"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlsegments_max_ms",
+        "expectedValue": "20",
+        "tolerance": "80"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlsegments_total_ms",
+        "expectedValue": "200",
+        "tolerance": "800"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "meshstorm_4_dynamic.png"
       }
     },
     {
@@ -2863,6 +2398,13 @@
       }
     },
     {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_upload_dynamic",
+        "enabled": "false"
+      }
+    },
+    {
       "type": "Probe",
       "args": {
         "probeName": "vector_light_bake_reset",
@@ -3155,7 +2697,7 @@
       "args": {
         "ticks": "1",
         "steps": "8",
-        "fileNamePrefix": "meshstorm_6_both_discard",
+        "fileNamePrefix": "meshstorm_5_both_discard",
         "fps": "20"
       }
     },
@@ -3338,7 +2880,1007 @@
     {
       "type": "Screenshot",
       "args": {
-        "fileName": "meshstorm_6_both.png"
+        "fileName": "meshstorm_5_both.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_upload_bounds",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_upload_direct",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_upload_dynamic",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_bake_reset",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "TickLapse",
+      "args": {
+        "ticks": "1",
+        "steps": "8",
+        "fileNamePrefix": "meshstorm_6_baseline_discard",
+        "fps": "20"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_count",
+        "expectedValue": "22",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_bake_batch_max",
+        "expectedValue": "22",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_bakes",
+        "expectedValue": "880",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_verts",
+        "expectedValue": "3775",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_lit_area",
+        "expectedValue": "2829.1687",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_upload_mesh_ms",
+        "expectedValue": "150",
+        "tolerance": "150"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_upload_field_ms",
+        "expectedValue": "150",
+        "tolerance": "150"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_upload_wall_ms",
+        "expectedValue": "150",
+        "tolerance": "150"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_gather_wall_ms",
+        "expectedValue": "150",
+        "tolerance": "150"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_bake_wall_ms",
+        "expectedValue": "240",
+        "tolerance": "220"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vldraw_max_ms",
+        "expectedValue": "20",
+        "tolerance": "80"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vldraw_total_ms",
+        "expectedValue": "200",
+        "tolerance": "800"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlbuilddirty_max_ms",
+        "expectedValue": "20",
+        "tolerance": "80"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlbuilddirty_total_ms",
+        "expectedValue": "200",
+        "tolerance": "800"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vloverlay_max_ms",
+        "expectedValue": "20",
+        "tolerance": "80"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vloverlay_total_ms",
+        "expectedValue": "200",
+        "tolerance": "800"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlpolygon_max_ms",
+        "expectedValue": "20",
+        "tolerance": "80"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlpolygon_total_ms",
+        "expectedValue": "200",
+        "tolerance": "800"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlcoverage_max_ms",
+        "expectedValue": "20",
+        "tolerance": "80"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlcoverage_total_ms",
+        "expectedValue": "200",
+        "tolerance": "800"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlsegments_max_ms",
+        "expectedValue": "20",
+        "tolerance": "80"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlsegments_total_ms",
+        "expectedValue": "200",
+        "tolerance": "800"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "meshstorm_6_baseline.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_upload_bounds",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_upload_direct",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_upload_dynamic",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_bake_reset",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "TickLapse",
+      "args": {
+        "ticks": "1",
+        "steps": "8",
+        "fileNamePrefix": "meshstorm_7_dynamic_discard",
+        "fps": "20"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_count",
+        "expectedValue": "22",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_bake_batch_max",
+        "expectedValue": "22",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_bakes",
+        "expectedValue": "880",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_verts",
+        "expectedValue": "3775",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_lit_area",
+        "expectedValue": "2829.1687",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_upload_mesh_ms",
+        "expectedValue": "150",
+        "tolerance": "150"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_upload_field_ms",
+        "expectedValue": "150",
+        "tolerance": "150"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_upload_wall_ms",
+        "expectedValue": "150",
+        "tolerance": "150"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_gather_wall_ms",
+        "expectedValue": "150",
+        "tolerance": "150"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_bake_wall_ms",
+        "expectedValue": "240",
+        "tolerance": "220"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vldraw_max_ms",
+        "expectedValue": "20",
+        "tolerance": "80"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vldraw_total_ms",
+        "expectedValue": "200",
+        "tolerance": "800"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlbuilddirty_max_ms",
+        "expectedValue": "20",
+        "tolerance": "80"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlbuilddirty_total_ms",
+        "expectedValue": "200",
+        "tolerance": "800"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vloverlay_max_ms",
+        "expectedValue": "20",
+        "tolerance": "80"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vloverlay_total_ms",
+        "expectedValue": "200",
+        "tolerance": "800"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlpolygon_max_ms",
+        "expectedValue": "20",
+        "tolerance": "80"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlpolygon_total_ms",
+        "expectedValue": "200",
+        "tolerance": "800"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlcoverage_max_ms",
+        "expectedValue": "20",
+        "tolerance": "80"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlcoverage_total_ms",
+        "expectedValue": "200",
+        "tolerance": "800"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlsegments_max_ms",
+        "expectedValue": "20",
+        "tolerance": "80"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlsegments_total_ms",
+        "expectedValue": "200",
+        "tolerance": "800"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "meshstorm_7_dynamic.png"
       }
     }
   ]

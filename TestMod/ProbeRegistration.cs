@@ -1384,6 +1384,19 @@ public static class ProbeRegistration
                 VectorLightRedraw.ForceRebuild();
             },
             defaultEnabled: false);
+        // ForceRebuild carries more weight for this one than for the two above, and it is the reason
+        // the arm is valid at all: MarkDynamic is honoured only from a mesh's first upload, so an arm
+        // that merely set the flag would be measuring meshes its predecessor had already allocated
+        // and never marked. ClearAll calls DestroyMesh on every entry, so the rebuild really does
+        // hand this arm new meshes.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightUploadDynamicKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.VectorLightUploadDynamic = enabled;
+                VectorLightRedraw.ForceRebuild();
+            },
+            defaultEnabled: false);
         // Two-arg overload, matching its shipped default of true, and inert while vector_lights is
         // off for the same reason as the mask above.
         FeatureRegistry.Register(

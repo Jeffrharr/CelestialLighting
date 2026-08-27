@@ -1420,6 +1420,27 @@ public static class CelestialLightingFeatures
     // position effect and a real one cannot be told apart. What can be said is that nothing here
     // measured as an improvement, in either arm, in either run.
     public static bool VectorLightUploadDirect = false;
+
+    // Feature key for VectorLightUploadDynamic.
+    public const string VectorLightUploadDynamicKey = "vector_light_upload_dynamic";
+
+    // Tell Unity this mesh is rewritten constantly, so it can back it with buffers meant for that.
+    //
+    // WHY IT WAS WORTH TESTING AFTER THE OTHER TWO FAILED, rather than being dropped with them. The
+    // measured explanation for that failure is that an upload's cost is its four native call
+    // TRANSITIONS and not the per-vertex work inside them — and MarkDynamic is the one candidate
+    // that acts on the transitions rather than on the vertex count, by changing how the buffers
+    // behind them are allocated. Dismissing it on the strength of the other two would have been the
+    // same move this whole line of work exists to correct: an inference from a number that failed to
+    // move, standing in for a measurement.
+    //
+    // ONE MESH IS MARKED ONCE, AT CONSTRUCTION. Unity honours the hint from the next upload onward,
+    // so it has to be set before the first one — which is safe here only because ClearAll calls
+    // DestroyMesh on every entry, so flipping this flag genuinely produces new meshes rather than
+    // re-flagging live ones. Without that, an arm would measure meshes its predecessor allocated.
+    //
+    // Measured by vector_light_upload_mesh_ms. See the flags above for the result.
+    public static bool VectorLightUploadDynamic = false;
 }
 
 public enum SunClockMode

@@ -331,7 +331,7 @@ public static class VectorLightOverlay
             return;
         }
 
-        entry.Mesh = entry.Mesh ?? new Mesh { name = "CelestialLighting_VectorLight" };
+        entry.Mesh = entry.Mesh ?? NewMesh();
 
         // NOT SKIPPED EVEN THOUGH EVERY CHANNEL BELOW IS ABOUT TO BE REWRITTEN, and the reason is the
         // one channel that is not: a rebuild may emit fewer vertices than the mesh currently holds,
@@ -341,19 +341,35 @@ public static class VectorLightOverlay
         // exists to repair.
         entry.Mesh.Clear();
 
-        // Whether we state the bounding box or let Unity derive it by scanning the vertices. Read
-        // once and threaded through both channel writes, so an arm cannot end up recalculating on one
-        // and not the other and measure half a change.
+        // BOTH FLAGS READ ONCE HERE AND PASSED DOWN, rather than each helper reaching for its own
+        // static. One upload has to be one configuration: a helper re-reading a flag could see it
+        // change mid-upload and write channels that disagree, and an arm would then measure half of
+        // each path. It also keeps the two flags handled the same way as each other, which is worth
+        // more than the line it costs.
         bool ownBounds = CelestialLightingFeatures.VectorLightUploadBounds;
+        bool direct = CelestialLightingFeatures.VectorLightUploadDirect;
 
         WriteVertexChannels(entry.Mesh, built, altitude, ownBounds);
-        WriteTriangles(entry.Mesh, built, ownBounds);
+        WriteTriangles(entry.Mesh, built, ownBounds, direct);
 
         // AFTER both writes, because Mesh.Clear resets the box and SetVertices/SetTriangles would
         // each overwrite it again when they are recalculating. Only the flag-on path arrives here, so
         // with the flag off Unity's own answer is left exactly where it was.
         if (ownBounds)
-            entry.Mesh.bounds = BoundsFor(entry, lightX, lightZ, altitude);
+            entry.Mesh.bounds = BoundsFor(entry.Radius, lightX, lightZ, altitude);
+    }
+
+    // MARKED AT CONSTRUCTION OR NOT AT ALL. Unity applies the hint from the next upload onward, so a
+    // mesh already carrying data cannot usefully be re-marked — which is why the flag is read here,
+    // in the one place a mesh comes into existence, rather than beside the uploads it affects.
+    private static Mesh NewMesh()
+    {
+        Mesh mesh = new Mesh { name = "CelestialLighting_VectorLight" };
+
+        if (CelestialLightingFeatures.VectorLightUploadDynamic)
+            mesh.MarkDynamic();
+
+        return mesh;
     }
 
     // The mesh's extent, without reading a single vertex to find it.
@@ -372,10 +388,9 @@ public static class VectorLightOverlay
     // Y thickness on a flat quad admits nothing an infinitely thin one would not.
     private const float BoundsMargin = 2f;
 
-    private static Bounds BoundsFor(
-        VectorLightField.LightEntry entry, float lightX, float lightZ, float altitude)
+    private static Bounds BoundsFor(float radius, float lightX, float lightZ, float altitude)
     {
-        float extent = entry.Radius + BoundsMargin;
+        float extent = radius + BoundsMargin;
 
         return new Bounds(
             new Vector3(lightX, altitude, lightZ),
@@ -412,12 +427,13 @@ public static class VectorLightOverlay
         mesh.SetUVs(0, Uvs, 0, Uvs.Count, MeshUpdateFlags.DontRecalculateBounds);
     }
 
-    private static void WriteTriangles(Mesh mesh, VectorLightMath.LightMesh built, bool ownBounds)
+    private static void WriteTriangles(
+        Mesh mesh, VectorLightMath.LightMesh built, bool ownBounds, bool direct)
     {
         // built.Triangles is exactly sized — BuildMesh ends by calling ToArray() on the list it
         // accumulated — so the whole-array overload uploads the fan and its wedges and nothing else.
         // If that ever becomes an over-allocated buffer, this uploads the tail as garbage indices.
-        if (CelestialLightingFeatures.VectorLightUploadDirect)
+        if (direct)
         {
             mesh.SetTriangles(built.Triangles, 0, !ownBounds);
             return;
@@ -425,7 +441,19 @@ public static class VectorLightOverlay
 
         Tris.Clear();
         Tris.AddRange(built.Triangles);
-        mesh.SetTriangles(Tris, 0, !ownBounds);
+
+        // The bare overload on the fully-off path, for the same reason WriteVertexChannels keeps
+        // its own: with both flags off this method must execute the instruction sequence that
+        // shipped, not a three-argument reimplementation believed to match it. The belief happens to
+        // be correct here — Unity's two-argument overload forwards calculateBounds: true — but "we
+        // checked the overload does the same thing" is a weaker baseline than "it is the same call".
+        if (!ownBounds)
+        {
+            mesh.SetTriangles(Tris, 0);
+            return;
+        }
+
+        mesh.SetTriangles(Tris, 0, calculateBounds: false);
     }
 
     private static float PolygonArea(VectorLightMath.LightPolygon polygon)

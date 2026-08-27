@@ -57,6 +57,7 @@ INERT_VALUE = "false"
 
 BOUNDS_FLAG = "vector_light_upload_bounds"
 DIRECT_FLAG = "vector_light_upload_direct"
+DYNAMIC_FLAG = "vector_light_upload_dynamic"
 
 # MEASURED, NOT DERIVED. Both read these exact values in all six arms of both runs -- they do not
 # agree within a tolerance, they are the same float -- which is the strongest statement available
@@ -67,20 +68,31 @@ VERTS_TOLERANCE = "0"
 LIT_AREA = 2829.1687
 LIT_AREA_TOLERANCE = "0.001"
 
+# An arm is (bounds, direct, dynamic).
 ARM_NAMES = {
-    (False, False): "baseline",
-    (True, False): "bounds",
-    (False, True): "direct",
-    (True, True): "both",
+    (False, False, False): "baseline",
+    (True, True, False): "both",
+    (False, False, True): "dynamic",
 }
 
+# THE SECOND DESIGN, AND WHY IT IS NOT A CUBE. The first pass ran bounds and direct as a 2x2 and
+# answered them: pooled 13.03 ms baseline against 13.10 ms with both on, +0.6% the wrong way. Adding
+# MarkDynamic as a third factor would make that eight cells, each measured once, on a box whose arms
+# of IDENTICAL configuration span 12% -- which is how a null result gets reported as a win.
+#
+# So the factors already answered keep one confirming arm, and the open question gets REPLICATION
+# instead: three baselines and three dynamics, alternating, so the comparison that matters is a
+# PAIRED one against an immediate neighbour rather than against a distant arm. Three pairs also make
+# a position effect visible, which the first design could not do -- it ran each single-factor arm
+# once and in a fixed slot, so "second" and "bounds" were the same column and could not be separated.
 ARMS = [
-    (False, False),   # 1  baseline
-    (True, False),    # 2  stated bounds only
-    (False, True),    # 3  direct triangle upload only
-    (True, True),     # 4  both
-    (False, False),   # 5  baseline again -- the drift control
-    (True, True),     # 6  both again
+    (False, False, False),   # 1  baseline
+    (False, False, True),    # 2  MarkDynamic
+    (False, False, False),   # 3  baseline
+    (False, False, True),    # 4  MarkDynamic
+    (True,  True,  False),   # 5  bounds + direct, confirming the first pass
+    (False, False, False),   # 6  baseline
+    (False, False, True),    # 7  MarkDynamic
 ]
 
 
@@ -125,7 +137,7 @@ if setting[-1:] != [INERT_VALUE]:
 # them, every arm below would be overridden by whatever it set and the 2x2 would silently become six
 # copies of one configuration -- passing, and measuring nothing. This repo has already committed a
 # frame that read 17.08 instead of 20.23 because an arm inherited a flag it did not state.
-for flag in (BOUNDS_FLAG, DIRECT_FLAG):
+for flag in (BOUNDS_FLAG, DIRECT_FLAG, DYNAMIC_FLAG):
     if any(s.get("type") == "SetFeature" and (s.get("args") or {}).get("featureName") == flag
            for s in prefix):
         raise SystemExit(f"{flag} is set in {SOURCE}; this scenario's arms would not control it")
@@ -138,22 +150,25 @@ steps = list(prefix)
 steps.append(step("Screenshot", fileName="meshstorm_warmup_discard.png"))
 
 
-def arm(bounds_on, direct_on, index):
-    """One arm: state both flags, storm the rebuild, then read the clocks."""
-    tag = f"{index}_{ARM_NAMES[(bounds_on, direct_on)]}"
+def arm(bounds_on, direct_on, dynamic_on, index):
+    """One arm: state all three flags, storm the rebuild, then read the clocks."""
+    tag = f"{index}_{ARM_NAMES[(bounds_on, direct_on, dynamic_on)]}"
     out = []
 
-    # BOTH FLAGS STATED IN EVERY ARM, including the ones where a flag is set to what it already is.
-    # An arm that only names the flag it is varying inherits the other from its predecessor, which
-    # makes arm order part of the measurement.
+    # ALL THREE FLAGS STATED IN EVERY ARM, including where a flag is set to what it already is. An
+    # arm that only names the flag it is varying inherits the rest from its predecessor, which makes
+    # arm order part of the measurement.
     out.append(step("SetFeature", featureName=BOUNDS_FLAG,
                     enabled="true" if bounds_on else "false"))
     out.append(step("SetFeature", featureName=DIRECT_FLAG,
                     enabled="true" if direct_on else "false"))
+    out.append(step("SetFeature", featureName=DYNAMIC_FLAG,
+                    enabled="true" if dynamic_on else "false"))
 
-    # After both flags, so the rebuild each of them fires is charged to nobody. The harness runs one
-    # step per frame, so a frame really is rendered between the two SetFeatures above and the second
-    # one's ForceRebuild is what lands immediately before this.
+    # After all three flags, so the rebuild each of them fires is charged to nobody. The harness runs
+    # one step per frame, so a frame really is rendered between the SetFeatures above and the last
+    # one's ForceRebuild is what lands immediately before this. That last rebuild is also what makes
+    # the MarkDynamic arm honest: ClearAll destroys every mesh, so this arm allocates its own.
     out.append(probe("vector_light_bake_reset", "0", "0"))
 
     for _ in range(REBUILDS):
@@ -226,8 +241,8 @@ def arm_probes():
     return out
 
 
-for index, (bounds_on, direct_on) in enumerate(ARMS, start=1):
-    steps += arm(bounds_on, direct_on, index)
+for index, (bounds_on, direct_on, dynamic_on) in enumerate(ARMS, start=1):
+    steps += arm(bounds_on, direct_on, dynamic_on, index)
 
 out = {
     "name": "vector_light_mesh_storm",

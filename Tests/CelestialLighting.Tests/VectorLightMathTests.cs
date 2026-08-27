@@ -574,12 +574,13 @@ public class VectorLightMathTests
     {
         VectorLightMath.LightMesh mesh = BuildBlockedMesh(VectorLightMath.DefaultSourceRadius);
 
+        // Distance through the shared helper — max <= bound says exactly what per-vertex <= bound
+        // said — while U and V stay a per-vertex sweep, because those are range checks on every
+        // vertex rather than an extremum and a maximum would not express them.
+        Assert.That(MaxVertexDistance(mesh, 8.5f, 8.5f), Is.LessThanOrEqualTo(10f + Tolerance));
+
         for (int v = 0; v < mesh.VertexCount; v++)
         {
-            float dx = mesh.X[v] - 8.5f;
-            float dz = mesh.Z[v] - 8.5f;
-
-            Assert.That((float)Math.Sqrt(dx * dx + dz * dz), Is.LessThanOrEqualTo(10f + Tolerance));
             Assert.That(mesh.V[v], Is.InRange(0f, 1f));
             Assert.That(mesh.U[v], Is.InRange(0f, 1f));
         }
