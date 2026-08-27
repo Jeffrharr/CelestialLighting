@@ -402,6 +402,122 @@ public class SectionDirtyMathTests
         Assert.That(SectionDirtyMath.SectionCount(mapWidth, mapHeight, sectionSize), Is.EqualTo(0));
     }
 
+    // ---- Changed: the bound for a cell whose coverage moved ---------------------------------
+    //
+    // A SECOND HAND TRANSCRIPTION, of the range VectorLightMask's accumulation actually READS, and
+    // it earns its duplication the same way MaskWouldAdmit above does. The mask writes into a grid
+    // covering the section plus CellMargin on every side and its corner pass reads every cell of it,
+    // so a section's output depends on cell c exactly when c falls inside that grid. Written in the
+    // shape the mask writes it — the grid's own bounds, not an interval overlap — so that a change
+    // to the margin at one end shows up here as a disagreement rather than as two files being
+    // edited together.
+    private static bool MaskWouldReadCell(
+        int cellX, int cellZ, int cellMargin,
+        int rectMinX, int rectMinZ, int rectMaxX, int rectMaxZ)
+    {
+        return cellX >= rectMinX - cellMargin && cellX <= rectMaxX + cellMargin
+            && cellZ >= rectMinZ - cellMargin && cellZ <= rectMaxZ + cellMargin;
+    }
+
+    // THE LOAD-BEARING TEST OF THIS PAIR, for the reason the file header gives: dirtying too few
+    // sections leaves one square of map holding a shadow that has already moved, silently. Every
+    // cell of a map is swept against every section of it, and any section that reads the cell must
+    // be inside the bound the cell's own change produces. A failure here is a stale section, not a
+    // slower one.
+    [TestCase(51, 51, 1)]
+    [TestCase(60, 35, 1)]
+    [TestCase(35, 60, 1)]
+    public void ChangedCoversEverySectionThatReadsTheCell(int mapWidth, int mapHeight, int cellMargin)
+    {
+        List<(int, int, int, int)> missed = new List<(int, int, int, int)>();
+
+        for (int cellX = 0; cellX < mapWidth; cellX++)
+        {
+            for (int cellZ = 0; cellZ < mapHeight; cellZ++)
+            {
+                SectionDirtyMath.CellBounds bounds =
+                    SectionDirtyMath.Changed(cellX, cellZ, cellX, cellZ, cellMargin);
+
+                bool any = SectionDirtyMath.SectionRange(
+                    bounds, SectionSize, mapWidth, mapHeight,
+                    out int minSx, out int minSz, out int maxSx, out int maxSz);
+
+                foreach ((int sx, int sz, int minX, int minZ, int maxX, int maxZ)
+                    in Sections(mapWidth, mapHeight))
+                {
+                    if (!MaskWouldReadCell(cellX, cellZ, cellMargin, minX, minZ, maxX, maxZ))
+                    {
+                        continue;
+                    }
+
+                    bool flagged = any && sx >= minSx && sx <= maxSx && sz >= minSz && sz <= maxSz;
+
+                    if (!flagged)
+                    {
+                        missed.Add((cellX, cellZ, sx, sz));
+                    }
+                }
+            }
+        }
+
+        Assert.That(missed, Is.Empty, "sections that read a changed cell but were never dirtied");
+    }
+
+    // The containment SectionDirtyMath.Changed's own header claims: over an emitter's WHOLE coverage
+    // square it can never reach further than Reach does for the same emitter. It is the check that
+    // the narrower bound is genuinely narrower rather than differently wrong — if the changed-cell
+    // path ever exceeded the admission path, some section would be dirtied by a cell no emitter
+    // could have changed, which is the cheap failure, but it would also mean the two derivations had
+    // come apart and the expensive failure would be the next edit.
+    [TestCase(4f, 1)]
+    [TestCase(10.5f, 1)]
+    [TestCase(17.25f, 1)]
+    [TestCase(0f, 1)]
+    public void ChangedOverTheWholeSquareStaysInsideReach(float radius, int margin)
+    {
+        int coverageRadius = (int)System.Math.Ceiling(radius);
+
+        foreach (int emitterX in new[] { 0, 3, 40, 137 })
+        {
+            foreach (int emitterZ in new[] { 0, 9, 88 })
+            {
+                SectionDirtyMath.CellBounds reach =
+                    SectionDirtyMath.Reach(emitterX, emitterZ, radius, margin);
+
+                SectionDirtyMath.CellBounds changed = SectionDirtyMath.Changed(
+                    emitterX - coverageRadius, emitterZ - coverageRadius,
+                    emitterX + coverageRadius, emitterZ + coverageRadius,
+                    margin);
+
+                Assert.Multiple(() =>
+                {
+                    Assert.That(changed.MinX, Is.GreaterThanOrEqualTo(reach.MinX));
+                    Assert.That(changed.MinZ, Is.GreaterThanOrEqualTo(reach.MinZ));
+                    Assert.That(changed.MaxX, Is.LessThanOrEqualTo(reach.MaxX));
+                    Assert.That(changed.MaxZ, Is.LessThanOrEqualTo(reach.MaxZ));
+                });
+            }
+        }
+    }
+
+    // An inverted box is "nothing changed", not a one-cell box at the corner of the map. Same
+    // distinction CellBounds itself draws between empty and (0,0,0,0), and the same consequence if
+    // it were got wrong: a frame in which no bake moved anything would dirty section (0,0) forever.
+    [TestCase(5, 5, 4, 5)]
+    [TestCase(5, 5, 5, 4)]
+    public void ChangedIsEmptyForAnInvertedBox(int minX, int minZ, int maxX, int maxZ)
+    {
+        Assert.That(SectionDirtyMath.Changed(minX, minZ, maxX, maxZ, 1).Any, Is.False);
+    }
+
+    [Test]
+    public void ChangedExpandsSymmetrically()
+    {
+        AssertSameBounds(
+            SectionDirtyMath.Changed(10, 20, 12, 25, 1),
+            new SectionDirtyMath.CellBounds(9, 19, 13, 26));
+    }
+
     private static void AssertSameBounds(
         SectionDirtyMath.CellBounds actual, SectionDirtyMath.CellBounds expected)
     {

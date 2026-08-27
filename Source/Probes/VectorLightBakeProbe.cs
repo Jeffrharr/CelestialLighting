@@ -142,6 +142,16 @@ public sealed class VectorLightBakeProbe : IProbe
         // from a scenario that never provoked a rebuild.
         MaskStalePolygonUses,
 
+        // Bakes whose coverage grid came out byte-identical to the one it replaced, so no section
+        // was dirtied for them. THE SPURIOUS-INVALIDATION COUNT, and the number the changed-dirty
+        // feature is scored on.
+        //
+        // READ AS A RATIO AGAINST Bakes, never alone, for the reason every pair in this enum is:
+        // zero means either that every invalidation was real or that the comparison never ran, and
+        // those are opposite findings. Under the flag turned off it is zero by construction, which
+        // is what makes the off arm a baseline rather than a picture of the feature missing.
+        UnchangedBakes,
+
         // How many emitters the field currently holds. The denominator for MarksPerCall, and the
         // thing that says a scenario's lamps actually registered.
         Emitters,
@@ -271,6 +281,9 @@ public sealed class VectorLightBakeProbe : IProbe
 
         if (metric == Metric.MaskStalePolygonUses)
             return VectorLightField.MaskStalePolygonUses;
+
+        if (metric == Metric.UnchangedBakes)
+            return VectorLightField.UnchangedBakes;
 
         if (metric == Metric.CoverageMean)
             return CoverageMean(map);

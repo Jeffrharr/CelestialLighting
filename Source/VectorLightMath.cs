@@ -2244,6 +2244,93 @@ public static class VectorLightMath
         return true;
     }
 
+    // Where a re-baked coverage grid disagrees with the one it replaces, as offsets into the
+    // emitter's square. False means the two are byte-identical and nothing that reads this emitter
+    // can render differently than it already did.
+    //
+    // WHY THE GRID AND NOT THE POLYGON. The polygon is a fan of ray distances and moves for reasons
+    // no pixel can see — a door quantised one step along its travel, a segment list gathered in a
+    // different order — while the grid is the only thing the mask actually reads. Comparing shapes
+    // would report a change on nearly every bake; comparing what the shape was baked into reports
+    // one when a cell's shadow really moved.
+    //
+    // THE COST IS ONE PASS OVER THE SQUARE, about 841 byte compares for a radius-14 lamp, against
+    // roughly a millisecond of mask for every section the alternative dirties. It is paid on the
+    // bake, which is rare, to avoid work on the regenerate, which is not.
+    //
+    // COMPARABLE GRIDS ONLY. The caller has to have checked that both were baked at the same cell
+    // and the same radius before asking — a grid is indexed from the emitter's own corner, so two
+    // grids of different sizes or centres describe different cells at the same offset and a
+    // byte-wise comparison of them is meaningless rather than merely wrong. Lengths disagreeing is
+    // treated as "everything changed" rather than as an error, because that is the safe answer and
+    // the caller's fallback for it is the same one it uses for a first bake.
+    public static bool CoverageDelta(
+        byte[] previous, byte[] current, int radiusCells,
+        out int minXOffset, out int minZOffset, out int maxXOffset, out int maxZOffset)
+    {
+        int span = radiusCells * 2 + 1;
+
+        minXOffset = 0;
+        minZOffset = 0;
+        maxXOffset = span - 1;
+        maxZOffset = span - 1;
+
+        bool comparable = previous != null && current != null && radiusCells >= 0
+            && previous.Length == span * span && current.Length == span * span;
+
+        if (!comparable)
+        {
+            return true;
+        }
+
+        int foundMinX = span;
+        int foundMinZ = span;
+        int foundMaxX = -1;
+        int foundMaxZ = -1;
+
+        for (int zi = 0; zi < span; zi++)
+        {
+            int row = zi * span;
+
+            for (int xi = 0; xi < span; xi++)
+            {
+                if (previous[row + xi] != current[row + xi])
+                {
+                    if (xi < foundMinX)
+                    {
+                        foundMinX = xi;
+                    }
+
+                    if (xi > foundMaxX)
+                    {
+                        foundMaxX = xi;
+                    }
+
+                    if (zi < foundMinZ)
+                    {
+                        foundMinZ = zi;
+                    }
+
+                    if (zi > foundMaxZ)
+                    {
+                        foundMaxZ = zi;
+                    }
+                }
+            }
+        }
+
+        if (foundMaxX < 0)
+        {
+            return false;
+        }
+
+        minXOffset = foundMinX;
+        minZOffset = foundMinZ;
+        maxXOffset = foundMaxX;
+        maxZOffset = foundMaxZ;
+        return true;
+    }
+
     // What the additive pass delivers when it is riding ON TOP of §27 phase 3's mask rather than
     // over a suppressed vanilla — the "combination" arm.
     //

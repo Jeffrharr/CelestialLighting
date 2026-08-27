@@ -275,6 +275,17 @@ public static class VectorLightMask
     // that has already moved. Issue #188 item A.
     public const int ReachMargin = 1;
 
+    // How far outside a section the accumulation reads, in cells. Named and public for the same
+    // reason ReachMargin is: SectionDirtyMath.Changed has to expand a changed-cell box by exactly
+    // this before turning it into section flags, and the two are the same question asked from the
+    // two ends. If this one grew and that one did not, a cell whose coverage moved would stop
+    // dirtying the section that reads it — which is not an exception or a wrong colour, but one
+    // square of map holding a shadow that has already moved.
+    //
+    // It is the margin CellsWide/CellsHigh below build the grid with; see their header for why the
+    // margin is on every side rather than on the min side alone.
+    public const int CellMargin = 1;
+
     // Which emitters can reach any cell this section's vertices average over. The vertex loop reads
     // one cell further out on the min side than the section itself, because a corner vertex at the
     // section's edge averages the cells on both sides of it.
@@ -365,9 +376,9 @@ public static class VectorLightMask
     // the whole feature renders as pixel-identical to vanilla while every probe reads healthy — the
     // exact signature of a feature that never activated. Cost an hour; hence CellIndex below, which
     // both loops now go through so they cannot disagree about the size again.
-    private static int CellsWide(CellRect rect) => rect.Width + 2;
+    private static int CellsWide(CellRect rect) => rect.Width + CellMargin * 2;
 
-    private static int CellsHigh(CellRect rect) => rect.Height + 2;
+    private static int CellsHigh(CellRect rect) => rect.Height + CellMargin * 2;
 
     private static int CellIndex(CellRect rect, int cellX, int cellZ) =>
         (cellZ - rect.minZ + 1) * CellsWide(rect) + (cellX - rect.minX + 1);
