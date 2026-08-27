@@ -1375,9 +1375,21 @@ public static class CelestialLightingFeatures
     // all here, because DrawLight has already applied its own camera-rect cull before any of this
     // runs, so an emitter Unity would have culled never reaches the draw call to be over-admitted.
     //
-    // Measured by vector_light_upload_mesh_ms. Off recalculates on both channel writes, which is what
-    // the previous shape did, so the arm is a baseline rather than a picture of the feature missing.
-    public static bool VectorLightUploadBounds = true;
+    // SHIPS OFF, BECAUSE IT WAS MEASURED AND IT DOES NOTHING. vector_light_mesh_storm ran this as an
+    // interleaved 2x2 over two runs: 13.03 ms baseline against 13.10 ms with both flags on, over 880
+    // uploads — +0.6%, the wrong sign, against a baseline spread of 12% between arms of identical
+    // configuration. The reason is arithmetic that should have been done before the code was: the
+    // meshes are ~172 vertices each and an upload costs ~15.9 us, so a min/max sweep over 172
+    // Vector3s is a few hundred float comparisons and cannot be more than a rounding error of that.
+    // The cost is the four native call transitions, not the per-vertex work inside them.
+    //
+    // KEPT RATHER THAN DELETED, AND OFF RATHER THAN ON. Off is byte-identical to the shape that
+    // shipped before it, so nothing reaches a player; on is available to anyone re-measuring on a
+    // quieter machine than the one this was scored on. What decides the default is that stating the
+    // bounds is not free of RISK even though it is free of cost — it introduces a camera-dependent
+    // way for a light to vanish (see above), and buying that for +0.6% is a bad trade in any
+    // direction the number might have gone.
+    public static bool VectorLightUploadBounds = false;
 
     // Feature key for VectorLightUploadDirect.
     public const string VectorLightUploadDirectKey = "vector_light_upload_direct";
@@ -1401,9 +1413,13 @@ public static class CelestialLightingFeatures
     // memsets the used range even for a struct element type — but it is cheaper than re-opening
     // that trap, and the triangles are the half that could be taken without going near it.
     //
-    // Measured by vector_light_upload_mesh_ms. Off routes through the List, which is what the
-    // previous shape did.
-    public static bool VectorLightUploadDirect = true;
+    // SHIPS OFF FOR THE SAME MEASURED REASON as the flag above, and with one honest caveat about
+    // its own arm. Alone it read 17.24 and 16.02 ms against baselines of 12.44-13.97 — consistently
+    // WORSE, in both runs. That looks like a finding and is not quite one: the arms always run in
+    // the same order, so "third" and "direct" are the same column, and at this noise level a
+    // position effect and a real one cannot be told apart. What can be said is that nothing here
+    // measured as an improvement, in either arm, in either run.
+    public static bool VectorLightUploadDirect = false;
 }
 
 public enum SunClockMode

@@ -9669,12 +9669,77 @@ experiences it: a bake made four times cheaper is a draw made half again cheaper
 never the whole of the draw.
 
 **AND THE WORST FRAME DOES NOT MOVE AT ALL.** `circ_vldraw_max_ms` reads 13.4 and 21.3 serial against
-22.6 and 15.4 threaded — no signal in either direction. This is the most useful thing the storm says,
-because it names the next target rather than the last one. `ForceRebuild` drops every mesh, so each of
+22.6 and 15.4 threaded — no signal in either direction. `ForceRebuild` drops every mesh, so each of
 these frames also destroys and re-uploads 22 Unity meshes, and mesh upload is a main-thread API that
-no amount of threading touches. The worst frame in this subsystem is now geometry UPLOAD, not geometry
-CONSTRUCTION. Anyone reaching for the next optimisation here should start there and not in
-`VectorLightMath`.
+no amount of threading touches.
+
+**THAT PARAGRAPH USED TO END BY NAMING GEOMETRY UPLOAD AS THE WORST FRAME, AND IT WAS WRONG.** It was
+an inference from a number that *failed to move* — consistent with upload being expensive, and
+equally consistent with the cost sitting somewhere nobody had instrumented. It is left standing here
+with its correction rather than quietly deleted, because the shape of the mistake is the reusable
+part: a control that does not move names a suspect, it does not convict one. Three calling-thread
+clocks now partition the same storm's frame (880 bakes over 40 rebuild frames):
+
+| | ms | share |
+|---|---|---|
+| gather (read the map) | 32.35 | 23% |
+| bake (arithmetic) | 73.85 | 51% |
+| upload (hand to Unity) | 37.21 | 26% |
+
+Upload is 0.93 ms per rebuild frame against a `circ_vldraw_max_ms` of 8.36 — about a *ninth* of the
+worst frame, not the most of it. It splits further into mesh channels 14.04 ms and the per-emitter
+glow texture 23.17 ms, so `Mesh.SetVertices` — the call the original wording pointed at — is the
+smaller half of the smaller third. The probes are `vector_light_gather_wall_ms`,
+`vector_light_upload_mesh_ms` and `vector_light_upload_field_ms`, beside the existing
+`vector_light_bake_wall_ms`.
+
+#### The mesh half, and why there is nothing in it
+
+The per-emitter glow texture — the larger half of that upload — came down 3.90x by not refilling a
+texture a door swing cannot change. The **mesh** half was then attacked the same way and **did not
+move**, and the negative result is recorded here because it is worth more than the attempt was.
+
+Two candidates, both identified by reading the code. `Mesh.SetVertices` and `Mesh.SetTriangles` each
+derive the mesh's bounding box by scanning every vertex they are handed, and the box is knowable in
+closed form before a vertex is read — every vertex sits at the draw altitude and within `radius` of
+the light, because `BuildMesh` clamps the fan's reach with `Math.Min(distance, radius)` and bounds
+each penumbra wedge by the same clamped value. And `LightMesh.Triangles` is an exactly-sized `int[]`
+that was being `AddRange`d into a scratch `List<int>` on every upload for no reason but the overload
+chosen at the call site. Both are real, both are strictly less work, and
+`vector_light_mesh_storm` scored them as an interleaved 2x2 — baseline, each alone, both, then
+baseline and both again — twice.
+
+| condition | run 1 | run 2 | pooled |
+|---|---|---|---|
+| baseline | 13.97, 12.76 | 12.44, 12.94 | **13.03** |
+| stated bounds only | 27.77 | 13.13 | 20.45 |
+| direct triangles only | 17.24 | 16.02 | 16.63 |
+| both | 14.05, 13.17 | 12.64, 12.54 | **13.10** |
+
+**+0.6%, in the wrong direction, against a 12% spread between arms of identical configuration.** The
+single-factor arms read high in both runs, which looks like a finding and is not one: the arms always
+run in the same order, so "second" and "bounds" are the same column and at this noise level a
+position effect cannot be separated from a real one. Nothing measured as an improvement anywhere.
+
+**THE ARITHMETIC THAT SHOULD HAVE COME FIRST.** `vector_light_verts` reads 3775 across 22 emitters —
+about **172 vertices per mesh** — and 880 uploads take 13.03 ms, about **15.9 µs each**. A min/max
+sweep over 172 `Vector3`s is a few hundred float comparisons: sub-microsecond, a few percent of the
+budget, comfortably under the noise floor. The cost of an upload is the **four native call
+transitions** (`Clear`, `SetVertices`, `SetUVs`, `SetTriangles`), not the per-vertex work inside
+them. Neither candidate touched the call count, so neither could have won, and one multiply on the
+back of an envelope would have said so before any code was written.
+
+The only lever left is therefore reducing that call count — interleaving position and UV into one
+`SetVertexBufferData`, or eliminating the `Clear`. It is not worth taking. The whole mesh upload is
+0.35 ms per rebuild frame against a `circ_vldraw_max_ms` of 8.36 — **about 4% of the worst frame** —
+so even eliminating it entirely buys 4%, and halving the call count buys 2%.
+
+Both flags therefore **ship off**: `vector_light_upload_bounds` and `vector_light_upload_direct` are
+kept so the experiment can be re-run on a quieter machine, and off reproduces the previous shape
+byte-for-byte. Off is also the right default on RISK rather than cost — stating the bounds is what
+`Graphics.DrawMesh` frustum-culls against, so a wrong box does not clip a light, it makes the light
+**vanish**, on some camera positions and not others. Buying a camera-dependent invisibility bug for
++0.6% is a bad trade in whichever direction the number had landed.
 
 Two caveats on reading this file. The storm's provocation is heavier than the event it stands in for —
 a wall going up in a lit room dirties one or two emitters, not all 22, and does not drop their meshes —

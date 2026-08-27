@@ -1664,7 +1664,9 @@ public class VectorLightMathTests
     // ---- the extent the upload's stated bounds rest on -----------------------------------
     //
     // VectorLightOverlay.BoundsFor hands Unity a bounding box instead of letting it derive one by
-    // scanning every vertex, and the box is the radius square around the light. That is sound only
+    // scanning every vertex, and the box is the radius square around the light. It is behind
+    // vector_light_upload_bounds, which ships OFF because it measured as nothing — but the flag is
+    // kept live for re-measurement, so the invariant underneath it has to stay true. That is sound only
     // while BuildMesh cannot emit a vertex outside the radius — and the failure it guards is not a
     // wrong box, it is a light that VANISHES on some camera positions and not others, because
     // Graphics.DrawMesh frustum-culls the whole mesh against those bounds.
