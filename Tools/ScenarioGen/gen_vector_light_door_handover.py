@@ -117,6 +117,24 @@ def arm(tag, glow_blocker, description):
               "The bare-doorway polygon, identical in both arms: the glow blocker moves VANILLA's "
               "light and must not move ours. An arm that differs here is measuring two changes."),
     ]
+
+    # AND THE CLOSE, which carries the same defect mirrored and over more of the animation. The bit
+    # used to be restored on the FIRST tick of a close while our polygon kept drawing a doorway and
+    # ramped down over the whole slide -- so vanilla stopped delivering, VanillaBentToArrive went true
+    # again, and the beam spent the entire close in the our-model-owns-it renderer. Filming only the
+    # open would have verified half a fix.
+    out += [
+        step("SetTimeSpeed", speed="normal"),
+        step("SetDoorOpen", offset=DOOR, open="false"),
+    ]
+    for i in range(1, FRAMES + 1):
+        out.append(step("Wait", frames=1))
+        out.append(step("Screenshot", fileName=f"handover_{tag}_shut_{i:04d}.png"))
+    out += [
+        step("SetTimeSpeed", speed="paused"),
+        probe("door_aperture", 0, 0, "The close completed inside the film too."),
+        probe("door_aperture_watched", 0, 0),
+    ]
     return out
 
 def main():

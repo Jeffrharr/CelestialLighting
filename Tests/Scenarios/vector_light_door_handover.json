@@ -658,6 +658,474 @@
       "description": "The bare-doorway polygon, identical in both arms: the glow blocker moves VANILLA's light and must not move ours. An arm that differs here is measuring two changes."
     },
     {
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "normal"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_on_shut_0001.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_on_shut_0002.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_on_shut_0003.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_on_shut_0004.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_on_shut_0005.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_on_shut_0006.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_on_shut_0007.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_on_shut_0008.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_on_shut_0009.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_on_shut_0010.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_on_shut_0011.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_on_shut_0012.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_on_shut_0013.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_on_shut_0014.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_on_shut_0015.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_on_shut_0016.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_on_shut_0017.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_on_shut_0018.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_on_shut_0019.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_on_shut_0020.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_on_shut_0021.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_on_shut_0022.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_on_shut_0023.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_on_shut_0024.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_on_shut_0025.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_on_shut_0026.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_on_shut_0027.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_on_shut_0028.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_on_shut_0029.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_on_shut_0030.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_on_shut_0031.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_on_shut_0032.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_on_shut_0033.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_on_shut_0034.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_on_shut_0035.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_on_shut_0036.png"
+      }
+    },
+    {
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "paused"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "door_aperture",
+        "expectedValue": "0",
+        "tolerance": "0"
+      },
+      "description": "The close completed inside the film too."
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "door_aperture_watched",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
       "type": "SetFeature",
       "args": {
         "featureName": "vector_lights",
@@ -1237,6 +1705,474 @@
         "tolerance": "2"
       },
       "description": "The bare-doorway polygon, identical in both arms: the glow blocker moves VANILLA's light and must not move ours. An arm that differs here is measuring two changes."
+    },
+    {
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "normal"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_off_shut_0001.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_off_shut_0002.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_off_shut_0003.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_off_shut_0004.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_off_shut_0005.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_off_shut_0006.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_off_shut_0007.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_off_shut_0008.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_off_shut_0009.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_off_shut_0010.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_off_shut_0011.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_off_shut_0012.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_off_shut_0013.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_off_shut_0014.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_off_shut_0015.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_off_shut_0016.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_off_shut_0017.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_off_shut_0018.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_off_shut_0019.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_off_shut_0020.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_off_shut_0021.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_off_shut_0022.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_off_shut_0023.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_off_shut_0024.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_off_shut_0025.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_off_shut_0026.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_off_shut_0027.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_off_shut_0028.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_off_shut_0029.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_off_shut_0030.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_off_shut_0031.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_off_shut_0032.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_off_shut_0033.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_off_shut_0034.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_off_shut_0035.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "1"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "handover_off_shut_0036.png"
+      }
+    },
+    {
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "paused"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "door_aperture",
+        "expectedValue": "0",
+        "tolerance": "0"
+      },
+      "description": "The close completed inside the film too."
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "door_aperture_watched",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
     }
   ]
 }

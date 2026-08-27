@@ -191,8 +191,8 @@ public static class VectorLightDoorEvents
         // The aperture our own fan is drawing, not the door's raw animation — see
         // DoorApertureMath.RenderedOpenFraction for why those are different questions.
         float rendered = DoorApertureMath.RenderedOpenFraction(
-            CelestialLightingFeatures.VectorLightDoorAperture, DoorAccess.OpenFraction(door),
-            DoorApertureMath.DefaultQuantisationSteps);
+            CelestialLightingFeatures.VectorLightDoorAperture, door.Open,
+            DoorAccess.OpenFraction(door), DoorApertureMath.DefaultQuantisationSteps);
 
         // THE FLAG IS PART OF THE ANSWER, NOT A GUARD ON ASKING IT, and having it as a guard was a
         // real bug rather than a stylistic choice. Returning early when the feature is off leaves
@@ -206,7 +206,7 @@ public static class VectorLightDoorEvents
         // GroundGlowAt move with it — so it is the one term in §27 that stays behind its own flag
         // rather than riding on VectorLights.
         bool hole = CelestialLightingFeatures.VectorLightDoorGlowBlocker
-            && DoorApertureMath.GlowGridHoleWanted(door.def.blockLight, door.Open, rendered);
+            && DoorApertureMath.GlowGridHoleWanted(door.def.blockLight, rendered);
 
         // ONLY IF IT MOVED, and the reason is on our side of the fence rather than vanilla's. The
         // two calls below are idempotent -- plain NativeBitArray.Set -- so a redundant write changes

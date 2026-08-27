@@ -139,26 +139,45 @@ public static class DoorApertureMath
     // from. `openFraction > 0` rather than `>= Open` keeps it honest at the shut end: a door at
     // quantised aperture 0 is drawn as a full-width occluder, and a full-width occluder is a blocker.
     //
-    // AND THE ASYMMETRY IS DELIBERATE. This goes false again on the first tick of a CLOSE, not at the
-    // end of one, because `Open` is what says which end the door is heading for and a closing door
-    // has stopped being a hole. Erring toward "blocked" at both edges of the swing is the safe
-    // direction: this term is gameplay light, so the failure that matters is light appearing where a
-    // door is shut, not light arriving a few ticks late.
+    // AND IT IS NOW SYMMETRIC, WHERE IT USED TO ERR TOWARD BLOCKED AT BOTH EDGES. The old rule went
+    // false again on the FIRST tick of a close, on the reasoning that a door told to shut has stopped
+    // being a hole and that erring toward blocked is safe for a term that is gameplay light. Safe for
+    // the grid in isolation, and wrong for the composition: our polygon keeps drawing a full doorway
+    // and ramps down over the whole close, so vanilla stopped delivering while we were still drawing
+    // an aperture, VanillaBentToArrive went true again, and the beam spent the ENTIRE close in the
+    // our-model-owns-it renderer -- the same defect as the late open, over more of the animation.
+    //
+    // So the rule is one question in both directions: is our renderer drawing a gap. Direction is
+    // still consulted, but by RenderedOpenFraction below, which is the function that knows what the
+    // fan is drawing; with leaf tracking on, OpenPct ramps correctly down through a close and already
+    // carries the answer, and with it off the fan reverts to `Open` and so does that function.
+    //
+    // WHAT IT COSTS, AT THE OTHER EDGE. Gameplay light beyond a closing door now lingers for the
+    // length of the slide rather than stopping on the first tick -- under a second for a wooden door.
+    // That is the mirror of light arriving early on the open, and it is the price of the beam being
+    // drawn by one renderer for the whole animation in both directions.
     //
     // A SEE-THROUGH DOOR IS NEVER A HOLE, and that is not the same statement as "it is always open".
     // SpawnSetup only writes lightBlockers when def.blockLight is true, so a glass door's bit was
     // never set — and a rule that cleared it on open and SET it on close would make glass doors start
     // blocking gameplay light the first time anyone shut one, which is a regression vanilla does not
     // have. `blocksLightWhenShut` false means "this cell is not ours to write", not "it is open".
-    public static bool GlowGridHoleWanted(
-        bool blocksLightWhenShut, bool headingOpen, float openFraction)
+    public static bool GlowGridHoleWanted(bool blocksLightWhenShut, float openFraction)
     {
         if (!blocksLightWhenShut)
         {
             return false;
         }
 
-        return headingOpen && openFraction > Shut;
+        // THE SAME PREDICATE DoorOcclusionMath.Occludes USES, character for character -- it asks
+        // `!(doorAperture > 0f)` to decide whether the cell is a wall. That is not a coincidence to
+        // note in passing, it IS the fix: vanilla's grid and our polygon now answer "is there a gap
+        // here" with one expression, so they cannot disagree at any point of a slide in either
+        // direction, and the composition sees one situation for the whole swing.
+        //
+        // `> Shut` rather than `>= something`, and negated nowhere, so a NaN from a modded OpenPct
+        // fails SHUT: NaN compares false against every threshold.
+        return openFraction > Shut;
     }
 
     // The aperture at which the leaves still meet in the middle. A door quantised to this is drawn
@@ -241,12 +260,28 @@ public static class DoorApertureMath
     // the coupling to the renderer's own quantisation is the load-bearing part: a caller passing a
     // different count than VectorLightBlockers uses reopens exactly this bug, and a parameter is
     // where that is visible.
+    //
+    // AND DIRECTION LIVES HERE, NOT IN THE HOLE PREDICATE, which is the second half of the
+    // renderer-handover fix. With tracking OFF the fan does not consult OpenPct at all --
+    // DoorOcclusionMath.Occludes falls back to `!doorOpen` -- so the aperture it is drawing really is
+    // a function of the door's STATE, and it must go to Shut on the first tick of a close or the grid
+    // would hold a hole open under a polygon that has already gone back to being a wall. With
+    // tracking ON, OpenPct ramps correctly down through a close (see DoorAccess.OpenFraction), so the
+    // stepped aperture already describes both directions and asking about `Open` would be wrong.
+    //
+    // That is why GlowGridHoleWanted no longer takes `headingOpen`. It was doing two jobs there:
+    // saying which end the door heads for, and erring toward blocked. The first belongs to this
+    // function, and the second turned out to be the bug -- a closing door had its bit restored on the
+    // first tick while our polygon kept drawing a full doorway for the whole slide, so vanilla stopped
+    // delivering, VanillaBentToArrive went true again, and the beam spent the ENTIRE close in the
+    // our-model-owns-it renderer. Worse than the eight frames the opening direction lost, and the
+    // same defect.
     public static float RenderedOpenFraction(
-        bool trackingLeaves, float openFraction, int quantisationSteps)
+        bool trackingLeaves, bool headingOpen, float openFraction, int quantisationSteps)
     {
         if (!trackingLeaves)
         {
-            return FullyOpen;
+            return headingOpen ? FullyOpen : Shut;
         }
 
         return Quantise(openFraction, quantisationSteps);
