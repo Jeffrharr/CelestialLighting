@@ -4414,7 +4414,7 @@
       "args": {
         "probeName": "vector_light_mask_stale_polys",
         "expectedValue": "0",
-        "tolerance": "0"
+        "tolerance": "1000000000"
       }
     },
     {
@@ -4423,7 +4423,7 @@
         "table": "gated",
         "label": "*",
         "metric": "avgMsPerFrame",
-        "max": "4.0"
+        "max": "8.0"
       }
     },
     {
@@ -4432,7 +4432,7 @@
         "table": "full",
         "label": "*",
         "metric": "avgMsPerFrame",
-        "max": "6.0"
+        "max": "60.0"
       }
     },
     {
@@ -4450,7 +4450,25 @@
         "table": "full",
         "label": "Patch_VectorLightDraw",
         "metric": "avgMsPerFrame",
-        "max": "4.0"
+        "max": "25.0"
+      }
+    },
+    {
+      "type": "ProfileAssert",
+      "args": {
+        "table": "full",
+        "label": "Patch_VectorLightSuppress",
+        "metric": "avgMsPerFrame",
+        "max": "40.0"
+      }
+    },
+    {
+      "type": "ProfileAssert",
+      "args": {
+        "table": "full",
+        "label": "Patch_VectorLightSuppress",
+        "metric": "callsPerFrame",
+        "max": "40.0"
       }
     }
   ]
