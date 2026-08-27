@@ -9172,6 +9172,34 @@ this repo's verification bar exists to catch, and it caught it only because a pr
 value that had to *move*.
 
 
+**The end of the slide had to be one moment, not two, and it was two.** `GameComponent_DoorAperture`
+ends a swing on the **quantised** aperture — `Quantise` rounds, so eight steps reach 1 the moment
+`OpenPct` passes 0.9375 — then asks the glow-grid rule once and drops the door from its watch set
+forever. That rule was reading the **raw** fraction, still 0.956 for a 45-tick wooden door, so it was
+asked at the one instant it was guaranteed to answer "not yet" and was never asked again. The shipped
+default measured `door_outside_ground_glow` at a shut door's **0.0958** while the arm one flag away —
+the same door, opened instantly instead of animated — read **0.5**.
+
+`RenderedOpenFraction` quantises now, which is what its name always claimed: it answers "the aperture
+our renderer is drawing", and `VectorLightBlockers.ApertureOf` quantises before it places a single
+leaf, so the raw ratio is a number no renderer here has ever used. The two are now the same
+expression on the same input and cannot disagree however the step count moves.
+
+Worth recording about the offline test that pins it: walking a whole swing at **five** door speeds is
+load-bearing rather than thorough. A powered door takes 11 ticks, where 10/11 rounds to 0.875 and
+11/11 is exactly 1 — so the two verdicts agree at every tick and a regression test written against
+one door speed would have measured nothing.
+
+**And it settles how much of the door column is a scenario artefact.** Every paused capture draws the
+door *sprite* shut while treating it as fully open, because `OpenPct` cannot ramp in a paused game —
+which left "how much of the residual is that artefact" open. The animated arm answers it: the two
+paths reach the same end state, and the difference between their frames is **797 pixels over ΔE 2 in
+a 520 px window (0.29%)**, against 12,752 and 5,182 for the two legitimate arm transitions beside it.
+Tinted and placed next to a same-build control, those pixels are **the door's own cell** — the
+sprite — plus a one-pixel offset of the lit region's boundary, where both frames contain both values
+and only the pixel carrying the transition differs. The floor cells the door column is measured on
+are untouched, so the residual there is real rather than an artefact of pausing.
+
 #### Phase 3: the close tracks its leaves too (issue #174 phase 1, `Tests/Scenarios/vector_light_door_close.json`)
 
 **Problem.** Phase 2 tracks a door's slide in exactly one direction. Open a door and the aperture
