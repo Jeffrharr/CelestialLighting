@@ -10979,6 +10979,26 @@ the over-subtraction the correction removed, and it can only grow with the room 
 carrying the most of it are the ones being declined, which is exactly what the skipped column says is
 happening. The offline sweep predicted 116 at the same cell where the live run reads 109.
 
+On pixels, `main`'s corrected frame against this branch's, at six torches — same scenario, two
+builds, so a **same-build control is mandatory** and is the vanilla arm, where §27 is off entirely
+and nothing this branch touches can reach. Over a 400x400 box around the column:
+
+| | pixels changed | masked median ΔE | p90 |
+|---|---|---|---|
+| corrected: main → fold | **57.6%** | 1.03 | 3.05 |
+| vanilla arm, same two runs (control) | **0.9%** | 0.68 | 5.03 |
+
+The control's 0.9% is two torch flames animating between runs, and it carries the larger p90 — which
+is the reason to read the *count* here rather than the magnitude. A ×6 difference image of the two
+corrected frames is a structured disc centred on the column and the torch ring; the same image for
+the control is black but for those two flames.
+`Tests/Screenshots/sunlamp_6_diff_x6_vs_control.png`.
+
+The frame-wide magnitude is modest — masked median **1.03**, against the sibling set in this
+document — and that is the honest reading of it: this is a **direction** fix, not a look change. The
+number that matters is at the cell: 109 against vanilla's 255, on a cell a player can see a lamp
+standing in.
+
 **Two things about the fixture, both of which cost a run.** A sun lamp is `CompProperties_Schedule`d
 from 0.25 to 0.8 of the day, so at the midnight every other §27 scenario uses it registers no glower
 at all and every probe reads the torch ring alone while the run stays green — `vector_light_count`
@@ -11017,6 +11037,23 @@ Two things bound it in practice, and this plate deliberately defeats both so the
 case: the correction runs only on sections that already carry an edit, and it returns before the walk
 starts on a section fewer than two emitters reach — one emitter's own light is a `Color32` and cannot
 saturate anything. On this plate every section has at least two lamps in range.
+
+**Replaying the fold did not move that measurably, and the control is why the claim is that weak.**
+The pass it replaced already walked every emitter on the map for its raw sum; the fold walks the same
+cells and does a `max` — plus, only over the ceiling, three divides — per step instead of three adds.
+Re-measured on the same plate, `main` against the fold, `Patch_VectorLightSuppress:Postfix`:
+
+| arm | main | fold |
+|---|---|---|
+| correction off (control) | **19.0 µs** | **25.9 µs** |
+| corrected, window 1 | 36.8 µs | 33.2 µs |
+| corrected, window 2 | 34.4 µs | 46.2 µs |
+
+The **control arm runs no correction at all in either build**, so its 19.0 against 25.9 — 36% — is
+the machine, not the change. The corrected windows sit inside that same band, so the honest reading
+is that this measurement cannot resolve the difference rather than that there is none. Both runs also
+report the same pre-existing `SetTerrain` error on this plate (four `SteamGeyser` cells the `clear`
+cannot remove), which is why they are quoted against each other and not against the table above.
 
 Measured under the profiler, so the absolute microseconds are instrumented ones; the ratio is what
 transfers. The scenario inherits `vector_light_mask_max_perf.json`'s terrain rect and therefore its
