@@ -12208,6 +12208,115 @@ rather than by a one-file revert. Both are registered through the two-arg overlo
 one with `defaultEnabled` omitted would let a `ResetAll` leave later arms on the old path while
 claiming to measure the new one.
 
+
+#### Phase 9: the mask is not slow, it is asked too often (`vector_light_changed_dirty`)
+
+Phase 8 stopped a door swing regenerating the whole viewport and replaced it with the union of the
+rebuilt emitters' reaches. The colony-scale stress suite then asked what that costs when five hundred
+lamps and thirty doors are on one screen, and the answer reframed the problem.
+
+**The per-call cost of the mask is flat across every load anybody has measured** — 694 µs with the
+population static, 1,100–1,155 µs under fifty walking pawns, 1,095 µs under thirty swinging doors.
+What moves is the **call rate**: 0.40, then 6.5–9.8, then 13.88 lighting-overlay regenerates per
+frame. `Patch_IndoorSkyOcclusion` postfixes the same vanilla method and reports the identical count to
+the frame, which is what identifies that number as the section-regenerate rate rather than anything of
+ours. And the subsystem being switched on is itself most of it: the gated arm regenerated **7.82**
+sections a frame against the full arm's **13.88**.
+
+**Where the other 6.06 came from.** `MarkGeometryDirtyAround` marks every emitter whose window covers
+a changed cell — 19.7 of them per invalidation, measured — and the draw then dirtied every section
+those emitters' reaches touch. Two thirds of them are sealed away from the door by a wall. They rebake
+to a coverage grid **byte-identical** to the one they had, and dirty nine sections each for it. The
+third that do change change a wedge, and dirtied a disc.
+
+Modelled offline over the stress colony's own committed lamp and door geometry before anything was
+built: one swing dirties **123 lamps / 146 sections**, of which **42 lamps / 18 sections** can look
+different — **8.1×**.
+
+**So the bake now reports what it changed rather than what it might have.**
+`VectorLightMath.CoverageDelta` compares the new coverage grid against the one it replaces and hands
+back the box of cells that moved, or nothing when the two agree; `SectionDirtyMath.Changed` turns that
+box into the sections that read it. The comparison is the **grid and not the polygon**, because the
+polygon moves for reasons no pixel can see — a door quantised one step along its travel, a segment
+list gathered in a different order — while the grid is the only thing the mask reads.
+
+**One box per emitter, not the box around them all**, and that half matters as much. A bounding box
+over reaches clustered at one door is barely wider than their union; a bounding box over two changed
+wedges at opposite ends of a colony is everything in between, which is precisely what a door *storm*
+produces. The draw flags each section once through a reused bool grid, so `SectionDirties` stays a
+count of sections rather than of boxes that happened to overlap.
+
+**Five ways a bake refuses the comparison** and dirties its whole reach, each a real case: no previous
+grid; a centre or radius that moved (the same offset in two grids is then a different cell); an
+emitter that had no polygon before (`CollectReaching` skipped it outright, so an identical grid does
+not mean an identical render); `Unobstructed` flipping (it decides whether the emitter is *visited*,
+not what it subtracts); and `vector_light_stale_polygon` switched off. The last is the load-bearing
+one: item D's flag is what makes a section bake against the **previous** shape rather than drop the
+emitter, and without it the section really did render without it in between, so "the new shape equals
+the old one" says nothing about what was on screen. The two flags are a pair to keep in step, the same
+way the view cull and the section dirty are.
+
+**Measured**, `stress_door_colony`, 30 doors × 240 staggered swings under 503 emitters, four arms in
+one boot with the baseline repeated after the arm being judged. Counters drained per arm:
+
+| | gated | wide (old) | **full (shipped)** | wide_b |
+|---|---|---|---|---|
+| `vector_light_section_dirties` | 0 | 8,892 | **1,327** | 8,832 |
+| `vector_light_sections_per_pass` | 0 | 34.60 | **5.18** | 34.50 |
+| **`vector_light_mask_applies`** | 0 | **9,740** | **4,919** | **9,260** |
+| `vector_light_bakes` | 0 | 11,684 | 11,728 | 11,610 |
+| `vector_light_unchanged_bakes` | 0 | 0 | **8,645** | 0 |
+| `vector_light_mask_skips_dirty` | 0 | 0 | **0** | 0 |
+
+| arm | total ms/frame | worst frame | `Patch_VectorLightSuppress` | calls/frame | µs/call |
+|---|---|---|---|---|---|
+| gated | 1.15 | 14.86 | 0.000 | 7.62 | 0.0 |
+| wide (old) | 23.57 | 162.19 | 14.764 | 13.98 | 1055.7 |
+| **full (shipped)** | **14.24** | **56.37** | **8.805** | **7.13** | 1235.0 |
+| wide_b | 21.56 | 80.30 | 14.603 | 13.42 | 1088.1 |
+
+**`vector_light_bakes` stands still** — 11,684 / 11,728 / 11,610, inside 1% — and that row is what
+makes the rest of the table mean what it says. The saving is dirtying less, not baking less; had it
+fallen, the arm would be measuring a different change from the one it set.
+
+**8,645 of 11,728 bakes came back byte-identical** — 74%, against the 66% the offline model predicted
+from line-of-sight alone. `vector_light_mask_skips_dirty` is **0** in every arm, so no section baked
+with an emitter reaching it that it could not use: dirtying less did not leave anything stale.
+
+**`mask_applies` is the row to read, not `section_dirties`.** Flags are work *requested* and vanilla
+regenerates only what is on screen, so a fall in the first without a fall in the second would mean the
+saving landed on sections nobody was looking at. It falls **1.93×** where the flags fall 6.7×, and
+that gap is the honest measure of how much of the dirtying was already being ignored.
+
+**The per-call cost went UP, and it should be quoted.** 1,056 → 1,235 µs, +17%. Some of that is the
+box: `Patch_IndoorSkyOcclusion`, an untouched patch on the same vanilla method, moved 93.1 → 99.2 µs
+over the same arms, so roughly +7% is the machine and the remaining +10% is this change concentrating
+the survivors. It is exactly why call rate and duration are bounded together — a change that halved
+the per-call cost while doubling the count would be a wash, and only both numbers side by side say so.
+Here the count fell 49% and the product fell **40%**, 14.76 → 8.81 ms/frame, with the whole mod
+falling 22.6 → 14.2 ms/frame against the mean of the two baselines and the **worst frame 162 → 56 ms**.
+
+**The two baselines disagree by 9%** (23.57 and 21.56), and `wide_b` ran at 39 fps where its
+predecessors ran at 96–99, so the box was not the same box by the fourth arm. That is what the repeat
+is for. The suppress row is the stable one across it — 14.764 and 14.603, inside 1.1% — so the drift
+landed on the draw and the conclusion survives it.
+
+**The frames prove nothing here, and the control says so.** `wide` against `full` reads median ΔE
+**18.27** over 83.5% of the frame — and `wide` against `wide_b`, the *same configuration* two windows
+apart, reads **19.13** over the same 83.5%. The scenario runs its clock, so hours of sky pass between
+arms and a cross-arm frame diff selects that. Inertness is established where it can be: on the paused
+gate scene, `vector_light_gap_vs_door` measures a same-build control of **0.00% of pixels** and every
+arm sits identical to its committed baseline within a residue that is the same on the `vanilla` arm no
+vector-lighting change can execute in.
+
+`vector_light_bake_flicker` measures the other half in isolation, paused, three arms in one boot:
+`mask_applies` **8** with changed-dirty off and **5** with it on, at the same provocation cell, with
+`flicker_shadow` 4 and `flicker_lit` 82 in both — fewer regenerates, identical frame.
+`vector_light_unchanged_bakes` is **0** there, so that scenario's saving is purely the narrower box; a
+single wall really does move every emitter it dirties. The door colony is where the identical-bake
+half shows up. Between them the two halves of the change are measured separately rather than as one
+number.
+
 #### What it ships as
 
 **Unconditionally on, and unflagged**, for the reason phase 6 gives: a flag is how this repo makes an
