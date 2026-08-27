@@ -89,4 +89,75 @@ public static class DoorApertureMath
     // the bake count stays in single figures per swing; see DESIGN.md §27e phase 2 for the measured
     // comparison against tracking every tick.
     public const int DefaultQuantisationSteps = 8;
+
+    // ---- an open door is a hole in the wall, to vanilla's glow grid as well as to our polygon ----
+
+    // Whether this door's cell should be a HOLE in vanilla's light-blocker grid right now.
+    //
+    // WHY THIS EXISTS AT ALL. RimWorld's glow grid never learns a door opened: Building.SpawnSetup
+    // writes def.blockLight into lightBlockers once, and Building_Door.DoorOpen touches the grid not
+    // at all. So a bare one-cell GAP in a wall floods light through and an open DOOR one cell away
+    // delivers nothing — two identical apertures, rendered from two completely different vanilla
+    // inputs. Every attempt to reconcile the two by adjusting what WE draw has failed, because the
+    // disagreement is not in our model; it is that vanilla is lighting one of them and not the other.
+    // Moving the bit removes the disagreement at its source, and everything downstream — the
+    // polygon, the mask, the subtraction, the lift — then sees one situation instead of two.
+    //
+    // FULLY OPEN, NOT OPENING. `Building_Door.Open` flips true on the first tick of the swing while
+    // the leaves take tens of ticks to finish sliding, so keying on it would flood a room with light
+    // through a door the player can still see closed. The grid is whole-cell and binary — it cannot
+    // express a half-open door — so the honest reading of a binary grid is the one that is only ever
+    // true when the cell unambiguously IS a hole. Our own polygon has no such limit and tracks the
+    // leaves continuously; see LeafSpans above.
+    //
+    // AND THE ASYMMETRY IS DELIBERATE. This goes false again on the first tick of a CLOSE, not at the
+    // end of one, because `Open` is what says which end the door is heading for and a closing door
+    // has stopped being a hole. Erring toward "blocked" at both edges of the swing is the safe
+    // direction: this term is gameplay light, so the failure that matters is light appearing where a
+    // door is shut, not light arriving a few ticks late.
+    //
+    // A SEE-THROUGH DOOR IS NEVER A HOLE, and that is not the same statement as "it is always open".
+    // SpawnSetup only writes lightBlockers when def.blockLight is true, so a glass door's bit was
+    // never set — and a rule that cleared it on open and SET it on close would make glass doors start
+    // blocking gameplay light the first time anyone shut one, which is a regression vanilla does not
+    // have. `blocksLightWhenShut` false means "this cell is not ours to write", not "it is open".
+    public static bool GlowGridHoleWanted(
+        bool blocksLightWhenShut, bool headingOpen, float openFraction)
+    {
+        if (!blocksLightWhenShut)
+        {
+            return false;
+        }
+
+        return headingOpen && openFraction >= FullyOpen;
+    }
+
+    // What counts as fully slid. Exactly 1 rather than a tolerance: OpenPct is a ratio of an integer
+    // tick counter to its own maximum, so it reaches 1 exactly, and a tolerance here would open the
+    // grid a tick or two early for no benefit.
+    public const float FullyOpen = 1f;
+
+    // The aperture OUR OWN RENDERER is currently drawing this door at, which is the one the glow grid
+    // has to agree with.
+    //
+    // WHY THE GRID CANNOT JUST READ OpenPct. §27 draws a door at one of two apertures depending on
+    // whether leaf tracking is on. With it ON the polygon follows OpenPct, so the beam grows with the
+    // leaves. With it OFF -- phase 1's behaviour, and still what every arm that films the two against
+    // each other uses -- the polygon treats the door as a bare doorway the instant `Open` goes true,
+    // and OpenPct is not consulted at all.
+    //
+    // So a glow grid keyed on OpenPct regardless would, with tracking off, hold the cell blocked for
+    // the whole slide while our own fan already drew a full-width beam through it: the two halves
+    // disagreeing for tens of ticks, which is the exact failure this pair of flags exists to remove.
+    // Asking "what is the renderer showing" instead makes them agree by construction under both
+    // settings, and it is the reason this is a function rather than a field read at the call site.
+    //
+    // It also makes the feature reachable in a PAUSED scenario. OpenPct is a ratio of a tick counter,
+    // and a scenario that has jumped the clock is not ticking, so a door opened by the harness stays
+    // at 0 forever and a rule keyed on it can never fire -- the feature would read as dead in every
+    // capture while working in play, which is the most expensive kind of wrong there is.
+    public static float RenderedOpenFraction(bool trackingLeaves, float openFraction)
+    {
+        return trackingLeaves ? openFraction : FullyOpen;
+    }
 }

@@ -232,4 +232,132 @@ public class DoorApertureMathTests
             previous = gap;
         }
     }
+
+    // ---- an open door is a hole in vanilla's glow grid too ------------------------------------
+    //
+    // The rule these pin is one line long, and every one of them is a case that was WRONG in some
+    // version of this feature. That is the argument for testing it at all: it is trivial to state and
+    // its inputs are three booleans-worth of live door state that only a running game produces.
+
+    // THE POINT OF THE WHOLE FEATURE, stated as the two ends. A door standing fully open is a hole,
+    // a shut one is not, and everything else is a question about which end it is heading for.
+    [TestCase(true, 1f, true)]
+    [TestCase(true, 0f, false)]
+    [TestCase(false, 0f, false)]
+    [TestCase(false, 1f, false)]
+    public void OnlyAFullyOpenDoorIsAHole(bool headingOpen, float fraction, bool expected)
+    {
+        Assert.That(
+            DoorApertureMath.GlowGridHoleWanted(
+                blocksLightWhenShut: true, headingOpen, fraction),
+            Is.EqualTo(expected));
+    }
+
+    // MID-SWING IS NOT A HOLE, which is the case Building_Door.Open cannot answer on its own. `Open`
+    // flips true on the FIRST tick of the swing while the leaves take tens of ticks to finish, so a
+    // rule keyed on it alone floods a room through a door the player can still see closed. Vanilla's
+    // grid is whole-cell and binary and has no way to say "half".
+    [TestCase(0.01f)]
+    [TestCase(0.25f)]
+    [TestCase(0.5f)]
+    [TestCase(0.875f)]
+    [TestCase(0.99f)]
+    public void ADoorPartWayThroughItsSwingIsNotAHole(float fraction)
+    {
+        Assert.That(
+            DoorApertureMath.GlowGridHoleWanted(
+                blocksLightWhenShut: true, headingOpen: true, fraction),
+            Is.False);
+    }
+
+    // AND A CLOSING DOOR STOPS BEING ONE AT ONCE, rather than at the end of its slide. This is the
+    // asymmetry: `Building_Door.DoorTryClose` sets openInt false on the first tick while OpenPct is
+    // still at its maximum, so a door that is visually wide open but has been told to shut answers
+    // false here. Erring toward blocked at both edges is the safe direction for a term that is
+    // gameplay light.
+    [TestCase(1f)]
+    [TestCase(0.75f)]
+    public void ADoorThatHasBeenToldToShutIsNotAHoleEvenWhileStillWideOpen(float fraction)
+    {
+        Assert.That(
+            DoorApertureMath.GlowGridHoleWanted(
+                blocksLightWhenShut: true, headingOpen: false, fraction),
+            Is.False);
+    }
+
+    // A SEE-THROUGH DOOR IS NEVER OURS TO WRITE, and this is the case that would have been a
+    // regression rather than a missing feature. Building.SpawnSetup only writes lightBlockers when
+    // def.blockLight is true, so a glass door has no bit set -- and a rule that cleared it on open
+    // and SET it on close would make glass doors begin blocking gameplay light the first time anyone
+    // shut one, which is behaviour vanilla does not have.
+    [TestCase(true, 1f)]
+    [TestCase(true, 0.5f)]
+    [TestCase(false, 0f)]
+    public void ASeeThroughDoorIsNeverAHoleWhateverItIsDoing(bool headingOpen, float fraction)
+    {
+        Assert.That(
+            DoorApertureMath.GlowGridHoleWanted(
+                blocksLightWhenShut: false, headingOpen, fraction),
+            Is.False);
+    }
+
+    // OpenPct is `protected virtual`, so a modded door class is free to return anything at all and
+    // this reads whatever it returns. Out-of-range values must not make a shut door a hole.
+    [TestCase(-1f, true, false)]
+    [TestCase(1.5f, true, true)]
+    [TestCase(float.NaN, true, false)]
+    [TestCase(1.5f, false, false)]
+    public void AnOutOfRangeOpenFractionCannotOpenAShutDoor(
+        float fraction, bool headingOpen, bool expected)
+    {
+        Assert.That(
+            DoorApertureMath.GlowGridHoleWanted(
+                blocksLightWhenShut: true, headingOpen, fraction),
+            Is.EqualTo(expected));
+    }
+
+    // WITH LEAF TRACKING OFF THE DOOR IS DRAWN FULLY OPEN AT ONCE, so the grid must say so too. This
+    // is the case that makes the two halves agree: phase 1's polygon treats an open door as a bare
+    // doorway the instant `Open` goes true and never looks at OpenPct, so a grid that waited for the
+    // slide would hold the cell blocked underneath a beam we are already drawing.
+    [TestCase(0f)]
+    [TestCase(0.5f)]
+    [TestCase(1f)]
+    public void WithoutLeafTrackingTheRenderedApertureIsAlwaysFullyOpen(float openFraction)
+    {
+        Assert.That(
+            DoorApertureMath.RenderedOpenFraction(trackingLeaves: false, openFraction),
+            Is.EqualTo(DoorApertureMath.FullyOpen));
+    }
+
+    // And with tracking on it is the door's own slide, unaltered -- the polygon follows the leaves,
+    // so the grid waits for them.
+    [TestCase(0f)]
+    [TestCase(0.375f)]
+    [TestCase(1f)]
+    public void WithLeafTrackingTheRenderedApertureIsTheDoorsOwn(float openFraction)
+    {
+        Assert.That(
+            DoorApertureMath.RenderedOpenFraction(trackingLeaves: true, openFraction),
+            Is.EqualTo(openFraction));
+    }
+
+    // THE TWO SETTINGS COMPOSED, which is the statement the feature actually makes: an open door is a
+    // hole exactly when our renderer is drawing it as one. Mid-swing that depends on which aperture
+    // the renderer is using, and at both ends of the swing it does not.
+    [TestCase(true, true, 0.5f, false)]   // tracking: mid-slide, the fan is drawing a partial gap
+    [TestCase(false, true, 0.5f, true)]   // no tracking: the fan is already drawing a full doorway
+    [TestCase(true, true, 1f, true)]
+    [TestCase(false, false, 1f, false)]   // shutting: not a hole under either setting
+    [TestCase(true, false, 1f, false)]
+    public void TheHoleFollowsWhicheverApertureTheRendererIsDrawing(
+        bool trackingLeaves, bool headingOpen, float openFraction, bool expected)
+    {
+        float rendered = DoorApertureMath.RenderedOpenFraction(trackingLeaves, openFraction);
+
+        Assert.That(
+            DoorApertureMath.GlowGridHoleWanted(
+                blocksLightWhenShut: true, headingOpen, rendered),
+            Is.EqualTo(expected));
+    }
 }

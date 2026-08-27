@@ -1271,11 +1271,19 @@ public static class ProbeRegistration
         FeatureRegistry.Register(
             CelestialLightingFeatures.VectorLightShadowFeatherKey,
             enabled => CelestialLightingFeatures.VectorLightShadowFeather = enabled);
-        // §27e. THREE-arg overload with defaultEnabled: false -- both of these ship off, and the
-        // two-arg overload would let ResetAll switch them on for a later scenario in a suite, which
-        // for the glow-blocker one would silently change gameplay light under an unrelated test.
-        // ForceRebuild on both: the occlusion answer changes for every light near a door, and unlike
-        // a door actually opening there is no MapEvents notification to provoke the rebake.
+        // §27e, and all three now ship TRUE together -- an open door is a hole in the wall to our
+        // polygon, to vanilla's glow grid and to the leaves' own slide. The registry default is what
+        // a suite's ResetAll restores between scenarios, so it has to BE the shipped value: left at
+        // false, every §27 scenario after one that reset would quietly measure doorways behaving as
+        // walls while its description claimed otherwise. That exact mistake is on record for
+        // realistic_day_length, and the glow-blocker one would carry gameplay light with it.
+        //
+        // Kept on the three-arg overload rather than moved to the two-arg one, because these are the
+        // flags a scenario is most likely to want explicitly OFF, and reading `defaultEnabled: true`
+        // at the registration site is what makes an arm's omission obvious in review.
+        //
+        // ForceRebuild on all three: the occlusion answer changes for every light near a door, and
+        // unlike a door actually opening there is no MapEvents notification to provoke the rebake.
         FeatureRegistry.Register(
             CelestialLightingFeatures.VectorLightOpenDoorsKey,
             enabled =>
@@ -1283,7 +1291,7 @@ public static class ProbeRegistration
                 CelestialLightingFeatures.VectorLightOpenDoors = enabled;
                 VectorLightRedraw.ForceRebuild();
             },
-            defaultEnabled: false);
+            defaultEnabled: true);
         FeatureRegistry.Register(
             CelestialLightingFeatures.VectorLightDoorGlowBlockerKey,
             enabled =>
@@ -1291,7 +1299,7 @@ public static class ProbeRegistration
                 CelestialLightingFeatures.VectorLightDoorGlowBlocker = enabled;
                 VectorLightRedraw.ForceRebuild();
             },
-            defaultEnabled: false);
+            defaultEnabled: true);
         FeatureRegistry.Register(
             CelestialLightingFeatures.VectorLightDoorApertureKey,
             enabled =>
@@ -1302,7 +1310,7 @@ public static class ProbeRegistration
                 GameComponent_DoorAperture.Reset();
                 VectorLightRedraw.ForceRebuild();
             },
-            defaultEnabled: false);
+            defaultEnabled: true);
         // Issue #188's two invalidation flags, both shipping TRUE, so both take the two-arg overload.
         // The three-arg one with defaultEnabled false would make a ResetAll leave every later arm on
         // the pre-change path while its description claims to measure the new one — that exact

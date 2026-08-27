@@ -45,9 +45,16 @@ public class GameComponent_DoorAperture : GameComponent
     // transitions is deliberate: a door that is interrupted mid-open and shuts again animates back
     // down through the same steps, and a beam that tracked the way open but snapped shut would look
     // worse than one that never tracked at all.
+    // TWO CONSUMERS NOW, AND THE GATE IS THEIR UNION. The aperture tracking wants a tick clock to
+    // re-bake the beam through the slide; the glow blocker wants one moment, the END of the slide, to
+    // move vanilla's light-blocker bit. Gating this on the aperture flag alone -- which it did, when
+    // it had one consumer -- meant that with only the glow blocker on, no door ever reached its end
+    // here and the bit was never moved. That reads as the feature doing nothing at all, which is the
+    // most expensive kind of wrong: it is a live-run finding rather than a build error.
     public static void Watch(Building_Door door)
     {
-        if (door == null || !CelestialLightingFeatures.VectorLightDoorAperture)
+        if (door == null || !(CelestialLightingFeatures.VectorLightDoorAperture
+                || CelestialLightingFeatures.VectorLightDoorGlowBlocker))
         {
             return;
         }
@@ -90,15 +97,20 @@ public class GameComponent_DoorAperture : GameComponent
         float aperture = DoorApertureMath.Quantise(
             DoorAccess.OpenFraction(door), DoorApertureMath.DefaultQuantisationSteps);
 
-        if (aperture != lastBakedAperture)
+        if (aperture != lastBakedAperture && CelestialLightingFeatures.VectorLightDoorAperture)
         {
             // The leaves moved and nothing was built, so a recorded silhouette is still the wall
             // it was — issue #188 item C, and the reason this parameter exists at all. Eight of the
             // nine steps in a swing come through here.
             VectorLightField.MarkGeometryDirtyAround(door.Map, door.Position, blockerMoved: false);
-            Animating[door] = aperture;
             DirtyRequests++;
         }
+
+        // OUTSIDE the branch above, because it is this component's own bookkeeping rather than part
+        // of the bake. Leaving it inside meant a door watched only for the glow blocker never
+        // recorded a step, so `aperture != lastBakedAperture` stayed true and DirtyRequests would
+        // have counted every tick of every swing the moment the two flags were separated.
+        Animating[door] = aperture;
 
         // Done once the slide has run out AT THE END THIS DOOR IS HEADING FOR. A door sitting fully
         // open is an ordinary hole and a shut one an ordinary blocker; neither needs watching, and
@@ -118,6 +130,16 @@ public class GameComponent_DoorAperture : GameComponent
         bool reachedItsEnd = door.Open ? aperture >= 1f : aperture <= 0f;
         if (reachedItsEnd)
         {
+            // THE MOMENT THE DOOR BECOMES A WALL GAP, and the reason this component is on the
+            // glow-blocker path at all. Vanilla's grid is whole-cell and binary, so the only honest
+            // time to open it is when the leaves have actually finished sliding -- Notify_DoorOpened
+            // fires on the first tick of the swing, tens of ticks earlier, and moving the bit there
+            // would flood a room through a door the player can still see closed.
+            //
+            // Asked on the CLOSING end too, where the predicate has already gone false and the bit
+            // was restored on the first tick. Reconciling again costs a bit-set to the value it
+            // already holds and keeps this from being a rule with an exception in it.
+            VectorLightDoorEvents.ReconcileGlowBlocker(door);
             Finished.Add(door);
         }
     }
