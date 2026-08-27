@@ -9239,14 +9239,39 @@ buried: this is gameplay light, and it now arrives at the first quantisation ste
 last, about three ticks into a 45-tick wooden door rather than forty-three. Roughly two thirds of a
 second early, in exchange for the beam not changing renderer mid-animation.
 
-**Known and not fixed: the close has the same defect, mirrored and worse.** The bit is restored on the
-first tick of a close (`headingOpen` false immediately) while our polygon still draws a full doorway
-and ramps down over the whole slide — so a closing door spends *all* of its animation in the
-our-model-owns-it regime, where an opening one spent eight frames. The one-line fix is to drop
-`headingOpen` and key purely on the drawn aperture, which `DoorAccess.OpenFraction` already ramps
-correctly down through a close. It is left alone here because it is a second, larger gameplay-light
-change — light lingering under a closing door for the length of its slide — and that is a call to
-make deliberately rather than as a side effect of fixing the open direction.
+**The close had the same defect, mirrored and over more of the animation, and it is fixed too.** The
+bit was restored on the *first* tick of a close while our polygon kept drawing a full doorway and
+ramped down over the whole slide — so vanilla stopped delivering, `VanillaBentToArrive` went true
+again, and a closing door spent **all** of its animation in the our-model-owns-it renderer where an
+opening one spent eight frames.
+
+**So the rule is one question in both directions: is our renderer drawing a gap.** `GlowGridHoleWanted`
+no longer takes `headingOpen` at all. That parameter was doing two jobs — saying which end the door
+heads for, and erring toward blocked — and only the first is a real question. It moved to
+`RenderedOpenFraction`, which is the function that knows what the fan is drawing:
+
+| leaf tracking | what `DoorOcclusionMath.Occludes` uses | what the rendered aperture is |
+|---|---|---|
+| on | `!(doorAperture > 0f)` | the quantised aperture, both directions |
+| off | `!doorOpen` | `Open ? FullyOpen : Shut` |
+
+Direction still matters with tracking **off**, because the fan then never consults `OpenPct` and must
+go back to a wall on the first tick of a close. With tracking **on** it does not, because `OpenPct`
+ramps correctly down through a close and already carries both directions — `DoorAccess.OpenFraction`
+reads it ungated for exactly that reason.
+
+The predicate is now `openFraction > Shut`, which is `Occludes`'s own `doorAperture > 0f` character for
+character. That is the fix rather than a coincidence worth noting: vanilla's grid and our polygon
+answer *"is there a gap here"* with one expression, so they cannot disagree at any point of a slide in
+either direction.
+
+**A swing writes the grid exactly once and a full cycle twice**, pinned offline in both directions —
+which is what lets `Advance` afford to reconcile on every step rather than only at the end.
+
+**What the close costs, at the other edge.** Gameplay light beyond a closing door now lingers for the
+length of the slide rather than stopping on the first tick — under a second for a wooden door. That is
+the mirror of light arriving early on the open, and it is the price of one renderer drawing the whole
+animation in both directions.
 
 #### Phase 3: the close tracks its leaves too (issue #174 phase 1, `Tests/Scenarios/vector_light_door_close.json`)
 
