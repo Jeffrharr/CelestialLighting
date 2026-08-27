@@ -33,6 +33,7 @@ import stress_colony as sc
 HERE = os.path.dirname(os.path.abspath(__file__))
 SCEN = os.path.abspath(os.path.join(HERE, "..", "..", "Tests", "Scenarios"))
 TARGET = os.path.join(SCEN, "stress_light_colony.json")
+HOLD_TARGET = os.path.join(SCEN, "stress_light_colony_hold.json")
 
 # Frames per profiling window. Long, and deliberately longer than vector_light_perf's 600: this box
 # has measured frame_max_ms spanning 37 to 85 across three consecutive runs of ONE build, and a
@@ -205,12 +206,75 @@ def build():
     }
 
 
-def main():
-    spec = build()
-    with open(TARGET, "w") as handle:
+def build_hold():
+    """The same colony, established and handed over -- no profiling windows, no arms.
+
+    WHY IT CANNOT JUST BE THE MEASURED SCENARIO WITH --hold. Profiling is what that one exists for,
+    and a Profile step SKIPS THE WHOLE SCENARIO when the analyzer is absent -- reporting PASS while
+    building nothing. So running it with --no-profiler, which is what using Circinus instead of Dubs
+    requires, hands over an empty map and a green result. This variant has no Profile step at all,
+    so it is indifferent to which profiler is loaded.
+
+    WHY IT ENDS ON THE SHIPPED FLAGS rather than sweeping arms. The point of holding is to stand in
+    the colony the mod actually ships, so there is exactly one arm and it is the full one. The
+    measured scenario's gated arm is a control for a comparison nobody is making here, and leaving
+    it last would hand over the colony with the subsystem switched off -- which looks like the mod
+    failing to load.
+
+    The population pins are kept. They are what separate "five hundred lamps" from "a power net that
+    did not solve", and holding a colony whose lamps never lit would waste the session rather than
+    fail it.
+    """
+    colony = sc.build()
+
+    steps = sc.setup_steps(colony)
+    steps += sc.palette_steps()
+    steps += sc.establish_steps()
+    steps += sc.population_probes()
+    steps += sc.feature_steps(vector_lights=True)
+    steps.append(sc.step("Wait", frames=SETTLE_FRAMES))
+    steps.append(sc.record("vector_light_bake_reset"))
+
+    # Unpaused on the way out. --hold restores the UI and the clock anyway, and leaving the scenario
+    # paused would hand over a colony that looks frozen for the first second.
+    steps.append(sc.step("SetTimeSpeed", speed="normal"))
+
+    return {
+        "name": "stress_light_colony_hold",
+        "saveFile": "minimal_colony.rws",
+        "description": (
+            "stress_light_colony's colony exactly -- 500 lamps in 11 colours and 9 radii, 11,868 "
+            "hidden conduits, 20 toxifier generators, 1,874 wall cells across 28 rooms and 120 "
+            "free-standing stubs -- built, switched to the shipped vector-lighting configuration, "
+            "and handed over. It measures nothing. "
+            "\n\n"
+            "FOR --hold, AND FOR PROFILERS THAT ARE DRIVEN BY HAND. A Profile step skips the whole "
+            "scenario when Dubs Performance Analyzer is absent and still reports PASS, so the "
+            "measured scenario cannot be run under --no-profiler -- it hands over an empty map and a "
+            "green result. Circinus is instrumented from inside the game rather than by a scenario "
+            "step, so using it means --no-profiler, which means this file. It carries no Profile "
+            "step and is indifferent to which profiler is loaded. "
+            "\n\n"
+            "ONE ARM, AND IT IS THE FULL ONE. The measured scenario ends on whichever arm it "
+            "happened to order last; handing over a colony with the subsystem switched off would "
+            "look exactly like the mod failing to load. The population pins are kept, because a "
+            "power net that did not solve removes 400 of the 500 emitters while still photographing "
+            "as a lit colony, and holding that would waste a session rather than fail it."
+        ),
+        "steps": steps,
+    }
+
+
+def write(spec, target):
+    with open(target, "w") as handle:
         json.dump(spec, handle, indent=2)
         handle.write("\n")
-    print(f"wrote {TARGET} ({len(spec['steps'])} steps)")
+    print(f"wrote {target} ({len(spec['steps'])} steps)")
+
+
+def main():
+    write(build(), TARGET)
+    write(build_hold(), HOLD_TARGET)
 
 
 if __name__ == "__main__":
