@@ -560,6 +560,24 @@
       }
     },
     {
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "superfast"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "150"
+      }
+    },
+    {
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "paused"
+      }
+    },
+    {
       "type": "Probe",
       "args": {
         "probeName": "vector_light_count",
