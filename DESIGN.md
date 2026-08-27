@@ -9200,6 +9200,54 @@ sprite — plus a one-pixel offset of the lit region's boundary, where both fram
 and only the pixel carrying the transition differs. The floor cells the door column is measured on
 are untouched, so the residual there is real rather than an artefact of pausing.
 
+**The beam changed RENDERER one frame from the end of its own animation.** Opening the grid at the
+end of the slide was the wrong end, and the reason is not about doors at all — it is that the
+composition picks a renderer **per cell** from whether vanilla delivered there.
+`VectorLightLiftMath.VanillaBentToArrive` answers true wherever vanilla's flood never arrived,
+`SurvivingShare` then returns 0, and the fragment program subtracts nothing and multiplies the whole
+beam. `VectorLightOverlay` calls that the self-limiting property and names its case as *"the far side
+of an open door"*. Correct for a cell vanilla genuinely cannot reach — and also what happened for the
+**whole** of every door's slide, because the grid still said `blocked`. Then the bit moved, vanilla's
+share began being subtracted, and our contribution collapsed to the excess over it.
+
+Surveyed per frame, arm with all three door flags on, one wooden door:
+
+| | our polygon parts the leaves | vanilla's light arrives | frames disagreeing |
+|---|---|---|---|
+| grid opens on the last step | frame 0 | **frame 8** | **8** |
+| **grid opens on the first step** | frame 0 | **frame 0** | **0** |
+
+The aperture climbs 0.125 → 1.0 over those eight frames while `GroundGlowAt` beyond the door holds at
+0.0951, then steps to 0.5 on the frame the aperture reaches 1.
+
+**It is nearly level-neutral, which is why nothing caught it sooner.** Mean brightness in the yard
+moved **+0.11** on the handover frame, against +1.41 elsewhere in the same film — because our model
+was already lighting those cells and the switch only changed *who* was lighting them. A brightness
+curve cannot see this and neither can a ΔE; only a probe on vanilla's own value can, which is this
+repo's rule about pixel measurements restated in the time axis.
+
+**The fix is forced rather than chosen.** One regime for the whole swing needs vanilla and our polygon
+to agree about the doorway at every step. Our polygon opens progressively, by design and by filmed
+measurement; the grid is whole-cell and binary and cannot. That leaves exactly one arrangement: the
+grid opens on the first step our polygon draws a gap at all. `GlowGridHoleWanted` therefore asks
+`openFraction > Shut` rather than `>= FullyOpen`, and `GameComponent_DoorAperture.Advance` reconciles
+on **every** step the aperture moved rather than only at the end.
+
+**The render still tracks the leaves**, because vanilla's flood is not drawn raw — `VectorLightMask`
+shapes it by our polygon, which is at the quantised aperture. What it costs is stated rather than
+buried: this is gameplay light, and it now arrives at the first quantisation step instead of the
+last, about three ticks into a 45-tick wooden door rather than forty-three. Roughly two thirds of a
+second early, in exchange for the beam not changing renderer mid-animation.
+
+**Known and not fixed: the close has the same defect, mirrored and worse.** The bit is restored on the
+first tick of a close (`headingOpen` false immediately) while our polygon still draws a full doorway
+and ramps down over the whole slide — so a closing door spends *all* of its animation in the
+our-model-owns-it regime, where an opening one spent eight frames. The one-line fix is to drop
+`headingOpen` and key purely on the drawn aperture, which `DoorAccess.OpenFraction` already ramps
+correctly down through a close. It is left alone here because it is a second, larger gameplay-light
+change — light lingering under a closing door for the length of its slide — and that is a call to
+make deliberately rather than as a side effect of fixing the open direction.
+
 #### Phase 3: the close tracks its leaves too (issue #174 phase 1, `Tests/Scenarios/vector_light_door_close.json`)
 
 **Problem.** Phase 2 tracks a door's slide in exactly one direction. Open a door and the aperture

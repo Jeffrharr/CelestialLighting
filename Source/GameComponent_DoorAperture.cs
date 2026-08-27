@@ -97,7 +97,12 @@ public class GameComponent_DoorAperture : GameComponent
         float aperture = DoorApertureMath.Quantise(
             DoorAccess.OpenFraction(door), DoorApertureMath.DefaultQuantisationSteps);
 
-        if (aperture != lastBakedAperture && CelestialLightingFeatures.VectorLightDoorAperture)
+        // Recorded before the dirty branch, because the glow-grid reconcile below needs it too and
+        // that reconcile must NOT be gated on the aperture flag -- a door watched only for the glow
+        // blocker still has to move its bit.
+        bool apertureMoved = aperture != lastBakedAperture;
+
+        if (apertureMoved && CelestialLightingFeatures.VectorLightDoorAperture)
         {
             // The leaves moved and nothing was built, so a recorded silhouette is still the wall
             // it was — issue #188 item C, and the reason this parameter exists at all. Eight of the
@@ -128,18 +133,28 @@ public class GameComponent_DoorAperture : GameComponent
         // is whatever `Open` says right now; a remembered direction would keep sweeping a door that
         // had already turned around.
         bool reachedItsEnd = door.Open ? aperture >= 1f : aperture <= 0f;
+
+        // EVERY STEP THE APERTURE MOVED, not only the last one, and that is what makes the beam stop
+        // changing renderer mid-animation. DoorApertureMath.GlowGridHoleWanted now answers true from
+        // the FIRST step our polygon draws a gap, so the moment the answer can change is any step --
+        // asking only at the end would leave the predicate saying "hole" for the whole slide while
+        // the bit stayed put, which is the same disagreement in a new place.
+        //
+        // Cheap by construction rather than by luck: ReconcileGlowBlocker reads the bit before
+        // writing it (DoorApertureMath.GlowGridWriteNeeded), so the eight steps that do not change
+        // the answer cost one bit read each and provoke no invalidation at all. A swing still writes
+        // exactly once.
+        if (apertureMoved || reachedItsEnd)
+        {
+            VectorLightDoorEvents.ReconcileGlowBlocker(door);
+        }
+
+        // Dropping the door is now ALL this branch does. The glow-grid write used to live here, on
+        // the reasoning that the end of the slide was the only honest moment to open a binary grid;
+        // it moved up to the step-wise reconcile above once that reasoning was found to be what made
+        // the beam change renderer one frame from the end of its own animation.
         if (reachedItsEnd)
         {
-            // THE MOMENT THE DOOR BECOMES A WALL GAP, and the reason this component is on the
-            // glow-blocker path at all. Vanilla's grid is whole-cell and binary, so the only honest
-            // time to open it is when the leaves have actually finished sliding -- Notify_DoorOpened
-            // fires on the first tick of the swing, tens of ticks earlier, and moving the bit there
-            // would flood a room through a door the player can still see closed.
-            //
-            // Asked on the CLOSING end too, where the predicate has already gone false and the bit
-            // was restored on the first tick. Reconciling again costs a bit-set to the value it
-            // already holds and keeps this from being a rule with an exception in it.
-            VectorLightDoorEvents.ReconcileGlowBlocker(door);
             Finished.Add(door);
         }
     }
