@@ -1,7 +1,7 @@
 {
   "name": "vector_light_bake_flicker",
   "saveFile": "minimal_colony.rws",
-  "description": "Does a lighting-overlay section that regenerates between an invalidation and the next polygon build render a frame with the shadow missing? Vanilla's Map.MapUpdate regenerates dirty sections at line 1173, draws them at 1176, and does not reach GameConditionManagerDraw -- where vector lighting builds its polygons -- until 1178. So anything that marks a polygon dirty and dirties a section inside one tick is baked from a stale polygon, drawn, and only then corrected. The old rule DROPPED such an emitter, and VectorLightMask.Apply returns true having collected nothing, so the section kept vanilla's flood with neither our mask nor the crossfade's suppression on it -- a frame BRIGHTER than the settled state, not darker. Measured separately: the probe cell renders 4 with vector lighting on and 50 with it off, so the transient is a 12-fold lift on exactly the cells the shadow owns. THE TRANSIENT ITSELF CANNOT BE PROBED OR PHOTOGRAPHED, and that is a property of the harness rather than a gap in this scenario. Steps run from a Root_Play.Update() POSTFIX, one per frame, so the earliest step after a provocation runs a full frame later -- and the correction has landed by then. A tagged log run pinned it exactly: the skips fire on frame 815 against section rect (119,170)-(135,186), which contains the probe cell (123,170), and the first flicker_shadow step reads at frame 816. So flicker_shadow is pinned at its settled 4 in BOTH arms; it is here to prove the recovery is immediate and that the provocation did not move the cell, and it is NOT the assertion. The counters are. TWO ARMS IN ONE BOOT, defect first. vector_light_stale_polygon off restores the drop; on bakes the emitter from its PREVIOUS polygon, one frame stale by exactly the edit that provoked the rebuild. Expect skips 4 / stale 0 off, and skips 0 / stale 4 on, with mask_applies 8 in both -- identical work, different outcome, so the fix costs nothing. THE PROVOKING WALL MUST SHARE A SECTION WITH THE PROBE CELL, and getting that wrong cost a run: a wall in the room's far corner dirties only the sections around itself, so the probe cell's section never regenerated and the counters showed four skips in sections nobody was reading. That locality is also why the symptom in play is a flicker near a door rather than the whole map blinking. PAUSED THROUGHOUT -- a rendered frame is worth roughly fifteen game ticks. The control window comes first and is load-bearing: twelve idle frames must produce no skips, or the counts after a provocation are a background rate rather than a consequence. Each arm provokes on the opposite side of the shadow line, because re-placing the first arm's wall would spawn nothing and provoke nothing. Read vector_light_mask_skips_dirty beside vector_light_mask_stale_polys: skips alone would pass just as happily against a scene where nothing ever moved. Cloud flags are irrelevant here -- the room is roofed and the measurement is a mesh vertex rather than a pixel.",
+  "description": "Does a lighting-overlay section that regenerates between an invalidation and the next polygon build render a frame with the shadow missing? Vanilla's Map.MapUpdate regenerates dirty sections at line 1173, draws them at 1176, and does not reach GameConditionManagerDraw -- where vector lighting builds its polygons -- until 1178. So anything that marks a polygon dirty and dirties a section inside one tick is baked from a stale polygon, drawn, and only then corrected. The old rule DROPPED such an emitter, and VectorLightMask.Apply returns true having collected nothing, so the section kept vanilla's flood with neither our mask nor the crossfade's suppression on it -- a frame BRIGHTER than the settled state, not darker. Measured separately: the probe cell renders 4 with vector lighting on and 50 with it off, so the transient is a 12-fold lift on exactly the cells the shadow owns. \n\nTHE TRANSIENT ITSELF CANNOT BE PROBED OR PHOTOGRAPHED, and that is a property of the harness rather than a gap in this scenario. Steps run from a Root_Play.Update() POSTFIX, one per frame, so the earliest step after a provocation runs a full frame later -- and the correction has landed by then. A tagged log run pinned it exactly: the skips fire on frame 815 against section rect (119,170)-(135,186), which contains the probe cell (123,170), and the first flicker_shadow step reads at frame 816. So flicker_shadow is pinned at its settled 4 in EVERY arm; it is here to prove the recovery is immediate and that the provocation did not move the cell, and it is NOT the assertion. The counters are. \n\nTHREE ARMS IN ONE BOOT, defect first, and the middle one is a control rather than a case. vector_light_stale_polygon off restores the drop; on bakes the emitter from its PREVIOUS polygon, one frame stale by exactly the edit that provoked the rebuild. Expect skips 4 / stale 0 off, and skips 0 / stale 4 on. \n\nWHY mask_applies IS 8 IN THE FIRST TWO ARMS AND 5 IN THE THIRD. The pin at 8 in both of the original two arms said the stale-polygon fix was free: identical work, different outcome. That claim is still true and is still pinned -- in the middle arm, which now switches vector_light_changed_dirty OFF so the bake dirties every section its emitter REACHES, the way the mod did before the bake learned to compare its new coverage grid against the one it replaced. The third arm is the shipped configuration and regenerates five sections instead of eight for the same provocation, with flicker_shadow and flicker_lit identical across all three -- fewer regenerates, same frame. The middle arm's cell is the one the shipped flags read 5 at in the run that provoked this restructuring, so the two readings are the same cell, the same build and one flag apart. \n\nvector_light_unchanged_bakes IS ZERO IN BOTH, AND THAT IS THE INTERESTING PART. The saving here is not bakes coming back byte-identical -- one wall really does move every dirtied emitter's shadow. It is the changed-cell BOX being narrower than the emitter's whole reach: a wall casts a wedge, and the sections that wedge touches are fewer than the sections the lamp can see. stress_door_colony measures the other half, where two thirds of the emitters a swing dirties are sealed away from it and rebake to an identical grid. \n\nTHE PROVOKING WALL MUST SHARE A SECTION WITH THE PROBE CELL, and getting that wrong cost a run: a wall in the room's far corner dirties only the sections around itself, so the probe cell's section never regenerated and the counters showed four skips in sections nobody was reading. That locality is also why the symptom in play is a flicker near a door rather than the whole map blinking. Each arm provokes at a fresh cell, because re-placing an earlier arm's wall would spawn nothing and provoke nothing. \n\nPAUSED THROUGHOUT -- a rendered frame is worth roughly fifteen game ticks. The control window comes first and is load-bearing: twelve idle frames must produce no skips, or the counts after a provocation are a background rate rather than a consequence. Read vector_light_mask_skips_dirty beside vector_light_mask_stale_polys: skips alone would pass just as happily against a scene where nothing ever moved. Cloud flags are irrelevant here -- the room is roofed and the measurement is a mesh vertex rather than a pixel.",
   "steps": [
     {
       "type": "SetTile",
@@ -291,6 +291,13 @@
       }
     },
     {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_changed_dirty",
+        "enabled": "false"
+      }
+    },
+    {
       "type": "Wait",
       "args": {
         "frames": "12"
@@ -371,6 +378,14 @@
       }
     },
     {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_unchanged_bakes",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
       "type": "Wait",
       "args": {
         "frames": "12"
@@ -395,7 +410,130 @@
     {
       "type": "Screenshot",
       "args": {
-        "fileName": "bakeflicker_on_settled.png"
+        "fileName": "bakeflicker_wide_settled.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_changed_dirty",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "12"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_bake_reset",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "0,45",
+        "layout": "cells",
+        "cells": "-1,-3"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "flicker_shadow",
+        "expectedValue": "4",
+        "tolerance": "2"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "flicker_shadow",
+        "expectedValue": "4",
+        "tolerance": "2"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "flicker_shadow",
+        "expectedValue": "4",
+        "tolerance": "2"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "flicker_shadow",
+        "expectedValue": "4",
+        "tolerance": "2"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_skips_dirty",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_stale_polys",
+        "expectedValue": "4",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_applies",
+        "expectedValue": "5",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_unchanged_bakes",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "12"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "flicker_shadow",
+        "expectedValue": "4",
+        "tolerance": "2"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "flicker_lit",
+        "expectedValue": "82",
+        "tolerance": "4"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "bakeflicker_changed_settled.png"
       }
     }
   ]
