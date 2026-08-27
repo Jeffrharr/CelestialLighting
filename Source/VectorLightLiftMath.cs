@@ -197,60 +197,6 @@ public static class VectorLightLiftMath
         return deliveredDistance > ClearRunDistance(dx, dz);
     }
 
-    // ---- THE OTHER REASON TO OWN A CELL: VANILLA'S SHARE IS NOT WORTH ANYTHING ON SCREEN ----
-    //
-    // The detour rule above asks a GEOMETRY question and, measured, answers "almost never" — our
-    // polygon is cast against the same blockers vanilla floods around, so the two sets barely
-    // overlap. But the composition is degenerate past an aperture for a reason that has nothing to
-    // do with geometry, and this is it.
-    //
-    // `vanilla + max(0, ours - vanilla)` IS `max(vanilla, ours)`, exactly, at every cell. The
-    // subtraction is not an alternative to the max — it is the max written as an increment, because
-    // the frame already holds vanilla. So the operator was never the problem, and no rearrangement
-    // of it can be: what varies is WHICH RENDERER carries the max once it is computed.
-    //
-    // Past a door vanilla is 0, so the whole max rides the fan. Past a gap vanilla is 0.0902
-    // against our 0.0911, so 99% of the same max rides vanilla's lighting overlay and 0.9% rides the
-    // fan. Those two paths are not interchangeable at low levels: measured on the gate scene, the
-    // mod adds +2.34 L* past the door and +0.36 past the gap from cones of identical shape and
-    // near-identical glow. A max that is arithmetically right can still be delivered almost entirely
-    // through the path that shows least.
-    //
-    // So this rule picks the renderer on whether vanilla's delivered share is worth anything, rather
-    // than on how the light got there. Below the floor, vanilla is contributing a level the overlay
-    // renders as nearly nothing; the cell goes to our model whole and the fan draws it.
-    //
-    // WHAT IT CANNOT DISTINGUISH, and the thing to look for in the frames. "Dim because it came
-    // through a hole" and "dim because it is the outer rim of the lamp" are the same number to this
-    // rule, so it claims every light's rim as well as every aperture. On the rim our model and
-    // vanilla agree, so the level does not change hands so much as change PATH — and if the two
-    // paths do not deliver equally, that shows up as a ring at each lamp's edge. That is the
-    // measurement this flag exists to take, and it is why the floor is a hard threshold on the first
-    // cut rather than a ramp: a ramp wide enough to hide a ring is wide enough not to claim the gap
-    // (0.0902 sits ABOVE most of the rim, so any floor that takes the gap takes the rim too).
-    //
-    // Modelled offline over the gate scene before it was built. At 0.10 it claims 10 unroofed cells
-    // and NOTHING inside the lamp's room — the near field is at 0.6745, six times clear of it:
-    //
-    //     floor 0.05 -> 7 outdoor, 0 room      floor 0.15 -> 11 outdoor, 8 room
-    //     floor 0.10 -> 10 outdoor, 0 room     floor 0.20 -> 11 outdoor, 22 room
-    //
-    // 0.15 is where it starts eating the room, so 0.10 is the value with a measured margin either
-    // side rather than a round number that happened to work.
-
-    // The level below which vanilla's delivered glow is treated as not worth keeping, as the byte
-    // its per-light array stores: 0.10 of full glow, i.e. 26 of 255.
-    public const int DimDeliveryFloor = 26;
-
-    // `deliveredPeak` is the largest of vanilla's three channels at this cell, which is the channel
-    // its own hue-preserving projection normalises the other two against — so it is the one number
-    // that says how much light arrived, independent of the lamp's colour.
-    //
-    // Zero passes, and that is the same statement the detour rule makes about a cell vanilla never
-    // reached: there is nothing there either to keep or to take.
-    public static bool VanillaTooDimToKeep(int deliveredPeak) =>
-        deliveredPeak < DimDeliveryFloor;
-
     // One emitter's colour at one cell, in the byte space vanilla writes into its per-light array.
     //
     // MIRRORS ComputeGlowGridsJob EXACTLY, because the whole point of comparing the two is that they

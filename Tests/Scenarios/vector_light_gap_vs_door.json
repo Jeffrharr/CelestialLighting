@@ -199,13 +199,6 @@
     {
       "type": "SetFeature",
       "args": {
-        "featureName": "vector_light_dim_floor",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
         "featureName": "vector_light_open_doors",
         "enabled": "true"
       }
@@ -381,13 +374,6 @@
     {
       "type": "SetFeature",
       "args": {
-        "featureName": "vector_light_dim_floor",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
         "featureName": "vector_light_open_doors",
         "enabled": "true"
       }
@@ -549,13 +535,6 @@
       "type": "SetFeature",
       "args": {
         "featureName": "vector_light_bent_path",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_dim_floor",
         "enabled": "false"
       }
     },
@@ -769,13 +748,6 @@
     {
       "type": "SetFeature",
       "args": {
-        "featureName": "vector_light_dim_floor",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
         "featureName": "vector_light_open_doors",
         "enabled": "true"
       }
@@ -945,13 +917,6 @@
       "type": "SetFeature",
       "args": {
         "featureName": "vector_light_bent_path",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_dim_floor",
         "enabled": "false"
       }
     },
@@ -1157,13 +1122,6 @@
     {
       "type": "SetFeature",
       "args": {
-        "featureName": "vector_light_dim_floor",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
         "featureName": "vector_light_open_doors",
         "enabled": "true"
       }
@@ -1282,22 +1240,6 @@
       }
     },
     {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_floor_home",
-        "expectedValue": "0",
-        "tolerance": "99999"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_floor_beyond",
-        "expectedValue": "0",
-        "tolerance": "99999"
-      }
-    },
-    {
       "type": "Screenshot",
       "args": {
         "fileName": "gapdoor_bent.png"
@@ -1398,276 +1340,6 @@
       "type": "SetFeature",
       "args": {
         "featureName": "vector_light_aperture_beam",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_bent_path",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_dim_floor",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_open_doors",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_door_glow_blocker",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_door_aperture",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "cloud_cover",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "cloud_sheet",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "cloud_presence",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "cloud_deck_varieties",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "cloud_volume",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_shader_max_available",
-        "expectedValue": "1",
-        "tolerance": "0"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_floor_home",
-        "expectedValue": "0",
-        "tolerance": "99999"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_floor_beyond",
-        "expectedValue": "0",
-        "tolerance": "99999"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_bent_applied",
-        "expectedValue": "0",
-        "tolerance": "99999"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_beyond_ours",
-        "expectedValue": "0",
-        "tolerance": "99999"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_beyond_vanilla",
-        "expectedValue": "0",
-        "tolerance": "99999"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_beyond_excess",
-        "expectedValue": "0",
-        "tolerance": "99999"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_beyond_cells",
-        "expectedValue": "0",
-        "tolerance": "99999"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "gapdoor_dimfloor.png"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_beyond_ours",
-        "expectedValue": "0",
-        "tolerance": "99999"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_beyond_vanilla",
-        "expectedValue": "0",
-        "tolerance": "99999"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_beyond_excess",
-        "expectedValue": "0",
-        "tolerance": "99999"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_beyond_cells",
-        "expectedValue": "0",
-        "tolerance": "99999"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_lights",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_penumbra",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_suppress",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_blend",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_beam",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max_lift",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max_seed",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_shader_max",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_shader_max_subtract",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_surface_lift",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_gap_parity",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_aperture_beam",
         "enabled": "true"
       }
     },
@@ -1675,13 +1347,6 @@
       "type": "SetFeature",
       "args": {
         "featureName": "vector_light_bent_path",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_dim_floor",
         "enabled": "false"
       }
     },
@@ -1889,13 +1554,6 @@
       "type": "SetFeature",
       "args": {
         "featureName": "vector_light_bent_path",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_dim_floor",
         "enabled": "false"
       }
     },

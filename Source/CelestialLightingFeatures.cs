@@ -1069,30 +1069,6 @@ public static class CelestialLightingFeatures
     // OFF while it is measured.
     public static bool VectorLightBentPath = false;
 
-    // Feature key for VectorLightDimFloor.
-    public const string VectorLightDimFloorKey = "vector_light_dim_floor";
-
-    // Our model owns any cell where vanilla's delivered glow is too dim to be worth keeping,
-    // whatever the geometry that put it there.
-    //
-    // WHY, IN ONE LINE: `vanilla + max(0, ours - vanilla)` is `max(vanilla, ours)` exactly, so the
-    // operator was never wrong — what differs between a doorway and a gap is which RENDERER ends up
-    // carrying the max. Past a door the fan carries all of it; past a gap vanilla's overlay carries
-    // 99% of it, and at these levels the two paths do not deliver alike. See VectorLightLiftMath's
-    // floor header for the derivation and for the value.
-    //
-    // THE RISK IT IS BEING RUN TO MEASURE is a ring. "Dim because it came through a hole" and "dim
-    // because it is the lamp's outer rim" are the same number here, so every light's rim changes
-    // renderer too — and any difference between the two paths draws an edge exactly there. A hard
-    // threshold on purpose: a ramp soft enough to hide a ring cannot claim the gap, because the gap
-    // cell sits above most of the rim.
-    //
-    // Composes with VectorLightBentPath rather than replacing it — either reason is sufficient to
-    // claim a cell — and, like it, stands down under the global aperture beam and needs the shader.
-    //
-    // OFF while it is measured.
-    public static bool VectorLightDimFloor = false;
-
     // Feature key for VectorLightMaskMax.
     public const string VectorLightMaskMaxKey = "vector_light_mask_max";
 
