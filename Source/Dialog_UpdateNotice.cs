@@ -3,21 +3,26 @@ using Verse;
 
 namespace CelestialLighting;
 
-// The one-time notice: offers vector lighting to every install, and tells a player who already had
-// this mod that volumetric clouds arrived with it. The thin Verse adapter over UpdateNoticeMath —
-// every decision about whether to appear and what to say about each feature lives there; this file
-// draws it and writes the answer back. See DESIGN.md "Update notice".
+// The one-time notice: offers vector lighting to a player who already had this mod, and tells them
+// that volumetric clouds arrived with it. The thin Verse adapter over UpdateNoticeMath — every
+// decision about whether to appear and what to say about each feature lives there; this file draws
+// it and writes the answer back. See DESIGN.md "Update notice".
 //
-// WHY EVERY INSTALL IS ASKED. Vector lighting is the most expensive thing this mod does, by a wide
-// margin as a share of its per-frame budget, and a default that quietly spends a player's frame
-// budget is not the same kind of default as one that quietly changes a colour. So it ships off for
-// everybody and everybody gets the question, rather than a first-time install being opted in on the
-// grounds that it has no prior expectation to violate — see UpdateNoticeMath.ShouldShow.
+// ONLY AN UPGRADING INSTALL EVER SEES THIS WINDOW. A first-time install gets vector lighting switched
+// on and no window at all, because nothing in this mod is an "update" to somebody for whom every
+// effect arrived at the same moment — see UpdateNoticeMath.ShouldShow and FirstRunSwitches. So the
+// prose here can address a returning player directly, and does.
 //
-// The other half is discovery. Vector lighting shipping off means the only route to it is reading a
-// list of thirty checkboxes and noticing one; volumetric clouds arrive already running and change
-// what the sky looks like without ever being mentioned, so a player whose clouds suddenly render
-// differently has no way to connect that to a setting.
+// WHY THEY ARE ASKED RATHER THAN SIMPLY GIVEN IT, now that vector lighting is no longer the mod's
+// expensive outlier: it changes how a colony is LIT. Light that vanilla delivered along a path
+// bending around a corner no longer arrives, so indirectly lit rooms are genuinely darker. Somebody
+// fifty hours into a colony lit the other way has a specific expectation, and silently rewriting it
+// on update is not a default, it is a surprise.
+//
+// The other half is discovery. Vector lighting staying off for this population means the only route
+// to it is reading a list of thirty checkboxes and noticing one; volumetric clouds arrive already
+// running and change what the sky looks like without ever being mentioned, so a player whose clouds
+// suddenly render differently has no way to connect that to a setting.
 //
 // ONE BUTTON, NOT A TICKBOX PER FEATURE. Only one of the two is offerable at all — the cloud row is
 // announcement-only by design (UpdateNoticeMath.VolumetricCloudRow) — so a checkbox plus an Apply
@@ -32,12 +37,6 @@ public class Dialog_UpdateNotice : Window
     // not frozen, and a row that appeared as an offer and resolved as "already on" would apply
     // nothing while looking like it applied something.
     private readonly UpdateNoticeSwitches switches;
-
-    // Whether this player had the mod before. It no longer decides whether the window appears — only
-    // what it says: an upgrade gets "what's new" and the cloud announcement, a fresh install gets a
-    // setup question and nothing about clouds, because nothing is "new" to somebody for whom every
-    // effect arrived at once five minutes ago.
-    private readonly bool installedBefore;
 
     private readonly UpdateNoticeRow vectorLightRow;
     private readonly UpdateNoticeRow volumetricCloudRow;
@@ -60,24 +59,32 @@ public class Dialog_UpdateNotice : Window
     private const float ButtonGap = 10f;
     private const float ScrollBarWidth = 20f;
 
-    // Height follows the content, because the two cases differ by a whole feature block and a fixed
-    // size is visibly wrong for one of them whichever number is picked. BOTH ERRORS WERE FOUND BY
-    // LOOKING AT THE THING — this shipped at a flat 520, where the upgrade case pushed its closing
-    // line below the fold behind a scrollbar (so the one sentence telling the player they can change
-    // their mind was the one they could not see), and a flat 620 left the first-install case with
-    // 200px of empty black under three paragraphs.
+    // Height follows the content, because either feature block can be absent and a fixed size is
+    // visibly wrong for whichever case it was not picked for. BOTH ERRORS THAT PRODUCED THESE
+    // NUMBERS WERE FOUND BY LOOKING AT THE THING — this shipped at a flat 520, where the two-block
+    // case pushed its closing line below the fold behind a scrollbar (so the one sentence telling
+    // the player they can change their mind was the one they could not see), and a flat 620 left the
+    // one-block case with 200px of empty black under three paragraphs.
+    //
+    // ChromeHeight is the title, the intro, the closing line and the button row — everything that is
+    // there whatever the rows say. The two row constants are added for the blocks actually drawn, so
+    // a player who already switched vector lighting on gets a window sized for the cloud
+    // announcement alone rather than one sized for a block it does not contain.
     //
     // The scroll view stays regardless: a UI-scale or font setting can push any content past any
     // fixed height, and a scrollbar is the right answer then. Nothing should need it at defaults.
     //
     // Capped where it is because RimWorld supports 1024x768 — a centred 620 still leaves ~74px of
     // margin above and below there.
-    private const float BaseHeight = 460f;
+    private const float ChromeHeight = 260f;
+    private const float VectorLightRowHeight = 200f;
     private const float CloudRowHeight = 160f;
 
     public override Vector2 InitialSize => new Vector2(
         640f,
-        volumetricCloudRow == UpdateNoticeRow.Hidden ? BaseHeight : BaseHeight + CloudRowHeight);
+        ChromeHeight
+        + (vectorLightRow == UpdateNoticeRow.Hidden ? 0f : VectorLightRowHeight)
+        + (volumetricCloudRow == UpdateNoticeRow.Hidden ? 0f : CloudRowHeight));
 
     // Raises the notice for whatever the settings say right now. Used by the test harness's
     // RaiseWindow step, which constructs by type name and therefore needs a parameterless
@@ -85,16 +92,15 @@ public class Dialog_UpdateNotice : Window
     // window raised at the main menu is discarded when the game loads (DESIGN.md "What was not
     // verified"). Also the constructor any future "show me what's new again" button would want.
     public Dialog_UpdateNotice()
-        : this(UpdateNotice.CurrentSwitches(), UpdateNotice.InstalledBefore())
+        : this(UpdateNotice.CurrentSwitches())
     {
     }
 
-    public Dialog_UpdateNotice(UpdateNoticeSwitches switches, bool installedBefore)
+    public Dialog_UpdateNotice(UpdateNoticeSwitches switches)
     {
         this.switches = switches;
-        this.installedBefore = installedBefore;
         vectorLightRow = UpdateNoticeMath.VectorLightRow(switches);
-        volumetricCloudRow = UpdateNoticeMath.VolumetricCloudRow(switches, installedBefore);
+        volumetricCloudRow = UpdateNoticeMath.VolumetricCloudRow(switches);
 
         // forcePause is inert at the main menu (there is no game to pause) and correct if a future
         // caller ever raises this in-game. absorbInputAroundWindow keeps a click that misses the
@@ -115,20 +121,28 @@ public class Dialog_UpdateNotice : Window
         onlyOneOfTypeAllowed = true;
     }
 
-    // "What's new" is a claim about the player's history, so it is only made to a player who has one.
-    // Telling somebody on their first ever boot that a feature is new is a sentence that means
-    // nothing to them — every effect in this mod arrived at the same moment.
-    private string Title => installedBefore
-        ? "Celestial Lighting — what's new"
-        : "Celestial Lighting — one setting worth choosing";
+    // "What's new" is a claim about the player's history, and every player who reaches this window
+    // has one — UpdateNoticeMath.ShouldShow raises it only for an install that had the mod before.
+    private const string Title = "Celestial Lighting — what's new";
 
-    private string Intro => installedBefore
-        ? "This update adds two new effects. Both are visual only — nothing here changes plant "
-            + "growth, work speed, pawn vision or anything else the game reads a number from."
-        : "One setting is worth deciding before you start, because it is the only part of this mod "
-            + "with a real cost to your framerate. Everything else is on and needs no thought. It is "
-            + "visual only — nothing here changes plant growth, work speed, pawn vision or anything "
-            + "else the game reads a number from.";
+    // COUNTS THE BLOCKS ACTUALLY DRAWN rather than hard-coding "two". Either row can be absent — the
+    // vector one because the player already found the switch, the cloud one because the renderer is
+    // not reachable on this machine — and a window that opens by announcing two effects above a
+    // single block is the mod miscounting its own release notes in front of the player.
+    private string Intro
+    {
+        get
+        {
+            int blocks = (vectorLightRow == UpdateNoticeRow.Hidden ? 0 : 1)
+                + (volumetricCloudRow == UpdateNoticeRow.Hidden ? 0 : 1);
+
+            return (blocks > 1
+                    ? "This update adds two new effects. Both are visual only — "
+                    : "This update adds a new effect. It is visual only — ")
+                + "nothing here changes plant growth, work speed, pawn vision or anything else the "
+                + "game reads a number from.";
+        }
+    }
 
     public override void DoWindowContents(Rect inRect)
     {
@@ -173,11 +187,12 @@ public class Dialog_UpdateNotice : Window
             body: "Artificial light cast as a shape from each lamp rather than flooded outwards: a beam "
                 + "through a doorway, a hard shadow behind a rock, firelight spilling out of a window. "
                 + "Pawns throw a shadow away from every lamp lighting them.\n\n"
-                + "This is the most expensive thing the mod does — by a good margin the largest share "
-                + "of its per-frame cost — which is why it is off by default and why you are being "
-                + "asked rather than simply given it. The other trade is that light which only reached "
-                + "a room by bending around a corner no longer arrives, so indirectly lit rooms are "
-                + "genuinely darker than vanilla.",
+                + "You are being asked rather than simply given it because it changes how your colony "
+                + "is lit, not because it is costly: light which only reached a room by bending around "
+                + "a corner no longer arrives, so indirectly lit rooms are genuinely darker than you "
+                + "are used to. Nothing else changes — plant growth, work speed, pawn vision and mood "
+                + "read exactly the same numbers either way. A fresh install of this mod starts with "
+                + "it on; your colony keeps the lighting it has until you say otherwise.",
             // No footnote: this row is only ever Offer or Hidden, never Announce — see
             // UpdateNoticeMath.VectorLightRow.
             footnote: null);
@@ -192,8 +207,8 @@ public class Dialog_UpdateNotice : Window
                 + "sun lights the tops while the bulk beneath stays dark, and the shape of that shading "
                 + "changes through the day rather than just its brightness.",
             footnote: "Already running — this one needed no decision from you. Its cost is on the "
-                + "graphics card rather than the CPU, and it is nowhere near the setting above; if you "
-                + "do go looking for frames, it is the second place to look, not the first.");
+                + "graphics card rather than the CPU, and it switches itself off on hardware that "
+                + "cannot run it, so nothing here depends on you checking anything.");
     }
 
     // One row: heading, description, and — for an announced feature — a greyed footnote saying it is
