@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using HarmonyLib;
 using RimWorld;
 using Verse;
@@ -135,31 +136,75 @@ public static class VectorLightDoorEvents
             // rather than by being told. If the door was BUILT rather than opened, LightBlockerAdded
             // fired and already invalidated it.
             VectorLightField.MarkGeometryDirtyAround(map, door.Position, blockerMoved: false);
-
-            // Phase 2: the notification only fires at the START of the slide, so hand the door to the
-            // component that will keep dirtying it, once per quantisation step, until the leaves stop
-            // moving. Registered on close as well as open — an interrupted door animates back down.
-            GameComponent_DoorAperture.Watch(door);
         }
 
-        // The comparison arm: move vanilla's own blocker bit, so gameplay light agrees with the
-        // drawn frame instead of merely being disagreed with. Gated separately and shipped off --
-        // this is the flag that makes plants grow and pawns see, which nothing else in §27 does.
-        // Skipped entirely when the door is see-through, because its bit was never set: SpawnSetup
-        // only writes lightBlockers when def.blockLight is true, and clearing a bit vanilla never
-        // set, then setting it on close, would make a glass door start blocking gameplay light the
-        // first time anyone shut it.
-        if (CelestialLightingFeatures.VectorLightDoorGlowBlocker
-            && door.def != null && door.def.blockLight)
+        // Registered on close as well as open — an interrupted door animates back down — and NOT
+        // gated on VectorLightOpenDoors, because the glow-grid half below needs the same clock: this
+        // notification fires at the START of the slide and the bit moves at the END of it.
+        GameComponent_DoorAperture.Watch(door);
+
+        // A CLOSING DOOR STOPS BEING A HOLE IMMEDIATELY, which is why this is asked here and the
+        // opening half is not. `nowOpen` is the end the door is heading for, so on a close the
+        // predicate has already gone false and this restores the bit on the first tick of the swing;
+        // on an OPEN it is still false until the leaves finish, and the component above is what asks
+        // again when they do. See DoorApertureMath.GlowGridHoleWanted for why both edges err toward
+        // blocked.
+        ReconcileGlowBlocker(door);
+    }
+
+    // Make vanilla's own light-blocker bit agree with what the door is currently doing.
+    //
+    // THE ONE PLACE THE BIT IS WRITTEN, called from the door's own notifications, from the aperture
+    // clock when a swing finishes, and from map load. Three callers reaching the same predicate is
+    // the point: the bit is a single piece of state with no history, so a caller that decided for
+    // itself would eventually disagree with another one and leave a door lighting a room it does not
+    // open onto — a bug with no symptom until somebody looks at the right wall.
+    //
+    // IDEMPOTENT BY CONSTRUCTION. GlowGrid.lightBlockers is a NativeBitArray and both calls are a
+    // plain Set, so writing the same value twice costs a dirty-lights pass and changes nothing. That
+    // is what lets every caller here be unconditional rather than having to know what the last one
+    // did.
+    public static void ReconcileGlowBlocker(Building_Door door)
+    {
+        // This is GAMEPLAY light — plant growth, pawn vision, work speed and every mod reading
+        // GroundGlowAt move with it — so it is the one term in §27 that stays behind its own flag
+        // rather than riding on VectorLights.
+        if (!CelestialLightingFeatures.VectorLightDoorGlowBlocker || door == null)
         {
-            if (nowOpen)
-            {
-                map.glowGrid.LightBlockerRemoved(door.Position);
-            }
-            else
-            {
-                map.glowGrid.LightBlockerAdded(door.Position);
-            }
+            return;
+        }
+
+        Map map = door.Map;
+        if (map == null || door.def == null)
+        {
+            return;
+        }
+
+        // OWNERSHIP FIRST, AND IT IS NOT THE SAME QUESTION AS THE PREDICATE'S. A see-through door
+        // answers "not a hole" for a reason that has nothing to do with whether it is open — its bit
+        // was never set, so it is not ours to write — and falling through to LightBlockerAdded would
+        // make glass doors start blocking gameplay light the first time anyone shut one. The
+        // predicate says the same thing from its own inputs; asking here as well is what stops the
+        // `else` branch below from acting on it.
+        if (!door.def.blockLight)
+        {
+            return;
+        }
+
+        // The aperture our own fan is drawing, not the door's raw animation — see
+        // DoorApertureMath.RenderedOpenFraction for why those are different questions.
+        float rendered = DoorApertureMath.RenderedOpenFraction(
+            CelestialLightingFeatures.VectorLightDoorAperture, DoorAccess.OpenFraction(door));
+
+        bool hole = DoorApertureMath.GlowGridHoleWanted(door.def.blockLight, door.Open, rendered);
+
+        if (hole)
+        {
+            map.glowGrid.LightBlockerRemoved(door.Position);
+        }
+        else
+        {
+            map.glowGrid.LightBlockerAdded(door.Position);
         }
     }
 
@@ -178,4 +223,53 @@ public static class Patch_VectorLightDoorOpened
 public static class Patch_VectorLightDoorClosed
 {
     static void Postfix(Building_Door door) => VectorLightDoorEvents.Closed(door);
+}
+
+// The state a door's blocker bit is in after a LOAD, and the one case the notifications cannot cover.
+//
+// WHY IT IS BROKEN WITHOUT THIS. A door that was open when the game was saved comes back with
+// `openInt` true and raises no Notify_DoorOpened — the notification is an EVENT, and nothing
+// happened. Meanwhile Building.SpawnSetup has written def.blockLight into lightBlockers exactly as it
+// does for a shut door. So every door left open across a save reloads as a light blocker while the
+// artwork shows it standing open, and stays that way until somebody next walks through it.
+//
+// That was recorded as an acceptable rough edge while this was a comparison arm nobody shipped. It is
+// not acceptable now: "an open door is a wall gap" that quietly stops being true on load is worse
+// than not making the claim, because the failure is invisible until a player notices one room is
+// darker than it was before they saved.
+//
+// WHY Map.FinalizeInit. It runs once per map after everything on it has spawned, on load and on
+// generation alike, which is exactly the moment the grid and the doors can first disagree. Doing it
+// from SpawnSetup instead would fight vanilla's own write on the same tick and depend on patch order.
+[HarmonyPatch(typeof(Map), nameof(Map.FinalizeInit))]
+public static class Patch_VectorLightDoorBlockersOnLoad
+{
+    static void Postfix(Map __instance)
+    {
+        if (!CelestialLightingFeatures.VectorLightDoorGlowBlocker || __instance == null)
+        {
+            return;
+        }
+
+        // BOTH LISTS, and the colonist one alone is a real miss rather than a tidy-up. Ancient
+        // ruins, abandoned bases and every quest map arrive with doors nobody owns, and a door left
+        // standing open in generated content is exactly the case that reloads wrong and never gets
+        // walked through to heal itself.
+        Reconcile(__instance.listerBuildings.allBuildingsColonist);
+        Reconcile(__instance.listerBuildings.allBuildingsNonColonist);
+    }
+
+    // Doors are a small fraction of a colony's buildings and this runs once per map load, so the
+    // sweep is not worth narrowing — narrowing it would mean keeping a second list in step with
+    // vanilla's, which is the kind of bookkeeping that goes stale silently.
+    private static void Reconcile(List<Building> buildings)
+    {
+        for (int i = 0; i < buildings.Count; i++)
+        {
+            if (buildings[i] is Building_Door door)
+            {
+                VectorLightDoorEvents.ReconcileGlowBlocker(door);
+            }
+        }
+    }
 }

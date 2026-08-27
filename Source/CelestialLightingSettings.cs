@@ -93,11 +93,24 @@ public class CelestialLightingSettings : ModSettings
     // Nobody would choose that, so it is not offered. The split flags survive so the harness can
     // still film one against the other.
     //
-    // Off by default, and it is the mod's one deliberate disagreement with gameplay light: vanilla's
-    // glow grid never learns a door opened, so this renders a beam vanilla does not deliver. Plant
-    // growth, work speed and pawn vision are unchanged either way — the divergence is visual only.
-    // See CelestialLightingFeatures.VectorLightOpenDoors for the full argument.
-    public bool vectorLightOpenDoors = false;
+    // It drives a THIRD flag now: VectorLightDoorGlowBlocker, which moves vanilla's own light-blocker
+    // bit once the door is fully open. That is what makes an open door behave the same as a bare gap
+    // in a wall rather than as a special case — see CelestialLightingFeatures.VectorLightDoorGlowBlocker.
+    //
+    // AND IT IS GAMEPLAY LIGHT NOW, which it was not before. Plant growth, work speed and pawn vision
+    // all change beyond a fully open door, because RimWorld now floods light through it exactly as it
+    // already does through a hole in a wall. This used to be the mod's one deliberate DISAGREEMENT
+    // with gameplay light — a beam vanilla did not deliver — and it is now an agreement instead. It
+    // keeps its own switch for that reason and not merely out of habit.
+    //
+    // TWO DIFFERENT DEFAULTS, AND THE SPLIT IS THE WHOLE POINT. The field initialiser is what a
+    // FRESH INSTALL gets, since ReadModSettings returns a new object without calling ExposeData when
+    // there is no file. The default passed to Scribe_Values is what an ABSENT NODE in an EXISTING
+    // file loads as — and Scribe_Values omits any value equal to its default when saving, so every
+    // player who has ever left this off has no node at all. Flipping the Scribe default too would
+    // therefore turn a gameplay-light change on for all of them silently, on update, without anyone
+    // choosing it. New installs get the coherent behaviour; existing saves keep whatever they had.
+    public bool vectorLightOpenDoors = true;
 
     // How strong §27's additive beam is on top of the mask. A per-effect intensity like
     // purpleLightStrength, deliberately NOT in PresetKnobs, so moving it does not flip the preset
@@ -239,6 +252,13 @@ public class CelestialLightingSettings : ModSettings
         CelestialLightingFeatures.VectorLightOpenDoors = vectorLightOpenDoors;
         CelestialLightingFeatures.VectorLightDoorAperture = vectorLightOpenDoors;
 
+        // ALL THREE OFF ONE SWITCH, and leaving this one out is not a cosmetic omission. With the
+        // rendering half off and the glow-grid half on, vanilla floods through a fully open door
+        // while our polygon still treats it as a wall -- and the mask then subtracts that flood as
+        // light it believes is shadowed, so turning the feature OFF would make doorways darker than
+        // vanilla rather than returning them to it.
+        CelestialLightingFeatures.VectorLightDoorGlowBlocker = vectorLightOpenDoors;
+
         VectorLightRedraw.SyncTo(vectorLights);
         CelestialLightingFeatures.VectorLights = vectorLights;
 
@@ -322,6 +342,8 @@ public class CelestialLightingSettings : ModSettings
         Scribe_Values.Look(ref cloudVolume, "cloudVolume", true);
         Scribe_Values.Look(ref vectorLights, "vectorLights", false);
         Scribe_Values.Look(ref vectorLightPawnShadows, "vectorLightPawnShadows", true);
+        // FALSE HERE ON PURPOSE while the field initialiser above is true. This is not the
+        // new-install default and must not be made to match it -- see the field's comment.
         Scribe_Values.Look(ref vectorLightOpenDoors, "vectorLightOpenDoors", false);
         Scribe_Values.Look(ref vectorLightBeamStrength, "vectorLightBeamStrength",
             VectorLightMath.DefaultBeamStrengthScale);
