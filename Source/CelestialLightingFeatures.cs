@@ -1355,6 +1355,55 @@ public static class CelestialLightingFeatures
     // as a pair for the usual reason, and by vector_light_upload_field_ms which is the half of the
     // upload clock this moves. Off refills on every refresh, which is what the previous shape did.
     public static bool VectorLightGlowTextureHold = true;
+
+    // Feature key for VectorLightUploadBounds.
+    public const string VectorLightUploadBoundsKey = "vector_light_upload_bounds";
+
+    // Stop Unity deriving the mesh's bounding box by scanning every vertex it was just handed, and
+    // state the box instead.
+    //
+    // WHY IT CAN BE STATED RATHER THAN MEASURED. Every vertex BuildMesh emits lies within `radius` of
+    // the light and at exactly the draw altitude: the fan's reach is Math.Min(distance, radius) and a
+    // penumbra wedge's is bounded by the same clamp, so the extent is known before a single vertex is
+    // read. VectorLightMathTests pins that as an invariant of the built geometry rather than as a
+    // restatement of this comment, because it is BuildMesh growing a vertex outside the radius that
+    // would make the stated box wrong, and no test of the box itself could see that happen.
+    //
+    // THE FAILURE DIRECTION IS INVISIBILITY, WHICH IS WHY THE MARGIN IS GENEROUS. Graphics.DrawMesh
+    // frustum-culls against these bounds, so a box too small does not draw a clipped light — it drops
+    // the light entirely, on some camera positions and not others. A box too large costs nothing at
+    // all here, because DrawLight has already applied its own camera-rect cull before any of this
+    // runs, so an emitter Unity would have culled never reaches the draw call to be over-admitted.
+    //
+    // Measured by vector_light_upload_mesh_ms. Off recalculates on both channel writes, which is what
+    // the previous shape did, so the arm is a baseline rather than a picture of the feature missing.
+    public static bool VectorLightUploadBounds = true;
+
+    // Feature key for VectorLightUploadDirect.
+    public const string VectorLightUploadDirectKey = "vector_light_upload_direct";
+
+    // Hand Unity the triangle array the bake already produced, instead of copying it into a scratch
+    // List on the way past.
+    //
+    // IT WAS A PURE COPY. LightMesh.Triangles is an int[] that BuildMesh ends by calling ToArray()
+    // on, so it is exactly sized — there is no over-allocated tail for the whole-array overload to
+    // upload as garbage indices — and it was being AddRange'd into a List<int> for no reason but the
+    // choice of overload at the call site. Every upload paid a Clear and a copy of the whole index
+    // buffer to arrive at the bytes it was already holding.
+    //
+    // THE VERTICES DELIBERATELY STILL GO THROUGH A LIST, and this is the more interesting half.
+    // The same argument appears to apply — but the bake stores X and Z as separate float arrays
+    // (which is what keeps the pure core free of UnityEngine), so they have to be interleaved with
+    // the altitude into somebody's Vector3 buffer regardless. Making that buffer a reused array
+    // would put a grow-only static array back on this type, which is precisely the shape
+    // Overlay_KeepsNoSharedPixelScratchBuffer fails the build over: it is how the per-emitter
+    // texture overflow shipped. The List round-trip is not free — List<T>.Clear on .NET Framework
+    // memsets the used range even for a struct element type — but it is cheaper than re-opening
+    // that trap, and the triangles are the half that could be taken without going near it.
+    //
+    // Measured by vector_light_upload_mesh_ms. Off routes through the List, which is what the
+    // previous shape did.
+    public static bool VectorLightUploadDirect = true;
 }
 
 public enum SunClockMode

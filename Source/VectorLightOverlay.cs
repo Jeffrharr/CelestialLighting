@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
+using UnityEngine.Rendering;
 using Verse;
 using Verse.Glow;
 
@@ -49,6 +50,11 @@ public static class VectorLightOverlay
     // API takes UV channels as float4 and a float3 overload would silently pad anyway.
     private static readonly List<Vector4> VanillaUvs = new List<Vector4>();
 
+    // THESE STAY LISTS, AND A TEST ENFORCES IT. VectorLightOverlay must hold no static ARRAY field —
+    // Overlay_KeepsNoSharedPixelScratchBuffer fails the build if it does — because a grow-only shared
+    // array is how the per-emitter texture overflow shipped. X and Z arrive from the bake as separate
+    // float arrays, so the vertices have to be interleaved into somebody's buffer whatever happens;
+    // the guard decides whose. Only the triangles can skip staging entirely, and they do.
     private static readonly List<Vector3> Verts = new List<Vector3>();
     private static readonly List<Vector2> Uvs = new List<Vector2>();
     private static readonly List<int> Tris = new List<int>();
@@ -256,7 +262,7 @@ public static class VectorLightOverlay
         // neither of those can reach and the one third that cannot be threaded away. See
         // VectorLightField.UploadWallMs.
         System.Diagnostics.Stopwatch clock = System.Diagnostics.Stopwatch.StartNew();
-        UploadMesh(entry, built, altitude);
+        UploadMesh(entry, built, lightX, lightZ, altitude);
         VectorLightField.UploadMeshWallMs += clock.Elapsed.TotalMilliseconds;
 
         // New geometry means UV1 is gone — Mesh.Clear wipes every channel — and every coordinate in
@@ -316,7 +322,8 @@ public static class VectorLightOverlay
     }
 
     private static void UploadMesh(
-        VectorLightField.LightEntry entry, VectorLightMath.LightMesh built, float altitude)
+        VectorLightField.LightEntry entry, VectorLightMath.LightMesh built,
+        float lightX, float lightZ, float altitude)
     {
         if (built.VertexCount == 0)
         {
@@ -325,11 +332,61 @@ public static class VectorLightOverlay
         }
 
         entry.Mesh = entry.Mesh ?? new Mesh { name = "CelestialLighting_VectorLight" };
+
+        // NOT SKIPPED EVEN THOUGH EVERY CHANNEL BELOW IS ABOUT TO BE REWRITTEN, and the reason is the
+        // one channel that is not: a rebuild may emit fewer vertices than the mesh currently holds,
+        // and UV1 (vanilla's delivered glow, written later and only under the max) is indexed by
+        // vertex. Leaving it in place would pair new geometry with the previous build's samples.
+        // Rebuild's own comment records the other half of this — clearing UV1 is what FieldUvsDirty
+        // exists to repair.
         entry.Mesh.Clear();
 
+        // Whether we state the bounding box or let Unity derive it by scanning the vertices. Read
+        // once and threaded through both channel writes, so an arm cannot end up recalculating on one
+        // and not the other and measure half a change.
+        bool ownBounds = CelestialLightingFeatures.VectorLightUploadBounds;
+
+        WriteVertexChannels(entry.Mesh, built, altitude, ownBounds);
+        WriteTriangles(entry.Mesh, built, ownBounds);
+
+        // AFTER both writes, because Mesh.Clear resets the box and SetVertices/SetTriangles would
+        // each overwrite it again when they are recalculating. Only the flag-on path arrives here, so
+        // with the flag off Unity's own answer is left exactly where it was.
+        if (ownBounds)
+            entry.Mesh.bounds = BoundsFor(entry, lightX, lightZ, altitude);
+    }
+
+    // The mesh's extent, without reading a single vertex to find it.
+    //
+    // FLAT IN Y AND CIRCULAR IN XZ. Every vertex is emitted at the draw altitude, and none is further
+    // from the light than the emitter's radius — BuildMesh clamps the fan's reach with
+    // Math.Min(distance, radius) and bounds each penumbra wedge by the same clamped value. So the
+    // tight box is the radius square at the altitude plane, and the margin below is slack on top of a
+    // bound that is already exact.
+    //
+    // THE MARGIN IS DELIBERATELY LARGER THAN FLOAT ERROR NEEDS. Bounds too small make a light VANISH
+    // rather than clip — Graphics.DrawMesh culls the whole mesh against them — and the vanishing
+    // would depend on where the camera happens to sit, which is the kind of defect that survives a
+    // screenshot. Bounds too large cost nothing measurable: DrawLight applies its own camera-rect cull
+    // before the draw call exists, so an emitter Unity would have rejected never gets this far, and a
+    // Y thickness on a flat quad admits nothing an infinitely thin one would not.
+    private const float BoundsMargin = 2f;
+
+    private static Bounds BoundsFor(
+        VectorLightField.LightEntry entry, float lightX, float lightZ, float altitude)
+    {
+        float extent = entry.Radius + BoundsMargin;
+
+        return new Bounds(
+            new Vector3(lightX, altitude, lightZ),
+            new Vector3(extent * 2f, BoundsMargin, extent * 2f));
+    }
+
+    private static void WriteVertexChannels(
+        Mesh mesh, VectorLightMath.LightMesh built, float altitude, bool ownBounds)
+    {
         Verts.Clear();
         Uvs.Clear();
-        Tris.Clear();
 
         for (int i = 0; i < built.VertexCount; i++)
         {
@@ -341,11 +398,34 @@ public static class VectorLightOverlay
             Uvs.Add(new Vector2(built.U[i], built.V[i]));
         }
 
-        Tris.AddRange(built.Triangles);
+        // The bare overloads, kept for the flag's off arm rather than routed through the four-argument
+        // ones with MeshUpdateFlags.Default: identical in effect, but this way the off arm executes
+        // the instruction sequence that shipped rather than a reimplementation believed to match it.
+        if (!ownBounds)
+        {
+            mesh.SetVertices(Verts);
+            mesh.SetUVs(0, Uvs);
+            return;
+        }
 
-        entry.Mesh.SetVertices(Verts);
-        entry.Mesh.SetUVs(0, Uvs);
-        entry.Mesh.SetTriangles(Tris, 0);
+        mesh.SetVertices(Verts, 0, Verts.Count, MeshUpdateFlags.DontRecalculateBounds);
+        mesh.SetUVs(0, Uvs, 0, Uvs.Count, MeshUpdateFlags.DontRecalculateBounds);
+    }
+
+    private static void WriteTriangles(Mesh mesh, VectorLightMath.LightMesh built, bool ownBounds)
+    {
+        // built.Triangles is exactly sized — BuildMesh ends by calling ToArray() on the list it
+        // accumulated — so the whole-array overload uploads the fan and its wedges and nothing else.
+        // If that ever becomes an over-allocated buffer, this uploads the tail as garbage indices.
+        if (CelestialLightingFeatures.VectorLightUploadDirect)
+        {
+            mesh.SetTriangles(built.Triangles, 0, !ownBounds);
+            return;
+        }
+
+        Tris.Clear();
+        Tris.AddRange(built.Triangles);
+        mesh.SetTriangles(Tris, 0, !ownBounds);
     }
 
     private static float PolygonArea(VectorLightMath.LightPolygon polygon)

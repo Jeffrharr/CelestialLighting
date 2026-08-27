@@ -1359,6 +1359,24 @@ public static class ProbeRegistration
                 CelestialLightingFeatures.VectorLightGlowTextureHold = enabled;
                 VectorLightRedraw.ForceRebuild();
             });
+        // ForceRebuild for the plainest version of the reason: these two decide how a mesh is handed
+        // to Unity, and a mesh is handed to Unity only when it is rebuilt. Without the drop an arm
+        // would set its flags over a map whose 22 meshes are all still clean, upload nothing, and
+        // report a mesh clock of zero — which reads as a free feature rather than an unmeasured one.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightUploadBoundsKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.VectorLightUploadBounds = enabled;
+                VectorLightRedraw.ForceRebuild();
+            });
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightUploadDirectKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.VectorLightUploadDirect = enabled;
+                VectorLightRedraw.ForceRebuild();
+            });
         // Two-arg overload, matching its shipped default of true, and inert while vector_lights is
         // off for the same reason as the mask above.
         FeatureRegistry.Register(

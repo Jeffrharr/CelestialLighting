@@ -1661,7 +1661,82 @@ public class VectorLightMathTests
                 .Within(Tolerance));
     }
 
+    // ---- the extent the upload's stated bounds rest on -----------------------------------
+    //
+    // VectorLightOverlay.BoundsFor hands Unity a bounding box instead of letting it derive one by
+    // scanning every vertex, and the box is the radius square around the light. That is sound only
+    // while BuildMesh cannot emit a vertex outside the radius — and the failure it guards is not a
+    // wrong box, it is a light that VANISHES on some camera positions and not others, because
+    // Graphics.DrawMesh frustum-culls the whole mesh against those bounds.
+    //
+    // NoWedgeVertexEscapesTheRadius ABOVE ALREADY PINS THE MAIN CASE, and these are the gaps beside
+    // it rather than a replacement for it: it takes one blocked scene at one source radius. What was
+    // missing is the unobstructed mesh (which emits no wedges at all, so it exercises the fan's own
+    // clamp), a source radius wide enough to open the wedges much further, and — the one that
+    // matters most — the fact that any "nothing escapes the radius" assertion passes vacuously on a
+    // mesh that collapsed to a point. (The shipped box carries a further two cells of margin on top,
+    // so the real configuration has slack these do not spend.)
+
+    [TestCase(0f)]
+    [TestCase(VectorLightMath.DefaultSourceRadius)]
+    public void NoOpenMeshVertexEscapesTheRadius(float sourceRadius)
+    {
+        VectorLightMath.LightPolygon polygon =
+            VectorLightMath.Build(0f, 0f, 12f, new VectorLightMath.Segment[0], 48);
+
+        VectorLightMath.LightMesh mesh = VectorLightMath.BuildMesh(0f, 0f, 12f, polygon, sourceRadius);
+
+        Assert.That(MaxVertexDistance(mesh, 0f, 0f), Is.LessThanOrEqualTo(12f + Tolerance));
+    }
+
+    // THREE TIMES THE SHIPPED SOURCE RADIUS. A wedge's angular spread grows with it, and the spread
+    // is the one thing in the mesh built by extrapolating an ANGLE rather than by clamping a
+    // distance — so widening it is the perturbation most likely to push a vertex out, and the
+    // existing single-radius test cannot see it.
+    [TestCase(1.5f)]
+    [TestCase(3f)]
+    public void NoWideSourceWedgeVertexEscapesTheRadius(float sourceRadius)
+    {
+        VectorLightMath.LightMesh mesh = BuildBlockedMesh(sourceRadius);
+
+        Assert.That(MaxVertexDistance(mesh, 8.5f, 8.5f), Is.LessThanOrEqualTo(10f + Tolerance));
+    }
+
+    // THE GUARD AGAINST A VACUOUS PASS, and it is what makes every bound above mean something.
+    // "No vertex escapes the radius" is true of an empty mesh and true of one that collapsed to a
+    // point, so a build that stopped emitting geometry would turn all of them green rather than red.
+    // This pins that the fan really does reach its radius — the stated box is tight, not merely
+    // large enough — and that the wide-source case really is emitting the wedges it claims to test.
+    [Test]
+    public void MeshesActuallyReachTheirRadius()
+    {
+        VectorLightMath.LightMesh open = BuildOpenMesh(out _);
+
+        Assert.That(open.VertexCount, Is.GreaterThan(3));
+        Assert.That(MaxVertexDistance(open, 0f, 0f), Is.EqualTo(12f).Within(Tolerance));
+
+        VectorLightMath.LightMesh wide = BuildBlockedMesh(3f);
+        VectorLightMath.LightMesh none = BuildBlockedMesh(0f);
+
+        Assert.That(wide.VertexCount, Is.GreaterThan(none.VertexCount));
+    }
+
     // ---- helpers ------------------------------------------------------------------------
+
+    private static float MaxVertexDistance(VectorLightMath.LightMesh mesh, float lightX, float lightZ)
+    {
+        float worst = 0f;
+
+        for (int i = 0; i < mesh.VertexCount; i++)
+        {
+            float dx = mesh.X[i] - lightX;
+            float dz = mesh.Z[i] - lightZ;
+
+            worst = Math.Max(worst, (float)Math.Sqrt(dx * dx + dz * dz));
+        }
+
+        return worst;
+    }
 
     private static VectorLightMath.LightMesh BuildOpenMesh(out int rays)
     {
