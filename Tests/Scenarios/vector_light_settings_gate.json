@@ -1,0 +1,12 @@
+{
+  "name": "vector_light_settings_gate",
+  "saveFile": "minimal_colony.rws",
+  "description": "Photographs the settings page around the vector-light block, so the sub-option gate can be looked at rather than argued for. With the master switch ON the three nested controls -- pawn shadows, light through open doors, lamp beam strength -- are live; with it OFF they are greyed and unclickable, and the two frames side by side are the whole change. NEEDS --keep-dialogs, or the guard refuses the window at Add and the shot is a plain colony. WHICH ARM IS SHOT IS DECIDED BY THE SETTINGS FILE, not by this scenario: <vectorLights>True</vectorLights> gives the enabled arm and False the gated one, because Dialog_SettingsShot draws the real settings page and the page reads live settings. The first capture is thrown away because hideUi is only honoured from the second onwards. Waits in FRAMES, not ticks -- a forcePause modal stops the clock.",
+  "steps": [
+    { "type": "SetTime", "args": { "hour": "12" } },
+    { "type": "RaiseWindow", "args": { "type": "CelestialLighting.Probes.Dialog_SettingsShot" } },
+    { "type": "Wait", "args": { "frames": "5" } },
+    { "type": "Screenshot", "args": { "fileName": "vector_light_settings_warmup_discard.png" } },
+    { "type": "Screenshot", "args": { "fileName": "vector_light_settings_gate.png" } }
+  ]
+}
