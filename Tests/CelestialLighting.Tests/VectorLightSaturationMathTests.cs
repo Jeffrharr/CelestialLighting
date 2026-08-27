@@ -74,9 +74,9 @@ public class VectorLightSaturationMathTests
     }
 
     // The whole gate CorrectSaturation leans on: below the ceiling the correction is provably the
-    // identity, so every unsaturated shadow in the mod keeps the byte it had before phase 5b existed.
-    // Asserted over a sweep rather than one triple, because "provably" is only worth writing down if
-    // something checks it.
+    // identity, so every unsaturated shadow in the mod keeps the byte it had before the correction
+    // existed. Asserted over a sweep rather than one triple, because "provably" is only worth
+    // writing down if something checks it.
     [Test]
     public void UnderTheCeilingTheCorrectionReproducesTheRawSubtraction()
     {
@@ -84,15 +84,20 @@ public class VectorLightSaturationMathTests
         {
             for (int shadow = 0; shadow <= raw; shadow += 7)
             {
-                int corrected = VectorLightSaturationMath.CorrectedRaw(raw, shadow, 0);
-                int peak = VectorLightSaturationMath.Peak(corrected, 0, 0);
-                int ours = VectorLightSaturationMath.ProjectChannel(corrected, peak);
+                int deliveredR = 0;
+                int deliveredG = 0;
+                int deliveredB = 0;
+                VectorLightSaturationMath.Accumulate(
+                    ref deliveredR, ref deliveredG, ref deliveredB, raw, 0, 0);
 
-                int delivered = VectorLightSaturationMath.ProjectChannel(
-                    raw, VectorLightSaturationMath.Peak(raw, 0, 0));
+                int oursR = 0;
+                int oursG = 0;
+                int oursB = 0;
+                VectorLightSaturationMath.Accumulate(
+                    ref oursR, ref oursG, ref oursB, raw - shadow, 0, 0);
 
-                int newShadow = VectorLightSaturationMath.ShadowFrom(delivered, ours);
-                int newLift = VectorLightSaturationMath.LiftFrom(delivered, ours);
+                int newShadow = VectorLightSaturationMath.ShadowFrom(deliveredR, oursR);
+                int newLift = VectorLightSaturationMath.LiftFrom(deliveredR, oursR);
 
                 Assert.That(newShadow, Is.EqualTo(shadow), $"raw {raw} shadow {shadow}");
                 Assert.That(newLift, Is.EqualTo(0), $"raw {raw} shadow {shadow}");
@@ -114,27 +119,31 @@ public class VectorLightSaturationMathTests
 
     // A saturated cell can lose a shadow and GAIN a channel at the same time, with no max involved,
     // because the projection normalises the three channels together: take the red emitter out of a
-    // red-and-green cell and the green that was being scaled down by it comes back up. This is why
+    // red-and-yellow cell and the green that was being scaled down by it comes back up. This is why
     // VectorLightMask keeps its lift arrays live under the correction even with phase 5's max off.
     [Test]
     public void RemovingTheDominantChannelLiftsTheOthers()
     {
-        // Raw (400, 300, 0) displays as (255, 191, 0). Take 400 of red away and the green that
-        // remains is under the ceiling, so it displays at its full 300 -> 255.
-        int deliveredPeak = VectorLightSaturationMath.Peak(400, 300, 0);
-        int deliveredR = VectorLightSaturationMath.ProjectChannel(400, deliveredPeak);
-        int deliveredG = VectorLightSaturationMath.ProjectChannel(300, deliveredPeak);
+        // A warm emitter at (200,200,0) and a red one at (200,0,0). Vanilla folds them to (400,200,0)
+        // -> (255,127,0): the red has scaled the green down by nearly half. Block the red and the
+        // remaining green displays at its own full 200.
+        int deliveredR = 0;
+        int deliveredG = 0;
+        int deliveredB = 0;
+        VectorLightSaturationMath.Accumulate(
+            ref deliveredR, ref deliveredG, ref deliveredB, 200, 200, 0);
+        VectorLightSaturationMath.Accumulate(
+            ref deliveredR, ref deliveredG, ref deliveredB, 200, 0, 0);
 
-        int correctedR = VectorLightSaturationMath.CorrectedRaw(400, 400, 0);
-        int correctedG = VectorLightSaturationMath.CorrectedRaw(300, 0, 0);
-        int peak = VectorLightSaturationMath.Peak(correctedR, correctedG, 0);
-        int oursR = VectorLightSaturationMath.ProjectChannel(correctedR, peak);
-        int oursG = VectorLightSaturationMath.ProjectChannel(correctedG, peak);
+        Assert.That((deliveredR, deliveredG, deliveredB), Is.EqualTo((255, 127, 0)));
 
-        Assert.That(VectorLightSaturationMath.ShadowFrom(deliveredR, oursR), Is.EqualTo(deliveredR));
-        Assert.That(VectorLightSaturationMath.LiftFrom(deliveredG, oursG),
-            Is.EqualTo(255 - deliveredG));
-        Assert.That(VectorLightSaturationMath.LiftFrom(deliveredG, oursG), Is.GreaterThan(0));
+        int oursR = 0;
+        int oursG = 0;
+        int oursB = 0;
+        VectorLightSaturationMath.Accumulate(ref oursR, ref oursG, ref oursB, 200, 200, 0);
+
+        Assert.That(VectorLightSaturationMath.ShadowFrom(deliveredR, oursR), Is.EqualTo(55));
+        Assert.That(VectorLightSaturationMath.LiftFrom(deliveredG, oursG), Is.EqualTo(73));
     }
 
     // ---- the premise CorrectSaturation's self-check rests on -------------------------------
@@ -191,16 +200,35 @@ public class VectorLightSaturationMathTests
             "the mixed-hue case is the one the slack has to reject");
     }
 
-    // THE SLACK IS SIZED AGAINST THE NOISE IT HAS TO TOLERATE, and this is where that measurement
-    // lives. Same-hue emitters land on the same capped ray whichever order they are added in, but the
-    // fold's per-step integer divide still leaves a level or two between it and a single projection.
-    // Swept over 200,000 random same-hue sets of up to fourteen emitters the worst gap is 5, against
-    // a slack of 8 and a mixed-hue divergence of 128.
+    // WHAT THE SINGLE PROJECTION COST, MEASURED, because the tolerance it needed is the whole reason
+    // it was replaced. Same-hue emitters land on the same capped ray whichever order they are added
+    // in, but the fold's per-step integer divide still leaves a level or two between it and a single
+    // projection: swept over 200,000 random same-hue sets of up to fourteen emitters the worst gap is
+    // 5. That is the noise a tolerance had to sit above — and a white sun lamp among warm lamps
+    // parts the two by 43, which is what no tolerance can sit above while still rejecting a
+    // reconstruction that is genuinely wrong. Replaying the fold leaves nothing to tolerate.
     //
     // Deterministically seeded, because a randomised test that fails once a fortnight is a test
     // nobody trusts — and the bound is what is being pinned, not the particular draw.
     [Test]
-    public void SameHueFoldNoiseStaysUnderTheSlack()
+    public void SameHueFoldNoiseIsSmallAndMixedHueNoiseIsNot()
+    {
+        Assert.That(WorstFoldGap(withSunLamp: false), Is.EqualTo(5), "same-hue noise");
+
+        int mixed = WorstFoldGap(withSunLamp: true);
+
+        Assert.That(mixed, Is.EqualTo(28), "a white emitter among warm ones");
+        Assert.That(mixed, Is.GreaterThan(SingleProjectionSlack),
+            "if this ever drops under the old slack, the single projection was adequate after all "
+            + "and the fold below is answering a question nobody asked");
+    }
+
+    // The worst disagreement between vanilla's fold and one projection of the same emitters' sum,
+    // over random rooms — with and without a white emitter in them.
+    //
+    // Deterministically seeded, because a randomised test that fails once a fortnight is a test
+    // nobody trusts, and the bound is what is being pinned rather than the particular draw.
+    private static int WorstFoldGap(bool withSunLamp)
     {
         Random random = new Random(7);
         int worst = 0;
@@ -213,7 +241,12 @@ public class VectorLightSaturationMathTests
             for (int i = 0; i < count; i++)
             {
                 double falloff = 0.05 + random.NextDouble() * 0.95;
-                lamps[i] = new[] { (int)(184 * falloff), (int)(136 * falloff), (int)(83 * falloff) };
+
+                // A sun lamp's glowColor is (370,370,370) and its own flood projects that to white
+                // before the room ever sees it; a torch is (184,136,83) all the way down.
+                lamps[i] = withSunLamp && i == 0
+                    ? White(falloff)
+                    : new[] { (int)(184 * falloff), (int)(136 * falloff), (int)(83 * falloff) };
             }
 
             (int r, int g, int b) folded = Fold(lamps, count);
@@ -224,8 +257,14 @@ public class VectorLightSaturationMathTests
             worst = Math.Max(worst, Math.Abs(once.b - folded.b));
         }
 
-        Assert.That(worst, Is.EqualTo(5));
-        Assert.That(worst, Is.LessThan(VectorLightSaturationMath.ReconstructionSlack));
+        return worst;
+    }
+
+    private static int[] White(double falloff)
+    {
+        int channel = Math.Min(255, (int)(370 * falloff));
+
+        return new[] { channel, channel, channel };
     }
 
     // ---- the wall column -------------------------------------------------------------------
@@ -270,6 +309,12 @@ public class VectorLightSaturationMathTests
     };
 
     private static readonly int[] LampCounts = { 1, 2, 4, 6 };
+
+    // The sun lamp sits four cells WEST of the column, so the column blocks it from exactly the
+    // cells the eastmost torch lights — the arrangement the report describes: a sun lamp's shadow
+    // landing on a lit lamp. Not part of the ring, and not moved by the sweep: every arm of the
+    // sun-lamp sweep has the same sun lamp and differs only in how many torches surround it.
+    private static readonly (int x, int z) SunLampCell = (ColumnX - 4, ColumnZ);
 
     [Test]
     public void VanillaIsMonotoneInLampCount()
@@ -382,9 +427,115 @@ public class VectorLightSaturationMathTests
         Assert.That(Column(Composition.Corrected, behind), Is.EqualTo(new[] { 19, 123, 228, 255 }));
     }
 
-    private static int[] Column(Composition composition, int cell)
+    // ---- the same column, with a sun lamp on the other side of it -------------------------
+
+    // THE SCENE THE BUG WAS REPORTED FROM: a sun lamp with a lot of ordinary lights next to it, and
+    // the sun lamp's shadows falling across cells those lights are lighting. Same column, same ring
+    // of torches, plus one sun lamp four cells the other side of the column — so the cells the ring
+    // lights brightest are exactly the cells the column hides from the sun lamp.
+    //
+    // WHY THIS SCENE AND NOT THE TORCH RING ABOVE. Every fixture in this repo, offline and live, was
+    // a ring of IDENTICAL torches, and a single hue is precisely the case where one projection of the
+    // true sum agrees with vanilla's fold. A sun lamp is white — glowColor (370,370,370), over the
+    // ceiling before its own flood has projected — so a grow room beside a workshop is the mixed-hue
+    // case, the correction's self-check rejects the cell, and the composition falls back to the
+    // over-subtraction it was written to remove. The torch ring cannot see any of that.
+    //
+    // ONE CELL EAST OF THE COLUMN, which the sun lamp can never see and the eastmost torch sits two
+    // cells beyond:
+    //
+    //     torches              1      2      4      6
+    //     vanilla            223    255    255    255     the oracle: monotone
+    //     old                158    146    109     80     deepens with every torch added
+    //     single projection  160    179    241    116     tracks the fix, then falls off a cliff
+    //     corrected          160    179    241    255     lands on vanilla, because the torches
+    //                                                     really do light this cell
+    //
+    // THE CLIFF IS THE BUG. At four torches the reconstruction still lands within the old slack and
+    // the cell is corrected; at six it does not, the cell is declined, and the frame keeps the raw
+    // subtraction — 116 against the 255 vanilla is showing. Nothing about the scene changed except
+    // that another lamp came on.
+    [Test]
+    public void SunLampTableIsMeasuredRatherThanDerived()
     {
-        int[][] levels = Levels(composition);
+        int lit = ColumnZ * GridSpan + (ColumnX + 1);
+
+        Assert.That(Column(Composition.Vanilla, lit, true), Is.EqualTo(new[] { 223, 255, 255, 255 }));
+        Assert.That(Column(Composition.Old, lit, true), Is.EqualTo(new[] { 158, 146, 109, 80 }));
+        Assert.That(
+            Column(Composition.SingleProjection, lit, true),
+            Is.EqualTo(new[] { 160, 179, 241, 116 }));
+        Assert.That(
+            Column(Composition.Corrected, lit, true), Is.EqualTo(new[] { 160, 179, 241, 255 }));
+    }
+
+    [Test]
+    public void CorrectedCompositionIsMonotoneWithASunLampInTheRoom()
+    {
+        AssertMonotone(Levels(Composition.Corrected, true), "corrected, sun lamp");
+    }
+
+    // THE RED ARM, and it is the shipped composition rather than the pre-correction one — which is
+    // the whole finding. The correction was measured monotone on a ring of identical torches and is
+    // NOT monotone once a sun lamp is in the room: it holds until the reconstruction stops matching
+    // and then hands the cell back to the arithmetic it was replacing.
+    [Test]
+    public void SingleProjectionCompositionIsNotMonotoneWithASunLampInTheRoom()
+    {
+        int[][] levels = Levels(Composition.SingleProjection, true);
+        int worstDrop = 0;
+
+        for (int arm = 1; arm < LampCounts.Length; arm++)
+        {
+            for (int i = 0; i < levels[arm].Length; i++)
+                worstDrop = Math.Max(worstDrop, levels[arm - 1][i] - levels[arm][i]);
+        }
+
+        Assert.That(worstDrop, Is.EqualTo(155),
+            "the shipped single-projection correction is supposed to fail this scene; if it stops "
+            + "failing, the scene has stopped rejecting reconstructions and the arm below proves "
+            + "nothing");
+    }
+
+    // The direction, as a table, on the whole scene rather than one cell — deepest shadow anywhere,
+    // in levels of glow out of 255, against the torch count:
+    //
+    //     torches              1      2      4      6
+    //     old                 73    119    146    175     deepens: the reported complaint
+    //     single projection   69     93     60    163     shallows, then falls back
+    //     corrected           69     93     60     38     shallows, which is what more lamps do
+    [Test]
+    public void SunLampDeepestShadowSweepIsMeasuredRatherThanDerived()
+    {
+        Assert.That(DeepestShadows(Composition.Old, true), Is.EqualTo(new[] { 73, 119, 146, 175 }));
+        Assert.That(
+            DeepestShadows(Composition.SingleProjection, true),
+            Is.EqualTo(new[] { 69, 93, 60, 163 }));
+        Assert.That(
+            DeepestShadows(Composition.Corrected, true), Is.EqualTo(new[] { 69, 93, 60, 38 }));
+    }
+
+    // The correction never brightens a cell past what vanilla delivered there, with the sun lamp in
+    // the room as without it. §27 carves shadow; it does not turn lamps up.
+    [Test]
+    public void CorrectedCompositionNeverExceedsVanillaWithASunLamp()
+    {
+        int[][] vanilla = Levels(Composition.Vanilla, true);
+        int[][] corrected = Levels(Composition.Corrected, true);
+
+        for (int arm = 0; arm < LampCounts.Length; arm++)
+        {
+            for (int i = 0; i < corrected[arm].Length; i++)
+            {
+                Assert.That(corrected[arm][i], Is.LessThanOrEqualTo(vanilla[arm][i]),
+                    $"{LampCounts[arm]} torches and a sun lamp, cell index {i}");
+            }
+        }
+    }
+
+    private static int[] Column(Composition composition, int cell, bool withSunLamp = false)
+    {
+        int[][] levels = Levels(composition, withSunLamp);
         int[] column = new int[LampCounts.Length];
 
         for (int arm = 0; arm < LampCounts.Length; arm++)
@@ -393,10 +544,10 @@ public class VectorLightSaturationMathTests
         return column;
     }
 
-    private static int[] DeepestShadows(Composition composition)
+    private static int[] DeepestShadows(Composition composition, bool withSunLamp = false)
     {
-        int[][] vanilla = Levels(Composition.Vanilla);
-        int[][] ours = Levels(composition);
+        int[][] vanilla = Levels(Composition.Vanilla, withSunLamp);
+        int[][] ours = Levels(composition, withSunLamp);
         int[] deepest = new int[LampCounts.Length];
 
         for (int arm = 0; arm < LampCounts.Length; arm++)
@@ -412,32 +563,85 @@ public class VectorLightSaturationMathTests
 
     private enum Composition
     {
-        // proj(sum of every emitter's own light) — the glow grid as the game ships it.
+        // Vanilla's own fold — CombineColorsJob.AddColors over every emitter reaching the cell, in
+        // order, projecting after each. The glow grid as the game ships it, and the oracle.
         Vanilla,
 
-        // proj(sum) - sum of each emitter's own light scaled by the share of the cell its polygon
-        // cannot see. §27 as it shipped before this phase: the edit applied to the PROJECTED byte.
+        // The fold, less each emitter's own light scaled by the share of the cell its polygon cannot
+        // see. §27 as it shipped before the saturation correction: the edit applied to the byte
+        // vanilla had already scaled down.
         Old,
 
-        // proj(sum - the same shadow), reassembled through VectorLightSaturationMath exactly as
+        // The correction as first written: the same edit applied to a reconstruction of the raw sum
+        // and projected ONCE, with a self-check that falls back to Old wherever that reconstruction
+        // misses what vanilla displayed. Kept as an arm because the fallback is the bug — on a
+        // mixed-hue scene the check rejects the cell and the frame keeps the over-subtraction.
+        SingleProjection,
+
+        // The correction as it stands: vanilla's fold replayed with our geometry deciding how much
+        // of each emitter arrived, reassembled through VectorLightSaturationMath exactly as
         // VectorLightMask.CorrectCell reassembles it — including the round trip out through
         // ShadowFrom/LiftFrom and back through the mask's own `delivered - shadow + lift`, so the
         // test exercises the split rather than the intermediate.
         Corrected,
     }
 
+    // What the correction's first cut allowed between its reconstruction and vanilla's displayed
+    // value before it declined the cell. Lives here rather than in the shipped file because the
+    // shipped reconstruction is now exact and has nothing to tolerate; this is the historical
+    // constant, kept so the arm above can be run as it actually behaved.
+    private const int SingleProjectionSlack = 8;
+
+    // The two emitters these sweeps are built from, straight out of Buildings_Furniture.xml.
+    //
+    // THE SUN LAMP IS WHITE AND EVERYTHING ELSE IS WARM, which is the whole point of having it here.
+    // Its glowColor is (370,370,370) — over the ceiling before its own flood has even projected —
+    // against a torch's (184,136,83). Every fixture in this repo was a ring of identical torches
+    // until this one, and a single hue is exactly the case where a single projection of the true sum
+    // agrees with vanilla's fold. A grow room next to a workshop is not that case.
+    private readonly struct Emitter
+    {
+        public Emitter(int r, int g, int b, float radius)
+        {
+            R = r;
+            G = g;
+            B = b;
+            Radius = radius;
+        }
+
+        public int R { get; }
+
+        public int G { get; }
+
+        public int B { get; }
+
+        public float Radius { get; }
+    }
+
+    private static readonly Emitter Torch = new Emitter(LampR, LampG, LampB, LampRadius);
+
+    private static readonly Emitter SunLamp = new Emitter(370, 370, 370, 14f);
+
     // Level per cell of the grid, per arm of the lamp-count sweep.
-    private static int[][] Levels(Composition composition)
+    private static int[][] Levels(Composition composition, bool withSunLamp = false)
     {
         int[][] levels = new int[LampCounts.Length][];
 
         for (int arm = 0; arm < LampCounts.Length; arm++)
-            levels[arm] = LevelsFor(LampCounts[arm], composition);
+            levels[arm] = LevelsFor(LampCounts[arm], composition, withSunLamp);
 
         return levels;
     }
 
-    private static int[] LevelsFor(int lampCount, Composition composition)
+    // ONE SUN LAMP FIRST, THEN THE TORCHES, and the order is the scene rather than a convenience:
+    // vanilla folds its lights in the order they registered, a sun lamp is built before the torches
+    // that fill in around it, and the fold is not commutative once a cell saturates. Put the white
+    // emitter last instead and the numbers move.
+    //
+    // The sun lamp sits ON the column's other side rather than in the ring, so the column blocks it
+    // from the same cells the ring lights — which is the arrangement the report describes: a shadow
+    // thrown by the sun lamp landing on cells other lamps are lighting brightly.
+    private static int[] LevelsFor(int lampCount, Composition composition, bool withSunLamp)
     {
         bool[] blocked = new bool[GridSpan * GridSpan];
         blocked[ColumnZ * GridSpan + ColumnX] = true;
@@ -452,9 +656,26 @@ public class VectorLightSaturationMathTests
         int[] shadowR = new int[cells];
         int[] shadowG = new int[cells];
         int[] shadowB = new int[cells];
+        int[] foldR = new int[cells];
+        int[] foldG = new int[cells];
+        int[] foldB = new int[cells];
+        int[] oursR = new int[cells];
+        int[] oursG = new int[cells];
+        int[] oursB = new int[cells];
+
+        if (withSunLamp)
+        {
+            AddLamp(
+                SunLampCell, SunLamp, segments, rawR, rawG, rawB, shadowR, shadowG, shadowB,
+                foldR, foldG, foldB, oursR, oursG, oursB);
+        }
 
         for (int lamp = 0; lamp < lampCount; lamp++)
-            AddLamp(Ring[lamp], segments, rawR, rawG, rawB, shadowR, shadowG, shadowB);
+        {
+            AddLamp(
+                Ring[lamp], Torch, segments, rawR, rawG, rawB, shadowR, shadowG, shadowB,
+                foldR, foldG, foldB, oursR, oursG, oursB);
+        }
 
         int[] cellR = new int[cells];
         int[] cellG = new int[cells];
@@ -464,6 +685,7 @@ public class VectorLightSaturationMathTests
         {
             Compose(
                 composition, rawR[i], rawG[i], rawB[i], shadowR[i], shadowG[i], shadowB[i],
+                foldR[i], foldG[i], foldB[i], oursR[i], oursG[i], oursB[i],
                 out cellR[i], out cellG[i], out cellB[i]);
         }
 
@@ -547,22 +769,30 @@ public class VectorLightSaturationMathTests
     private static bool InBounds(int x, int z) =>
         x >= 0 && z >= 0 && x < GridSpan && z < GridSpan;
 
-    // One emitter's contribution to both accumulators, run through the same two subsystems the game
+    // One emitter's contribution to every accumulator, run through the same two subsystems the game
     // runs it through: VanillaGlowFlood for what vanilla delivered, and VectorLightMath's polygon and
     // coverage bake for what §27 says it can see.
+    //
+    // FOUR ACCUMULATORS AND NOT TWO, because vanilla's own accumulation is a FOLD. `raw` and `shadow`
+    // are the plain sums the correction's gate is asked about; `fold` is vanilla's answer, projected
+    // after every emitter exactly as CombineColorsJob.AddColors projects; `ours` is that same fold
+    // with this emitter's blocked share taken out before it is folded in. Lamps are added in a fixed
+    // order here for the same reason VectorLightMask walks vanilla's `lights` list front to back: the
+    // fold is lossy and therefore not commutative, so an order is part of the answer.
     private static void AddLamp(
-        (int x, int z) lamp, VectorLightMath.Segment[] segments,
-        int[] rawR, int[] rawG, int[] rawB, int[] shadowR, int[] shadowG, int[] shadowB)
+        (int x, int z) lamp, Emitter emitter, VectorLightMath.Segment[] segments,
+        int[] rawR, int[] rawG, int[] rawB, int[] shadowR, int[] shadowG, int[] shadowB,
+        int[] foldR, int[] foldG, int[] foldB, int[] oursR, int[] oursG, int[] oursB)
     {
         VanillaGlowFlood.Result flood = VanillaGlowFlood.Flood(
-            LampR, LampG, LampB, LampRadius,
+            emitter.R, emitter.G, emitter.B, emitter.Radius,
             (dx, dz) => Blocked(lamp.x + dx, lamp.z + dz));
 
         VectorLightMath.LightPolygon polygon = VectorLightMath.Build(
-            lamp.x + 0.5f, lamp.z + 0.5f, LampRadius, segments,
+            lamp.x + 0.5f, lamp.z + 0.5f, emitter.Radius, segments,
             VectorLightMath.DefaultBaseRayCount);
 
-        int coverageRadius = (int)Math.Ceiling(LampRadius);
+        int coverageRadius = (int)Math.Ceiling(emitter.Radius);
         byte[] coverage = VectorLightMath.BuildCoverage(
             polygon, lamp.x, lamp.z, coverageRadius, VectorLightMath.DefaultCoverageSamples);
 
@@ -587,23 +817,54 @@ public class VectorLightSaturationMathTests
                 int shadowed = 255 - lit;
 
                 // VectorLightMask.AccumulateEmitter's own integer form, byte scaled by byte.
-                shadowR[cell] += flood.R[local] * shadowed / 255;
-                shadowG[cell] += flood.G[local] * shadowed / 255;
-                shadowB[cell] += flood.B[local] * shadowed / 255;
+                int blockedR = flood.R[local] * shadowed / 255;
+                int blockedG = flood.G[local] * shadowed / 255;
+                int blockedB = flood.B[local] * shadowed / 255;
+
+                shadowR[cell] += blockedR;
+                shadowG[cell] += blockedG;
+                shadowB[cell] += blockedB;
+
+                // Vanilla's guard: an emitter delivering nothing to a cell is not a step of the
+                // fold at all, so it must not be run through a projection.
+                if (flood.R[local] == 0 && flood.G[local] == 0 && flood.B[local] == 0)
+                    continue;
+
+                Fold(foldR, foldG, foldB, cell, flood.R[local], flood.G[local], flood.B[local]);
+                Fold(
+                    oursR, oursG, oursB, cell,
+                    flood.R[local] - blockedR,
+                    flood.G[local] - blockedG,
+                    flood.B[local] - blockedB);
             }
         }
+    }
+
+    private static void Fold(int[] r, int[] g, int[] b, int cell, int addR, int addG, int addB)
+    {
+        int cellR = r[cell];
+        int cellG = g[cell];
+        int cellB = b[cell];
+
+        VectorLightSaturationMath.Accumulate(ref cellR, ref cellG, ref cellB, addR, addG, addB);
+
+        r[cell] = cellR;
+        g[cell] = cellG;
+        b[cell] = cellB;
     }
 
     private static bool Blocked(int x, int z) => x == ColumnX && z == ColumnZ;
 
     private static void Compose(
         Composition composition, int rawR, int rawG, int rawB,
-        int shadowR, int shadowG, int shadowB, out int outR, out int outG, out int outB)
+        int shadowR, int shadowG, int shadowB, int foldR, int foldG, int foldB,
+        int oursR, int oursG, int oursB, out int outR, out int outG, out int outB)
     {
-        int rawPeak = VectorLightSaturationMath.Peak(rawR, rawG, rawB);
-        int deliveredR = VectorLightSaturationMath.ProjectChannel(rawR, rawPeak);
-        int deliveredG = VectorLightSaturationMath.ProjectChannel(rawG, rawPeak);
-        int deliveredB = VectorLightSaturationMath.ProjectChannel(rawB, rawPeak);
+        // What the player is looking at, in every arm: vanilla's own fold. The arms differ only in
+        // what they take off it.
+        int deliveredR = foldR;
+        int deliveredG = foldG;
+        int deliveredB = foldB;
 
         if (composition == Composition.Vanilla)
         {
@@ -615,25 +876,69 @@ public class VectorLightSaturationMathTests
 
         if (composition == Composition.Old)
         {
-            // VectorLightMask.Compose, pre-phase-5b: one clamp at the end, no lift.
+            // VectorLightMask.Compose, pre-correction: one clamp at the end, no lift.
             outR = Math.Max(0, deliveredR - shadowR);
             outG = Math.Max(0, deliveredG - shadowG);
             outB = Math.Max(0, deliveredB - shadowB);
             return;
         }
 
-        int correctedR = VectorLightSaturationMath.CorrectedRaw(rawR, shadowR, 0);
-        int correctedG = VectorLightSaturationMath.CorrectedRaw(rawG, shadowG, 0);
-        int correctedB = VectorLightSaturationMath.CorrectedRaw(rawB, shadowB, 0);
-
-        int peak = VectorLightSaturationMath.Peak(correctedR, correctedG, correctedB);
-        int oursR = VectorLightSaturationMath.ProjectChannel(correctedR, peak);
-        int oursG = VectorLightSaturationMath.ProjectChannel(correctedG, peak);
-        int oursB = VectorLightSaturationMath.ProjectChannel(correctedB, peak);
+        if (composition == Composition.SingleProjection)
+        {
+            SingleProjectionCompose(
+                rawR, rawG, rawB, shadowR, shadowG, shadowB, deliveredR, deliveredG, deliveredB,
+                out outR, out outG, out outB);
+            return;
+        }
 
         // Out through the split and back through the mask's own composition, rather than reading
         // `ours` directly. The mask never handles `ours`; it handles two non-negative halves and a
         // subtract-then-add, and a bug in the split would be invisible to a test that skipped it.
+        outR = deliveredR
+            - VectorLightSaturationMath.ShadowFrom(deliveredR, oursR)
+            + VectorLightSaturationMath.LiftFrom(deliveredR, oursR);
+        outG = deliveredG
+            - VectorLightSaturationMath.ShadowFrom(deliveredG, oursG)
+            + VectorLightSaturationMath.LiftFrom(deliveredG, oursG);
+        outB = deliveredB
+            - VectorLightSaturationMath.ShadowFrom(deliveredB, oursB)
+            + VectorLightSaturationMath.LiftFrom(deliveredB, oursB);
+    }
+
+    // The correction's first cut, transcribed with its self-check intact: reconstruct the cell as one
+    // projection of the raw sum, compare that against what vanilla displayed, and decline the cell —
+    // leaving the pre-correction subtraction in place — when the two disagree by more than the slack.
+    private static void SingleProjectionCompose(
+        int rawR, int rawG, int rawB, int shadowR, int shadowG, int shadowB,
+        int deliveredR, int deliveredG, int deliveredB,
+        out int outR, out int outG, out int outB)
+    {
+        int rawPeak = VectorLightSaturationMath.Peak(rawR, rawG, rawB);
+        int onceR = VectorLightSaturationMath.ProjectChannel(rawR, rawPeak);
+        int onceG = VectorLightSaturationMath.ProjectChannel(rawG, rawPeak);
+        int onceB = VectorLightSaturationMath.ProjectChannel(rawB, rawPeak);
+
+        bool reconstructs = Math.Abs(onceR - deliveredR) <= SingleProjectionSlack
+            && Math.Abs(onceG - deliveredG) <= SingleProjectionSlack
+            && Math.Abs(onceB - deliveredB) <= SingleProjectionSlack;
+
+        if (!reconstructs)
+        {
+            outR = Math.Max(0, deliveredR - shadowR);
+            outG = Math.Max(0, deliveredG - shadowG);
+            outB = Math.Max(0, deliveredB - shadowB);
+            return;
+        }
+
+        int correctedR = Math.Max(0, rawR - shadowR);
+        int correctedG = Math.Max(0, rawG - shadowG);
+        int correctedB = Math.Max(0, rawB - shadowB);
+        int peak = VectorLightSaturationMath.Peak(correctedR, correctedG, correctedB);
+
+        int oursR = VectorLightSaturationMath.ProjectChannel(correctedR, peak);
+        int oursG = VectorLightSaturationMath.ProjectChannel(correctedG, peak);
+        int oursB = VectorLightSaturationMath.ProjectChannel(correctedB, peak);
+
         outR = deliveredR
             - VectorLightSaturationMath.ShadowFrom(deliveredR, oursR)
             + VectorLightSaturationMath.LiftFrom(deliveredR, oursR);

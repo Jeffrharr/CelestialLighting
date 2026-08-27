@@ -10741,16 +10741,21 @@ taken from has stopped growing. Six torches two cells away deliver about 85 each
 another torch the column also blocks and the same cell goes darker again, so the frame darkens as the
 room brightens.
 
-The fix is one line of algebra: do the edit **before** the projection instead of after it.
+The fix is to do the edit **before** the projection instead of after it. Vanilla's accumulation is a
+**fold** rather than a sum — `AddColors` projects after every addition — so write `fold(·)` for
+`AddColors` run over the emitters reaching the cell, in vanilla's own order:
 
-    P     = proj(R)                                    what vanilla displays
-    R′    = R − Σ own(e)·(1 − lit(e)) + Σ lift(e)      the raw sum with our geometry applied
-    ours  = proj(R′)                                   what we should display
+    P     = fold( own(e) )                             what vanilla displays
+    ours  = fold( own(e)·lit(e) + lift(e) )            the same fold with our geometry in charge
 
-`VectorLightMask.CorrectCell` reconstructs `R`, computes `proj(R′)`, and hands the rest of the file
-the difference `P − proj(R′)` split into the same non-negative shadow and lift halves the corner
-averaging already consumes. The accumulation is untouched; only the space its result is measured in
+`VectorLightMask.CorrectSaturation` replays both, and `CorrectCell` hands the rest of the file the
+difference `P − ours` split into the same non-negative shadow and lift halves the corner averaging
+already consumes. The per-emitter accumulation is untouched; only the space its result is measured in
 changes.
+
+**The first version of this reconstructed `P` as `proj(R)`, one projection of the true sum**, which
+is right for emitters of a single hue and wrong for a white one among warm ones. That approximation
+is what the sun lamp broke; the fold that replaced it is below.
 
 #### The property, and vanilla as the oracle
 
@@ -10765,10 +10770,11 @@ normalises the three channels against their shared peak, so adding a green lamp 
 genuinely lowers the red channel. Only the peak is monotone, and any weighted luminance inherits the
 problem.
 
-- **Vanilla is the oracle and satisfies it unconditionally** — `max(proj(R))` is `min(max(R), 255)`
-  and `max(R)` can only grow.
-- **The corrected composition satisfies it** — adding an emitter adds `own(e)·lit(e) + lift(e)` to
-  `R′`, non-negative componentwise whatever our geometry says.
+- **Vanilla is the oracle and satisfies it unconditionally** — every step of its fold adds a
+  non-negative amount before projecting, and the projection is monotone on the peak.
+- **The corrected composition satisfies it** — ours is vanilla's own fold with each emitter's
+  contribution replaced by `own(e)·lit(e) + lift(e)`, non-negative componentwise whatever our
+  geometry says, so no step of it can subtract.
 - **The old composition does not**, and `VectorLightSaturationMathTests` pins that arm **red** on
   purpose. A monotonicity test over a scene that never saturates passes for both arms and pins
   nothing, which is exactly how a direction-shaped bug survives a green suite.
@@ -10870,26 +10876,115 @@ that should not be there is gone.
 
 `Tests/Screenshots/column_{1,4,6}_{vanilla,old,corrected}.png`.
 
-#### The one case it declines, and the slack that nearly broke it
+#### The sun lamp: what the slack was hiding
+
+**Reported from play, six days after the correction shipped:** *"shadows get calculated oddly when
+there's a lot of regular lights next to a lit sunlamp — the shadows from the sunlamp can fall
+directly on the other lit lights."* The correction above was on, and this is the same
+over-subtraction it was written to remove, standing down on exactly the frames it was meant for.
 
 `AddColors` projects after **every** addition rather than once at the end, and that fold is lossy:
-two saturating red lamps followed by a green one land about **128 levels** from a single projection
-of the true sum, because the first saturation threw away the red that would have set the divisor.
-Where the two disagree that far, our reconstruction is simply wrong about what vanilla did, so the
-cell is left with today's arithmetic rather than "corrected" against a value vanilla never displayed.
-`CorrectCell` detects it by comparing its reconstruction against `VisualGlowAt` and counts the
-declines in `vector_light_mask_saturation_skipped`, so the residue is a number a scenario reads
-rather than a paragraph here.
+once a colour has been scaled back to the ceiling, the light that set the divisor is gone, so a later
+addition of a different hue lands somewhere a single projection of the true sum never goes. The first
+cut reconstructed `P` as `proj(R)` and compared it against `VisualGlowAt` to check itself, declining
+any cell where the two disagreed by more than a slack of **8** levels.
 
-**The check was an exact equality first, and the live run is what corrected it.** Same-hue emitters
-land on the same capped ray whichever order they are added in, but the fold's per-step integer divide
-still leaves a level or two between it and a single projection — 0 or 1 in this fixture, and at worst
-**5** over 200,000 random same-hue sets of up to fourteen emitters. On the six-torch ring the exact
-test therefore rejected **50 of 85** candidate cells over rounding, the corrected arm fell back to the
-broken composition on most of the cells the scenario was built to measure, and the run came back
-non-monotone. `VectorLightSaturationMath.ReconstructionSlack` is **8**: two orders of magnitude below
-the thing it rejects and comfortably above the noise it has to tolerate. An exactness that rejects the
-case it was written for is not rigour.
+**The slack was sized on a fixture with one hue in it.** Every §27 emitter, offline and live, was a
+`TorchLamp` — glowColor (184,136,83), every emitter on one ray out of black — and same-hue emitters
+land on the same capped ray whichever order they are added in. Over 200,000 random same-hue sets of
+up to fourteen emitters the worst disagreement is **5** levels, so 8 looked like two orders of
+magnitude of headroom against the case it had to reject (two saturating red lamps then a green one,
+which misses by 128).
+
+A sun lamp is **white**: `glowColor (370,370,370)`, over the ceiling before its own flood has
+projected, against a standing lamp's warm (214,148,94). A grow room beside a workshop is therefore
+the mixed-hue case, in the game's own colours, and there the fold and the single projection part by
+up to **28** levels. The self-check reads that as "we do not understand this cell", declines it, and
+the frame keeps the raw subtraction — a full white `own` taken off a byte that has stopped growing.
+
+The offline sweep, same column and ring with one sun lamp four cells the other side of it, at the
+cell one step **east** of the column — hidden from the sun lamp, lit by the torch two cells further
+east, which is the "shadow falling on a lit light" of the report:
+
+| torches | 1 | 2 | 4 | 6 |
+|---|---|---|---|---|
+| vanilla (oracle) | 223 | 255 | 255 | 255 |
+| old, no correction | 158 | 146 | 109 | 80 |
+| single-projection correction | 160 | 179 | 241 | **116** |
+| corrected by the fold | 160 | 179 | 241 | **255** |
+
+**The cliff is the bug.** At four torches the reconstruction still lands within the slack and the
+cell is corrected; at six it does not, the cell is declined, and it drops 125 levels while the room
+gets brighter. Nothing changed except that another lamp came on. Deepest shadow anywhere in that
+scene runs 69 / 93 / 60 / **163** for the shipped correction against 69 / 93 / 60 / **38** for the
+fold, and the single-projection arm's worst drop over the sweep is **155** levels.
+
+#### Replaying the fold instead of approximating it
+
+`VectorLightSaturationMath.Accumulate` is `AddColors` transcribed — one step, projecting after the
+addition, with vanilla's own guard that an addend of nothing is not a step at all.
+`VectorLightMask.CorrectSaturation` walks vanilla's `lights` list **front to back**, which is the
+order `CombineColorsJob` adds them in, and folds each emitter into two accumulators: what vanilla
+delivered, and the same with our coverage applied to the emitters we modelled. Cells accumulate
+independently, so walking emitter-outer over cells still gives every cell its own emitters in
+vanilla's order — the fold is lossy and therefore not commutative, and any other order is a different
+number.
+
+Three things follow, and the first is the point:
+
+- **The reconstruction is exact, so the self-check is an equality again.** There is no noise left to
+  tolerate, and `vector_light_mask_saturation_skipped` goes back to meaning what it says: this cell
+  holds light that did not come from vanilla's glow grid the way we think it did — something writing
+  the accumulated array directly, or a version change under `GlowGridPerLight`'s reflection.
+- **The confinement survives.** Under the ceiling no step of either fold projects anything, both are
+  plain sums, and `P − ours` is the accumulated subtraction back again. `CorrectCell` still tests the
+  raw sum and returns before touching a cell under 255, so every unsaturated shadow in the mod is
+  byte-identical to the one it already shipped.
+- **It costs no second walk.** The pass it replaces already visited every emitter on the map for its
+  raw sum; this one visits the same cells and does a projection and a coverage lookup per step
+  instead of three adds.
+
+**The general lesson is the fixture, not the arithmetic.** A single-hue fixture cannot see a
+hue-dependent assumption, and every emitter in this subsystem's tests was the same lamp — the same
+shape as the two-radii gap that shipped a per-emitter texture overflow. `vector_light_sun_lamp.json`
+and the sun-lamp arms of `VectorLightSaturationMathTests` exist so the mixed-hue case is a fixture
+rather than a hope.
+
+#### Live: `vector_light_sun_lamp.json`
+
+A sealed, roofed room at **noon** — a grow room — with the same column and torch ring and one sun
+lamp four cells the other side of the column, so the ring's own cells are the ones the column hides
+from it. Rendered level at `sunlamp_lit`, one cell east of the column:
+
+| torches | 1 | 2 | 4 | 6 |
+|---|---|---|---|---|
+| vanilla (oracle) | 223 | 255 | 255 | 255 |
+| mask, correction off | 158 | 148 | 110 | 72 |
+| correction on `main` | 161 | 180 | 242 | **109** |
+| correction, replaying the fold | 161 | 180 | 242 | **255** |
+
+with the telemetry that says why, `main` against this branch:
+
+| torches | 1 | 2 | 4 | 6 |
+|---|---|---|---|---|
+| `…saturation_skipped`, main | 0 | 0 | **8** | **44** |
+| `…saturation_skipped`, fold | 0 | 0 | 0 | 0 |
+| `…saturated_samples`, main | 9 | 42 | 88 | 93 |
+| `…saturated_samples`, fold | 9 | 42 | 96 | 137 |
+| `…saturation_relief`, main | 25 | 65 | 186 | **148** |
+| `…saturation_relief`, fold | 25 | 65 | 186 | **285** |
+
+**The relief FALLING from 186 to 148 as a torch is added is the signature.** Relief is the size of
+the over-subtraction the correction removed, and it can only grow with the room — unless the cells
+carrying the most of it are the ones being declined, which is exactly what the skipped column says is
+happening. The offline sweep predicted 116 at the same cell where the live run reads 109.
+
+**Two things about the fixture, both of which cost a run.** A sun lamp is `CompProperties_Schedule`d
+from 0.25 to 0.8 of the day, so at the midnight every other §27 scenario uses it registers no glower
+at all and every probe reads the torch ring alone while the run stays green — `vector_light_count`
+coming back 4 against an expected 5 was the only sign. And it draws 2900 W against a toxifier
+generator's 1400 W, so the scene chains three of them; an underpowered lamp fails the same silent
+way. Hence noon, a roof, and a power run in the fixture.
 
 Two smaller things fall out of the same arithmetic and are worth naming:
 
