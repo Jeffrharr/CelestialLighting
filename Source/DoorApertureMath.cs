@@ -103,12 +103,41 @@ public static class DoorApertureMath
     // Moving the bit removes the disagreement at its source, and everything downstream — the
     // polygon, the mask, the subtraction, the lift — then sees one situation instead of two.
     //
-    // FULLY OPEN, NOT OPENING. `Building_Door.Open` flips true on the first tick of the swing while
-    // the leaves take tens of ticks to finish sliding, so keying on it would flood a room with light
-    // through a door the player can still see closed. The grid is whole-cell and binary — it cannot
-    // express a half-open door — so the honest reading of a binary grid is the one that is only ever
-    // true when the cell unambiguously IS a hole. Our own polygon has no such limit and tracks the
-    // leaves continuously; see LeafSpans above.
+    // AS SOON AS THE LEAVES PART, NOT WHEN THEY FINISH, AND THAT IS A REVERSAL. It used to require a
+    // fully slid door on the reasoning that a binary grid should only ever be true when the cell
+    // unambiguously IS a hole. That reasoning was about the grid in isolation, and the grid is not in
+    // isolation: it is one of the two inputs the composition picks a RENDERER from, per cell.
+    //
+    // WHAT THE OLD RULE ACTUALLY PRODUCED. For the whole slide, vanilla's grid still said `blocked`,
+    // so every cell beyond the door had `delivered` false — and VectorLightLiftMath.VanillaBentToArrive
+    // answers true for exactly that, SurvivingShare then returns 0, and the fragment program subtracts
+    // nothing and multiplies the WHOLE beam. VectorLightOverlay's own comment names this as the far
+    // side of an open door and calls it the self-limiting property. It is the right behaviour when
+    // vanilla genuinely cannot reach a cell; it is the wrong behaviour for tens of ticks while a door
+    // we are already drawing an aperture through has not been admitted to the grid yet. Then at the
+    // final quantisation step the bit moved, vanilla flooded, its share began being subtracted, and
+    // our contribution collapsed to the excess over it. The beam did not brighten or widen — it
+    // changed RENDERER, one frame from the end of the animation, which reads as the pre-inversion
+    // doorway look snapping into the wall-gap look.
+    //
+    // SO THE TWO HALVES HAVE TO OPEN TOGETHER, and only one of them can move. Our polygon opens
+    // progressively, by design and by measurement (see LeafSpans and the filmed sweep). The grid is
+    // whole-cell and binary and cannot be made progressive. That leaves exactly one arrangement in
+    // which the composition sees one situation for the whole swing: the grid opens on the first step
+    // our polygon draws a gap at all. Being forced rather than chosen is the argument for it.
+    //
+    // WHY THE RENDER STILL TRACKS THE LEAVES. Opening the grid does not put a full-width flood on
+    // screen, because the flood is not drawn raw: VectorLightMask shapes vanilla's light by OUR
+    // polygon, which is at the quantised aperture. So vanilla delivers through the doorway while the
+    // mask carves it to the gap between the leaves, and what the player sees still grows with the
+    // animation — in one composition regime instead of two.
+    //
+    // WHAT IT COSTS, STATED RATHER THAN BURIED. This is gameplay light, and it now arrives at the
+    // first quantisation step instead of the last — for a 45-tick wooden door, about three ticks in
+    // rather than forty-three, roughly two thirds of a second early. That is the price of the beam
+    // not changing renderer mid-animation, and it is the direction this rule previously erred away
+    // from. `openFraction > 0` rather than `>= Open` keeps it honest at the shut end: a door at
+    // quantised aperture 0 is drawn as a full-width occluder, and a full-width occluder is a blocker.
     //
     // AND THE ASYMMETRY IS DELIBERATE. This goes false again on the first tick of a CLOSE, not at the
     // end of one, because `Open` is what says which end the door is heading for and a closing door
@@ -129,8 +158,13 @@ public static class DoorApertureMath
             return false;
         }
 
-        return headingOpen && openFraction >= FullyOpen;
+        return headingOpen && openFraction > Shut;
     }
+
+    // The aperture at which the leaves still meet in the middle. A door quantised to this is drawn
+    // exactly as the closed door's occluder — LeafSpans gives each leaf half the cell and no gap —
+    // so the grid blocking is not an approximation at this end, it is the same statement.
+    public const float Shut = 0f;
 
     // Whether the blocker bit actually has to be WRITTEN, or already holds the answer we want.
     //

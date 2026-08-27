@@ -239,13 +239,13 @@ public class DoorApertureMathTests
     // version of this feature. That is the argument for testing it at all: it is trivial to state and
     // its inputs are three booleans-worth of live door state that only a running game produces.
 
-    // THE POINT OF THE WHOLE FEATURE, stated as the two ends. A door standing fully open is a hole,
+    // THE POINT OF THE WHOLE FEATURE, stated as the two ends. A door with its leaves apart is a hole,
     // a shut one is not, and everything else is a question about which end it is heading for.
     [TestCase(true, 1f, true)]
     [TestCase(true, 0f, false)]
     [TestCase(false, 0f, false)]
     [TestCase(false, 1f, false)]
-    public void OnlyAFullyOpenDoorIsAHole(bool headingOpen, float fraction, bool expected)
+    public void ADoorWithItsLeavesApartIsAHole(bool headingOpen, float fraction, bool expected)
     {
         Assert.That(
             DoorApertureMath.GlowGridHoleWanted(
@@ -253,30 +253,34 @@ public class DoorApertureMathTests
             Is.EqualTo(expected));
     }
 
-    // MID-SWING IS NOT A HOLE, which is the case Building_Door.Open cannot answer on its own. `Open`
-    // flips true on the FIRST tick of the swing while the leaves take tens of ticks to finish, so a
-    // rule keyed on it alone floods a room through a door the player can still see closed. Vanilla's
-    // grid is whole-cell and binary and has no way to say "half".
-    [TestCase(0.01f)]
+    // MID-SWING IS A HOLE TOO, AND THIS TEST USED TO ASSERT THE OPPOSITE. The old rule waited for a
+    // fully slid door, so for the whole slide vanilla's grid said `blocked` while our polygon was
+    // already drawing a gap -- and the composition reads exactly that difference to pick a renderer
+    // PER CELL. With vanilla delivering nothing, VanillaBentToArrive answers true, SurvivingShare
+    // returns 0, and the fragment program subtracts nothing and multiplies the whole beam; the
+    // instant the bit moved it began subtracting vanilla's share instead. The beam changed renderer
+    // one frame from the end of its own animation, which is the most conspicuous moment there is to
+    // do it -- the same charge phase 2 levelled at phase 1's popping aperture.
+    [TestCase(0.125f)]
     [TestCase(0.25f)]
     [TestCase(0.5f)]
     [TestCase(0.875f)]
-    [TestCase(0.99f)]
-    public void ADoorPartWayThroughItsSwingIsNotAHole(float fraction)
+    [TestCase(1f)]
+    public void ADoorPartWayThroughItsSwingIsAHole(float fraction)
     {
         Assert.That(
             DoorApertureMath.GlowGridHoleWanted(
                 blocksLightWhenShut: true, headingOpen: true, fraction),
-            Is.False);
+            Is.True);
     }
 
     // AND A CLOSING DOOR STOPS BEING ONE AT ONCE, rather than at the end of its slide. This is the
-    // asymmetry: `Building_Door.DoorTryClose` sets openInt false on the first tick while OpenPct is
-    // still at its maximum, so a door that is visually wide open but has been told to shut answers
-    // false here. Erring toward blocked at both edges is the safe direction for a term that is
-    // gameplay light.
+    // asymmetry, and it is untouched by the reversal above: `Building_Door.DoorTryClose` sets openInt
+    // false on the first tick while OpenPct is still at its maximum, so a door that is visually wide
+    // open but has been told to shut answers false here. The open end moved; the close end did not.
     [TestCase(1f)]
     [TestCase(0.75f)]
+    [TestCase(0.125f)]
     public void ADoorThatHasBeenToldToShutIsNotAHoleEvenWhileStillWideOpen(float fraction)
     {
         Assert.That(
@@ -314,7 +318,9 @@ public class DoorApertureMathTests
             DoorApertureMath.GlowGridHoleWanted(
                 blocksLightWhenShut: true, headingOpen, fraction),
             Is.EqualTo(expected));
-    }    // WITH LEAF TRACKING OFF THE DOOR IS DRAWN FULLY OPEN AT ONCE, so the grid must say so too. This
+    }
+
+    // WITH LEAF TRACKING OFF THE DOOR IS DRAWN FULLY OPEN AT ONCE, so the grid must say so too. This
     // is the case that makes the two halves agree: phase 1's polygon treats an open door as a bare
     // doorway the instant `Open` goes true and never looks at OpenPct, so a grid that waited for the
     // slide would hold the cell blocked underneath a beam we are already drawing.
@@ -329,17 +335,16 @@ public class DoorApertureMathTests
             Is.EqualTo(DoorApertureMath.FullyOpen));
     }
 
-    // AND WITH TRACKING ON IT IS THE STEPPED APERTURE, NOT THE DOOR'S RAW SLIDE. This is the one
-    // that was wrong. VectorLightBlockers.ApertureOf quantises before it places the leaves, so the
-    // fan is drawn at k/8 and never at the raw ratio -- which means the raw ratio is not "what the
-    // renderer is showing" and never was. Reading it here made this function contradict its own
-    // name for every fraction that does not land on a step.
+    // AND WITH TRACKING ON IT IS THE STEPPED APERTURE, NOT THE DOOR'S RAW SLIDE.
+    // VectorLightBlockers.ApertureOf quantises before it places the leaves, so the fan is drawn at
+    // k/8 and never at the raw ratio -- which means the raw ratio is not "what the renderer is
+    // showing" and never was.
     [TestCase(0f,      0f)]
     [TestCase(0.06f,   0f)]        // rounds down: the leaves have not left the jamb yet
-    [TestCase(0.375f,  0.375f)]    // exactly on a step, which is why the old test could not see this
+    [TestCase(0.375f,  0.375f)]
     [TestCase(0.4f,    0.375f)]
     [TestCase(0.9f,    0.875f)]
-    [TestCase(0.9375f, 1f)]        // rounds UP to a bare doorway -- the case the whole fix turns on
+    [TestCase(0.9375f, 1f)]
     [TestCase(1f,      1f)]
     public void WithLeafTrackingTheRenderedApertureIsTheSteppedOneTheFanIsDrawing(
         float openFraction, float expected)
@@ -351,14 +356,16 @@ public class DoorApertureMathTests
     }
 
     // THE TWO SETTINGS COMPOSED, which is the statement the feature actually makes: an open door is a
-    // hole exactly when our renderer is drawing it as one. Mid-swing that depends on which aperture
-    // the renderer is using, and at both ends of the swing it does not.
-    [TestCase(true, true, 0.5f, false)]   // tracking: mid-slide, the fan is drawing a partial gap
-    [TestCase(false, true, 0.5f, true)]   // no tracking: the fan is already drawing a full doorway
+    // hole exactly when our renderer is drawing one. Under BOTH settings that is now true mid-slide,
+    // which is the whole of the renderer-handover fix -- with tracking off the fan draws a full
+    // doorway at once, and with it on the fan draws a partial gap, and a partial gap is still a gap.
+    [TestCase(true, true, 0.5f, true)]
+    [TestCase(false, true, 0.5f, true)]
     [TestCase(true, true, 1f, true)]
+    [TestCase(true, true, 0.06f, false)]  // quantises to 0: the leaves still meet, so it is a wall
     [TestCase(false, false, 1f, false)]   // shutting: not a hole under either setting
     [TestCase(true, false, 1f, false)]
-    [TestCase(true, true, float.NaN, false)]  // a modded OpenPct cannot open a door by returning junk
+    [TestCase(true, true, float.NaN, false)]
     public void TheHoleFollowsWhicheverApertureTheRendererIsDrawing(
         bool trackingLeaves, bool headingOpen, float openFraction, bool expected)
     {
@@ -371,73 +378,82 @@ public class DoorApertureMathTests
             Is.EqualTo(expected));
     }
 
-    // WHERE THE GRID OPENS, STATED AS A NUMBER so a change to the step count has to come past it.
-    // Quantise ROUNDS, so eight steps reach 1 at 7.5/8 = 0.9375. That is not a tolerance being
-    // waved through: it is the fraction at which our own leaves stop being drawn at all, because
-    // VectorLightBlockers quantises with the same call and LeafSpans then gives both leaves zero
-    // length. From 0.9375 up the fan IS a bare doorway, so the grid agreeing is the whole rule.
-    [TestCase(0.93f,   false)]
-    [TestCase(0.9374f, false)]
-    [TestCase(0.9375f, true)]
-    [TestCase(0.99f,   true)]
-    [TestCase(1f,      true)]
-    public void TheGridOpensAtTheFractionTheLeavesStopBeingDrawnAt(float openFraction, bool expected)
-    {
-        float stepped = DoorApertureMath.RenderedOpenFraction(
-            trackingLeaves: true, openFraction, DoorApertureMath.DefaultQuantisationSteps);
-
-        Assert.That(
-            DoorApertureMath.GlowGridHoleWanted(
-                blocksLightWhenShut: true, headingOpen: true, stepped),
-            Is.EqualTo(expected));
-
-        // The other half of the claim, so the two cannot drift: at the same fraction the leaves are
-        // too short to emit, which is what makes "the fan is drawing a bare doorway" a fact rather
-        // than a description.
-        DoorApertureMath.LeafSpans(0f, stepped, out float aStart, out float aEnd, out _, out _);
-        Assert.That(DoorApertureMath.LeafWorthEmitting(aStart, aEnd), Is.EqualTo(!expected));
-    }
-
-    // THE REGRESSION ITSELF, AND THE REASON THE OTHER TESTS COULD NOT SEE IT. Neither side of this
-    // was wrong on its own; they were asked one call apart and answered about different quantities.
-    // GameComponent_DoorAperture.Advance ends a swing on the QUANTISED aperture, calls
-    // ReconcileGlowBlocker once, and then drops the door from its watch set forever -- so if the
-    // predicate says "not yet" at that instant, nothing ever asks again and the hole is never opened.
+    // THE INVARIANT THE WHOLE FIX RESTS ON, and it replaces a test that pinned the opposite one.
     //
-    // A wooden door slides in 45 ticks; eight steps round up from 7.5, so the swing is declared over
-    // at tick 43 with OpenPct still at 0.956. Reading the raw fraction there refused the hole, and
-    // the shipped default measured door_outside_ground_glow at a shut door's 0.0958 while every
-    // other arm of the same scenario read 0.5. This walks a whole swing and asserts the two verdicts
-    // agree on every tick of it, which is the property, rather than pinning tick 43, which is a
-    // symptom of one door speed.
-    [TestCase(45)]    // an unpowered wooden door: vanilla's 45 / DoorOpenSpeed 1
+    // The composition picks a renderer per cell from whether VANILLA delivered there, so the beam
+    // only stays one beam if vanilla's grid and our polygon agree about the doorway at EVERY step of
+    // the slide -- not merely at its ends. Our polygon draws a gap exactly when LeafSpans leaves the
+    // leaves far enough apart to emit, so that is the quantity the grid has to match, and this walks
+    // a whole swing at five door speeds asserting they never disagree on a single tick.
+    //
+    // Walking five speeds is load-bearing rather than thorough. A powered door takes 11 ticks and an
+    // unpowered wooden one 45, and the step boundaries land on completely different ticks in each --
+    // a test written against one speed can agree by coincidence.
+    [TestCase(45)]    // unpowered wooden: vanilla's 45 / DoorOpenSpeed 1
     [TestCase(20)]
     [TestCase(11)]    // powered, 45 * 0.25 rounded -- the fastest door vanilla builds
     [TestCase(160)]   // slow enough that the steps are 20 ticks apart
     [TestCase(3)]     // fewer ticks than steps, so several steps are skipped in one tick
-    public void TheSwingEndsExactlyWhenTheGridBecomesAHole(int ticksToOpen)
+    public void TheGridIsAHoleExactlyWhileOurPolygonDrawsAGap(int ticksToOpen)
     {
         for (int tick = 0; tick <= ticksToOpen; tick++)
         {
-            float raw = (float)tick / ticksToOpen;
-
-            // GameComponent_DoorAperture.Advance's own end condition for a door heading open.
-            float aperture = DoorApertureMath.Quantise(
-                raw, DoorApertureMath.DefaultQuantisationSteps);
-            bool reachedItsEnd = aperture >= 1f;
-
             float rendered = DoorApertureMath.RenderedOpenFraction(
-                trackingLeaves: true, raw, DoorApertureMath.DefaultQuantisationSteps);
+                trackingLeaves: true, (float)tick / ticksToOpen,
+                DoorApertureMath.DefaultQuantisationSteps);
+
+            // What our own renderer is doing at this step, asked of LeafSpans rather than of the
+            // aperture, so the two sides of this comparison come from different functions. The gap
+            // BETWEEN the leaves is the aperture the fan fires rays through -- not whether a leaf is
+            // long enough to emit, which is a different question and the one the OLD rule answered:
+            // leaves vanish only at a fully slid door, which is precisely the late handover being
+            // fixed. A door at 0.125 still has two substantial leaves AND an eighth-cell gap.
+            DoorApertureMath.LeafSpans(0f, rendered, out _, out float aEnd, out float bStart, out _);
+            bool polygonDrawsAGap = bStart - aEnd > 0f;
+
             bool hole = DoorApertureMath.GlowGridHoleWanted(
                 blocksLightWhenShut: true, headingOpen: true, rendered);
 
-            Assert.That(hole, Is.EqualTo(reachedItsEnd),
-                $"tick {tick}/{ticksToOpen} (OpenPct {raw:F4}): the swing "
-                + $"{(reachedItsEnd ? "ended" : "continued")} while the grid "
-                + $"{(hole ? "opened" : "stayed blocked")}");
+            Assert.That(hole, Is.EqualTo(polygonDrawsAGap),
+                $"tick {tick}/{ticksToOpen} (stepped aperture {rendered:F3}): the polygon "
+                + $"{(polygonDrawsAGap ? "drew a gap" : "drew a wall")} while the grid "
+                + $"{(hole ? "was a hole" : "stayed blocked")}");
         }
     }
 
+    // AND THE HANDOVER HAPPENS ONCE, AT THE START. Pinning WHERE it happens, not just that it
+    // happens: a rule that opened the grid halfway through would satisfy "one write per swing" while
+    // leaving half the animation in the old renderer.
+    [Test]
+    public void TheGridOpensOnTheFirstStepTheLeavesPart()
+    {
+        const int ticks = 45;
+        int firstHoleTick = -1;
+
+        for (int tick = 0; tick <= ticks; tick++)
+        {
+            float rendered = DoorApertureMath.RenderedOpenFraction(
+                trackingLeaves: true, (float)tick / ticks,
+                DoorApertureMath.DefaultQuantisationSteps);
+
+            if (DoorApertureMath.GlowGridHoleWanted(true, headingOpen: true, rendered)
+                && firstHoleTick < 0)
+            {
+                firstHoleTick = tick;
+            }
+        }
+
+        // Eight steps round up from half a step, so the first non-zero aperture is reached at
+        // 1/16 of the slide -- tick 3 of 45. Stated as the arithmetic rather than as "3" so a change
+        // to DefaultQuantisationSteps moves the expectation with it instead of failing opaquely.
+        int expected = (int)System.Math.Ceiling(
+            ticks * (0.5f / DoorApertureMath.DefaultQuantisationSteps));
+
+        Assert.That(firstHoleTick, Is.EqualTo(expected),
+            "the grid must open on the first step our polygon parts the leaves");
+        Assert.That(firstHoleTick, Is.LessThan(ticks / 4),
+            "the handover has to be near the START of the swing, not partway through it");
+    }
     // ---- and the bit is only written when it MOVED --------------------------------------------
 
     // THE FOUR STATES, AND ONLY TWO OF THEM ARE WRITES. The grid does not care -- both vanilla calls
