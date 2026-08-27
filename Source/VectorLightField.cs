@@ -70,6 +70,25 @@ public static class VectorLightField
         // bake skips such an emitter outright rather than looking its grid up cell by cell.
         public bool Unobstructed;
 
+        // The cell the coverage grid above was baked around. Held rather than assumed equal to Cell,
+        // because the two come apart for exactly one frame: Resync re-reads a moved emitter's
+        // position onto Cell while Coverage still holds the grid built at the old one, and a
+        // byte-wise comparison of two grids centred on different cells compares different cells at
+        // the same offset. Keeping the centre the grid was actually built at is what lets the
+        // comparison below refuse rather than quietly answer nonsense.
+        public IntVec3 CoverageCell;
+
+        // What the LAST bake of this emitter obliges the map to regenerate, in cells.
+        //
+        // WRITTEN BY THE BAKE AND READ BY THE DRAW, which is why it is a field on the entry rather
+        // than a return value: the bake runs on a pool thread and may not touch the map, so it
+        // records what it changed and the main thread turns that into section flags after the join.
+        //
+        // Empty means the bake changed nothing anybody can see — the emitter was dirtied by a door
+        // it cannot see, rebuilt, and came out byte-identical. That is the common case in a colony
+        // and the whole point of the field.
+        public SectionDirtyMath.CellBounds Dirtied;
+
         // The mesh as the pure core built it, kept rather than discarded after upload. Phase 6
         // needs the vertex POSITIONS again after the fact — to resample vanilla's glow when the
         // lighting around this light changed but its geometry did not — and reading them back off
@@ -236,8 +255,18 @@ public static class VectorLightField
     // nothing ever moved.
     public static int MaskStalePolygonUses;
 
-    // Cleared per arm, the way the door-aperture counter is, so an arm counts its own bakes from zero
-    // instead of inheriting the previous arm's total.
+    // Bakes that produced a coverage grid byte-identical to the one they replaced, so no section was
+    // dirtied for them at all.
+    //
+    // READ AS A RATIO AGAINST PolygonBakes, never alone. On its own it cannot tell a colony where
+    // most invalidations are spurious — which is the finding this exists to report — from a scene
+    // that simply bakes a lot; and a zero means either that every bake really did move a shadow or
+    // that the comparison never ran, which are opposite conclusions. The pair separates them.
+    //
+    // It is a count of BAKES rather than of sections saved on purpose. Sections saved would depend
+    // on which of them the camera happened to be looking at, so it would move between two runs of
+    // one build; this depends only on the geometry.
+    public static int UnchangedBakes;
 
     // Cleared per arm, the way the door-aperture counter is, so an arm counts its own bakes from zero
     // instead of inheriting the previous arm's total.
@@ -269,6 +298,7 @@ public static class VectorLightField
         MaskApplies = 0;
         MaskSkipsNoPolygon = 0;
         MaskStalePolygonUses = 0;
+        UnchangedBakes = 0;
     }
 
     public static void MarkRosterDirty(Map map)
@@ -415,7 +445,6 @@ public static class VectorLightField
                     // threads. The selection walks a dictionary and the bake does not, which is the
                     // whole reason the two are now separate passes — see BakeSelected.
                     BakeBatch.Add(entry);
-                    touched = SectionDirtyMath.Union(touched, reach);
                 }
                 else
                 {
@@ -426,8 +455,62 @@ public static class VectorLightField
 
         BakeSelected(map, BakeBatch);
 
+        // ACCUMULATED AFTER THE BAKE, NOT BEFORE IT, and moving it is the whole of the change. The
+        // reach is what an emitter MIGHT change and was the only thing available before it was
+        // built; entry.Dirtied is what it turned out to have changed, which for a lamp a door swing
+        // dirtied through a wall is nothing at all. The join inside BakeSelected is what publishes
+        // these writes, so reading them here is ordered rather than merely likely.
+        Dirtied.Clear();
+
+        for (int i = 0; i < BakeBatch.Count; i++)
+        {
+            LightEntry baked = BakeBatch[i];
+
+            // Counted on this thread rather than in the bake, because the bake may be running on
+            // four of them at once and a counter incremented from a pool thread is a race that
+            // presents as a number slightly too low — which is indistinguishable from the feature
+            // working slightly less well than it does.
+            if (!baked.Dirtied.Any)
+            {
+                UnchangedBakes++;
+            }
+
+            if (baked.Dirtied.Any)
+            {
+                Dirtied.Add(baked.Dirtied);
+            }
+
+            touched = SectionDirtyMath.Union(touched, baked.Dirtied);
+        }
+
+        // ONE BOX PER EMITTER, NOT THE BOX AROUND THEM ALL, and this half matters as much as the
+        // comparison does. A bounding box over the reaches of lamps clustered around one door is
+        // barely wider than the union of them; a bounding box over two small changed wedges at
+        // opposite ends of a colony is everything in between, which is precisely the case a door
+        // STORM produces and precisely the case this exists to make cheap. Handing the caller the
+        // list keeps the saving the comparison bought instead of throwing it away one line later.
+        //
+        // WITH THE FLAG OFF THE LIST HOLDS THE SINGLE UNION, so the draw has one loop rather than a
+        // branch, and off reproduces the previous behaviour exactly — the same one bounding box over
+        // the same reaches — rather than approximately.
+        if (!CelestialLightingFeatures.VectorLightChangedDirty)
+        {
+            Dirtied.Clear();
+
+            if (touched.Any)
+            {
+                Dirtied.Add(touched);
+            }
+        }
+
         return touched;
     }
+
+    // The cell bounds this frame's bakes turned out to have changed, one per emitter. Valid until
+    // the next EnsurePolygons, which is once per frame from the draw — the same lifetime and the
+    // same single-threaded discipline BakeBatch has.
+    public static readonly List<SectionDirtyMath.CellBounds> Dirtied =
+        new List<SectionDirtyMath.CellBounds>();
 
     // This frame's selected emitters and the segment window each was gathered with.
     //
@@ -686,6 +769,15 @@ public static class VectorLightField
     // Mathf call sitting here invites the next person to reach for a Mathf member that is not pure.
     private static void BakeGathered(LightEntry entry, VectorLightMath.Segment[] segments)
     {
+        // Snapshotted BEFORE the writes below overwrite them. These four are what the comparison at
+        // the end of the method has to hold the new grid against, and there is nowhere else to keep
+        // them: the entry has one slot per field and the bake is about to fill it.
+        byte[] previousCoverage = entry.Coverage;
+        int previousRadius = entry.CoverageRadius;
+        IntVec3 previousCell = entry.CoverageCell;
+        bool previousUnobstructed = entry.Unobstructed;
+        bool hadPolygon = entry.Polygon.Count > 0;
+
         entry.Polygon = VectorLightMath.Build(
             entry.Cell.x + 0.5f, entry.Cell.z + 0.5f, entry.Radius, segments,
             VectorLightMath.DefaultBaseRayCount);
@@ -697,12 +789,79 @@ public static class VectorLightField
         entry.Coverage = VectorLightMath.BuildCoverage(
             entry.Polygon, entry.Cell.x, entry.Cell.z, entry.CoverageRadius,
             VectorLightMath.DefaultCoverageSamples, Scratch);
+        entry.CoverageCell = entry.Cell;
         entry.Unobstructed = VectorLightMath.IsUnobstructed(entry.Polygon, entry.Radius);
 
+        entry.Dirtied = DirtiedBy(
+            entry, previousCoverage, previousRadius, previousCell, previousUnobstructed, hadPolygon);
+
         // LAST, DELIBERATELY. The flag is what every other reader uses to decide the entry is
-        // usable, so it must not be cleared until the three fields above are written. On the
+        // usable, so it must not be cleared until the four fields above are written. On the
         // threaded path the join is the barrier that makes that ordering visible to the main thread.
         entry.PolygonDirty = false;
+    }
+
+    // What this bake obliges the map to regenerate: the cells whose coverage moved, or the emitter's
+    // whole reach when the two bakes cannot be compared.
+    //
+    // PURE, AND CALLED FROM THE POOL THREAD. Everything it reads is on the entry or was handed to it,
+    // and everything it returns is a value — so it obeys BakeGathered's own no-map rule rather than
+    // relying on the caller to notice.
+    //
+    // FIVE WAYS TO BE INCOMPARABLE, and each of them is a real case rather than defensive padding:
+    //
+    //  - No previous grid at all. A first bake, or one after ClearAll dropped the roster. Every
+    //    section that reads this emitter has so far been reading nothing from it.
+    //  - The centre or the radius moved. A grid is indexed from the emitter's own corner, so the same
+    //    offset in the two grids is a different cell and comparing them byte-wise is meaningless.
+    //  - The emitter had no polygon before. CollectReaching skips an emitter with an empty polygon
+    //    outright — MaskSkipsNoPolygon — so the sections that read it left it out entirely, and an
+    //    identical grid does not mean an identical render.
+    //  - Unobstructed flipped. It is read by CollectReaching rather than by the accumulation, so it
+    //    changes whether the emitter is visited at all; comparing only the grid would miss it.
+    //  - Stale polygons are switched off. That flag is what makes a section bake against the PREVIOUS
+    //    shape while a rebuild is pending; without it the section dropped the emitter in between, so
+    //    "the new shape equals the old one" says nothing about what was actually rendered. This is
+    //    the one entry in the list that is about another feature rather than about this emitter, and
+    //    it is why the two flags are a pair to keep in step rather than an orthogonal choice.
+    private static SectionDirtyMath.CellBounds DirtiedBy(
+        LightEntry entry, byte[] previousCoverage, int previousRadius, IntVec3 previousCell,
+        bool previousUnobstructed, bool hadPolygon)
+    {
+        SectionDirtyMath.CellBounds reach = SectionDirtyMath.Reach(
+            entry.Cell.x, entry.Cell.z, entry.Radius, VectorLightMask.ReachMargin);
+
+        bool comparable = CelestialLightingFeatures.VectorLightChangedDirty
+            && CelestialLightingFeatures.VectorLightStalePolygon
+            && hadPolygon
+            && previousCoverage != null
+            && previousRadius == entry.CoverageRadius
+            && previousCell == entry.Cell
+            && previousUnobstructed == entry.Unobstructed;
+
+        if (!comparable)
+        {
+            return reach;
+        }
+
+        bool moved = VectorLightMath.CoverageDelta(
+            previousCoverage, entry.Coverage, entry.CoverageRadius,
+            out int minXOffset, out int minZOffset, out int maxXOffset, out int maxZOffset);
+
+        if (!moved)
+        {
+            return default;
+        }
+
+        // Offsets into the emitter's square, back into map cells. The grid's origin is the emitter's
+        // own corner, which is where CoverageAt indexes it from.
+        int originX = entry.Cell.x - entry.CoverageRadius;
+        int originZ = entry.Cell.z - entry.CoverageRadius;
+
+        return SectionDirtyMath.Changed(
+            originX + minXOffset, originZ + minZOffset,
+            originX + maxXOffset, originZ + maxZOffset,
+            VectorLightMask.CellMargin);
     }
 
     public static Dictionary<object, LightEntry>.ValueCollection LightsFor(Map map)

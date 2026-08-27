@@ -87,7 +87,7 @@ public static class Patch_VectorLightDraw
 
         if (CelestialLightingFeatures.VectorLightSectionDirty)
         {
-            DirtyTouchedSections(map, touched);
+            DirtyBakedSections(map);
             return;
         }
 
@@ -123,31 +123,72 @@ public static class Patch_VectorLightDraw
     // adjacency on top would dirty a ring of sections that provably cannot look different — one
     // section's worth of margin on each side of the range, which on a small emitter is most of the
     // work back again.
-    private static void DirtyTouchedSections(Map map, SectionDirtyMath.CellBounds touched)
+    private static void DirtyBakedSections(Map map)
     {
         MapDrawer drawer = map.mapDrawer;
 
-        if (drawer == null)
+        if (drawer == null || VectorLightField.Dirtied.Count == 0)
             return;
 
+        int across = (map.Size.x + Section.Size - 1) / Section.Size;
+        int up = (map.Size.z + Section.Size - 1) / Section.Size;
+
+        // ONE FLAG PER SECTION, NOT PER BOX. The boxes overlap constantly — a door swing changes the
+        // shadow of a dozen lamps standing within a radius of each other — and MapMeshDirty is
+        // idempotent, so a duplicate costs nothing on screen. It costs the MEASUREMENT: SectionDirties
+        // is what the A/B is read on, and a section counted once per box that touched it would report
+        // this change making things worse in precisely the scene it makes best.
+        //
+        // A bool array rather than a HashSet because the whole map is a few hundred entries and this
+        // runs every frame; clearing it is cheaper than allocating a set's buckets once.
+        if (Flagged.Length < across * up)
+            Flagged = new bool[across * up];
+
+        System.Array.Clear(Flagged, 0, across * up);
+
+        ulong flags = (ulong)MapMeshFlagDefOf.GroundGlow;
+        bool anyFlagged = false;
+
+        for (int i = 0; i < VectorLightField.Dirtied.Count; i++)
+        {
+            anyFlagged |= DirtySections(drawer, map, VectorLightField.Dirtied[i], across, flags);
+        }
+
+        // Counted as a pass regardless of how many sections the frame flagged, so the ratio against
+        // SectionDirties reads "sections per provocation" — which is the number item A moves, from
+        // the map's whole section count down to a handful, and this one moves again.
+        if (anyFlagged)
+            VectorLightField.SectionDirtyPasses++;
+    }
+
+    // The per-frame section flags, reused rather than allocated. Safe as a static for the reason
+    // VectorLightField.BakeBatch is: this runs once per frame on the main thread inside the draw,
+    // and nothing in it survives the call.
+    private static bool[] Flagged = new bool[0];
+
+    private static bool DirtySections(
+        MapDrawer drawer, Map map, SectionDirtyMath.CellBounds bounds, int across, ulong flags)
+    {
         bool any = SectionDirtyMath.SectionRange(
-            touched, Section.Size, map.Size.x, map.Size.z,
+            bounds, Section.Size, map.Size.x, map.Size.z,
             out int minSectionX, out int minSectionZ, out int maxSectionX, out int maxSectionZ);
 
         if (!any)
-            return;
+            return false;
 
-        ulong flags = (ulong)MapMeshFlagDefOf.GroundGlow;
-
-        // Counted as a pass regardless of how many sections the range holds, so the ratio against
-        // SectionDirties reads "sections per provocation" — which is the number item A moves, from
-        // the map's whole section count down to a handful.
-        VectorLightField.SectionDirtyPasses++;
+        bool flagged = false;
 
         for (int sx = minSectionX; sx <= maxSectionX; sx++)
         {
             for (int sz = minSectionZ; sz <= maxSectionZ; sz++)
             {
+                int slot = sz * across + sx;
+
+                if (Flagged[slot])
+                    continue;
+
+                Flagged[slot] = true;
+                flagged = true;
                 VectorLightField.SectionDirties++;
 
                 IntVec3 anchor = new IntVec3(
@@ -157,5 +198,7 @@ public static class Patch_VectorLightDraw
                 drawer.MapMeshDirty(anchor, flags, regenAdjacentCells: false, regenAdjacentSections: false);
             }
         }
+
+        return flagged;
     }
 }

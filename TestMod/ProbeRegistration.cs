@@ -391,6 +391,12 @@ public static class ProbeRegistration
             "vector_light_mask_skips_dirty", VectorLightBakeProbe.Metric.MaskSkipsNoPolygon));
         ProbeRegistry.Register(new VectorLightBakeProbe(
             "vector_light_mask_stale_polys", VectorLightBakeProbe.Metric.MaskStalePolygonUses));
+        // Bakes that changed nothing anybody can see. PIN IT BESIDE vector_light_bakes: the whole
+        // claim of the changed-dirty feature is that the bake count stands still while the section
+        // count falls, i.e. that the saving came from dirtying less rather than from baking less,
+        // and neither number can say that on its own.
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_unchanged_bakes", VectorLightBakeProbe.Metric.UnchangedBakes));
         ProbeRegistry.Register(
             new VectorLightBakeProbe("vector_light_emitters", VectorLightBakeProbe.Metric.Emitters));
         // The coverage grid, which until now nothing live could see at all -- every other shape
@@ -1394,6 +1400,17 @@ public static class ProbeRegistration
             enabled =>
             {
                 CelestialLightingFeatures.VectorLightSectionDirty = enabled;
+                VectorLightRedraw.ForceRebuild();
+            });
+        // ForceRebuild for the reason its two neighbours need it, sharpened: this flag decides what a
+        // BAKE dirties, so an arm that flipped it without provoking one would find every polygon
+        // already clean, dirty nothing at all, and report both arms at zero — a perfect match
+        // between a feature that works and a feature that never ran.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightChangedDirtyKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.VectorLightChangedDirty = enabled;
                 VectorLightRedraw.ForceRebuild();
             });
         FeatureRegistry.Register(

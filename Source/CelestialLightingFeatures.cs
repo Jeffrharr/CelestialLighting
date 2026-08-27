@@ -1464,6 +1464,36 @@ public static class CelestialLightingFeatures
     // Inert unless vector_lights and the mask are on, which still ship OFF.
     public static bool VectorLightSectionDirty = true;
 
+    // Feature key for VectorLightChangedDirty.
+    public const string VectorLightChangedDirtyKey = "vector_light_changed_dirty";
+
+    // Dirty the sections a rebuilt emitter actually CHANGED, rather than every section it reaches.
+    //
+    // WHAT IS LEFT OVER FROM THE PER-SECTION DIRTY ABOVE. That one stopped a door swing regenerating
+    // the whole viewport, and replaced it with the union of the rebuilt emitters' reaches — which is
+    // still every section within a lamp's radius of the door, for every lamp within a radius of it.
+    // Two thirds of those lamps are sealed away from the door by a wall and rebake to a coverage grid
+    // that is byte-identical to the one they had; the third that do change change a wedge, not a
+    // disc. Measured on the stress colony's own geometry, one swing dirties 146 sections that way and
+    // 18 this way, and the door storm charges roughly a millisecond of mask to each of them.
+    //
+    // THE COMPARISON IS THE COVERAGE GRID, NOT THE POLYGON. See VectorLightMath.CoverageDelta: the
+    // polygon moves for reasons no pixel can see, and the grid is the only thing the mask reads.
+    //
+    // WHY IT IS SOUND TO DIRTY LESS, which is the direction that goes quietly wrong in this
+    // subsystem. A section that baked against the emitter's PREVIOUS shape is already showing the
+    // right answer when the new shape is identical to it — that is exactly what the comparison
+    // establishes. It rests on vector_light_stale_polygon, which is what makes a section bake against
+    // the previous shape rather than skip the emitter; with that off a section really did render
+    // without the emitter in between, so this stands down and dirties the whole reach. That pair is a
+    // combination to keep in step rather than an orthogonal one, the same way the view cull is.
+    //
+    // Measured by vector_light_section_dirties beside vector_light_bakes: the ratio is the number
+    // this moves, and the bake count standing still is what says the saving came from dirtying less
+    // rather than from baking less. Off unions the whole reach, which is what the previous shape did,
+    // so the arm is a baseline rather than a picture of the feature missing.
+    public static bool VectorLightChangedDirty = true;
+
     // Feature key for VectorLightViewCull.
     public const string VectorLightViewCullKey = "vector_light_view_cull";
 

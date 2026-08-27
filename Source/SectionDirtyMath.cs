@@ -73,6 +73,40 @@ public static class SectionDirtyMath
             cellX + reach + 1, cellZ + reach + 1);
     }
 
+    // The cells a set of CHANGED cells obliges us to regenerate, as opposed to the cells an
+    // emitter's whole reach does.
+    //
+    // WHY A SECOND ENTRY POINT AND NOT A NARROWER Reach. Reach answers "which sections admit this
+    // emitter", because that is the question the emitter existed to ask: it had just been rebuilt
+    // and anything that reads it might now read something different. Once the two coverage grids can
+    // be compared, the better question is "which sections read a cell whose coverage actually
+    // moved" — and for a lamp sealed away from the door that dirtied it, the honest answer is none.
+    // Measured on the stress colony's own geometry: a door swing dirties 146 sections through Reach
+    // and 18 through this, because two thirds of the lamps it marks rebake to a byte-identical grid
+    // and the third that do change change a wedge rather than a disc.
+    //
+    // THE MARGIN IS SYMMETRIC HERE AND ASYMMETRIC IN Reach, and that difference is real rather than
+    // an oversight in one of them. The mask accumulates into a grid covering the section plus one
+    // cell on every side — VectorLightMask.CellsWide — so a section reads cell c exactly when
+    //
+    //     section.minX - 1 <= c.x <= section.maxX + 1
+    //
+    // which rearranges to "the section's rect intersects [c.x - 1, c.x + 1]": one cell either way.
+    // Reach's extra cell on the max side is not the same quantity — it comes from CollectReaching's
+    // own admission predicate, which carries ReachMargin's deliberate slack on top of the geometry.
+    // Solving the two questions to the same answer would mean one of them was solved wrongly, so the
+    // offline tests pin the containment (this is never wider than Reach over the same emitter)
+    // rather than pinning them equal.
+    public static CellBounds Changed(int minX, int minZ, int maxX, int maxZ, int margin)
+    {
+        if (maxX < minX || maxZ < minZ)
+        {
+            return default;
+        }
+
+        return new CellBounds(minX - margin, minZ - margin, maxX + margin, maxZ + margin);
+    }
+
     // Accumulate. An empty operand returns the other side untouched, so the caller's loop needs no
     // first-iteration special case.
     public static CellBounds Union(CellBounds a, CellBounds b)
