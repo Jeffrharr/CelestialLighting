@@ -1,7 +1,7 @@
 {
   "name": "vector_light_open_door",
   "saveFile": "minimal_colony.rws",
-  "description": "§27e: an open door stops occluding §27's rays. Four arms over one wooden door in a wall gap, midnight, one torch. Arm 2 is the control -- opening the door with the flag off must reproduce arm 1 exactly, because vanilla's glow grid never learns a door opened. Arms 3 and 4 draw the SAME polygon and differ only in whether vanilla's gameplay light is moved to match, which is why door_outside_ground_glow is pinned next to every vector_light_* probe: it is the only number that can tell the drawn-only divergence from the coherent one.",
+  "description": "\u00a727e: an open door stops occluding \u00a727's rays. Four arms over one wooden door in a wall gap, midnight, one torch. Arm 2 is the control -- opening the door with the flag off must reproduce arm 1 exactly, because vanilla's glow grid never learns a door opened. Arms 3 and 4 draw the SAME polygon and differ only in whether vanilla's gameplay light is moved to match, which is why door_outside_ground_glow is pinned next to every vector_light_* probe: it is the only number that can tell the drawn-only divergence from the coherent one.",
   "steps": [
     {
       "type": "SetTile",
@@ -580,6 +580,49 @@
     {
       "type": "Probe",
       "args": {
+        "probeName": "door_aperture",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      },
+      "description": "THE SWING ACTUALLY FINISHED, pinned next to the effect so a change to the clock, the door's material or the Wait length fails loudly here instead of silently emptying the assertion below. This is the QUANTISED aperture -- the same expression the glow-grid rule reads, which is the whole of the fix: reading the raw ratio here instead ended the swing at 0.956 and refused the hole one call before anything asked again."
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "door_aperture_watched",
+        "expectedValue": "0",
+        "tolerance": "0.001"
+      },
+      "description": "And the door left the watch set, which is what makes the assertion below a ONE-SHOT question: nothing sweeps this door again, so a rule that answered 'not yet' at the end of the slide never gets a second chance."
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_lit_area",
+        "expectedValue": "468.896484",
+        "tolerance": "2"
+      },
+      "description": "OUR OWN POLYGON, pinned at the drawn-only arm's value to the last decimal. This is the probe answer to whether the silhouette memo needs invalidating when the bit moves: the animated path and the instant path must build the SAME polygon, and a memo still holding 'this cell is a wall' across the swing would show here as the shut door's 455.4963. It does not, because ReconcileGlowBlocker's LightBlockerRemoved comes back through Patch_VectorLightBlockerRemoved with blockerMoved true and drops the record."
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_shadow_fraction",
+        "expectedValue": "0.280377477",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_verts",
+        "expectedValue": "452",
+        "tolerance": "6"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
         "probeName": "door_outside_ground_glow",
         "expectedValue": "0.5",
         "tolerance": "0.005"
@@ -634,6 +677,15 @@
         "tolerance": "0.005"
       },
       "description": "Back to exactly what a shut door delivers: turning the door back into a blocker has to restore vanilla, not leave the hole standing."
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "door_aperture_watched",
+        "expectedValue": "0",
+        "tolerance": "0.001"
+      },
+      "description": "The close is over too. A door left in the set would keep dirtying geometry every tick for the rest of the session, which no frame shows and no other probe here would catch."
     },
     {
       "type": "Screenshot",
