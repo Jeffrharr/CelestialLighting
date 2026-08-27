@@ -1192,8 +1192,10 @@ public static class ProbeRegistration
         // Expose CelestialLighting's runtime feature flags to the harness's SetFeature step so a
         // scenario can screenshot an effect off then on. The setter just writes the shipped mod's
         // static flag; in production nothing calls it and the flag stays at its default (on).
-        // §27. Registered with the THREE-arg overload and defaultEnabled: false, which is
-        // load-bearing rather than tidiness: the two-arg overload assumes true, and
+        // §27. Registered with the THREE-arg overload and defaultEnabled: false. THAT IS NO LONGER
+        // THE SHIPPED DEFAULT — a fresh install of the mod now starts with vector lighting on — and
+        // it stays false here anyway, which is load-bearing rather than tidiness: the two-arg
+        // overload assumes true, and
         // FeatureRegistry.ResetAll() — which WorldStateReset runs between every pair of scenarios in a
         // suite — calls every setter with its registered default. Registered as true, §27 would switch
         // itself on for every later scenario in the file and rewrite their lighting, which is how
