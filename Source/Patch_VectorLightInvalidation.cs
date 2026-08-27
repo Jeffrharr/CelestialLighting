@@ -191,7 +191,8 @@ public static class VectorLightDoorEvents
         // The aperture our own fan is drawing, not the door's raw animation — see
         // DoorApertureMath.RenderedOpenFraction for why those are different questions.
         float rendered = DoorApertureMath.RenderedOpenFraction(
-            CelestialLightingFeatures.VectorLightDoorAperture, DoorAccess.OpenFraction(door));
+            CelestialLightingFeatures.VectorLightDoorAperture, DoorAccess.OpenFraction(door),
+            DoorApertureMath.DefaultQuantisationSteps);
 
         // THE FLAG IS PART OF THE ANSWER, NOT A GUARD ON ASKING IT, and having it as a guard was a
         // real bug rather than a stylistic choice. Returning early when the feature is off leaves

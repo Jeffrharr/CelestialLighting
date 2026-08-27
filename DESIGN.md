@@ -8998,14 +8998,21 @@ rather than a milder version of this one.
 
 ### §27e: open doors (`vector_light_open_doors`, `Tests/Scenarios/vector_light_open_door.json`)
 
-**It is a settings toggle now**, "Light through open doors", nested under the master switch and still
-defaulting **off**. One switch drives both `vector_light_open_doors` and `vector_light_door_aperture`,
-on the precedent §15's eave switch already sets: with the aperture off, `Building_Door.Open` flips
-true on the first tick of the swing and a full-width beam appears over a door the player can still
-see closing, which is the version nobody would choose and so is not offered as one. Both flags stay
-separate underneath, because filming one against the other is what they exist for.
-`vector_light_door_glow_blocker` stays unexposed — it moves `GroundGlowAt`, and it is a comparison arm
-rather than a shipped choice.
+**It is a settings toggle**, "Light through open doors", nested under the master switch. One switch
+drives all **three** flags — `vector_light_open_doors`, `vector_light_door_aperture` and
+`vector_light_door_glow_blocker` — on the precedent §15's eave switch already sets. The three stay
+separate underneath, because filming one against the other is what they exist for, but no pairing of
+them is offered as a choice: with the aperture off a full-width beam appears over a door the player
+can still see closing, and with the glow-grid half off vanilla floods through a doorway our polygon
+still treats as a wall, so the mask subtracts that flood as light it believes is shadowed and
+*turning the feature off makes doorways darker than vanilla* rather than returning them to it.
+
+**It defaults on for a fresh install and off for an existing one, deliberately.** The field
+initialiser reads `true` and the `Scribe_Values` default reads `false`, which is a mismatch on
+purpose rather than an oversight: an absent node in a saved config adopts the scribe default, so an
+existing colony does not have a gameplay-light change switched on underneath it by an update, while a
+new install gets the arrangement the three code defaults describe. Do not "fix" the two into
+agreement without deciding which population you are changing.
 
 **Problem.** A pawn stands in an open doorway with a torch behind them and the doorway is black. §27
 draws a beam through a *bare* gap in a wall — that is its headline result — but put an ordinary
@@ -9030,12 +9037,14 @@ fetched. Invalidation hangs off `MapEvents.Notify_DoorOpened`/`Closed` rather th
 `Building_Door.DoorOpen`, which is `protected virtual` and gets overridden without `base` by exactly
 the modded door classes this is for.
 
-**This knowingly disagrees with gameplay light, and that is the point of contention.** With the flag
-on we draw a beam vanilla does not deliver: `GroundGlowAt` still reads dark outside the door, plants
-still do not grow, pawns still cannot see. It is permitted because §27's contract is that it changes
-only what is *rendered* — but unlike §27's other divergence (a light's own cell treated as open:
-static, one cell, always keeps a lit thing lit) this one is beam-sized and blinks as pawns walk
-through. Issue #48 records the opposite sign of the same mistake. Hence: opt-in, off by default.
+**It used to knowingly disagree with gameplay light, and that was the point of contention.** With
+only this flag on we draw a beam vanilla does not deliver: `GroundGlowAt` still reads dark outside the
+door, plants still do not grow, pawns still cannot see. That was permitted because §27's contract is
+that it changes only what is *rendered* — but unlike §27's other divergence (a light's own cell
+treated as open: static, one cell, always keeps a lit thing lit) this one is beam-sized and blinks as
+pawns walk through. Issue #48 records the opposite sign of the same mistake. **The open-door glow
+blocker below closes that gap**, which is why the two now ship together and why this paragraph is
+history rather than a caveat.
 
 **What was measured, and why the second arm matters more than the third.** Four arms, one wooden
 door, midnight, one torch:
@@ -9061,11 +9070,13 @@ so the coherent option is three times the area for a fifth more contrast. Whethe
 wash is what a doorway should look like is precisely the judgement the two flags exist to let
 someone make by looking, which is why the rejected option is shipped alongside rather than described.
 
-**`vector_light_door_glow_blocker` is the comparison arm, not a feature.** It moves vanilla's own
-blocker bit on open/close, so gameplay light agrees. Known rough edge, recorded rather than papered
-over: a door open at save time comes back with `openInt` true and no notification, so the grid
-disagrees until the door is next used. `lightBlockers` is a bit array rather than a counter, so
-nothing accumulates and it self-heals — acceptable for a flag that exists to be measured against.
+**`vector_light_door_glow_blocker` began as the comparison arm and is now the other half of the
+rule.** It moves vanilla's own blocker bit when a door opens and restores it when one shuts, so
+gameplay light agrees with what we draw. The rough edge that made it a measurement-only flag — a door
+open at save time comes back with `openInt` true and no notification, so the grid disagrees until the
+door is next used — is fixed by a patch on `Map.FinalizeInit` that sweeps every door on load;
+`ReconcileAllDoors` is the same sweep, and the settings screen calls it too, because a flag that
+changes the *answer* for doors that are not moving has to be pushed rather than waited for.
 
 #### Phase 2: tracking the slide (`vector_light_door_aperture`)
 
