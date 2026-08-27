@@ -166,10 +166,7 @@ public static class VectorLightDoorEvents
     // did.
     public static void ReconcileGlowBlocker(Building_Door door)
     {
-        // This is GAMEPLAY light — plant growth, pawn vision, work speed and every mod reading
-        // GroundGlowAt move with it — so it is the one term in §27 that stays behind its own flag
-        // rather than riding on VectorLights.
-        if (!CelestialLightingFeatures.VectorLightDoorGlowBlocker || door == null)
+        if (door == null)
         {
             return;
         }
@@ -196,7 +193,19 @@ public static class VectorLightDoorEvents
         float rendered = DoorApertureMath.RenderedOpenFraction(
             CelestialLightingFeatures.VectorLightDoorAperture, DoorAccess.OpenFraction(door));
 
-        bool hole = DoorApertureMath.GlowGridHoleWanted(door.def.blockLight, door.Open, rendered);
+        // THE FLAG IS PART OF THE ANSWER, NOT A GUARD ON ASKING IT, and having it as a guard was a
+        // real bug rather than a stylistic choice. Returning early when the feature is off leaves
+        // whatever holes it had already opened standing open, so turning it off did NOT restore
+        // vanilla — it froze the map in whatever state the last door event left. This repo's rule is
+        // that a flag turned off reproduces the pre-feature behaviour EXACTLY, and here that
+        // behaviour is "a door's cell always blocks", which falls out of folding the flag into
+        // `hole` and letting the same write run.
+        //
+        // This is GAMEPLAY light — plant growth, pawn vision, work speed and every mod reading
+        // GroundGlowAt move with it — so it is the one term in §27 that stays behind its own flag
+        // rather than riding on VectorLights.
+        bool hole = CelestialLightingFeatures.VectorLightDoorGlowBlocker
+            && DoorApertureMath.GlowGridHoleWanted(door.def.blockLight, door.Open, rendered);
 
         if (hole)
         {
@@ -205,6 +214,58 @@ public static class VectorLightDoorEvents
         else
         {
             map.glowGrid.LightBlockerAdded(door.Position);
+        }
+    }
+
+    // WHAT THE FLAGS CHANGING HAS TO CALL, and its absence is what made the first live run of this
+    // feature photograph a frame bit-identical to the arm before it.
+    //
+    // Every other caller here is provoked by a DOOR moving. These flags change the ANSWER for doors
+    // that are not moving and may never move again: a scenario flips the feature on with a door
+    // already standing open, and a player toggles it in the settings screen with half the base's
+    // doors held open. Nothing in the door's own lifecycle fires, VectorLightRedraw.ForceRebuild
+    // rebuilds OUR geometry and never touches vanilla's blocker bits, and the map keeps the previous
+    // answer until each door happens to be used again — which in a paused scenario is never.
+    public static void ReconcileAllDoors()
+    {
+        List<Map> maps = Find.Maps;
+
+        if (maps == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < maps.Count; i++)
+        {
+            ReconcileDoors(maps[i]);
+        }
+    }
+
+    // BOTH LISTERS, and the colonist one alone is a real miss rather than a tidy-up. Ancient ruins,
+    // abandoned bases and every quest map arrive with doors nobody owns, and a door left standing
+    // open in generated content is exactly the case that never gets walked through to heal itself.
+    public static void ReconcileDoors(Map map)
+    {
+        if (map?.listerBuildings == null)
+        {
+            return;
+        }
+
+        Reconcile(map.listerBuildings.allBuildingsColonist);
+        Reconcile(map.listerBuildings.allBuildingsNonColonist);
+    }
+
+    // Doors are a small fraction of a colony's buildings and this runs on map load and on a settings
+    // change, so the sweep is not worth narrowing — narrowing it would mean keeping a second list in
+    // step with vanilla's, which is the kind of bookkeeping that goes stale silently.
+    private static void Reconcile(List<Building> buildings)
+    {
+        for (int i = 0; i < buildings.Count; i++)
+        {
+            if (buildings[i] is Building_Door door)
+            {
+                ReconcileGlowBlocker(door);
+            }
         }
     }
 
@@ -244,32 +305,6 @@ public static class Patch_VectorLightDoorClosed
 [HarmonyPatch(typeof(Map), nameof(Map.FinalizeInit))]
 public static class Patch_VectorLightDoorBlockersOnLoad
 {
-    static void Postfix(Map __instance)
-    {
-        if (!CelestialLightingFeatures.VectorLightDoorGlowBlocker || __instance == null)
-        {
-            return;
-        }
-
-        // BOTH LISTS, and the colonist one alone is a real miss rather than a tidy-up. Ancient
-        // ruins, abandoned bases and every quest map arrive with doors nobody owns, and a door left
-        // standing open in generated content is exactly the case that reloads wrong and never gets
-        // walked through to heal itself.
-        Reconcile(__instance.listerBuildings.allBuildingsColonist);
-        Reconcile(__instance.listerBuildings.allBuildingsNonColonist);
-    }
-
-    // Doors are a small fraction of a colony's buildings and this runs once per map load, so the
-    // sweep is not worth narrowing — narrowing it would mean keeping a second list in step with
-    // vanilla's, which is the kind of bookkeeping that goes stale silently.
-    private static void Reconcile(List<Building> buildings)
-    {
-        for (int i = 0; i < buildings.Count; i++)
-        {
-            if (buildings[i] is Building_Door door)
-            {
-                VectorLightDoorEvents.ReconcileGlowBlocker(door);
-            }
-        }
-    }
+    static void Postfix(Map __instance) => VectorLightDoorEvents.ReconcileDoors(__instance);
 }
+

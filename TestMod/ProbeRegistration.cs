@@ -1289,6 +1289,10 @@ public static class ProbeRegistration
             enabled =>
             {
                 CelestialLightingFeatures.VectorLightOpenDoors = enabled;
+                // Vanilla's blocker bits are moved by door EVENTS, and a SetFeature is not one.
+                // Without this a scenario that flips the flag with a door already standing open
+                // measures the previous answer -- which it did, bit-identically, on the first run.
+                VectorLightDoorEvents.ReconcileAllDoors();
                 VectorLightRedraw.ForceRebuild();
             },
             defaultEnabled: true);
@@ -1297,6 +1301,10 @@ public static class ProbeRegistration
             enabled =>
             {
                 CelestialLightingFeatures.VectorLightDoorGlowBlocker = enabled;
+                // Vanilla's blocker bits are moved by door EVENTS, and a SetFeature is not one.
+                // Without this a scenario that flips the flag with a door already standing open
+                // measures the previous answer -- which it did, bit-identically, on the first run.
+                VectorLightDoorEvents.ReconcileAllDoors();
                 VectorLightRedraw.ForceRebuild();
             },
             defaultEnabled: true);
@@ -1305,6 +1313,10 @@ public static class ProbeRegistration
             enabled =>
             {
                 CelestialLightingFeatures.VectorLightDoorAperture = enabled;
+                // Vanilla's blocker bits are moved by door EVENTS, and a SetFeature is not one.
+                // Without this a scenario that flips the flag with a door already standing open
+                // measures the previous answer -- which it did, bit-identically, on the first run.
+                VectorLightDoorEvents.ReconcileAllDoors();
                 // Clears the watched-door set AND the rebake counter, so each arm of a scenario
                 // counts its own bakes from zero rather than inheriting the previous arm's total.
                 GameComponent_DoorAperture.Reset();
