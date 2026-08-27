@@ -33,7 +33,17 @@ public static class UpdateNotice
         if (settings == null)
             return;
 
-        if (!UpdateNoticeMath.ShouldShow(settings.updateNoticeVersion))
+        // A brand-new install: no settings file existed, so there is no earlier version of this mod
+        // to have an update FROM, and everything the notice would announce is simply part of what
+        // this player just installed. They get vector lighting switched on instead of asked about
+        // it — see UpdateNoticeMath.FirstRunSwitches for why the two populations differ.
+        if (!settings.LoadedFromDisk)
+        {
+            SeedFirstRun(settings);
+            return;
+        }
+
+        if (!UpdateNoticeMath.ShouldShow(settings.LoadedFromDisk, settings.updateNoticeVersion))
             return;
 
         UpdateNoticeSwitches switches = ReadSwitches(settings);
@@ -41,13 +51,40 @@ public static class UpdateNotice
         // A window that names nothing is worse than no window: it would spend the one appearance
         // this notice gets and tell the player nothing. Acknowledge it instead, so the version does
         // not sit unwritten and re-evaluate this every boot.
-        if (!UpdateNoticeMath.AnythingToShow(switches, settings.LoadedFromDisk))
+        if (!UpdateNoticeMath.AnythingToShow(switches))
         {
             RecordAnswer(enableVectorLights: false);
             return;
         }
 
-        Find.WindowStack.Add(new Dialog_UpdateNotice(switches, settings.LoadedFromDisk));
+        Find.WindowStack.Add(new Dialog_UpdateNotice(switches));
+    }
+
+    // Applies the new-install defaults and records the notice against an install that will never be
+    // shown it, then persists both immediately — an unwritten acknowledgement is the same as no
+    // acknowledgement on the next boot.
+    //
+    // Writing on this path is the point of it rather than an afterthought. Without it, the first
+    // time this player opens and closes the settings screen they gain a settings file, and the boot
+    // after that they read as a returning player and are told that a feature they have always had
+    // is new.
+    //
+    // Save() rather than a bare field write for the same reason RecordAnswer uses it: WriteSettings
+    // re-runs ApplyToRuntime, which is what pushes the switch into the static flags every patch
+    // reads and runs VectorLightRedraw.SyncTo. Without that a first-boot player would carry
+    // `vectorLights = true` in their config while the renderer stayed off until something else
+    // happened to save the settings.
+    private static void SeedFirstRun(CelestialLightingSettings settings)
+    {
+        UpdateNoticeSwitches seeded = UpdateNoticeMath.FirstRunSwitches(ReadSwitches(settings));
+        int acknowledged = UpdateNoticeMath.AcknowledgeOnFirstRun();
+
+        if (settings.updateNoticeVersion == acknowledged && settings.vectorLights == seeded.VectorLights)
+            return;
+
+        settings.vectorLights = seeded.VectorLights;
+        settings.updateNoticeVersion = acknowledged;
+        CelestialLightingSettingsMod.Save();
     }
 
     // Applies the player's answer and marks the notice answered. Called from
@@ -92,12 +129,6 @@ public static class UpdateNotice
             ? new UpdateNoticeSwitches(false, false, false, false, false, false)
             : ReadSwitches(settings);
     }
-
-    // Whether this install has run an earlier version of the mod. Public for the same reason as
-    // CurrentSwitches above. See CelestialLightingSettings.LoadedFromDisk for what answers it and
-    // for the one case it gets wrong.
-    public static bool InstalledBefore() =>
-        CelestialLightingSettingsMod.Settings?.LoadedFromDisk ?? false;
 
     // The persisted switches plus the two live facts that decide whether the volumetric path is
     // reachable at all on this install. Both reads are cheap and side-effect-free: ShaderLoaded is

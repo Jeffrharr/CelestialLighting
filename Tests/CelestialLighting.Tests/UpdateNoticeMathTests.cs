@@ -7,8 +7,8 @@ namespace CelestialLighting.Tests;
 // somebody on their first ever boot, or announces a feature that is not actually running, all look
 // identical in a screenshot to one that works — the difference is a boolean that nobody sees until
 // a player complains. So the cases here are written as the requirement rather than as coverage:
-// once, to every install, never opting anybody into the expensive feature, and never a claim about
-// the screen that the screen does not support.
+// once, only to a player who had the mod before, never relighting an existing colony without being
+// told to, and never a claim about the screen that the screen does not support.
 [TestFixture]
 public class UpdateNoticeMathTests
 {
@@ -27,13 +27,23 @@ public class UpdateNoticeMathTests
 
     // --- ShouldShow: who sees it, and how many times ---
 
-    // EVERY INSTALL IS ASKED, new or upgrading, and the population is no longer an input at all.
-    // Vector lighting is the most expensive thing the mod does, so nobody is opted into it silently
-    // — including the first-time install an earlier cut of this deliberately skipped.
+    // The population the notice exists for: had the mod before, has not answered yet.
     [Test]
-    public void EveryUnansweredInstallIsShownTheNotice()
+    public void AnUpgradingInstallIsShownTheNotice()
     {
-        Assert.That(UpdateNoticeMath.ShouldShow(UpdateNoticeMath.NeverAcknowledged), Is.True);
+        Assert.That(
+            UpdateNoticeMath.ShouldShow(installedBefore: true, UpdateNoticeMath.NeverAcknowledged),
+            Is.True);
+    }
+
+    // A FIRST-TIME INSTALL IS NEVER SHOWN IT, whatever it has acknowledged. Nothing in this mod is an
+    // "update" to somebody for whom every effect arrived at the same moment, and the one feature the
+    // window would offer them is switched on for them instead (FirstRunSwitches).
+    [TestCase(0)]
+    [TestCase(1)]
+    public void AFirstTimeInstallIsNeverShownTheNotice(int acknowledged)
+    {
+        Assert.That(UpdateNoticeMath.ShouldShow(installedBefore: false, acknowledged), Is.False);
     }
 
     // THE "ONLY ONCE" REQUIREMENT. Having answered is having answered — the notice does not come
@@ -44,7 +54,7 @@ public class UpdateNoticeMathTests
     public void AnAnsweredNoticeIsNeverShownAgain()
     {
         int acknowledged = UpdateNoticeMath.Acknowledge(UpdateNoticeMath.NeverAcknowledged);
-        Assert.That(UpdateNoticeMath.ShouldShow(acknowledged), Is.False);
+        Assert.That(UpdateNoticeMath.ShouldShow(installedBefore: true, acknowledged), Is.False);
     }
 
     // A player who ran a later build and rolled back keeps their higher mark. Without the guard in
@@ -55,17 +65,19 @@ public class UpdateNoticeMathTests
     {
         int fromTheFuture = UpdateNoticeMath.CurrentNoticeVersion + 5;
         Assert.That(UpdateNoticeMath.Acknowledge(fromTheFuture), Is.EqualTo(fromTheFuture));
-        Assert.That(UpdateNoticeMath.ShouldShow(fromTheFuture), Is.False);
+        Assert.That(UpdateNoticeMath.ShouldShow(installedBefore: true, fromTheFuture), Is.False);
     }
 
-    // A first install answers the notice like anybody else and the acknowledgement it writes has to
-    // suppress it on every later boot — including the boot after that player first opens and closes
-    // the settings screen, which is the moment they stop looking like a first install.
+    // THE FIRST-RUN SEED HAS TO SUPPRESS THE NOTICE ON EVERY LATER BOOT, and this is the case that
+    // makes AcknowledgeOnFirstRun necessary rather than decorative. A player who installs fresh stops
+    // looking like a first install the moment they open and close the settings screen — that is when
+    // RimWorld writes the file. Without the seeded acknowledgement, the boot after that reads as a
+    // returning player and tells them a feature they have always had is new.
     [Test]
-    public void AFirstInstallsOwnAnswerSuppressesTheNoticeForever()
+    public void TheFirstRunSeedSuppressesTheNoticeOnceThePlayerLooksLikeAnUpgrade()
     {
-        int acknowledged = UpdateNoticeMath.Acknowledge(UpdateNoticeMath.NeverAcknowledged);
-        Assert.That(UpdateNoticeMath.ShouldShow(acknowledged), Is.False);
+        int seeded = UpdateNoticeMath.AcknowledgeOnFirstRun();
+        Assert.That(UpdateNoticeMath.ShouldShow(installedBefore: true, seeded), Is.False);
     }
 
     // NeverAcknowledged has to be the scribed default, and it has to sort below the current notice.
@@ -79,23 +91,47 @@ public class UpdateNoticeMathTests
             Is.GreaterThan(UpdateNoticeMath.NeverAcknowledged));
     }
 
-    // --- Nobody is opted into vector lighting ---
+    // --- The two populations get different answers about vector lighting ---
 
-    // THE REQUIREMENT THAT REPLACED THE NEW-INSTALL DEFAULT. Vector lighting is the mod's most
-    // expensive feature, so no population gets it without saying yes — and this is the test that
-    // would fail if a seeding path were ever reintroduced, because Apply is the ONLY way the switch
-    // moves and it needs an explicit true.
-    [TestCase(true, TestName = "AnUpgradeNeverGetsVectorLightingWithoutSayingYes")]
-    [TestCase(false, TestName = "ANewInstallNeverGetsVectorLightingWithoutSayingYes")]
-    public void NobodyGetsVectorLightingWithoutSayingYes(bool installedBefore)
+    // A NEW INSTALL GETS IT ON. Somebody installing today has no prior expectation to violate, so
+    // this is simply how the mod lights a colony.
+    [Test]
+    public void ANewInstallStartsWithVectorLightingOn()
+    {
+        Assert.That(UpdateNoticeMath.FirstRunSwitches(Typical(vectorLights: false)).VectorLights,
+            Is.True);
+    }
+
+    // THE SEED TOUCHES NOTHING ELSE. It is the new-install default for one switch, not a "turn
+    // everything on" path — the cloud switches and the two reachability facts have to come through
+    // exactly as they went in, or a first boot would silently override defaults set elsewhere.
+    [Test]
+    public void TheFirstRunSeedMovesNothingButVectorLighting()
+    {
+        UpdateNoticeSwitches before = Typical(cloudCover: false, cloudSheet: true, cloudVolume: false,
+            shaderLoaded: false, externalClouds: true);
+        UpdateNoticeSwitches seeded = UpdateNoticeMath.FirstRunSwitches(before);
+
+        Assert.That(seeded.CloudCover, Is.EqualTo(before.CloudCover));
+        Assert.That(seeded.CloudSheet, Is.EqualTo(before.CloudSheet));
+        Assert.That(seeded.CloudVolume, Is.EqualTo(before.CloudVolume));
+        Assert.That(seeded.CloudVolumeShaderLoaded, Is.EqualTo(before.CloudVolumeShaderLoaded));
+        Assert.That(seeded.ExternalCloudsInstalled, Is.EqualTo(before.ExternalCloudsInstalled));
+    }
+
+    // AN EXISTING COLONY IS NEVER RELIT WITHOUT AN EXPLICIT YES, which is the half of the asymmetry
+    // that matters. Apply is the ONLY way the switch moves for this population, and it needs a true
+    // handed to it — a decline leaves them exactly where they were.
+    [Test]
+    public void AnUpgradeNeverGetsVectorLightingWithoutSayingYes()
     {
         UpdateNoticeSwitches switches = Typical(vectorLights: false);
 
         Assert.That(UpdateNoticeMath.Apply(switches, enableVectorLights: false).VectorLights, Is.False);
-        // And both populations are actually shown the offer, which is what makes the line above a
-        // choice rather than a feature nobody can reach.
+        // And they are actually shown the offer, which is what makes the line above a choice rather
+        // than a feature nobody can reach.
         Assert.That(UpdateNoticeMath.VectorLightRow(switches), Is.EqualTo(UpdateNoticeRow.Offer));
-        Assert.That(UpdateNoticeMath.AnythingToShow(switches, installedBefore), Is.True);
+        Assert.That(UpdateNoticeMath.AnythingToShow(switches), Is.True);
     }
 
     // --- The vector-light row: the only one with a button ---
@@ -126,33 +162,8 @@ public class UpdateNoticeMathTests
     [Test]
     public void VolumetricCloudsAreAnnouncedWhenTheWholeChainIsOn()
     {
-        Assert.That(UpdateNoticeMath.VolumetricCloudRow(Typical(), installedBefore: true),
+        Assert.That(UpdateNoticeMath.VolumetricCloudRow(Typical()),
             Is.EqualTo(UpdateNoticeRow.Announce));
-    }
-
-    // A FIRST-TIME INSTALL IS TOLD NOTHING ABOUT CLOUDS, even with the whole chain running. Nothing
-    // in this mod is "new" to somebody who has never run it — every effect arrived at the same
-    // moment — so singling one out as a recent addition is a sentence that means nothing to them.
-    // This is now the only thing `installedBefore` decides.
-    [Test]
-    public void AFirstTimeInstallIsNotToldAboutClouds()
-    {
-        Assert.That(UpdateNoticeMath.VolumetricCloudRow(Typical(), installedBefore: false),
-            Is.EqualTo(UpdateNoticeRow.Hidden));
-        // ...while the same switches on an upgrade do get the announcement, which is what makes the
-        // line above a statement about the population rather than about the cloud settings.
-        Assert.That(UpdateNoticeMath.VolumetricCloudRow(Typical(), installedBefore: true),
-            Is.EqualTo(UpdateNoticeRow.Announce));
-    }
-
-    // And a first install with vector lighting already on has nothing left to say, so no window is
-    // raised at all. Only reachable by hand-editing the config before first boot, but it is the case
-    // that would otherwise put an empty modal in front of a brand-new player.
-    [Test]
-    public void AFirstTimeInstallWithNothingToOfferShowsNothing()
-    {
-        Assert.That(UpdateNoticeMath.AnythingToShow(Typical(vectorLights: true), installedBefore: false),
-            Is.False);
     }
 
     // THE CLOUD ROW IS NEVER AN OFFER, whatever the switches say. That is a design ruling, not an
@@ -168,8 +179,7 @@ public class UpdateNoticeMathTests
     {
         Assert.That(
             UpdateNoticeMath.VolumetricCloudRow(
-                Typical(cloudCover: cover, cloudSheet: sheet, cloudVolume: volume),
-                installedBefore: true),
+                Typical(cloudCover: cover, cloudSheet: sheet, cloudVolume: volume)),
             Is.Not.EqualTo(UpdateNoticeRow.Offer));
     }
 
@@ -187,7 +197,7 @@ public class UpdateNoticeMathTests
             Typical(cloudCover: cover, cloudSheet: sheet, cloudVolume: volume);
 
         Assert.That(UpdateNoticeMath.VolumetricCloudsRunning(switches), Is.False);
-        Assert.That(UpdateNoticeMath.VolumetricCloudRow(switches, installedBefore: true),
+        Assert.That(UpdateNoticeMath.VolumetricCloudRow(switches),
             Is.EqualTo(UpdateNoticeRow.Hidden));
     }
 
@@ -196,7 +206,7 @@ public class UpdateNoticeMathTests
     [Test]
     public void VolumetricCloudsAreHiddenWithoutTheShader()
     {
-        Assert.That(UpdateNoticeMath.VolumetricCloudRow(Typical(shaderLoaded: false), installedBefore: true),
+        Assert.That(UpdateNoticeMath.VolumetricCloudRow(Typical(shaderLoaded: false)),
             Is.EqualTo(UpdateNoticeRow.Hidden));
     }
 
@@ -205,7 +215,7 @@ public class UpdateNoticeMathTests
     [Test]
     public void VolumetricCloudsAreHiddenWhenAnotherModOwnsTheDeck()
     {
-        Assert.That(UpdateNoticeMath.VolumetricCloudRow(Typical(externalClouds: true), installedBefore: true),
+        Assert.That(UpdateNoticeMath.VolumetricCloudRow(Typical(externalClouds: true)),
             Is.EqualTo(UpdateNoticeRow.Hidden));
     }
 
@@ -241,7 +251,7 @@ public class UpdateNoticeMathTests
     public void ThereIsNothingToAskWhenBothFeaturesAreAlreadyRunning()
     {
         Assert.That(UpdateNoticeMath.AnyOffer(Typical(vectorLights: true)), Is.False);
-        Assert.That(UpdateNoticeMath.AnythingToShow(Typical(vectorLights: true), installedBefore: true), Is.True);
+        Assert.That(UpdateNoticeMath.AnythingToShow(Typical(vectorLights: true)), Is.True);
     }
 
     // A hidden feature is not an offer — the notice must not put an enable button under something it
@@ -251,7 +261,7 @@ public class UpdateNoticeMathTests
     {
         UpdateNoticeSwitches switches = Typical(vectorLights: true, shaderLoaded: false);
         Assert.That(UpdateNoticeMath.AnyOffer(switches), Is.False);
-        Assert.That(UpdateNoticeMath.AnythingToShow(switches, installedBefore: true), Is.False);
+        Assert.That(UpdateNoticeMath.AnythingToShow(switches), Is.False);
     }
 
     // The window is not worth raising with nothing in it — it would spend the one appearance this
@@ -261,9 +271,9 @@ public class UpdateNoticeMathTests
     public void AWindowWithNothingToSayIsNotRaised()
     {
         Assert.That(
-            UpdateNoticeMath.AnythingToShow(Typical(vectorLights: true, externalClouds: true), installedBefore: true),
+            UpdateNoticeMath.AnythingToShow(Typical(vectorLights: true, externalClouds: true)),
             Is.False);
-        Assert.That(UpdateNoticeMath.AnythingToShow(Typical(vectorLights: false, shaderLoaded: false), installedBefore: true),
+        Assert.That(UpdateNoticeMath.AnythingToShow(Typical(vectorLights: false, shaderLoaded: false)),
             Is.True, "an offerable vector-light row is on its own enough to raise the window");
     }
 
