@@ -367,6 +367,15 @@ public static class ProbeRegistration
             "vector_light_sections_per_pass", VectorLightBakeProbe.Metric.SectionsPerPass));
         ProbeRegistry.Register(new VectorLightBakeProbe(
             "vector_light_mask_applies", VectorLightBakeProbe.Metric.MaskApplies));
+        // The one metric here that is a DEFECT COUNT rather than a workload figure: sections that
+        // baked with an emitter reaching them dropped for want of a polygon, i.e. frames that
+        // rendered with a shadow missing. Its partner says the fallback was exercised at all, which
+        // is what stops "skips are zero" from passing against a scene where nothing ever moved.
+        // Read both AFTER a bake_reset -- nothing is baked at map load and the counts start high.
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_mask_skips_dirty", VectorLightBakeProbe.Metric.MaskSkipsNoPolygon));
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_mask_stale_polys", VectorLightBakeProbe.Metric.MaskStalePolygonUses));
         ProbeRegistry.Register(
             new VectorLightBakeProbe("vector_light_emitters", VectorLightBakeProbe.Metric.Emitters));
         // The coverage grid, which until now nothing live could see at all -- every other shape
@@ -440,6 +449,16 @@ public static class ProbeRegistration
             "sunlamp_lit_far", new IntVec3(3, 0, 45), RenderedLightCellProbe.Metric.Level));
         ProbeRegistry.Register(new RenderedLightCellProbe(
             "sunlamp_open", new IntVec3(0, 0, 49), RenderedLightCellProbe.Metric.Level));
+        // vector_light_bake_flicker.json, anchored at (0, 45) like its neighbours. The torch stands
+        // at local (-6, 0) with a single wall cell at (-4, 0); `flicker_shadow` is two steps behind
+        // that wall, so it is inside the torch's radius and inside the shadow the wall throws --
+        // the cell whose whole value comes from §27 having masked vanilla's flood off it.
+        // `flicker_lit` is the control on the torch's other side, with nothing between: no arm may
+        // move it, and an arm that does is dimming the room rather than restoring a shadow.
+        ProbeRegistry.Register(new RenderedLightCellProbe(
+            "flicker_shadow", new IntVec3(-2, 0, 45), RenderedLightCellProbe.Metric.Level));
+        ProbeRegistry.Register(new RenderedLightCellProbe(
+            "flicker_lit", new IntVec3(-8, 0, 45), RenderedLightCellProbe.Metric.Level));
         // §27e, vector_light_open_door.json. Cells are local to that scenario's room at offset
         // (0, 45): the doorway is local (0, 0), so (1, 0) is the first cell OUTSIDE it and (-1, 0)
         // the first cell inside. Both read vanilla's gameplay light, not ours -- they are what
@@ -1343,6 +1362,16 @@ public static class ProbeRegistration
         //
         // ForceRebuild on both, because they change WHEN sections rebake: a flip with no rebuild
         // leaves the map showing whatever the previous arm baked, and the A/B measures nothing.
+        // ForceRebuild here too, and for a sharper reason than its neighbours: this flag decides what
+        // a section bakes when a polygon is dirty, so an arm that flipped it without provoking a
+        // rebake would read whatever the previous arm baked and report the two arms as identical.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightStalePolygonKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.VectorLightStalePolygon = enabled;
+                VectorLightRedraw.ForceRebuild();
+            });
         FeatureRegistry.Register(
             CelestialLightingFeatures.VectorLightSectionDirtyKey,
             enabled =>

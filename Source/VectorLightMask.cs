@@ -307,8 +307,44 @@ public static class VectorLightMask
             // looking like the mask alone.
             bool worthVisiting = lifting || !entry.Unobstructed;
 
-            if (overlaps && worthVisiting && !entry.PolygonDirty && entry.Polygon.Count > 0)
+            // A DIRTY POLYGON IS A SHAPE THAT MAY HAVE MOVED, NOT ONE THAT CANNOT BE DRAWN, and
+            // the difference between those two readings is a visible flicker. Vanilla regenerates
+            // dirty sections at Map.MapUpdate line 1173 and does not reach
+            // GameConditionManagerDraw -- where EnsurePolygons runs -- until 1178, so anything that
+            // both marks a polygon dirty and dirties a section inside one tick is baked here BEFORE
+            // the rebuild. Dropping the emitter at that point does not merely lose its shadow: Apply
+            // returns true with nothing collected, so the section keeps vanilla's flood with neither
+            // our mask nor the crossfade's suppression on it, and the room reads a frame BRIGHTER
+            // than its settled state before snapping back. A door swing provokes it, so it fires
+            // over and over in ordinary play.
+            //
+            // So the last shape is used instead. It is one frame stale by exactly the edit that
+            // provoked the rebuild -- a wall cell, a door leaf -- and the corrected shape lands on
+            // the next frame regardless, because EnsurePolygons re-dirties whatever it rebuilds.
+            // Carrying yesterday's shadow for one frame is invisible; dropping it is not.
+            //
+            // AN EMPTY POLYGON IS STILL SKIPPED, and that is a different case rather than the same
+            // one with a smaller count: an emitter that has never been baked has no prior state to
+            // propagate. Vanilla's own flood is the right thing to show for a lamp that appeared
+            // this frame, and suppressing it with nothing to put back would light nothing at all.
+            bool hasPrior = entry.Polygon.Count > 0
+                && (CelestialLightingFeatures.VectorLightStalePolygon || !entry.PolygonDirty);
+
+            if (overlaps && worthVisiting && hasPrior)
+            {
                 Reaching.Add(entry);
+
+                // Counted where it happens rather than inferred from the dirty flag afterwards: by
+                // the time the frame ends EnsurePolygons has cleared the flag, so nothing outside
+                // this loop can still tell that the shape used here was the previous one.
+                if (entry.PolygonDirty)
+                    VectorLightField.MaskStalePolygonUses++;
+            }
+
+            // The emitter really did drop out of a section that renders it. Zero after a scene has
+            // settled; see VectorLightField.MaskSkipsNoPolygon.
+            if (overlaps && worthVisiting && !hasPrior)
+                VectorLightField.MaskSkipsNoPolygon++;
         }
     }
 

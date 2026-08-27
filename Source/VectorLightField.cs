@@ -212,6 +212,30 @@ public static class VectorLightField
     // mean the saving was on sections nobody was looking at anyway.
     public static int MaskApplies;
 
+    // Sections that baked WITHOUT an emitter reaching them, because it had no polygon at all yet.
+    // THE DEFECT COUNT: every one is a section that rendered a frame with a shadow missing, and --
+    // because VectorLightMask.Apply returns true having collected nothing -- with vanilla's flood
+    // left unsuppressed as well, so the room reads brighter than its settled state rather than
+    // darker. Zero once a scene has settled.
+    //
+    // It is not the same thing as PolygonDeferrals. A deferral is an emitter the VIEW CULL declined
+    // to build because nobody is looking at it, which costs nothing on screen. This counts the case
+    // where somebody IS looking.
+    //
+    // A nonzero reading during map load is expected and meaningless: nothing has been baked yet.
+    // Reset the counters after the scene settles and read it across the window that matters.
+    public static int MaskSkipsNoPolygon;
+
+    // Sections that baked from an emitter's PREVIOUS polygon because the current one had been
+    // marked dirty and the rebuild had not run yet. THE FIX WORKING, not a defect -- see
+    // VectorLightMask.CollectReaching for why a stale shape beats a dropped one by so much.
+    //
+    // Worth reading beside the skip count rather than alone. On its own it cannot tell a scenario
+    // that exercised the fallback from one that never provoked a rebuild at all, and a regression
+    // test asserting only that skips are zero would pass just as happily against a scene where
+    // nothing ever moved.
+    public static int MaskStalePolygonUses;
+
     // Cleared per arm, the way the door-aperture counter is, so an arm counts its own bakes from zero
     // instead of inheriting the previous arm's total.
 
@@ -243,6 +267,8 @@ public static class VectorLightField
         SectionDirties = 0;
         SectionDirtyPasses = 0;
         MaskApplies = 0;
+        MaskSkipsNoPolygon = 0;
+        MaskStalePolygonUses = 0;
     }
 
     public static void MarkRosterDirty(Map map)
