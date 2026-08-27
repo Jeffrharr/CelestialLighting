@@ -528,6 +528,20 @@
       }
     },
     {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_changed_dirty",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_stale_polygon",
+        "enabled": "true"
+      }
+    },
+    {
       "type": "SetTimeSpeed",
       "args": {
         "speed": "superfast"
@@ -796,6 +810,20 @@
       }
     },
     {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_changed_dirty",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_stale_polygon",
+        "enabled": "false"
+      }
+    },
+    {
       "type": "Wait",
       "args": {
         "frames": "30"
@@ -912,6 +940,20 @@
       "args": {
         "featureName": "vector_light_shadow_shares",
         "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_changed_dirty",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_stale_polygon",
+        "enabled": "true"
       }
     },
     {
@@ -1034,6 +1076,20 @@
       }
     },
     {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_changed_dirty",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_stale_polygon",
+        "enabled": "true"
+      }
+    },
+    {
       "type": "Wait",
       "args": {
         "frames": "30"
@@ -1150,6 +1206,20 @@
       "args": {
         "featureName": "vector_light_shadow_shares",
         "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_changed_dirty",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_stale_polygon",
+        "enabled": "true"
       }
     },
     {

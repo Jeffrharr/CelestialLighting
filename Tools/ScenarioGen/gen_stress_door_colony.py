@@ -134,16 +134,25 @@ def swing_steps(doors):
     return steps
 
 
-def arm(name, doors, vector_lights):
+def arm(name, doors, vector_lights, changed_dirty=None):
     """One measured arm: flags, a photograph, then the storm inside a profiling window.
 
     ProfileStart/ProfileMeasure/ProfileStop rather than the composite Profile step, because the window
     here is "whatever these steps do" and not a fixed frame count -- the storm's length is decided by
     the door commands, not by a number this file could name. ProfileMeasure with frames=0 is the
     documented form for that.
+
+    THE COUNTERS ARE DRAINED PER ARM, not once for the scenario. Every workload probe in this file
+    used to read a total accumulated since the establish block, which is the right shape when the
+    arms differ by whether the subsystem is on at all -- one of them contributes nothing. It is the
+    wrong shape the moment two arms both run the subsystem and differ in how much work it asks for,
+    because the second arm's reading contains the first arm's storm. The reset here costs one step
+    and makes vector_light_section_dirties an arm-local number.
     """
-    steps = sc.feature_steps(vector_lights=vector_lights)
+    steps = sc.feature_steps(vector_lights=vector_lights, changed_dirty=changed_dirty)
     steps.append(sc.step("Wait", frames=SETTLE_AFTER_FLAGS))
+    steps.append(sc.step("Probe", probeName="vector_light_bake_reset",
+                         expectedValue=0, tolerance=sc.RECORD_TOLERANCE))
 
     # Shot with the doors shut, before the storm, so the two arms' stills are comparable to each
     # other and to stress_light_colony's. A frame taken mid-storm would differ between arms by which
@@ -158,8 +167,50 @@ def arm(name, doors, vector_lights):
     steps += swing_steps(doors)
     steps.append(sc.step("ProfileStop", **{"name": name, "prefix": "CelestialLighting"}))
     steps.append(sc.step("SetTimeSpeed", speed="paused"))
+    steps += arm_probes(name)
 
     return steps
+
+
+def arm_probes(name):
+    """What this arm's storm asked the map to do, drained per arm rather than for the run.
+
+    THE FOUR THAT SCORE THE CHANGED-DIRTY ARM, and they only mean anything together:
+
+      section_dirties   what the draw flagged. The number the feature moves directly.
+      mask_applies      what actually regenerated through the mask. THE ONE TO BELIEVE -- vanilla
+                        regenerates only what is on screen, so flags can fall a long way while the
+                        work does not move at all, and that outcome would mean the saving was on
+                        sections nobody was looking at.
+      bakes             polygons rebuilt. Has to stand STILL between the two arms. If it falls, the
+                        saving came from baking less, which is a different change from this one and
+                        would mean the arm is measuring something it did not set.
+      unchanged_bakes   bakes whose coverage grid came out byte-identical. Zero by construction with
+                        the flag off, so the pair also says the flag reached the code.
+
+    Recorded rather than pinned, per this scenario's own rule: these are workload counts on a
+    population nobody had measured before, and a pin derived by prediction is what this repo has a
+    rule against. The defect counter beside them is pinned, because zero is not a prediction.
+    """
+    return [
+        sc.record("vector_light_section_dirties"),
+        sc.record("vector_light_section_dirty_passes"),
+        sc.record("vector_light_sections_per_pass"),
+        sc.record("vector_light_mask_applies"),
+        sc.record("vector_light_bakes"),
+        sc.record("vector_light_unchanged_bakes"),
+        # THE DEFECT WITNESS, and the one to read first when this arm looks too good. Dirtying FEWER
+        # sections is the direction that goes quietly wrong in this subsystem: a section left holding
+        # an emitter's previous shape logs nothing, throws nothing and moves no other probe. This
+        # counts sections that baked with an emitter reaching them and no polygon to use, which is
+        # the closest live witness the repo has to that failure, and a door storm is the provocation
+        # most likely to produce one.
+        #
+        # RECORDED AND NOT PINNED, on this scenario's own rule -- nobody has yet measured it per arm
+        # on this colony, and a pin nobody has measured is a prediction. Pin it at whatever the first
+        # run reads, and treat a later rise as the finding.
+        sc.record("vector_light_mask_skips_dirty"),
+    ]
 
 
 def storm_probes():
@@ -210,6 +261,11 @@ def perf_asserts():
     quiet scenario says only that the loud one is loud. Measured here: gated 2.05 ms/frame, full
     24.27, of which Patch_VectorLightSuppress is 15.19 and Patch_VectorLightDraw 6.97.
 
+    THAT MEASUREMENT WAS TAKEN ON WHAT IS NOW 'wide', which is why the two baselines share the arm
+    bound rather than getting a looser one. The run that set these numbers predates the bake learning
+    to report what it changed, so 24.27 is the wide behaviour's own figure -- and a control with a
+    slacker gate than the arm it controls for is a place a regression can sit unnoticed.
+
     THE SUPPRESS BOUND IS THE ONE THAT MATTERS, and it is asserted per patch rather than only in the
     total. At 13.88 calls a frame and 1,095 us a call it is 63% of everything this mod does here --
     and that per-call figure is close to the 1,100-1,155 us the pawn scenario measured and the 694 us
@@ -222,7 +278,13 @@ def perf_asserts():
     """
     return [
         sc.perf_assert("gated", "avgMsPerFrame", 8.0),
+        # 'wide' and its repeat carry the SAME bound as 'full' and are not given one of their own.
+        # The measured 24.27 was taken on the wide behaviour -- it is what the mod did when the run
+        # that set these numbers happened -- so the bound already fits it, and giving the baseline a
+        # looser gate than the arm it is the baseline for would let a regression hide in the control.
+        sc.perf_assert("wide", "avgMsPerFrame", 60.0),
         sc.perf_assert("full", "avgMsPerFrame", 60.0),
+        sc.perf_assert("wide_b", "avgMsPerFrame", 60.0),
         sc.perf_assert("full", "maxMsPerFrame", 400.0),
         sc.perf_assert("full", "avgMsPerFrame", 25.0, label="Patch_VectorLightDraw"),
         sc.perf_assert("full", "avgMsPerFrame", 40.0, label="Patch_VectorLightSuppress"),
@@ -243,8 +305,20 @@ def build():
 
     # Gated first, for the same reason as in stress_light_colony: the control must not be the arm that
     # ran on caches the expensive arm warmed.
+    #
+    # FOUR ARMS, WITH THE BASELINE REPEATED AROUND THE ONE BEING JUDGED. 'wide' is the full subsystem
+    # dirtying every section a rebuilt emitter reaches, which is what the mod did before the bake
+    # learned to report what it changed; 'full' is the shipped behaviour. They render the identical
+    # frame and differ only in how often a section is asked to rebake, so the whole comparison rests
+    # on the profiler's call counts -- and a call count taken once is a measurement of the machine as
+    # much as of the build. 'wide_b' is the same arm again after 'full', so a drift large enough to
+    # explain the difference shows up as the two baselines disagreeing with each other. This colony
+    # is deterministic where stress_pawn_colony's is not, so the repeat is cheaper insurance here,
+    # but the door storm is long and the box's thermal state over four arms is not a constant.
     steps += arm("gated", doors, vector_lights=False)
-    steps += arm("full", doors, vector_lights=True)
+    steps += arm("wide", doors, vector_lights=True, changed_dirty=False)
+    steps += arm("full", doors, vector_lights=True, changed_dirty=True)
+    steps += arm("wide_b", doors, vector_lights=True, changed_dirty=False)
     steps += storm_probes()
     steps += perf_asserts()
 
