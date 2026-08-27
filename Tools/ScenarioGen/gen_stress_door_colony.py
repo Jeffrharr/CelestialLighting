@@ -1,0 +1,285 @@
+#!/usr/bin/env python3
+"""The same colony, with thirty doors swinging under five hundred lamps.
+
+WHAT THIS ADDS OVER stress_light_colony. That scenario measures a large STATIC population: five
+hundred emitters that never move, so after the first frame every polygon is cached and what is left
+is composition and upload. This one keeps the identical map and makes the geometry move -- thirty
+doors opening and closing continuously, each swing dirtying every lamp within reach of it. That is
+the invalidation path, and it is the one that scales badly in the wrong design: a swing that dirties
+one emitter and a swing that dirties the whole map look identical on screen and differ by two orders
+of magnitude in cost.
+
+WHY THIRTY DOORS RATHER THAN ONE, WHICH IS WHAT vector_light_door_storm USES. That scenario swings a
+single door with eight lamps around it, which is the right shape for scoring the silhouette memo per
+gather. It cannot say what happens when invalidations OVERLAP -- when a lamp sits inside the reach of
+three doors that are all moving, and its polygon is dirtied again before the rebuild it already owed
+has happened. Thirty doors over a plate with lamps every few cells guarantees that overlap.
+
+BOTH KINDS OF DOOR, DELIBERATELY. Nineteen of the colony's twenty-eight rooms are roofed and nine are
+open-air courtyards. The thirty driven doors are drawn from both populations, interiors first: a door
+into a roofed room and a door into an unroofed enclosure are genuinely different cases, because the
+roofed one moves what the indoor gates and the sky occlusion see as well as what the polygon does.
+The exact split is asserted below and stated in the description, so a later layout change that
+quietly emptied one population fails here rather than halving the scenario in silence.
+
+THE SWINGS ARE STAGGERED, NOT SYNCHRONISED, and that is the harder case on purpose. The harness runs
+one step per frame, so thirty consecutive SetDoorOpen steps start thirty swings on thirty successive
+frames -- the first door is already moving while the thirtieth is still shut. A colony where every
+door moved in lockstep would hand the invalidation path one big batch per wave to coalesce;
+staggering gives it a continuous trickle, which is what a colony with pawns walking through it
+actually produces.
+
+WHY THE COUNTS ARE RECORDED AND NOT PINNED. A door animates on the tick counter while the harness
+renders frames, so how many quantisation steps a swing crosses inside a window depends on how fast
+the machine was running -- vector_light_door_storm records the same caveat and for the same reason.
+The number to read is a RATIO that does not care: silhouette hits as a share of hits plus rebuilds.
+
+THIS SCENARIO CANNOT RUN WITHOUT THE ANALYZER, and that is the harness's design rather than an
+oversight. ProfileStart skips the whole scenario when Dubs Performance Analyzer is absent, which is
+the loud no-op the feature wants. Run it with profiling on; --no-profiler will report it skipped.
+
+    python3 Tools/ScenarioGen/gen_stress_door_colony.py
+"""
+
+import json
+import os
+
+import stress_colony as sc
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+SCEN = os.path.abspath(os.path.join(HERE, "..", "..", "Tests", "Scenarios"))
+TARGET = os.path.join(SCEN, "stress_door_colony.json")
+
+# Doors driven, as briefed.
+DRIVEN_DOORS = 30
+
+# Open-close cycles per arm. Each wave is thirty opens and thirty closes, so an arm provokes
+# 60 * WAVES swings -- at four waves, 240, against vector_light_door_storm's eight.
+WAVES = 4
+
+# Frames held after a wave of thirty commands, before the opposite wave starts. The thirty commands
+# already span thirty frames on their own; this is the tail that lets the LAST door started reach the
+# end it was heading for. A swing cut short still counts its quantisation steps, but it leaves
+# GameComponent_DoorAperture watching it into the next command.
+SETTLE_FRAMES = 40
+
+# Frames held at the END of an arm, after the last close wave. Much longer than SETTLE_FRAMES, and
+# not for pacing: it is what makes both arms read their behaviour probes with the doors in the SAME
+# state. Without it an arm ends at whatever aperture the frame boundary happened to fall on, and the
+# two arms then disagree for a reason that has nothing to do with the flag between them.
+SHUT_FRAMES = 120
+
+SETTLE_AFTER_FLAGS = 30
+
+# Superfast, not normal. The stress is invalidation churn PER RENDERED FRAME, and the clock speed is
+# what decides how many ticks -- and therefore how much door movement -- happens between two frames.
+# Normal speed spreads a 45-tick swing over roughly 45 frames and measures a gentle trickle; superfast
+# packs the same swing into a handful and is the case worth knowing about. It is also what
+# vector_light_perf profiles at, so the frame costs are at least on the same footing.
+TIME_SPEED = "superfast"
+
+
+def driven_doors(colony):
+    """Thirty doors, interiors first, so both populations are represented and the split is stated.
+
+    Sorted before slicing. The colony's door lists come out in room-generation order, which is stable
+    today but is exactly the kind of thing an unrelated edit to the layout reorders -- and a slice off
+    an unsorted list would then drive a different thirty doors and move every number here with it.
+    """
+    interiors = sorted(colony.interior_doors)
+    courtyards = sorted(colony.courtyard_doors)
+    chosen = (interiors + courtyards)[:DRIVEN_DOORS]
+
+    if len(chosen) < DRIVEN_DOORS:
+        raise RuntimeError(
+            f"the colony has {len(chosen)} doors, fewer than the {DRIVEN_DOORS} this scenario drives")
+
+    interior_set = set(interiors)
+    interior_count = sum(1 for door in chosen if door in interior_set)
+
+    if interior_count == 0 or interior_count == len(chosen):
+        raise RuntimeError(
+            f"all {len(chosen)} driven doors are the same kind (interiors: {interior_count}) — "
+            "the scenario claims to exercise both and would not be")
+
+    return chosen, interior_count
+
+
+def door_offset(cell):
+    """SetDoorOpen takes an offset from MAP CENTRE, not from the plate's origin.
+
+    Every other step here names a cell relative to the plate (their `offset` arg carries the plate
+    origin and the cell list is relative to that), but SetDoorOpen has no anchor arg -- it resolves
+    map.Center + offset directly. Passing a plate-local cell would address a door fifty cells south of
+    the real one, find open ground, and fail with "no Building_Door" pointing at a door that is
+    plainly there in the frame.
+    """
+    x, z = cell
+    return f"{sc.ORIGIN_X + x},{sc.ORIGIN_Z + z}"
+
+
+def swing_steps(doors):
+    """The storm: WAVES rounds of open-everything, then close-everything."""
+    steps = []
+    for _ in range(WAVES):
+        for cell in doors:
+            steps.append(sc.step("SetDoorOpen", offset=door_offset(cell), open="true"))
+        steps.append(sc.step("Wait", frames=SETTLE_FRAMES))
+
+        for cell in doors:
+            steps.append(sc.step("SetDoorOpen", offset=door_offset(cell), open="false"))
+        steps.append(sc.step("Wait", frames=SETTLE_FRAMES))
+
+    steps.append(sc.step("Wait", frames=SHUT_FRAMES))
+    return steps
+
+
+def arm(name, doors, vector_lights):
+    """One measured arm: flags, a photograph, then the storm inside a profiling window.
+
+    ProfileStart/ProfileMeasure/ProfileStop rather than the composite Profile step, because the window
+    here is "whatever these steps do" and not a fixed frame count -- the storm's length is decided by
+    the door commands, not by a number this file could name. ProfileMeasure with frames=0 is the
+    documented form for that.
+    """
+    steps = sc.feature_steps(vector_lights=vector_lights)
+    steps.append(sc.step("Wait", frames=SETTLE_AFTER_FLAGS))
+
+    # Shot with the doors shut, before the storm, so the two arms' stills are comparable to each
+    # other and to stress_light_colony's. A frame taken mid-storm would differ between arms by which
+    # doors happened to be open on that frame, which is drift rather than effect.
+    steps.append(sc.step("Screenshot", fileName=f"stress_door_colony_{name}", hideUi="true"))
+    steps.append(sc.step("Wait", frames=4))
+    steps.append(sc.step("Screenshot", fileName=f"stress_door_colony_{name}_clean", hideUi="true"))
+
+    steps.append(sc.step("SetTimeSpeed", speed=TIME_SPEED))
+    steps.append(sc.step("ProfileStart", timeSpeed=TIME_SPEED, warmupFrames=30))
+    steps.append(sc.step("ProfileMeasure", frames=0))
+    steps += swing_steps(doors)
+    steps.append(sc.step("ProfileStop", **{"name": name, "prefix": "CelestialLighting"}))
+    steps.append(sc.step("SetTimeSpeed", speed="paused"))
+
+    return steps
+
+
+def storm_probes():
+    """What the storm cost, in counts. See the header for why none of these is pinned.
+
+    The silhouette pair is the one to read as a ratio: the memo exists to hold a light's whole-cell
+    occluder outline across a door swing instead of rescanning its window for it, and the saving is
+    per gather. hits / (hits + rebuilds) is the same number whatever the machine's frame rate did to
+    the swing count, which is what makes it quotable at all.
+    """
+    return [
+        sc.record("vector_light_silhouette_hits"),
+        sc.record("vector_light_silhouette_rebuilds"),
+        sc.record("vector_light_gather_wall_ms"),
+        # Rebakes provoked, and the invalidation radius that produced them. Read together: a rebake
+        # count on its own cannot separate "many doors moved" from "one door dirtied everything".
+        sc.record("vector_light_bakes"),
+        sc.record("vector_light_invalidations"),
+        sc.record("vector_light_invalidation_marks"),
+        sc.record("vector_light_marks_per_call"),
+        # Door aperture accounting: how many doors are being watched, and rebakes per swing. A timing
+        # probe cannot see a call count change, which is the whole reason this one exists.
+        sc.record("door_aperture_bakes"),
+        # Deferrals: attempts the view cull turned away. Meaningful here only because every lamp is on
+        # screen, so a high count is coalescing rather than culling.
+        sc.record("vector_light_bake_deferrals"),
+        # The defect counter, pinned rather than recorded. A section that baked with an emitter
+        # reaching it and no polygon to use rendered a shadow short — a bug, not a cost, and a door
+        # storm is the provocation most likely to produce one.
+        sc.step("Probe", probeName="vector_light_mask_stale_polys", expectedValue=0, tolerance=0),
+    ]
+
+
+def perf_asserts():
+    """The storm's cost, lifted into the results block rather than left in the JSON.
+
+    Read 'full' against 'gated': both arms drive the identical thirty doors through the identical
+    number of swings over the identical colony, so the difference is what the invalidation path costs
+    §27 and not what RimWorld charges for moving a door.
+
+    The bounds are loose on purpose — see sc.perf_assert's header for why a tight bound on this box
+    is a gate that fails for weather. maxMsPerFrame is the one to watch: a door storm is the
+    provocation most likely to bunch a lot of rebuilding into one frame, and an average across a
+    window this long would hide a dropped frame completely.
+    """
+    return [
+        sc.perf_assert("gated", "avgMsPerFrame", 4.0),
+        sc.perf_assert("full", "avgMsPerFrame", 6.0),
+        sc.perf_assert("full", "maxMsPerFrame", 400.0),
+        sc.perf_assert("full", "avgMsPerFrame", 4.0, label="Patch_VectorLightDraw"),
+    ]
+
+
+def build():
+    colony = sc.build()
+    doors, interior_count = driven_doors(colony)
+
+    steps = sc.setup_steps(colony)
+    steps += sc.palette_steps()
+    steps += sc.establish_steps()
+    steps += sc.population_probes()
+    steps.append(sc.step("Probe", probeName="vector_light_bake_reset",
+                         expectedValue=0, tolerance=sc.RECORD_TOLERANCE))
+
+    # Gated first, for the same reason as in stress_light_colony: the control must not be the arm that
+    # ran on caches the expensive arm warmed.
+    steps += arm("gated", doors, vector_lights=False)
+    steps += arm("full", doors, vector_lights=True)
+    steps += storm_probes()
+    steps += perf_asserts()
+
+    return {
+        "name": "stress_door_colony",
+        "saveFile": "minimal_colony.rws",
+        "description": (
+            f"stress_light_colony's map exactly — 500 lamps in 11 colours and 9 radii, 11,868 hidden "
+            f"conduits, 20 toxifier generators, 1,874 wall cells across 28 rooms and 120 free-standing "
+            f"stubs — with {DRIVEN_DOORS} of its 35 doors driven open and shut for {WAVES} waves an "
+            f"arm, i.e. {DRIVEN_DOORS * 2 * WAVES} swings. {interior_count} of the driven doors lead "
+            f"into roofed interiors and {DRIVEN_DOORS - interior_count} into open-air courtyards, "
+            f"which are different cases: the roofed ones move what the indoor gates and sky occlusion "
+            f"see as well as what the polygon does. "
+            "\n\n"
+            "WHAT THIS MEASURES THAT stress_light_colony CANNOT. That one holds five hundred emitters "
+            "still, so every polygon is cached after the first frame and the cost is composition and "
+            "upload. Here the geometry moves continuously and the invalidation path is what is under "
+            "load — and unlike vector_light_door_storm's single door, the invalidations OVERLAP: a "
+            "lamp inside the reach of three moving doors is dirtied again before the rebuild it "
+            "already owed has happened. "
+            "\n\n"
+            "THE SWINGS ARE STAGGERED ON PURPOSE. The harness runs one step per frame, so thirty "
+            "consecutive SetDoorOpen steps start thirty swings on thirty successive frames rather "
+            "than in lockstep. That denies the invalidation path a single coalescible batch per wave "
+            "and gives it the continuous trickle a colony with pawns in it actually produces. "
+            "\n\n"
+            "READ THE SILHOUETTE PAIR AS A RATIO, NOT AS COUNTS. A door animates on the tick counter "
+            "while the harness renders frames, so how many quantisation steps a swing crosses depends "
+            "on how fast this box was running — the counts move between runs of one build. "
+            "hits / (hits + rebuilds) does not. Every count here is recorded rather than pinned for "
+            "that reason; the two things that ARE pinned are the population (500 emitters, 11 "
+            "colours, 9 radii, before anything is measured) and vector_light_mask_stale_polys at "
+            "zero, which is a defect count and not a cost. "
+            "\n\n"
+            "Profiled with ProfileStart/ProfileStop rather than a fixed-frame Profile, because the "
+            "window is the storm and the storm's length is decided by the door commands. That means "
+            "the scenario SKIPS entirely without Dubs Performance Analyzer loaded — run it with "
+            "profiling on. Clouds are off explicitly; the clock runs here on purpose and a drifting "
+            "cloud sheet would shade the very terrain the lamps are lighting."
+        ),
+        "steps": steps,
+    }
+
+
+def main():
+    spec = build()
+    with open(TARGET, "w") as handle:
+        json.dump(spec, handle, indent=2)
+        handle.write("\n")
+    print(f"wrote {TARGET} ({len(spec['steps'])} steps)")
+
+
+if __name__ == "__main__":
+    main()

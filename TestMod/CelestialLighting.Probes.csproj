@@ -95,6 +95,16 @@
     <!-- §27e phase 2: unpauses the scenario clock so a door actually animates. TickLapse cannot do
          this — its AdvanceTicks is a jump, and a door's slide is driven by its own Tick(). -->
     <Compile Include="../Source/Probes/SetTimeSpeedStep.cs" Link="SetTimeSpeedStep.cs" />
+    <!-- The stress suite's palette step. A scene built from lamp defs alone can only show the four
+         glow colours vanilla ships, while a real colony's colour-picker lamps hold arbitrary
+         per-instance ColorInts — this is what builds the second population. Also carries the
+         optional radius override, which is what spreads a fixture across the per-radius gradient
+         and material caches a single-radius scene never touches. -->
+    <Compile Include="../Source/Probes/SetGlowColorsStep.cs" Link="SetGlowColorsStep.cs" />
+    <!-- Reads the palette back from BOTH ends — the comps and §27's roster — so a recolour that
+         never reached the roster fails here instead of quietly rendering one colour for a whole
+         run. Pin its two metrics together or neither; see the file's header. -->
+    <Compile Include="../Source/Probes/GlowPaletteProbe.cs" Link="GlowPaletteProbe.cs" />
     <Compile Include="../Source/Probes/TwilightWarmthProbe.cs" Link="TwilightWarmthProbe.cs" />
     <Compile Include="../Source/Probes/PenumbraProbe.cs" Link="PenumbraProbe.cs" />
     <Compile Include="../Source/Probes/MoonIlluminationProbe.cs" Link="MoonIlluminationProbe.cs" />

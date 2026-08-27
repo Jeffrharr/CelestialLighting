@@ -256,6 +256,21 @@ public static class ProbeRegistration
         // vector_light_shadow_fraction is the claim ("walls are blocking light"), and the other three
         // are what stop a zero in it being mistaken for a disproof — no emitters, no reach, or no mesh
         // each produce the same 0 for entirely different reasons.
+        // The stress suite's palette check, and the reason it is three metrics rather than one.
+        // glow_colour_overrides counts the lamps SetGlowColors touched; the two distinct-* metrics
+        // count what §27's roster is holding. Only the second pair proves the recolour travelled —
+        // a repaint that never reached the roster leaves the overrides high and the distinct count
+        // at 1, which is a state no frame and no other probe here can tell from success.
+        //
+        // glow_emitter_radii is the companion warning: this repo has already shipped a per-emitter
+        // texture overflow that a single-radius fixture could not have caught, because the gradient
+        // and material caches are keyed per distinct integer radius. A stress scenario reading 1
+        // here has five hundred lamps and one cache entry.
+        ProbeRegistry.Register(new GlowPaletteProbe("glow_colour_overrides", GlowPaletteProbe.Metric.Overrides));
+        ProbeRegistry.Register(new GlowPaletteProbe(
+            "glow_emitter_colours", GlowPaletteProbe.Metric.DistinctEmitterColors));
+        ProbeRegistry.Register(new GlowPaletteProbe(
+            "glow_emitter_radii", GlowPaletteProbe.Metric.DistinctEmitterRadii));
         ProbeRegistry.Register(new VectorLightProbe("vector_light_count", VectorLightProbe.Metric.Count));
         ProbeRegistry.Register(new VectorLightProbe("vector_light_lit_area", VectorLightProbe.Metric.LitArea));
         ProbeRegistry.Register(

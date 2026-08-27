@@ -1,0 +1,61 @@
+# CelestialLighting stress suite — one colony, three loads on it.
+#
+#   ../RimWorldTestHarness/Runner/run_test.sh \
+#       --suite Tests/Scenarios/stress_suite.txt \
+#       --mod <main checkout> --mod-overlay <worktree> --mod <worktree>/TestMod \
+#       --install <worktree>/1.6/AssetBundles:<main checkout>/1.6/AssetBundles
+#
+# NOTE THE ABSENCE OF --no-profiler, which the vector-lighting gate carries. These scenarios exist to
+# produce cost tables, and stress_door_colony profiles with ProfileStart/ProfileStop rather than a
+# fixed-frame Profile — so without Dubs Performance Analyzer loaded it does not measure less, it
+# SKIPS. That is the harness working as designed; it is written down here because a suite reported
+# "2 passed, 1 skipped" is easy to read as a flake.
+#
+# The --install is the flag that gets forgotten. --mod-overlay swaps ASSEMBLIES ONLY, so without it
+# the branch's shader bundle never reaches the run, the max composition silently stands down, and
+# every arm measures the previous renderer while reporting green.
+#
+# WHAT THIS SUITE IS FOR, AND WHAT IT IS NOT.
+#
+# It is not a gate. Almost every probe in it is RECORDED rather than pinned, because these are
+# workload counts on a population nobody had measured before — and a pin invented by prediction
+# rather than measurement is the thing this repo has a rule against. What is pinned is the scene
+# itself: the emitter count, the palette, the radius spread, the caster count, and the one genuine
+# defect counter (vector_light_mask_stale_polys at zero). Those exist so that a run which quietly
+# lost its power net, or repainted lamps that §27 never heard about, fails instead of reporting
+# plausible numbers for a colony it was not measuring.
+#
+# It is a place to see the subsystem carry a real colony's worth of work. vector_light_perf profiles
+# twenty torches at one radius in one colour, which exercises exactly one entry of every per-emitter
+# cache §27 has. These put five hundred emitters in eleven colours and nine radii on one screen, and
+# then move three different things underneath them.
+#
+# THE THREE MOVE DIFFERENT PARTS ON PURPOSE:
+#
+#   stress_light_colony  — the population itself, held still. After the first frame every polygon is
+#                          cached, so what is left is composition, material lookup and per-emitter
+#                          upload. The baseline the other two are read against.
+#
+#   stress_door_colony   — the same map with thirty doors swinging, i.e. the invalidation path, with
+#                          the invalidations OVERLAPPING in a way one door cannot produce.
+#
+#   stress_pawn_colony   — the same map with fifty colonists walking, i.e. the per-frame caster path.
+#                          Three arms rather than two, so the pawn shadows are separated from the
+#                          fifty pawns' own vanilla cost.
+#
+# THEY ARE SAFE TO BATCH. Every step they use declares Map, Camera, TimeSpeed or Profiler residue,
+# all of which the suite planner reloads the fixture for; none of them starts a GameCondition, which
+# is the residue suites do NOT isolate and the reason core_design_suite.txt excludes what it does.
+#
+# THEY ARE ALSO SLOW. Each builds a colony of roughly 14,000 spawned things before it measures
+# anything, and stress_door_colony alone runs 617 steps across two arms. Expect this suite to take
+# considerably longer than any other in the repo, and run the three standalone when bisecting.
+#
+# BIOTECH IS REQUIRED. The toxifier generators are a Biotech def; on an install without it the
+# generators simply do not spawn, the power net has no supply, and 400 of the 500 lamps go dark —
+# which vector_light_count catches as a failure rather than a skip, since a missing DLC is not
+# something the scenario can detect from a def lookup PlaceThings already reported.
+
+stress_light_colony.json
+stress_door_colony.json
+stress_pawn_colony.json
