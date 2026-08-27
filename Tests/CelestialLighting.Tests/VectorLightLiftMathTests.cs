@@ -600,12 +600,13 @@ public class VectorLightLiftMathTests
         Assert.That(claimed, Is.Empty);
     }
 
-    // ---- the visibility floor -------------------------------------------------------------
+    // ---- why picking a renderer per cell is a dead end ---------------------------------------
     //
-    // A second, independent reason to hand a cell to our renderer: vanilla delivered something, but
-    // so little that the overlay renders it as nearly nothing. The rule is trivial; what these pin
-    // is WHERE it lands on the gate scene, because the value is the whole design and the failure
-    // mode is that it reaches into the lamp's own room.
+    // A visibility floor used to live here: hand a cell to our renderer wherever vanilla's delivered
+    // glow was too dim to be worth keeping. It reached doorway parity at the gap and drew a ring
+    // around every lamp, because "dim because it came through a hole" and "dim because it is the
+    // lamp's outer rim" are the same number to any such test. What survives is the identity that
+    // says why no rearrangement of the OPERATOR could have helped either.
 
     // THE IDENTITY THAT MAKES THE OPERATOR A DEAD END, checked rather than asserted. The frame
     // already holds vanilla, so the fan draws only the increment — and vanilla plus that increment
@@ -627,64 +628,5 @@ public class VectorLightLiftMathTests
                 Assert.That(vanilla + drawn, Is.EqualTo(Math.Max(vanilla, ours)));
             }
         }
-    }
-
-    // The near field is nowhere near the floor, which is what makes the floor safe to apply
-    // everywhere rather than only outdoors. Six times clear at the lamp itself.
-    [TestCase(0, 0)]
-    [TestCase(1, 0)]
-    [TestCase(3, 0)]
-    [TestCase(3, 2)]
-    public void TheNearFieldIsWellAboveTheFloor(int dx, int dz)
-    {
-        int vanilla = GapRoom().Channel(dx, dz, TorchPeak, TorchRadius);
-
-        Assert.That(vanilla, Is.GreaterThan(VectorLightLiftMath.DimDeliveryFloor));
-        Assert.That(VectorLightLiftMath.VanillaTooDimToKeep(vanilla), Is.False);
-    }
-
-    // And the cells past the aperture are below it, which is the whole point: they are exactly the
-    // cells where vanilla is carrying a max it cannot show.
-    [TestCase(7, 0)]
-    [TestCase(8, 0)]
-    public void TheCellsPastTheApertureAreBelowTheFloor(int dx, int dz)
-    {
-        int vanilla = GapRoom().Channel(dx, dz, TorchPeak, TorchRadius);
-
-        Assert.That(vanilla, Is.GreaterThan(0));
-        Assert.That(VectorLightLiftMath.VanillaTooDimToKeep(vanilla), Is.True);
-    }
-
-    // WHERE THE VALUE COMES FROM, pinned as a margin rather than as a number. The floor has to sit
-    // above the aperture cells and below everything in the lamp's own room, and these two counts
-    // are what say it does. A change to DimDeliveryFloor that eats the room fails here rather than
-    // in a screenshot.
-    [Test]
-    public void TheFloorClaimsTheGroundOutsideAndNothingInsideTheRoom()
-    {
-        GlowFlood flood = GapRoom();
-        int outdoor = 0;
-        int room = 0;
-
-        for (int dz = -10; dz <= 10; dz++)
-        {
-            for (int dx = -10; dx <= 10; dx++)
-            {
-                int vanilla = flood.Channel(dx, dz, TorchPeak, TorchRadius);
-
-                if (vanilla <= 0 || !VectorLightLiftMath.VanillaTooDimToKeep(vanilla))
-                    continue;
-
-                bool inside = dx > -6 && dx < 6 && dz > -4 && dz < 4;
-
-                if (inside)
-                    room++;
-                else
-                    outdoor++;
-            }
-        }
-
-        Assert.That(outdoor, Is.EqualTo(10));
-        Assert.That(room, Is.EqualTo(0));
     }
 }

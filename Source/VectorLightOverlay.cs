@@ -650,7 +650,6 @@ public static class VectorLightOverlay
         // once per texel of every emitter's square whenever a light resamples.
         bool gapParity = CelestialLightingFeatures.VectorLightGapParity;
         bool bentPath = VectorLightMask.BentPath;
-        bool dimFloor = VectorLightMask.DimFloor;
 
         NativeArray<Color32> texels = field.GetRawTextureData<Color32>();
 
@@ -666,7 +665,7 @@ public static class VectorLightOverlay
             int cellZ = start.z + i / diameter;
 
             int share = SurvivingShare(
-                entry, glow, cellX, cellZ, lightCell, gapParity, bentPath, dimFloor);
+                entry, glow, cellX, cellZ, lightCell, gapParity, bentPath);
 
             // Integer, and rounded the way a byte scale should be: (v * c + 127) / 255 rather than a
             // float multiply, so a fully covered cell (255) returns its own value unchanged instead
@@ -691,28 +690,22 @@ public static class VectorLightOverlay
     // the copy above applies. This is the whole of what the fragment program is entitled to subtract:
     // subtracting more takes off light nobody is drawing, and subtracting less sums two models.
     //
-    // THE ORDER OF THE TWO RULES IS NOT ARBITRARY. The per-cell replacement is all-or-nothing and
-    // wins outright, because where it fires the mask has already removed the cell's whole
-    // contribution and there is no remaining share for the coverage weighting to describe. Asking
-    // coverage first and then zeroing would give the same answer and read as though a partly-covered
-    // claimed cell kept part of its vanilla light, which it does not.
+    // THE ORDER IS NOT ARBITRARY. The per-cell replacement is all-or-nothing and wins outright,
+    // because where it fires the mask has already removed the cell's whole contribution and there is
+    // no remaining share for the coverage weighting to describe. Asking coverage first and then
+    // zeroing would give the same answer and read as though a partly-covered claimed cell kept part
+    // of its vanilla light, which it does not.
     private static int SurvivingShare(
         VectorLightField.LightEntry entry, Color32 glow, int cellX, int cellZ, IntVec3 lightCell,
-        bool gapParity, bool bentPath, bool dimFloor)
+        bool gapParity, bool bentPath)
     {
         bool delivered = glow.r != 0 || glow.g != 0 || glow.b != 0;
 
-        // The identical predicates the mask ran, on the identical inputs — vanilla's own accumulated
-        // distance out of the alpha channel, and its own delivered peak. The two sides cannot drift
-        // apart without the pure core changing under both of them.
+        // The identical predicate the mask ran, on the identical input — vanilla's own accumulated
+        // distance out of the alpha channel. The two sides cannot drift apart without the pure core
+        // changing under both of them.
         if (bentPath && VectorLightLiftMath.VanillaBentToArrive(
                 cellX - lightCell.x, cellZ - lightCell.z, glow.a, delivered))
-        {
-            return 0;
-        }
-
-        if (dimFloor && VectorLightLiftMath.VanillaTooDimToKeep(
-                Mathf.Max(glow.r, Mathf.Max(glow.g, glow.b))))
         {
             return 0;
         }

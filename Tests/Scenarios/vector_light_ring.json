@@ -2,7 +2,7 @@
   "name": "vector_light_ring",
   "saveFile": "minimal_colony.rws",
   "hideUi": true,
-  "description": "One TorchLamp alone in a sealed 21x21 roofed room at midnight, to see whether the visibility floor draws a RING at the lamp's rim. The floor cannot tell 'dim because it came through a hole' from 'dim because it is the outer rim', so every lamp's rim changes renderer -- and if the two delivery paths differ, that shows as an edge at the 26/255 contour, about 6.5 cells out. The gate scene could not ask this: its room is only 5 cells deep, where vanilla still delivers 46/255, so no interior cell was ever below the floor. Clouds are off explicitly; the room is roofed and sealed so nothing but this lamp lights it.",
+  "description": "One TorchLamp alone in a sealed 21x21 roofed room at midnight -- the isolated-lamp scene the rest of the suite cannot ask, because every other room in it is small enough that no interior cell is ever far enough from the lamp to show what happens at the light's OUTER RIM. Built to catch the ring the withdrawn visibility floor drew there (measured at 6.6 cells, +3.90 L* at its peak); kept because any change that picks a delivery path per cell will draw its artefact in exactly this scene and nowhere else. Vanilla, the mod, and a same-build control of the mod arm -- so a difference between the first two can be read against a floor of zero. Clouds are off explicitly; the room is roofed and sealed so nothing but this lamp lights it.",
   "steps": [
     {
       "type": "SetTile",
@@ -183,13 +183,6 @@
     {
       "type": "SetFeature",
       "args": {
-        "featureName": "vector_light_dim_floor",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
         "featureName": "vector_light_open_doors",
         "enabled": "false"
       }
@@ -351,13 +344,6 @@
       "type": "SetFeature",
       "args": {
         "featureName": "vector_light_bent_path",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_dim_floor",
         "enabled": "false"
       }
     },
@@ -531,13 +517,6 @@
     {
       "type": "SetFeature",
       "args": {
-        "featureName": "vector_light_dim_floor",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
         "featureName": "vector_light_open_doors",
         "enabled": "false"
       }
@@ -602,22 +581,6 @@
     {
       "type": "Probe",
       "args": {
-        "probeName": "vector_light_floor_home",
-        "expectedValue": "0",
-        "tolerance": "99999"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_floor_beyond",
-        "expectedValue": "0",
-        "tolerance": "99999"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
         "probeName": "vector_light_bent_applied",
         "expectedValue": "0",
         "tolerance": "99999"
@@ -626,7 +589,7 @@
     {
       "type": "Screenshot",
       "args": {
-        "fileName": "ring_flooroff.png"
+        "fileName": "ring_mod.png"
       }
     },
     {
@@ -737,219 +700,6 @@
     {
       "type": "SetFeature",
       "args": {
-        "featureName": "vector_light_dim_floor",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_open_doors",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_door_glow_blocker",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_door_aperture",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "cloud_cover",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "cloud_sheet",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "cloud_presence",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "cloud_deck_varieties",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "cloud_volume",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_shader_max_available",
-        "expectedValue": "1",
-        "tolerance": "0"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_floor_home",
-        "expectedValue": "0",
-        "tolerance": "99999"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_floor_beyond",
-        "expectedValue": "0",
-        "tolerance": "99999"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_bent_applied",
-        "expectedValue": "0",
-        "tolerance": "99999"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "ring_floor.png"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_lights",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_penumbra",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_suppress",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_blend",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_beam",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max_lift",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask_max_seed",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_shader_max",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_shader_max_subtract",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_surface_lift",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_gap_parity",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_aperture_beam",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_bent_path",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_dim_floor",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
         "featureName": "vector_light_open_doors",
         "enabled": "false"
       }
@@ -1006,7 +756,7 @@
     {
       "type": "Screenshot",
       "args": {
-        "fileName": "ring_flooroff_control.png"
+        "fileName": "ring_mod_control.png"
       }
     }
   ]

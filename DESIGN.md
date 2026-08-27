@@ -11244,7 +11244,14 @@ the probe reports `ours` on the **unseeded** curve while the shipped composition
 one, which at that cell is 0.0910. Against the quantity the shader actually uses, vanilla supplies
 99% of it. There is no missing third.
 
-#### The visibility floor: pick the renderer by what vanilla's share is worth (`vector_light_dim_floor`)
+#### The visibility floor: pick the renderer by what vanilla's share is worth — WITHDRAWN
+
+**The code is gone.** `vector_light_dim_floor`, `VectorLightLiftMath.VanillaTooDimToKeep` and
+`DimDeliveryFloor` were removed once the ring below was photographed; the implementation and its
+live measurement are at commit `d334608` if it is ever wanted back. This section is kept because
+the finding it produced — that the aperture deficit is a *delivery* problem, and that no rule
+keyed on a cell's brightness can separate an aperture from a lamp's own rim — is what the
+replacement is built on.
 
 The per-cell detour rule above is inert, and finding out why produced the identity that closes the
 whole operator question:
@@ -11324,12 +11331,21 @@ The floor is a hard threshold on purpose. **A ramp cannot fix this**: the gap ce
 has already stopped claiming the gap. Nor is the value the problem — moving the threshold moves the
 ring's radius and nothing else, because a lamp's falloff crosses every level somewhere.
 
-The rule is asking a question that cannot separate the two cases, and the fix has to be a different
-question. What distinguishes the gap cells from the rim cells is not the level: it is that at the rim
-our model and vanilla **agree** and vanilla is simply the far end of the same falloff, while past an
-aperture they agree only because vanilla arrived by a route that happens to be the same length. A
-discriminator that survives this has to combine the level with something that says the light is
-leaving a region — which is where the next attempt should start.
+The rule is asking a question that cannot separate the two cases, and no sharper version of the same
+question will: at the rim our model and vanilla **agree**, and vanilla is simply the far end of the
+same falloff.
+
+##### And the premise was inverted
+
+The floor was built to raise a **gap** to the level a **doorway** already reached. That is the wrong
+way round. The doorway is the anomalous one: RimWorld's glow grid never learns a door opened, so
+past an open door vanilla delivers *nothing* and our fan owns the render outright — which is why that
+column reads +2.34 while an identical aperture one wall away reads +0.36. The gap is what a hole in a
+wall is supposed to look like, because vanilla is lighting it.
+
+So the replacement does not reach for the gap at all. It makes a **fully open door behave as a wall
+gap** — see the next section — which removes the special case rather than compensating for it, and
+leaves every lamp's rim untouched because it never asks a question about brightness.
 
 ##### A number withdrawn
 
