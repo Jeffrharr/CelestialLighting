@@ -230,6 +230,18 @@ def build_hold():
     steps = sc.setup_steps(colony)
     steps += sc.palette_steps()
     steps += sc.establish_steps()
+
+    # A SECOND SETTLE, WHICH THE MEASURED SCENARIO DOES NOT NEED, and the reason is the whole point
+    # of this file. settle_steps counts FRAMES, and frames are not ticks: this variant exists to be
+    # run under --no-profiler, which drops Dubs Performance Analyzer, which makes the game render
+    # faster -- so the same 150 frames buy fewer ticks and the rare-tick cycle has not finished
+    # bringing every lamp up. The first hold run read 485 emitters of 503 for exactly that reason.
+    #
+    # Added here rather than by widening settle_steps, because the measured scenarios' pins were
+    # taken under the analyzer and re-timing their settle would move numbers that are baselines.
+    # This file has no measured numbers to protect.
+    steps += sc.settle_steps()
+
     steps += sc.population_probes()
     steps += sc.feature_steps(vector_lights=True)
     steps.append(sc.step("Wait", frames=SETTLE_FRAMES))
