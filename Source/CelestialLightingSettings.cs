@@ -259,6 +259,13 @@ public class CelestialLightingSettings : ModSettings
         // vanilla rather than returning them to it.
         CelestialLightingFeatures.VectorLightDoorGlowBlocker = vectorLightOpenDoors;
 
+        // AND THE BITS HAVE TO BE MOVED, not merely the flags. Vanilla's blocker grid is written by
+        // door EVENTS, and toggling this in the settings screen is not one: a base with doors held
+        // open would keep whichever answer it already had until each of them was next used. Swept
+        // unconditionally rather than under openDoorsChanged, because the aperture flag feeds the
+        // same decision and a Reset-to-defaults can move either without moving this one.
+        VectorLightDoorEvents.ReconcileAllDoors();
+
         VectorLightRedraw.SyncTo(vectorLights);
         CelestialLightingFeatures.VectorLights = vectorLights;
 
