@@ -528,6 +528,20 @@
       }
     },
     {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_changed_dirty",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_stale_polygon",
+        "enabled": "true"
+      }
+    },
+    {
       "type": "SetTimeSpeed",
       "args": {
         "speed": "superfast"
@@ -670,9 +684,31 @@
       }
     },
     {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_changed_dirty",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_stale_polygon",
+        "enabled": "false"
+      }
+    },
+    {
       "type": "Wait",
       "args": {
         "frames": "30"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_bake_reset",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
       }
     },
     {
@@ -2462,6 +2498,62 @@
       }
     },
     {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_section_dirties",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_section_dirty_passes",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_sections_per_pass",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_applies",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_bakes",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_unchanged_bakes",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_skips_dirty",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
       "type": "SetFeature",
       "args": {
         "featureName": "cloud_cover",
@@ -2546,9 +2638,1985 @@
       }
     },
     {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_changed_dirty",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_stale_polygon",
+        "enabled": "true"
+      }
+    },
+    {
       "type": "Wait",
       "args": {
         "frames": "30"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_bake_reset",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "stress_door_colony_wide",
+        "hideUi": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "4"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "stress_door_colony_wide_clean",
+        "hideUi": "true"
+      }
+    },
+    {
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "superfast"
+      }
+    },
+    {
+      "type": "ProfileStart",
+      "args": {
+        "timeSpeed": "superfast",
+        "warmupFrames": "30"
+      }
+    },
+    {
+      "type": "ProfileMeasure",
+      "args": {
+        "frames": "0"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-30,109",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-26,40",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-21,111",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-4,45",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "1,48",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "3,73",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "7,70",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "9,89",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "22,97",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "26,41",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "30,89",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "30,106",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "39,109",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "41,99",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "53,65",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "61,99",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "62,73",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "68,81",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "75,89",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "86,87",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "87,111",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "88,79",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "93,59",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "93,109",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "96,62",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-23,67",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-19,78",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-17,59",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,98",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "15,69",
+        "open": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "40"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-30,109",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-26,40",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-21,111",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-4,45",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "1,48",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "3,73",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "7,70",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "9,89",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "22,97",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "26,41",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "30,89",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "30,106",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "39,109",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "41,99",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "53,65",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "61,99",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "62,73",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "68,81",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "75,89",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "86,87",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "87,111",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "88,79",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "93,59",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "93,109",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "96,62",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-23,67",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-19,78",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-17,59",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,98",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "15,69",
+        "open": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "40"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-30,109",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-26,40",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-21,111",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-4,45",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "1,48",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "3,73",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "7,70",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "9,89",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "22,97",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "26,41",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "30,89",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "30,106",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "39,109",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "41,99",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "53,65",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "61,99",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "62,73",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "68,81",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "75,89",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "86,87",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "87,111",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "88,79",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "93,59",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "93,109",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "96,62",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-23,67",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-19,78",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-17,59",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,98",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "15,69",
+        "open": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "40"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-30,109",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-26,40",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-21,111",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-4,45",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "1,48",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "3,73",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "7,70",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "9,89",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "22,97",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "26,41",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "30,89",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "30,106",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "39,109",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "41,99",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "53,65",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "61,99",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "62,73",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "68,81",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "75,89",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "86,87",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "87,111",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "88,79",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "93,59",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "93,109",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "96,62",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-23,67",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-19,78",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-17,59",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,98",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "15,69",
+        "open": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "40"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-30,109",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-26,40",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-21,111",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-4,45",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "1,48",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "3,73",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "7,70",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "9,89",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "22,97",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "26,41",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "30,89",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "30,106",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "39,109",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "41,99",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "53,65",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "61,99",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "62,73",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "68,81",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "75,89",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "86,87",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "87,111",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "88,79",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "93,59",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "93,109",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "96,62",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-23,67",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-19,78",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-17,59",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,98",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "15,69",
+        "open": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "40"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-30,109",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-26,40",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-21,111",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-4,45",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "1,48",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "3,73",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "7,70",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "9,89",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "22,97",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "26,41",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "30,89",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "30,106",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "39,109",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "41,99",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "53,65",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "61,99",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "62,73",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "68,81",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "75,89",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "86,87",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "87,111",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "88,79",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "93,59",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "93,109",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "96,62",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-23,67",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-19,78",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-17,59",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,98",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "15,69",
+        "open": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "40"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-30,109",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-26,40",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-21,111",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-4,45",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "1,48",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "3,73",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "7,70",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "9,89",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "22,97",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "26,41",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "30,89",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "30,106",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "39,109",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "41,99",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "53,65",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "61,99",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "62,73",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "68,81",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "75,89",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "86,87",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "87,111",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "88,79",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "93,59",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "93,109",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "96,62",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-23,67",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-19,78",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-17,59",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,98",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "15,69",
+        "open": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "40"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-30,109",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-26,40",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-21,111",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-4,45",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "1,48",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "3,73",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "7,70",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "9,89",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "22,97",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "26,41",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "30,89",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "30,106",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "39,109",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "41,99",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "53,65",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "61,99",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "62,73",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "68,81",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "75,89",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "86,87",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "87,111",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "88,79",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "93,59",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "93,109",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "96,62",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-23,67",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-19,78",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-17,59",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,98",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "15,69",
+        "open": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "40"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "120"
+      }
+    },
+    {
+      "type": "ProfileStop",
+      "args": {
+        "name": "wide",
+        "prefix": "CelestialLighting"
+      }
+    },
+    {
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "paused"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_section_dirties",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_section_dirty_passes",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_sections_per_pass",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_applies",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_bakes",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_unchanged_bakes",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_skips_dirty",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_cover",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_sheet",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_presence",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_deck_varieties",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_suppress",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_pawn_shadows",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shadow_shares",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_changed_dirty",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_stale_polygon",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "30"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_bake_reset",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
       }
     },
     {
@@ -4340,6 +6408,2016 @@
     {
       "type": "Probe",
       "args": {
+        "probeName": "vector_light_section_dirties",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_section_dirty_passes",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_sections_per_pass",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_applies",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_bakes",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_unchanged_bakes",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_skips_dirty",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_cover",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_sheet",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_presence",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_deck_varieties",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_suppress",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_pawn_shadows",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shadow_shares",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_changed_dirty",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_stale_polygon",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "30"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_bake_reset",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "stress_door_colony_wide_b",
+        "hideUi": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "4"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "stress_door_colony_wide_b_clean",
+        "hideUi": "true"
+      }
+    },
+    {
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "superfast"
+      }
+    },
+    {
+      "type": "ProfileStart",
+      "args": {
+        "timeSpeed": "superfast",
+        "warmupFrames": "30"
+      }
+    },
+    {
+      "type": "ProfileMeasure",
+      "args": {
+        "frames": "0"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-30,109",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-26,40",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-21,111",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-4,45",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "1,48",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "3,73",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "7,70",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "9,89",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "22,97",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "26,41",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "30,89",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "30,106",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "39,109",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "41,99",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "53,65",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "61,99",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "62,73",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "68,81",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "75,89",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "86,87",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "87,111",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "88,79",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "93,59",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "93,109",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "96,62",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-23,67",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-19,78",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-17,59",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,98",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "15,69",
+        "open": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "40"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-30,109",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-26,40",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-21,111",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-4,45",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "1,48",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "3,73",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "7,70",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "9,89",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "22,97",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "26,41",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "30,89",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "30,106",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "39,109",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "41,99",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "53,65",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "61,99",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "62,73",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "68,81",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "75,89",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "86,87",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "87,111",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "88,79",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "93,59",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "93,109",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "96,62",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-23,67",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-19,78",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-17,59",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,98",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "15,69",
+        "open": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "40"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-30,109",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-26,40",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-21,111",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-4,45",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "1,48",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "3,73",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "7,70",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "9,89",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "22,97",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "26,41",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "30,89",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "30,106",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "39,109",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "41,99",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "53,65",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "61,99",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "62,73",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "68,81",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "75,89",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "86,87",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "87,111",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "88,79",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "93,59",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "93,109",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "96,62",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-23,67",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-19,78",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-17,59",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,98",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "15,69",
+        "open": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "40"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-30,109",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-26,40",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-21,111",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-4,45",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "1,48",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "3,73",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "7,70",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "9,89",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "22,97",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "26,41",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "30,89",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "30,106",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "39,109",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "41,99",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "53,65",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "61,99",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "62,73",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "68,81",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "75,89",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "86,87",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "87,111",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "88,79",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "93,59",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "93,109",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "96,62",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-23,67",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-19,78",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-17,59",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,98",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "15,69",
+        "open": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "40"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-30,109",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-26,40",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-21,111",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-4,45",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "1,48",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "3,73",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "7,70",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "9,89",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "22,97",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "26,41",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "30,89",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "30,106",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "39,109",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "41,99",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "53,65",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "61,99",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "62,73",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "68,81",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "75,89",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "86,87",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "87,111",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "88,79",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "93,59",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "93,109",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "96,62",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-23,67",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-19,78",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-17,59",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,98",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "15,69",
+        "open": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "40"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-30,109",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-26,40",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-21,111",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-4,45",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "1,48",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "3,73",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "7,70",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "9,89",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "22,97",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "26,41",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "30,89",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "30,106",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "39,109",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "41,99",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "53,65",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "61,99",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "62,73",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "68,81",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "75,89",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "86,87",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "87,111",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "88,79",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "93,59",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "93,109",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "96,62",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-23,67",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-19,78",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-17,59",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,98",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "15,69",
+        "open": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "40"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-30,109",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-26,40",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-21,111",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-4,45",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "1,48",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "3,73",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "7,70",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "9,89",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "22,97",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "26,41",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "30,89",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "30,106",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "39,109",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "41,99",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "53,65",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "61,99",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "62,73",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "68,81",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "75,89",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "86,87",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "87,111",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "88,79",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "93,59",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "93,109",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "96,62",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-23,67",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-19,78",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-17,59",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,98",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "15,69",
+        "open": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "40"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-30,109",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-26,40",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-21,111",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-4,45",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "1,48",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "3,73",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "7,70",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "9,89",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "22,97",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "26,41",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "30,89",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "30,106",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "39,109",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "41,99",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "53,65",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "61,99",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "62,73",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "68,81",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "75,89",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "86,87",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "87,111",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "88,79",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "93,59",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "93,109",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "96,62",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-23,67",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-19,78",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-17,59",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,98",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "15,69",
+        "open": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "40"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "120"
+      }
+    },
+    {
+      "type": "ProfileStop",
+      "args": {
+        "name": "wide_b",
+        "prefix": "CelestialLighting"
+      }
+    },
+    {
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "paused"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_section_dirties",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_section_dirty_passes",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_sections_per_pass",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_applies",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_bakes",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_unchanged_bakes",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_skips_dirty",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
         "probeName": "vector_light_silhouette_hits",
         "expectedValue": "0",
         "tolerance": "1000000000"
@@ -4429,7 +8507,25 @@
     {
       "type": "ProfileAssert",
       "args": {
+        "table": "wide",
+        "label": "*",
+        "metric": "avgMsPerFrame",
+        "max": "60.0"
+      }
+    },
+    {
+      "type": "ProfileAssert",
+      "args": {
         "table": "full",
+        "label": "*",
+        "metric": "avgMsPerFrame",
+        "max": "60.0"
+      }
+    },
+    {
+      "type": "ProfileAssert",
+      "args": {
+        "table": "wide_b",
         "label": "*",
         "metric": "avgMsPerFrame",
         "max": "60.0"

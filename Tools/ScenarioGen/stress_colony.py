@@ -674,7 +674,7 @@ def palette_steps():
     ]
 
 
-def feature_steps(vector_lights=True, pawn_shadows=None):
+def feature_steps(vector_lights=True, pawn_shadows=None, changed_dirty=None):
     """The flags every arm states explicitly, because a default that moves rewrites what it measured.
 
     STATED RATHER THAN INHERITED, always. A flag whose default is flipped later silently rewrites
@@ -690,9 +690,18 @@ def feature_steps(vector_lights=True, pawn_shadows=None):
     `pawn_shadows` defaults to following `vector_lights` -- an arm with the subsystem off must not be
     left drawing half of it. Passing it explicitly is how stress_pawn_colony isolates what fifty
     pawns' shadows cost from what the rest of the subsystem costs.
+
+    `changed_dirty` defaults to following `vector_lights` for the same reason, and is passed
+    explicitly by stress_door_colony to isolate what dirtying only the sections a bake CHANGED saves
+    from what the rest of the subsystem costs. It is the one flag here whose two settings both render
+    the identical frame -- it decides how often a section is asked to rebake, not what the rebake
+    produces -- so an arm that moves it is scored on the profiler's call counts rather than on pixels.
     """
     if pawn_shadows is None:
         pawn_shadows = vector_lights
+
+    if changed_dirty is None:
+        changed_dirty = vector_lights
 
     flags = [
         ("cloud_cover", False),
@@ -714,6 +723,15 @@ def feature_steps(vector_lights=True, pawn_shadows=None):
         # it exists for: with lamps every few cells a pawn is lit by many at once, and without the
         # share the shadows stack instead of dividing.
         ("vector_light_shadow_shares", pawn_shadows),
+        # Stated in every arm even where it is at its default, per this function's own rule, and with
+        # a sharper reason than most: it is the flag the door scenario's third arm exists to move, so
+        # an arm that inherited it would be measuring whichever setting its neighbour left behind.
+        ("vector_light_changed_dirty", changed_dirty),
+        # Its partner. The changed-dirty comparison is only sound while a section bakes against an
+        # emitter's PREVIOUS shape rather than dropping it, so the two are a pair to keep in step --
+        # see CelestialLightingFeatures.VectorLightChangedDirty. Stated here so an arm cannot end up
+        # measuring the stand-down path while claiming to measure the feature.
+        ("vector_light_stale_polygon", vector_lights),
     ]
     return [step("SetFeature", featureName=name, enabled="true" if on else "false")
             for name, on in flags]
