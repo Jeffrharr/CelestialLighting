@@ -81,7 +81,24 @@ public static class VectorLightMask
 
     // Phase 5b's reconstruction of the sum vanilla PROJECTED, per cell — every emitter on the map
     // that reaches the cell, ours and everybody else's, added up unprojected. See CorrectSaturation.
+    //
+    // KEPT FOR THE GATE ALONE, not for the arithmetic. Whether a cell saturates is a question about
+    // the true sum, and answering it from the fold below would be circular: the fold has already
+    // stopped at the ceiling, so it cannot say whether it got there.
     private static ColorInt[] cellRaw = new ColorInt[0];
+
+    // Vanilla's own accumulation replayed, per cell, and the same accumulation with our polygons
+    // deciding how much of each emitter we modelled actually arrived.
+    //
+    // TWO FOLDS RATHER THAN A SUM AND A DELTA, because vanilla's accumulation is a fold and not a
+    // sum: CombineColorsJob.AddColors projects after every addition, so a saturated cell's displayed
+    // value depends on the ORDER its emitters were added in and cannot be recovered from their
+    // total. The first of these must reproduce what the player is looking at, byte for byte — that
+    // is the self-check — and the difference between them is the edit. See VectorLightSaturationMath
+    // for what the single-projection version of this got wrong, and which room it got it wrong in.
+    private static ColorInt[] cellFold = new ColorInt[0];
+
+    private static ColorInt[] cellFoldOurs = new ColorInt[0];
 
     // What the last whole-map rebake's lift actually came to, for the probes.
     //
@@ -365,7 +382,7 @@ public static class VectorLightMask
         // the raw-sum walk unconditionally would put a second pass over every emitter on the map
         // into every regenerate, for cells whose shadow is already zero.
         if (any && correcting)
-            CorrectSaturation(map, reader, rect, cells);
+            CorrectSaturation(map, reader, rect, cells, lifting);
 
         return any;
     }
@@ -403,7 +420,7 @@ public static class VectorLightMask
     // composition on most of the cells the scenario was built to measure, and came back non-monotone.
     // See VectorLightSaturationMath.ReconstructionSlack for where the number comes from.
     private static void CorrectSaturation(
-        Map map, GlowGridPerLight.Reader reader, CellRect rect, int cells)
+        Map map, GlowGridPerLight.Reader reader, CellRect rect, int cells, bool lifting)
     {
         // ONE EMITTER CANNOT SATURATE ANYTHING. Its own light is a Color32 and tops out at 255, so a
         // section only one light reaches has no cell over the ceiling and nothing here can change a
@@ -414,19 +431,32 @@ public static class VectorLightMask
             return;
 
         Grow(ref cellRaw, cells);
+        Grow(ref cellFold, cells);
+        Grow(ref cellFoldOurs, cells);
 
         for (int i = 0; i < cells; i++)
+        {
             cellRaw[i] = default;
+            cellFold[i] = default;
+            cellFoldOurs[i] = default;
+        }
 
-        // EVERY light on the map, not only the ones §27 modelled. The quantity being reconstructed
-        // is what vanilla projected, and vanilla projected a sum over everything reaching the cell.
-        // Summing our own emitters alone would under-count it, read a saturated cell as unsaturated,
-        // and leave the over-subtraction exactly where it was in the case most likely to saturate —
-        // a room several mods are all lighting.
+        // EVERY light on the map, not only the ones §27 modelled, and IN VANILLA'S OWN ORDER.
+        //
+        // Every light, because the value being reconstructed is what vanilla displayed and vanilla
+        // folded in everything reaching the cell — a mod's lamp, a glowing plant, a fire. Replaying
+        // our own emitters alone would read a saturated cell as unsaturated and leave the
+        // over-subtraction exactly where it was in the case most likely to saturate: a room several
+        // mods are all lighting.
+        //
+        // In vanilla's order, because the fold is lossy and therefore not commutative. This walks
+        // `lights` front to back, which is the order CombineColorsJob.Execute adds them in, and each
+        // cell accumulates independently — so folding emitter-outer over cells gives every cell its
+        // own emitters in vanilla's order, which is the only order that reproduces vanilla's answer.
         for (int i = 0; i < reader.LightCount; i++)
         {
             if (reader.TryLightAt(i, out GlowLight light, out UnsafeList<Color32> colors))
-                AccumulateRaw(map, rect, light, colors);
+                AccumulateFold(map, rect, light, colors, ReachingEntryFor(light), lifting);
         }
 
         for (int z = rect.minZ - 1; z <= rect.maxZ + 1; z++)
@@ -459,11 +489,41 @@ public static class VectorLightMask
         return found;
     }
 
-    // One emitter's own light added into the raw sum, unprojected. Deliberately NOT AccumulateEmitter
-    // with the coverage torn out: this one asks nothing about geometry, visits no polygon and skips
-    // no fully lit cell, because every cell of every emitter is part of the sum vanilla projected.
-    private static void AccumulateRaw(
-        Map map, CellRect rect, GlowLight light, UnsafeList<Color32> colors)
+    // Which of the emitters this section is masking, if any, is the light vanilla is about to fold
+    // in. Null means "not one of ours", which is the answer for most lights on most maps and means
+    // the fold below takes the emitter exactly as vanilla delivered it.
+    //
+    // A LINEAR SCAN RATHER THAN A LOOKUP. Reaching holds the handful of emitters whose square
+    // overlaps ONE section — a lamp shadows a wedge, not a colony — so building a dictionary per
+    // section would cost more than walking the list once per light.
+    private static VectorLightField.LightEntry ReachingEntryFor(GlowLight light)
+    {
+        long key = GlowGridPerLight.Reader.KeyFor(light.id, light.isTerrain);
+
+        for (int i = 0; i < Reaching.Count; i++)
+        {
+            if (Reaching[i].VanillaKey == key)
+                return Reaching[i];
+        }
+
+        return null;
+    }
+
+    // One emitter folded into both reconstructions: vanilla's own accumulation of this cell, and the
+    // same accumulation with our polygons deciding how much of this emitter arrived.
+    //
+    // DELIBERATELY NOT AccumulateEmitter WITH THE COVERAGE TORN OUT, and no longer a plain sum
+    // either. It visits every cell of every emitter — ours and everybody else's, lit or shadowed,
+    // skipping nothing — because each of those is a STEP of the fold vanilla performed, and a step
+    // skipped is a reconstruction that no longer reproduces the value on screen.
+    //
+    // THE TWO FOLDS DIFFER IN ONE PLACE ONLY: for an emitter we modelled, the second one folds in
+    // `own * coverage` plus whatever lift the max has to add, in place of `own`. Everything else —
+    // the order, the projection after each step, the zero-addend guard — is identical, so
+    // subtracting one from the other leaves precisely the light our geometry says never arrived.
+    private static void AccumulateFold(
+        Map map, CellRect rect, GlowLight light, UnsafeList<Color32> colors,
+        VectorLightField.LightEntry entry, bool lifting)
     {
         CellRect reach = light.AffectedRect;
 
@@ -471,6 +531,17 @@ public static class VectorLightMask
         int maxX = Math.Min(reach.maxX, rect.maxX + 1);
         int minZ = Math.Max(reach.minZ, rect.minZ - 1);
         int maxZ = Math.Min(reach.maxZ, rect.maxZ + 1);
+
+        // Hoisted out of the inner loop for the same reason AccumulateEmitter hoists them: nothing
+        // here depends on the cell, and the loop runs a few hundred times per emitter per section.
+        bool ours = entry != null;
+        bool liftHere = ours && lifting;
+        bool matchSeed = CelestialLightingFeatures.VectorLightMaskMaxSeed;
+        float radius = light.glowRadius;
+        float radiusSquared = radius * radius;
+        ColorInt colour = light.glowColor;
+        int lightX = light.position.x;
+        int lightZ = light.position.z;
 
         for (int z = minZ; z <= maxZ; z++)
         {
@@ -487,15 +558,72 @@ public static class VectorLightMask
                     continue;
 
                 Color32 own = colors[local];
+
+                // Vanilla's own guard, and it has to be here rather than inside the fold step: a
+                // light that delivers nothing to a cell is not a step of the accumulation at all,
+                // so counting it would put a projection where vanilla performed none.
+                if (own.r == 0 && own.g == 0 && own.b == 0)
+                    continue;
+
                 int index = CellIndex(rect, x, z);
 
-                // Alpha is vanilla's overlight marker rather than light — CombineColorsJob zeroes it
-                // before adding and sets it to 1 separately — so the sum carries three channels.
                 cellRaw[index].r += own.r;
                 cellRaw[index].g += own.g;
                 cellRaw[index].b += own.b;
+
+                FoldInto(ref cellFold[index], own.r, own.g, own.b);
+
+                int keptR = own.r;
+                int keptG = own.g;
+                int keptB = own.b;
+
+                if (ours)
+                {
+                    int coverage = VectorLightMath.CoverageAt(
+                        entry.Coverage, entry.Cell.x, entry.Cell.z, entry.CoverageRadius, x, z);
+
+                    // TAKEN AWAY RATHER THAN SCALED UP, which is not the same integer: this is the
+                    // exact quantity AccumulateEmitter adds to the shadow, so the two descriptions
+                    // of one emitter's blocked light agree to the byte instead of sitting a rounding
+                    // step apart. A disagreement there would draw a faint seam wherever a cell
+                    // crosses the saturation ceiling, which is a moving boundary in a lit room.
+                    if (coverage < 255)
+                    {
+                        int shadowed = 255 - coverage;
+
+                        keptR -= own.r * shadowed / 255;
+                        keptG -= own.g * shadowed / 255;
+                        keptB -= own.b * shadowed / 255;
+                    }
+
+                    if (liftHere && coverage > 0
+                        && ComputeLift(
+                            coverage, own, colour, x - lightX, z - lightZ, radius, radiusSquared,
+                            matchSeed, out int liftR, out int liftG, out int liftB))
+                    {
+                        keptR += liftR;
+                        keptG += liftG;
+                        keptB += liftB;
+                    }
+                }
+
+                FoldInto(ref cellFoldOurs[index], keptR, keptG, keptB);
             }
         }
+    }
+
+    // One step of vanilla's accumulation, in the ColorInt the accumulators are held in.
+    private static void FoldInto(ref ColorInt fold, int addR, int addG, int addB)
+    {
+        int r = fold.r;
+        int g = fold.g;
+        int b = fold.b;
+
+        VectorLightSaturationMath.Accumulate(ref r, ref g, ref b, addR, addG, addB);
+
+        fold.r = r;
+        fold.g = g;
+        fold.b = b;
     }
 
     private static void CorrectCell(Map map, CellRect rect, int x, int z)
@@ -514,11 +642,12 @@ public static class VectorLightMask
 
         ColorInt raw = cellRaw[index];
 
-        // THE ONE GATE THAT MAKES THIS A CONFINED FIX. Under the ceiling, proj is the identity, so
-        // `delivered - proj(raw - shadow + lift)` is `shadow - lift` back again and the whole pass is
-        // provably a no-op. Testing for it rather than computing it keeps every unsaturated shadow in
-        // the mod byte-identical to what it was before this existed, which is what makes the flag's
-        // off arm and its on arm comparable everywhere except where the bug lives.
+        // THE ONE GATE THAT MAKES THIS A CONFINED FIX. Under the ceiling no step of either fold
+        // projects anything, so both folds are plain sums, `delivered - ours` is the accumulated
+        // shadow back again and the whole pass is provably a no-op. Testing for it rather than
+        // computing it keeps every unsaturated shadow in the mod byte-identical to what it was
+        // before this existed, which is what makes the flag's off arm and its on arm comparable
+        // everywhere except where the bug lives.
         if (!VectorLightSaturationMath.Saturates(raw.r, raw.g, raw.b))
             return;
 
@@ -528,13 +657,17 @@ public static class VectorLightMask
             return;
 
         Color32 delivered = map.glowGrid.VisualGlowAt(cell);
-        int rawPeak = VectorLightSaturationMath.Peak(raw.r, raw.g, raw.b);
+        ColorInt fold = cellFold[index];
 
+        // THE SELF-CHECK, AND IT IS EXACT. cellFold is a transcription of the arithmetic that
+        // produced `delivered`, run over the same emitters in the same order, so the two agreeing is
+        // the expected outcome rather than a lucky one. Where they do not, this cell holds light
+        // that did not reach it the way we think it did — something writing the accumulated grid
+        // directly, or a version change under the reflection GlowGridPerLight leans on — and the
+        // honest answer is to leave it with today's arithmetic and count it, rather than to rewrite
+        // it against a value the game never showed.
         bool reconstructed = VectorLightSaturationMath.Reconstructs(
-            VectorLightSaturationMath.ProjectChannel(raw.r, rawPeak),
-            VectorLightSaturationMath.ProjectChannel(raw.g, rawPeak),
-            VectorLightSaturationMath.ProjectChannel(raw.b, rawPeak),
-            delivered.r, delivered.g, delivered.b);
+            fold.r, fold.g, fold.b, delivered.r, delivered.g, delivered.b);
 
         if (!reconstructed)
         {
@@ -542,26 +675,19 @@ public static class VectorLightMask
             return;
         }
 
-        int correctedR = VectorLightSaturationMath.CorrectedRaw(raw.r, shadow.r, lift.r);
-        int correctedG = VectorLightSaturationMath.CorrectedRaw(raw.g, shadow.g, lift.g);
-        int correctedB = VectorLightSaturationMath.CorrectedRaw(raw.b, shadow.b, lift.b);
-
-        int peak = VectorLightSaturationMath.Peak(correctedR, correctedG, correctedB);
-        int oursR = VectorLightSaturationMath.ProjectChannel(correctedR, peak);
-        int oursG = VectorLightSaturationMath.ProjectChannel(correctedG, peak);
-        int oursB = VectorLightSaturationMath.ProjectChannel(correctedB, peak);
+        ColorInt ours = cellFoldOurs[index];
 
         ColorInt corrected = new ColorInt(
-            VectorLightSaturationMath.ShadowFrom(delivered.r, oursR),
-            VectorLightSaturationMath.ShadowFrom(delivered.g, oursG),
-            VectorLightSaturationMath.ShadowFrom(delivered.b, oursB),
+            VectorLightSaturationMath.ShadowFrom(delivered.r, ours.r),
+            VectorLightSaturationMath.ShadowFrom(delivered.g, ours.g),
+            VectorLightSaturationMath.ShadowFrom(delivered.b, ours.b),
             0);
 
         cellShadow[index] = corrected;
         cellLift[index] = new ColorInt(
-            VectorLightSaturationMath.LiftFrom(delivered.r, oursR),
-            VectorLightSaturationMath.LiftFrom(delivered.g, oursG),
-            VectorLightSaturationMath.LiftFrom(delivered.b, oursB),
+            VectorLightSaturationMath.LiftFrom(delivered.r, ours.r),
+            VectorLightSaturationMath.LiftFrom(delivered.g, ours.g),
+            VectorLightSaturationMath.LiftFrom(delivered.b, ours.b),
             0);
 
         SaturatedSamples++;
@@ -725,6 +851,50 @@ public static class VectorLightMask
         int index, int coverage, Color32 own, ColorInt colour, int dx, int dz, float radius,
         float radiusSquared, bool matchSeed)
     {
+        if (!ComputeLift(
+                coverage, own, colour, dx, dz, radius, radiusSquared, matchSeed,
+                out int liftR, out int liftG, out int liftB))
+            return false;
+
+        // COUNTED BEFORE THE ZERO TEST, not after, and that is the whole value of the metric. A max
+        // that ran everywhere and found nothing to add is the correct outcome in a scene where both
+        // models see the same geometry; a max that never ran is a bug. Counting only the cells it
+        // brightened would give the two the same number.
+        //
+        // COUNTED HERE AND NOT IN ComputeLift, because the saturation correction evaluates the same
+        // lift a second time to fold it, and a sample count that doubled whenever a section happened
+        // to saturate would be measuring the scene rather than the max.
+        LiftSamples++;
+        LiftPeak = Math.Max(LiftPeak, Math.Max(liftR, Math.Max(liftG, liftB)));
+
+        // The common case under a matched seed is that vanilla already delivered everything our
+        // model would have, on all three channels — that is #151's finding, and it is still true
+        // everywhere the two models see the same geometry. Checking before the write keeps those
+        // cells out of the corner pass's work as well as out of this one.
+        if ((liftR | liftG | liftB) == 0)
+            return false;
+
+        cellLift[index].r += liftR;
+        cellLift[index].g += liftG;
+        cellLift[index].b += liftB;
+        return true;
+    }
+
+    // What the max says this emitter adds at this cell, with no telemetry and no accumulation — the
+    // arithmetic on its own, so that both the accumulation above and the saturation correction's
+    // fold can ask for it and get the same answer.
+    //
+    // Returns false when there is nothing to add, which is the common case: outside the disc, past
+    // the falloff, or — the interesting one — a cell where vanilla's flood already delivered
+    // everything our straight line would have.
+    private static bool ComputeLift(
+        int coverage, Color32 own, ColorInt colour, int dx, int dz, float radius,
+        float radiusSquared, bool matchSeed, out int liftR, out int liftG, out int liftB)
+    {
+        liftR = 0;
+        liftG = 0;
+        liftB = 0;
+
         // THE INTEGER RADIUS TEST BEFORE THE SQUARE ROOT. AffectedRect is the light's bounding
         // SQUARE, so more than a fifth of the cells this loop visits are outside the disc entirely
         // and would come back with a falloff of zero having paid for a square root, a divide and a
@@ -744,9 +914,9 @@ public static class VectorLightMask
         VectorLightLiftMath.Project(
             colour.r, colour.g, colour.b, falloff, out int r, out int g, out int b);
 
-        int liftR = VectorLightLiftMath.LiftChannel(r, own.r, coverage);
-        int liftG = VectorLightLiftMath.LiftChannel(g, own.g, coverage);
-        int liftB = VectorLightLiftMath.LiftChannel(b, own.b, coverage);
+        liftR = VectorLightLiftMath.LiftChannel(r, own.r, coverage);
+        liftG = VectorLightLiftMath.LiftChannel(g, own.g, coverage);
+        liftB = VectorLightLiftMath.LiftChannel(b, own.b, coverage);
 
         // The control arm zeroes the lift HERE rather than earlier, so that everything above — the
         // relaxed skips that got us to this cell, the falloff, the projection — has run exactly as
@@ -759,23 +929,6 @@ public static class VectorLightMask
             liftB = 0;
         }
 
-        // COUNTED BEFORE THE ZERO TEST, not after, and that is the whole value of the metric. A max
-        // that ran everywhere and found nothing to add is the correct outcome in a scene where both
-        // models see the same geometry; a max that never ran is a bug. Counting only the cells it
-        // brightened would give the two the same number.
-        LiftSamples++;
-        LiftPeak = Math.Max(LiftPeak, Math.Max(liftR, Math.Max(liftG, liftB)));
-
-        // The common case under a matched seed is that vanilla already delivered everything our
-        // model would have, on all three channels — that is #151's finding, and it is still true
-        // everywhere the two models see the same geometry. Checking before the write keeps those
-        // cells out of the corner pass's work as well as out of this one.
-        if ((liftR | liftG | liftB) == 0)
-            return false;
-
-        cellLift[index].r += liftR;
-        cellLift[index].g += liftG;
-        cellLift[index].b += liftB;
         return true;
     }
 

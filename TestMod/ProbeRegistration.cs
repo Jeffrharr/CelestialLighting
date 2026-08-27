@@ -427,6 +427,19 @@ public static class ProbeRegistration
             "column_north", new IntVec3(0, 0, 46), RenderedLightCellProbe.Metric.Level));
         ProbeRegistry.Register(new RenderedLightCellProbe(
             "column_northwest", new IntVec3(-1, 0, 46), RenderedLightCellProbe.Metric.Level));
+        // vector_light_sun_lamp.json, the mixed-hue sweep, local to the same anchor at (0, 45).
+        // `sunlamp_lit` is the cell the bug report is about: one step EAST of the column, hidden
+        // from the sun lamp four cells west of it and lit by the torch two cells further east — a
+        // cell where a sun lamp's shadow lands on top of another lamp's light. `sunlamp_lit_far`
+        // is past that torch and still in the same shadow. `sunlamp_open` is the control, four
+        // cells north of the column with nothing between it and the sun lamp, so no arm may move
+        // it: an arm that darkens the control is darkening the room rather than fixing a shadow.
+        ProbeRegistry.Register(new RenderedLightCellProbe(
+            "sunlamp_lit", new IntVec3(1, 0, 45), RenderedLightCellProbe.Metric.Level));
+        ProbeRegistry.Register(new RenderedLightCellProbe(
+            "sunlamp_lit_far", new IntVec3(3, 0, 45), RenderedLightCellProbe.Metric.Level));
+        ProbeRegistry.Register(new RenderedLightCellProbe(
+            "sunlamp_open", new IntVec3(0, 0, 49), RenderedLightCellProbe.Metric.Level));
         // §27e, vector_light_open_door.json. Cells are local to that scenario's room at offset
         // (0, 45): the doorway is local (0, 0), so (1, 0) is the first cell OUTSIDE it and (-1, 0)
         // the first cell inside. Both read vanilla's gameplay light, not ours -- they are what

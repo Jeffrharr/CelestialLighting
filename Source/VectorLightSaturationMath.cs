@@ -26,14 +26,22 @@ namespace CelestialLighting;
 // seventh lamp the column also blocks and the SAME cell goes further negative, so the frame gets
 // darker as the room gets brighter. That is the observed complaint, arithmetic-first.
 //
-// THE FIX IS ONE LINE OF ALGEBRA. Do the edit before the projection instead of after it:
+// THE FIX IS TO DO THE EDIT BEFORE THE PROJECTION instead of after it. Write fold(...) for
+// vanilla's own accumulation — `AddColors` run over the emitters reaching the cell, in vanilla's
+// order, projecting after every addition, which is what a cell actually displays:
 //
-//     P     = proj(R)                                   what vanilla displays
-//     R'    = R - SUM own(e)*(1 - lit(e)) + SUM lift(e)  the raw sum with our geometry applied
-//     ours  = proj(R')                                   what we should display
+//     P     = fold(own(e) over all e)                   what vanilla displays
+//     ours  = fold(own(e)*lit(e) + lift(e) over all e)  the same fold with our geometry in charge
 //
-// and hand VectorLightMask.Compose the DIFFERENCE, `P - proj(R')`, in place of the raw subtraction.
-// Nothing about the accumulation changes; only the space the result is measured in.
+// and hand VectorLightMask.Compose the DIFFERENCE, `P - ours`, in place of the raw subtraction.
+// Nothing about the per-emitter accumulation changes; only the space the result is measured in.
+//
+// THE FOLD IS REPLAYED RATHER THAN APPROXIMATED, and that is the second version of this. The first
+// reconstructed P as `proj(R)`, one projection of the true sum R, which is right for emitters of a
+// single hue and wrong by up to 28 levels for a white sun lamp among warm lamps — see Accumulate.
+// Against a mixed-hue cell the approximation could not be told apart from a cell we had simply
+// mis-summed, so the self-check rejected it and the correction stood down exactly where a player
+// notices: the sun lamp's shadow falling across cells its neighbours are lighting.
 //
 // THE PROPERTY, STATED, because a direction is what a test can hold and an example is not:
 //
@@ -43,44 +51,67 @@ namespace CelestialLighting;
 // one that survives hue rotation — proj scales channels together, so a red channel genuinely can
 // fall when a green lamp is added, for vanilla as much as for us. On the max channel:
 //
-//   * VANILLA IS THE ORACLE and satisfies it unconditionally. max(proj(R)) is min(max(R), 255), and
-//     adding an emitter can only raise max(R).
-//   * OURS SATISFIES IT under this file. Adding an emitter adds `own(e)*lit(e) + lift(e)` to R',
-//     which is non-negative componentwise whatever the geometry says, so max(R') cannot fall.
+//   * VANILLA IS THE ORACLE and satisfies it unconditionally: every step of its fold adds a
+//     non-negative amount before projecting, and the projection is monotone on the peak.
+//   * OURS SATISFIES IT under this file, because ours is vanilla's own fold with each emitter's
+//     contribution replaced by `own(e)*lit(e) + lift(e)` — non-negative componentwise whatever the
+//     geometry says, so no step of the fold can subtract.
 //   * THE OLD COMPOSITION DOES NOT. `P - SUM own(e)*(1 - lit(e))` loses a full raw `own` per blocked
 //     emitter against a P that has stopped growing. VectorLightSaturationMathTests pins that arm red
 //     on purpose: a monotonicity test that only ever passes is a test of nothing.
 //
-// WHAT IS DELIBERATELY NOT CHANGED. Unsaturated cells. Where max(R) <= 255 we have P == R and
-// proj(R') == R', so `P - proj(R')` is the raw subtraction back again, to the byte — the correction
-// is confined to exactly the cells that saturate, and everywhere else the shipped shadow is
-// untouched. That is worth having as a property rather than as a hope, so VectorLightMask tests
-// max(R) itself and leaves the accumulators alone when it is under the ceiling.
+// WHAT IS DELIBERATELY NOT CHANGED. Unsaturated cells. Where the raw sum is under 255 no step of
+// either fold projects anything, so P is the plain sum and `P - ours` is the raw subtraction back
+// again, to the byte — the correction is confined to exactly the cells that saturate, and
+// everywhere else the shipped shadow is untouched. That is worth having as a property rather than
+// as a hope, so VectorLightMask tests the raw sum itself and leaves the accumulators alone when it
+// is under the ceiling.
 public static class VectorLightSaturationMath
 {
     // Where ColorInt.ProjectToColor32Fast starts scaling. Not a clamp: at 256 the whole colour is
     // rescaled by 255/256, not just the offending channel.
     public const int Ceiling = 255;
 
-    // How far our reconstruction of vanilla's sum may sit from the value vanilla actually displayed
-    // before the cell is left alone. See Reconstructs.
+    // One step of vanilla's own accumulation, transcribed — and the reason nothing here
+    // reconstructs a cell as a single projection of the true sum any more.
     //
-    // EIGHT, AND THE NUMBER IS MEASURED RATHER THAN PICKED. `CombineColorsJob.AddColors` projects
-    // after EVERY addition instead of once at the end, and each of those projections is an integer
-    // divide, so a fold over N emitters and a single projection of their true sum disagree by a few
-    // levels even when they are describing exactly the same light. Over 200,000 random same-hue
-    // emitter sets of up to fourteen lights the worst disagreement was **5**; in the six-torch
-    // fixture this phase is built on it is **0 or 1**. The case the check exists to reject — two
-    // saturating red lamps followed by a green one, where the fold has thrown away the red that
-    // would have set the divisor — misses by **128**. Eight sits two orders of magnitude clear of
-    // the thing being rejected and comfortably above the noise.
+    // `CombineColorsJob.AddColors` projects after EVERY addition, so what a cell displays is a FOLD
+    // over the emitters reaching it and not one projection at the end. The fold is lossy: once a
+    // colour has been scaled back to the ceiling, the light that set the divisor is gone, and a
+    // later addition of a different hue lands somewhere the true sum never goes.
     //
-    // THIS WAS AN EXACT EQUALITY FIRST, and the live run is what corrected it: on a six-torch ring
-    // the exact test rejected 50 of 85 candidate cells over a one-level rounding difference, so the
-    // corrected arm fell back to the broken composition on the majority of the cells the scenario was
-    // built to measure and came back non-monotone. An exactness that rejects the case it was written
-    // for is not rigour.
-    public const int ReconstructionSlack = 8;
+    // FOR ONE HUE THE TWO AGREE, which is why a single projection stood up for as long as every
+    // fixture in this repo was a ring of identical torches — the worst disagreement over 200,000
+    // random same-hue sets is 5 levels. A sun lamp is WHITE, (370,370,370) before its own
+    // projection, where a standing lamp is warm (214,148,94) and a torch warmer still. So a grow
+    // room beside a workshop — a colony's most ordinary bright room — is the mixed-hue case, and
+    // there the two answers part by up to 28 levels. That is past any tolerance which could still
+    // reject a reconstruction that is genuinely wrong, so the self-check rejected the cell, the
+    // correction stood down, and the cell kept the raw over-subtraction the correction exists to
+    // remove. The visible result is the sun lamp's shadow falling across cells other lamps are
+    // lighting brightly.
+    //
+    // Replaying the fold makes the reconstruction EXACT rather than close, which is what lets the
+    // self-check go back to equality instead of carrying a tolerance sized against its own error.
+    //
+    // MIRRORS AddColors INCLUDING ITS GUARD: an addend of nothing leaves the accumulator alone
+    // rather than passing it through a projection. Vanilla clamps the addend to non-negative first;
+    // every addend here is a byte or a byte scaled by a coverage, so the clamp has nothing to do and
+    // is expressed as the zero test rather than duplicated.
+    public static void Accumulate(ref int r, ref int g, ref int b, int addR, int addG, int addB)
+    {
+        if (addR <= 0 && addG <= 0 && addB <= 0)
+            return;
+
+        int sumR = r + addR;
+        int sumG = g + addG;
+        int sumB = b + addB;
+        int peak = Peak(sumR, sumG, sumB);
+
+        r = ProjectChannel(sumR, peak);
+        g = ProjectChannel(sumG, peak);
+        b = ProjectChannel(sumB, peak);
+    }
 
     // The channel vanilla's projection normalises against — its own `num`.
     public static int Peak(int r, int g, int b)
@@ -119,44 +150,28 @@ public static class VectorLightSaturationMath
         return channel * Ceiling / peak;
     }
 
-    // Whether a reconstructed sum, projected, describes the value vanilla actually displayed — i.e.
-    // whether the raw sum is a model of this cell that the correction can safely edit.
+    // Whether our replay of vanilla's fold reproduces the value vanilla actually displayed — i.e.
+    // whether this cell is one we understand well enough to edit.
     //
-    // Every channel has to agree; a single channel out by more than the slack means the emitter set
-    // we summed is not the one vanilla folded, and the honest answer is to leave the cell with
-    // today's arithmetic rather than rewrite it against a value the game never showed.
+    // EXACT, AND THE EXACTNESS IS THE POINT. Accumulate above is a transcription of the arithmetic
+    // that produced `delivered`, run over the same emitters in the same order, so agreement is the
+    // expected outcome rather than a lucky one. A disagreement means the cell holds light that did
+    // not come from vanilla's glow grid the way we think it did — a mod writing the accumulated
+    // array directly, or a version change under the reflection GlowGridPerLight leans on — and
+    // there the honest answer is to leave the cell with today's arithmetic and count it.
+    //
+    // THIS USED TO BE A TOLERANCE OF EIGHT LEVELS, sized against the gap between a single
+    // projection and vanilla's fold, and the tolerance is exactly what the sun lamp broke: a white
+    // emitter among warm ones parts the two by up to 28 levels, so the check rejected the cell and
+    // the correction stood down on the frames it was written for. Reconstructing the fold removes
+    // that noise rather than tolerating it, so there is no longer anything for a slack to absorb.
     public static bool Reconstructs(
         int projectedR, int projectedG, int projectedB,
         int deliveredR, int deliveredG, int deliveredB)
     {
-        return Within(projectedR, deliveredR)
-            && Within(projectedG, deliveredG)
-            && Within(projectedB, deliveredB);
-    }
-
-    private static bool Within(int projected, int delivered)
-    {
-        int gap = projected - delivered;
-
-        if (gap < 0)
-            gap = -gap;
-
-        return gap <= ReconstructionSlack;
-    }
-
-    // One channel of the raw sum with our geometry applied: vanilla's own accumulation, less the
-    // light our polygons say never arrived, plus what our model says arrived and vanilla's flood
-    // never delivered.
-    //
-    // FLOORED AT ZERO HERE, before the projection, and the order matters. A cell every emitter is
-    // blocked from has R' = 0 on every channel and therefore a peak of 0, so the projection is
-    // skipped entirely; letting a negative through would make `peak` meaningless and could rescale
-    // the other two channels off a number that is not a level.
-    public static int CorrectedRaw(int raw, int shadow, int lift)
-    {
-        int corrected = raw - shadow + lift;
-
-        return corrected < 0 ? 0 : corrected;
+        return projectedR == deliveredR
+            && projectedG == deliveredG
+            && projectedB == deliveredB;
     }
 
     // What VectorLightMask should subtract from the mesh vertex, given what vanilla displayed at this
