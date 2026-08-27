@@ -208,6 +208,21 @@ public static class VectorLightDoorEvents
         bool hole = CelestialLightingFeatures.VectorLightDoorGlowBlocker
             && DoorApertureMath.GlowGridHoleWanted(door.def.blockLight, door.Open, rendered);
 
+        // ONLY IF IT MOVED, and the reason is on our side of the fence rather than vanilla's. The
+        // two calls below are idempotent -- plain NativeBitArray.Set -- so a redundant write changes
+        // nothing about the grid. But both are postfixed by Patch_VectorLightBlockerAdded and its
+        // sibling, and those route into MarkGeometryDirtyAround with `blockerMoved: true`, which
+        // discards the recorded silhouette every light near this door was reusing. Writing
+        // unconditionally therefore cost four window rescans per open/close cycle -- both
+        // notifications and both ends-of-slide -- and half of them wrote the value already there.
+        // Against a memo whose whole measured value is that a door swing rescans nothing, that is
+        // not a rounding error. See DoorApertureMath.GlowGridWriteNeeded.
+        bool known = GlowGridAccess.TryGetBlocksLight(map.glowGrid, map, door.Position, out bool blocked);
+        if (!DoorApertureMath.GlowGridWriteNeeded(hole, known, blocked))
+        {
+            return;
+        }
+
         if (hole)
         {
             map.glowGrid.LightBlockerRemoved(door.Position);

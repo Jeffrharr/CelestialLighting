@@ -132,6 +132,40 @@ public static class DoorApertureMath
         return headingOpen && openFraction >= FullyOpen;
     }
 
+    // Whether the blocker bit actually has to be WRITTEN, or already holds the answer we want.
+    //
+    // The write itself is idempotent -- GlowGrid.LightBlockerAdded/Removed are plain Set calls -- so
+    // this is not about the grid. It is about what the write provokes on our own side:
+    // Patch_VectorLightBlockerAdded postfixes both methods into MarkGeometryDirtyAround with
+    // `blockerMoved: true`, which discards the recorded silhouette every light near that cell was
+    // reusing. An unconditional reconcile therefore raises four rescans per open/close cycle -- one
+    // at each notification and one at each end-of-slide -- against a memo (issue #188 item C) whose
+    // entire measured value is that a door swing raises none. Half of those four are writes of the
+    // value already there.
+    //
+    // WITH THE FEATURE OFF IT COLLAPSES TO NOTHING, which is the part that matters most. `holeWanted`
+    // is then false for every door, the bit is already set for every door, and no write happens at
+    // all -- so the flag turned off reproduces the pre-feature INVALIDATION CADENCE and not merely
+    // the pre-feature grid contents. Those are different claims and only the first one is visible in
+    // a performance scenario.
+    //
+    // `blockerStateKnown` false means the bit could not be read -- a RimWorld rename, an uncreated
+    // array during map setup -- and answers "write anyway". Erring toward the redundant write costs
+    // a rescan; erring toward the skipped one would leave a door lighting a room it does not open
+    // onto, with no symptom until somebody looks at the right wall.
+    public static bool GlowGridWriteNeeded(
+        bool holeWanted, bool blockerStateKnown, bool currentlyBlocked)
+    {
+        if (!blockerStateKnown)
+        {
+            return true;
+        }
+
+        // The cell should be blocked exactly when it is not wanted as a hole, so a write is needed
+        // exactly when those two agree instead of opposing.
+        return currentlyBlocked == holeWanted;
+    }
+
     // What counts as fully slid. Exactly 1 rather than a tolerance: OpenPct is a ratio of an integer
     // tick counter to its own maximum, so it reaches 1 exactly, and a tolerance here would open the
     // grid a tick or two early for no benefit.

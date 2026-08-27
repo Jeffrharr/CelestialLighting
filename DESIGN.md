@@ -9070,6 +9070,34 @@ so the coherent option is three times the area for a fifth more contrast. Whethe
 wash is what a doorway should look like is precisely the judgement the two flags exist to let
 someone make by looking, which is why the rejected option is shipped alongside rather than described.
 
+**The bit is written only when it MOVES, and that is a performance rule rather than a correctness
+one.** `GlowGrid.LightBlockerAdded`/`Removed` are plain `NativeBitArray.Set` calls, so writing the
+value a cell already holds changes nothing about the grid — which is what made the reconcile
+unconditional in the first place. It is not free to *us*, though: §27 postfixes both methods, and
+those postfixes call `MarkGeometryDirtyAround` with `blockerMoved: true`, which discards the recorded
+silhouette (issue #188 item C) that every light near the door was reusing. An unconditional reconcile
+therefore raised **four window rescans per open/close cycle** — one at each notification and one at
+each end-of-slide — against a memo whose entire measured value is that a door swing raises none, and
+**half of those four wrote the value that was already there**.
+
+`GlowGridAccess.TryGetBlocksLight` reads the bit before writing it, and
+`DoorApertureMath.GlowGridWriteNeeded` decides. A swing then writes exactly once. Reading vanilla's
+own state rather than mirroring it in a set of our own is the same argument `GlowGridAccess` already
+makes for `litGlowers`: a mirror can desync across a save, a despawn or a modded write, and every
+desync shows as a door lighting a room it does not open onto.
+
+**With the feature switched off it collapses to no writes at all**, which is the half that is not
+about doors. `holeWanted` is false for every door, every door's cell is already blocked, and nothing
+is written — so the flag turned off reproduces the pre-feature **invalidation cadence** and not merely
+the pre-feature grid contents. Those are different claims, and only a performance scenario can see
+the difference between them; `vector_light_door_storm` runs all six of its arms with
+`vector_light_door_glow_blocker` off, so without this the memo it exists to score would have been
+destroyed four times a swing by a feature that was not switched on.
+
+An unreadable bit — a RimWorld rename, an uncreated array during map setup — writes anyway. The
+direction is chosen rather than defaulted: erring toward the redundant write costs a rescan, erring
+toward the skipped one leaves the grid wrong with no symptom until somebody looks at the right wall.
+
 **`vector_light_door_glow_blocker` began as the comparison arm and is now the other half of the
 rule.** It moves vanilla's own blocker bit when a door opens and restores it when one shuts, so
 gameplay light agrees with what we draw. The rough edge that made it a measurement-only flag — a door
