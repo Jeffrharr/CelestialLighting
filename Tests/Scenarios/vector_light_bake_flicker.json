@@ -1,0 +1,402 @@
+{
+  "name": "vector_light_bake_flicker",
+  "saveFile": "minimal_colony.rws",
+  "description": "Does a lighting-overlay section that regenerates between an invalidation and the next polygon build render a frame with the shadow missing? Vanilla's Map.MapUpdate regenerates dirty sections at line 1173, draws them at 1176, and does not reach GameConditionManagerDraw -- where vector lighting builds its polygons -- until 1178. So anything that marks a polygon dirty and dirties a section inside one tick is baked from a stale polygon, drawn, and only then corrected. The old rule DROPPED such an emitter, and VectorLightMask.Apply returns true having collected nothing, so the section kept vanilla's flood with neither our mask nor the crossfade's suppression on it -- a frame BRIGHTER than the settled state, not darker. Measured separately: the probe cell renders 4 with vector lighting on and 50 with it off, so the transient is a 12-fold lift on exactly the cells the shadow owns. THE TRANSIENT ITSELF CANNOT BE PROBED OR PHOTOGRAPHED, and that is a property of the harness rather than a gap in this scenario. Steps run from a Root_Play.Update() POSTFIX, one per frame, so the earliest step after a provocation runs a full frame later -- and the correction has landed by then. A tagged log run pinned it exactly: the skips fire on frame 815 against section rect (119,170)-(135,186), which contains the probe cell (123,170), and the first flicker_shadow step reads at frame 816. So flicker_shadow is pinned at its settled 4 in BOTH arms; it is here to prove the recovery is immediate and that the provocation did not move the cell, and it is NOT the assertion. The counters are. TWO ARMS IN ONE BOOT, defect first. vector_light_stale_polygon off restores the drop; on bakes the emitter from its PREVIOUS polygon, one frame stale by exactly the edit that provoked the rebuild. Expect skips 4 / stale 0 off, and skips 0 / stale 4 on, with mask_applies 8 in both -- identical work, different outcome, so the fix costs nothing. THE PROVOKING WALL MUST SHARE A SECTION WITH THE PROBE CELL, and getting that wrong cost a run: a wall in the room's far corner dirties only the sections around itself, so the probe cell's section never regenerated and the counters showed four skips in sections nobody was reading. That locality is also why the symptom in play is a flicker near a door rather than the whole map blinking. PAUSED THROUGHOUT -- a rendered frame is worth roughly fifteen game ticks. The control window comes first and is load-bearing: twelve idle frames must produce no skips, or the counts after a provocation are a background rate rather than a consequence. Each arm provokes on the opposite side of the shadow line, because re-placing the first arm's wall would spawn nothing and provoke nothing. Read vector_light_mask_skips_dirty beside vector_light_mask_stale_polys: skips alone would pass just as happily against a scene where nothing ever moved. Cloud flags are irrelevant here -- the room is roofed and the measurement is a mesh vertex rather than a pixel.",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Concrete",
+        "width": "40",
+        "height": "24",
+        "offset": "0,45",
+        "clear": "true"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "0,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "-12,-5; -12,5; -11,-5; -11,5; -10,-5; -10,5; -9,-5; -9,5; -8,-5; -8,5; -7,-5; -7,5; -6,-5; -6,5; -5,-5; -5,5; -4,-5; -4,5; -3,-5; -3,5; -2,-5; -2,5; -1,-5; -1,5; 0,-5; 0,5; -12,-4; 0,-4; -12,-3; 0,-3; -12,-2; 0,-2; -12,-1; 0,-1; -12,0; 0,0; -12,1; 0,1; -12,2; 0,2; -12,3; 0,3; -12,4; 0,4"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "0,45",
+        "layout": "cells",
+        "cells": "-4,0"
+      }
+    },
+    {
+      "type": "SetRoof",
+      "args": {
+        "def": "RoofConstructed",
+        "width": "15",
+        "height": "13",
+        "offset": "-6,45"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "TorchLamp",
+        "offset": "0,45",
+        "layout": "cells",
+        "cells": "-6,0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "0"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "-6,45",
+        "zoom": "14"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "paused"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "bakeflicker_warmup_discard.png"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "10"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_bake_reset",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "10"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_skips_dirty",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_stale_polys",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "flicker_shadow",
+        "expectedValue": "4",
+        "tolerance": "2"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "flicker_lit",
+        "expectedValue": "0",
+        "tolerance": "1000"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "bakeflicker_a_settled.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_stale_polygon",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "12"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_bake_reset",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "0,45",
+        "layout": "cells",
+        "cells": "-2,3"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "flicker_shadow",
+        "expectedValue": "4",
+        "tolerance": "2"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "flicker_shadow",
+        "expectedValue": "4",
+        "tolerance": "2"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "flicker_shadow",
+        "expectedValue": "4",
+        "tolerance": "2"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "flicker_shadow",
+        "expectedValue": "4",
+        "tolerance": "2"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_skips_dirty",
+        "expectedValue": "4",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_stale_polys",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_applies",
+        "expectedValue": "8",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "12"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "flicker_shadow",
+        "expectedValue": "4",
+        "tolerance": "2"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "flicker_lit",
+        "expectedValue": "82",
+        "tolerance": "4"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "bakeflicker_off_settled.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_stale_polygon",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "12"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_bake_reset",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "0,45",
+        "layout": "cells",
+        "cells": "-2,-3"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "flicker_shadow",
+        "expectedValue": "4",
+        "tolerance": "2"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "flicker_shadow",
+        "expectedValue": "4",
+        "tolerance": "2"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "flicker_shadow",
+        "expectedValue": "4",
+        "tolerance": "2"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "flicker_shadow",
+        "expectedValue": "4",
+        "tolerance": "2"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_skips_dirty",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_stale_polys",
+        "expectedValue": "4",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_applies",
+        "expectedValue": "8",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "12"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "flicker_shadow",
+        "expectedValue": "4",
+        "tolerance": "2"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "flicker_lit",
+        "expectedValue": "82",
+        "tolerance": "4"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "bakeflicker_on_settled.png"
+      }
+    }
+  ]
+}

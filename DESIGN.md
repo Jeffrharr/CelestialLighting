@@ -12076,6 +12076,67 @@ rebake on the frame it scrolls back into range. `VectorLightRedraw` deliberately
 everything — a flag flip's job is to leave the field in a state the next frame can be photographed
 from, and deferring there hands the harness a first frame that is still catching up.
 
+**Item D — a dirty polygon is a shape that may have moved, not one that cannot be drawn.** The
+paragraph above says a not-ready polygon is survivable because whoever builds one also dirties the
+sections it reaches, so the corrected shape lands on a later frame. That is true, and it is only
+half the question: it says where the subsystem *converges to* and nothing about what is on screen in
+the meantime. What was on screen in the meantime was a flicker, and it was reported from ordinary
+play rather than found here.
+
+`CollectReaching` used to require `!entry.PolygonDirty`, dropping the emitter otherwise. Dropping it
+does not merely lose that emitter's shadow. `VectorLightMask.Apply` returns **true** when it collected
+nothing — "handled", so the caller does not fall through — and `Patch_VectorLightSuppress` therefore
+returns without running the crossfade either. The section keeps vanilla's flood with neither our mask
+nor the suppression on it, so the frame is **brighter** than the settled state, not darker. Measured
+on a torch behind a single wall cell: the cell renders **4** with the mask and **50** with vector
+lighting off, so the transient is a 12× lift on exactly the cells the shadow is supposed to own.
+
+**It is structural, not a race.** `Map.MapUpdate` regenerates dirty sections at line 1173 and does not
+reach `GameConditionManagerDraw` — where `EnsurePolygons` runs — until 1178. So anything that marks a
+polygon dirty and dirties a section inside one tick is baked from a stale polygon *every time*, by
+construction. Door swings do exactly that, which is why this reads in play as a flicker whenever a
+pawn walks through a door.
+
+**Fixed by using the previous polygon instead of none.** It is one frame stale by exactly the edit
+that provoked the rebuild — a wall cell, a door leaf — and the corrected shape still arrives next
+frame from item A's re-dirty. Carrying yesterday's shadow for one frame is invisible; dropping it is
+not. An emitter with *no* polygon at all is still skipped, and that is a different case rather than
+the same one with a smaller count: a lamp that appeared this frame has no prior state to propagate,
+vanilla's flood is the right thing to show for it, and suppressing that with nothing to put back
+would light nothing at all.
+
+This also retires the item B worry about "a stale strip at the screen edge, visible only while
+scrolling": a deferred polygon now draws its previous shape rather than nothing.
+
+**The transient cannot be probed or photographed, and that is the harness rather than a gap in the
+scenario.** Steps run from a `Root_Play.Update()` postfix, one per frame, so the earliest step after a
+provocation runs a full frame later — by which time 1178 has rebuilt the polygon and 1173 of the next
+frame has rebaked the section. A tagged log run pinned it exactly: the skips fire on frame **815**
+against section rect `(119,170)-(135,186)`, which contains the probe cell `(123,170)`, and the first
+`flicker_shadow` step reads at frame **816**. So the scenario pins that probe at its settled value in
+both arms — it is there to show the recovery is immediate and that the provocation did not itself move
+the cell — and the counters are the assertion.
+
+**Measured**, paused, one wall placed inside the torch's reach and inside the probe cell's own
+section, `vector_light_stale_polygon` off then on in one boot:
+
+| | drop (old) | previous polygon (shipped) |
+|---|---|---|
+| `vector_light_mask_skips_dirty` | 4 | **0** |
+| `vector_light_mask_stale_polys` | 0 | **4** |
+| `vector_light_mask_applies` | 8 | 8 |
+
+`mask_applies` is identical, so the fix changes the *outcome* of those bakes and not their number: it
+costs nothing. Read the two skip counters as a pair — skips alone would read zero just as happily
+against a scene where nothing ever moved, which is what `_stale_polys` is there to rule out.
+
+**The scenario's own trap, which cost a run.** `vector_light_bake_flicker`'s first draft provoked with
+a wall in the room's far corner, and the probe cell then read its settled value in *both* arms while
+the counters showed four skips. A section only regenerates when something dirties it, so the defect is
+local to what the edit touched; the provoking wall has to share a section with the cell being read.
+That locality is also why the symptom in play is a flicker near a door rather than the whole map
+blinking.
+
 **Item 0 — the instrument, which had to exist first.** Four counters: `vector_light_section_dirties`,
 `_dirty_passes`, `_sections_per_pass` and `_mask_applies`. The map-wide path charges itself
 `SectionDirtyMath.SectionCount` rather than nothing, because a counter only the new path incremented

@@ -1414,6 +1414,26 @@ public static class CelestialLightingFeatures
     // arrangement this pair exists to avoid.
     public static bool VectorLightDoorAperture = true;
 
+    // Feature key for VectorLightStalePolygon.
+    public const string VectorLightStalePolygonKey = "vector_light_stale_polygon";
+
+    // An emitter whose polygon is dirty is baked from its PREVIOUS polygon instead of being dropped
+    // from the section.
+    //
+    // THE BUG THIS CLOSES. Vanilla's Map.MapUpdate regenerates dirty sections at line 1173 and does
+    // not reach GameConditionManagerDraw -- where EnsurePolygons rebuilds polygons -- until 1178. So
+    // anything that both marks a polygon dirty and dirties a section inside one tick is baked before
+    // the rebuild, every time, by construction. Door swings do exactly that, so it fired constantly
+    // in ordinary play. Dropping the emitter there does not just lose its shadow: VectorLightMask.
+    // Apply returns true having collected nothing, so the section also keeps vanilla's flood with no
+    // suppression on it, and the room reads a frame BRIGHTER than its settled state before snapping
+    // back -- the flicker the report was about.
+    //
+    // OFF REPRODUCES THE DEFECT EXACTLY rather than approximately, which is the point of it being a
+    // flag at all: the transient is one frame wide and cannot be photographed reliably, so the only
+    // way to show it is a probe reading the same cell in both arms of one boot.
+    public static bool VectorLightStalePolygon = true;
+
     // Feature key for VectorLightSectionDirty.
     public const string VectorLightSectionDirtyKey = "vector_light_section_dirty";
 

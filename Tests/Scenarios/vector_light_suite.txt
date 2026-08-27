@@ -71,3 +71,11 @@ vector_light_mixed_radii.json
 # against a same-build control of exactly zero -- and nothing else in this file saw it.
 # Run it on any change to how a cell's light is delivered, not only on changes to the polygon.
 vector_light_ring.json
+
+# Does a section that regenerates before the polygon rebuild render a frame with the shadow gone?
+# Vanilla bakes dirty sections at Map.MapUpdate 1173, draws them at 1176, and does not build our
+# polygons until 1178, so anything that dirties a polygon and a section in one tick is baked stale --
+# by construction, every time, and a door swing does exactly that. Counters, not pixels: the window
+# is one frame wide and the harness's earliest step after a provocation runs a frame later, so the
+# transient is unphotographable. Run it on any change to when a polygon is built or invalidated.
+vector_light_bake_flicker.json

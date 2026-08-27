@@ -132,6 +132,16 @@ public sealed class VectorLightBakeProbe : IProbe
         // leave this flat -- which would mean the saving was on sections nobody was looking at.
         MaskApplies,
 
+        // Sections that baked without an emitter reaching them, because it had no polygon at all.
+        // A DEFECT COUNT rather than a workload one: nonzero after the scene has settled means a
+        // frame rendered with a shadow missing. See VectorLightField.MaskSkipsNoPolygon.
+        MaskSkipsNoPolygon,
+
+        // Sections that baked from an emitter's previous polygon rather than dropping it. The
+        // fallback working; read beside the skip count, which alone cannot tell a fixed subsystem
+        // from a scenario that never provoked a rebuild.
+        MaskStalePolygonUses,
+
         // How many emitters the field currently holds. The denominator for MarksPerCall, and the
         // thing that says a scenario's lamps actually registered.
         Emitters,
@@ -255,6 +265,12 @@ public sealed class VectorLightBakeProbe : IProbe
 
         if (metric == Metric.MaskApplies)
             return VectorLightField.MaskApplies;
+
+        if (metric == Metric.MaskSkipsNoPolygon)
+            return VectorLightField.MaskSkipsNoPolygon;
+
+        if (metric == Metric.MaskStalePolygonUses)
+            return VectorLightField.MaskStalePolygonUses;
 
         if (metric == Metric.CoverageMean)
             return CoverageMean(map);
