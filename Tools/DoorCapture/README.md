@@ -22,10 +22,10 @@ animating.
     --no-profiler \
     <worktree>/Tests/Scenarios/vector_light_door_film.json
 
-# 2. crop, then encode. 4 fps is deliberate — see "How fast to play it".
+# 2. crop, then encode. 10 fps is a measured choice, not a default — see "How fast to play it".
 Tools/DoorCapture/crop_frames.sh \
     ../RimWorldTestHarness/Runner/reports /tmp/doorframes 1210:680:240:180 960
-Tools/DoorCapture/make_gif.sh /tmp/doorframes Tests/Screenshots/vector_light_door_beam.gif 4 256
+Tools/DoorCapture/make_gif.sh /tmp/doorframes Tests/Screenshots/vector_light_door_beam.gif 10 256
 
 # 3. the off/on stills, same crop, straight out of ffmpeg
 for arm in off on; do
@@ -94,12 +94,29 @@ whatever it finds; edit it before the run and put it back afterwards.
 
 ## How fast to play it
 
-The sweep samples 3.85 ticks per frame, i.e. 64 ms of game time. At **4 fps** (250 ms per frame) that
-is a hair under **quarter speed**, which is what the clip ships at: 58 frames, 14.5 s, and the door
-visibly slides rather than snapping. Faster than about 8 fps and the swing is over before it reads.
+**This is a free parameter.** Because every frame is a separate frozen pass rather than a moment of
+one continuous take, the frame rate carries no information — re-encode at any speed without
+re-shooting. Only the *spacing* (`PHASE_STEP` in the generator) needs a new run.
 
-Because every frame is a separate pass, the frame rate is a free parameter — re-encode at any speed
-without re-shooting. Only the *spacing* (`PHASE_STEP` in the generator) needs a new run.
+The sweep samples 3.85 ticks per frame, i.e. 64 ms of game time, so the speed relative to real play
+is `64 ms / frame duration`. GIF delays are integer centiseconds, which is what makes some rates
+exact and others not:
+
+| fps | delay | clip | door opens over | vs real time |
+|---|---|---|---|---|
+| 4 | 25 cs | 14.5 s | 6.5 s | 0.26x |
+| 6.25 | 16 cs | 9.3 s | 4.2 s | 0.40x |
+| **10** | **10 cs** | **5.8 s** | **2.6 s** | **0.64x** |
+| 12.5 | 8 cs | 4.6 s | 2.1 s | 0.80x |
+
+**The clip ships at 10 fps.** Quarter speed was tried first and reads as sluggish — the swing is over
+in under two seconds of real play and a six-second version of it looks like a stuck animation rather
+than a slow one. 10 fps keeps the slide comfortably readable while landing the loop at a length a
+listing image can get away with. Past about 12.5 fps the swing starts to go by before it registers.
+
+Avoid rates whose delay is not a whole number of centiseconds (8 fps wants 12.5 cs and gets 13,
+i.e. 7.7 fps); the table above is the set worth using. File size is identical at every rate — the
+frames are the same bytes, only the delays differ.
 
 ## The hour is measured
 
@@ -150,7 +167,7 @@ still. Left out.
 
 ## Sizes
 
-960x540, 58 frames, 4 fps, 256 colours: **780 KB**, inside Steam's 2 MB per-description-image cap.
+960x540, 58 frames, 10 fps, 256 colours: **780 KB**, inside Steam's 2 MB per-description-image cap.
 
 The static stretches are byte-identical because the sky is pinned, which is where the headroom comes
 from — an early cut that drifted came out at 1.7 MB for *more* frames at a quarter of the colours,
