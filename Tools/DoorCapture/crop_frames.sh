@@ -20,16 +20,28 @@
 # will not glob a sequence that starts anywhere else without being told, so the encoder would
 # silently read a shorter clip.
 #
-# Usage: crop_frames.sh <reports-dir> <out-dir> <W:H:X:Y> [out-width] [first] [last] [prefix]
+# KEEPING EVERY Nth FRAME is the last argument, and it is how playback speed is set. The take is shot
+# in slow motion (see the scenario's TIME_SCALE), so the source frames are far closer together in
+# game time than any GIF can play: measured at 0.565 ticks per frame, real time would be 106 fps.
+# Decimating by N multiplies the game time each output frame represents, and the encoder's rate is
+# then chosen to match. At N=3 a frame is 1.70 ticks = 28.3 ms of game time, so 33 fps (a 3 cs delay)
+# plays at 0.94x -- near enough game speed that nothing reads as slowed, with 59 frames across the
+# door's slide.
+#
+# Decimate here rather than in the encoder so the frame count the byte budget is made of is visible
+# at the point it is decided.
+#
+# Usage: crop_frames.sh <reports-dir> <out-dir> <W:H:X:Y> [out-width] [first] [last] [prefix] [every]
 set -euo pipefail
 
-REPORTS="${1:?usage: crop_frames.sh <reports-dir> <out-dir> <W:H:X:Y> [out-width] [first] [last] [prefix]}"
+REPORTS="${1:?usage: crop_frames.sh <reports-dir> <out-dir> <W:H:X:Y> [out-width] [first] [last] [prefix] [every]}"
 OUT="${2:?out-dir}"
 CROP="${3:?crop as W:H:X:Y in source pixels}"
 WIDTH="${4:-960}"
 FIRST="${5:-1}"
 LAST="${6:-90}"
 PREFIX="${7:-doorfilm_}"
+EVERY="${8:-1}"
 
 for n in $(seq "$FIRST" "$LAST"); do
     f=$(printf '%s%04d.png' "$PREFIX" "$n")
@@ -45,10 +57,10 @@ rm -f "$OUT"/frame_*.png
 # the frame that has to survive.
 ffmpeg -loglevel error -y -start_number "$FIRST" -i "$REPORTS/${PREFIX}%04d.png" \
     -frames:v $((LAST - FIRST + 1)) \
-    -vf "crop=${CROP},scale=${WIDTH}:-2:flags=lanczos" \
-    -start_number 1 "$OUT/frame_%04d.png"
+    -vf "select='not(mod(n\,${EVERY}))',crop=${CROP},scale=${WIDTH}:-2:flags=lanczos" \
+    -vsync 0 -start_number 1 "$OUT/frame_%04d.png"
 
 COUNT=$(ls "$OUT"/frame_*.png | wc -l)
 DIM=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height \
       -of csv=p=0:s=x "$OUT/frame_0001.png")
-echo "$COUNT frames -> $OUT at $DIM (crop $CROP)"
+echo "$COUNT frames -> $OUT at $DIM (crop $CROP, every ${EVERY} of $((LAST - FIRST + 1)))"

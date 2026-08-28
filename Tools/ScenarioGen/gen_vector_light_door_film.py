@@ -14,16 +14,17 @@ WHAT IS DELIBERATELY DIFFERENT FROM THE GATE SCENARIOS, and why each choice is n
     gen_vector_light_door_handover.py). A listing asset has the stricter version of that duty: it
     must show what a default install does, or it is an advertisement for a configuration.
 
-  - IT IS NOT FILMED IN REAL TIME. It cannot be: a Screenshot step costs about fifty game ticks
-    while a 1920x1080 PNG is encoded and written, so a door's whole slide lands inside two
-    consecutive captures and no playback rate can recover the positions that were never
-    photographed. Each frame here is its own pass -- shut the door, run the clock forward exactly N
-    ticks with cheap Wait frames, FREEZE, then shoot -- so the sweep can be as fine as it likes. See
-    sample(). TickLapse is not the alternative either: AdvanceTicks is a jump and a door's own
+  - IT IS SHOT IN SLOW MOTION AND PLAYED BACK AT SPEED. A Screenshot's frame is long -- encoding a
+    1920x1080 PNG takes the better part of a second -- and TickManager ticks the game through
+    Time.deltaTime, so at normal speed a captured frame swallows twenty to fifty game ticks and a
+    door's whole slide lands between two consecutive captures. SetTimeScale drops Time.deltaTime in
+    proportion, so at 0.05 a rendered frame advances at most one tick however long it takes to
+    write, and the ordinary capture loop becomes a slow-motion camera over a CONTINUOUS take. See
+    film() and TIME_SCALE. TickLapse is not the alternative: AdvanceTicks is a jump and a door's own
     Tick() never runs under it, so it would produce a whole clip of a door that never moves, and
     pass.
 
-  - The DOOR IS STONE, which is about the slide being long enough to sample rather than about looks
+  - The DOOR IS STONE, which is about the slide being long enough to film rather than about looks
     (100 ticks against wood's 45). See DOOR_STUFF.
 
   - Zoom 11 rather than the gate scenarios' 14. Nothing about the effect changes; the crop the GIF
@@ -93,24 +94,37 @@ HOUR = 22
 # one.
 DOOR_STUFF = "BlocksGranite"
 
-# The slide's length in ticks, and how finely the sweep samples it. See sample() for why the clip is
-# built one frozen pass per frame rather than filmed in real time.
+# HOW FAR THE GAME IS SLOWED WHILE FILMING, and this one number is what makes the clip possible.
 #
-# SLIDE_TICKS is Building_Door.TicksToOpenNow for this door: 45 / 0.45 = 100. It is written here as a
-# number rather than probed because the sweep has to be laid out before the run; the door_aperture
-# pins at the end of each sweep are what catch it being wrong, and a stone door that stopped taking
-# 100 ticks would fail them rather than quietly producing a sweep that stops half way.
-SLIDE_TICKS = 100
+# A Screenshot's frame is long -- encoding a 1920x1080 PNG takes the better part of a second -- and
+# TickManager ticks the game through Time.deltaTime, so at normal speed a captured frame swallows
+# twenty to fifty game ticks and a 100-tick door slide falls between two of them. Unity computes
+# Time.deltaTime as min(unscaledDeltaTime, maximumDeltaTime) * timeScale, so at 0.05 a rendered frame
+# advances at most ONE tick however long it takes to write. The capture loop becomes a slow-motion
+# camera and the take is continuous.
+#
+# 0.05 rather than something smaller because there is nothing to gain below one tick per frame: the
+# frames cannot be closer together than the game's own resolution, and every step of the scenario --
+# including the settles -- gets twenty times longer in wall clock.
+TIME_SCALE = 0.05
 
-# Four ticks per frame: 26 frames across the slide, which is enough that the leaves read as sliding
-# rather than stepping. Finer costs run time and buys nothing -- the LIGHT through the aperture is
-# quantised into eight steps by DoorApertureMath regardless, so past about eight frames the extra
-# resolution is showing the leaves move, not the beam grow.
-PHASE_STEP = 4
-
-# Three frames past the end of the slide, held. The door has to visibly ARRIVE before the clip holds,
-# or the hold reads as the animation stalling.
-OVERRUN_FRAMES = 3
+# Phase lengths in CAPTURED FRAMES, and the conversion to ticks is MEASURED rather than assumed.
+# At TIME_SCALE 0.05 a captured frame advances about 0.52 ticks: the aperture quantiser's eight steps
+# land 24 frames apart in the doorway trace, and 100 ticks / 8 steps = 12.5 ticks per step. So the
+# ~100-tick slide wants roughly 190 frames, and OPENING is set well past that.
+#
+# The first cut of this take used 120 and the door reached seven eighths and no further before the
+# close began -- the doorway plateaued at L* 14.87 where fully open is 15.22. Nothing failed. That is
+# what the door_aperture pin at the top of the hold is now for; see film().
+#
+# Frames are cheap here (a captured frame is ~0.17 s of wall clock) and the encoder decimates to
+# taste afterwards, so the bias is deliberately towards too many: a frame not shot cannot be
+# recovered, and a frame not used costs nothing.
+SHUT_LEAD = 15
+OPENING = 230
+OPEN_HOLD = 30
+CLOSING = 230
+SHUT_TAIL = 15
 
 # How long to wait out a swing that is NOT being filmed. Sized in ticks, not in captures, and the two
 # are nowhere near each other: a bare Wait frame costs about ONE tick because nothing is being
@@ -183,91 +197,109 @@ def scene():
 
 
 def flags():
-    return [step("SetFeature", featureName=f, enabled="true") for f in FLAGS_ON]
+    """The preset FIRST, then the effect flags.
 
+    realistic_preset is not one of the mod's effects -- it rewrites the whole settings bundle,
+    including minNightBrightness, which is 0.5 under Cinematic and 0 under Realistic. That is the
+    difference between a yard the night floor keeps readable and a yard that is genuinely black, and
+    it changes this clip more than anything else in the file: the beam looks far more dramatic
+    against black, which is exactly why it has to be pinned rather than left to whatever the box was
+    last set to.
 
-def sample(n, opening, phase_ticks):
-    """One frame of the slide, captured STROBOSCOPICALLY: the door is returned to a known state, run
-    forward exactly `phase_ticks`, then FROZEN before the shutter opens.
-
-    This is the whole technique, and it exists because filming the swing in real time cannot work on
-    this harness at any playback rate. A Screenshot step costs about FIFTY GAME TICKS -- the game
-    keeps ticking at 60/s while a 1920x1080 PNG is encoded and written -- so a door slide lands
-    entirely inside two consecutive captures. Measured on the granite door: the doorway reads L* 8.15
-    shut, 14.55 on the next capture, 15.22 on the one after. Slowing that down in the encoder just
-    holds two stills for longer; the intermediate positions were never photographed, and no frame
-    rate can invent them.
-
-    A bare Wait, though, costs about ONE tick, because nothing is written to disk. (Measured: a
-    `Wait frames=60` left the 100-tick granite door at door_aperture 0.625, i.e. 62.5 ticks in 60
-    frames.) So the clock can be positioned to roughly single-tick precision as long as no screenshot
-    is taken while it runs -- which is exactly what this does. Pause first, then shoot, and the
-    screenshot's fifty ticks are spent on a frozen scene where they cost nothing.
-
-    The result is a real render of a real door at a real intermediate position, one per pass. Nothing
-    is interpolated or reversed; the clip is 22 separate openings of the same door, each stopped a
-    few ticks later than the last."""
-    out = [
-        # Back to a known state first. Every sample starts from the same place rather than continuing
-        # the last one, because a slide resumed from wherever the previous screenshot left it would
-        # accumulate that screenshot's fifty ticks into the phase and the sweep would not be even.
-        step("SetTimeSpeed", speed="normal"),
-        step("SetDoorOpen", offset=DOOR, open="false" if opening else "true"),
-        step("Wait", frames=SETTLE_FRAMES),
-        step("SetDoorOpen", offset=DOOR, open="true" if opening else "false"),
-    ]
-    # phase 0 is the untouched end state, so it must not run the clock at all.
-    if phase_ticks > 0:
-        out.append(step("Wait", frames=phase_ticks))
-    out += [
-        step("SetTimeSpeed", speed="paused"),
-        # THE SKY IS RE-PINNED FOR EVERY FRAME. Each pass costs a couple of hundred ticks of settle,
-        # so across the whole sweep the clock advances a few game HOURS -- far more than the drift
-        # that broke the first cut's loop, and it would show as the clip steadily brightening. SetTime
-        # jumps the calendar without ticking anything, so the door's own ticksSinceOpen is untouched
-        # and every frame is photographed under an identical sky.
-        step("SetTime", hour=HOUR),
-        step("Wait", frames=2),
-        step("Screenshot", fileName=f"doorfilm_{n:04d}.png"),
-    ]
+    It is registered with defaultEnabled FALSE, so FeatureRegistry.ResetAll SHOULD leave Cinematic
+    standing. It does not reliably: two runs of this scenario differing only in phase lengths came
+    back one Cinematic (yard L* 8.15) and one Realistic (2.81), and the persisted settings XML is
+    outside the harness's rollback ledger, so whatever a previous run left is what the next one
+    starts from. snow_glare.json states it explicitly for the same reason. State it, do not inherit
+    it."""
+    out = [step("SetFeature", featureName="realistic_preset", enabled="false")]
+    out += [step("SetFeature", featureName=f, enabled="true") for f in FLAGS_ON]
     return out
 
 
 def film():
-    """The clip: the opening slide sampled tick by tick, a held beat, the closing slide, a held beat.
+    """The clip: ONE CONTINUOUS TAKE of the door opening, held, closing and held, shot in slow motion.
 
-    One continuous frame numbering across all four phases, because the encoder reads
-    doorfilm_%04d.png as a single sequence."""
+    The problem this solves is that a screenshot's frame is long -- encoding a 1920x1080 PNG takes
+    the better part of a second -- and Verse.TickManager.TickManagerUpdate accumulates
+    `Time.deltaTime` and ticks the game through it. So at normal speed a captured frame advances
+    twenty to fifty game ticks, a door's slide is 45 (100 for stone), and the whole animation falls
+    between two consecutive captures. Measured on the granite door, filmed the obvious way: the
+    doorway reads L* 8.15 shut, 14.55 on the very next capture, 15.22 on the one after. No playback
+    rate recovers positions that were never rendered.
+
+    SetTimeScale fixes it at the source. Unity computes `Time.deltaTime` as
+    `min(unscaledDeltaTime, maximumDeltaTime) * timeScale` and TickManager reads the scaled value, so
+    at 0.05 a rendered frame advances at most one tick however long it takes to write. The same
+    Wait/Screenshot loop then behaves as a slow-motion camera: the game is filmed continuously, the
+    clip's frames are about a tick apart, and it can be played back at any rate including the true
+    one.
+
+    WHAT THIS REPLACED, and why. The previous cut sampled the animation instead: stop the door at a
+    known phase, freeze, shoot, repeat. That produces evenly spaced frames of the DOOR and it is
+    wrong about everything else, because a scene is not only the thing being filmed. Every other
+    animation gets sampled at whatever phase its own pass happened to end on, so the torch flame
+    strobed between unrelated frames rather than flickering. A continuous take cannot have that
+    problem, because there is only one take."""
     out = []
     n = 0
 
-    def sweep(opening, phases):
+    def capture(count):
         nonlocal n
-        for p in phases:
+        for _ in range(count):
             n += 1
-            out.extend(sample(n, opening, p))
+            # Consecutive Screenshot steps, no settle Wait between them. The harness runs one step
+            # per rendered frame, so a Wait/Screenshot pair would cost two frames and halve the
+            # capture rate for nothing -- there is no state here that needs settling, only a clock
+            # that needs to be caught in motion.
+            out.append(step("Screenshot", fileName=f"doorfilm_{n:04d}.png"))
 
-    # The slide is ~100 ticks (45 / stone's DoorOpenSpeed of 0.45). Sampling every PHASE_STEP ticks
-    # to a little past the end gives the sweep a couple of frames of stillness at the far end, which
-    # the clip needs -- the door has to visibly ARRIVE before the hold, or the hold reads as the
-    # animation stalling.
-    phases = list(range(0, SLIDE_TICKS + PHASE_STEP * (OVERRUN_FRAMES + 1), PHASE_STEP))
-
+    # Shut and settled before frame 1, at FULL speed -- this is dead time the clip never sees, and
+    # running it in slow motion would multiply it by twenty for no benefit.
     out += [
-        step("SetTimeSpeed", speed="paused"),
-        step("Screenshot", fileName="doorfilm_warmup_discard.png"),
+        step("SetTimeSpeed", speed="normal"),
+        step("SetDoorOpen", offset=DOOR, open="false"),
+        step("Wait", frames=SETTLE_FRAMES),
+        probe("door_aperture", 0, 0,
+              "Shut before the film starts. At tolerance 0 -- a door already part open makes the "
+              "loop's first and last frames disagree, which is the one defect a looping clip "
+              "cannot hide."),
+        step("Screenshot", fileName="doorfilm_settled_discard.png"),
+        step("SetTimeScale", scale=TIME_SCALE),
     ]
 
-    sweep(opening=True, phases=phases)
+    capture(SHUT_LEAD)
+    out.append(step("SetDoorOpen", offset=DOOR, open="true"))
+    capture(OPENING)
+
+    # THE SLIDE FINISHED INSIDE THE FRAMES THAT FILMED IT. This is the pin the first cut of the
+    # continuous take was missing, and it cost a run: with OPENING too short the door reached seven
+    # eighths, the close began, and every probe in the scenario still passed -- the end-of-film pin
+    # asks whether the door is SHUT, which it duly was, and the reference stills open it again
+    # afterwards from a clean settle. So nothing anywhere said that the clip's own door never
+    # finished opening. It is placed before the hold rather than after it so a failure names the
+    # right phase: OPENING is too short, not OPEN_HOLD.
     out.append(probe("door_aperture", 1, 0,
-                     "The opening sweep ended on a FULLY open door. If the last phases fell short "
-                     "the clip would read as a door that jams part way, and every frame in the sweep "
-                     "would still be a valid render of a real state -- so nothing else here could "
-                     "tell."))
-    sweep(opening=False, phases=phases)
-    out.append(probe("door_aperture", 0, 0,
-                     "And the closing sweep ended shut, which is what makes the loop wrap: the last "
-                     "frame and the first are the same state."))
+                     "Fully open before the hold begins. If OPENING is too short for the slide the "
+                     "clip cuts to the close part way through the animation, which looks like a "
+                     "door that jams and passes every other check in this file."))
+
+    capture(OPEN_HOLD)
+    out.append(step("SetDoorOpen", offset=DOOR, open="false"))
+    capture(CLOSING)
+    capture(SHUT_TAIL)
+
+    out += [
+        # BACK TO FULL SPEED, always, and this is not tidiness. Time.timeScale is process-global Unity
+        # state: no save reload restores it and the harness's WorldStateReset has never heard of it,
+        # so a scenario that leaves it at 0.05 hands the next one a game running twenty times slow.
+        # See Source/Probes/SetTimeScaleStep.cs, which says the same thing from the other end.
+        step("SetTimeScale", scale=1),
+        probe("door_aperture", 0, 0,
+              "And shut again by the last frame. Together with the pin above this is what makes the "
+              "clip loop: the last frame and the first are the same state, so the wrap is a cut and "
+              "not a jump."),
+    ]
     return out
 
 
@@ -338,7 +370,7 @@ def main():
         json.dump(scenario, f, indent=2)
         f.write("\n")
     print(f"{os.path.normpath(out)}: {len(scenario['steps'])} steps, "
-          f"{2 * (SLIDE_TICKS // PHASE_STEP + OVERRUN_FRAMES + 1)} film frames")
+          f"{SHUT_LEAD + OPENING + OPEN_HOLD + CLOSING + SHUT_TAIL} film frames")
 
 
 if __name__ == "__main__":

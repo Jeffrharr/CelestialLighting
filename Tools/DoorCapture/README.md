@@ -22,10 +22,11 @@ animating.
     --no-profiler \
     <worktree>/Tests/Scenarios/vector_light_door_film.json
 
-# 2. crop, then encode. 15 fps is real time — see "How fast to play it".
+# 2. crop, decimating to every 3rd frame, then encode at the matching rate. Both numbers together
+#    are what makes it play at game speed — see "How fast to play it".
 Tools/DoorCapture/crop_frames.sh \
-    ../RimWorldTestHarness/Runner/reports /tmp/doorframes 1210:680:240:180 960
-Tools/DoorCapture/make_gif.sh /tmp/doorframes Tests/Screenshots/vector_light_door_beam.gif 15 256
+    ../RimWorldTestHarness/Runner/reports /tmp/doorframes 1210:680:240:180 960 1 520 doorfilm_ 3
+Tools/DoorCapture/make_gif.sh /tmp/doorframes Tests/Screenshots/vector_light_door_beam.gif 33.333 256
 
 # 3. the off/on stills, same crop, straight out of ffmpeg
 for arm in off on; do
@@ -35,106 +36,101 @@ for arm in off on; do
 done
 ```
 
-## The big one: a door cannot be CAPTURED in real time on this harness
+## The big one: shoot in slow motion, play back at speed
 
-**A `Screenshot` step costs about fifty game ticks.** The game keeps ticking at 60/s while a
-1920x1080 PNG is encoded and written, so consecutive captures are a quarter of a second of game time
-apart. A wooden door's slide is `45 / DoorOpenSpeed` ticks — 45 ticks, three quarters of a second —
-so **the entire animation lands inside two captures.** Measured on the granite door, filmed the
-obvious way: the doorway reads L\* 8.15 shut, 14.55 on the very next capture, 15.22 on the one after.
+**A `Screenshot` step's frame is long.** Encoding a 1920x1080 PNG takes the better part of a second,
+and `Verse.TickManager.TickManagerUpdate` accumulates `Time.deltaTime` and ticks the game through it.
+So at normal speed a captured frame swallows twenty to fifty game ticks. A wooden door's slide is
+`45 / DoorOpenSpeed` ticks — 45 — which means **the whole animation falls between two consecutive
+captures.** Measured, filmed the obvious way: the doorway reads L\* 8.15 shut, 14.55 on the very next
+capture, 15.22 on the one after.
 
 No playback rate fixes that. Slowing a two-frame slide down just holds two stills for longer; the
-intermediate positions were never photographed. The first two cuts of this clip both failed here,
-and the second failed *after* switching to a slower door, which is what made the real cause obvious.
+intermediate positions were never rendered.
 
-Note the two senses of "real time" that this file needs to keep apart: **capturing** at real time is
-impossible, which is why the sweep below freezes the scene for every shot, and **playing back** at
-real time is then trivially available, because the passes are a known number of ticks apart. The
-clip ships at game speed precisely *because* it was not captured at it.
+**`SetTimeScale` fixes it at the source.** Unity computes `Time.deltaTime` as
+`min(unscaledDeltaTime, maximumDeltaTime) * timeScale`, and TickManager reads the scaled value — so
+dropping `Time.timeScale` drops ticks-per-frame in exact proportion without touching the frame rate,
+the render path, or anything the mod does. At **0.05** a captured frame advances about **0.565
+ticks**, and the ordinary `Screenshot` loop becomes a slow-motion camera over a *continuous take*.
+The step is `Source/Probes/SetTimeScaleStep.cs`, dev-only, compiled into the probe bridge.
 
-**A bare `Wait` costs about ONE tick**, because nothing is written to disk. (Measured: `Wait
-frames=60` left the 100-tick granite door at `door_aperture` 0.625 — 62.5 ticks in 60 frames.) So the
-clock can be positioned to roughly single-tick precision as long as no screenshot is taken while it
-runs.
+RimWorld's own `TimeSpeed` cannot do this: its slowest non-paused setting is Normal, which *is* 60
+ticks a second. `TimeSpeed` picks how many ticks run per unit of game time; `timeScale` picks how
+fast that time passes, and only the second can be less than 1.
 
-That is what the scenario does. Each frame of the clip is **its own pass**: shut the door, run the
-clock forward exactly N ticks on cheap `Wait` frames, `SetTimeSpeed paused`, *then* shoot. The
-screenshot's fifty ticks are now spent on a frozen scene, where they cost nothing. The sweep steps N
-by four ticks across the 100-tick slide, so the clip is 26 separate openings of the same door, each
-stopped a little later than the last.
-
-Nothing is interpolated, reversed or repeated: every frame is a real render of a real door at a real
-intermediate position. What it costs is run time — the sweep re-settles the door 58 times, so the
-scenario is 559 steps and takes a few minutes.
-
-Two consequences worth knowing:
-
-- **The sky has to be re-pinned per frame.** Each pass burns a couple of hundred ticks of settle, so
-  across the sweep the clock advances *hours*. `SetTime` jumps the calendar without ticking anything,
-  so the door's own `ticksSinceOpen` survives it; it is issued while paused, immediately before every
-  shot, and every frame is then photographed under an identical sky.
-- **Everything else in the scene is sampled at a random phase too.** The torch flame is on its own
-  cycle and lands wherever each pass leaves it, so it flickers rather than animating smoothly. On a
-  torch that reads as a torch. On anything whose motion the clip was *about*, it would not.
+**What this replaced, and why it matters.** An earlier cut *sampled* the animation instead — stop the
+door at a known phase with cheap `Wait` frames, freeze, shoot, repeat, one pass per frame. That
+produces perfectly even frames **of the door** and is wrong about everything else, because a scene is
+not only the thing being filmed. Every other animation gets sampled at whatever phase its own pass
+happened to end on, so the torch flame strobed between unrelated frames instead of flickering. It
+looked broken in a way no measurement of the door would ever show. A continuous take cannot have that
+problem, because there is only one take.
 
 **The door is granite, not wood.** Stone's `DoorOpenSpeed` stuff factor is 0.45, so the slide is
-`45 / 0.45` = 100 ticks against wood's 45 — twice as many phases to sample at the same spacing. It is
+`45 / 0.45` = 100 ticks against wood's 45 — twice as many frames to film at the same scale. It is
 also the slowest a plain vanilla door gets: the stat floors at 0.2, no Core stuff goes below stone,
 and `unpoweredDoorOpenSpeedFactor` defaults to 1 on a door with no power comp.
 
-## Two things outside the harness's rollback ledger
+**`Time.timeScale` is process-global Unity state.** No save reload restores it and the harness's
+`WorldStateReset` has never heard of it, so the scenario sets it back to 1 itself as its last act
+before the reference stills. A scenario that leaves it at 0.05 hands the next one a game running
+twenty times slow.
 
-**Reset the persisted mod settings.** `run_test.sh` does not claim
-`Config/Mod_CelestialLighting_CelestialLightingSettingsMod.xml`, so the run measures whatever preset
-was last selected in-game. This box was on Realistic; the clip has to be shot on the shipped
-Cinematic default or it is an advertisement for a configuration. Back the file up, drop in a
-shipped-default copy, shoot, restore.
+## How fast to play it
+
+**Playback speed is set in two places** — how many source frames are dropped, and the encoder's rate
+— and they have to agree. The take is slow motion, so the source is far finer than any GIF can play:
+at 0.565 ticks per frame, real time would be 106 fps.
+
+Keeping every Nth frame makes each output frame worth `0.565 x N` ticks, i.e. `9.42 x N` ms of game
+time, and the delay should match. GIF delays are integer centiseconds:
+
+| every | ticks/frame | game ms | fps | delay | frames | clip | vs game speed |
+|---|---|---|---|---|---|---|---|
+| 2 | 1.13 | 18.8 | 50 | 2 cs | 260 | 5.2 s | 0.94x |
+| **3** | **1.70** | **28.3** | **33.3** | **3 cs** | **174** | **5.2 s** | **0.94x** |
+| 4 | 2.26 | 37.7 | 25 | 4 cs | 130 | 5.2 s | 0.94x |
+| 6 | 3.39 | 56.5 | 16.7 | 6 cs | 87 | 5.2 s | 0.94x |
+
+**The clip ships at every-3rd / 33.3 fps.** The 6% shortfall is the centisecond rounding and is not
+perceptible; the clip runs 5.2 s against 4.9 s of game time either way. Every row is the same speed
+and the same duration — N only trades smoothness against frame count, and 3 puts **59 frames across
+the door's slide**, which is smooth without spending frames nobody sees.
+
+To play it genuinely slowly, raise the delay *without* changing N (`make_gif.sh <dir> <out> 8 256`
+gives 0.23x). That was tried as the shipped asset and reads as a stuck animation rather than a slow
+one — the swing is under two seconds in a running colony, and stretching it advertises something
+nobody will ever watch.
+
+File size is nearly flat across the table: fewer, more-different frames compress about as well as
+more, more-similar ones.
+
+## Three things outside the harness's rollback ledger
+
+**Pin the preset in the scenario, don't just reset the file.** `realistic_preset` is registered
+`defaultEnabled: false`, so `FeatureRegistry.ResetAll` *should* leave Cinematic standing — and it
+does not reliably. Two runs of this scenario differing only in phase lengths came back one Cinematic
+(yard L\* 8.15) and one Realistic (2.81), which is the difference between a night floor that keeps
+the yard readable and a yard that is genuinely black. The beam looks *far* more dramatic against
+black, which is exactly why it must not be left to chance. The scenario now states
+`SetFeature realistic_preset enabled=false` as its first step, as `snow_glare.json` does.
+
+**Reset the persisted mod settings too.** `run_test.sh` does not claim
+`Config/Mod_CelestialLighting_CelestialLightingSettingsMod.xml`, so whatever preset was last selected
+in-game is where the run starts. Back the file up, drop in a shipped-default copy, shoot, restore.
 
 **Turn autosave off in `Prefs.xml`** (`autosaveIntervalDays`, 1 → 15). `Autosaver.ticksSinceSave` is
 scribed into the fixture save, so the autosave fires at the *same point every run* rather than
 randomly — it is not a flake you can re-roll. It draws an "Autosaving..." box across the middle of the
-frame which screenshot mode does not hide, and here it landed on frame 11, mid-slide, where a frame
-cannot be dropped without a visible jump. `Prefs.xml` *is* in the ledger, so the harness restores
-whatever it finds; edit it before the run and put it back afterwards.
-
-## How fast to play it
-
-**This is a free parameter.** Because every frame is a separate frozen pass rather than a moment of
-one continuous take, the frame rate carries no information — re-encode at any speed without
-re-shooting. Only the *spacing* (`PHASE_STEP` in the generator) needs a new run.
-
-Consecutive frames are exactly `PHASE_STEP` ticks apart — 4 — so each one is **66.7 ms of game
-time**, and the speed relative to real play is `66.7 ms / frame duration`. (Divide the slide's 100
-ticks by its 26 frames and you get 3.85, which is wrong by one: 26 frames have 25 intervals. The
-spacing is the step, not the span over the count.)
-
-| fps | delay | clip | door opens over | vs game speed |
-|---|---|---|---|---|
-| 4 | 25 cs | 14.5 s | 6.5 s | 0.27x |
-| 6.25 | 16 cs | 9.3 s | 4.2 s | 0.42x |
-| 10 | 10 cs | 5.8 s | 2.6 s | 0.67x |
-| 12.5 | 8 cs | 4.6 s | 2.1 s | 0.83x |
-| **15** | **6.7 cs** | **3.9 s** | **1.7 s** | **1.00x** |
-
-**The clip ships at 15 fps, which is real time.** 66.7 ms per frame is exactly four ticks, so the
-door opens on screen in the 1.7 s it takes in a running colony. That is the honest rate for a listing
-image: a slowed-down clip advertises an animation nobody will see at that speed.
-
-Slower cuts were tried and are what the rest of this table is for. They are worth having — a
-frame-by-frame read of the beam growing is easier at 4 fps — but as the shipped asset, quarter speed
-reads as a stuck animation rather than a slow one.
-
-15 fps is also the one rate here whose delay is *not* a whole number of centiseconds, and ffmpeg
-handles it by alternating 7, 6, 7, 7, 6 to average 66.7 ms. That is fine and imperceptible. What is
-not fine is a rate that silently rounds in one direction — 8 fps wants 12.5 cs, gets 13, and plays at
-7.7. Stick to this table.
-
-File size is identical at every rate: the frames are the same bytes and only the delays differ.
+frame which screenshot mode does not hide, and it landed mid-slide, where a frame cannot be dropped
+without a visible jump. `Prefs.xml` *is* in the ledger, so the harness restores whatever it finds;
+edit it before the run and put it back afterwards.
 
 ## The hour is measured
 
-Even a mostly-paused clip runs the clock, and ambient drift is what breaks a loop's wrap: an early
-cut, captured in real time at hour 0, drifted **dE 2.17** across its frames, with the far sky — nowhere
+Even a slow-motion clip runs the clock, and ambient drift is what breaks a loop's wrap: an early cut,
+captured in real time at hour 0, drifted **dE 2.17** across its frames, with the far sky — nowhere
 near the door — brightening by as much as the lit yard. All of it lands in the wrap, where the last
 frame cuts back to a first frame two L\* darker. `vector_light_door_film_survey.json` holds the scene
 unpaused for the film's own span at six candidate hours:
@@ -144,8 +140,8 @@ unpaused for the film's own span at six candidate hours:
 | whole-frame dE | 1.55 | 3.46 | **0.00** | 0.93 | 0.86 | 3.24 |
 
 Hour 22 is a genuine plateau — far sky L\* 8.40 at both ends — and is as dark as midnight, so it costs
-nothing in contrast. The shipped clip's first frame against its last is dE **0.00** over 99.99% of the
-frame; the 0.01% that differs is the torch flame, which is not something a loop can or should hold
+nothing in contrast. The shipped clip's first frame against its last is dE **0.00** over 99.95% of the
+frame; the 0.05% that differs is the torch flame, which is not something a loop can or should hold
 still.
 
 Note what none of this was visible to: the scenario's `door_aperture` probes read 0 at both ends in
@@ -164,7 +160,7 @@ three doorways in one frame with torches three, two and one cell inside:
 | yard L\*, 3 cells out | 10.26 | 12.84 | **14.96** | — |
 
 One cell is roughly double the lift of three, and the shipped clip uses it: masked median dE **2.10**,
-p90 **7.77**, peak **12.25**, over **10.3%** of the frame, with the yard going L\* 8.39 → 16.74. It
+p90 **7.77**, peak **12.25**, over **10.3%** of the frame, with the yard going L\* 8.15 → 15.22. It
 moves two things at once, which is why it wanted photographing rather than deriving — the emitter is
 brighter at the aperture *and* the aperture subtends a far wider angle from it, so the fan goes from a
 narrow shaft to most of a half-disc. Brighter but blobbier; no number decides that.
@@ -180,10 +176,10 @@ still. Left out.
 
 ## Sizes
 
-960x540, 58 frames, 15 fps (real time), 256 colours: **780 KB**, inside Steam's 2 MB per-description-image cap.
+960x540, 174 frames, 33.3 fps, 256 colours: **700 KB**, inside Steam's 2 MB per-description-image cap.
 
 The static stretches are byte-identical because the sky is pinned, which is where the headroom comes
-from — an early cut that drifted came out at 1.7 MB for *more* frames at a quarter of the colours,
+from — an early cut that drifted came out at 1.7 MB for *fewer* frames at a quarter of the colours,
 because drift changes every pixel in every frame and defeats inter-frame compression outright. **So if
 a re-shoot comes back unexpectedly large, check the seam before reaching for the colour count.**
 

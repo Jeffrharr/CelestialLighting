@@ -79,6 +79,13 @@
     {
       "type": "SetFeature",
       "args": {
+        "featureName": "realistic_preset",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
         "featureName": "vector_lights",
         "enabled": "true"
       }
@@ -155,18 +162,6 @@
     {
       "type": "SetTimeSpeed",
       "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_warmup_discard.png"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
         "speed": "normal"
       }
     },
@@ -181,3232 +176,6 @@
       "type": "Wait",
       "args": {
         "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0001.png"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "4"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0002.png"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "8"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0003.png"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "12"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0004.png"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "16"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0005.png"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "20"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0006.png"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "24"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0007.png"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "28"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0008.png"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "32"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0009.png"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "36"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0010.png"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "40"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0011.png"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "44"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0012.png"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "48"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0013.png"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "52"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0014.png"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "56"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0015.png"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "60"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0016.png"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "64"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0017.png"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "68"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0018.png"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "72"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0019.png"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "76"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0020.png"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "80"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0021.png"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "84"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0022.png"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "88"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0023.png"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "92"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0024.png"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "96"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0025.png"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "100"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0026.png"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "104"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0027.png"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "108"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0028.png"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "112"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0029.png"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "door_aperture",
-        "expectedValue": "1",
-        "tolerance": "0"
-      },
-      "description": "The opening sweep ended on a FULLY open door. If the last phases fell short the clip would read as a door that jams part way, and every frame in the sweep would still be a valid render of a real state -- so nothing else here could tell."
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0030.png"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "4"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0031.png"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "8"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0032.png"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "12"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0033.png"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "16"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0034.png"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "20"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0035.png"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "24"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0036.png"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "28"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0037.png"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "32"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0038.png"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "36"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0039.png"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "40"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0040.png"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "44"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0041.png"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "48"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0042.png"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "52"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0043.png"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "56"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0044.png"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "60"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0045.png"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "64"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0046.png"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "68"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0047.png"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "72"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0048.png"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "76"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0049.png"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "80"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0050.png"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "84"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0051.png"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "88"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0052.png"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "92"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0053.png"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "96"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0054.png"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "100"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0055.png"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "104"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0056.png"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "108"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0057.png"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "normal"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "160"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "112"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "SetTime",
-      "args": {
-        "hour": "22"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "2"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "doorfilm_0058.png"
       }
     },
     {
@@ -3416,7 +185,3177 @@
         "expectedValue": "0",
         "tolerance": "0"
       },
-      "description": "And the closing sweep ended shut, which is what makes the loop wrap: the last frame and the first are the same state."
+      "description": "Shut before the film starts. At tolerance 0 -- a door already part open makes the loop's first and last frames disagree, which is the one defect a looping clip cannot hide."
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_settled_discard.png"
+      }
+    },
+    {
+      "type": "SetTimeScale",
+      "args": {
+        "scale": "0.05"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0001.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0002.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0003.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0004.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0005.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0006.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0007.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0008.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0009.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0010.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0011.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0012.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0013.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0014.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0015.png"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "true"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0016.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0017.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0018.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0019.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0020.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0021.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0022.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0023.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0024.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0025.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0026.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0027.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0028.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0029.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0030.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0031.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0032.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0033.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0034.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0035.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0036.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0037.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0038.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0039.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0040.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0041.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0042.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0043.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0044.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0045.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0046.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0047.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0048.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0049.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0050.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0051.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0052.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0053.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0054.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0055.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0056.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0057.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0058.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0059.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0060.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0061.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0062.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0063.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0064.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0065.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0066.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0067.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0068.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0069.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0070.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0071.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0072.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0073.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0074.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0075.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0076.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0077.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0078.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0079.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0080.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0081.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0082.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0083.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0084.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0085.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0086.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0087.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0088.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0089.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0090.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0091.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0092.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0093.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0094.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0095.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0096.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0097.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0098.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0099.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0100.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0101.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0102.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0103.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0104.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0105.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0106.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0107.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0108.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0109.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0110.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0111.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0112.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0113.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0114.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0115.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0116.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0117.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0118.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0119.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0120.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0121.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0122.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0123.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0124.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0125.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0126.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0127.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0128.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0129.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0130.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0131.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0132.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0133.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0134.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0135.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0136.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0137.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0138.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0139.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0140.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0141.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0142.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0143.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0144.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0145.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0146.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0147.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0148.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0149.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0150.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0151.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0152.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0153.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0154.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0155.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0156.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0157.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0158.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0159.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0160.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0161.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0162.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0163.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0164.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0165.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0166.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0167.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0168.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0169.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0170.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0171.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0172.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0173.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0174.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0175.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0176.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0177.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0178.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0179.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0180.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0181.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0182.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0183.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0184.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0185.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0186.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0187.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0188.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0189.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0190.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0191.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0192.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0193.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0194.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0195.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0196.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0197.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0198.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0199.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0200.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0201.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0202.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0203.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0204.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0205.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0206.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0207.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0208.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0209.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0210.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0211.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0212.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0213.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0214.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0215.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0216.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0217.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0218.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0219.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0220.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0221.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0222.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0223.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0224.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0225.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0226.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0227.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0228.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0229.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0230.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0231.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0232.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0233.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0234.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0235.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0236.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0237.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0238.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0239.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0240.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0241.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0242.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0243.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0244.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0245.png"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "door_aperture",
+        "expectedValue": "1",
+        "tolerance": "0"
+      },
+      "description": "Fully open before the hold begins. If OPENING is too short for the slide the clip cuts to the close part way through the animation, which looks like a door that jams and passes every other check in this file."
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0246.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0247.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0248.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0249.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0250.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0251.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0252.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0253.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0254.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0255.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0256.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0257.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0258.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0259.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0260.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0261.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0262.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0263.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0264.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0265.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0266.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0267.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0268.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0269.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0270.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0271.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0272.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0273.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0274.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0275.png"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "false"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0276.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0277.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0278.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0279.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0280.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0281.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0282.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0283.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0284.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0285.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0286.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0287.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0288.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0289.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0290.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0291.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0292.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0293.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0294.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0295.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0296.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0297.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0298.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0299.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0300.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0301.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0302.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0303.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0304.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0305.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0306.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0307.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0308.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0309.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0310.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0311.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0312.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0313.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0314.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0315.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0316.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0317.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0318.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0319.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0320.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0321.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0322.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0323.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0324.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0325.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0326.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0327.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0328.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0329.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0330.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0331.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0332.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0333.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0334.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0335.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0336.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0337.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0338.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0339.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0340.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0341.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0342.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0343.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0344.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0345.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0346.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0347.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0348.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0349.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0350.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0351.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0352.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0353.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0354.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0355.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0356.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0357.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0358.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0359.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0360.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0361.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0362.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0363.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0364.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0365.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0366.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0367.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0368.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0369.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0370.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0371.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0372.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0373.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0374.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0375.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0376.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0377.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0378.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0379.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0380.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0381.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0382.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0383.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0384.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0385.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0386.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0387.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0388.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0389.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0390.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0391.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0392.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0393.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0394.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0395.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0396.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0397.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0398.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0399.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0400.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0401.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0402.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0403.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0404.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0405.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0406.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0407.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0408.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0409.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0410.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0411.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0412.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0413.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0414.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0415.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0416.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0417.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0418.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0419.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0420.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0421.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0422.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0423.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0424.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0425.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0426.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0427.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0428.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0429.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0430.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0431.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0432.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0433.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0434.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0435.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0436.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0437.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0438.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0439.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0440.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0441.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0442.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0443.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0444.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0445.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0446.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0447.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0448.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0449.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0450.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0451.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0452.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0453.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0454.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0455.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0456.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0457.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0458.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0459.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0460.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0461.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0462.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0463.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0464.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0465.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0466.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0467.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0468.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0469.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0470.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0471.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0472.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0473.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0474.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0475.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0476.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0477.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0478.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0479.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0480.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0481.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0482.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0483.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0484.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0485.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0486.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0487.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0488.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0489.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0490.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0491.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0492.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0493.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0494.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0495.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0496.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0497.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0498.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0499.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0500.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0501.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0502.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0503.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0504.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0505.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0506.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0507.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0508.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0509.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0510.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0511.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0512.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0513.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0514.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0515.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0516.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0517.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0518.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0519.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_0520.png"
+      }
+    },
+    {
+      "type": "SetTimeScale",
+      "args": {
+        "scale": "1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "door_aperture",
+        "expectedValue": "0",
+        "tolerance": "0"
+      },
+      "description": "And shut again by the last frame. Together with the pin above this is what makes the clip loop: the last frame and the first are the same state, so the wrap is a cut and not a jump."
     },
     {
       "type": "SetTimeSpeed",
