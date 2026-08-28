@@ -51,6 +51,14 @@ public static class VectorLightOverlay
     // render queue; one blend factor apart.
     private static readonly Dictionary<int, Material> LiftMaterialsByRadius = new Dictionary<int, Material>();
 
+    // The indoor multiply layer's materials. Identical to the surface lift's in every respect except
+    // the render queue, which is one above MoteGlow's so the layer lands on top of the additive pass
+    // it is layered over. A fourth cache rather than a renderQueue write on the third, because the
+    // third is live at the same time on the surface-lift arm and materials are shared per radius:
+    // moving its queue to suit this feature would change what the OTHER flag draws.
+    private static readonly Dictionary<int, Material> IndoorMultiplyMaterialsByRadius =
+        new Dictionary<int, Material>();
+
     // Vanilla's delivered glow per vertex, in UV1. Vector4 rather than Vector3 because Unity's mesh
     // API takes UV channels as float4 and a float3 overload would silently pad anyway.
     private static readonly List<Vector4> VanillaUvs = new List<Vector4>();
@@ -168,15 +176,7 @@ public static class VectorLightOverlay
 
         if (maxDrawing)
         {
-            // ZERO UNDER THE APERTURE BEAM, and that is the whole of its draw-side half. The mask
-            // has just taken this emitter's vanilla light off the frame entirely, so there is
-            // nothing left to subtract and the fan has to deliver the model rather than the
-            // difference. Subtracting a field the mask has already removed would darken the beam by
-            // exactly the light it is replacing.
-            bool replacing = VectorLightMask.Replacing;
-
-            VectorLightShader.SetVanillaWeight(
-                entry.Props, maxComposing && composed && !replacing ? 1f : 0f);
+            VectorLightShader.SetVanillaWeight(entry.Props, VanillaWeightFor(maxComposing, composed));
             VectorLightShader.SetVanillaTexture(entry.Props, entry.VanillaField);
 
             // Set on every max draw and not only on the lift ones, because the property block is
@@ -190,8 +190,89 @@ public static class VectorLightOverlay
 
         Graphics.DrawMesh(
             entry.Mesh, Vector3.zero, Quaternion.identity,
-            MaterialFor(entry.Radius, maxDrawing, surfaceLift),
+            MaterialFor(entry.Radius, PrimaryComposition(maxDrawing, surfaceLift)),
             0, null, 0, entry.Props);
+
+        DrawIndoorMultiply(map, entry, skyGlow, maxComposing, composed);
+    }
+
+    // How much of vanilla's own delivered glow the fragment program subtracts before it draws:
+    // all of it, or none.
+    //
+    // ZERO UNDER THE APERTURE BEAM, and that is the whole of its draw-side half. The mask has just
+    // taken this emitter's vanilla light off the frame entirely, so there is nothing left to
+    // subtract and the fan has to deliver the model rather than the difference. Subtracting a field
+    // the mask has already removed would darken the beam by exactly the light it is replacing.
+    //
+    // ASKED BY BOTH PASSES, which is why it is a function and not a local. The indoor multiply layer
+    // has to subtract exactly what the pass beneath it subtracted — the two are one composition
+    // drawn twice, and a layer that disagreed with its own base about how much vanilla is already on
+    // the frame would double-count light nobody put there.
+    private static float VanillaWeightFor(bool maxComposing, bool composed)
+    {
+        return maxComposing && composed && !VectorLightMask.Replacing ? 1f : 0f;
+    }
+
+    // The indoor multiply layer: this same fan drawn a second time through the surface lift's blend,
+    // one queue above the additive pass it was just drawn into. Off by default; see
+    // CelestialLightingFeatures.VectorLightIndoorMultiply for what it is for and why it ships off.
+    //
+    // NOTHING HERE TOUCHES THE PRIMARY DRAW. That is the point of it being a whole separate method
+    // called after DrawMesh rather than a branch inside the material choice: with the flag off, this
+    // returns on its first line and the frame is the shipped one byte for byte, which is what makes
+    // the A/B a baseline rather than a picture of the feature being absent.
+    private static void DrawIndoorMultiply(
+        Map map, VectorLightField.LightEntry entry, float skyGlow, bool maxComposing, bool composed)
+    {
+        if (!VectorLightShader.IndoorMultiplyActive)
+            return;
+
+        // STANDS DOWN WITHOUT A VANILLA FIELD, unlike the additive pass, which simply falls back to
+        // delivering the whole model. A multiply that does not know what vanilla already put on the
+        // frame divides by an ambient that is missing a term, so it asks for the biggest lift in
+        // exactly the cells that needed the smallest one. Epic #145 rejected summing two complete
+        // models; standing down is the version of that refusal this layer can make.
+        if (!composed)
+            return;
+
+        // THE ROOF TEST IS StrengthFor'S, at StrengthFor's cell. Asking the roof grid about the
+        // EMITTER rather than about each cell the fan covers keeps one emitter's two passes on the
+        // same side of the rule even where its beam crosses a doorway — a fan whose base pass ran
+        // and whose layer did not would be a beam with a seam down it. It is also the cheap answer:
+        // one grid read per emitter per frame, not one per cell.
+        if (!map.roofGrid.Roofed(entry.Cell))
+            return;
+
+        // The lift's own strength, not the additive pass's: under DstColor/One the program's output
+        // is a RATIO the shader works out for itself, so the scalar is the daylight curve alone. See
+        // StrengthFor's surfaceLift arm.
+        float strength = StrengthFor(map, entry, skyGlow, maxComposing, surfaceLift: true);
+
+        if (strength <= 0f)
+            return;
+
+        entry.MultiplyProps ??= new MaterialPropertyBlock();
+
+        // Every property the primary pass set, set again on this block. Not because any of them
+        // differ except the ambient, but because a MaterialPropertyBlock overrides only what it
+        // carries: a half-filled block would let the multiply pass read the MATERIAL's defaults for
+        // the rest, which is a different, silently plausible composition. The mesh's own UV1 needs
+        // nothing here — the field coordinates are vertex data, shared by both draws of one fan.
+        Color color = entry.Color;
+        entry.MultiplyProps.SetColor(
+            ShaderPropertyIDs.Color, new Color(color.r, color.g, color.b, strength));
+        VectorLightShader.SetVanillaWeight(
+            entry.MultiplyProps, VanillaWeightFor(maxComposing, composed));
+        VectorLightShader.SetVanillaTexture(entry.MultiplyProps, entry.VanillaField);
+
+        // Roofed is passed as true rather than re-read, because we returned above if it was not.
+        VectorLightShader.SetSkyAmbient(
+            entry.MultiplyProps, VectorLightMath.SurfaceAmbient(skyGlow, roofed: true));
+
+        Graphics.DrawMesh(
+            entry.Mesh, Vector3.zero, Quaternion.identity,
+            MaterialFor(entry.Radius, Composition.IndoorMultiply),
+            0, null, 0, entry.MultiplyProps);
     }
 
     // How brightly this light competes with the sky above it.
@@ -415,10 +496,43 @@ public static class VectorLightOverlay
         return total;
     }
 
-    private static Material MaterialFor(float radius, bool max, bool surfaceLift)
+    // Which of the four compositions a draw is. Named rather than carried as a pair of bools,
+    // because "max?" and "surface lift?" stopped spanning the space the moment a fourth cache
+    // arrived: (max: false, surfaceLift: true) has never meant anything, and a third bool would add
+    // four more combinations of which one is real. One value, four cases, no unreachable states.
+    private enum Composition
+    {
+        // MoteGlow, no subtraction. What a machine without the shader draws.
+        Additive,
+
+        // Our program, Blend One One: max(0, ours - vanilla) added to the frame. The shipped path.
+        Max,
+
+        // Our program, Blend DstColor One: the same excess scaling the surface instead of adding to
+        // it. Replaces the additive pass.
+        SurfaceLift,
+
+        // The surface lift again, one queue higher, drawn as a SECOND pass on top of the additive
+        // one rather than instead of it. See CelestialLightingFeatures.VectorLightIndoorMultiply.
+        IndoorMultiply,
+    }
+
+    // The primary pass's composition, from the two answers DrawLight has already worked out. Kept as
+    // a translation rather than pushed up into DrawLight so the shipped decision procedure — which
+    // material, chosen from "asked for AND possible" and "lift or not" — is untouched by this
+    // feature existing.
+    private static Composition PrimaryComposition(bool max, bool surfaceLift)
+    {
+        if (!max)
+            return Composition.Additive;
+
+        return surfaceLift ? Composition.SurfaceLift : Composition.Max;
+    }
+
+    private static Material MaterialFor(float radius, Composition composition)
     {
         int key = Mathf.RoundToInt(radius * 4f);
-        Dictionary<int, Material> cache = CacheFor(max, surfaceLift);
+        Dictionary<int, Material> cache = CacheFor(composition);
 
         if (!cache.TryGetValue(key, out Material material))
         {
@@ -430,9 +544,11 @@ public static class VectorLightOverlay
             // supposed to have removed — measured at +2.04 L* across a room vanilla had already lit
             // correctly. The stock additive pass is not subtracting vanilla from anything and keeps
             // the unseeded curve, which is why the two caches hold different textures for one radius.
+            bool max = composition != Composition.Additive;
             Texture2D gradient = GradientFor(key, max);
             material = max
-                ? VectorLightShader.NewMaterial(gradient, surfaceLift)
+                ? VectorLightShader.NewMaterial(
+                    gradient, MultiplyBlend(composition), QueueOffset(composition))
                 : new Material(ShaderDatabase.MoteGlow) { mainTexture = gradient };
             cache[key] = material;
         }
@@ -440,15 +556,36 @@ public static class VectorLightOverlay
         return material;
     }
 
-    // Which of the three material caches this draw belongs in. Named rather than nested in
-    // MaterialFor's lookup because "which program, and which blend" is two questions and reading
-    // them as one conditional expression is what makes a third composition easy to mis-key.
-    private static Dictionary<int, Material> CacheFor(bool max, bool surfaceLift)
+    // Which of the four material caches this draw belongs in. Named rather than nested in
+    // MaterialFor's lookup because "which program, which blend, which queue" is three questions and
+    // reading them as one conditional expression is what makes a fifth composition easy to mis-key.
+    private static Dictionary<int, Material> CacheFor(Composition composition)
     {
-        if (!max)
+        if (composition == Composition.Additive)
             return MaterialsByRadius;
 
-        return surfaceLift ? LiftMaterialsByRadius : MaxMaterialsByRadius;
+        if (composition == Composition.SurfaceLift)
+            return LiftMaterialsByRadius;
+
+        if (composition == Composition.IndoorMultiply)
+            return IndoorMultiplyMaterialsByRadius;
+
+        return MaxMaterialsByRadius;
+    }
+
+    // Whether this composition brightens what is already in the frame (DstColor/One) rather than
+    // adding to it (One/One). Both lift compositions do; they differ only in where they land.
+    private static bool MultiplyBlend(Composition composition)
+    {
+        return composition == Composition.SurfaceLift || composition == Composition.IndoorMultiply;
+    }
+
+    // How far above MoteGlow's own queue this composition draws. One, and only for the layer whose
+    // whole point is being on top of the additive pass — see VectorLightShader.NewMaterial for why
+    // that cannot be left to submission order.
+    private static int QueueOffset(Composition composition)
+    {
+        return composition == Composition.IndoorMultiply ? 1 : 0;
     }
 
     // One gradient per radius, shared by both material caches — the curve does not depend on which

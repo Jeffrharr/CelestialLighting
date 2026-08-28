@@ -11506,6 +11506,85 @@ Two honest costs, both visible in the committed captures:
   until then the amplification is recorded rather than hidden. Indoors at noon the lift correctly goes
   the *other* way, landing **1.12 L\*** below the shader max, because a brighter floor needs less lift.
 
+#### Layering the lift over the beam instead of replacing it (`VectorLightMath.IndoorMultiplyFrame`, `vector_light_indoor_multiply`)
+
+The surface lift above is an *alternative* delivery of `max(0, ours - vanilla)`: the same excess, paid
+as a scaling of the surface rather than as light beside it. Because it replaces the additive pass, a
+player picking it trades the additive pass's level for the lift's texture. This option stops making
+them choose — the fan is drawn **twice**, once each way — and the honest way to introduce it is that
+**it is a taste option and not a correction**.
+
+**It is deliberately not self-limiting, and that is the whole difference.** Every other composition in
+vector lighting delivers the excess exactly once, so a cell vanilla has already lit to our model's own
+value gets nothing and there is no level to pick. Here both passes carry that same excess, so a lit
+region is lifted twice. Epic #145 rejected summing two complete lighting models because nothing capped
+the result; this sums **one** model's excess with itself, under a hardware ceiling, behind an
+off-by-default switch — `Blend DstColor One` against a UNORM target can at most **double** what the
+additive pass left, whatever the model asks for. That bound is the reason double delivery is tolerable
+here at all.
+
+**What the second pass buys, since "twice as bright" is not a reason.** The additive pass adds a fixed
+amount of light to a pixel whatever that pixel is, so it raises a floor's mean and leaves the floor's
+own texture at unchanged *absolute* contrast — the report the surface lift exists to answer. The
+multiply scales what is there, texture and all. Layered, a lit interior gets the glow **and** keeps its
+stonework.
+
+**Order is not cosmetic.** Multiply-then-add gives `dst × k + a`; add-then-multiply gives
+`dst × k + a × k`. Both are brighter than either pass alone, so a frame drawn the wrong way round still
+looks like the feature working — it is just a different feature, by `a × (k − 1)`. Two
+`Graphics.DrawMesh` calls of one fan at one altitude in one queue are tied on every key Unity sorts
+transparent geometry by, and a tie is resolved by nothing we can rely on, so the layer's material
+carries **MoteGlow's queue + 1** rather than trusting submission order. That is still well below the
+indoor mask's own quads at 3160, so nothing else in the frame moves.
+
+**Off-parity is reached by arithmetic, not only by the flag.** Where vanilla has already delivered our
+model's value both terms vanish together and the expression collapses to the unlit pixel exactly. The
+flag stops the second draw being issued; the maths stops it mattering where it should not.
+
+#### Verification: `vector_light_indoor_multiply.json`
+
+The surface lift's own scene, reused unchanged, because the only honest way to say what *layering*
+buys is to photograph it where the un-layered version was measured: one torch four cells from each of
+two doors, the east into a second roofed room and the west onto open sky, gravel everywhere, every
+cloud flag off and stated. Arms at midnight — vanilla, the shipped additive beam, the layer, the
+surface lift alone, and the shipped arm **repeated** as a same-build control — then the shipped/layered
+pair again at noon.
+
+Mean L\* by region, midnight:
+
+| | vanilla | shipped | **layered** | lift alone | shipped again |
+|---|---|---|---|---|---|
+| the torch's own room | 11.92 | 12.70 | **13.66** | 12.75 | 12.70 |
+| east beam, into the unlit room | 3.26 | 3.75 | **4.87** | 3.76 | 3.75 |
+| west beam, onto open ground | 5.39 | 6.06 | **7.80** | 6.52 | 6.06 |
+
+The control repeats the shipped arm **byte for byte** — 0.00% of the frame touched, in all three
+regions — so the run-to-run floor here is zero and every number above is the change.
+
+Masked median CIELAB ΔE against the shipped beam, over the pixels the layer touches (2.84% of frame):
+**1.62**, p90 13.22, peak 47.32. Per region: room **0.87**, east beam **5.99**, west beam **7.70**.
+For scale, the whole shipped composition measures **1.32** against vanilla in the same frame — the
+layer moves the picture further than everything vector lighting currently ships does, which is the
+double delivery showing up as a number rather than as an argument.
+
+At noon the layer is **smaller**, as it has to be: masked ΔE **1.26**, east beam 3.23 against
+midnight's 5.99. A brighter floor needs less lift, and that prediction was made before the run.
+
+**The outdoor spill is the largest lift in the frame, and it is inherited rather than new.** +1.74 L\*
+west against +1.12 east. The gate is per *emitter* — `StrengthFor` asks the roof grid at the lamp's own
+cell — so a roofed lamp keeps the layer over everything its fan reaches, including the ground beyond
+its door. That is the same amplification recorded against the surface lift above (+1.79 L\* at noon),
+with the same fix outstanding: §7c's `NativeSkyFalloffGrid` already answers "how much sky reaches this
+cell" per cell. The layer roughly doubles an existing overreach rather than introducing one, so it is
+stated in the tooltip a player reads rather than left for them to find.
+
+#### What it ships as
+
+**OFF**, and off is the shipped frame byte for byte: the whole feature is one extra `Graphics.DrawMesh`
+issued after the existing one, so with the flag clear nothing about the primary draw changes. It stands
+down entirely when the surface lift is on (there the primary pass already *is* the multiply, so a second
+one would be a duplicate rather than a layer) and on any machine where the shader could not be loaded.
+
 #### The per-cell max: the replacement decided cell by cell, and why it is inert (`vector_light_bent_path`)
 
 The global replacement above is the right idea applied at the wrong granularity. It buys the aperture

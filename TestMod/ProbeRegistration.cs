@@ -1509,6 +1509,22 @@ public static class ProbeRegistration
             },
             defaultEnabled: false);
 
+        // THREE-ARG, same reason as the lift it layers over: it ships OFF, and the two-arg overload
+        // registers a default of TRUE, so a suite's ResetAll would leave it on for every later §27
+        // scenario in the batch and each of them would measure a composition its own JSON never
+        // asked for.
+        //
+        // NO ForceRebuild, and it is the only §27 flag in this file without one. Every neighbour has
+        // one because it decides what gets BAKED — into a polygon, a section mesh or a memo — so an
+        // arm that flipped it without provoking a rebake would inherit its neighbour's bake. This
+        // flag decides whether a second Graphics.DrawMesh is issued, and that decision is taken
+        // fresh every frame from the flag itself. Adding a rebuild here would cost the arm a
+        // whole-map rebake and could not change what it measures.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightIndoorMultiplyKey,
+            enabled => CelestialLightingFeatures.VectorLightIndoorMultiply = enabled,
+            defaultEnabled: false);
+
         // THREE-ARG, and for the usual reason: this ships OFF while it is measured, and the two-arg
         // overload would turn it on for every later §27 scenario a suite reset touched.
         FeatureRegistry.Register(

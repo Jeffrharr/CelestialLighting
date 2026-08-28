@@ -79,3 +79,10 @@ vector_light_ring.json
 # is one frame wide and the harness's earliest step after a provocation runs a frame later, so the
 # transient is unphotographable. Run it on any change to when a polygon is built or invalidated.
 vector_light_bake_flicker.json
+
+# The layer: the surface lift drawn ON TOP of the additive beam rather than instead of it. It is the
+# one composition here that is deliberately not self-limiting -- both passes carry the same excess --
+# so it is the arm where a change to the excess, the strength scalar or the material's render queue
+# shows up doubled instead of once. Its same-build control is byte-identical, so any non-zero reading
+# in its table is the change under test and not the floor.
+vector_light_indoor_multiply.json

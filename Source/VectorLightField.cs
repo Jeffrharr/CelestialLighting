@@ -37,6 +37,19 @@ public static class VectorLightField
         public Color Color;
         public Mesh Mesh;
         public MaterialPropertyBlock Props;
+
+        // A SECOND block for the indoor multiply layer, because that layer draws this same fan a
+        // second time in the same frame with a different ambient and a different strength on it.
+        // Graphics.DrawMesh is deferred and the block is what the deferred draw reads — that is the
+        // whole reason the colour travels on a block instead of on the shared material — so two draws
+        // sharing one block would resolve to whichever values were written last, handing the additive
+        // pass the multiply's divisor. Whether Unity in fact snapshots the block at call time is not
+        // worth betting a silently wrong composition on.
+        //
+        // Allocated lazily by the draw rather than beside Props, because it stays null for every
+        // emitter on every machine until somebody turns an off-by-default taste option on.
+        public MaterialPropertyBlock MultiplyProps;
+
         public bool GeometryDirty = true;
 
         // How vanilla's own GlowGrid identifies this same emitter — a thing id for a glower, a cell
