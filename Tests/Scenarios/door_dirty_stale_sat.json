@@ -1,7 +1,7 @@
 {
-  "name": "door_dirty_stale_open",
+  "name": "door_dirty_stale_sat",
   "saveFile": "minimal_colony.rws",
-  "description": "door_dirty_stale with the RIGHT ROOM UNROOFED, which is the variant the roofed run asked for. There the pocket behind the stub read 0.00 mean channel in all three arms \u2014 not because vanilla's flood failed to reach it, but because it did and the mask then subtracted that emitter's whole contribution, coverage in the pocket being zero. That is the subsystem working as designed, and it makes the staleness self-cancelling: the only cells whose vanilla glow moves without our coverage moving are the wrap-around cells, and the mask blacks those out either way.\n\nUnroofed, the right room is an outdoor room, so the night sky floor arrives through the overlay's alpha and the pocket is not sitting at zero. The question is whether a stale artificial term is then visible against it. Everything else \u2014 scene, arms, flags, ordering \u2014 is identical to the roofed file, so the roof is the only variable.\n\nRead it the same way: 'full' against 'full_b' is the floor and 'full' against 'suppressed' has to be compared to that floor rather than to zero, because all three arms advance the clock and are captured at different points in it.",
+  "description": "door_dirty_stale with a SECOND TORCH in the right room, to provoke the one path the first two variants leave untested.\n\nThose two established that the suppression is safe for the reason the coverage delta claims: a cell whose vanilla glow moves without our coverage moving is a wrap-around cell, and the mask blacks those out either way, so stale and fresh render the same. The saturation correction breaks that argument. It reconstructs vanilla's fold over ALL lights reaching a section and rewrites the shadow in that space \u2014 so a cell pushed over vanilla's 255 ceiling by the door opening changes the mask's output for an emitter whose OWN coverage never moved. That is a section nobody flags, holding a value that is now wrong, and it is the last way this flag can be wrong quietly.\n\nTwo torches of the same hue, one either side of the door, close enough that the cells between them carry both. vector_light_mask_saturated_samples is the provocation witness and must be read FIRST: if it is 0 no cell crossed the ceiling, the correction never ran, and the arm has verified nothing \u2014 which is exactly the trap the first variant fell into by measuring an unlit pocket and calling it clean.\n\nRead the frames by BETWEENNESS, not by dE against the control. The three arms sit at three successive points on one advancing clock, so full \u2192 full_b spans two steps where full \u2192 suppressed spans one: the control is the larger difference and an excess metric is biased before it starts. A pixel with no flag effect lands between its two neighbours; a stale one holds a pre-swing value and departs from the trend.",
   "steps": [
     {
       "type": "SetTile",
@@ -60,16 +60,16 @@
         "def": "TorchLamp",
         "offset": "0,45",
         "layout": "cells",
-        "cells": "-2,0"
+        "cells": "-2,0; 3,0"
       }
     },
     {
       "type": "SetRoof",
       "args": {
         "def": "RoofConstructed",
-        "width": "11",
+        "width": "23",
         "height": "19",
-        "offset": "-6,45"
+        "offset": "0,45"
       }
     },
     {
@@ -133,7 +133,7 @@
     {
       "type": "Screenshot",
       "args": {
-        "fileName": "door_dirty_stale_open_warmup_discard"
+        "fileName": "door_dirty_stale_sat_warmup_discard"
       }
     },
     {
@@ -328,7 +328,7 @@
     {
       "type": "Screenshot",
       "args": {
-        "fileName": "door_dirty_stale_open_full",
+        "fileName": "door_dirty_stale_sat_full",
         "hideUi": "true"
       }
     },
@@ -366,7 +366,7 @@
     {
       "type": "Screenshot",
       "args": {
-        "fileName": "door_dirty_stale_open_full_shut",
+        "fileName": "door_dirty_stale_sat_full_shut",
         "hideUi": "true"
       }
     },
@@ -618,7 +618,7 @@
     {
       "type": "Screenshot",
       "args": {
-        "fileName": "door_dirty_stale_open_suppressed",
+        "fileName": "door_dirty_stale_sat_suppressed",
         "hideUi": "true"
       }
     },
@@ -656,7 +656,7 @@
     {
       "type": "Screenshot",
       "args": {
-        "fileName": "door_dirty_stale_open_suppressed_shut",
+        "fileName": "door_dirty_stale_sat_suppressed_shut",
         "hideUi": "true"
       }
     },
@@ -908,7 +908,7 @@
     {
       "type": "Screenshot",
       "args": {
-        "fileName": "door_dirty_stale_open_full_b",
+        "fileName": "door_dirty_stale_sat_full_b",
         "hideUi": "true"
       }
     },
@@ -946,7 +946,7 @@
     {
       "type": "Screenshot",
       "args": {
-        "fileName": "door_dirty_stale_open_full_b_shut",
+        "fileName": "door_dirty_stale_sat_full_b_shut",
         "hideUi": "true"
       }
     },

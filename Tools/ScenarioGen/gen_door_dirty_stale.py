@@ -52,6 +52,12 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SCEN = os.path.abspath(os.path.join(HERE, "..", "..", "Tests", "Scenarios"))
 TARGET = os.path.join(SCEN, "door_dirty_stale.json")
 TARGET_OPEN = os.path.join(SCEN, "door_dirty_stale_open.json")
+TARGET_SAT = os.path.join(SCEN, "door_dirty_stale_sat.json")
+
+# The second lamp, for the saturating variant. It stands in the RIGHT room, so the cells between it
+# and the doorway carry its light plus whatever arrives through the door -- which is what pushes the
+# raw sum over vanilla's 255 ceiling and brings the saturation correction into play.
+SECOND_TORCH = (3, 0)
 
 # The plate, as offsets from map centre. Kept small: the defect is a pocket a few cells across and a
 # wide shot would put it under a handful of pixels.
@@ -143,11 +149,23 @@ def feature_steps(suppress):
 
 
 def arm(name, suppress, prefix):
-    """One arm: shut the door, set the flags, open it, settle, photograph.
+    """One arm: shut the door, set the flags, open it and photograph, then close it and photograph.
 
-    THE SHUT COMES FIRST AND IT IS NOT A TIDY-UP. The provocation under test is the TRANSITION from
-    shut to open, so an arm that inherited an already-open door from its predecessor would set its
-    flags, rebuild, and then photograph a map on which nothing had happened since.
+    THE SHUT COMES FIRST AND IT IS NOT A TIDY-UP. The provocation under test is the TRANSITION, so an
+    arm that inherited an already-open door from its predecessor would set its flags, rebuild, and
+    then photograph a map on which nothing had happened since.
+
+    TWO CAPTURES, BECAUSE THE TWO EDGES FAIL DIFFERENTLY. Opening leaves a stale section holding a
+    value from before the light arrived — missing dim light in a dark place, which is hard to see.
+    Closing leaves it holding the value from while the door was open, so a beam can go on shining
+    through a door that is visibly shut. The second is far louder and was not photographed at all
+    until it was noticed by watching a run rather than by reading a table.
+
+    A NOTE ON WHAT A RUN LOOKS LIKE. The seventeen SetFeature steps land on seventeen consecutive
+    frames, and all but one of them call ForceRebuild — so a viewer sees the map rebake repeatedly,
+    with the flags in intermediate combinations, immediately after the door shuts. That is this
+    scenario's own noise and not the mod's; it is bounded to the flag block and is over before any
+    capture. It is called out here because it looks exactly like a defect while you are watching.
     """
     steps = [
         step("SetTimeSpeed", speed="normal"),
@@ -174,13 +192,39 @@ def arm(name, suppress, prefix):
         step("Screenshot", fileName=f"{prefix}_{name}", hideUi="true"),
     ]
 
+    # THE CLOSING EDGE, AND IT IS THE MORE VISIBLE HALF. Everything above photographs the door being
+    # OPENED, where a stale section holds a value from before the light arrived — dim light missing
+    # from a dark place, which is hard to see. Closing is the opposite and much louder: the section
+    # holds the value from while the door was OPEN, so a beam can go on shining through a door the
+    # player can see is shut. If this flag has a visible defect, this is where it is, and until now
+    # no arm photographed it.
+    #
+    # NO FLAG FLIPS BETWEEN THE CLOSE AND THE CAPTURE, for the same reason the open half sets its
+    # flags before the swing: every flag but the one under test calls ForceRebuild, which would heal
+    # the residue this is looking for.
+    steps += [
+        step("SetTimeSpeed", speed="normal"),
+        step("SetDoorOpen", offset=ORIGIN, open="false"),
+        step("Wait", frames=SWING_FRAMES),
+        step("SetTimeSpeed", speed="paused"),
+        step("Wait", frames=SETTLE_FRAMES),
+        step("Screenshot", fileName=f"{prefix}_{name}_shut", hideUi="true"),
+    ]
+
     # RECORDED, NOT PINNED, on this repo's rule against pins nobody has measured. The pair that
     # matters is suppressed_dirty_sections (nonzero only in the arm that declines flags, which is how
     # the arm proves the flag reached the code) beside mask_applies (what actually regenerated).
     for probe in ("vector_light_section_dirties", "vector_light_mask_applies",
                   "vector_light_bakes", "vector_light_mask_skips_dirty",
                   "vector_light_suppressed_dirty_calls",
-                  "vector_light_suppressed_dirty_sections"):
+                  "vector_light_suppressed_dirty_sections",
+                  # THE PROVOCATION WITNESS, and the roofed run is why it is here. That scenario was
+                  # built around a pocket and then measured the pocket at 0.00 in every arm -- a
+                  # clean result on a case that had not actually been provoked. The saturating
+                  # variant must not repeat it: if this reads 0, no cell crossed vanilla's ceiling,
+                  # the correction never ran, and the arm has verified nothing about the path it
+                  # exists to test.
+                  "vector_light_mask_saturated_samples"):
         steps.append(step("Probe", probeName=probe, expectedValue=0, tolerance=1000000000))
 
     return steps
@@ -219,10 +263,15 @@ def roof_step(roofed_right):
         "offset": f"{left_centre},45"})
 
 
-def build(roofed_right=True):
+def build(roofed_right=True, two_lamps=False):
     # Captures are namespaced per variant. Sharing them would silently overwrite the roofed run's
     # frames with the unroofed one's, and the two are meant to be read side by side.
-    prefix = "door_dirty_stale" if roofed_right else "door_dirty_stale_open"
+    prefix = "door_dirty_stale"
+
+    if two_lamps:
+        prefix = "door_dirty_stale_sat"
+    elif not roofed_right:
+        prefix = "door_dirty_stale_open"
 
     steps = [
         step("SetTile", latitude=45),
@@ -239,7 +288,7 @@ def build(roofed_right=True):
             "clear": "true", "cells": cells([DOOR])}),
         step("PlaceThings", **{
             "def": "TorchLamp", "offset": ORIGIN, "layout": "cells",
-            "cells": cells([TORCH])}),
+            "cells": cells([TORCH] + ([SECOND_TORCH] if two_lamps else []))}),
         roof_step(roofed_right),
         step("SetTime", hour=0),
         step("LookAt", offset=ORIGIN, zoom=17),
@@ -302,8 +351,38 @@ def build(roofed_right=True):
 
 
 def main():
-    for target, roofed in ((TARGET, True), (TARGET_OPEN, False)):
-        scenario = build(roofed_right=roofed)
+    for target, roofed, two in ((TARGET, True, False), (TARGET_OPEN, False, False),
+                                (TARGET_SAT, True, True)):
+        scenario = build(roofed_right=roofed, two_lamps=two)
+
+        if two:
+            scenario["name"] = "door_dirty_stale_sat"
+            scenario["description"] = (
+                "door_dirty_stale with a SECOND TORCH in the right room, to provoke the one path the "
+                "first two variants leave untested."
+                "\n\n"
+                "Those two established that the suppression is safe for the reason the coverage "
+                "delta claims: a cell whose vanilla glow moves without our coverage moving is a "
+                "wrap-around cell, and the mask blacks those out either way, so stale and fresh "
+                "render the same. The saturation correction breaks that argument. It reconstructs "
+                "vanilla's fold over ALL lights reaching a section and rewrites the shadow in that "
+                "space — so a cell pushed over vanilla's 255 ceiling by the door opening changes the "
+                "mask's output for an emitter whose OWN coverage never moved. That is a section "
+                "nobody flags, holding a value that is now wrong, and it is the last way this flag "
+                "can be wrong quietly."
+                "\n\n"
+                "Two torches of the same hue, one either side of the door, close enough that the "
+                "cells between them carry both. vector_light_mask_saturated_samples is the "
+                "provocation witness and must be read FIRST: if it is 0 no cell crossed the ceiling, "
+                "the correction never ran, and the arm has verified nothing — which is exactly the "
+                "trap the first variant fell into by measuring an unlit pocket and calling it clean."
+                "\n\n"
+                "Read the frames by BETWEENNESS, not by dE against the control. The three arms sit "
+                "at three successive points on one advancing clock, so full → full_b spans two steps "
+                "where full → suppressed spans one: the control is the larger difference and an "
+                "excess metric is biased before it starts. A pixel with no flag effect lands between "
+                "its two neighbours; a stale one holds a pre-swing value and departs from the trend."
+            )
 
         if not roofed:
             scenario["name"] = "door_dirty_stale_open"

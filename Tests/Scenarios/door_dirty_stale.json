@@ -333,6 +333,44 @@
       }
     },
     {
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "normal"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "90"
+      }
+    },
+    {
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "paused"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "6"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "door_dirty_stale_full_shut",
+        "hideUi": "true"
+      }
+    },
+    {
       "type": "Probe",
       "args": {
         "probeName": "vector_light_section_dirties",
@@ -376,6 +414,14 @@
       "type": "Probe",
       "args": {
         "probeName": "vector_light_suppressed_dirty_sections",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturated_samples",
         "expectedValue": "0",
         "tolerance": "1000000000"
       }
@@ -577,6 +623,44 @@
       }
     },
     {
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "normal"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "90"
+      }
+    },
+    {
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "paused"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "6"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "door_dirty_stale_suppressed_shut",
+        "hideUi": "true"
+      }
+    },
+    {
       "type": "Probe",
       "args": {
         "probeName": "vector_light_section_dirties",
@@ -620,6 +704,14 @@
       "type": "Probe",
       "args": {
         "probeName": "vector_light_suppressed_dirty_sections",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturated_samples",
         "expectedValue": "0",
         "tolerance": "1000000000"
       }
@@ -821,6 +913,44 @@
       }
     },
     {
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "normal"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "90"
+      }
+    },
+    {
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "paused"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "6"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "door_dirty_stale_full_b_shut",
+        "hideUi": "true"
+      }
+    },
+    {
       "type": "Probe",
       "args": {
         "probeName": "vector_light_section_dirties",
@@ -864,6 +994,14 @@
       "type": "Probe",
       "args": {
         "probeName": "vector_light_suppressed_dirty_sections",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturated_samples",
         "expectedValue": "0",
         "tolerance": "1000000000"
       }
