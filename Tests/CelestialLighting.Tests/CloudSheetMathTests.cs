@@ -227,6 +227,55 @@ public class CloudSheetMathTests
         Assert.That(CloudSheetMath.SheetAlphaWithAmplitude(float.NaN, 0.2f, false), Is.EqualTo(0f));
     }
 
+    // The player's cloud-opacity slider. The properties worth holding are the ones the settings
+    // screen's tooltip promises: the top of the range is the shipped look exactly, the bottom is a
+    // true no-op, and everything between is proportional rather than stepped.
+    [Test]
+    public void OpacityScalesAmplitudeProportionally()
+    {
+        float shipped = CloudSheetMath.AmplitudeAtOpacity(
+            CloudSheetMath.PresentSheetAmplitude, CloudSheetMath.DefaultOpacityScale);
+
+        // EQUAL, not approximately equal, and that is the point of the assertion rather than
+        // precision fussiness: an untouched slider has to be bit-identical to the build before the
+        // slider existed, or every measured pin in every cloud scenario silently moves.
+        Assert.That(shipped, Is.EqualTo(CloudSheetMath.PresentSheetAmplitude));
+
+        float half = CloudSheetMath.AmplitudeAtOpacity(CloudSheetMath.PresentSheetAmplitude, 0.5f);
+        Assert.That(half, Is.EqualTo(CloudSheetMath.PresentSheetAmplitude * 0.5f).Within(Tolerance));
+
+        // Zero has to reach the overlay as a zero ALPHA, not merely as a small one: the draw call is
+        // skipped on `alpha <= 0`, which is what makes the bottom of the slider cost nothing.
+        float alpha = CloudSheetMath.SheetAlphaWithAmplitude(
+            0.5f,
+            CloudSheetMath.AmplitudeAtOpacity(CloudSheetMath.PresentSheetAmplitude, 0f),
+            inVacuum: false);
+        Assert.That(alpha, Is.EqualTo(0f));
+    }
+
+    // Out-of-range values arrive from a settings file a player (or another mod) can edit by hand, and
+    // the two ends are deliberately NOT symmetrical. Above 1 clamps, because the amplitude above it
+    // clamps the alpha to an opaque lid over the colony. NaN returns the shipped amplitude rather
+    // than zero, so a corrupt config gives back the normal sky instead of an invisible one.
+    [TestCase(-1f, 0f)]
+    [TestCase(0f, 0f)]
+    [TestCase(1f, CloudSheetMath.PresentSheetAmplitude)]
+    [TestCase(4f, CloudSheetMath.PresentSheetAmplitude)]
+    public void OpacityClampsToTheShippedRange(float scale, float expected)
+    {
+        Assert.That(
+            CloudSheetMath.AmplitudeAtOpacity(CloudSheetMath.PresentSheetAmplitude, scale),
+            Is.EqualTo(expected).Within(Tolerance));
+    }
+
+    [Test]
+    public void NonsenseOpacityKeepsTheShippedLook()
+    {
+        Assert.That(
+            CloudSheetMath.AmplitudeAtOpacity(CloudSheetMath.PresentSheetAmplitude, float.NaN),
+            Is.EqualTo(CloudSheetMath.PresentSheetAmplitude));
+    }
+
     // A NaN sky glow falls back to the night floor rather than propagating — the cloud is still
     // there, it is simply as dark as this model ever draws one. Moved here with the illumination
     // term when §25b made it per-sheet; the property is the same one.

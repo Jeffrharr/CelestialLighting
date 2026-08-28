@@ -174,6 +174,21 @@ public class CelestialLightingSettingsMod : Mod
         // player hunting for frames should find first.
         listing.CheckboxLabeled("      Volumetric clouds (GPU)", ref Settings.cloudVolume,
             "Light the clouds by marching through a real 3-D model of them instead of tinting a flat picture. Each cloud shadows its own underside, so a low sun lights the tops while the bulk beneath stays dark, and the shape of that shading changes through the day rather than just its brightness.\n\nTurn this OFF if you are short of frames: it is the one cloud setting whose cost is on the graphics card, and it scales with how much of the screen has cloud on it. With it off the same clouds are drawn the flat way, which is what earlier versions did. It also switches itself off automatically on hardware that cannot run it, so nothing disappears.");
+        // How thick the clouds above are drawn. LabeledSlider's gated form, not AestheticSlider: this
+        // is a per-effect intensity rather than one of the taste axes the preset bundle owns, so
+        // moving it must not flip the preset radio to Custom — the same footing "Polar blue strength"
+        // and "Purple light strength" are on further down.
+        //
+        // GATED, UNLIKE THE TWO CHECKBOXES ABOVE IT, and the difference is not an inconsistency. Each
+        // of those does something on its own terms whichever way the switch above it is set, so the
+        // note further down about leaving the cloud group ungated still holds for them. A slider
+        // showing "1.00" under an unticked "Visible clouds" claims a magnitude for something that is
+        // not being drawn, which is exactly the reads-as-doing-something-and-does-nothing state
+        // GatedSlider exists for. Its value is left alone while greyed, so re-ticking the box gives
+        // the player back the opacity they chose rather than the default.
+        GatedSlider(listing, "      Cloud opacity", ref Settings.cloudOpacity, 0f, 1f,
+            Settings.cloudCover && Settings.cloudSheet,
+            "How much of the map a cloud hides as it passes over. 1.00 is the calibrated look — thin enough to read your colony through, which is what holds it down. Wind it down for clouds that are barely there, or to 0 for none at all (identical to unticking \"Visible clouds\", down to the draw call).\n\nIt changes only how opaque each cloud is, never how many there are: a 60% sky stays a 60% sky, drawn more faintly. There is no setting above 1.00 because a denser cloud than this puts an opaque lid over the colony at the point where several of them overlap.");
         ShowExternalCloudSource(listing);
         // §27. The label says "experimental" because the tooltip cannot be read from the mod list,
         // and this is the one switch on this screen that changes how a colony is LIT rather than

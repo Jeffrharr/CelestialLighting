@@ -1,0 +1,181 @@
+{
+  "name": "cloud_opacity",
+  "saveFile": "minimal_colony.rws",
+  "description": "The player's \"Cloud opacity\" slider, photographed at three positions inside ONE boot. A float knob has no SetFeature of its own, so the two positions worth pinning get a key each (CloudOpacityOverride) and this scenario steps through them; the alternative — one boot per position — would compare frames whose cloud is in different places, which is the comparison the whole live-A/B discipline exists to avoid.\n\nWHY THE SHEETS DO NOT MOVE BETWEEN ARMS, which is what makes the frames comparable at all: CloudSheetDraw memoises its placements per TICK, the harness leaves the colony paused, and no arm here advances the clock. So the sheets are in identical positions in all three frames and the only difference between them is how opaque those same sheets are. That is deliberately the opposite of this repo's usual warning about cloud drift — the drift is real and is why cloud scenarios are noisy, and pausing is what takes it off the table.\n\nTHE OVERCAST FORCED FRACTION, not the mid-range one, for the reason CloudCoverFractionOverride.OvercastFeatureKey exists: at 0.35 a map this size gets two sheets and the camera is quite likely to be looking at neither, which produces a full green report and frames with no cloud in them. The subject here is what cloud LOOKS like, so the sky has to have some.\n\nEvery other cloud switch is left at its shipped value on purpose — this measures the slider a player will actually move, on the renderer they will actually be running. Same tile, season and hour as cloud_sheet_default.json so the alpha readings sit beside that scenario's rather than starting a second baseline; sun_elevation is pinned next to them so a later clock change fails loudly instead of quietly emptying the frames. realistic_preset and realistic_day_length are set false explicitly because neither is reset for a standalone run and both would rescale what is measured here.",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "realistic_preset",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "realistic_day_length",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Soil",
+        "width": "128",
+        "height": "128",
+        "anchor": "64,64"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Soil",
+        "width": "128",
+        "height": "128",
+        "anchor": "64,186"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Soil",
+        "width": "128",
+        "height": "128",
+        "anchor": "186,64"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Soil",
+        "width": "128",
+        "height": "128",
+        "anchor": "186,186"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_cover_forced_overcast",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "co_warmup_discard.png"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "56.7200",
+        "tolerance": "0.02"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheet_alpha",
+        "expectedValue": "0.7500",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "co_full.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_opacity_reduced",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheet_alpha",
+        "expectedValue": "0.1875",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "co_reduced.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_opacity_zero",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheet_alpha",
+        "expectedValue": "0.0000",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "co_zero.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_opacity_zero",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_opacity_reduced",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_sheet_alpha",
+        "expectedValue": "0.7500",
+        "tolerance": "0.0005"
+      }
+    }
+  ]
+}

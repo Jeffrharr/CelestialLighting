@@ -68,6 +68,16 @@ public class CelestialLightingSettings : ModSettings
     // performance option rather than the other way round.
     public bool cloudVolume = true;
 
+    // How opaque those sheets are drawn, 0 to 1, where 1 is the calibrated look. A per-effect
+    // intensity rather than a preset knob, on the same footing as polarNightBlueStrength below — see
+    // CloudSheetMath.AmplitudeAtOpacity for why the range has no headroom above the shipped value.
+    //
+    // A SLIDER RATHER THAN A SECOND CHECKBOX, because the complaint it answers is a matter of degree:
+    // cloud drawn over the colony is the one thing this mod puts BETWEEN the camera and the base, and
+    // how much of that a player will accept is not a yes/no question. Its bottom end already is the
+    // checkbox — 0 makes the same no-draw-call decision cloudSheet off does.
+    public float cloudOpacity = CloudSheetMath.DefaultOpacityScale;
+
     public bool eaveShadows = true;
 
     // §27 vector light sources. It is the most opinionated thing in the mod, because light vanilla
@@ -278,6 +288,7 @@ public class CelestialLightingSettings : ModSettings
         CelestialLightingFeatures.CloudCoverLabel = cloudCoverLabel;
         CelestialLightingFeatures.CloudSheet = cloudSheet;
         CelestialLightingFeatures.CloudVolume = cloudVolume;
+        CloudSheetSettings.OpacityScale = cloudOpacity;
 
         // SyncTo rather than a plain assignment, and the order matters: half of §27 is BAKED into
         // the lighting overlay's vertex colours during a section regenerate, so flipping the switch
@@ -398,6 +409,7 @@ public class CelestialLightingSettings : ModSettings
         Scribe_Values.Look(ref cloudCoverLabel, "cloudCoverLabel", true);
         Scribe_Values.Look(ref cloudSheet, "cloudSheet", true);
         Scribe_Values.Look(ref cloudVolume, "cloudVolume", true);
+        Scribe_Values.Look(ref cloudOpacity, "cloudOpacity", CloudSheetMath.DefaultOpacityScale);
         Scribe_Values.Look(ref vectorLights, "vectorLights", false);
         Scribe_Values.Look(ref vectorLightPawnShadows, "vectorLightPawnShadows", true);
         // FALSE HERE ON PURPOSE while the field initialiser above is true. This is not the
