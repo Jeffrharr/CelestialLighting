@@ -22,10 +22,10 @@ animating.
     --no-profiler \
     <worktree>/Tests/Scenarios/vector_light_door_film.json
 
-# 2. crop, then encode. 10 fps is a measured choice, not a default — see "How fast to play it".
+# 2. crop, then encode. 15 fps is real time — see "How fast to play it".
 Tools/DoorCapture/crop_frames.sh \
     ../RimWorldTestHarness/Runner/reports /tmp/doorframes 1210:680:240:180 960
-Tools/DoorCapture/make_gif.sh /tmp/doorframes Tests/Screenshots/vector_light_door_beam.gif 10 256
+Tools/DoorCapture/make_gif.sh /tmp/doorframes Tests/Screenshots/vector_light_door_beam.gif 15 256
 
 # 3. the off/on stills, same crop, straight out of ffmpeg
 for arm in off on; do
@@ -35,7 +35,7 @@ for arm in off on; do
 done
 ```
 
-## The big one: a door cannot be filmed in real time on this harness
+## The big one: a door cannot be CAPTURED in real time on this harness
 
 **A `Screenshot` step costs about fifty game ticks.** The game keeps ticking at 60/s while a
 1920x1080 PNG is encoded and written, so consecutive captures are a quarter of a second of game time
@@ -46,6 +46,11 @@ obvious way: the doorway reads L\* 8.15 shut, 14.55 on the very next capture, 15
 No playback rate fixes that. Slowing a two-frame slide down just holds two stills for longer; the
 intermediate positions were never photographed. The first two cuts of this clip both failed here,
 and the second failed *after* switching to a slower door, which is what made the real cause obvious.
+
+Note the two senses of "real time" that this file needs to keep apart: **capturing** at real time is
+impossible, which is why the sweep below freezes the scene for every shot, and **playing back** at
+real time is then trivially available, because the passes are a known number of ticks apart. The
+clip ships at game speed precisely *because* it was not captured at it.
 
 **A bare `Wait` costs about ONE tick**, because nothing is written to disk. (Measured: `Wait
 frames=60` left the 100-tick granite door at `door_aperture` 0.625 — 62.5 ticks in 60 frames.) So the
@@ -98,30 +103,38 @@ whatever it finds; edit it before the run and put it back afterwards.
 one continuous take, the frame rate carries no information — re-encode at any speed without
 re-shooting. Only the *spacing* (`PHASE_STEP` in the generator) needs a new run.
 
-The sweep samples 3.85 ticks per frame, i.e. 64 ms of game time, so the speed relative to real play
-is `64 ms / frame duration`. GIF delays are integer centiseconds, which is what makes some rates
-exact and others not:
+Consecutive frames are exactly `PHASE_STEP` ticks apart — 4 — so each one is **66.7 ms of game
+time**, and the speed relative to real play is `66.7 ms / frame duration`. (Divide the slide's 100
+ticks by its 26 frames and you get 3.85, which is wrong by one: 26 frames have 25 intervals. The
+spacing is the step, not the span over the count.)
 
-| fps | delay | clip | door opens over | vs real time |
+| fps | delay | clip | door opens over | vs game speed |
 |---|---|---|---|---|
-| 4 | 25 cs | 14.5 s | 6.5 s | 0.26x |
-| 6.25 | 16 cs | 9.3 s | 4.2 s | 0.40x |
-| **10** | **10 cs** | **5.8 s** | **2.6 s** | **0.64x** |
-| 12.5 | 8 cs | 4.6 s | 2.1 s | 0.80x |
+| 4 | 25 cs | 14.5 s | 6.5 s | 0.27x |
+| 6.25 | 16 cs | 9.3 s | 4.2 s | 0.42x |
+| 10 | 10 cs | 5.8 s | 2.6 s | 0.67x |
+| 12.5 | 8 cs | 4.6 s | 2.1 s | 0.83x |
+| **15** | **6.7 cs** | **3.9 s** | **1.7 s** | **1.00x** |
 
-**The clip ships at 10 fps.** Quarter speed was tried first and reads as sluggish — the swing is over
-in under two seconds of real play and a six-second version of it looks like a stuck animation rather
-than a slow one. 10 fps keeps the slide comfortably readable while landing the loop at a length a
-listing image can get away with. Past about 12.5 fps the swing starts to go by before it registers.
+**The clip ships at 15 fps, which is real time.** 66.7 ms per frame is exactly four ticks, so the
+door opens on screen in the 1.7 s it takes in a running colony. That is the honest rate for a listing
+image: a slowed-down clip advertises an animation nobody will see at that speed.
 
-Avoid rates whose delay is not a whole number of centiseconds (8 fps wants 12.5 cs and gets 13,
-i.e. 7.7 fps); the table above is the set worth using. File size is identical at every rate — the
-frames are the same bytes, only the delays differ.
+Slower cuts were tried and are what the rest of this table is for. They are worth having — a
+frame-by-frame read of the beam growing is easier at 4 fps — but as the shipped asset, quarter speed
+reads as a stuck animation rather than a slow one.
+
+15 fps is also the one rate here whose delay is *not* a whole number of centiseconds, and ffmpeg
+handles it by alternating 7, 6, 7, 7, 6 to average 66.7 ms. That is fine and imperceptible. What is
+not fine is a rate that silently rounds in one direction — 8 fps wants 12.5 cs, gets 13, and plays at
+7.7. Stick to this table.
+
+File size is identical at every rate: the frames are the same bytes and only the delays differ.
 
 ## The hour is measured
 
 Even a mostly-paused clip runs the clock, and ambient drift is what breaks a loop's wrap: an early
-cut, filmed in real time at hour 0, drifted **dE 2.17** across its frames, with the far sky — nowhere
+cut, captured in real time at hour 0, drifted **dE 2.17** across its frames, with the far sky — nowhere
 near the door — brightening by as much as the lit yard. All of it lands in the wrap, where the last
 frame cuts back to a first frame two L\* darker. `vector_light_door_film_survey.json` holds the scene
 unpaused for the film's own span at six candidate hours:
@@ -167,7 +180,7 @@ still. Left out.
 
 ## Sizes
 
-960x540, 58 frames, 10 fps, 256 colours: **780 KB**, inside Steam's 2 MB per-description-image cap.
+960x540, 58 frames, 15 fps (real time), 256 colours: **780 KB**, inside Steam's 2 MB per-description-image cap.
 
 The static stretches are byte-identical because the sky is pinned, which is where the headroom comes
 from — an early cut that drifted came out at 1.7 MB for *more* frames at a quarter of the colours,
