@@ -61,6 +61,7 @@ public static class Program
         scene.Rect(8, 8, 30, 30, hollow: true);
         scene.Rect(30, 8, 52, 30, hollow: true);
         scene.Clear(30, 19, 30, 19);
+        scene.Apertures.Add((30, 19, 30, 19));
 
         // The torch sits near the door on purpose. Framing matters more than it looks: the first cut
         // put it 10.5 cells away on a radius of 14, which left under 4 cells of reach beyond the
@@ -89,6 +90,7 @@ public static class Program
         Scene scene = new Scene("window", 60, 40);
         scene.Rect(8, 6, 26, 34, hollow: true);
         scene.Clear(26, 20, 26, 20);
+        scene.Apertures.Add((26, 20, 26, 20));
         scene.Lights.Add(new Light(23.5f, 20.5f, 18f));
         return scene;
     }
@@ -107,16 +109,29 @@ public static class Program
         float[] soft = AccumulateVector(
             scene, VectorLightMath.DefaultSourceRadius, out int rays, out int verts, out int tris);
         float[] flood = AccumulateFlood(scene);
+        float[] spill = AccumulateVector(
+            scene, VectorLightMath.DefaultSourceRadius, spill: true, out int _, out int _, out int _);
 
         Console.WriteLine(
             $"{scene.Name,-10} bake {bakeMs,6:F3} ms  rays {rays,4}  " +
             $"verts {hardVerts,5}->{verts,5}  tris {hardTris,5}->{tris,5}");
 
+        // HOW CLOSE THE WASH GETS TO THE FLOOD, which is the whole question the aperture spill was
+        // built to answer and the one a picture alone will not settle. Reported for the beam as well
+        // as for the beam plus the wash, so the number reads as a MOVEMENT rather than as a score:
+        // "closer than what" is the only useful form of it.
+        Console.WriteLine(
+            $"{"",-10} vs flood  beam {AgreementReport(scene, flood, soft)}   " +
+            $"beam+spill {AgreementReport(scene, flood, spill)}");
+
         Write(Path.Combine(outputDir, $"{scene.Name}_vector.png"), scene, soft);
         Write(Path.Combine(outputDir, $"{scene.Name}_flood.png"), scene, flood);
+        Write(Path.Combine(outputDir, $"{scene.Name}_spill.png"), scene, spill);
         WritePair(Path.Combine(outputDir, $"{scene.Name}_ab.png"), scene, flood, soft);
         WritePair(Path.Combine(outputDir, $"{scene.Name}_soft_ab.png"), scene, hard, soft);
+        WritePair(Path.Combine(outputDir, $"{scene.Name}_spill_ab.png"), scene, soft, spill);
         WriteTriple(Path.Combine(outputDir, $"{scene.Name}_abc.png"), scene, flood, hard, soft);
+        WriteTriple(Path.Combine(outputDir, $"{scene.Name}_spill_abc.png"), scene, flood, soft, spill);
     }
 
     // One full bake of every light in the scene: silhouette extraction, visibility polygon, mesh.
@@ -146,6 +161,12 @@ public static class Program
 
     private static float[] AccumulateVector(
         Scene scene, float sourceRadius, out int rays, out int verts, out int tris)
+    {
+        return AccumulateVector(scene, sourceRadius, spill: false, out rays, out verts, out tris);
+    }
+
+    private static float[] AccumulateVector(
+        Scene scene, float sourceRadius, bool spill, out int rays, out int verts, out int tris)
     {
         int width = scene.Width * PixelsPerCell;
         int height = scene.Height * PixelsPerCell;
@@ -177,18 +198,127 @@ public static class Program
             // top of another. Doing it the other way round is what put hairlines down every radial
             // seam in the first cut: bright ones with an inclusive edge test, dark ones with a strict
             // one, and neither is anything the game would draw.
+            byte[] gradient = VectorLightMath.PenumbraGradient(
+                source.Radius, VectorLightMath.GradientSize, VectorLightMath.PenumbraGradientSize);
+
             Array.Clear(single, 0, single.Length);
-            RasterizeMesh(
-                mesh,
-                VectorLightMath.PenumbraGradient(
-                    source.Radius, VectorLightMath.GradientSize, VectorLightMath.PenumbraGradientSize),
-                single, width, height);
+            RasterizeMesh(mesh, gradient, single, width, height);
+
+            // INTO THE SAME PER-LIGHT BUFFER, WHICH IS WHAT MAKES THE MAX EXACT. RasterizeTriangle
+            // combines with max, and the spill is this light's own light arriving by a longer route —
+            // so it belongs inside this light's buffer, beside its own triangles, and not summed on
+            // top afterwards. ApertureSpillMath's header has the triangle-inequality argument for why
+            // that composition needs no explicit suppression of the overlap.
+            if (spill)
+            {
+                AccumulateSpill(scene, source, sourceRadius, gradient, single, width, height);
+            }
 
             for (int i = 0; i < light.Length; i++)
                 light[i] += single[i];
         }
 
         return light;
+    }
+
+    // How much of vanilla's flood a candidate render actually covers, and how much it invents.
+    //
+    // TWO NUMBERS AND NOT ONE, because a single "difference" cannot tell the two failures apart and
+    // they mean opposite things here. `lit` is the share of the flood's own lit area that the
+    // candidate also lights — the wash's whole purpose is to raise it. `over` is the share of the
+    // candidate's lit area that the flood does NOT light, which is the beam doing what vector
+    // lighting exists to do (a straight edge where the flood has a smear) and must NOT be read as an
+    // error. A model scoring 1.00 on both would BE the flood, which is not the goal.
+    //
+    // Thresholded rather than differenced because the question is where light is, not what value it
+    // has: the two models disagree about brightness everywhere by construction, and averaging that in
+    // would drown the coverage answer this is asked for.
+    private static string AgreementReport(Scene scene, float[] flood, float[] candidate)
+    {
+        const float Threshold = 0.02f;
+
+        int floodLit = 0;
+        int candidateLit = 0;
+        int both = 0;
+
+        for (int i = 0; i < flood.Length; i++)
+        {
+            bool inFlood = flood[i] > Threshold;
+            bool inCandidate = candidate[i] > Threshold;
+
+            if (inFlood)
+            {
+                floodLit++;
+            }
+
+            if (inCandidate)
+            {
+                candidateLit++;
+            }
+
+            if (inFlood && inCandidate)
+            {
+                both++;
+            }
+        }
+
+        float covered = floodLit > 0 ? (float)both / floodLit : 0f;
+        float over = candidateLit > 0 ? (float)(candidateLit - both) / candidateLit : 0f;
+        return $"covers {covered,5:P1} of flood, {over,5:P1} outside it";
+    }
+
+    // One secondary emitter per opening this light can still reach: the doorway wash, built out of
+    // exactly the same three calls the lamp itself uses.
+    //
+    // THE ONLY THING THAT IS NEW IS THE TEXTURE COORDINATE. BuildMesh writes U = distance/reach,
+    // i.e. a curve that restarts at the opening; ApertureSpillMath.SpillU says what it should be —
+    // the lamp's own curve entered at the distance the light has already travelled. Remapping the
+    // array afterwards rather than teaching BuildMesh a second convention keeps the shipped mesh
+    // builder with one meaning for U, which matters because the game's fragment program reads it.
+    private static void AccumulateSpill(
+        Scene scene, Light source, float sourceRadius, byte[] gradient,
+        float[] single, int width, int height)
+    {
+        foreach ((int minX, int minZ, int maxX, int maxZ) in scene.Apertures)
+        {
+            float apertureX = ApertureSpillMath.ApertureCentre(minX, maxX);
+            float apertureZ = ApertureSpillMath.ApertureCentre(minZ, maxZ);
+
+            ApertureSpillMath.SpillOrigin(
+                source.X, source.Z, apertureX, apertureZ, ApertureSpillMath.DefaultSpillPush,
+                out float originX, out float originZ);
+
+            float dx = originX - source.X;
+            float dz = originZ - source.Z;
+            float d0 = (float)Math.Sqrt(dx * dx + dz * dz);
+
+            // EUCLIDEAN AND NOT GEODESIC, and the difference is exactly the model's claim. Inside the
+            // room the lamp is standing in there is nothing in the way, so the two agree; where they
+            // would not, the lamp cannot see the doorway at all and the wash it throws is not this
+            // light's to throw. A geodesic here would put light through a door the lamp only reaches
+            // around a corner, which is the flood's behaviour and the thing being replaced.
+            if (!ApertureSpillMath.Spills(source.Radius, d0))
+            {
+                continue;
+            }
+
+            float reach = ApertureSpillMath.ResidualReach(source.Radius, d0);
+            Light opening = new Light(originX, originZ, reach);
+            VectorLightMath.Segment[] segments = WindowedSegments(scene, opening);
+
+            VectorLightMath.LightPolygon polygon = VectorLightMath.Build(
+                originX, originZ, reach, segments, VectorLightMath.DefaultBaseRayCount);
+
+            VectorLightMath.LightMesh mesh =
+                VectorLightMath.BuildMesh(originX, originZ, reach, polygon, sourceRadius);
+
+            for (int i = 0; i < mesh.U.Length; i++)
+            {
+                mesh.U[i] = ApertureSpillMath.SpillU(source.Radius, d0, mesh.U[i] * reach);
+            }
+
+            RasterizeMesh(mesh, gradient, single, width, height);
+        }
     }
 
     // Scanline-free barycentric fill. Deliberately ignores winding — the preview must show the
@@ -526,6 +656,14 @@ public static class Program
         public readonly int Height;
         public readonly bool[] Blocked;
         public readonly List<Light> Lights = new List<Light>();
+
+        // The openings a doorway spill radiates from, as (minX, minZ, maxX, maxZ) cell spans. Held on
+        // the scene rather than derived from the blocker grid because "which gap is a door" is a
+        // question the game answers from thing defs and this preview has no things — deriving it here
+        // would be a second, different rule that could agree with the game on these three layouts and
+        // disagree everywhere else.
+        public readonly List<(int MinX, int MinZ, int MaxX, int MaxZ)> Apertures =
+            new List<(int, int, int, int)>();
 
         public Scene(string name, int width, int height)
         {
