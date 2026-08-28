@@ -9,9 +9,10 @@ namespace CelestialLighting;
 // the cells our polygon says it cannot reach, which carves a shadow and can do nothing else: it is
 // subtractive, so a lit cell lands at vanilla's value and never above it. Phase 3's other half, the
 // beam, therefore keeps the additive MoteGlow pass running over the top at a reduced strength, and
-// that strength is a TASTE KNOB — VectorLightSettings.BeamStrength exists because a flat lift over
-// the whole lit region brightens the cells vanilla already lit correctly along with the ones it did
-// not, and had to be cut back until the room stopped looking wrong.
+// that strength was a TASTE KNOB — VectorLightMath.DefaultBeamStrengthScale sits below 1 because a
+// flat lift over the whole lit region brightens the cells vanilla already lit correctly along with
+// the ones it did not, and had to be cut back until the room stopped looking wrong. It was a player
+// slider until the max below made it a fallback-only constant.
 //
 // THIS REPLACES THE FLAT LIFT WITH A SELF-LIMITING ONE. Per emitter, per cell:
 //

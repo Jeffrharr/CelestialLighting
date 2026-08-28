@@ -881,8 +881,9 @@ public static class CelestialLightingFeatures
     //
     // and on an open door, where the flat beam lifts the doorway +0.51 L* at masked ΔE 1.25 while
     // this delivers +1.36 at masked ΔE 2.99 — 2.7x the beam for a fiftieth of the indoor spill,
-    // with no strength to choose. VectorLightSettings.BeamStrength now governs only the fallback
-    // path below.
+    // with no strength to choose. That is why there is no longer a beam-strength slider: the level
+    // it set now survives only as VectorLightMath.DefaultBeamStrengthScale on the fallback path
+    // below, which runs when the shader could not be loaded and which no player can select.
     //
     // Inert unless VectorLights is on.
     public static bool VectorLightShaderMax = true;
@@ -1085,8 +1086,8 @@ public static class CelestialLightingFeatures
     // WHAT IT REPLACES. VectorLightMaskBeam above keeps the additive MoteGlow pass running over the
     // mask at a reduced strength, which lifts EVERY cell of the lit region by the same fraction of
     // our model — including the cells vanilla already lit correctly. That is why
-    // VectorLightSettings.BeamStrength exists: the flat lift had to be cut back until the room
-    // stopped reading bright, and the cut applies equally to the cells that needed it. With this on,
+    // VectorLightMath.DefaultBeamStrengthScale is below 1: the flat lift had to be cut back until
+    // the room stopped reading bright, and the cut applies equally to the cells that needed it. With this on,
     // the mask computes the lift itself, per emitter and per cell, as
     //
     //     max(0, ours(e, c) - vanilla(e, c)) * lit(e, c)

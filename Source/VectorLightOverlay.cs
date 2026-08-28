@@ -242,8 +242,16 @@ public static class VectorLightOverlay
         // Riding on top of phase 3's mask rather than over a suppressed vanilla. What is underneath
         // is not a whole second lighting model — it is vanilla with the shadowed light already taken
         // out — so the level is a lift on the lit region rather than a sum of two models.
+        //
+        // THE SCALE IS A CONSTANT NOW, where it used to be a player-facing slider. Reaching this line
+        // at all means the shader could not be loaded, which is not a state a player chooses or can
+        // see — so the knob was removed and its default kept, leaving this path lit exactly as it was
+        // for anyone who never moved it (which was everyone who could not see it move). The pure
+        // function survives rather than being folded into one constant because the clamp and the
+        // level it clamps to are the thing worth reading here.
         if (VectorLightMask.Active)
-            return VectorLightMath.MaskBeamStrengthFor(VectorLightSettings.BeamStrength) * daylight;
+            return VectorLightMath.MaskBeamStrengthFor(VectorLightMath.DefaultBeamStrengthScale)
+                * daylight;
 
         // Whatever share of the light the crossfade left vanilla holding, we do not also deliver —
         // otherwise the two models sum and the room lands 6 L* bright, which is the measured failure

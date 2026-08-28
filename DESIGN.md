@@ -13843,6 +13843,10 @@ votes zero.
 The last arm turns both overrides back off and re-reads 0.7500, so the scenario also asserts that
 the override is a test seam rather than a one-way door.
 
+The settings page itself is photographed by `vector_light_settings_gate.json`, whose third arm
+(`<cloudSheet>False</cloudSheet>`) shows the slider greyed:
+`Tests/Screenshots/cloud_opacity_settings_gated.png`.
+
 ### Gated where its siblings are not
 
 The slider is greyed while visible clouds is off, unlike the two checkboxes above it, and that is not
@@ -13852,6 +13856,23 @@ under an unticked "Visible clouds" claims a magnitude for something that is not 
 is the exact reads-as-doing-something-and-does-nothing state `GatedSlider` was written for. Its value
 is left alone while greyed, so re-ticking the box gives the player back the opacity they chose.
 
+
+### The lamp beam strength slider was removed in the same change
+
+Not a cloud matter, but the same page and the same argument, so it is recorded rather than left to a
+diff. §27 phase 6 composes `max(vanilla, ours)` **per fragment**, which decides a lamp's level
+against what vanilla actually delivered at each point — there is nothing left for a flat level knob
+to say, and the section that introduced the max said so at the time. What the slider still governed
+was the additive fallback that runs when the shader could not be loaded: a path a player cannot
+select, cannot tell they are on, and therefore cannot judge the slider's effect from.
+
+A control that does nothing on every machine that can run the mod as designed is worse than no
+control, because it sends a player who dislikes how their lamps look to the one setting that will not
+change them. The fallback keeps the level the slider defaulted to
+(`VectorLightMath.DefaultBeamStrengthScale`), so **no path is lit differently** — the pure function
+and its tests are untouched and only the knob is gone. An existing config carrying
+`<vectorLightBeamStrength>` loads clean: `Scribe_Values` ignores an element with no field to load
+into, and the node is dropped the next time settings are written.
 
 ## Interop: Clouds (`Source/CloudsCompat.cs` / `CloudsCompatMath.cs`)
 
