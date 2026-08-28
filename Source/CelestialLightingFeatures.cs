@@ -1603,6 +1603,45 @@ public static class CelestialLightingFeatures
     // polygon on the map exactly as before.
     public static bool VectorLightViewCull = true;
 
+    // Feature key for VectorLightBuildFirst.
+    public const string VectorLightBuildFirstKey = "vector_light_build_first";
+
+    // Issue #218: rebuild this frame's polygons BEFORE the sections that read them regenerate,
+    // instead of after.
+    //
+    // WHAT WAS WRONG. Map.MapUpdate runs glowGrid.GlowGridUpdate_First, then
+    // mapDrawer.MapMeshDrawerUpdate_First — where dirty sections regenerate and the mask bakes — and
+    // only then GameConditionManagerDraw, where Patch_VectorLightDraw rebuilt the polygons. So on the
+    // frame a door moved, a section baked vanilla's FRESH glow against our STALE coverage: vanilla's
+    // light had already arrived beyond the doorway while our polygon still read "blocked", the mask
+    // subtracted the whole new arrival, and the region rendered darker than either end of the swing.
+    // The draw then rebuilt the polygon, re-dirtied, and the next frame was correct — so it lasted
+    // one or two frames and looked, watched live, like the shadows around the opening growing and
+    // then snapping back. Closing is the mirror.
+    //
+    // VectorLightRedraw.ForceRebuild already states the rule this broke — "POLYGONS BEFORE THE DIRT,
+    // and the order is the whole point" — and honours it on the flag-flip path. The draw path could
+    // not, because it runs after the regenerate. This moves the same call to a prefix on
+    // MapDrawer.MapMeshDrawerUpdate_First, which is the last moment in the frame before the sections
+    // that read a polygon are rebuilt.
+    //
+    // THE RE-DIRTY IS STILL NEEDED AND NOW LANDS IN TIME. A section that bakes while a polygon is
+    // dirty skips that emitter, so whoever builds one has to ask the sections back; what changes is
+    // that the ask now happens before MapMeshDrawerUpdate_First reads the flags rather than after, so
+    // the rebake is this frame's rather than next frame's. The work is the same work on the same
+    // cadence — it is one frame earlier and one frame of wrong pixels shorter.
+    //
+    // MOVING IT IS A THREADING CHANGE, NOT A REFACTOR. EnsurePolygons fans the bake out across
+    // threads, and the argument for that being safe is that the main thread is blocked inside the
+    // join and therefore not ticking, so nothing despawns under a worker. MapMeshDrawerUpdate_First
+    // is also on the main thread inside MapUpdate, so the property still holds — but it is the
+    // property and not the location that carries it, which is why this is a flag.
+    //
+    // Off calls BuildAndDirty from the draw exactly where it was, so the arm is the defect rather
+    // than a picture of the feature missing — which is the only way the instrument that found this
+    // (vector_light_swing_excursion) has anything to read.
+    public static bool VectorLightBuildFirst = true;
+
     // Feature key for VectorLightParallelBake.
     public const string VectorLightParallelBakeKey = "vector_light_parallel_bake";
 
