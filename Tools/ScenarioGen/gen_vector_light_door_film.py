@@ -191,12 +191,26 @@ def scene():
                                "layout": "cells", "clear": "true", "cells": "0,0"}),
         step("PlaceThings", **{"def": "TorchLamp", "offset": DOOR, "layout": "cells",
                                "cells": f"-{TORCH_DISTANCE},0"}),
+        # THE ROOF, and it is load-bearing rather than set dressing. PlaceThings never roofs, so
+        # without this the "room" is an OUTDOOR room -- and the vibrant arm below would be inert,
+        # because vector_light_indoor_multiply gates per EMITTER on the roof grid asked at the lamp's
+        # own cell. An unroofed fixture would have produced two identical clips and a confident claim
+        # that the setting does nothing.
+        #
+        # The rect is exactly the room's footprint, walls included, and the arithmetic matters: the
+        # harness builds CellRect.CenteredOn(anchor, w, h), which is minX = anchor.x - w/2 with
+        # maxX = minX + w - 1. Anchored at x -6 with width 14 that is x -13..0; at z 45 with height
+        # 15 it is z -7..+7 about the room's centre line. One cell wider in either direction would
+        # roof open ground OUTSIDE the wall, i.e. put an eave over the very yard the beam is filmed
+        # falling on.
+        step("SetRoof", **{"def": "RoofConstructed", "offset": "-6,45",
+                           "width": 14, "height": 15}),
         step("SetTime", hour=HOUR),
         step("LookAt", offset=DOOR, zoom=11),
     ]
 
 
-def flags():
+def flags(vibrant):
     """The preset FIRST, then the effect flags.
 
     realistic_preset is not one of the mod's effects -- it rewrites the whole settings bundle,
@@ -214,10 +228,25 @@ def flags():
     it."""
     out = [step("SetFeature", featureName="realistic_preset", enabled="false")]
     out += [step("SetFeature", featureName=f, enabled="true") for f in FLAGS_ON]
+
+    # THE ONE FLAG THE TWO CLIPS DIFFER IN, stated in both arms rather than inherited. Its shipped
+    # value is FALSE: it is a taste option rather than a correction, because the additive beam and
+    # the surface lift are two DELIVERIES of the same quantity and running both lifts the lit region
+    # twice. Off is the shipped frame byte for byte -- the whole feature is one extra
+    # Graphics.DrawMesh issued after the existing one -- so the off arm is a real baseline and not a
+    # picture of the feature being absent.
+    out.append(step("SetFeature", featureName="vector_light_indoor_multiply",
+                    enabled="true" if vibrant else "false"))
+
+    # Its stand-down partner, pinned OFF in both arms. vector_light_indoor_multiply stands down while
+    # vector_light_surface_lift is on -- there the primary pass already IS the multiply -- so an arm
+    # that inherited surface lift true would report the surface lift's numbers under the vibrant
+    # flag's name and the two clips would differ by nothing at all. It ships false; say so.
+    out.append(step("SetFeature", featureName="vector_light_surface_lift", enabled="false"))
     return out
 
 
-def film():
+def film(prefix, vibrant):
     """The clip: ONE CONTINUOUS TAKE of the door opening, held, closing and held, shot in slow motion.
 
     The problem this solves is that a screenshot's frame is long -- encoding a 1920x1080 PNG takes
@@ -240,8 +269,12 @@ def film():
     wrong about everything else, because a scene is not only the thing being filmed. Every other
     animation gets sampled at whatever phase its own pass happened to end on, so the torch flame
     strobed between unrelated frames rather than flickering. A continuous take cannot have that
-    problem, because there is only one take."""
-    out = []
+    problem, because there is only one take.
+
+    Called once per arm. The flag block is re-stated at the top of each rather than set once before
+    both, so the two takes differ in exactly the flag named in the arm and nothing can drift between
+    them -- the pair is the whole point of the second arm existing."""
+    out = flags(vibrant)
     n = 0
 
     def capture(count):
@@ -252,7 +285,7 @@ def film():
             # per rendered frame, so a Wait/Screenshot pair would cost two frames and halve the
             # capture rate for nothing -- there is no state here that needs settling, only a clock
             # that needs to be caught in motion.
-            out.append(step("Screenshot", fileName=f"doorfilm_{n:04d}.png"))
+            out.append(step("Screenshot", fileName=f"{prefix}{n:04d}.png"))
 
     # Shut and settled before frame 1, at FULL speed -- this is dead time the clip never sees, and
     # running it in slow motion would multiply it by twenty for no benefit.
@@ -264,7 +297,7 @@ def film():
               "Shut before the film starts. At tolerance 0 -- a door already part open makes the "
               "loop's first and last frames disagree, which is the one defect a looping clip "
               "cannot hide."),
-        step("Screenshot", fileName="doorfilm_settled_discard.png"),
+        step("Screenshot", fileName=f"{prefix}settled_discard.png"),
         step("SetTimeScale", scale=TIME_SCALE),
     ]
 
@@ -307,9 +340,14 @@ def reference_stills():
     """Three stills the clip itself cannot supply, taken after the film so nothing they change can
     reach it: the fully-open beam with the feature OFF (what a subscriber sees without the mod --
     RimWorld's glow grid never learns a door opened, so this is a flat dark yard), the same frame
-    with it back on, and two alternate framings in case the crop wants re-cutting without a
-    re-boot."""
-    out = [
+    with it back on, and two alternate framings in case the crop wants re-cutting without a re-boot.
+
+    RE-STATES THE FLAGS AT SHIPPED DEFAULT FIRST, and this is not belt-and-braces. These stills run
+    after the VIBRANT arm, which leaves vector_light_indoor_multiply on; inheriting that would
+    measure the off/on pair with a taste option enabled and quote the number as the shipped
+    default's. The pair is what every dE in the README and the PR body is measured against, so it
+    has to be the frame a default install produces."""
+    out = flags(vibrant=False) + [
         step("SetTimeSpeed", speed="normal"),
         step("SetDoorOpen", offset=DOOR, open="true"),
         step("Wait", frames=SETTLE_FRAMES),
@@ -359,9 +397,19 @@ def main():
             "Generated by "
             "Tools/ScenarioGen/gen_vector_light_door_film.py; see Tools/DoorCapture/README.md for "
             "the encode.",
-        "steps": scene() + flags() + [
+        # TWO ARMS, ONE BOOT, and the shipped-default one goes FIRST on purpose: it is the clip the
+        # listing leads with, and a run that dies half way should have taken that one rather than
+        # only the taste option. The vibrant arm re-shoots the same take with the one flag flipped,
+        # so the pair is a like-for-like A/B rather than two clips of two scenes.
+        #
+        # The discard shot sits before either of them because the FIRST capture of a run still
+        # carries the HUD -- screenshot mode is set in the same frame it shoots, and is honoured from
+        # the second capture on.
+        "steps": scene() + [
             step("Screenshot", fileName="doorfilm_hud_discard.png"),
-        ] + film() + reference_stills(),
+        ] + film("doorfilm_", vibrant=False)
+          + film("doorvibrant_", vibrant=True)
+          + reference_stills(),
     }
 
     out = os.path.join(os.path.dirname(__file__), "..", "..",
