@@ -491,6 +491,35 @@ public static class ProbeRegistration
             "flicker_shadow", new IntVec3(-2, 0, 45), RenderedLightCellProbe.Metric.Level));
         ProbeRegistry.Register(new RenderedLightCellProbe(
             "flicker_lit", new IntVec3(-8, 0, 45), RenderedLightCellProbe.Metric.Level));
+        // Issue #218's instrument. Everything above reads ONE cell at the moment a Probe step runs,
+        // which is what let a one-frame defect survive every scenario in this repo: they all capture
+        // after a settle and all of them therefore read the correct final value. This one samples
+        // from inside the render loop, so it sees every frame of a transition rather than the frames
+        // steps happened to land on, and it folds a whole box so a scenario does not have to guess
+        // which cell overshoots.
+        //
+        // ARMED BY THE ArmSwingSample STEP, not here: the box is a scene coordinate and belongs next
+        // to the room it describes.
+        //
+        // THE FOUR SUPPORTING METRICS ARE NOT OPTIONAL FURNITURE. `excursion` reads zero for a fixed
+        // build AND for a run where nothing happened, an instrument that never installed, or a box
+        // over dead ground. `span` pinned above a floor says the swing moved something, `frames`
+        // above a floor says the sampler ran, `rejected` at zero says it could read its subject, and
+        // the two axis probes say WHERE the worst cell was so a non-zero reading names a place
+        // instead of starting an argument.
+        VectorLightSwingSampler.Install();
+        ProbeRegistry.Register(new VectorLightSwingProbe(
+            "vector_light_swing_excursion", VectorLightSwingProbe.Metric.Excursion));
+        ProbeRegistry.Register(new VectorLightSwingProbe(
+            "vector_light_swing_excursion_x", VectorLightSwingProbe.Metric.ExcursionX));
+        ProbeRegistry.Register(new VectorLightSwingProbe(
+            "vector_light_swing_excursion_z", VectorLightSwingProbe.Metric.ExcursionZ));
+        ProbeRegistry.Register(new VectorLightSwingProbe(
+            "vector_light_swing_span", VectorLightSwingProbe.Metric.Span));
+        ProbeRegistry.Register(new VectorLightSwingProbe(
+            "vector_light_swing_frames", VectorLightSwingProbe.Metric.Frames));
+        ProbeRegistry.Register(new VectorLightSwingProbe(
+            "vector_light_swing_rejected", VectorLightSwingProbe.Metric.Rejected));
         // §27e, vector_light_open_door.json. Cells are local to that scenario's room at offset
         // (0, 45): the doorway is local (0, 0), so (1, 0) is the first cell OUTSIDE it and (-1, 0)
         // the first cell inside. Both read vanilla's gameplay light, not ours -- they are what
@@ -1431,6 +1460,15 @@ public static class ProbeRegistration
                 CelestialLightingFeatures.VectorLightViewCull = enabled;
                 VectorLightRedraw.ForceRebuild();
             });
+        // NO ForceRebuild HERE, for the same reason vector_light_door_dirty_suppress goes without
+        // one and a sharper version of it. This flag changes nothing about what any section should
+        // CONTAIN — only the moment in the frame at which the polygons a section reads are rebuilt —
+        // and the defect it fixes is a transient that a whole-map rebake heals instantly. An arm that
+        // rebuilt on entry would hand itself a fresh, correct map and could not measure its own
+        // defect. Issue #218.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightBuildFirstKey,
+            enabled => CelestialLightingFeatures.VectorLightBuildFirst = enabled);
         // NO ForceRebuild HERE, and the omission is deliberate rather than an oversight. This flag
         // changes nothing about what any section should CONTAIN — it only decides whether a door's
         // blocker write flags sections for redraw — so rebuilding the whole map on the flip would

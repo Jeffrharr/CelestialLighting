@@ -93,6 +93,15 @@
          assembly for the same reason: StepDiscovery scans loaded mod assemblies, and this must
          never reach the shipped DLL. -->
     <Compile Include="../Source/Probes/SetDoorOpenStep.cs" Link="SetDoorOpenStep.cs" />
+    <!-- Issue #218's instrument, and the pure core it folds samples with. Reads the lighting
+         overlay once per RENDERED FRAME across a whole box of cells, because the defect it exists to
+         catch lasts one or two frames in the middle of a door swing and every other scenario here
+         captures after a settle. SwingExcursionMath is linked into Tests/ as well, so the offline
+         sweep drives the same file. ArmSwingSampleStep is the scene-coordinate half, next to
+         SetDoorOpenStep above for the same StepDiscovery reason. -->
+    <Compile Include="../Source/Probes/SwingExcursionMath.cs" Link="SwingExcursionMath.cs" />
+    <Compile Include="../Source/Probes/VectorLightSwingProbe.cs" Link="VectorLightSwingProbe.cs" />
+    <Compile Include="../Source/Probes/ArmSwingSampleStep.cs" Link="ArmSwingSampleStep.cs" />
     <!-- Slows the game against WALL-CLOCK time, which is what makes a short animation filmable at
          all: a screenshot's frame is long, TickManager ticks through Time.deltaTime, so at normal
          speed a door's whole slide falls between two captures. -->
