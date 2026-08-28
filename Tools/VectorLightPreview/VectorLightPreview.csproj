@@ -15,6 +15,10 @@
     <!-- VectorLightMath.FalloffGradient calls into the lift curve, so the two cannot be linked
          apart. Added when the preview stopped compiling against main; nothing here renders a lift. -->
     <Compile Include="../../Source/VectorLightLiftMath.cs" Link="VectorLightLiftMath.cs" />
+    <!-- The doorway wash's arithmetic. Linked rather than transcribed for the same reason the rest of
+         this list is: a preview that answers "does the wash match the flood" against a COPY of the
+         model would keep answering yes after the shipped one drifted. -->
+    <Compile Include="../../Source/ApertureSpillMath.cs" Link="ApertureSpillMath.cs" />
     <!-- Borrowed wholesale from AuroraPreview, as CloudPreview does: a dependency-free PNG writer,
          because System.Drawing is not available here. -->
     <Compile Include="../AuroraPreview/Png.cs" Link="Png.cs" />
