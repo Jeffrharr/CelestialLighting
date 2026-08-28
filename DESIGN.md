@@ -12559,11 +12559,58 @@ the trend.
 `door_dirty_stale_open__betweenness.png` shows them: the torch's own flame sprite, plus three isolated
 pixels on a room boundary. Nothing in the pocket, nothing in the beam, nothing in the stub's shadow.
 
-**So the suppression is clean in both roof states**, and the reason it is clean is understood rather
-than merely observed. What remains untested is the one path that could still bite: the saturation
-correction reconstructs vanilla's fold over *all* lights, so a cell pushed over the 255 ceiling by a
-door opening would change the mask's output at a cell whose own coverage never moved. That needs two
-lamps and a saturating cell, and it is the scenario to write before this ships.
+#### Phase 11d: the saturation path, and the edge nobody photographed
+
+Two gaps remained. `door_dirty_stale_sat` closes the first: a second torch in the right room, same
+hue, close enough that the cells between them carry both. The saturation correction reconstructs
+vanilla's fold over *all* lights reaching a section, so a cell pushed over the 255 ceiling by the door
+opening changes the mask's output for an emitter whose **own coverage never moved** — the one way the
+coverage-delta argument can be wrong.
+
+`vector_light_mask_saturated_samples` is the provocation witness and is read first, because the
+roofed run's lesson was a clean result on a case that had not been provoked. It reads **42** in both
+`full` arms, so cells really did cross the ceiling.
+
+| | full | suppressed | full_b |
+|---|---|---|---|
+| `mask_applies` | 50 | 38 | 50 |
+| `mask_saturated_samples` | **42** | **30** | **42** |
+
+**The saturated-sample count falls with the apply count, 12 and 12.** That is the counter following
+the number of `Apply` calls rather than evidence of a wrong pixel — a section that did not re-run did
+not re-count — and the frames are what decide which it is. Betweenness: **90 of 528,000 plate pixels
+(0.017%)**, worst at the second torch's own flame sprite.
+
+The second gap was an edge, and it was found by watching a run rather than by reading a table. Every
+arm photographed the door **opening**, where a stale section holds a value from before the light
+arrived — dim light missing from a dark place. **Closing is the louder failure**: the section holds
+the value from while the door was open, so a beam could go on shining through a door that is visibly
+shut. Each arm now closes the door again and photographs that too, with no flag flip in between.
+Betweenness on the shut captures: **90 of 528,000 (0.017%)**, worst at the torch.
+
+**So the flag is clean on both edges, in both roof states, and with saturation provoked** — four
+scenarios, twelve arms, and every excursion the torch's own animation.
+
+#### A separate defect, found while watching: shadows deepen for a frame on a door swing
+
+Not the suppression, and present without it. `Map.MapUpdate` runs
+`glowGrid.GlowGridUpdate_First()`, then `mapDrawer.MapMeshDrawerUpdate_First()` — which regenerates
+dirty sections and is where the mask runs — and only then `GameConditionManagerDraw`, where
+`Patch_VectorLightDraw` rebuilds polygons. So on the frame a door moves, a section bakes with
+vanilla's **fresh** glow against our **stale** coverage.
+
+Opening: vanilla's light arrives beyond the door while our coverage still reads "blocked", so
+`shadowed` is 255 against a newly non-zero `own` and the mask subtracts the whole arrival — the region
+renders darker than it should until the next frame re-dirties it with the rebuilt polygon. Closing is
+the mirror. Watched live it reads as the shadows around an opening growing for a moment and then
+disappearing.
+
+`VectorLightRedraw.ForceRebuild` already states the rule this breaks — "POLYGONS BEFORE THE DIRT, and
+the order is the whole point" — and honours it on the flag-flip path. The draw path cannot, because it
+runs after the regenerate. **The fix is to rebuild polygons ahead of `MapMeshDrawerUpdate_First`**, so
+a section never bakes against a polygon that is about to change in the same frame. It is invisible to
+every scenario here because all of them capture after settling, which is also why it took somebody
+watching to find it.
 
 **What is NOT measured here is the thing that decides whether it ships.** Vanilla's flood is geodesic
 and keeps bending past a doorway, so a cell lit only by a path wrapping around a corner has its glow
