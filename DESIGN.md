@@ -12670,26 +12670,84 @@ Betweenness on the shut captures: **90 of 528,000 (0.017%)**, worst at the torch
 **So the flag is clean on both edges, in both roof states, and with saturation provoked** — four
 scenarios, twelve arms, and every excursion the torch's own animation.
 
-#### A separate defect, found while watching: shadows deepen for a frame on a door swing
+#### A separate defect, found while watching: a section bakes against a stale polygon on a door swing
 
 Not the suppression, and present without it. `Map.MapUpdate` runs
 `glowGrid.GlowGridUpdate_First()`, then `mapDrawer.MapMeshDrawerUpdate_First()` — which regenerates
 dirty sections and is where the mask runs — and only then `GameConditionManagerDraw`, where
-`Patch_VectorLightDraw` rebuilds polygons. So on the frame a door moves, a section bakes with
+`Patch_VectorLightDraw` rebuilt polygons. So on the frame a door moves, a section bakes with
 vanilla's **fresh** glow against our **stale** coverage.
 
-Opening: vanilla's light arrives beyond the door while our coverage still reads "blocked", so
-`shadowed` is 255 against a newly non-zero `own` and the mask subtracts the whole arrival — the region
-renders darker than it should until the next frame re-dirties it with the rebuilt polygon. Closing is
-the mirror. Watched live it reads as the shadows around an opening growing for a moment and then
-disappearing.
-
 `VectorLightRedraw.ForceRebuild` already states the rule this breaks — "POLYGONS BEFORE THE DIRT, and
-the order is the whole point" — and honours it on the flag-flip path. The draw path cannot, because it
-runs after the regenerate. **The fix is to rebuild polygons ahead of `MapMeshDrawerUpdate_First`**, so
-a section never bakes against a polygon that is about to change in the same frame. It is invisible to
-every scenario here because all of them capture after settling, which is also why it took somebody
-watching to find it.
+the order is the whole point" — and honours it on the flag-flip path. The draw path could not, because
+it ran after the regenerate. **The fix is to rebuild polygons ahead of `MapMeshDrawerUpdate_First`**
+(`Patch_VectorLightBuild`, behind `vector_light_build_first`), so a section never bakes against a
+polygon that is about to change in the same frame. It was invisible to every scenario here because all
+of them capture after settling, which is also why it took somebody watching to find it.
+
+##### The instrument, and why nothing here had one
+
+`Tests/Scenarios/door_swing_order.json` plus `VectorLightSwingSampler`. The sampler hooks
+`MapDrawer.DrawMapMesh` and reads the lighting overlay's baked vertex colours over a box of cells
+**once per rendered frame**, so it sees every frame of a transition rather than the frames scenario
+steps happened to land on. That distinction is the whole reason it exists: a door swing needs real
+ticks — `GameComponent_DoorAperture` drives it from `GameComponentTick`, and the harness's
+`AdvanceTicks` is a clock jump that runs none — so the clock has to be running, tick-to-frame
+alignment then varies with frame time, and a column of `Probe` steps samples the defective frame on
+one run and steps over it on the next. `SwingExcursionMath` folds the samples and answers how far the
+worst cell left the band between its first and last value; zero is a monotone swing.
+
+##### What it measured, and one correction to the diagnosis above
+
+One door swing, two arms in one boot, `vector_light_build_first` off then on:
+
+| probe | draw_order (off) | build_first (on) | what it says |
+|---|---|---|---|
+| `vector_light_mask_stale_polys` | **24** | **0** | the defect itself: bakes that used a polygon known to be out of date |
+| `vector_light_mask_applies` | 54–74 | 48 | sections that had to bake twice, and no longer do |
+| `vector_light_bakes` | 18 | 18 | the same polygons are built |
+| `vector_light_section_dirties` | 42 | 42 | the same sections are flagged |
+| `vector_light_swing_excursion` | 0.00 | 0.00 | the baked glow value is monotone in **both** arms |
+| `vector_light_swing_span` | 76 | 76 | the swing did change the light |
+
+The first row is the point: this is the first time the defect has been confirmed by an instrument
+rather than by reading `Map.MapUpdate`, and the fix does not reduce it, it removes the possibility.
+The middle rows are what make it a reordering rather than a saving in disguise — the same work, one
+step earlier — with the second pass the old ordering needed simply not happening. That second pass was
+predicted in the issue as "the re-dirty may become unnecessary", and this is what it was worth.
+
+Quote it as "54–74 against a stable 48" rather than as a fixed saving, because the defective arm's
+figure is **itself unstable**: three runs read it at 54, 74 and 54 while `build_first` did not move off
+48 once. The old ordering's re-dirty/re-bake loop lands on whatever frames the tick-to-frame alignment
+gives it, so how much duplicated work it does varies from run to run. That is a fair description of
+the defect rather than a weakness in the measurement, and it is why the pin is banded on one arm and
+at zero tolerance on the other — with the band stopping short of 48, so it can still tell the two
+arms apart.
+
+**The last two rows correct the diagnosis this section previously carried.** It claimed the region
+"renders darker than it should", and in the *baked glow value* that is not what happens: with our
+coverage still reading "blocked", the mask subtracts the whole of the light that has just arrived,
+which lands the cell back on exactly the value it held with the door shut. One frame late, but never
+below where it started — so a monotonicity test has nothing to report, and `swing_excursion` reads
+0.00 in the defective arm as well as the fixed one. This was checked twice: once in a dark room, and
+once with both lamps repainted to a 17.25 radius so their sum crosses vanilla's 255 ceiling
+(`saturated_samples` 156, `saturation_relief` 99, i.e. the projection was genuinely in play). Neither
+produced a dip. What the defect does to the baked value is a **one-frame plateau**, not an overshoot.
+
+Whatever a watcher saw deepening therefore lives in a pass this probe cannot read — the vector-light
+overlay draws its own polygon, and on the stale frame that polygon is still the closed-door shape, so
+the drawn shadow and the mask's subtraction land on the doorway at the same time. That is consistent
+with the report and is **not measured here**, because a one-frame event cannot be filmed: consecutive
+`Screenshot` steps are not consecutive frames, so a capture sweep across the swing is a lottery rather
+than an instrument. The settled captures are a control instead, and they say the fix changes nothing
+once the map has caught up — median ΔE **0.67** between the two arms' open-door frames (0.26% of pixels differ by more than one channel step), with the
+changed pixels confined to the torches' own flame sprites (which animate on real time, not ticks) and
+to plants outside the building.
+
+`vector_light_stale_polygon` stays. It is what makes a dirty-polygon emitter bake with its previous
+shape instead of dropping out of the section entirely, and the view cull can still defer a build past
+a bake for an emitter off screen. This change removes the ordering that made it fire on every door
+swing; it does not remove the case it was written for.
 
 **What is NOT measured here is the thing that decides whether it ships.** Vanilla's flood is geodesic
 and keeps bending past a doorway, so a cell lit only by a path wrapping around a corner has its glow

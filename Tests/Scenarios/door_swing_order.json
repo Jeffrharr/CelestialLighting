@@ -1,0 +1,823 @@
+{
+  "name": "door_swing_order",
+  "saveFile": "minimal_colony.rws",
+  "description": "Whether a door swing renders a frame darker than either end of the swing (issue #218). Polygons used to be rebuilt in GameConditionManagerDraw, a whole step AFTER MapMeshDrawerUpdate_First regenerates the sections that read them -- so on the frame a door's blocker bit moved, a section baked vanilla's fresh glow against our stale coverage, the mask subtracted the entire new arrival, and the cells around the opening rendered darker than at either end. It lasted one or two frames and every scenario here captures after a settle, which is why it survived. vector_light_swing_excursion samples the lighting overlay from inside the render loop and answers how far the worst cell in a box around the doorway left the band between its first and last values -- zero is a monotone swing. The draw_order arm turns vector_light_build_first off and is the pre-fix arrangement; the build_first arm is the fix. span/frames/rejected are pinned beside the excursion because zero is also what a sampler that never ran would answer. Paused except for the two swings, midnight so the torch is the only artificial light, clouds off.",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Concrete",
+        "width": "25",
+        "height": "21",
+        "offset": "0,45",
+        "clear": "true"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "0,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "-11,-9; -11,9; -10,-9; -10,9; -9,-9; -9,9; -8,-9; -8,9; -7,-9; -7,9; -6,-9; -6,9; -5,-9; -5,9; -4,-9; -4,9; -3,-9; -3,9; -2,-9; -2,9; -1,-9; -1,9; 0,-9; 0,9; 1,-9; 1,9; 2,-9; 2,9; 3,-9; 3,9; 4,-9; 4,9; 5,-9; 5,9; 6,-9; 6,9; 7,-9; 7,9; 8,-9; 8,9; 9,-9; 9,9; 10,-9; 10,9; 11,-9; 11,9; -11,-8; 11,-8; 0,-8; -11,-7; 11,-7; 0,-7; -11,-6; 11,-6; 0,-6; -11,-5; 11,-5; 0,-5; -11,-4; 11,-4; 0,-4; -11,-3; 11,-3; 0,-3; -11,-2; 11,-2; 0,-2; -11,-1; 11,-1; 0,-1; -11,0; 11,0; -11,1; 11,1; 0,1; -11,2; 11,2; 0,2; -11,3; 11,3; 0,3; -11,4; 11,4; 0,4; -11,5; 11,5; 0,5; -11,6; 11,6; 0,6; -11,7; 11,7; 0,7; -11,8; 11,8; 0,8"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Door",
+        "stuff": "WoodLog",
+        "offset": "0,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "0,0"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "TorchLamp",
+        "offset": "0,45",
+        "layout": "cells",
+        "cells": "-2,0; 2,0"
+      }
+    },
+    {
+      "type": "SetRoof",
+      "args": {
+        "def": "RoofConstructed",
+        "width": "23",
+        "height": "19",
+        "offset": "0,45"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "0"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "0,45",
+        "zoom": "17"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "normal"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "30"
+      }
+    },
+    {
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "paused"
+      }
+    },
+    {
+      "type": "SetGlowColors",
+      "args": {
+        "colors": "252,187,113",
+        "radii": "17.25"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "6"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "door_swing_order_hud_discard",
+        "hideUi": "true"
+      }
+    },
+    {
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "normal"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "90"
+      }
+    },
+    {
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "paused"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_cover",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_sheet",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_presence",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_deck_varieties",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_suppress",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_beam",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_saturation",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_changed_dirty",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_stale_polygon",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_view_cull",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_section_dirty",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_open_doors",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_aperture",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_glow_blocker",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_dirty_suppress",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_build_first",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "6"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "door_swing_order_draw_order_shut",
+        "hideUi": "true"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_bake_reset",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "ArmSwingSample",
+      "args": {
+        "offset": "0,45",
+        "radius": "6"
+      }
+    },
+    {
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "normal"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "90"
+      }
+    },
+    {
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "paused"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "6"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "door_swing_order_draw_order_open",
+        "hideUi": "true"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_swing_excursion",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_swing_excursion_x",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_swing_excursion_z",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_swing_span",
+        "expectedValue": "76",
+        "tolerance": "8"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_swing_frames",
+        "expectedValue": "112",
+        "tolerance": "6"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_swing_rejected",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_bakes",
+        "expectedValue": "18",
+        "tolerance": "6"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_section_dirties",
+        "expectedValue": "42",
+        "tolerance": "8"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturation_relief",
+        "expectedValue": "99",
+        "tolerance": "70"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_stale_polys",
+        "expectedValue": "24",
+        "tolerance": "18"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_applies",
+        "expectedValue": "64",
+        "tolerance": "14"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturated_samples",
+        "expectedValue": "162",
+        "tolerance": "26"
+      }
+    },
+    {
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "normal"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "90"
+      }
+    },
+    {
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "paused"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_cover",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_sheet",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_presence",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_deck_varieties",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_suppress",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_beam",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_saturation",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_changed_dirty",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_stale_polygon",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_view_cull",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_section_dirty",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_open_doors",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_aperture",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_glow_blocker",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_dirty_suppress",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_build_first",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "6"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "door_swing_order_build_first_shut",
+        "hideUi": "true"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_bake_reset",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "ArmSwingSample",
+      "args": {
+        "offset": "0,45",
+        "radius": "6"
+      }
+    },
+    {
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "normal"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "90"
+      }
+    },
+    {
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "paused"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "6"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "door_swing_order_build_first_open",
+        "hideUi": "true"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_swing_excursion",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_swing_excursion_x",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_swing_excursion_z",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_swing_span",
+        "expectedValue": "76",
+        "tolerance": "8"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_swing_frames",
+        "expectedValue": "112",
+        "tolerance": "6"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_swing_rejected",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_bakes",
+        "expectedValue": "18",
+        "tolerance": "6"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_section_dirties",
+        "expectedValue": "42",
+        "tolerance": "8"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturation_relief",
+        "expectedValue": "99",
+        "tolerance": "70"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_stale_polys",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_applies",
+        "expectedValue": "48",
+        "tolerance": "12"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturated_samples",
+        "expectedValue": "130",
+        "tolerance": "26"
+      }
+    }
+  ]
+}
