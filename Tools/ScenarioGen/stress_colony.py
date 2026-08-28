@@ -675,7 +675,7 @@ def palette_steps():
 
 
 def feature_steps(vector_lights=True, pawn_shadows=None, changed_dirty=None,
-                  glow_blocker=None):
+                  glow_blocker=None, dirty_suppress=False):
     """The flags every arm states explicitly, because a default that moves rewrites what it measured.
 
     STATED RATHER THAN INHERITED, always. A flag whose default is flipped later silently rewrites
@@ -756,6 +756,11 @@ def feature_steps(vector_lights=True, pawn_shadows=None, changed_dirty=None,
         ("vector_light_open_doors", vector_lights),
         ("vector_light_door_aperture", vector_lights),
         ("vector_light_door_glow_blocker", glow_blocker),
+        # Whether the glow-blocker write above is allowed to flag sections for redraw. Defaults FALSE
+        # rather than following vector_lights, because unlike every other flag here it ships off --
+        # following the subsystem would switch it on in every arm of every scenario and quietly make
+        # the shipped path the one nobody was measuring.
+        ("vector_light_door_dirty_suppress", dirty_suppress),
     ]
     return [step("SetFeature", featureName=name, enabled="true" if on else "false")
             for name, on in flags]

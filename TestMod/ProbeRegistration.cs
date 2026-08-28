@@ -397,6 +397,17 @@ public static class ProbeRegistration
         // and neither number can say that on its own.
         ProbeRegistry.Register(new VectorLightBakeProbe(
             "vector_light_unchanged_bakes", VectorLightBakeProbe.Metric.UnchangedBakes));
+        // What a door swing's blocker write would have cost, counted rather than inferred. Read as a
+        // RATIO of each other -- calls is how often we provoke vanilla, sections is what it costs --
+        // and beside vector_light_section_dirties, which is what we flag on purpose. Both read 0 with
+        // the suppression off, which is also what a scenario that never moved a door reports, so
+        // neither means anything alone.
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_suppressed_dirty_calls",
+            VectorLightBakeProbe.Metric.SuppressedDirtyCalls));
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_suppressed_dirty_sections",
+            VectorLightBakeProbe.Metric.SuppressedDirtySections));
         ProbeRegistry.Register(
             new VectorLightBakeProbe("vector_light_emitters", VectorLightBakeProbe.Metric.Emitters));
         // The coverage grid, which until now nothing live could see at all -- every other shape
@@ -1420,6 +1431,16 @@ public static class ProbeRegistration
                 CelestialLightingFeatures.VectorLightViewCull = enabled;
                 VectorLightRedraw.ForceRebuild();
             });
+        // NO ForceRebuild HERE, and the omission is deliberate rather than an oversight. This flag
+        // changes nothing about what any section should CONTAIN — it only decides whether a door's
+        // blocker write flags sections for redraw — so rebuilding the whole map on the flip would
+        // hand the arm a fresh, correct frame and hide precisely the staleness the flag risks. An arm
+        // that rebuilt on entry could not measure its own defect.
+        //
+        // The two-argument overload, so a ResetAll restores it to off. It ships off.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightDoorDirtySuppressKey,
+            enabled => CelestialLightingFeatures.VectorLightDoorDirtySuppress = enabled);
         // ForceRebuild for the same reason as the two above, and one that is specific to this flag:
         // it decides HOW a batch is baked, not whether, so without a rebuild the arm inherits
         // whatever the previous arm already baked and every emitter is clean. The fan-out count then

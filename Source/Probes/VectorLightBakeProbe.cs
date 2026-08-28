@@ -132,6 +132,21 @@ public sealed class VectorLightBakeProbe : IProbe
         // leave this flat -- which would mean the saving was on sections nobody was looking at.
         MaskApplies,
 
+        // ---- the dirty suppression ---------------------------------------------------------------
+        //
+        // MapMeshDirty calls declined inside a glow-blocker write, and the distinct sections those
+        // calls would have flagged. BOTH, because they answer different questions and the RATIO
+        // between them is the point: the call count says how often a door swing provokes vanilla, the
+        // section count says what that provocation costs, and the quotient is the fan-out that turned
+        // a few hundred writes into thousands of regenerates. An afternoon of reading the code could
+        // not account for that multiplier; this counts it instead of arguing about it.
+        //
+        // Zero is the correct reading with vector_light_door_dirty_suppress off, which is also what a
+        // scenario that never swung a door reports — so these two are only meaningful beside
+        // SectionDirties and MaskApplies, never on their own.
+        SuppressedDirtyCalls,
+        SuppressedDirtySections,
+
         // Sections that baked without an emitter reaching them, because it had no polygon at all.
         // A DEFECT COUNT rather than a workload one: nonzero after the scene has settled means a
         // frame rendered with a shadow missing. See VectorLightField.MaskSkipsNoPolygon.
@@ -291,9 +306,25 @@ public sealed class VectorLightBakeProbe : IProbe
         if (metric == Metric.LitCells)
             return LitCells(map);
 
+        if (metric == Metric.SuppressedDirtyCalls)
+        {
+            return GlowDirtyScope.SuppressedCalls;
+        }
+
+        if (metric == Metric.SuppressedDirtySections)
+        {
+            return GlowDirtyScope.SuppressedSections;
+        }
+
         if (metric == Metric.Reset)
         {
             VectorLightField.ResetCounters();
+
+            // Drained by the SAME probe call as the field's own counters, deliberately. These are
+            // read per arm beside vector_light_section_dirties, and a pair of counters that reset at
+            // two different moments would let one arm's storm leak into the next one's reading —
+            // which is the exact defect stress_door_colony's per-arm reset was added to fix.
+            GlowDirtyScope.ResetCounters();
             return 0f;
         }
 

@@ -230,6 +230,57 @@ public static class SectionDirtyMath
         return across * up;
     }
 
+    // How many DISTINCT sections one MapMeshDirty call flags, given the cell it names and whether it
+    // asked for adjacent cells.
+    //
+    // WHAT THIS IS FOR, because it computes nothing the game needs. A door swing writes vanilla's
+    // light-blocker bit, GlowGrid.DirtyCell turns that into two MapMeshDirty calls, and the door storm
+    // measured roughly 3,900 lighting-overlay regenerates that nobody asked for — a number an
+    // afternoon of reading the code could not account for from 240 swings. This is the missing
+    // multiplier made countable rather than argued about: the Roofs flag is in MapMeshDirty's own
+    // adjacency set, so its call fans a single cell out to the nine cells around it, and a cell near a
+    // section corner turns those nine into as many as four separate sections.
+    //
+    // DISTINCT is the whole point. Nine adjacent cells usually fall in ONE section and occasionally in
+    // two, three or four, and counting the calls instead of the sections would report nine every time
+    // — which is exactly the kind of plausible wrong number that ends an investigation early.
+    public static int SectionsTouchedByCellDirty(
+        int cellX, int cellZ, bool regenAdjacentCells, int sectionSize, int mapWidth, int mapHeight)
+    {
+        if (sectionSize <= 0 || mapWidth <= 0 || mapHeight <= 0)
+        {
+            return 0;
+        }
+
+        // The cell itself is dirtied whether or not it is in bounds of anything; vanilla's SectionAt
+        // would throw on an out-of-bounds cell, so a caller handing one in has a bug this must not
+        // paper over by returning a plausible count.
+        if (cellX < 0 || cellZ < 0 || cellX >= mapWidth || cellZ >= mapHeight)
+        {
+            return 0;
+        }
+
+        int minCellX = cellX;
+        int maxCellX = cellX;
+        int minCellZ = cellZ;
+        int maxCellZ = cellZ;
+
+        if (regenAdjacentCells)
+        {
+            // Vanilla clips each adjacent cell to the map and skips the ones outside, so the span is
+            // the 3x3 around the cell intersected with the map rather than the raw 3x3.
+            minCellX = cellX - 1 < 0 ? 0 : cellX - 1;
+            maxCellX = cellX + 1 >= mapWidth ? mapWidth - 1 : cellX + 1;
+            minCellZ = cellZ - 1 < 0 ? 0 : cellZ - 1;
+            maxCellZ = cellZ + 1 >= mapHeight ? mapHeight - 1 : cellZ + 1;
+        }
+
+        int across = maxCellX / sectionSize - minCellX / sectionSize + 1;
+        int up = maxCellZ / sectionSize - minCellZ / sectionSize + 1;
+
+        return across * up;
+    }
+
     // Local rather than Mathf, because this file may not reference UnityEngine. Ceiling of a float
     // to an int, matching Mathf.CeilToInt for the non-negative radii an emitter can have.
     private static int CeilToInt(float value) => (int)System.Math.Ceiling(value);

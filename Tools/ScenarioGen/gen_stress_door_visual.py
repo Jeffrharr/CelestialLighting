@@ -17,13 +17,22 @@ ALSO telling the glow grid, which nothing in vanilla ever does: `Building_Door.D
 polygon identical to a bare doorway, `glow_out` left at vanilla's 0.095. What nobody has measured is
 what it COSTS, because that scenario is one door and eight lamps.
 
-FOUR ARMS, and the pairing is the point:
+FIVE ARMS, and the pairing is the point:
 
-    gated     the subsystem off AND the glow blocker off. The untouched game.
-    full      the shipped arrangement: beam drawn, glow grid told.
-    visual    the same, with the glow blocker off. The beam is drawn and gameplay light is vanilla's.
-    full_b    'full' again, after the arm being judged, so drift shows up as the two baselines
-              disagreeing with each other rather than as a result.
+    gated       the subsystem off AND the glow blocker off. The untouched game.
+    full        the shipped arrangement: beam drawn, glow grid told.
+    visual      the same, with the glow blocker off. The beam is drawn and gameplay light is vanilla's.
+    suppressed  the write still happens and gameplay light is unchanged, but it is not allowed to
+                flag sections for redraw. The third offer, and the one that gives up the least.
+    full_b      'full' again, after the arms being judged, so drift shows up as the two baselines
+                disagreeing with each other rather than as a result.
+
+WHAT 'suppressed' RISKS, because it is the arm that can be wrong quietly. Vanilla's flood is geodesic
+and keeps bending past the doorway, so a cell lit only by a path wrapping around a corner beyond the
+door has its glow changed by the re-flood while our straight-line coverage never moved -- and that
+section is flagged by nobody and holds a stale overlay. Nothing throws, nothing logs, and no other
+probe moves. vector_light_suppressed_dirty_sections counts what was declined; it is a measure of
+exposure, not of correctness, and the frames are what have to be looked at.
 
 WHY `gated` IS NOT THE SAME `gated` stress_door_colony HAS. That scenario never stated the three door
 flags, so it inherited them at their true defaults -- meaning its "subsystem off" arm was still
@@ -77,6 +86,11 @@ def perf_asserts():
         # whole claim is that the RATE falls, so bounding it is bounding the claim.
         sc.perf_assert("visual", "callsPerFrame", 4.0, label="Patch_VectorLightSuppress"),
         sc.perf_assert("full", "callsPerFrame", 20.0, label="Patch_VectorLightSuppress"),
+        # The suppression arm's claim is the same one, reached without giving up vanilla's wash, so it
+        # carries the same gate. Recorded rather than tight on the duration, because it is new and a
+        # bound nobody has measured is a prediction.
+        sc.perf_assert("suppressed", "avgMsPerFrame", 60.0),
+        sc.perf_assert("suppressed", "callsPerFrame", 20.0, label="Patch_VectorLightSuppress"),
     ]
 
 
@@ -97,6 +111,14 @@ def build():
     steps += gd.arm("gated", doors, vector_lights=False)
     steps += gd.arm("full", doors, vector_lights=True, changed_dirty=True, glow_blocker=True)
     steps += gd.arm("visual", doors, vector_lights=True, changed_dirty=True, glow_blocker=False)
+    # The third offer, and the one that gives up the least. 'visual' buys its saving by giving up
+    # vanilla's wash and reverting a gameplay-light rule; this keeps BOTH — the write still happens,
+    # the flood still recomputes, GroundGlowAt still answers what it answers today — and declines only
+    # the section flagging the write provokes. If it lands near 'visual' on cost it is strictly the
+    # better trade, and the thing to check is not the cost but the staleness.
+    steps += gd.arm(
+        "suppressed", doors, vector_lights=True, changed_dirty=True, glow_blocker=True,
+        dirty_suppress=True)
     steps += gd.arm("full_b", doors, vector_lights=True, changed_dirty=True, glow_blocker=True)
     steps += gd.storm_probes()
     steps += perf_asserts()
