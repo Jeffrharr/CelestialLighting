@@ -1145,6 +1145,61 @@ public static class VectorLightMath
     // The most this pass can do to a pixel: one stop over whatever it lands on. See the clamp above.
     public const float SurfaceLiftCeiling = 2f;
 
+    // WHAT THE SHIPPED ADDITIVE BEAM LEAVES AT ONE FRAGMENT, in frame units — i.e. what the pixel
+    // renders at, on the 0-1 scale the render target holds, once the fan has drawn over it.
+    //
+    // WHY IT LIVES HERE WHEN NOTHING IN THE MOD CALLS IT, same argument as SurfaceLiftFactor's: the
+    // arithmetic runs on the GPU, and a formula that exists only in HLSL has no offline test. It is
+    // written down as the BASELINE the indoor multiply layer below is judged against, so "the layer
+    // never darkens what shipped" is an assertion about two expressions rather than a hope.
+    //
+    // TWO CLAMPS, AND THEY ARE DIFFERENT CLAMPS. The inner one is the fragment program's own output
+    // meeting a UNORM target, which cannot carry more than 1 however much light the model claims; the
+    // outer one is the frame itself saturating at white under Blend One One. Collapsing them into a
+    // single Clamp01 of the sum would agree everywhere except where the beam alone already exceeds 1,
+    // which is exactly the near-lamp region a sun lamp puts on screen.
+    //
+    // `strength` is VectorLightOverlay.StrengthFor's scalar and `ours`/`vanilla` are in vanilla's own
+    // glow units, matching SurfaceLiftFactor's inputs so the two can be composed below without a
+    // conversion nobody would remember to keep in step.
+    public static float BeamFrame(float unlit, float ours, float vanilla, float strength)
+    {
+        float excess = ours - vanilla;
+
+        // Vanilla is already at or above our model here, so the max in the fragment program clamps
+        // and the pass contributes nothing. Written as a branch rather than a Math.Max so the
+        // degenerate case is visibly the SAME degenerate case SurfaceLiftFactor has.
+        float added = excess > 0f ? strength * excess : 0f;
+
+        return Clamp01(Clamp01(unlit) + Clamp01(added));
+    }
+
+    // THE INDOOR MULTIPLY LAYER AT ONE FRAGMENT: the additive beam, then the surface lift scaling
+    // what the additive beam left. THE CANONICAL STATEMENT OF THE COMPOSITION — two draws of one fan
+    // through two materials, in that order, and the order is why the multiply material carries its
+    // own render queue rather than sharing MoteGlow's. See VectorLightOverlay.MaterialFor.
+    //
+    // THE ORDER IS NOT COSMETIC. Multiply-then-add gives dst*k + a; add-then-multiply gives
+    // dst*k + a*k. Both are brighter than either pass alone, so a frame drawn in the wrong order
+    // still looks like the feature working — it is just a different feature, by a*(k-1). Pinning the
+    // order here is what makes the queue offset in the adapter a stated decision instead of a
+    // coincidence of submission order within one queue, which Unity does not promise.
+    //
+    // IT IS DELIBERATELY NOT SELF-LIMITING, and that is the whole difference from its two halves.
+    // Both terms carry the same max(0, ours - vanilla), so where vanilla has caught up BOTH vanish
+    // together and the expression collapses to Clamp01(unlit) exactly — the off state, reached by
+    // arithmetic rather than by a flag. Where vanilla delivered nothing, the excess is paid twice.
+    // What stops that running away is SurfaceLiftCeiling: the multiply half can at most double what
+    // the additive half left, so the layer is bounded by one stop over the shipped beam however
+    // extreme the model gets.
+    public static float IndoorMultiplyFrame(
+        float unlit, float ours, float vanilla, float ambient, float strength)
+    {
+        float beam = BeamFrame(unlit, ours, vanilla, strength);
+
+        return Clamp01(beam * SurfaceLiftFactor(ours, vanilla, ambient));
+    }
+
     // How much light an unlit cell receives, given the sky over the map and whether the cell is under
     // a roof. This is the DIVISOR'S SKY HALF and not the whole divisor: the fragment program adds
     // vanilla's own delivered glow to it per fragment, because that is the only place vanilla's

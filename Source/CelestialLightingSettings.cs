@@ -147,6 +147,19 @@ public class CelestialLightingSettings : ModSettings
     // decides a lamp's level against vanilla's own, and what was left for the knob to govern was a
     // fallback path no player can select or see.
 
+    // The indoor multiply layer (§27) — a roofed lamp's beam brightening the surface it lands on
+    // as well as adding light beside it. A TASTE option rather than a correction; see
+    // CelestialLightingFeatures.VectorLightIndoorMultiply for what it composes and why doing it
+    // twice is deliberate. Inert while vectorLights is off, like every other switch in this group.
+    //
+    // FALSE ON BOTH SIDES, unlike vectorLightOpenDoors above, and that is the easy case rather than
+    // the interesting one. Scribe_Values omits any value equal to its default when saving, so an
+    // absent node in an existing config loads as whatever default the Look call passes; matching the
+    // field initialiser here means a player who updates gets the shipped default and nothing they
+    // did not ask for appears in their colony. The split above exists because that flag's two
+    // defaults genuinely differ.
+    public bool vectorLightIndoorMultiply = false;
+
     // --- Night-radiance tunables (drive NightRadianceSettings.Current) ---
     // The atmospheric starlight+airglow floor ("true pitch-black" when off), and the pitch-black
     // overlay's minimum-brightness clamp (0 == genuinely black nights; raise it for playability).
@@ -298,6 +311,15 @@ public class CelestialLightingSettings : ModSettings
         // something — which for a settings screen means the toggle looks broken.
         CelestialLightingFeatures.VectorLightPawnShadows = vectorLightPawnShadows;
 
+        // NO REBAKE TRACKING, unlike its neighbours below, and the difference is worth stating
+        // rather than looking like an omission. The open-doors switch changes the BLOCKER SET the
+        // polygons are cast against and the mask's half is baked into section meshes, so flipping it
+        // without a rebuild leaves the map drawing an old answer. This one only decides whether a
+        // second Graphics.DrawMesh is issued in the per-frame draw — nothing is latched in a mesh or
+        // a memo, so the next frame already has it right and forcing a whole-map rebake here would
+        // cost a stutter to change nothing.
+        CelestialLightingFeatures.VectorLightIndoorMultiply = vectorLightIndoorMultiply;
+
         // One switch, both halves (see the field comment). Tracked because this changes the BLOCKER
         // SET the polygons are cast against, and §27's shadow half is baked into the lighting
         // overlay — without a rebake the map keeps drawing beams cast against the old door state.
@@ -415,6 +437,10 @@ public class CelestialLightingSettings : ModSettings
         // FALSE HERE ON PURPOSE while the field initialiser above is true. This is not the
         // new-install default and must not be made to match it -- see the field's comment.
         Scribe_Values.Look(ref vectorLightOpenDoors, "vectorLightOpenDoors", false);
+        // FALSE HERE MATCHING THE FIELD INITIALISER, which is the ordinary case and not the one
+        // above it: an absent node means "this config predates the option", and predating it is the
+        // same thing as having it off.
+        Scribe_Values.Look(ref vectorLightIndoorMultiply, "vectorLightIndoorMultiply", false);
         Scribe_Values.Look(ref skyColorTemperature, "skyColorTemperature", true);
         Scribe_Values.Look(ref polarNightBlue, "polarNightBlue", true);
         Scribe_Values.Look(ref polarNightBlueStrength, "polarNightBlueStrength", 1f);

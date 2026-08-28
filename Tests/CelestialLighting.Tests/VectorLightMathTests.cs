@@ -1840,6 +1840,198 @@ public class VectorLightMathTests
         Assert.That(predicted, Is.EqualTo(0.606f).Within(0.005f));
     }
 
+    // ---- indoor multiply: the lift layered over the beam rather than replacing it ----------
+
+    // THE ORACLE, and the same shape as the surface lift's own above: what the layer does is stated
+    // from its two endpoints, independently of how either half computes it, so the tests below are
+    // asserting against arithmetic written down rather than against themselves. The beam adds
+    // strength x excess to the frame; the lift then takes that frame from the light it renders at to
+    // the light our model claims, i.e. scales it by (ambient + ours) / (ambient + vanilla).
+    //
+    // Every case is chosen to sit clear of both clamps -- factor under SurfaceLiftCeiling, frame
+    // under white -- because a case that saturated would pass whatever the interior arithmetic did.
+    // The clamps get their own tests.
+    [TestCase(0.06f, 0.30f, 0.20f, 0.13f)]  // through a gap, far side: vanilla has partly caught up
+    [TestCase(0.10f, 0.30f, 0.26f, 0.13f)]  // through a gap, close in: vanilla nearly level with us
+    [TestCase(0.05f, 0.12f, 0.05f, 0.208f)] // a dim floor a long way from the lamp
+    public void TheLayerScalesTheBeamItLandsOnByTheLiftTheSurfaceAsksFor(
+        float unlit, float ours, float vanilla, float ambient)
+    {
+        const float strength = VectorLightMath.DefaultStrength;
+        float afterTheBeam = unlit + strength * (ours - vanilla);
+        float wanted = afterTheBeam * (ambient + ours) / (ambient + vanilla);
+
+        Assert.That(
+            VectorLightMath.IndoorMultiplyFrame(unlit, ours, vanilla, ambient, strength),
+            Is.EqualTo(wanted).Within(Tolerance));
+    }
+
+    // OFF-PARITY REACHED BY ARITHMETIC RATHER THAN BY A FLAG, which is the property that makes this
+    // safe to hand a player. Where vanilla has already delivered our model's own value there is no
+    // excess, so BOTH halves vanish together and the layer leaves the pixel exactly as it found it.
+    // The flag is what stops the second draw being issued; this is what stops it mattering where it
+    // should not. Compared against `unlit` itself, not against BeamFrame, so the assertion has an
+    // oracle outside the code under test.
+    [TestCase(0.30f, 0.30f)]
+    [TestCase(0.20f, 0.30f)]
+    [TestCase(0f, 0f)]
+    public void VanillaAtOrAboveOurModelLeavesTheFrameAloneUnderTheLayerToo(float ours, float vanilla)
+    {
+        const float unlit = 0.12f;
+
+        Assert.That(
+            VectorLightMath.IndoorMultiplyFrame(unlit, ours, vanilla, 0.13f, VectorLightMath.DefaultStrength),
+            Is.EqualTo(unlit).Within(Tolerance));
+    }
+
+    // THE LAYER NEVER DARKENS WHAT SHIPPED. The whole risk of a composition that draws twice is that
+    // the second pass could take away what the first put there; DstColor/One cannot, because the
+    // lift factor is floored at 1. Swept rather than sampled, since "brighter at two points" is
+    // satisfiable by something that dips in between.
+    [Test]
+    public void TheLayerIsNeverDarkerThanTheBeamItIsDrawnOver()
+    {
+        const float ambient = 0.13f;
+        const float strength = VectorLightMath.DefaultStrength;
+
+        for (int i = 0; i <= 20; i++)
+        {
+            float ours = i / 20f;
+
+            for (int j = 0; j <= 20; j++)
+            {
+                float vanilla = j / 20f;
+                float beam = VectorLightMath.BeamFrame(0.09f, ours, vanilla, strength);
+                float layered =
+                    VectorLightMath.IndoorMultiplyFrame(0.09f, ours, vanilla, ambient, strength);
+
+                Assert.That(layered, Is.GreaterThanOrEqualTo(beam - Tolerance),
+                    $"the layer darkened the beam at ours = {ours}, vanilla = {vanilla}");
+            }
+        }
+    }
+
+    // AND IT IS BOUNDED BY ONE STOP OVER IT, which is the reason double-delivery is tolerable here
+    // at all. Epic #145 rejected summing two complete lighting models because nothing capped the
+    // result; this sums one model's excess with itself under the blend's own hardware ceiling, so
+    // however extreme the model gets the layer can at most double the beam beneath it. Asserted
+    // against a lamp far brighter than anything RimWorld ships and against an ambient at the floor,
+    // because that is the pair that would run away if the clamp were dropped.
+    [TestCase(0.30f, 0f, 0.13f)]
+    [TestCase(1f, 0f, 0.001f)]
+    [TestCase(100f, 0f, 0.13f)]
+    public void TheLayerNeverMoreThanDoublesTheBeamItIsDrawnOver(
+        float ours, float vanilla, float ambient)
+    {
+        const float unlit = 0.09f;
+        const float strength = VectorLightMath.DefaultStrength;
+        float beam = VectorLightMath.BeamFrame(unlit, ours, vanilla, strength);
+
+        Assert.That(
+            VectorLightMath.IndoorMultiplyFrame(unlit, ours, vanilla, ambient, strength),
+            Is.LessThanOrEqualTo(VectorLightMath.SurfaceLiftCeiling * beam + Tolerance));
+    }
+
+    // THE REASON THE OPTION EXISTS, stated as arithmetic rather than as taste. An additive pass puts
+    // the SAME absolute light into a dark floor tile and a light one, so it raises the mean while
+    // leaving the gap between them untouched -- that is what "no features are lit, just the
+    // additional glow" means, and why a strong beam flattens stonework into a light patch. A
+    // multiply scales the gap along with the level, so the surface keeps its own pattern.
+    //
+    // Both floors are lit by ONE beam, so the only difference between them is their own albedo.
+    [Test]
+    public void TheLayerKeepsTheFloorsOwnTextureWhereTheBeamAloneFlattensIt()
+    {
+        const float dark = 0.06f;
+        const float light = 0.10f;
+        const float ours = 0.30f;
+        const float vanilla = 0.05f;
+        const float ambient = 0.13f;
+        const float strength = VectorLightMath.DefaultStrength;
+
+        float beamGap =
+            VectorLightMath.BeamFrame(light, ours, vanilla, strength)
+            - VectorLightMath.BeamFrame(dark, ours, vanilla, strength);
+        float layeredGap =
+            VectorLightMath.IndoorMultiplyFrame(light, ours, vanilla, ambient, strength)
+            - VectorLightMath.IndoorMultiplyFrame(dark, ours, vanilla, ambient, strength);
+
+        // The additive pass adds a constant, so it carries the gap through unchanged -- it does not
+        // destroy contrast in absolute terms, it destroys it RELATIVE to a level it has raised.
+        Assert.That(beamGap, Is.EqualTo(light - dark).Within(Tolerance));
+
+        // The layer scales it instead, by the same factor it scaled the level.
+        Assert.That(layeredGap, Is.GreaterThan(beamGap + Tolerance));
+    }
+
+    // Monotone in our own model and in vanilla's, in the directions the two halves already are
+    // separately, because composing two monotone terms is not automatically monotone once a product
+    // and two clamps are involved. Swept, for the same reason as the lift's own sweep: a formula
+    // that is right at both ends can be erratic between them.
+    [Test]
+    public void TheLayerRisesWithOurModelAndFallsAwayAsVanillaCatchesUp()
+    {
+        const float unlit = 0.09f;
+        const float ambient = 0.13f;
+        const float strength = VectorLightMath.DefaultStrength;
+
+        float previous = 0f;
+
+        for (int i = 0; i <= 30; i++)
+        {
+            float ours = 0.30f * i / 30f;
+            float rising = VectorLightMath.IndoorMultiplyFrame(unlit, ours, 0f, ambient, strength);
+
+            Assert.That(rising, Is.GreaterThanOrEqualTo(previous - Tolerance),
+                $"the layer fell as our model rose, at ours = {ours}");
+            previous = rising;
+        }
+
+        previous = float.MaxValue;
+
+        for (int i = 0; i <= 30; i++)
+        {
+            float vanilla = 0.30f * i / 30f;
+            float falling =
+                VectorLightMath.IndoorMultiplyFrame(unlit, 0.30f, vanilla, ambient, strength);
+
+            Assert.That(falling, Is.LessThanOrEqualTo(previous + Tolerance),
+                $"the layer rose as vanilla caught up, at vanilla = {vanilla}");
+            previous = falling;
+        }
+    }
+
+    // THE FRAME CANNOT LEAVE THE RENDER TARGET, and the two clamps that stop it are different
+    // clamps. The inner one is the fragment program's output meeting a UNORM target; the outer one
+    // is the frame saturating at white. A near-white pixel under a sun lamp exercises both at once,
+    // and is the case where collapsing them into a single clamp of the sum would disagree.
+    [TestCase(0.98f, 0.30f)]
+    [TestCase(0.50f, 100f)]
+    [TestCase(1f, 100f)]
+    public void ABrightPixelUnderABrightLampSaturatesRatherThanOverflowing(float unlit, float ours)
+    {
+        float frame = VectorLightMath.IndoorMultiplyFrame(
+            unlit, ours, 0f, 0.13f, VectorLightMath.DefaultStrength);
+
+        Assert.That(frame, Is.EqualTo(1f).Within(Tolerance));
+    }
+
+    // A pixel that renders at black stays at black, because a multiply cannot light it and the
+    // additive half is what has to. Not a corner case for its own sake: the surface lift's floor
+    // exists precisely because RimWorld never renders an open cell fully black, and this is the
+    // statement of what would happen if one ever did.
+    [Test]
+    public void ABlackPixelIsLitByTheAdditiveHalfAndNotByTheMultiply()
+    {
+        const float ours = 0.30f;
+        const float strength = VectorLightMath.DefaultStrength;
+        float factor = VectorLightMath.SurfaceLiftFactor(ours, 0f, 0.13f);
+
+        Assert.That(
+            VectorLightMath.IndoorMultiplyFrame(0f, ours, 0f, 0.13f, strength),
+            Is.EqualTo(strength * ours * factor).Within(Tolerance));
+    }
+
     // ---- daylight -----------------------------------------------------------------------
 
     [TestCase(0f, 1f)]

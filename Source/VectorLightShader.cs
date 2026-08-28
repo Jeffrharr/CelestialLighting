@@ -65,7 +65,26 @@ public static class VectorLightShader
     public static bool SurfaceLiftActive =>
         CelestialLightingFeatures.VectorLightSurfaceLift && MaxActive;
 
-    public static Material NewMaterial(Texture2D gradient, bool surfaceLift)
+    // Whether §27 should draw the surface lift as a SECOND pass on top of the additive beam this
+    // frame: asked for, drawable, and not already what the primary pass is doing.
+    //
+    // The third clause is what makes the two flags exclusive rather than additive. With the surface
+    // lift on, the primary pass already carries the multiply blend, so layering another one is a
+    // duplicate rather than a layer and an arm setting both would measure the surface lift under the
+    // wrong name. Stated here, next to the flag it excludes, rather than in the draw where the two
+    // reads would sit thirty lines apart.
+    //
+    // The ROOF test is deliberately NOT here. It is per emitter, and this property is asked once per
+    // frame; keeping "can this be drawn at all" apart from "does this emitter qualify" is what lets
+    // the draw cull on the cheap answer first. See VectorLightOverlay.DrawIndoorMultiply.
+    public static bool IndoorMultiplyActive =>
+        CelestialLightingFeatures.VectorLightIndoorMultiply && MaxActive && !SurfaceLiftActive;
+
+    // `queueOffset` is added to MoteGlow's own queue, and is 0 for everything except the indoor
+    // multiply layer. Passed rather than defaulted so that every caller has to have an opinion about
+    // where in the frame its pass lands — the one thing this file's own header calls the single most
+    // expensive lesson of building the feature.
+    public static Material NewMaterial(Texture2D gradient, bool surfaceLift, int queueOffset)
     {
         Material material = new Material(Loaded) { mainTexture = gradient };
 
@@ -93,7 +112,16 @@ public static class VectorLightShader
         // Reading the queue off MoteGlow rather than hardcoding a number means we cannot drift from
         // it if Ludeon moves the motes, and it needs no rebuild of the three bundles to change.
         // Measured on RimWorld 1.6: our declared queue was 3000, MoteGlow's is 3151.
-        material.renderQueue = ShaderDatabase.MoteGlow.renderQueue;
+        //
+        // THE OFFSET IS HOW THE INDOOR MULTIPLY LAYER GETS TO BE "ON TOP", and it has to be a queue
+        // rather than a submission order. Two Graphics.DrawMesh calls of one fan at one altitude in
+        // one queue are tied on every key Unity sorts transparent geometry by, and a tie is resolved
+        // by nothing this repo can rely on. Add-then-multiply and multiply-then-add differ by a real
+        // amount — see VectorLightMath.IndoorMultiplyFrame — and both look like the feature working,
+        // so a coin flip here would be a silently wrong composition rather than a visible bug.
+        // MoteGlow + 1 keeps the layer above the additive pass and still well below the indoor mask's
+        // own quads at 3160, so nothing else in the frame moves.
+        material.renderQueue = ShaderDatabase.MoteGlow.renderQueue + queueOffset;
 
         return material;
     }

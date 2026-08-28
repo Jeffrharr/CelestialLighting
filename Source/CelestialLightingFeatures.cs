@@ -953,6 +953,64 @@ public static class CelestialLightingFeatures
     // A/B measures the compositing and nothing else.
     public static bool VectorLightSurfaceLift = false;
 
+    // Feature key for VectorLightIndoorMultiply.
+    public const string VectorLightIndoorMultiplyKey = "vector_light_indoor_multiply";
+
+    // The indoor multiply layer: the surface lift drawn ON TOP of the additive beam under a roof,
+    // instead of in place of it.
+    //
+    // IT IS A TASTE OPTION AND NOT A CORRECTION, and saying so first is the honest way round. Every
+    // other composition in §27 is self-limiting by construction — the max, the per-cell lift and the
+    // surface lift all deliver max(0, ours - vanilla) exactly once, so a cell vanilla already lit to
+    // our model's own value gets nothing and there is no level to pick. This one deliberately breaks
+    // that: the additive beam and the surface lift are two DELIVERIES of that same quantity, one as
+    // light added beside the surface and one as a scaling of the surface itself, and running both
+    // lifts the lit region twice. That is exactly why it reads richer indoors, and exactly why it is
+    // not the default.
+    //
+    // WHAT THE SECOND PASS BUYS, since "twice as bright" is not a reason on its own. The additive
+    // beam adds a fixed amount of light to a pixel whatever that pixel is, so it raises a floor's
+    // mean and leaves the floor's own texture at unchanged absolute contrast — the report the surface
+    // lift exists to answer, "no features are lit, just the additional glow". The multiply scales
+    // what is already there, texture and all. Layered, a lit interior gets the glow AND keeps its
+    // stonework, which is the combination that reads as a lamp rather than as a light patch.
+    //
+    // PER ROOFED EMITTER, and the roof test is VectorLightOverlay.StrengthFor's own — the roof grid,
+    // asked at the EMITTER'S cell, so both passes of one emitter agree about which side of the rule
+    // it is on even where its fan crosses a doorway. Two reasons for the gate. DaylightScale is a
+    // constant 1 under a roof and a falling curve outdoors, so a roofed lamp is where the double
+    // lift is actually reachable at all; and a lamp standing in the open, lifted twice over open
+    // ground, has no room to read as "the room's light" and simply reads as a bright patch. Gating
+    // on the emitter is what keeps a taste option from becoming a brightness change to the whole map.
+    //
+    // IT IS NOT "INDOOR PIXELS ONLY", AND THE DIFFERENCE IS MEASURED RATHER THAN THEORETICAL. Asking
+    // at the emitter means a ROOFED lamp keeps the layer over every cell its fan reaches, including
+    // the ground it spills onto through its own doorway — and in the live scene that outdoor spill is
+    // the LARGEST lift in the frame, +1.74 L* at midnight against +1.12 on the indoor beam. That is
+    // not this layer's defect and it is not new: StrengthFor has amplified a roofed lamp's outdoor
+    // beam since phase 1, the surface lift measures the same +1.79 L* at noon, and the fix for both
+    // is the per-cell sky share §7c's NativeSkyFalloffGrid already computes. The layer inherits it
+    // and roughly doubles it, so it is stated here and in the tooltip rather than papered over.
+    //
+    // BOUNDED, WHICH IS WHY DOUBLE-DELIVERY IS TOLERABLE HERE. The multiply pass is Blend DstColor
+    // One against a UNORM target, so it can at most DOUBLE what the additive pass left — one stop,
+    // whatever the model asks for. See VectorLightMath.SurfaceLiftCeiling. Epic #145's rejected
+    // option summed two complete lighting models with no ceiling at all; this sums one model's
+    // excess with itself under a hardware clamp, indoors, behind an off-by-default switch.
+    //
+    // REQUIRES THE SHADER, like the surface lift itself: the multiply blend lives on the material
+    // built from our own fragment program, so a machine that fell back to MoteGlow gets the additive
+    // pass and this flag does nothing at all.
+    //
+    // STANDS DOWN WHILE VectorLightSurfaceLift IS ON. There the primary pass already IS the multiply,
+    // so a second one would be a duplicate rather than a layer — and an arm that set both would
+    // report the surface lift's own numbers under this flag's name.
+    //
+    // OFF. Off is not "no effect at all", it is the shipped frame byte for byte: the whole of this
+    // feature is one extra Graphics.DrawMesh issued after the existing one, so with the flag off
+    // nothing about the primary draw changes and the A/B has a real baseline rather than an absence.
+    public static bool VectorLightIndoorMultiply = false;
+
     // Feature key for VectorLightGapParity.
     public const string VectorLightGapParityKey = "vector_light_gap_parity";
 

@@ -226,6 +226,26 @@ public class CelestialLightingSettingsMod : Mod
         GatedCheckbox(listing, "    Light through open doors", ref Settings.vectorLightOpenDoors,
             vectorLightsOn,
             "Light spills through a door while it is open, and the beam narrows and widens with the leaves as they slide. Shut doors block light exactly as they always did, and so does every wall.\n\nThis is the one place the mod knowingly draws light the game itself does not deliver: RimWorld's lighting never learns that a door opened, so plants still will not grow in that beam and pawns still cannot see down it. It is off by default for that reason. What it costs you is a beam that appears and disappears as pawns walk through doorways \u2014 whether that reads as light spilling out or as the lighting glitching is a taste call, which is why you get to make it.");
+        // The indoor multiply layer (§27). Nested under the master switch for the usual reason — it is a
+        // second pass over the beam that switch draws, so it is inert without it — and shipped OFF
+        // because it is the one composition in this group that is deliberately NOT self-limiting.
+        //
+        // THE TOOLTIP SAYS IT IS A LOOK AND NOT A FIX, in those words. Every other switch on this
+        // screen can be argued from what light actually does; this one doubles up two ways of
+        // drawing the same beam because the result is prettier, and a player who reads the tooltip
+        // deserves to know which kind of switch they are being handed. Saying "richer" rather than
+        // "brighter" in the label would be selling it — the level genuinely does move — so the label
+        // says indoors, which is the part that bounds what it can do to their colony.
+        //
+        // AND THE TOOLTIP SAYS THE DOORWAY SPILL OUT LOUD, because the first draft of it did not.
+        // It read "outdoors and under an open sky nothing changes", which is true of a lamp standing
+        // in the open and false of the case a player will actually notice: the gate is per EMITTER,
+        // so a roofed lamp carries the layer out through its own door, where the live scene measures
+        // the biggest lift in the frame. A tooltip that promises a bound the code does not hold is
+        // worse than one that admits the edge, since the edge is what gets reported as a bug.
+        GatedCheckbox(listing, "    Richer indoor lamp light", ref Settings.vectorLightIndoorMultiply,
+            vectorLightsOn,
+            "A lamp under a roof brightens the floor it lights as well as adding a glow over it, so lit stonework and carpet keep their own pattern instead of washing toward flat light. A lamp standing out in the open is left alone.\n\nThis is a look rather than a correction, and it is off by default because of that: the beam is drawn twice, once each way, so a lit room reads brighter than the game's own lighting would make it \u2014 and a roofed lamp keeps that extra brightness in the light it spills out through its own doorway, which is the strongest place the effect shows. It can at most double the light already there, and it changes nothing about plant growth, work speed or what pawns can see. Turn it on if you like how it looks.");
         // NO "LAMP BEAM STRENGTH" SLIDER, and its absence is deliberate rather than an oversight —
         // it was here and was taken out. §27 phase 6 composes max(vanilla, ours) per fragment, so
         // the level of a lamp is decided against what vanilla actually delivered at each point
