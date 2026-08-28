@@ -12499,6 +12499,77 @@ that arm reads **0.45 ms/frame and 1.58 regenerates a frame** against the door c
 **Four fifths of what the old baseline called "vanilla" was us.** `feature_steps` now states all three,
 which is the rule that file's own header has always given and this is the case it was written for.
 
+#### Phase 11: the multiplier, counted (`vector_light_door_dirty_suppress`)
+
+Phase 10 established that the extra regenerates are ours and could not account for how many. 240
+swings writing the blocker bit once or twice each should dirty a few hundred sections. The measured
+gap was thousands, and the honest state of it was "mechanism established, multiplier unexplained".
+
+**It is `DirtyLightsAround`, and it is per light AND per cell.** `GlowGrid.LightBlockerRemoved` calls
+`DirtyCell` on the door cell — that is the part everybody sees — and then calls `DirtyLightsAround`,
+which walks every light whose `AffectedRect` contains that cell and calls `DirtyCell` on **every cell
+of that light's whole rect**. Each `DirtyCell` raises two `MapMeshDirty` calls. So one blocker write
+costs (lights in range) × (cells in each light's rect) × 2, which for ~20 lights of radius 10–17 is
+tens of thousands of calls for one door moving one step.
+
+Counted rather than argued about, over the same storm: **8,823,492 suppressed `MapMeshDirty` calls,
+touching 9,922,147 distinct sections** — a fan-out of 1.12 sections per call, so the amplification is
+overwhelmingly the call count and barely at all the nine-cell adjacency that looked like the suspect.
+
+**The suppression.** `vector_light_door_dirty_suppress` lets the write change the glow grid without
+flagging any section. `GlowDirtyScope` opens a depth-counted window around the two `LightBlocker*`
+calls in `ReconcileGlowBlocker`; `Patch_GlowDirtySuppress` prefixes the four-argument `MapMeshDirty`
+and declines the section flagging inside it. `DirtyCell`'s other three effects all still happen —
+`dirtyCells`, `anyDirtyCell`, `Notify_GlowChanged` — so vanilla still re-floods and **every gameplay
+reader of `GroundGlowAt` sees exactly what it sees today**. `globalDirtyFlags` is still raised by hand
+through `MapDrawerAccess`, because dropping it would stop the non-sectioned layers updating.
+
+That is the difference between this and turning the glow blocker off: `visual` gives up vanilla's wash
+and reverts a gameplay-light rule to buy its saving, and this keeps both.
+
+**Measured**, `stress_door_visual`, five arms in one boot:
+
+| | gated | full | visual | **suppressed** | full_b |
+|---|---|---|---|---|---|
+| `section_dirties` | 0 | 1,318 | 1,328 | 1,313 | 1,315 |
+| **`mask_applies`** | 0 | **5,580** | **1,328** | **1,313** | **4,952** |
+| `bakes` | 0 | 11,703 | 11,850 | 11,634 | 11,676 |
+| `mask_skips_dirty` | 0 | 0 | 0 | 0 | 0 |
+| `suppressed_dirty_calls` | 0 | 0 | 0 | **8,823,492** | 0 |
+| `suppressed_dirty_sections` | 0 | 0 | 0 | **9,922,147** | 0 |
+
+| arm | mod ms/frame | worst frame | `Suppress` ms/f | calls/f | µs/call | control µs/call |
+|---|---|---|---|---|---|---|
+| full | 19.33 | 110.84 | 9.951 | 7.955 | 1251 | 122.9 |
+| visual | 7.56 | 57.51 | 2.786 | 1.925 | 1448 | 142.4 |
+| **suppressed** | **10.73** | **115.64** | **3.060** | **1.903** | 1608 | **201.0** |
+| full_b | 16.12 | 88.69 | 9.308 | 7.177 | 1297 | 111.5 |
+
+**`mask_applies` is the row to believe, and it is unambiguous.** It is a count rather than a duration,
+so it needs no normalisation: 5,266 on the mean of the two baselines against **1,313**, a **4.0× fall**
+— and it lands *below* `visual`'s 1,328 while keeping the wash. `bakes` stands still within 1.8%, so
+the beam is still being computed, and `mask_skips_dirty` is 0.
+
+**The durations are not trustworthy in this run and the control says so.**
+`Patch_IndoorSkyOcclusion` — untouched, on the same vanilla method — reads **201.0 µs/call in the
+suppressed arm against 122.9 and 111.5 in the baselines**, i.e. the box was some 70% slower while that
+arm ran. Normalised by it the mask reads about 1.8 ms/frame, better than `visual`; unnormalised it
+reads 3.06, slightly worse. Both are the same measurement and the gap between those readings is
+larger than the effect being claimed, so **neither is quoted as the result**. The count is.
+
+**And the worst frame did not improve** — 115.64 against baselines of 110.84 and 88.69. On a control
+excursion this size that is not evidence of harm either, which is precisely the problem. This arm
+needs re-running on a quiet box before any frame-time claim is attached to it.
+
+**What is NOT measured here is the thing that decides whether it ships.** Vanilla's flood is geodesic
+and keeps bending past a doorway, so a cell lit only by a path wrapping around a corner has its glow
+changed by the re-flood while our straight-line coverage never moved — and that section is flagged by
+nobody. `suppressed_dirty_sections` counts *exposure*, not error: it says how much was declined, not
+how much of it mattered. The frames cannot settle it in this scenario, because it runs its clock and a
+cross-arm diff selects hours of sky (phase 10's control: 80.03% of pixels at ΔE 8.84 between two runs
+of the *same* configuration). **A paused door scenario is the missing instrument**, and until it
+exists this flag ships off.
+
 #### What it does not ship as, yet
 
 **Nothing shipped.** The measurement is a case for a decision that is not a performance decision: the
