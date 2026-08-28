@@ -276,6 +276,37 @@ public static class CloudSheetMath
         return Clamp01(cloudFraction) <= 0f ? 0f : amplitude;
     }
 
+    // The player's "Cloud opacity" slider, applied to whichever amplitude the lane is running at.
+    //
+    // A SCALE ON THE AMPLITUDE, NOT ON THE COUNT, and that is the same ruling the fraction got above
+    // rather than a new one. Coverage is a count — how many sheets are on the map — and a slider that
+    // reached it would shed clouds one at a time as it moved, so a player asking for thinner cloud
+    // would get the same cloud in fewer places. Opacity is how much water is in the way of a sheet
+    // that IS there, which is exactly what this constant is.
+    //
+    // 1 == the shipped look, so a fresh install and a slider nobody touched render identically, and
+    // an absent value in an old config adopts the shipped look rather than a new one. 0 is a true
+    // no-op: SheetAlphaWithAmplitude returns 0 for a non-positive amplitude and the overlay makes no
+    // draw call, so the bottom of the slider is exactly "Visible clouds" unticked.
+    //
+    // ONE END IS NOT REACHABLE FROM HERE, and that is deliberate rather than an oversight in the
+    // range. Above 1 the chain amplitude x overlap boost (1.35 at the middle of a stack) x a blob's
+    // core density clamps, which puts an opaque white lid over the colony — the exact failure
+    // PresentSheetAmplitude was held below 0.80 to avoid. A slider whose top end blanks the base is
+    // not a taste axis, so the top end is the calibrated look and the travel is all downward.
+    //
+    // NaN is treated as "unset" rather than as zero, unlike Clamp01's own convention: a corrupt
+    // config should give a player the shipped sky, not an invisible one they cannot diagnose.
+    public const float DefaultOpacityScale = 1f;
+
+    public static float AmplitudeAtOpacity(float amplitude, float opacityScale)
+    {
+        if (float.IsNaN(opacityScale))
+            return amplitude;
+
+        return amplitude * Clamp01(opacityScale);
+    }
+
     // How much a sheet's alpha and brightness are raised by other cloud stacked on it, and the ceiling
     // that raise is capped at. See CloudSheetLayout.OverlapDepth for where the depth comes from.
     public const float OverlapGain = 0.35f;

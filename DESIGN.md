@@ -13782,6 +13782,77 @@ multiplies by one. `cloud_sheet_pop.json` also still holds its **one tick into t
 unchanged, which is §25's own anti-pop guarantee — the regression that section exists for is not
 reintroduced by this one.
 
+## 25g. The cloud opacity slider (`CloudSheetMath.AmplitudeAtOpacity` / `CloudSheetSettings`)
+
+**Status: SHIPPED ON, at 1.00 — which is the look every section above calibrated.** The slider adds
+no new state to the render: it scales the lane amplitude the drawn cloud sheet already had, at the
+one point (`CloudLayers.SheetAlphaFor`) both the draw and the probe read.
+
+### Why a slider rather than another checkbox
+
+The drawn cloud is the only thing this mod puts **between the camera and the colony**. Every other
+subsystem changes what colour the base is lit in; this one covers it up. How much of that a player
+will accept is a matter of degree, not a yes/no — and the "no" end already exists twice over
+(unticking visible clouds, or unticking partial cloud cover). What was missing was everything in
+between: a player who likes cloud in principle and finds the calibrated deck too heavy over their
+base had nothing to reach for but the switch.
+
+### It scales opacity, never the count
+
+Coverage in this subsystem is a **count** — more cloud is more sheets — and the amplitude is how much
+water is in the way of each one. A slider wired to the count would shed clouds one at a time as it
+moved, so a 60% sky would stop being a 60% sky; the same double-count argument §25 already made when
+it took the cloud fraction out of the alpha. So the knob multiplies the amplitude and nothing else,
+and a thinned sky keeps every sheet where it was.
+
+### The range has no headroom above the shipped value, deliberately
+
+§25d settled the amplitude by walking **down** from a value that was too high: at the middle of a
+stack the chain amplitude × overlap boost (1.35) × a blob's core density clamps, which is an opaque
+white lid over the colony. So 1.00 is the top of the travel rather than the middle of it. An
+out-of-range value from a hand-edited config clamps; a NaN returns the **shipped** amplitude rather
+than zero, so a corrupt config gives a player their normal sky instead of an invisible one they
+cannot diagnose.
+
+Zero is a true no-op rather than a very thin cloud: `SheetAlphaWithAmplitude` returns 0 for a
+non-positive amplitude and `CloudSheetOverlay` makes no draw call, so the bottom of the slider costs
+exactly what unticking the feature costs.
+
+### Live verification (`Tests/Scenarios/cloud_opacity.json`)
+
+Three positions inside **one boot**, which is the whole reason `CloudOpacityOverride` exists: the
+harness can flip a bool and nothing else, and comparing a float knob across two boots compares two
+different cloud layouts. The colony is paused and no arm advances the clock, so `CloudSheetDraw`'s
+per-tick placements are identical in all three frames and the only difference between them is how
+opaque the same sheets are.
+
+Measured at noon, latitude 45, over a forced 0.92 sky (the overcast forced fraction, because at 0.35
+the camera is quite likely to be looking at no cloud at all):
+
+| arm | `cloud_sheet_alpha` | vs. full opacity | frame touched |
+|---|---|---|---|
+| 1.00 (shipped) | 0.7500 | — | — |
+| 0.25 | 0.1875 | masked median ΔE **9.78**, whole-frame 2.97 (p90 15.39) | 54.1% |
+| 0.00 | 0.0000 | masked median ΔE **13.12**, whole-frame 3.88 (p90 20.90) | 54.3% |
+
+and 0.25 → 0.00 is masked median ΔE 3.55, i.e. the quarter-opacity cloud is still plainly a cloud
+rather than a rounding error on an empty sky. Quoted masked as well as whole-frame because the cloud
+is a bounded object: half the frame has no cloud over it in any arm, and every one of those pixels
+votes zero.
+
+The last arm turns both overrides back off and re-reads 0.7500, so the scenario also asserts that
+the override is a test seam rather than a one-way door.
+
+### Gated where its siblings are not
+
+The slider is greyed while visible clouds is off, unlike the two checkboxes above it, and that is not
+an inconsistency with the note in §27's block about leaving the cloud group ungated. Each of those
+checkboxes does something on its own terms whichever way its parent is set. A slider reading "1.00"
+under an unticked "Visible clouds" claims a magnitude for something that is not being drawn — which
+is the exact reads-as-doing-something-and-does-nothing state `GatedSlider` was written for. Its value
+is left alone while greyed, so re-ticking the box gives the player back the opacity they chose.
+
+
 ## Interop: Clouds (`Source/CloudsCompat.cs` / `CloudsCompatMath.cs`)
 
 **Clouds** (`brrainz.clouds`, Andreas Pardeike, Workshop 3039192325) hangs a Unity `ParticleSystem`

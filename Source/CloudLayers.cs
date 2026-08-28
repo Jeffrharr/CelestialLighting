@@ -246,6 +246,17 @@ public static class CloudLayers
             ? CloudSheetMath.PresentSheetAmplitude
             : SheetAmplitudeScale;
 
+        // The player's opacity slider, applied HERE rather than at the draw call, so the probe on
+        // this function reports the alpha that actually reaches a pixel. That is the shared-read
+        // discipline this whole file exists for: a scenario measuring the slider must not be able to
+        // read a number the screen disagrees with.
+        //
+        // It scales the amplitude rather than the finished alpha, which is the same value at this
+        // point and not the same statement: everything downstream — the deck's opacity, the overlap
+        // boost, a sheet's own edge falloff — is a fact about a particular cloud, and the slider is
+        // a fact about how thick this player wants cloud drawn.
+        amplitude = CloudSheetMath.AmplitudeAtOpacity(amplitude, CloudSheetSettings.OpacityScale);
+
         // The cover handed to the pure core is the heaviest any PLACED sheet is holding, not the live
         // one, for the same reason the gate above changed: those two are the same number until a sheet
         // outlives the cover it entered under, and on that frame the live one says "no cloud" about a

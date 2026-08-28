@@ -1714,6 +1714,20 @@ public static class ProbeRegistration
         FeatureRegistry.Register(
             CelestialLightingFeatures.CloudPresenceKey,
             enabled => CelestialLightingFeatures.CloudPresence = enabled);
+        // Not CelestialLightingFeatures flags either: the two positions of the player's cloud opacity
+        // slider that are worth pinning. A float knob has no SetFeature of its own, and comparing one
+        // across two boots compares two different cloud layouts — see CloudOpacityOverride's header.
+        // defaultEnabled FALSE on both, like every other override here: the resting state is the
+        // shipped slider position, so a ResetAll between scenarios in a suite puts the opacity back
+        // to 1 rather than leaving every later scenario measuring a thinned sky.
+        FeatureRegistry.Register(
+            CloudOpacityOverride.ReducedFeatureKey,
+            enabled => CloudOpacityOverride.SetReduced(enabled),
+            defaultEnabled: false);
+        FeatureRegistry.Register(
+            CloudOpacityOverride.ZeroFeatureKey,
+            enabled => CloudOpacityOverride.SetZero(enabled),
+            defaultEnabled: false);
         // Not a CelestialLightingFeatures flag: forces CloudCoverClock.FractionForMap's result to a
         // fixed constant so a scenario gets a specific, reproducible cloud fraction on demand instead
         // of depending on which absolute year the harness's clock jump happened to land in (see
