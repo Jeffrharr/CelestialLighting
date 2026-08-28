@@ -93,6 +93,10 @@
          assembly for the same reason: StepDiscovery scans loaded mod assemblies, and this must
          never reach the shipped DLL. -->
     <Compile Include="../Source/Probes/SetDoorOpenStep.cs" Link="SetDoorOpenStep.cs" />
+    <!-- Slows the game against WALL-CLOCK time, which is what makes a short animation filmable at
+         all: a screenshot's frame is long, TickManager ticks through Time.deltaTime, so at normal
+         speed a door's whole slide falls between two captures. -->
+    <Compile Include="../Source/Probes/SetTimeScaleStep.cs" Link="SetTimeScaleStep.cs" />
     <!-- §27e phase 2: unpauses the scenario clock so a door actually animates. TickLapse cannot do
          this — its AdvanceTicks is a jump, and a door's slide is driven by its own Tick(). -->
     <Compile Include="../Source/Probes/SetTimeSpeedStep.cs" Link="SetTimeSpeedStep.cs" />
