@@ -12605,13 +12605,44 @@ rather than on ticks, so the torch differs between any two captures whatever the
 flicker section records the same thing. **The right room, where the beam is and where a stale section
 would have to sit, carries no excess pixels at all.**
 
-**WHAT THIS DOES NOT PROVE, and it is worth being exact.** The pocket behind the stub is dark in
-*both* arms, so vanilla's wrap-around light did not measurably reach it and the specific geodesic case
-was not strongly provoked — the scene has the shape for it and the reach was not there. What is
-established is narrower and still useful: twelve regenerates were declined and the lit region is
-pixel-identical to its own control. Widening the emitter until the pocket is genuinely lit is the next
-version of this scenario, and until it exists the flag stays off on the strength of what was not
-tested rather than what was.
+**THE POCKET IS BLACK IN EVERY ARM, AND THE REASON IS THE RESULT.** Sampled directly: 0.00 mean
+channel in `full`, `suppressed` and `full_b` alike, while the beam reads 19.44 and the lit room 30.04
+— byte-identical across all three arms, which is a stronger statement than any ΔE. It is not that
+vanilla's flood failed to arrive. It arrives, and **the mask then subtracts that emitter's entire
+contribution**, because coverage in the pocket is zero. That is the subsystem doing exactly what it
+exists to do.
+
+Which makes the staleness **self-cancelling, structurally**. The only cells whose vanilla glow moves
+without our coverage moving are the wrap-around cells — and those are precisely the cells the mask
+blacks out. Stale or fresh, they render the same. The hole the flag was feared through is a hole the
+mask had already filled.
+
+#### Phase 11c: the same question outdoors (`door_dirty_stale_open`)
+
+A scene where nothing can go wrong cannot show that nothing went wrong, so the variant unroofs the
+right room. It is then an outdoor room: the night sky floor arrives through the overlay's alpha, the
+pocket sits at 30.20 rather than 0.00, and the doorway light reads as a broad wash rather than the
+roofed scene's narrow beam. Everything else — scene, arms, flags, ordering — is identical, so the roof
+is the only variable.
+
+**The instrument had to change with it, and that is worth recording.** The three arms sit at three
+successive points on one advancing clock, so `full` → `full_b` spans *two* steps where
+`full` → `suppressed` spans one: the control is the LARGER difference, and any "test exceeds control"
+metric is biased before it starts. Outdoors it duly reported 3.15% of the plate while the test's own
+p90 (1.414) sat *below* the control's (1.448) and the control's max (52.69) was four times the test's
+(12.76). The right question is **betweenness**: with the sky moving monotonically, a pixel with no flag
+effect must land between its two neighbours, and a stale one holds a pre-swing value and departs from
+the trend.
+
+**77 of 528,000 plate pixels leave the `[full, full_b]` band by more than two levels — 0.0146%** — and
+`door_dirty_stale_open__betweenness.png` shows them: the torch's own flame sprite, plus three isolated
+pixels on a room boundary. Nothing in the pocket, nothing in the beam, nothing in the stub's shadow.
+
+**So the suppression is clean in both roof states**, and the reason it is clean is understood rather
+than merely observed. What remains untested is the one path that could still bite: the saturation
+correction reconstructs vanilla's fold over *all* lights, so a cell pushed over the 255 ceiling by a
+door opening would change the mask's output at a cell whose own coverage never moved. That needs two
+lamps and a saturating cell, and it is the scenario to write before this ships.
 
 **What is NOT measured here is the thing that decides whether it ships.** Vanilla's flood is geodesic
 and keeps bending past a doorway, so a cell lit only by a path wrapping around a corner has its glow

@@ -51,6 +51,7 @@ import os
 HERE = os.path.dirname(os.path.abspath(__file__))
 SCEN = os.path.abspath(os.path.join(HERE, "..", "..", "Tests", "Scenarios"))
 TARGET = os.path.join(SCEN, "door_dirty_stale.json")
+TARGET_OPEN = os.path.join(SCEN, "door_dirty_stale_open.json")
 
 # The plate, as offsets from map centre. Kept small: the defect is a pocket a few cells across and a
 # wide shot would put it under a handful of pixels.
@@ -141,7 +142,7 @@ def feature_steps(suppress):
             for name, on in flags]
 
 
-def arm(name, suppress):
+def arm(name, suppress, prefix):
     """One arm: shut the door, set the flags, open it, settle, photograph.
 
     THE SHUT COMES FIRST AND IT IS NOT A TIDY-UP. The provocation under test is the TRANSITION from
@@ -170,7 +171,7 @@ def arm(name, suppress):
         step("Wait", frames=SWING_FRAMES),
         step("SetTimeSpeed", speed="paused"),
         step("Wait", frames=SETTLE_FRAMES),
-        step("Screenshot", fileName=f"door_dirty_stale_{name}", hideUi="true"),
+        step("Screenshot", fileName=f"{prefix}_{name}", hideUi="true"),
     ]
 
     # RECORDED, NOT PINNED, on this repo's rule against pins nobody has measured. The pair that
@@ -185,7 +186,44 @@ def arm(name, suppress):
     return steps
 
 
-def build():
+def roof_step(roofed_right):
+    """Roof the whole plate, or only the left room.
+
+    THE UNROOFED RIGHT SIDE IS THE SECOND VARIANT'S WHOLE POINT, and the roofed run is what motivated
+    it. There the pocket behind the stub renders black in EVERY arm -- measured, 0.00 mean channel in
+    all three -- and not because vanilla's flood failed to arrive. It arrives, and the mask then
+    subtracts that emitter's entire contribution, because coverage in the pocket is zero. That is
+    vector lighting doing exactly what it exists to do, and it makes the staleness SELF-CANCELLING:
+    the only cells whose vanilla glow moves without our coverage moving are the wrap-around cells,
+    and those are the cells the mask blacks out either way. A scene where nothing can go wrong cannot
+    demonstrate that nothing went wrong.
+
+    Unroofed, the right room is an OUTDOOR room, so the night sky floor arrives through the lighting
+    overlay's alpha and the pocket is no longer sitting at zero. Whether that is enough to make the
+    artificial term's staleness visible is the question this variant asks rather than assumes.
+
+    THE ROOF STOPS ONE CELL SHORT OF THE DIVIDING WALL, so the wall is the boundary. Roofing the wall
+    cell itself would put the right room's edge under a roof it does not have, and the room-kind
+    answer would then depend on which cell a query happened to hit -- the "one wall cell flips a room
+    to porch" trap from the other direction.
+    """
+    if roofed_right:
+        return step("SetRoof", **{
+            "def": "RoofConstructed", "width": MAX_X - MIN_X + 1, "height": MAX_Z - MIN_Z + 1,
+            "offset": ORIGIN})
+
+    left_width = abs(MIN_X)
+    left_centre = (MIN_X - 1) // 2
+    return step("SetRoof", **{
+        "def": "RoofConstructed", "width": left_width, "height": MAX_Z - MIN_Z + 1,
+        "offset": f"{left_centre},45"})
+
+
+def build(roofed_right=True):
+    # Captures are namespaced per variant. Sharing them would silently overwrite the roofed run's
+    # frames with the unroofed one's, and the two are meant to be read side by side.
+    prefix = "door_dirty_stale" if roofed_right else "door_dirty_stale_open"
+
     steps = [
         step("SetTile", latitude=45),
         step("SetSeason", dayOfYear=40),
@@ -202,12 +240,7 @@ def build():
         step("PlaceThings", **{
             "def": "TorchLamp", "offset": ORIGIN, "layout": "cells",
             "cells": cells([TORCH])}),
-        # width/height/offset, matching every other SetRoof in the suite. An arg name this step does
-        # not recognise leaves the rooms UNROOFED and does not stop the run -- and an unroofed room is
-        # an outdoor room, which would put sky light on the very cells the pocket is measured in.
-        step("SetRoof", **{
-            "def": "RoofConstructed", "width": MAX_X - MIN_X + 1, "height": MAX_Z - MIN_Z + 1,
-            "offset": ORIGIN}),
+        roof_step(roofed_right),
         step("SetTime", hour=0),
         step("LookAt", offset=ORIGIN, zoom=17),
         # ESTABLISH BEFORE THE PALETTE. SetGlowColors drives CompGlower's setter, which deregisters
@@ -226,12 +259,12 @@ def build():
         step("Wait", frames=4),
         # THE FIRST CAPTURE CARRIES THE HUD whatever hideUi says; it is honoured from the second on.
         # Discarded here so no arm's frame is the one holding a message log that differs run to run.
-        step("Screenshot", fileName="door_dirty_stale_warmup_discard"),
+        step("Screenshot", fileName=f"{prefix}_warmup_discard"),
     ]
 
-    steps += arm("full", suppress=False)
-    steps += arm("suppressed", suppress=True)
-    steps += arm("full_b", suppress=False)
+    steps += arm("full", suppress=False, prefix=prefix)
+    steps += arm("suppressed", suppress=True, prefix=prefix)
+    steps += arm("full_b", suppress=False, prefix=prefix)
 
     return {
         "name": "door_dirty_stale",
@@ -269,11 +302,35 @@ def build():
 
 
 def main():
-    scenario = build()
-    with open(TARGET, "w") as handle:
-        json.dump(scenario, handle, indent=2)
-        handle.write("\n")
-    print(f"wrote {TARGET} ({len(scenario['steps'])} steps)")
+    for target, roofed in ((TARGET, True), (TARGET_OPEN, False)):
+        scenario = build(roofed_right=roofed)
+
+        if not roofed:
+            scenario["name"] = "door_dirty_stale_open"
+            scenario["description"] = (
+                "door_dirty_stale with the RIGHT ROOM UNROOFED, which is the variant the roofed run "
+                "asked for. There the pocket behind the stub read 0.00 mean channel in all three "
+                "arms — not because vanilla's flood failed to reach it, but because it did and the "
+                "mask then subtracted that emitter's whole contribution, coverage in the pocket "
+                "being zero. That is the subsystem working as designed, and it makes the staleness "
+                "self-cancelling: the only cells whose vanilla glow moves without our coverage "
+                "moving are the wrap-around cells, and the mask blacks those out either way."
+                "\n\n"
+                "Unroofed, the right room is an outdoor room, so the night sky floor arrives through "
+                "the overlay's alpha and the pocket is not sitting at zero. The question is whether "
+                "a stale artificial term is then visible against it. Everything else — scene, arms, "
+                "flags, ordering — is identical to the roofed file, so the roof is the only variable."
+                "\n\n"
+                "Read it the same way: 'full' against 'full_b' is the floor and 'full' against "
+                "'suppressed' has to be compared to that floor rather than to zero, because all "
+                "three arms advance the clock and are captured at different points in it."
+            )
+
+        with open(target, "w") as handle:
+            json.dump(scenario, handle, indent=2)
+            handle.write("\n")
+
+        print(f"wrote {target} ({len(scenario['steps'])} steps)")
 
 
 if __name__ == "__main__":
