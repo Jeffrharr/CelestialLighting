@@ -563,6 +563,13 @@
       }
     },
     {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_dirty_suppress",
+        "enabled": "false"
+      }
+    },
+    {
       "type": "SetTimeSpeed",
       "args": {
         "speed": "superfast"
@@ -736,6 +743,13 @@
       "type": "SetFeature",
       "args": {
         "featureName": "vector_light_door_glow_blocker",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_dirty_suppress",
         "enabled": "false"
       }
     },
@@ -2596,6 +2610,22 @@
       }
     },
     {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_suppressed_dirty_calls",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_suppressed_dirty_sections",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
       "type": "SetFeature",
       "args": {
         "featureName": "cloud_cover",
@@ -2712,6 +2742,13 @@
       "args": {
         "featureName": "vector_light_door_glow_blocker",
         "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_dirty_suppress",
+        "enabled": "false"
       }
     },
     {
@@ -4571,6 +4608,22 @@
       }
     },
     {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_suppressed_dirty_calls",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_suppressed_dirty_sections",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
       "type": "SetFeature",
       "args": {
         "featureName": "cloud_cover",
@@ -4687,6 +4740,13 @@
       "args": {
         "featureName": "vector_light_door_glow_blocker",
         "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_dirty_suppress",
+        "enabled": "false"
       }
     },
     {
@@ -6546,6 +6606,22 @@
       }
     },
     {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_suppressed_dirty_calls",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_suppressed_dirty_sections",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
       "type": "SetFeature",
       "args": {
         "featureName": "cloud_cover",
@@ -6662,6 +6738,13 @@
       "args": {
         "featureName": "vector_light_door_glow_blocker",
         "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_dirty_suppress",
+        "enabled": "false"
       }
     },
     {
@@ -8516,6 +8599,22 @@
       "type": "Probe",
       "args": {
         "probeName": "vector_light_mask_skips_dirty",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_suppressed_dirty_calls",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_suppressed_dirty_sections",
         "expectedValue": "0",
         "tolerance": "1000000000"
       }

@@ -223,13 +223,30 @@ public static class VectorLightDoorEvents
             return;
         }
 
-        if (hole)
+        // INSIDE THE SCOPE, AND ONLY THESE TWO CALLS. GlowDirtyScope lets the write change the glow
+        // grid without flagging any section for redraw, which is the whole of what a door swing costs
+        // us — but only while the flag behind it is on, and only here. Every other MapMeshDirty in the
+        // game, including our own from the draw, is outside this window and behaves normally.
+        //
+        // The try/finally is not defensive padding: LightBlockerAdded and LightBlockerRemoved are both
+        // postfixed by this file's own patches, so an exception thrown by our invalidation would
+        // otherwise leave the scope open and silently stop the entire map flagging sections.
+        GlowDirtyScope.Enter();
+
+        try
         {
-            map.glowGrid.LightBlockerRemoved(door.Position);
+            if (hole)
+            {
+                map.glowGrid.LightBlockerRemoved(door.Position);
+            }
+            else
+            {
+                map.glowGrid.LightBlockerAdded(door.Position);
+            }
         }
-        else
+        finally
         {
-            map.glowGrid.LightBlockerAdded(door.Position);
+            GlowDirtyScope.Exit();
         }
     }
 

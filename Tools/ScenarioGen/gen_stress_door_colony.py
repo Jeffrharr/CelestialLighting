@@ -134,7 +134,7 @@ def swing_steps(doors):
     return steps
 
 
-def arm(name, doors, vector_lights, changed_dirty=None, glow_blocker=None):
+def arm(name, doors, vector_lights, changed_dirty=None, glow_blocker=None, dirty_suppress=False):
     """One measured arm: flags, a photograph, then the storm inside a profiling window.
 
     ProfileStart/ProfileMeasure/ProfileStop rather than the composite Profile step, because the window
@@ -150,7 +150,7 @@ def arm(name, doors, vector_lights, changed_dirty=None, glow_blocker=None):
     and makes vector_light_section_dirties an arm-local number.
     """
     steps = sc.feature_steps(vector_lights=vector_lights, changed_dirty=changed_dirty,
-                             glow_blocker=glow_blocker)
+                             glow_blocker=glow_blocker, dirty_suppress=dirty_suppress)
     steps.append(sc.step("Wait", frames=SETTLE_AFTER_FLAGS))
     steps.append(sc.step("Probe", probeName="vector_light_bake_reset",
                          expectedValue=0, tolerance=sc.RECORD_TOLERANCE))
@@ -211,6 +211,13 @@ def arm_probes(name):
         # on this colony, and a pin nobody has measured is a prediction. Pin it at whatever the first
         # run reads, and treat a later rise as the finding.
         sc.record("vector_light_mask_skips_dirty"),
+        # What the glow-blocker write would have flagged, for the arms that decline it. Zero in every
+        # other arm, which is what makes the pair readable: calls is how often a door swing provokes
+        # vanilla, sections is what that provocation costs, and the quotient is the fan-out nobody had
+        # counted -- MapMeshDirty puts Roofs in its adjacency set, so one cell becomes nine, and a cell
+        # near a section corner turns those nine into as many as four sections.
+        sc.record("vector_light_suppressed_dirty_calls"),
+        sc.record("vector_light_suppressed_dirty_sections"),
     ]
 
 

@@ -1447,6 +1447,34 @@ public static class CelestialLightingFeatures
     // polygon still treats as a wall: a coherent thing to measure, not a coherent thing to ship.
     public static bool VectorLightDoorGlowBlocker = true;
 
+    // Feature key for VectorLightDoorDirtySuppress.
+    public const string VectorLightDoorDirtySuppressKey = "vector_light_door_dirty_suppress";
+
+    // Stop the glow-blocker write above flagging sections for redraw, while leaving everything it
+    // does to gameplay light exactly as it is.
+    //
+    // WHAT IT IS FOR. The write is what makes vanilla's flood arrive through an open door, and it is
+    // also the most expensive thing this mod does: measured on the door storm, it is the difference
+    // between 7.4 and 1.9 lighting-overlay regenerates a frame and between 15.8 and 7.6 ms of mod per
+    // frame, at roughly 1.2 ms of mask per regenerate. But the regenerates are a side effect of
+    // GlowGrid.DirtyCell being a blunt instrument — it names one cell and lets MapMeshDirty fan it out
+    // — and the sections that genuinely need to look different are already flagged, precisely, from
+    // the coverage delta.
+    //
+    // WHY IT IS NOT SIMPLY THE GLOW BLOCKER TURNED OFF. That switch gives up vanilla's wash and
+    // reverts a gameplay-light rule; this keeps both and declines only the redraw. The two are
+    // genuinely different offers and both are worth being able to make.
+    //
+    // OFF BY DEFAULT, because it can be wrong in a way nothing else here notices. Vanilla's flood is
+    // geodesic, so a cell lit only by a path bending around a corner beyond the door has its glow
+    // changed while our straight-line coverage never moved — and that section then holds a stale
+    // overlay with no exception, no log line and no other probe moving. GlowDirtyScope.SuppressedSections
+    // is the witness for what was declined; the residue is dim, and dim is not the same as absent.
+    //
+    // OFF REPRODUCES TODAY EXACTLY: the scope still opens and closes around the write, the prefix
+    // reads the flag first and returns true, and vanilla's MapMeshDirty runs unchanged.
+    public static bool VectorLightDoorDirtySuppress = false;
+
     // Feature key for VectorLightDoorAperture.
     public const string VectorLightDoorApertureKey = "vector_light_door_aperture";
 

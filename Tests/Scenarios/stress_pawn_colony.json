@@ -563,6 +563,13 @@
       }
     },
     {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_dirty_suppress",
+        "enabled": "false"
+      }
+    },
+    {
       "type": "SetTimeSpeed",
       "args": {
         "speed": "superfast"
@@ -866,6 +873,13 @@
       }
     },
     {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_dirty_suppress",
+        "enabled": "false"
+      }
+    },
+    {
       "type": "Wait",
       "args": {
         "frames": "30"
@@ -1017,6 +1031,13 @@
       "args": {
         "featureName": "vector_light_door_glow_blocker",
         "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_dirty_suppress",
+        "enabled": "false"
       }
     },
     {
@@ -1174,6 +1195,13 @@
       }
     },
     {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_dirty_suppress",
+        "enabled": "false"
+      }
+    },
+    {
       "type": "Wait",
       "args": {
         "frames": "30"
@@ -1325,6 +1353,13 @@
       "args": {
         "featureName": "vector_light_door_glow_blocker",
         "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_dirty_suppress",
+        "enabled": "false"
       }
     },
     {
