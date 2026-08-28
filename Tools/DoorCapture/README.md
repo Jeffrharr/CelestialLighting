@@ -22,11 +22,14 @@ animating.
     --no-profiler \
     <worktree>/Tests/Scenarios/vector_light_door_film.json
 
-# 2. crop, decimating to every 3rd frame, then encode at the matching rate. Both numbers together
-#    are what makes it play at game speed — see "How fast to play it".
-Tools/DoorCapture/crop_frames.sh \
-    ../RimWorldTestHarness/Runner/reports /tmp/doorframes 1210:680:240:180 960 1 520 doorfilm_ 3
-Tools/DoorCapture/make_gif.sh /tmp/doorframes Tests/Screenshots/vector_light_door_beam.gif 33.333 256
+# 2. crop each arm, decimating to every 3rd frame, then encode at the matching rate. Both numbers
+#    together are what makes it play at game speed — see "How fast to play it".
+for arm in "doorfilm_ vector_light_door_beam" "doorvibrant_ vector_light_door_beam_vibrant"; do
+    set -- $arm
+    Tools/DoorCapture/crop_frames.sh \
+        ../RimWorldTestHarness/Runner/reports /tmp/$1 1210:680:240:180 960 1 520 $1 3
+    Tools/DoorCapture/make_gif.sh /tmp/$1 Tests/Screenshots/$2.gif 33.333 256
+done
 
 # 3. the off/on stills, same crop, straight out of ffmpeg
 for arm in off on; do
@@ -35,6 +38,41 @@ for arm in off on; do
         Tests/Screenshots/vector_light_door_beam_${arm}.png
 done
 ```
+
+## Two arms, one boot
+
+The scenario films the same take twice, differing in exactly one flag:
+
+| | `vector_light_indoor_multiply` | clip |
+|---|---|---|
+| shipped default | off | `vector_light_door_beam.gif` |
+| "Extra vibrant indoor lighting" | on | `vector_light_door_beam_vibrant.gif` |
+
+It is the mod's own taste option — off by default because the additive beam and the surface lift are
+two *deliveries* of the same quantity and running both lifts the lit region twice. Measured on the
+same frame of both arms, it is real and bounded:
+
+| | room floor | beam, near | beam, far | unlit yard |
+|---|---|---|---|---|
+| default | 15.12 | 16.57 | 14.54 | 8.32 |
+| vibrant | 15.54 | 17.01 | 15.22 | **8.32** |
+
+Masked median dE **1.20**, p90 2.07, over 10.9% of the frame. The unlit yard not moving at all is the
+part worth checking: the layer gates per *emitter* on the roof grid, so it reaches everything this
+lamp's fan touches and nothing it does not. Note the largest lift is the **far beam** (+0.68), not the
+indoor floor — a roofed lamp carries the layer out through its own doorway, which the flag's own
+documentation calls out and which this scene is the strongest case of.
+
+**THE ROOM HAS TO BE ROOFED FOR ANY OF THIS.** `PlaceThings` never roofs, so the fixture's earlier
+cuts were an *outdoor* room, and the gate is asked at the emitter's cell — an unroofed fixture would
+have produced two identical clips and a confident claim that the setting does nothing. The `SetRoof`
+rect is exactly the room's footprint, walls included: one cell wider in any direction is an eave over
+the very yard the beam is filmed falling on. Roofing also darkens the interior (indoor sky occlusion),
+which is why the room reads L\* 15.1 here against 26.8 in the unroofed cuts.
+
+`vector_light_surface_lift` is pinned **off** in both arms, because the multiply stands down while it
+is on — an arm that inherited it true would report the surface lift's numbers under the vibrant flag's
+name and the two clips would differ by nothing.
 
 ## The big one: shoot in slow motion, play back at speed
 
@@ -160,7 +198,7 @@ three doorways in one frame with torches three, two and one cell inside:
 | yard L\*, 3 cells out | 10.26 | 12.84 | **14.96** | — |
 
 One cell is roughly double the lift of three, and the shipped clip uses it: masked median dE **2.10**,
-p90 **7.77**, peak **12.25**, over **10.3%** of the frame, with the yard going L\* 8.15 → 15.22. It
+p90 **7.75**, peak **12.60**, over **10.3%** of the frame. It
 moves two things at once, which is why it wanted photographing rather than deriving — the emitter is
 brighter at the aperture *and* the aperture subtends a far wider angle from it, so the fan goes from a
 narrow shaft to most of a half-disc. Brighter but blobbier; no number decides that.
@@ -176,7 +214,8 @@ still. Left out.
 
 ## Sizes
 
-960x540, 174 frames, 33.3 fps, 256 colours: **700 KB**, inside Steam's 2 MB per-description-image cap.
+960x540, 174 frames, 33.3 fps, 256 colours: **669 KB** default and **697 KB** vibrant, both inside
+Steam's 2 MB per-description-image cap.
 
 The static stretches are byte-identical because the sky is pinned, which is where the headroom comes
 from — an early cut that drifted came out at 1.7 MB for *fewer* frames at a quarter of the colours,
@@ -189,7 +228,9 @@ concluded on smooth sky, and the two are both right about their own material.
 
 ## Committed output
 
-- `Tests/Screenshots/vector_light_door_beam.gif` — the clip.
+- `Tests/Screenshots/vector_light_door_beam.gif` — the clip, shipped defaults.
+- `Tests/Screenshots/vector_light_door_beam_vibrant.gif` — the same take with "Extra vibrant indoor
+  lighting" on.
 - `Tests/Screenshots/vector_light_door_beam_{off,on}.png` — the same framing, door fully open, with
   the three open-door flags off and on. The off arm is what vanilla delivers: nothing at all, because
   RimWorld's glow grid never learns a door opened. Committed because every dE quoted above is measured

@@ -64,6 +64,15 @@
       }
     },
     {
+      "type": "SetRoof",
+      "args": {
+        "def": "RoofConstructed",
+        "offset": "-6,45",
+        "width": "14",
+        "height": "15"
+      }
+    },
+    {
       "type": "SetTime",
       "args": {
         "hour": "22"
@@ -74,6 +83,12 @@
       "args": {
         "offset": "0,45",
         "zoom": "11"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorfilm_hud_discard.png"
       }
     },
     {
@@ -154,9 +169,17 @@
       }
     },
     {
-      "type": "Screenshot",
+      "type": "SetFeature",
       "args": {
-        "fileName": "doorfilm_hud_discard.png"
+        "featureName": "vector_light_indoor_multiply",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_surface_lift",
+        "enabled": "false"
       }
     },
     {
@@ -3356,6 +3379,3386 @@
         "tolerance": "0"
       },
       "description": "And shut again by the last frame. Together with the pin above this is what makes the clip loop: the last frame and the first are the same state, so the wrap is a cut and not a jump."
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "realistic_preset",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_suppress",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_beam",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_open_doors",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_glow_blocker",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_aperture",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_indoor_multiply",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_surface_lift",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "normal"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "160"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "door_aperture",
+        "expectedValue": "0",
+        "tolerance": "0"
+      },
+      "description": "Shut before the film starts. At tolerance 0 -- a door already part open makes the loop's first and last frames disagree, which is the one defect a looping clip cannot hide."
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_settled_discard.png"
+      }
+    },
+    {
+      "type": "SetTimeScale",
+      "args": {
+        "scale": "0.05"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0001.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0002.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0003.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0004.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0005.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0006.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0007.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0008.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0009.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0010.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0011.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0012.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0013.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0014.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0015.png"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "true"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0016.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0017.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0018.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0019.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0020.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0021.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0022.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0023.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0024.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0025.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0026.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0027.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0028.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0029.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0030.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0031.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0032.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0033.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0034.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0035.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0036.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0037.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0038.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0039.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0040.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0041.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0042.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0043.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0044.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0045.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0046.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0047.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0048.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0049.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0050.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0051.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0052.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0053.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0054.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0055.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0056.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0057.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0058.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0059.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0060.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0061.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0062.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0063.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0064.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0065.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0066.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0067.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0068.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0069.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0070.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0071.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0072.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0073.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0074.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0075.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0076.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0077.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0078.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0079.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0080.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0081.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0082.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0083.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0084.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0085.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0086.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0087.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0088.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0089.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0090.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0091.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0092.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0093.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0094.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0095.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0096.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0097.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0098.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0099.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0100.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0101.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0102.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0103.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0104.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0105.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0106.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0107.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0108.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0109.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0110.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0111.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0112.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0113.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0114.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0115.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0116.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0117.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0118.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0119.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0120.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0121.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0122.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0123.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0124.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0125.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0126.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0127.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0128.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0129.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0130.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0131.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0132.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0133.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0134.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0135.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0136.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0137.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0138.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0139.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0140.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0141.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0142.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0143.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0144.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0145.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0146.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0147.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0148.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0149.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0150.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0151.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0152.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0153.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0154.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0155.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0156.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0157.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0158.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0159.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0160.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0161.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0162.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0163.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0164.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0165.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0166.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0167.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0168.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0169.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0170.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0171.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0172.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0173.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0174.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0175.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0176.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0177.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0178.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0179.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0180.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0181.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0182.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0183.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0184.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0185.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0186.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0187.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0188.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0189.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0190.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0191.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0192.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0193.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0194.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0195.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0196.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0197.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0198.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0199.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0200.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0201.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0202.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0203.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0204.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0205.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0206.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0207.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0208.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0209.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0210.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0211.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0212.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0213.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0214.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0215.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0216.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0217.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0218.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0219.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0220.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0221.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0222.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0223.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0224.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0225.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0226.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0227.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0228.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0229.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0230.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0231.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0232.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0233.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0234.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0235.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0236.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0237.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0238.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0239.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0240.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0241.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0242.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0243.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0244.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0245.png"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "door_aperture",
+        "expectedValue": "1",
+        "tolerance": "0"
+      },
+      "description": "Fully open before the hold begins. If OPENING is too short for the slide the clip cuts to the close part way through the animation, which looks like a door that jams and passes every other check in this file."
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0246.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0247.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0248.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0249.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0250.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0251.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0252.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0253.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0254.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0255.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0256.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0257.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0258.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0259.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0260.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0261.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0262.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0263.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0264.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0265.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0266.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0267.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0268.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0269.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0270.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0271.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0272.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0273.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0274.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0275.png"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "false"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0276.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0277.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0278.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0279.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0280.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0281.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0282.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0283.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0284.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0285.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0286.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0287.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0288.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0289.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0290.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0291.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0292.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0293.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0294.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0295.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0296.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0297.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0298.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0299.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0300.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0301.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0302.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0303.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0304.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0305.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0306.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0307.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0308.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0309.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0310.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0311.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0312.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0313.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0314.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0315.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0316.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0317.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0318.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0319.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0320.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0321.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0322.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0323.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0324.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0325.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0326.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0327.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0328.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0329.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0330.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0331.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0332.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0333.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0334.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0335.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0336.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0337.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0338.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0339.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0340.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0341.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0342.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0343.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0344.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0345.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0346.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0347.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0348.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0349.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0350.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0351.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0352.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0353.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0354.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0355.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0356.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0357.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0358.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0359.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0360.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0361.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0362.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0363.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0364.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0365.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0366.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0367.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0368.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0369.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0370.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0371.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0372.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0373.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0374.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0375.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0376.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0377.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0378.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0379.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0380.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0381.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0382.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0383.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0384.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0385.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0386.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0387.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0388.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0389.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0390.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0391.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0392.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0393.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0394.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0395.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0396.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0397.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0398.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0399.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0400.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0401.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0402.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0403.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0404.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0405.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0406.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0407.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0408.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0409.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0410.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0411.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0412.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0413.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0414.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0415.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0416.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0417.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0418.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0419.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0420.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0421.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0422.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0423.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0424.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0425.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0426.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0427.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0428.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0429.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0430.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0431.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0432.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0433.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0434.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0435.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0436.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0437.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0438.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0439.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0440.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0441.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0442.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0443.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0444.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0445.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0446.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0447.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0448.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0449.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0450.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0451.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0452.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0453.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0454.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0455.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0456.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0457.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0458.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0459.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0460.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0461.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0462.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0463.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0464.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0465.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0466.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0467.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0468.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0469.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0470.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0471.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0472.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0473.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0474.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0475.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0476.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0477.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0478.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0479.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0480.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0481.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0482.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0483.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0484.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0485.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0486.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0487.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0488.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0489.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0490.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0491.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0492.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0493.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0494.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0495.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0496.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0497.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0498.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0499.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0500.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0501.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0502.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0503.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0504.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0505.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0506.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0507.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0508.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0509.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0510.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0511.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0512.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0513.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0514.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0515.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0516.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0517.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0518.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0519.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "doorvibrant_0520.png"
+      }
+    },
+    {
+      "type": "SetTimeScale",
+      "args": {
+        "scale": "1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "door_aperture",
+        "expectedValue": "0",
+        "tolerance": "0"
+      },
+      "description": "And shut again by the last frame. Together with the pin above this is what makes the clip loop: the last frame and the first are the same state, so the wrap is a cut and not a jump."
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "realistic_preset",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_suppress",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_beam",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_open_doors",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_glow_blocker",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_aperture",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_indoor_multiply",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_surface_lift",
+        "enabled": "false"
+      }
     },
     {
       "type": "SetTimeSpeed",
