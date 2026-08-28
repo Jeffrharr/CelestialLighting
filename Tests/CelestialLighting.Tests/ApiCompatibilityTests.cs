@@ -1536,6 +1536,38 @@ public class ApiCompatibilityTests
     }
 
     [Test]
+    public void MapDrawer_MapMeshDrawerUpdate_First_Exists()
+    {
+        // Patch_VectorLightBuild prefixes this so the vector-light polygons are rebuilt BEFORE the
+        // sections that read them regenerate (issue #218). A rename would leave the prefix unattached
+        // and hand the draw path back its one-frame stale bake — silently, because every scenario in
+        // this repo captures after a settle and would still read the correct final value.
+        var type = GetType("Verse.MapDrawer");
+        Assert.That(type, Is.Not.Null, "Verse.MapDrawer no longer exists");
+        Assert.That(
+            type!.Methods.Any(m => m.Name == "MapMeshDrawerUpdate_First" && m.IsPublic
+                && m.Parameters.Count == 0),
+            Is.True,
+            "MapDrawer.MapMeshDrawerUpdate_First() no longer exists or changed signature — "
+            + "Patch_VectorLightBuild targets it");
+    }
+
+    [Test]
+    public void MapDrawer_map_Field_Exists()
+    {
+        // Patch_VectorLightBuild takes the map by Harmony's private-field injection (___map) rather
+        // than off Find.CurrentMap, so the build is charged to the drawer's own map. Harmony resolves
+        // that by NAME at runtime, which means a rename is a silent no-op rather than a build error:
+        // the prefix would run with a null map and decline to build anything, every frame.
+        var type = GetType("Verse.MapDrawer");
+        Assert.That(type, Is.Not.Null, "Verse.MapDrawer no longer exists");
+        Assert.That(
+            type!.Fields.Any(f => f.Name == "map" && f.FieldType.Name == "Map"),
+            Is.True,
+            "MapDrawer.map no longer exists or was renamed — Patch_VectorLightBuild injects it as ___map");
+    }
+
+    [Test]
     public void MapMeshFlagDefOf_GroundGlow_Exists()
     {
         var type = GetType("RimWorld.MapMeshFlagDefOf");

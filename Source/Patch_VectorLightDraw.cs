@@ -47,7 +47,14 @@ public static class Patch_VectorLightDraw
         // it was, so a pawn opening a door on the far side of the colony rebaked the lighting
         // overlay, the darkness layer, night desaturation, eave shade and our own mask beneath the
         // player's cursor, for emitters none of which it could reach.
-        if (VectorLightMask.Active)
+        //
+        // AND IT NOW USUALLY HAPPENS EARLIER STILL. Issue #218: this hook runs a whole step AFTER
+        // MapDrawer.MapMeshDrawerUpdate_First, where the sections that read a polygon regenerate — so
+        // on any frame vanilla's glow moved, a section baked fresh glow against stale coverage and
+        // the region overshot for a frame. Patch_VectorLightBuild does the same call from a prefix on
+        // that method instead. What is left here is the OFF arm of vector_light_build_first, kept
+        // reachable rather than described so the defect has a baseline in the same boot.
+        if (VectorLightMask.Active && !CelestialLightingFeatures.VectorLightBuildFirst)
             BuildAndDirty(map);
 
         VectorLightOverlay.Draw(map);
@@ -62,10 +69,15 @@ public static class Patch_VectorLightDraw
     // method because they are one decision: the cull is only safe because the dirty is precise, and
     // the dirty is only cheap because the cull kept the build local.
     //
+    // TWO CALL SITES, ONE PER ARM OF vector_light_build_first: Patch_VectorLightBuild's prefix on
+    // MapDrawer.MapMeshDrawerUpdate_First (on, and the shipped path since issue #218) and the postfix
+    // above (off, the pre-#218 path). The body is identical in both, which is the whole point — the
+    // work was always right and only the moment in the frame was wrong.
+    //
     // BOTH FLAGS OFF REPRODUCE THE ORIGINAL EXACTLY, which is what makes the arms a baseline rather
     // than a picture of the feature missing. The cull's "off" is the whole map as the build window,
     // not a skipped branch; the dirty's "off" is WholeMapChanged, not a wider rect.
-    private static void BuildAndDirty(Map map)
+    internal static void BuildAndDirty(Map map)
     {
         SectionDirtyMath.CellBounds wholeMap =
             SectionDirtyMath.WholeMap(map.Size.x, map.Size.z);
