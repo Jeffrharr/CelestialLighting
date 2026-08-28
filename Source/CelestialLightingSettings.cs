@@ -140,11 +140,12 @@ public class CelestialLightingSettings : ModSettings
     // choosing it. New installs get the coherent behaviour; existing saves keep whatever they had.
     public bool vectorLightOpenDoors = true;
 
-    // How strong §27's additive beam is on top of the mask. A per-effect intensity like
-    // purpleLightStrength, deliberately NOT in PresetKnobs, so moving it does not flip the preset
-    // radio to Custom. 1.0 is the level §27 originally shipped at; the default is lower because that
-    // level renders the lit region at 1.175x vanilla — see VectorLightMath.DefaultBeamStrengthScale.
-    public float vectorLightBeamStrength = VectorLightMath.DefaultBeamStrengthScale;
+    // NO vectorLightBeamStrength FIELD, and the node it used to write is left unread on purpose.
+    // Scribe_Values simply ignores an element with no field to load into, so an existing config
+    // carrying <vectorLightBeamStrength> loads clean and the value is dropped the next time settings
+    // are written. See CelestialLightingSettingsMod for why the slider went: the per-fragment max
+    // decides a lamp's level against vanilla's own, and what was left for the knob to govern was a
+    // fallback path no player can select or see.
 
     // --- Night-radiance tunables (drive NightRadianceSettings.Current) ---
     // The atmospheric starlight+airglow floor ("true pitch-black" when off), and the pitch-black
@@ -296,7 +297,6 @@ public class CelestialLightingSettings : ModSettings
         // The map would keep rendering the previous answer until the player happened to build
         // something — which for a settings screen means the toggle looks broken.
         CelestialLightingFeatures.VectorLightPawnShadows = vectorLightPawnShadows;
-        VectorLightSettings.BeamStrength = vectorLightBeamStrength;
 
         // One switch, both halves (see the field comment). Tracked because this changes the BLOCKER
         // SET the polygons are cast against, and §27's shadow half is baked into the lighting
@@ -415,8 +415,6 @@ public class CelestialLightingSettings : ModSettings
         // FALSE HERE ON PURPOSE while the field initialiser above is true. This is not the
         // new-install default and must not be made to match it -- see the field's comment.
         Scribe_Values.Look(ref vectorLightOpenDoors, "vectorLightOpenDoors", false);
-        Scribe_Values.Look(ref vectorLightBeamStrength, "vectorLightBeamStrength",
-            VectorLightMath.DefaultBeamStrengthScale);
         Scribe_Values.Look(ref skyColorTemperature, "skyColorTemperature", true);
         Scribe_Values.Look(ref polarNightBlue, "polarNightBlue", true);
         Scribe_Values.Look(ref polarNightBlueStrength, "polarNightBlueStrength", 1f);

@@ -226,30 +226,17 @@ public class CelestialLightingSettingsMod : Mod
         GatedCheckbox(listing, "    Light through open doors", ref Settings.vectorLightOpenDoors,
             vectorLightsOn,
             "Light spills through a door while it is open, and the beam narrows and widens with the leaves as they slide. Shut doors block light exactly as they always did, and so does every wall.\n\nThis is the one place the mod knowingly draws light the game itself does not deliver: RimWorld's lighting never learns that a door opened, so plants still will not grow in that beam and pawns still cannot see down it. It is off by default for that reason. What it costs you is a beam that appears and disappears as pawns walk through doorways \u2014 whether that reads as light spilling out or as the lighting glitching is a taste call, which is why you get to make it.");
-        // A per-effect intensity, so LabeledSlider rather than AestheticSlider: moving it must not
-        // flip the preset radio to Custom. 1.0 is the level §27 first shipped at, kept reachable
-        // rather than deleted, because how bright a lamp should read is a taste call and the old
-        // value has to stay comparable against the new one in a single boot.
-        //
-        // IT NOW GOVERNS ONLY THE FALLBACK, and that is worth knowing before wondering why it does
-        // nothing. §27 phase 6 composes max(vanilla, ours) per fragment, so the level is decided
-        // against what vanilla actually delivered at each point rather than by a flat fraction —
-        // there is nothing to tune, which was the whole argument for it. This slider still drives
-        // the flat additive beam that runs instead on a machine where the shader could not be
-        // loaded or compiled, so it is left in place rather than removed: a player on that path has
-        // exactly the knob they had before, and one on the shader path has a control that correctly
-        // has nothing to do.
-        //
-        // IT NOW GOVERNS ONLY THE FALLBACK, and that is worth knowing before wondering why it does
-        // nothing. §27 phase 6 composes max(vanilla, ours) per fragment, so the level is decided
-        // against what vanilla actually delivered at each point rather than by a flat fraction —
-        // there is nothing to tune, which was the whole argument for it. This slider still drives
-        // the flat additive beam that runs instead on a machine where the shader could not be
-        // loaded or compiled, so it is left in place rather than removed: a player on that path has
-        // exactly the knob they had before, and one on the shader path has a control that correctly
-        // has nothing to do.
-        GatedSlider(listing, "    Lamp beam strength", ref Settings.vectorLightBeamStrength, 0f, 1f,
-            vectorLightsOn);
+        // NO "LAMP BEAM STRENGTH" SLIDER, and its absence is deliberate rather than an oversight —
+        // it was here and was taken out. §27 phase 6 composes max(vanilla, ours) per fragment, so
+        // the level of a lamp is decided against what vanilla actually delivered at each point
+        // rather than by a flat fraction, and there is nothing left for a level knob to say. What it
+        // still governed was the flat additive beam that runs instead on a machine where the shader
+        // could not be loaded — a path no player can select, cannot tell they are on, and cannot
+        // judge the slider's effect from. A control that does nothing on every machine that can run
+        // the mod as designed is worse than no control: it sends a player who dislikes how their
+        // lamps look to the one setting that will not change them. The fallback keeps the level the
+        // slider defaulted to (VectorLightMath.DefaultBeamStrengthScale), so nothing about how a
+        // colony is lit changes on any path.
         listing.CheckboxLabeled("Sky colour-temperature", ref Settings.skyColorTemperature,
             "Warm the sky toward the horizon on a continuous, altitude-keyed curve.");
         listing.CheckboxLabeled("Polar night blue", ref Settings.polarNightBlue,
