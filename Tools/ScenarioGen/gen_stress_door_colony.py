@@ -134,7 +134,7 @@ def swing_steps(doors):
     return steps
 
 
-def arm(name, doors, vector_lights, changed_dirty=None):
+def arm(name, doors, vector_lights, changed_dirty=None, glow_blocker=None):
     """One measured arm: flags, a photograph, then the storm inside a profiling window.
 
     ProfileStart/ProfileMeasure/ProfileStop rather than the composite Profile step, because the window
@@ -149,7 +149,8 @@ def arm(name, doors, vector_lights, changed_dirty=None):
     because the second arm's reading contains the first arm's storm. The reset here costs one step
     and makes vector_light_section_dirties an arm-local number.
     """
-    steps = sc.feature_steps(vector_lights=vector_lights, changed_dirty=changed_dirty)
+    steps = sc.feature_steps(vector_lights=vector_lights, changed_dirty=changed_dirty,
+                             glow_blocker=glow_blocker)
     steps.append(sc.step("Wait", frames=SETTLE_AFTER_FLAGS))
     steps.append(sc.step("Probe", probeName="vector_light_bake_reset",
                          expectedValue=0, tolerance=sc.RECORD_TOLERANCE))

@@ -674,7 +674,8 @@ def palette_steps():
     ]
 
 
-def feature_steps(vector_lights=True, pawn_shadows=None, changed_dirty=None):
+def feature_steps(vector_lights=True, pawn_shadows=None, changed_dirty=None,
+                  glow_blocker=None):
     """The flags every arm states explicitly, because a default that moves rewrites what it measured.
 
     STATED RATHER THAN INHERITED, always. A flag whose default is flipped later silently rewrites
@@ -696,12 +697,28 @@ def feature_steps(vector_lights=True, pawn_shadows=None, changed_dirty=None):
     from what the rest of the subsystem costs. It is the one flag here whose two settings both render
     the identical frame -- it decides how often a section is asked to rebake, not what the rebake
     produces -- so an arm that moves it is scored on the profiler's call counts rather than on pixels.
+    THE THREE DOOR FLAGS WERE MISSING FROM THIS LIST ENTIRELY, and a door scenario is the worst place
+    for the omission this function's own header warns about. All three default true, so every arm ever
+    run here inherited them -- including `gated`, which is supposed to be the subsystem absent. It was
+    not: `vector_light_door_glow_blocker` rides on its OWN flag rather than on vector_lights, by
+    deliberate design (it is gameplay light, and gameplay light is not allowed to ride on a render
+    switch), and it makes every door swing write vanilla's light-blocker bit -- which dirties the cell,
+    re-floods every light that can see it, and regenerates the lighting overlay there. So the gated arm
+    was measuring vanilla PLUS our glow-grid writes and calling the difference a baseline.
+
+    `glow_blocker` defaults to following `vector_lights`, which changes what `gated` measures and is
+    meant to: with it off, that arm is finally the untouched game. The other two door flags follow
+    vector_lights for the ordinary reason -- an arm with the subsystem off must not be left drawing
+    half of it.
     """
     if pawn_shadows is None:
         pawn_shadows = vector_lights
 
     if changed_dirty is None:
         changed_dirty = vector_lights
+
+    if glow_blocker is None:
+        glow_blocker = vector_lights
 
     flags = [
         ("cloud_cover", False),
@@ -732,6 +749,13 @@ def feature_steps(vector_lights=True, pawn_shadows=None, changed_dirty=None):
         # see CelestialLightingFeatures.VectorLightChangedDirty. Stated here so an arm cannot end up
         # measuring the stand-down path while claiming to measure the feature.
         ("vector_light_stale_polygon", vector_lights),
+        # The three door flags, stated at last. The first two decide whether our POLYGON sees an open
+        # door as a hole; the third decides whether vanilla's glow grid is told about it as well.
+        # Only the third writes gameplay light, and only the third provokes a section regenerate --
+        # which is why it is the one this scenario now varies independently.
+        ("vector_light_open_doors", vector_lights),
+        ("vector_light_door_aperture", vector_lights),
+        ("vector_light_door_glow_blocker", glow_blocker),
     ]
     return [step("SetFeature", featureName=name, enabled="true" if on else "false")
             for name, on in flags]

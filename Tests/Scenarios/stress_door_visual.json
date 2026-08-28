@@ -1,7 +1,7 @@
 {
-  "name": "stress_door_colony",
+  "name": "stress_door_visual",
   "saveFile": "minimal_colony.rws",
-  "description": "stress_light_colony's map exactly \u2014 500 lamps in 11 colours and 9 radii, 11,868 hidden conduits, 20 toxifier generators, 1,874 wall cells across 28 rooms and 120 free-standing stubs \u2014 with 30 of its 35 doors driven open and shut for 4 waves an arm, i.e. 240 swings. 25 of the driven doors lead into roofed interiors and 5 into open-air courtyards, which are different cases: the roofed ones move what the indoor gates and sky occlusion see as well as what the polygon does. \n\nWHAT THIS MEASURES THAT stress_light_colony CANNOT. That one holds five hundred emitters still, so every polygon is cached after the first frame and the cost is composition and upload. Here the geometry moves continuously and the invalidation path is what is under load \u2014 and unlike vector_light_door_storm's single door, the invalidations OVERLAP: a lamp inside the reach of three moving doors is dirtied again before the rebuild it already owed has happened. \n\nFOUR ARMS: gated, wide, full, wide_b. The first live run of this scenario established that the mask's per-call cost is flat across every load in the suite \u2014 694 us static, 1,100-1,155 us under fifty walkers, 1,095 us here \u2014 while the call RATE goes 0.40 to 6.5-9.8 to 13.88 per frame, and that switching the subsystem on nearly doubles that rate (7.82 sections a frame gated against 13.88 full). Neither of the two arms it had then could say how much of that self-inflicted half was avoidable, because both answered the question the same way. 'wide' dirties every section a rebuilt emitter REACHES, which is what the mod did before the bake learned to report what it changed; 'full' is the shipped behaviour. The two render the identical frame \u2014 the flag decides how often a section is asked to rebake, not what the rebake produces \u2014 so the whole comparison rests on the profiler's call counts, and a call count taken once measures this box as much as the build. wide_b repeats the baseline after the arm being judged, so a drift big enough to explain the difference appears as the two baselines disagreeing with each other rather than as a result. \n\nTHE COUNTERS DRAIN PER ARM, which they did not before. A total accumulated since the establish block is the right shape while the arms differ by whether the subsystem runs at all, and the wrong shape the moment two of them run it and differ only in how much work it asks for \u2014 the later arm's reading would contain the earlier arm's storm. Read section_dirties with mask_applies beside it: flags are work REQUESTED and vanilla regenerates only what is on screen, so a fall in the first without a fall in the second would mean the saving landed on sections nobody was looking at. Read bakes beside them too \u2014 it has to stand STILL between wide and full, or the saving came from baking less, which is a different change. \n\nTHE SWINGS ARE STAGGERED ON PURPOSE. The harness runs one step per frame, so thirty consecutive SetDoorOpen steps start thirty swings on thirty successive frames rather than in lockstep. That denies the invalidation path a single coalescible batch per wave and gives it the continuous trickle a colony with pawns in it actually produces. \n\nREAD THE SILHOUETTE PAIR AS A RATIO, NOT AS COUNTS. A door animates on the tick counter while the harness renders frames, so how many quantisation steps a swing crosses depends on how fast this box was running \u2014 the counts move between runs of one build. hits / (hits + rebuilds) does not. Every count here is recorded rather than pinned for that reason; the two things that ARE pinned are the population (500 emitters, 11 colours, 9 radii, before anything is measured) and vector_light_mask_stale_polys at zero, which is a defect count and not a cost. \n\nProfiled with ProfileStart/ProfileStop rather than a fixed-frame Profile, because the window is the storm and the storm's length is decided by the door commands. That means the scenario SKIPS entirely without Dubs Performance Analyzer loaded \u2014 run it with profiling on. Clouds are off explicitly; the clock runs here on purpose and a drifting cloud sheet would shade the very terrain the lamps are lighting.",
+  "description": "stress_door_colony's map and storm exactly \u2014 500 lamps, 30 doors driven for 4 waves, i.e. 240 swings an arm \u2014 asking one question the door colony cannot: how much of a door swing's cost is the BEAM, and how much is telling vanilla's glow grid about it. 25 of the driven doors lead into roofed interiors.\n\nLight through open doors is three flags. Two decide whether our polygon sees a hole and cost a polygon rebake; the third clears vanilla's light-blocker bit so vanilla's flood arrives too. Only the third writes gameplay light, and only the third provokes vanilla work \u2014 LightBlockerRemoved dirties the cell, re-floods every light that can see it, and regenerates the lighting overlay section, which is where the mask's ~1.2 ms goes. Vanilla itself never does this: Building_Door.DoorOpen touches the glow grid not at all.\n\nFOUR ARMS. 'gated' is the subsystem off AND the glow blocker off \u2014 the untouched game, which stress_door_colony's own gated arm is NOT, because it never stated the door flags and so inherited them on. 'full' is the shipped arrangement. 'visual' draws the same beam and leaves gameplay light vanilla's. 'full_b' repeats the baseline after the arm being judged, because a call count taken once measures the machine as much as the build.\n\nREAD THE BAKE ROW FIRST. If vector_light_bakes falls in 'visual' along with the section dirties, the arm switched the feature off rather than moving it off vanilla's grid, and the saving is a picture of an absent feature. The bakes standing still is what makes the rest of the table mean what it says.\n\nThe cloud flags are off throughout, per CLAUDE.md: the sheet drifts on the tick counter and these arms run their clock, so it would shade different outdoor cells every arm.",
   "steps": [
     {
       "type": "SetTile",
@@ -2683,1981 +2683,6 @@
       "type": "SetFeature",
       "args": {
         "featureName": "vector_light_changed_dirty",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_stale_polygon",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_open_doors",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_door_aperture",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_door_glow_blocker",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "30"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_bake_reset",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "stress_door_colony_wide",
-        "hideUi": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "4"
-      }
-    },
-    {
-      "type": "Screenshot",
-      "args": {
-        "fileName": "stress_door_colony_wide_clean",
-        "hideUi": "true"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "superfast"
-      }
-    },
-    {
-      "type": "ProfileStart",
-      "args": {
-        "timeSpeed": "superfast",
-        "warmupFrames": "30"
-      }
-    },
-    {
-      "type": "ProfileMeasure",
-      "args": {
-        "frames": "0"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "-30,109",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "-26,40",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "-21,111",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "-4,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "1,48",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "3,73",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "7,70",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "9,89",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "22,97",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "26,41",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "30,89",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "30,106",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "39,109",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "41,99",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "53,65",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "61,99",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "62,73",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "68,81",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "75,89",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "86,87",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "87,111",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "88,79",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "93,59",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "93,109",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "96,62",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "-23,67",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "-19,78",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "-17,59",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,98",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "15,69",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "40"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "-30,109",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "-26,40",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "-21,111",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "-4,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "1,48",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "3,73",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "7,70",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "9,89",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "22,97",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "26,41",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "30,89",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "30,106",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "39,109",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "41,99",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "53,65",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "61,99",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "62,73",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "68,81",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "75,89",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "86,87",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "87,111",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "88,79",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "93,59",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "93,109",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "96,62",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "-23,67",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "-19,78",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "-17,59",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,98",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "15,69",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "40"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "-30,109",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "-26,40",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "-21,111",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "-4,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "1,48",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "3,73",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "7,70",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "9,89",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "22,97",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "26,41",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "30,89",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "30,106",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "39,109",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "41,99",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "53,65",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "61,99",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "62,73",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "68,81",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "75,89",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "86,87",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "87,111",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "88,79",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "93,59",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "93,109",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "96,62",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "-23,67",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "-19,78",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "-17,59",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,98",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "15,69",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "40"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "-30,109",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "-26,40",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "-21,111",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "-4,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "1,48",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "3,73",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "7,70",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "9,89",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "22,97",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "26,41",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "30,89",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "30,106",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "39,109",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "41,99",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "53,65",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "61,99",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "62,73",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "68,81",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "75,89",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "86,87",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "87,111",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "88,79",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "93,59",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "93,109",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "96,62",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "-23,67",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "-19,78",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "-17,59",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,98",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "15,69",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "40"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "-30,109",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "-26,40",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "-21,111",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "-4,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "1,48",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "3,73",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "7,70",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "9,89",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "22,97",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "26,41",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "30,89",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "30,106",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "39,109",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "41,99",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "53,65",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "61,99",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "62,73",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "68,81",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "75,89",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "86,87",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "87,111",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "88,79",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "93,59",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "93,109",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "96,62",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "-23,67",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "-19,78",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "-17,59",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,98",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "15,69",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "40"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "-30,109",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "-26,40",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "-21,111",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "-4,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "1,48",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "3,73",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "7,70",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "9,89",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "22,97",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "26,41",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "30,89",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "30,106",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "39,109",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "41,99",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "53,65",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "61,99",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "62,73",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "68,81",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "75,89",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "86,87",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "87,111",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "88,79",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "93,59",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "93,109",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "96,62",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "-23,67",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "-19,78",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "-17,59",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,98",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "15,69",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "40"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "-30,109",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "-26,40",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "-21,111",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "-4,45",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "1,48",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "3,73",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "7,70",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "9,89",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "22,97",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "26,41",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "30,89",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "30,106",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "39,109",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "41,99",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "53,65",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "61,99",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "62,73",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "68,81",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "75,89",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "86,87",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "87,111",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "88,79",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "93,59",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "93,109",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "96,62",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "-23,67",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "-19,78",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "-17,59",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,98",
-        "open": "true"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "15,69",
-        "open": "true"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "40"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "-30,109",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "-26,40",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "-21,111",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "-4,45",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "1,48",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "3,73",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "7,70",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "9,89",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "22,97",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "26,41",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "30,89",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "30,106",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "39,109",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "41,99",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "53,65",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "61,99",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "62,73",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "68,81",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "75,89",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "86,87",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "87,111",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "88,79",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "93,59",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "93,109",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "96,62",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "-23,67",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "-19,78",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "-17,59",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "0,98",
-        "open": "false"
-      }
-    },
-    {
-      "type": "SetDoorOpen",
-      "args": {
-        "offset": "15,69",
-        "open": "false"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "40"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "120"
-      }
-    },
-    {
-      "type": "ProfileStop",
-      "args": {
-        "name": "wide",
-        "prefix": "CelestialLighting"
-      }
-    },
-    {
-      "type": "SetTimeSpeed",
-      "args": {
-        "speed": "paused"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_section_dirties",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_section_dirty_passes",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_sections_per_pass",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_applies",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_bakes",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_unchanged_bakes",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_skips_dirty",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "cloud_cover",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "cloud_sheet",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "cloud_presence",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "cloud_deck_varieties",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "cloud_volume",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_lights",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_penumbra",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_suppress",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_blend",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_mask",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_pawn_shadows",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_shadow_shares",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_changed_dirty",
         "enabled": "true"
       }
     },
@@ -6633,7 +4658,7 @@
       "type": "SetFeature",
       "args": {
         "featureName": "vector_light_changed_dirty",
-        "enabled": "false"
+        "enabled": "true"
       }
     },
     {
@@ -6661,7 +4686,7 @@
       "type": "SetFeature",
       "args": {
         "featureName": "vector_light_door_glow_blocker",
-        "enabled": "true"
+        "enabled": "false"
       }
     },
     {
@@ -6681,7 +4706,7 @@
     {
       "type": "Screenshot",
       "args": {
-        "fileName": "stress_door_colony_wide_b",
+        "fileName": "stress_door_colony_visual",
         "hideUi": "true"
       }
     },
@@ -6694,7 +4719,7 @@
     {
       "type": "Screenshot",
       "args": {
-        "fileName": "stress_door_colony_wide_b_clean",
+        "fileName": "stress_door_colony_visual_clean",
         "hideUi": "true"
       }
     },
@@ -8454,7 +6479,1982 @@
     {
       "type": "ProfileStop",
       "args": {
-        "name": "wide_b",
+        "name": "visual",
+        "prefix": "CelestialLighting"
+      }
+    },
+    {
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "paused"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_section_dirties",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_section_dirty_passes",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_sections_per_pass",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_applies",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_bakes",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_unchanged_bakes",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_skips_dirty",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_cover",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_sheet",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_presence",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_deck_varieties",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_suppress",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_pawn_shadows",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shadow_shares",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_changed_dirty",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_stale_polygon",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_open_doors",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_aperture",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_glow_blocker",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "30"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_bake_reset",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "stress_door_colony_full_b",
+        "hideUi": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "4"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "stress_door_colony_full_b_clean",
+        "hideUi": "true"
+      }
+    },
+    {
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "superfast"
+      }
+    },
+    {
+      "type": "ProfileStart",
+      "args": {
+        "timeSpeed": "superfast",
+        "warmupFrames": "30"
+      }
+    },
+    {
+      "type": "ProfileMeasure",
+      "args": {
+        "frames": "0"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-30,109",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-26,40",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-21,111",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-4,45",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "1,48",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "3,73",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "7,70",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "9,89",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "22,97",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "26,41",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "30,89",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "30,106",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "39,109",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "41,99",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "53,65",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "61,99",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "62,73",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "68,81",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "75,89",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "86,87",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "87,111",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "88,79",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "93,59",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "93,109",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "96,62",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-23,67",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-19,78",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-17,59",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,98",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "15,69",
+        "open": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "40"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-30,109",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-26,40",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-21,111",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-4,45",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "1,48",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "3,73",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "7,70",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "9,89",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "22,97",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "26,41",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "30,89",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "30,106",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "39,109",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "41,99",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "53,65",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "61,99",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "62,73",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "68,81",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "75,89",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "86,87",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "87,111",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "88,79",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "93,59",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "93,109",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "96,62",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-23,67",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-19,78",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-17,59",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,98",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "15,69",
+        "open": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "40"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-30,109",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-26,40",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-21,111",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-4,45",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "1,48",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "3,73",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "7,70",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "9,89",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "22,97",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "26,41",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "30,89",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "30,106",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "39,109",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "41,99",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "53,65",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "61,99",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "62,73",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "68,81",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "75,89",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "86,87",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "87,111",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "88,79",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "93,59",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "93,109",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "96,62",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-23,67",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-19,78",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-17,59",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,98",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "15,69",
+        "open": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "40"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-30,109",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-26,40",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-21,111",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-4,45",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "1,48",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "3,73",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "7,70",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "9,89",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "22,97",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "26,41",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "30,89",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "30,106",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "39,109",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "41,99",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "53,65",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "61,99",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "62,73",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "68,81",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "75,89",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "86,87",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "87,111",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "88,79",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "93,59",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "93,109",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "96,62",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-23,67",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-19,78",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-17,59",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,98",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "15,69",
+        "open": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "40"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-30,109",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-26,40",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-21,111",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-4,45",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "1,48",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "3,73",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "7,70",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "9,89",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "22,97",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "26,41",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "30,89",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "30,106",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "39,109",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "41,99",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "53,65",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "61,99",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "62,73",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "68,81",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "75,89",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "86,87",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "87,111",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "88,79",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "93,59",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "93,109",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "96,62",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-23,67",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-19,78",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-17,59",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,98",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "15,69",
+        "open": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "40"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-30,109",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-26,40",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-21,111",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-4,45",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "1,48",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "3,73",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "7,70",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "9,89",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "22,97",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "26,41",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "30,89",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "30,106",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "39,109",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "41,99",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "53,65",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "61,99",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "62,73",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "68,81",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "75,89",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "86,87",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "87,111",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "88,79",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "93,59",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "93,109",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "96,62",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-23,67",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-19,78",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-17,59",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,98",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "15,69",
+        "open": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "40"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-30,109",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-26,40",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-21,111",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-4,45",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "1,48",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "3,73",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "7,70",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "9,89",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "22,97",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "26,41",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "30,89",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "30,106",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "39,109",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "41,99",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "53,65",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "61,99",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "62,73",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "68,81",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "75,89",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "86,87",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "87,111",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "88,79",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "93,59",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "93,109",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "96,62",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-23,67",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-19,78",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-17,59",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,98",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "15,69",
+        "open": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "40"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-30,109",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-26,40",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-21,111",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-4,45",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "1,48",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "3,73",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "7,70",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "9,89",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "22,97",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "26,41",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "30,89",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "30,106",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "39,109",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "41,99",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "53,65",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "61,99",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "62,73",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "68,81",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "75,89",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "86,87",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "87,111",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "88,79",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "93,59",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "93,109",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "96,62",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-23,67",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-19,78",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-17,59",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,98",
+        "open": "false"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "15,69",
+        "open": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "40"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "120"
+      }
+    },
+    {
+      "type": "ProfileStop",
+      "args": {
+        "name": "full_b",
         "prefix": "CelestialLighting"
       }
     },
@@ -8612,15 +8612,6 @@
     {
       "type": "ProfileAssert",
       "args": {
-        "table": "wide",
-        "label": "*",
-        "metric": "avgMsPerFrame",
-        "max": "60.0"
-      }
-    },
-    {
-      "type": "ProfileAssert",
-      "args": {
         "table": "full",
         "label": "*",
         "metric": "avgMsPerFrame",
@@ -8630,10 +8621,19 @@
     {
       "type": "ProfileAssert",
       "args": {
-        "table": "wide_b",
+        "table": "full_b",
         "label": "*",
         "metric": "avgMsPerFrame",
         "max": "60.0"
+      }
+    },
+    {
+      "type": "ProfileAssert",
+      "args": {
+        "table": "visual",
+        "label": "*",
+        "metric": "avgMsPerFrame",
+        "max": "20.0"
       }
     },
     {
@@ -8648,19 +8648,10 @@
     {
       "type": "ProfileAssert",
       "args": {
-        "table": "full",
-        "label": "Patch_VectorLightDraw",
-        "metric": "avgMsPerFrame",
-        "max": "25.0"
-      }
-    },
-    {
-      "type": "ProfileAssert",
-      "args": {
-        "table": "full",
+        "table": "visual",
         "label": "Patch_VectorLightSuppress",
-        "metric": "avgMsPerFrame",
-        "max": "40.0"
+        "metric": "callsPerFrame",
+        "max": "4.0"
       }
     },
     {
@@ -8669,7 +8660,7 @@
         "table": "full",
         "label": "Patch_VectorLightSuppress",
         "metric": "callsPerFrame",
-        "max": "40.0"
+        "max": "20.0"
       }
     }
   ]
