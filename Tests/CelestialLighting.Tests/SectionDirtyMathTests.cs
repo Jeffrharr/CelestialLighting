@@ -530,4 +530,105 @@ public class SectionDirtyMathTests
             Assert.That(actual.MaxZ, Is.EqualTo(expected.MaxZ));
         });
     }
+
+    // ---- what one MapMeshDirty costs, which is the door storm's missing multiplier ---------------
+    //
+    // The oracle here is vanilla's own MapDrawer.MapMeshDirty: it flags SectionAt(loc), and when
+    // regenAdjacentCells is set it also flags SectionAt of each of the eight neighbours that is in
+    // bounds. GlowGrid.DirtyCell raises Roofs, which IS in MapMeshDirty's adjacency set, so the
+    // adjacent form is the one a door swing actually takes.
+
+    // Squarely inside one section, so the 3x3 cannot reach out of it and the answer is 1 either way.
+    [TestCase(true, 1)]
+    [TestCase(false, 1)]
+    public void ACellInTheMiddleOfASectionTouchesOnlyIt(bool adjacent, int expected)
+    {
+        Assert.That(
+            SectionDirtyMath.SectionsTouchedByCellDirty(8, 8, adjacent, 17, 250, 250),
+            Is.EqualTo(expected));
+    }
+
+    // On a section's last column, so the 3x3 straddles the boundary into the next section along.
+    [Test]
+    public void ACellOnASectionEdgeTouchesTwo()
+    {
+        Assert.That(
+            SectionDirtyMath.SectionsTouchedByCellDirty(16, 8, true, 17, 250, 250), Is.EqualTo(2));
+        Assert.That(
+            SectionDirtyMath.SectionsTouchedByCellDirty(16, 8, false, 17, 250, 250), Is.EqualTo(1));
+    }
+
+    // THE WORST CASE, AND THE ONE THAT MAKES THE MULTIPLIER BITE. A cell on a section's far corner
+    // puts its 3x3 into four different sections, so ONE blocker write becomes four sections' worth of
+    // regenerate — every layer on each of them, the mask included.
+    [Test]
+    public void ACellOnASectionCornerTouchesFour()
+    {
+        Assert.That(
+            SectionDirtyMath.SectionsTouchedByCellDirty(16, 16, true, 17, 250, 250), Is.EqualTo(4));
+    }
+
+    // Clipped at the map edge, because vanilla skips the neighbours that fall outside rather than
+    // wrapping or throwing. A door in the corner of the map must not be charged for sections that do
+    // not exist.
+    [Test]
+    public void TheMapEdgeClipsTheNeighbourhood()
+    {
+        Assert.That(
+            SectionDirtyMath.SectionsTouchedByCellDirty(0, 0, true, 17, 250, 250), Is.EqualTo(1));
+    }
+
+    // An out-of-bounds cell is a caller bug — vanilla's SectionAt would throw on it — so this returns
+    // nothing rather than a plausible count that would let the bug through the accounting.
+    [TestCase(-1, 5)]
+    [TestCase(5, -1)]
+    [TestCase(250, 5)]
+    [TestCase(5, 250)]
+    public void AnOutOfBoundsCellIsNotCharged(int x, int z)
+    {
+        Assert.That(
+            SectionDirtyMath.SectionsTouchedByCellDirty(x, z, true, 17, 250, 250), Is.EqualTo(0));
+    }
+
+    // SWEPT AGAINST AN INDEPENDENT ORACLE. The count is recomputed here the way vanilla does it —
+    // walk the cell and its eight neighbours, clip each to the map, collect the DISTINCT sections —
+    // rather than by restating the closed form under test. Without this the fixture would only prove
+    // the formula equals itself on the handful of cells somebody thought to name.
+    [Test]
+    public void EveryCellAgreesWithVanillasOwnAdjacencyWalk()
+    {
+        const int size = 17;
+        const int mapX = 70;
+        const int mapZ = 55;
+
+        for (int z = 0; z < mapZ; z++)
+        {
+            for (int x = 0; x < mapX; x++)
+            {
+                System.Collections.Generic.HashSet<(int, int)> sections =
+                    new System.Collections.Generic.HashSet<(int, int)>();
+
+                sections.Add((x / size, z / size));
+
+                for (int dz = -1; dz <= 1; dz++)
+                {
+                    for (int dx = -1; dx <= 1; dx++)
+                    {
+                        int nx = x + dx;
+                        int nz = z + dz;
+                        bool inside = nx >= 0 && nz >= 0 && nx < mapX && nz < mapZ;
+
+                        if (inside)
+                        {
+                            sections.Add((nx / size, nz / size));
+                        }
+                    }
+                }
+
+                Assert.That(
+                    SectionDirtyMath.SectionsTouchedByCellDirty(x, z, true, size, mapX, mapZ),
+                    Is.EqualTo(sections.Count), $"at ({x},{z})");
+            }
+        }
+    }
 }

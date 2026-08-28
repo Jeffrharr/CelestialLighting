@@ -563,6 +563,13 @@
       }
     },
     {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_dirty_suppress",
+        "enabled": "false"
+      }
+    },
+    {
       "type": "SetTimeSpeed",
       "args": {
         "speed": "superfast"
@@ -747,6 +754,13 @@
       "args": {
         "featureName": "vector_light_door_glow_blocker",
         "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_dirty_suppress",
+        "enabled": "false"
       }
     },
     {
