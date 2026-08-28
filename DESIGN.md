@@ -12358,6 +12358,14 @@ one boot with the baseline repeated after the arm being judged. Counters drained
 makes the rest of the table mean what it says. The saving is dirtying less, not baking less; had it
 fallen, the arm would be measuring a different change from the one it set.
 
+**The `gated` column above is not vanilla, and phase 10 is what found that out.** These arms were run
+before `feature_steps` stated the three door flags, so all four inherited them on — including the one
+whose job is to be the subsystem absent. Its 1.15 ms/frame and 7.62 regenerates a frame include our
+own glow-grid writes on all 240 swings; stated off, the same arm reads **0.45 and 1.58**. The three
+lit columns are unaffected and stand as measured, since they all had the flags on and were being
+compared with each other. The scenario has since been regenerated with the flags stated, so a re-run
+of it will report a lower `gated` row than the one printed here.
+
 **8,645 of 11,728 bakes came back byte-identical** — 74%, against the 66% the offline model predicted
 from line-of-sight alone. `vector_light_mask_skips_dirty` is **0** in every arm, so no section baked
 with an emitter reaching it that it could not use: dirtying less did not leave anything stale.
@@ -12401,6 +12409,108 @@ number.
 **Unconditionally on, and unflagged**, for the reason phase 6 gives: a flag is how this repo makes an
 A/B possible and there is nothing to A/B. What stands in for the off arm is
 `vector_light_bake_cull.json` plus a one-file revert.
+
+#### Phase 10: most of a door swing's cost is telling the glow grid (`stress_door_visual`)
+
+Phase 9 ended by saying the mask is not slow, it is asked too often, and cut what *we* ask for from
+34.6 sections a pass to 5.2. What it did not ask is where the remaining asks come from. They are not
+ours, and they are not vanilla's either: **they are vanilla's, provoked by us.**
+
+**Vanilla doors do not touch light at all.** `Building_Door.DoorOpen` sets `openInt`, clears the
+reachability cache, raises `Map.events.Notify_DoorOpened`, and goes near neither the glow grid nor the
+map mesh — the same fact "light through open doors" is built on and quotes at length. So a door swing
+in the unmodified game costs the lighting overlay nothing whatsoever.
+
+Light through open doors ships as three flags behind one settings switch. Two of them decide whether
+**our polygon** sees an open door as a hole; they cost a polygon rebake and nothing else. The third,
+`vector_light_door_glow_blocker`, also clears vanilla's own `lightBlockers` bit so vanilla's flood
+arrives through the doorway. That third one is the only one that writes gameplay light — and it is the
+only one that provokes vanilla into work. `GlowGrid.LightBlockerRemoved` dirties the cell, calls
+`DirtyLightsAround` to re-flood every light whose window covers it, and raises `GroundGlow` on the
+section, which regenerates the lighting overlay — where the mask's ~1.2 ms per section is spent.
+
+**So the question is whether the beam has to be paid for twice.** `vector_light_open_door`'s arm 3
+already showed the drawn-only composition renders: polygon identical to a bare doorway to the last
+decimal, `glow_out` left at vanilla's 0.095. What nobody had measured is what it *costs*, because that
+scenario is one door and eight lamps.
+
+**Measured**, `stress_door_visual` — stress_door_colony's map and storm exactly, 30 doors × 240 swings
+under 500 lamps, four arms in one boot with the baseline repeated after the arm being judged:
+
+| | gated | full (shipped) | **visual** | full_b |
+|---|---|---|---|---|
+| `vector_light_section_dirties` | 0 | 1,301 | 1,318 | 1,309 |
+| `vector_light_sections_per_pass` | 0 | 5.08 | 5.15 | 5.11 |
+| **`vector_light_mask_applies`** | 0 | **5,194** | **1,318** | **4,954** |
+| `vector_light_bakes` | 0 | 11,543 | 11,834 | 11,606 |
+| `vector_light_unchanged_bakes` | 0 | 8,498 | 8,745 | 8,533 |
+| `vector_light_mask_skips_dirty` | 0 | 0 | 0 | 0 |
+
+| arm | mod ms/frame | worst frame | `Patch_VectorLightSuppress` | calls/frame | µs/call | its worst frame |
+|---|---|---|---|---|---|---|
+| gated | 0.45 | 28.51 | 0.000 | 1.58 | 0.0 | 0.005 |
+| full | 15.82 | 85.70 | 9.447 | 7.396 | 1277 | 85.70 |
+| **visual** | **7.61** | **62.41** | **2.822** | **1.910** | 1477 | **14.64** |
+| full_b | 17.80 | 83.94 | 9.522 | 7.180 | 1326 | 61.14 |
+
+**The row that says what this is.** In the `visual` arm `mask_applies` is **1,318** and
+`section_dirties` is **1,318** — every lighting-overlay regenerate is one we asked for. In `full` there
+are 5,194 applies against 1,301 dirties, so **roughly 3,900 regenerates are ones nobody asked for**:
+vanilla rebuilding sections because we punched holes in its light-blocker grid. That is 3.9× the
+regenerate rate for a beam our own fan was drawing anyway.
+
+**`vector_light_bakes` stands still** — 11,543 / 11,834 / 11,606, inside 2.5% — which is what makes the
+rest of the table mean what it says. The beam is still being computed; the arm did not switch the
+feature off. `Patch_VectorLightDraw` corroborates it at 4.78 / 4.28 / 6.36 ms/frame, unmoved against
+baselines that disagree with each other by 33%. And `mask_skips_dirty` is 0 everywhere, so dirtying
+less left nothing stale.
+
+**The whole mod falls 2.21×**, 16.81 ms/frame on the mean of the two baselines to 7.61, and the mask
+itself 3.35× — 9.45/9.52 to 2.82, with the two baselines agreeing to **0.8%**, which is the tightest
+pair of baselines this suite has produced. **The mask's worst frame falls 5.9×**, 85.70 and 61.14 down
+to 14.64, and that is the number a player feels: those maxima are dropped frames.
+
+**The per-call cost rose 13% and it is entirely the box this time.** 1,277 → 1,477 µs, against
+`Patch_IndoorSkyOcclusion` — untouched, postfixing the same vanilla method — moving 121.4 → 140.0 µs
+over the same two arms, i.e. +15%. Phase 9's equivalent rise was mostly this change concentrating the
+survivors; here the control accounts for all of it.
+
+**The control patch is also the independent witness.** `Patch_IndoorSkyOcclusion` reports the identical
+calls per frame in every arm, which is what identifies that number as the section-regenerate rate
+rather than anything of ours, and its own cost falls 0.898 → 0.267 ms/frame across the same arms. A
+saving that lands on somebody else's patch is a regenerate that did not happen, not our patch getting
+cleverer.
+
+**The frames prove nothing here, and the control says so.** `full` against `visual` reads masked median
+ΔE **8.62** over 80.06% of the frame — and `full` against `full_b`, the *same configuration* two
+windows apart, reads **8.84** over **80.03%**. The scenario runs its clock, so hours of sky pass
+between arms and a cross-arm frame diff selects that and nothing else. The captures are all committed
+so the control sits beside the comparison rather than being described. What the difference actually
+looks like is already measured, on one door, paused, in `vector_light_open_door`: drawn-only touches
+**0.48%** of frame at masked median **ΔE 1.74**, glow-grid-driven **1.63%** at **ΔE 1.95**. Our beam
+instead of our beam plus vanilla's wash — a third of the footprint, a fifth less contrast.
+
+**`stress_door_colony`'s gated arm was never a baseline, and this is how that surfaced.** That scenario
+never stated the three door flags, so every arm inherited them at their true defaults — including the
+arm whose whole job is to be the subsystem absent. It was writing vanilla's light-blocker bit on all
+240 swings, because the glow blocker deliberately rides on its own flag rather than on `vector_lights`
+(it is gameplay light, and gameplay light is not allowed to ride on a render switch). Stated off here,
+that arm reads **0.45 ms/frame and 1.58 regenerates a frame** against the door colony's 1.15 and 7.62.
+**Four fifths of what the old baseline called "vanilla" was us.** `feature_steps` now states all three,
+which is the rule that file's own header has always given and this is the case it was written for.
+
+#### What it does not ship as, yet
+
+**Nothing shipped.** The measurement is a case for a decision that is not a performance decision: the
+two halves ship together today *on purpose*, because drawing a beam vanilla does not deliver was the
+contention issue #48 records, and the glow-blocker half is what closed it. Turning it off restores
+vanilla's gameplay light exactly — plants, vision, work speed and every mod reading `GroundGlowAt` go
+back to what the unmodified game does — at the price of the doorway being lit by our beam alone.
+
+That is a taste call about what a doorway should look like, and it is the same one the two flags were
+built to let someone make by looking. What this section adds is the number that was missing from it:
+the wash costs **2.2× the whole mod's frame** and **5.9× the mask's worst frame**, and it is the only
+term in vector lighting that makes vanilla do work on our behalf.
 
 ## Conflict risk
 
