@@ -233,9 +233,14 @@ public class CelestialLightingSettingsMod : Mod
         // THE TOOLTIP SAYS IT IS A LOOK AND NOT A FIX, in those words. Every other switch on this
         // screen can be argued from what light actually does; this one doubles up two ways of
         // drawing the same beam because the result is prettier, and a player who reads the tooltip
-        // deserves to know which kind of switch they are being handed. Saying "richer" rather than
-        // "brighter" in the label would be selling it — the level genuinely does move — so the label
-        // says indoors, which is the part that bounds what it can do to their colony.
+        // deserves to know which kind of switch they are being handed.
+        //
+        // "EXTRA VIBRANT" RATHER THAN A WORD FOR THE MECHANISM, because the mechanism is not what a
+        // player is choosing between. "Vibrant" says the level and the colour both move, which is
+        // true and is the thing they will see; a label built around "multiply" or "surface" would
+        // describe our render path to somebody who has no reason to know we have one. "Indoor" is
+        // doing the other half of the work — it is the part that bounds what this can do to their
+        // colony, and the reason the label is not simply "extra vibrant lighting".
         //
         // AND THE TOOLTIP SAYS THE DOORWAY SPILL OUT LOUD, because the first draft of it did not.
         // It read "outdoors and under an open sky nothing changes", which is true of a lamp standing
@@ -243,7 +248,7 @@ public class CelestialLightingSettingsMod : Mod
         // so a roofed lamp carries the layer out through its own door, where the live scene measures
         // the biggest lift in the frame. A tooltip that promises a bound the code does not hold is
         // worse than one that admits the edge, since the edge is what gets reported as a bug.
-        GatedCheckbox(listing, "    Richer indoor lamp light", ref Settings.vectorLightIndoorMultiply,
+        GatedCheckbox(listing, "    Extra vibrant indoor lighting", ref Settings.vectorLightIndoorMultiply,
             vectorLightsOn,
             "A lamp under a roof brightens the floor it lights as well as adding a glow over it, so lit stonework and carpet keep their own pattern instead of washing toward flat light. A lamp standing out in the open is left alone.\n\nThis is a look rather than a correction, and it is off by default because of that: the beam is drawn twice, once each way, so a lit room reads brighter than the game's own lighting would make it \u2014 and a roofed lamp keeps that extra brightness in the light it spills out through its own doorway, which is the strongest place the effect shows. It can at most double the light already there, and it changes nothing about plant growth, work speed or what pawns can see. Turn it on if you like how it looks.");
         // NO "LAMP BEAM STRENGTH" SLIDER, and its absence is deliberate rather than an oversight —
