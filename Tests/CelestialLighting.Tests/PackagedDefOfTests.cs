@@ -81,8 +81,10 @@ public class PackagedDefOfTests
 
         List<DefRequirement> required = RequiredDefs();
 
-        // The common case today is an empty list — this mod defines no DefOf at all — and that costs
-        // nothing: with nothing to look for, neither def tree is read.
+        // Live since the shader defs landed: CelestialShaderDefOf's three fields are what this walks.
+        // It was written against an empty list — the mod defined no DefOf at all — and deliberately
+        // kept anyway, because the bug it describes is a packaging bug rather than a code one and
+        // reappears the moment content exists to forget. It now costs one read of each def tree.
         List<DefRequirement> missing = required.Where(r => !DefIsDeclared(r.DefName)).ToList();
 
         Assert.That(missing, Is.Empty,
