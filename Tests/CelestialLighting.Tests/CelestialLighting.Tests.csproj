@@ -179,6 +179,12 @@
          binary question about a whole cell and this one places sub-cell geometry; the boolean is
          still the rule at both ends of the slide. Depends on nothing. -->
     <Compile Include="../../Source/DoorApertureMath.cs" Link="DoorApertureMath.cs" />
+    <!-- The door-swing instrument's arithmetic (issue #218): how far one cell's rendered value left
+         the band its two endpoints define. Lives under Source/Probes/ rather than beside the mod's
+         own pure cores because the shipped DLL has no use for it — it is what the live scenario
+         asserts monotonicity with. Linked here for the same reason every entry above is: the tests
+         compile the exact file the probe assembly does. Depends on nothing. -->
+    <Compile Include="../../Source/Probes/SwingExcursionMath.cs" Link="SwingExcursionMath.cs" />
     <!-- §7b staleness-fix pure core: has a map's CurSkyGlow drifted far enough from what its lighting
          meshes were last baked against to justify another whole-map rebuild. See
          GameComponent_SkyFalloffRedraw for the live half and why this is a drift gate, not a clock. -->
