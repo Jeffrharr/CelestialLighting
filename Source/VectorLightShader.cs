@@ -28,10 +28,16 @@ namespace CelestialLighting;
 [StaticConstructorOnStartup]
 public static class VectorLightShader
 {
-    // The shader's path INSIDE the bundle, minus the extension. ContentFinder builds the full path as
-    // Assets/Data/<id>/Materials/<this>.shader, and Tools/ShaderBundle/build.sh is what puts it
-    // there — the two have to be changed together, and there is no error if they disagree, only a
-    // silent fallback to the crossfade.
+    // The shader's path INSIDE the bundle, minus the extension: RimWorld builds the full asset path
+    // as Assets/Data/<packageId>/Materials/<this>.shader.
+    //
+    // THIS IS NOW THE FALLBACK, NOT THE ROUTE. CL_VectorLightMax in
+    // 1.6/Defs/ShaderTypeDefs/ShaderTypes.xml carries the same string and is what we normally load
+    // through; this const is what ShaderLoader uses when that def is not in the database, and it is
+    // still what the log messages below quote because the path is what a player can check against
+    // the bundle. The duplication is deliberate and it is TESTED — ShaderTypeDefTests asserts the
+    // const, the def's shaderPath and the asset name in BuildShaderBundles.cs are the same string,
+    // because nothing at runtime notices if they drift, they just silently fall back to the crossfade.
     public const string ShaderPath = "VectorLightMax";
 
     // How much of vanilla's sampled glow the fragment program subtracts. One is the feature; zero
@@ -155,7 +161,8 @@ public static class VectorLightShader
 
     private static Shader Load()
     {
-        Shader shader = ShaderDatabase.LoadShader(ShaderPath);
+        Shader shader = ShaderLoader.Load(
+            CelestialShaderDefOf.CL_VectorLightMax, ShaderPath, "vector lighting's max composition");
 
         // LoadShader does not report failure to its caller — it logs a warning and hands back
         // ShaderDatabase.DefaultShader, which is Map/Cutout. Rendering our additive pass through a

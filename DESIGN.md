@@ -2400,6 +2400,24 @@ has added a shader and not staged its bundles gets a mod that asks for the shade
 and quietly bakes. Pass the bundles through `--install <worktree>/1.6/AssetBundles:<main>/1.6/AssetBundles`,
 which is ledger-protected and rolled back, and pin the probe so the arm cannot lie about itself.
 
+**The same staleness now applies to `Defs/`, and it is why the shader lookup has a fallback.** All
+three shaders are reached through a `ShaderTypeDef` (`1.6/Defs/ShaderTypeDefs/ShaderTypes.xml`) bound
+by `CelestialShaderDefOf`, rather than through the literal path strings the adapters used to carry.
+The def is the route RimWorld intends — it is the only handle XML can name, so `GraphicData.shaderType`
+and friends can reach one of ours without an assembly reference on us, and a missing `defName` is a
+red startup error from `DefOfHelper` instead of a warning next to a silent fallback.
+
+What that costs is one more thing `--mod-overlay` leaves behind: a branch that adds a def runs its
+new assembly against a content tree that has never heard of it, so `ShaderLoader.Load` logs an error
+and falls back to the literal path. Keeping the lights on there is deliberate — a missing shader must
+never mean missing light, and that holds just as much when what went missing is the def naming the
+shader — but it does mean the def route itself is only exercised when `1.6/Defs` reaches the run.
+`--install <worktree>/1.6:<main>/1.6` covers assemblies, bundles and defs in one pair, which is the
+invocation to prefer now. The four copies of each shader's path (def, adapter const, bundle build
+script, `Shader "…"` declaration) are pinned against each other offline by `ShaderTypeDefTests`,
+and `PackagedDefOfTests` — written against an empty DefOf list and dormant until now — checks that
+what the assembly binds is what the package ships.
+
 **Pure core / adapter split**, as everywhere else:
 
 - `Source/AuroraNoise.cs` — tileable value noise + fBm, with **separate X and Y periods**. Anisotropy

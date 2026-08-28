@@ -28,9 +28,16 @@ namespace CelestialLighting;
 [StaticConstructorOnStartup]
 public static class CloudVolumeShader
 {
-    // Named without a folder prefix, unlike vanilla's "Map/Transparent". ContentFinder searches mod
-    // bundles for exactly `Materials/<this>.shader`, and the bundle is built with the asset at
-    // Assets/Data/joof.celestiallighting/Materials/CelestialCloudVolume.shader to match.
+    // The shader's path INSIDE the bundle, minus the extension: RimWorld builds the full asset path
+    // as Assets/Data/<packageId>/Materials/<this>.shader.
+    //
+    // THIS IS NOW THE FALLBACK, NOT THE ROUTE. CL_CloudVolume in
+    // 1.6/Defs/ShaderTypeDefs/ShaderTypes.xml carries the same string and is what we normally load
+    // through; this const is what ShaderLoader uses when that def is not in the database, and it is
+    // still what the log messages below quote because the path is what a player can check against
+    // the bundle. The duplication is deliberate and it is TESTED — ShaderTypeDefTests asserts the
+    // const, the def's shaderPath and the asset name in BuildShaderBundles.cs are the same string,
+    // because nothing at runtime notices if they drift, they just silently fall back to the baked atlas.
     public const string ShaderPath = "CelestialCloudVolume";
 
     // The name the .shader file DECLARES, which is the only thing that tells a loaded shader apart
@@ -79,7 +86,8 @@ public static class CloudVolumeShader
         CloudRaymarchMath.RowPeakTexels(CloudSheetOverlay.AtlasSize / CloudSheetOverlay.AtlasCells,
             CloudDeckMath.DeckCount);
 
-    private static readonly Shader VolumeShader = ShaderDatabase.LoadShader(ShaderPath);
+    private static readonly Shader VolumeShader = ShaderLoader.Load(
+        CelestialShaderDefOf.CL_CloudVolume, ShaderPath, "the volumetric cloud march");
 
     // Whether the shader that came back is OURS. See ShaderName: a failed load is not a null here,
     // it is vanilla's default shader wearing the same slot, so this is the only honest test.

@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+  The three shaders this mod ships, declared as ShaderTypeDefs so they are reachable the way
+  vanilla's own are (Data/Core/Defs/Misc/ShaderTypeDefs/ShaderTypes.xml is the file this mirrors,
+  down to the folder name).
+
+  WHY A DEF RATHER THAN THE LITERAL PATH STRING THE C# USED TO CARRY. Three reasons, in the order
+  they matter here:
+
+    1. A def is reachable from XML and a string in our assembly is not. GraphicData.shaderType,
+       PawnRenderNodeProperties.shaderTypeDef, TerrainDef.customShader and HediffDef.skinShader all
+       take a ShaderTypeDef, so anything that should ever render through one of these — ours or
+       another mod's patch — has no other route. None of the three is used that way today; the point
+       is that the door is open without an assembly reference on us.
+    2. A missing defName is a RED STARTUP ERROR from DefOfHelper, whereas a mistyped path string is a
+       yellow warning somewhere in the middle of Player.log next to a silent fallback. This mod has
+       already paid for one silent shader failure (the white slabs that CloudVolumeShader's ShaderName
+       check exists to catch), and loud beats clever.
+    3. It puts the path in the same kind of file as the rest of the mod's content, so publish.sh's
+       CONTENT_DIRS staging covers it automatically.
+
+  THE PATHS BELOW ARE RELATIVE TO THE BUNDLE'S Materials FOLDER, not to anything on disk. RimWorld
+  builds the full asset path as Assets/Data/<packageId>/Materials/<shaderPath>.shader, and
+  Tools/ShaderBundle/Project/Assets/Editor/BuildShaderBundles.cs is what puts the .shader files
+  there. The two have to change together and nothing checks that they agree at build time — which is
+  what Tests/CelestialLighting.Tests/ShaderTypeDefTests.cs is for.
+
+  NO <uiShaderPath> ON ANY OF THESE. It exists for shaders that need a separate variant when drawn
+  into the UI rather than onto the map; all three of ours are map passes with no UI counterpart, and
+  naming a path that does not exist in the bundle would log a warning per shader on every boot.
+-->
+<Defs>
+
+  <!-- The volumetric cloud march (§25c). Falls back to §25b's baked atlas when unavailable. -->
+  <ShaderTypeDef>
+    <defName>CL_CloudVolume</defName>
+    <shaderPath>CelestialCloudVolume</shaderPath>
+  </ShaderTypeDef>
+
+  <!-- Vector lighting's max(vanilla, ours) composition (§27). Falls back to the crossfade. -->
+  <ShaderTypeDef>
+    <defName>CL_VectorLightMax</defName>
+    <shaderPath>VectorLightMax</shaderPath>
+  </ShaderTypeDef>
+
+  <!-- The aurora curtain's field, evaluated per fragment (§11a). Falls back to the CPU bake. -->
+  <ShaderTypeDef>
+    <defName>CL_Aurora</defName>
+    <shaderPath>CelestialAurora</shaderPath>
+  </ShaderTypeDef>
+
+</Defs>

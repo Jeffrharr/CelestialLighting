@@ -36,10 +36,16 @@ namespace CelestialLighting;
 [StaticConstructorOnStartup]
 public static class AuroraShader
 {
-    // The shader's path INSIDE the bundle, minus the extension. ContentFinder builds the full path as
-    // Assets/Data/<packageId>/Materials/<this>.shader, and Tools/ShaderBundle/build.sh is what puts
-    // it there — the two have to change together, and there is no error if they disagree, only a
-    // silent fallback to the bake.
+    // The shader's path INSIDE the bundle, minus the extension: RimWorld builds the full asset path
+    // as Assets/Data/<packageId>/Materials/<this>.shader.
+    //
+    // THIS IS NOW THE FALLBACK, NOT THE ROUTE. CL_Aurora in
+    // 1.6/Defs/ShaderTypeDefs/ShaderTypes.xml carries the same string and is what we normally load
+    // through; this const is what ShaderLoader uses when that def is not in the database, and it is
+    // still what the log messages below quote because the path is what a player can check against
+    // the bundle. The duplication is deliberate and it is TESTED — ShaderTypeDefTests asserts the
+    // const, the def's shaderPath and the asset name in BuildShaderBundles.cs are the same string,
+    // because nothing at runtime notices if they drift, they just silently fall back to the CPU bake.
     public const string ShaderPath = "CelestialAurora";
 
     // The name the .shader file DECLARES. This is the check that matters, and it is stricter than
@@ -134,7 +140,8 @@ public static class AuroraShader
 
     private static Shader Load()
     {
-        Shader shader = ShaderDatabase.LoadShader(ShaderPath);
+        Shader shader = ShaderLoader.Load(
+            CelestialShaderDefOf.CL_Aurora, ShaderPath, "the aurora curtain");
 
         if (shader == null || shader.name != ShaderName)
         {
