@@ -12561,6 +12561,58 @@ larger than the effect being claimed, so **neither is quoted as the result**. Th
 excursion this size that is not evidence of harm either, which is precisely the problem. This arm
 needs re-running on a quiet box before any frame-time claim is attached to it.
 
+#### Phase 11b: the staleness, looked for and not found (`door_dirty_stale`)
+
+The suppression's risk is that a section whose vanilla glow moved but whose *our* coverage did not is
+flagged by nobody and holds the overlay it had before the door opened. `stress_door_visual` cannot see
+that: it runs its clock, and two runs of the same configuration differ on 80% of pixels from sky drift
+alone. `door_dirty_stale` is the paused scenario built for it.
+
+**The scene is built around the hole.** A torch in the left room, a door in the dividing wall, and a
+wall stub reaching in from the right room's south wall. The pocket behind that stub is the experiment:
+our polygon cannot see into it from the doorway, while vanilla's geodesic flood walks around the
+stub's tip. Three arms — `full`, `suppressed`, `full` again — each of which **shuts the door, sets its
+flags, and only then opens it**, because every flag except the one under test rebuilds the whole map
+on flip and a rebuild after the swing heals exactly the defect being looked for.
+
+| | full | suppressed | full_b |
+|---|---|---|---|
+| `section_dirties` | 26 | 26 | 26 |
+| `mask_applies` | 38 | **26** | 38 |
+| `bakes` | 9 | 9 | 9 |
+| `suppressed_dirty_calls` | 0 | **2,594** | 0 |
+| `suppressed_dirty_sections` | 0 | **2,979** | 0 |
+
+One door, one lamp, one swing: **2,594 declined `MapMeshDirty` calls**. A radius-17.25 emitter has a
+35×35 rect, so `DirtyLightsAround` walking it at two calls a cell is ~2,450 — the mechanism reproduced
+at a scale small enough to check by hand. Twelve regenerates were declined, and the two `full` arms
+agree exactly at 38, so the counts have a same-build control of their own.
+
+**THE FRAMES HAVE TO BE READ AGAINST THE FLOOR, NOT AGAINST ZERO.** All three arms advance the clock
+by the same amount and are captured at different points in it, so `full` against `full_b` — identical
+configuration — still reads 80.05% of pixels at median ΔE 0.508. That is the floor, and it is why the
+comparison below is per pixel against the control rather than against nothing:
+
+| over the 528,000-pixel plate | median ΔE | p90 | max |
+|---|---|---|---|
+| **test** — `full` vs `suppressed` | 0.000 | 0.706 | 54.48 |
+| **control** — `full` vs `full_b` | 0.000 | 0.693 | 13.23 |
+
+**The two distributions are the same distribution.** 0.5420% of plate pixels exceed the control by more
+than 1 ΔE, and `door_dirty_stale__excess_over_control.png` shows where they are: the torch's own flame
+sprite, and speckle on the open desert outside the walls. `CompFireOverlay` animates on real time
+rather than on ticks, so the torch differs between any two captures whatever the mod is doing — the
+flicker section records the same thing. **The right room, where the beam is and where a stale section
+would have to sit, carries no excess pixels at all.**
+
+**WHAT THIS DOES NOT PROVE, and it is worth being exact.** The pocket behind the stub is dark in
+*both* arms, so vanilla's wrap-around light did not measurably reach it and the specific geodesic case
+was not strongly provoked — the scene has the shape for it and the reach was not there. What is
+established is narrower and still useful: twelve regenerates were declined and the lit region is
+pixel-identical to its own control. Widening the emitter until the pocket is genuinely lit is the next
+version of this scenario, and until it exists the flag stays off on the strength of what was not
+tested rather than what was.
+
 **What is NOT measured here is the thing that decides whether it ships.** Vanilla's flood is geodesic
 and keeps bending past a doorway, so a cell lit only by a path wrapping around a corner has its glow
 changed by the re-flood while our straight-line coverage never moved — and that section is flagged by
