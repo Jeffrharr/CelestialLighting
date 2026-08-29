@@ -131,18 +131,30 @@ public class IndoorOcclusionMathTests
             Is.EqualTo(0f).Within(Tolerance));
     }
 
-    // --- CentreOcclusion: interior cells are flat, everything else is the mean of its own corners ---
+    // --- CentreOcclusion: always the mean of the cell's own four corners ---
 
     [Test]
-    public void CentreOcclusion_InteriorCell_IsFullRegardlessOfItsCorners()
+    public void CentreOcclusion_SealedInteriorCell_IsFullBecauseItsCornersAre()
     {
-        // Deep inside a room every corner is 1.0 anyway, so the centre agreeing at 1.0 is what makes the
-        // tile shade flat — the mesh fans four triangles out of this vertex, and a centre that disagrees
-        // with its corners is exactly the diamond-shaped bloom this replaced.
-        Assert.That(IndoorOcclusionMath.CentreOcclusion(blocksSky: true, cornerOcclusionSum: 4f),
+        // Deep inside a room every corner is 1.0 anyway, so the mean is 1.0 and the tile shades flat —
+        // the mesh fans four triangles out of this vertex, and a centre that disagrees with its corners
+        // is exactly the diamond-shaped bloom this arithmetic exists to avoid.
+        Assert.That(IndoorOcclusionMath.CentreOcclusion(cornerOcclusionSum: 4f),
             Is.EqualTo(1f).Within(Tolerance));
-        Assert.That(IndoorOcclusionMath.CentreOcclusion(blocksSky: true, cornerOcclusionSum: 0f),
-            Is.EqualTo(1f).Within(Tolerance));
+    }
+
+    [Test]
+    public void CentreOcclusion_InteriorCellWithALeakedCorner_FollowsTheCornersDown()
+    {
+        // The defect the blocksSky force used to cause, stated as the property that rules it out. A
+        // doorway or a sky-falloff gradient caps two of an interior cell's corners below 1.0; the
+        // centre must come down with them. Forcing it to a flat 1.0 instead pinned a black hub inside a
+        // lit-cornered tile, and four triangles fan out of that hub — a row of dark spikes down the
+        // inside of every wall carrying a door.
+        //
+        // 1.0 + 1.0 + 0.65 + 0.65 == 3.3: two sealed corners, two capped by a 0.35 leak.
+        Assert.That(IndoorOcclusionMath.CentreOcclusion(cornerOcclusionSum: 3.3f),
+            Is.EqualTo(0.825f).Within(Tolerance));
     }
 
     [Test]
@@ -151,7 +163,7 @@ public class IndoorOcclusionMathTests
         // Inner corners 1.0 (they touch the room), outer corners 0.0 — so the wall tile carries a
         // straight gradient from black on its inner face to nothing on its outer one. Vanilla resolves
         // an uncovered cell's centre the same way, by averaging these same four vertices.
-        Assert.That(IndoorOcclusionMath.CentreOcclusion(blocksSky: false, cornerOcclusionSum: 2f),
+        Assert.That(IndoorOcclusionMath.CentreOcclusion(cornerOcclusionSum: 2f),
             Is.EqualTo(0.5f).Within(Tolerance));
     }
 
@@ -160,7 +172,7 @@ public class IndoorOcclusionMathTests
     {
         // None of its corners touch an interior cell, so nothing outside a properly walled building is
         // darkened at all — the fade is spent entirely on the wall tile.
-        Assert.That(IndoorOcclusionMath.CentreOcclusion(blocksSky: false, cornerOcclusionSum: 0f),
+        Assert.That(IndoorOcclusionMath.CentreOcclusion(cornerOcclusionSum: 0f),
             Is.EqualTo(0f).Within(Tolerance));
     }
 
@@ -170,16 +182,16 @@ public class IndoorOcclusionMathTests
         // The wall block at a building's outside corner touches the room diagonally, at one lattice
         // point out of four: a quarter-strength tile, which is what bilinear interpolation across the
         // quad would have produced anyway.
-        Assert.That(IndoorOcclusionMath.CentreOcclusion(blocksSky: false, cornerOcclusionSum: 1f),
+        Assert.That(IndoorOcclusionMath.CentreOcclusion(cornerOcclusionSum: 1f),
             Is.EqualTo(0.25f).Within(Tolerance));
     }
 
     [Test]
     public void CentreOcclusion_ClampsAnOutOfRangeCornerSum()
     {
-        Assert.That(IndoorOcclusionMath.CentreOcclusion(blocksSky: false, cornerOcclusionSum: 40f),
+        Assert.That(IndoorOcclusionMath.CentreOcclusion(cornerOcclusionSum: 40f),
             Is.EqualTo(1f).Within(Tolerance));
-        Assert.That(IndoorOcclusionMath.CentreOcclusion(blocksSky: false, cornerOcclusionSum: -4f),
+        Assert.That(IndoorOcclusionMath.CentreOcclusion(cornerOcclusionSum: -4f),
             Is.EqualTo(0f).Within(Tolerance));
     }
 
@@ -193,7 +205,7 @@ public class IndoorOcclusionMathTests
         // still touches this interior cell, so they are 1.0 like the rest and the tile is flat.
         float wallSideCorner = IndoorOcclusionMath.CornerOcclusion(anyNeighbourBlocksSky: true);
         float innerCorner = IndoorOcclusionMath.CornerOcclusion(anyNeighbourBlocksSky: true);
-        float centre = IndoorOcclusionMath.CentreOcclusion(blocksSky: true,
+        float centre = IndoorOcclusionMath.CentreOcclusion(
             cornerOcclusionSum: 2f * wallSideCorner + 2f * innerCorner);
 
         Assert.That(wallSideCorner, Is.EqualTo(1f).Within(Tolerance));
@@ -207,7 +219,7 @@ public class IndoorOcclusionMathTests
         // outer face is 0, so the open cell beyond it averages 0 and takes vanilla's own alpha.
         bool wallIsInterior = IndoorOcclusionMath.BlocksSky(roofed: true, thickRoof: false, holdsRoof: true, isDoor: false, naturalRock: false);
         float outerCorner = IndoorOcclusionMath.CornerOcclusion(wallIsInterior);
-        float outdoorCentre = IndoorOcclusionMath.CentreOcclusion(blocksSky: false, cornerOcclusionSum: 4f * outerCorner);
+        float outdoorCentre = IndoorOcclusionMath.CentreOcclusion(cornerOcclusionSum: 4f * outerCorner);
 
         Assert.That(outerCorner, Is.EqualTo(0f).Within(Tolerance));
         Assert.That(IndoorOcclusionMath.CoverAlpha(outdoorCentre, vanillaAlpha: 0), Is.EqualTo(0));
@@ -259,7 +271,7 @@ public class IndoorOcclusionMathTests
         // The adapter caps corners *before* averaging them into a boundary cell's centre, which keeps the
         // wall a gradient under a floor rather than flattening it out at the floor value.
         float cappedInner = IndoorOcclusionMath.CapOcclusion(1f, minIndoorBrightness: 0.5f, skyFalloffFraction: 0f);
-        float wall = IndoorOcclusionMath.CentreOcclusion(blocksSky: false, cornerOcclusionSum: 2f * cappedInner);
+        float wall = IndoorOcclusionMath.CentreOcclusion(cornerOcclusionSum: 2f * cappedInner);
 
         Assert.That(cappedInner, Is.EqualTo(0.5f).Within(Tolerance));
         Assert.That(wall, Is.EqualTo(0.25f).Within(Tolerance));

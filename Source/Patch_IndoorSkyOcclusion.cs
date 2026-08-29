@@ -118,7 +118,7 @@ public static class Patch_IndoorSkyOcclusion
         SkyOcclusionWindow window = SkyOcclusionGather.TakeOrBuild(map, section, rect);
         float[] corners = BuildCornerOcclusion(window, rect, indoorFloor);
         WriteCorners(colors, corners);
-        WriteCentres(window, rect, colors, firstCenterInd, corners, indoorFloor);
+        WriteCentres(rect, colors, firstCenterInd, corners);
         mesh.colors32 = colors;
     }
 
@@ -200,13 +200,22 @@ public static class Patch_IndoorSkyOcclusion
             colors[i].a = IndoorOcclusionMath.CoverAlpha(corners[i], colors[i].a);
     }
 
-    // One centre vertex per cell. An interior cell is fully occluded outright; a boundary cell (wall,
-    // door) or open ground takes the mean of the four corners computed above, which is what turns the
-    // wall line into a straight ramp instead of a per-tile starburst. The four corner indices are the
-    // same neighbourhood vanilla's own centre pass averages: (x,z), (x+1,z), (x,z+1), (x+1,z+1).
+    // One centre vertex per cell: the mean of the four corners computed above, whatever the cell is.
+    // That is what turns the wall line into a straight ramp instead of a per-tile starburst, and the
+    // four corner indices are the same neighbourhood vanilla's own centre pass averages: (x,z),
+    // (x+1,z), (x,z+1), (x+1,z+1).
+    //
+    // NO SECOND CAP HERE, and it is dead arithmetic rather than a relaxation. The corners were already
+    // capped, by the same indoorFloor and by each corner's own MAX sky-falloff over the four cells it
+    // touches — and this cell is one of those four at all four of its corners, so its own falloff is
+    // the smallest of the five values in play. `1 - ownFalloff` is therefore >= every corner and so >=
+    // their mean, `1 - indoorFloor` likewise, and CapOcclusion would return the mean unchanged. Not
+    // calling it is what makes "the centre equals the corner mean" structural instead of arithmetical:
+    // this pass now has no way to disagree with the corners it averages, which is the property the fan
+    // needs (see IndoorOcclusionMath.CentreOcclusion for what happened when it did). It also takes the
+    // centre pass off the window entirely — it reads neither BlocksSky nor SkyFalloffFraction now.
     private static void WriteCentres(
-        SkyOcclusionWindow window, CellRect rect, Color32[] colors, int firstCenterInd, float[] corners,
-        float indoorFloor)
+        CellRect rect, Color32[] colors, int firstCenterInd, float[] corners)
     {
         int stride = rect.Width + 1;
         for (int z = rect.minZ; z <= rect.maxZ; z++)
@@ -217,13 +226,9 @@ public static class Patch_IndoorSkyOcclusion
                 float cornerSum = corners[corner] + corners[corner + 1]
                     + corners[corner + stride] + corners[corner + stride + 1];
 
-                float occlusion = IndoorOcclusionMath.CentreOcclusion(window.BlocksSky(x, z), cornerSum);
-
-                float skyFalloffFraction = window.SkyFalloffFraction(x, z);
                 int vertex = firstCenterInd + (z - rect.minZ) * rect.Width + (x - rect.minX);
                 colors[vertex].a = IndoorOcclusionMath.CoverAlpha(
-                    IndoorOcclusionMath.CapOcclusion(occlusion, indoorFloor, skyFalloffFraction),
-                    colors[vertex].a);
+                    IndoorOcclusionMath.CentreOcclusion(cornerSum), colors[vertex].a);
             }
         }
     }
