@@ -194,6 +194,18 @@ public sealed class VectorLightBakeProbe : IProbe
         CoverageMean,
         LitCells,
 
+        // How many coverage-grid CELLS are allocated across every emitter on the map — the size of
+        // the bake rather than what is in it.
+        //
+        // WHY IT IS SEPARATE FROM LitCells, which is the mistake it exists to stop somebody making
+        // twice. LitCells counts bytes equal to 255, so it moves when the grid SATURATES as well as
+        // when the grid GROWS, and those are different facts: lamp glow reach pushes the polygon
+        // past vanilla's rim, which fills in the partly-covered discretisation cells there and
+        // raises LitCells without allocating one extra byte. Read alone it says a grid grew when it
+        // did not. This one is the array length and nothing else, so "the coverage bake does not
+        // scale with reach" is a claim it can settle on its own.
+        CoverageCells,
+
         // Side-effecting: zeroes every counter above and reads 0, following circinus_*_reset.
         //
         // It exists so the counting window and the PROFILING window can be opened at the same point
@@ -306,6 +318,9 @@ public sealed class VectorLightBakeProbe : IProbe
         if (metric == Metric.LitCells)
             return LitCells(map);
 
+        if (metric == Metric.CoverageCells)
+            return CoverageCells(map);
+
         if (metric == Metric.SuppressedDirtyCalls)
         {
             return GlowDirtyScope.SuppressedCalls;
@@ -382,6 +397,24 @@ public sealed class VectorLightBakeProbe : IProbe
         }
 
         return lit;
+    }
+
+    // Total allocated coverage grid, in cells, over every emitter. See Metric.CoverageCells for why
+    // this is not LitCells with a different predicate.
+    private static float CoverageCells(Map map)
+    {
+        if (map == null)
+            return 0f;
+
+        int cells = 0;
+
+        foreach (VectorLightField.LightEntry entry in VectorLightField.LightsFor(map))
+        {
+            if (entry?.Coverage != null)
+                cells += entry.Coverage.Length;
+        }
+
+        return cells;
     }
 
     private static float EmitterCount(Map map)

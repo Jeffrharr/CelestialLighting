@@ -147,18 +147,37 @@ public class CelestialLightingSettings : ModSettings
     // decides a lamp's level against vanilla's own, and what was left for the knob to govern was a
     // fallback path no player can select or see.
 
-    // The indoor multiply layer (§27) — a roofed lamp's beam brightening the surface it lands on
-    // as well as adding light beside it. A TASTE option rather than a correction; see
-    // CelestialLightingFeatures.VectorLightIndoorMultiply for what it composes and why doing it
-    // twice is deliberate. Inert while vectorLights is off, like every other switch in this group.
+    // NO vectorLightIndoorMultiply FIELD EITHER, and its node is left unread the same way. The
+    // indoor multiply layer was the previous answer to "make a lit room read richer": it delivered
+    // our excess over vanilla twice, once additively and once as a scaling of the surface. It was
+    // measured against the reach slider below in one room and RETIRED on the number, not on taste —
+    // it put ten times as much light on the outdoor spill through a roofed lamp's own doorway as on
+    // the room it was named after (+5.28 L* against +0.50). Its own comments had already conceded
+    // the spill was the largest lift in the frame; what settled it was the ratio.
     //
-    // FALSE ON BOTH SIDES, unlike vectorLightOpenDoors above, and that is the easy case rather than
-    // the interesting one. Scribe_Values omits any value equal to its default when saving, so an
-    // absent node in an existing config loads as whatever default the Look call passes; matching the
-    // field initialiser here means a player who updates gets the shipped default and nothing they
-    // did not ask for appears in their colony. The split above exists because that flag's two
-    // defaults genuinely differ.
-    public bool vectorLightIndoorMultiply = false;
+    // THE LAYER ITSELF STAYS, unlike the beam-strength fallback above which was kept only because it
+    // still runs somewhere. Every part of the multiply draw path is live and reachable from the
+    // harness's own feature key, because retiring it on one room's numbers is a decision worth being
+    // able to revisit with a second room — deleting the code would make that a rewrite rather than a
+    // re-measurement, and `vector_light_indoor_multiply.json` is still in the required suite.
+    //
+    // An existing config carrying <vectorLightIndoorMultiply> loads clean and drops the value on the
+    // next write, exactly as the beam-strength node above does. DESIGN.md keeps the measurement.
+
+    // Astryl's extra vibrant lighting (§27): how far past its own glowRadius a lamp is drawn, as a multiplier.
+    //
+    // A SLIDER RATHER THAN A CHECKBOX, on the same reasoning cloudOpacity carries: the complaint it
+    // answers is a matter of degree — how much bigger and softer a player wants their lamps — and
+    // its bottom end already IS the checkbox, because 1 makes the model identical to vanilla's own
+    // curve and the max composition then has nothing but the geometry difference to deliver, which
+    // is precisely the shipped renderer.
+    //
+    // 1 ON BOTH SIDES, i.e. off, and off for the reason the whole option is unusual: this is the one
+    // thing in §27 that deliberately breaks the subsystem's standing rule that we change WHERE light
+    // reaches and never how bright a lamp is. Everything else in this group is self-limiting against
+    // vanilla by construction; this one is a taste call about lamp brightness, so nobody gets it
+    // without asking. See VectorLightReachMath for the curve and for what the number buys.
+    public float vectorLightReach = VectorLightReachMath.NoReach;
 
     // --- Night-radiance tunables (drive NightRadianceSettings.Current) ---
     // The atmospheric starlight+airglow floor ("true pitch-black" when off), and the pitch-black
@@ -311,14 +330,12 @@ public class CelestialLightingSettings : ModSettings
         // something — which for a settings screen means the toggle looks broken.
         CelestialLightingFeatures.VectorLightPawnShadows = vectorLightPawnShadows;
 
-        // NO REBAKE TRACKING, unlike its neighbours below, and the difference is worth stating
-        // rather than looking like an omission. The open-doors switch changes the BLOCKER SET the
-        // polygons are cast against and the mask's half is baked into section meshes, so flipping it
-        // without a rebuild leaves the map drawing an old answer. This one only decides whether a
-        // second Graphics.DrawMesh is issued in the per-frame draw — nothing is latched in a mesh or
-        // a memo, so the next frame already has it right and forcing a whole-map rebake here would
-        // cost a stutter to change nothing.
-        CelestialLightingFeatures.VectorLightIndoorMultiply = vectorLightIndoorMultiply;
+        // NOTHING PUSHES VectorLightIndoorMultiply ANY MORE, and its absence here is the deliberate
+        // half of the setting's removal rather than an edit that missed a line. The flag, its key
+        // and the whole draw path survive — see the field comment above for why the layer was
+        // retired and CelestialLightingFeatures.VectorLightIndoorMultiply for what it still does —
+        // but the only thing that moves it now is the harness's SetFeature step, so it rests at its
+        // own `false` initialiser in a player's game and cannot be reached from this screen.
 
         // One switch, both halves (see the field comment). Tracked because this changes the BLOCKER
         // SET the polygons are cast against, and §27's shadow half is baked into the lighting
@@ -341,7 +358,13 @@ public class CelestialLightingSettings : ModSettings
         // same decision and a Reset-to-defaults can move either without moving this one.
         VectorLightDoorEvents.ReconcileAllDoors();
 
-        VectorLightRedraw.SyncTo(vectorLights);
+        // WRITTEN BEFORE SyncTo READS IT. SyncTo compares the value it is handed against the last
+        // one it acted on and rebuilds every polygon on the map when they differ; the field below is
+        // what the rebuild then reads back out. Pushing it afterwards would rebuild against the
+        // PREVIOUS reach and leave the map one settings change behind, permanently.
+        VectorLightSettings.Reach = vectorLightReach;
+
+        VectorLightRedraw.SyncTo(vectorLights, vectorLightReach);
         CelestialLightingFeatures.VectorLights = vectorLights;
 
         // SyncTo already rebuilt if the master switch moved. This covers the door switch moving on
@@ -437,10 +460,12 @@ public class CelestialLightingSettings : ModSettings
         // FALSE HERE ON PURPOSE while the field initialiser above is true. This is not the
         // new-install default and must not be made to match it -- see the field's comment.
         Scribe_Values.Look(ref vectorLightOpenDoors, "vectorLightOpenDoors", false);
-        // FALSE HERE MATCHING THE FIELD INITIALISER, which is the ordinary case and not the one
-        // above it: an absent node means "this config predates the option", and predating it is the
-        // same thing as having it off.
-        Scribe_Values.Look(ref vectorLightIndoorMultiply, "vectorLightIndoorMultiply", false);
+        // The off position, matching the field initialiser: an absent node means "this config
+        // predates the option", and predating it is the same thing as having lamps at their vanilla
+        // reach. Both sides must stay at NoReach exactly — a default of anything else would relight
+        // every existing colony on update, silently, which is the rewrite Scribe_Values makes so
+        // easy to do by accident.
+        Scribe_Values.Look(ref vectorLightReach, "vectorLightReach", VectorLightReachMath.NoReach);
         Scribe_Values.Look(ref skyColorTemperature, "skyColorTemperature", true);
         Scribe_Values.Look(ref polarNightBlue, "polarNightBlue", true);
         Scribe_Values.Look(ref polarNightBlueStrength, "polarNightBlueStrength", 1f);

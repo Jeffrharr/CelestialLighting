@@ -80,6 +80,14 @@ vector_light_ring.json
 # transient is unphotographable. Run it on any change to when a polygon is built or invalidated.
 vector_light_bake_flicker.json
 
+# Lamp glow reach against the indoor multiply layer, in one room. Two probes make the cost claim
+# without a pixel: vector_light_lit_area must grow with reach and vector_light_coverage_cells must
+# not, because the coverage grid is capped at vanilla's own radius. Run it on any change to how an
+# emitter's radius is decided or to what the coverage bake is sized from -- a cap that silently
+# stopped binding would cost four times the bake per lamp and change no pixel at all, so nothing
+# else in this file would notice.
+vector_light_reach.json
+
 # The layer: the surface lift drawn ON TOP of the additive beam rather than instead of it. It is the
 # one composition here that is deliberately not self-limiting -- both passes carry the same excess --
 # so it is the arm where a change to the excess, the strength scalar or the material's render queue

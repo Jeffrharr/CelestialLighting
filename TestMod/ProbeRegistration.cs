@@ -472,6 +472,12 @@ public static class ProbeRegistration
             "vector_light_coverage_mean", VectorLightBakeProbe.Metric.CoverageMean));
         ProbeRegistry.Register(new VectorLightBakeProbe(
             "vector_light_coverage_lit_cells", VectorLightBakeProbe.Metric.LitCells));
+        // The grid's SIZE, which the two above cannot report between them: both are predicates over
+        // the bytes, so both move when a grid merely saturates. This is what lamp glow reach is
+        // measured against — the claim that stretching a lamp's radius does not enlarge its coverage
+        // bake (VectorLightReachMath.CoverageRadius) is about allocation, not about content.
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_coverage_cells", VectorLightBakeProbe.Metric.CoverageCells));
         // Reads 0 and zeroes the counters, so the counting window can be opened at the same step as
         // the profiling window. See the metric's comment for the mismatch that provoked it.
         ProbeRegistry.Register(
@@ -1856,6 +1862,20 @@ public static class ProbeRegistration
         FeatureRegistry.Register(
             CloudOpacityOverride.ZeroFeatureKey,
             enabled => CloudOpacityOverride.SetZero(enabled),
+            defaultEnabled: false);
+        // Same shape and the same reasoning as the two above — the positions of a FLOAT slider that
+        // SetFeature cannot otherwise reach — with one extra obligation that is easy to miss:
+        // VectorLightReachOverride rebuilds every polygon on the map when it fires, because reach is
+        // baked rather than read per frame. defaultEnabled FALSE on both, so a ResetAll between
+        // scenarios in a suite puts lamps back to their vanilla reach rather than leaving every
+        // later scenario silently measuring stretched ones.
+        FeatureRegistry.Register(
+            VectorLightReachOverride.VibrantFeatureKey,
+            enabled => VectorLightReachOverride.SetVibrant(enabled),
+            defaultEnabled: false);
+        FeatureRegistry.Register(
+            VectorLightReachOverride.MaxFeatureKey,
+            enabled => VectorLightReachOverride.SetMax(enabled),
             defaultEnabled: false);
         // Not a CelestialLightingFeatures flag: forces CloudCoverClock.FractionForMap's result to a
         // fixed constant so a scenario gets a specific, reproducible cloud fraction on demand instead
