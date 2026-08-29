@@ -33,7 +33,32 @@ public static class VectorLightField
     public sealed class LightEntry
     {
         public IntVec3 Cell;
+
+        // How far this light is DRAWN, in cells — the def's glowRadius already multiplied by the
+        // lamp glow reach setting. Everything geometric reads this one: the polygon, the fan, the
+        // silhouette window, the mesh.
         public float Radius;
+
+        // The def's own glowRadius, unmultiplied — how far VANILLA put light.
+        //
+        // KEPT SEPARATELY RATHER THAN DIVIDED BACK OUT, because the two answer different questions
+        // and the one place that needs this one needs it exact: the COVERAGE GRID, whose only use
+        // is to scale vanilla's own light by how much of a cell our polygon can see. Past this
+        // radius vanilla's flood delivers nothing, so a coverage byte out there can only ever be
+        // multiplied by zero — and sizing the grid from the drawn radius instead would make a
+        // reach-2 lamp bake four times the grid for no changed pixel. That cap is what keeps lamp
+        // glow reach affordable; see VectorLightReachMath.CoverageRadius.
+        //
+        // THE MASK'S OWN CELL LOOP NEEDS NO SUCH CAP and must not be given one: it already clamps
+        // to GlowLight.AffectedRect, vanilla's square, which is sized from vanilla's glowRadius by
+        // the engine. Nor do the four reach tests that decide invalidation, culling and section
+        // dirtying — those are deliberately kept on Radius and in step with each other, because
+        // what they bound is the shape we DRAW, and the drawn fan really does extend.
+        //
+        // Equal to Radius whenever reach is at its off position, which is what makes that position
+        // bit-identical to the shipped renderer rather than merely close to it.
+        public float BaseRadius;
+
         public Color Color;
         public Mesh Mesh;
         public MaterialPropertyBlock Props;
@@ -312,6 +337,33 @@ public static class VectorLightField
         MaskSkipsNoPolygon = 0;
         MaskStalePolygonUses = 0;
         UnchangedBakes = 0;
+    }
+
+    // Every map's roster, for a change that alters what Upsert would compute for EVERY emitter at
+    // once rather than what one lamp is doing — today that means the reach multiplier moving.
+    //
+    // WHY NOT ClearAll, which is the other way to force a resync. ClearAll destroys every mesh and
+    // every per-emitter glow texture on the map, which is right for the master switch (an off run
+    // must hold no GPU memory and must not be able to draw a stale polygon into an A/B baseline) and
+    // wrong for a slider. A reach change does not invalidate the EXISTENCE of an emitter's mesh, only
+    // its geometry, and Upsert already marks exactly that when the drawn radius differs. Destroying
+    // and reallocating the lot would be work done only to arrive back where we started.
+    //
+    // The distinction is worth the second method because of the cadence, which is the thing that
+    // makes a slider different in kind from a checkbox. ApplyToRuntime runs every frame the settings
+    // window is open, so a player dragging this slider crosses a new value ~60 times a second and
+    // each crossing is a real invalidation — change detection cannot collapse them, because every one
+    // of them genuinely changes what should be on screen. A checkbox pays the heavy path once on a
+    // click; a slider would pay it for as long as the mouse is held.
+    public static void MarkAllRostersDirty()
+    {
+        foreach (MapLights lights in ByMap.Values)
+        {
+            lights.RosterDirty = true;
+
+            foreach (LightEntry entry in lights.Entries.Values)
+                entry.SampleDirty = true;
+        }
     }
 
     public static void MarkRosterDirty(Map map)
@@ -798,7 +850,16 @@ public static class VectorLightField
         // Baked alongside the polygon, on the same cadence and for the same reason: both change only
         // when somebody builds or removes a wall in range, and both are asked for once per cell of
         // every section that overlaps this emitter.
-        entry.CoverageRadius = (int)System.Math.Ceiling(entry.Radius);
+        //
+        // AT VANILLA'S RADIUS AND NOT THE DRAWN ONE, which is the single thing that keeps lamp glow
+        // reach from being unaffordable. The grid is (2r+1)² bytes and its bake walks every one of
+        // them, so tying it to the drawn radius would make a reach-2 lamp bake four times the grid —
+        // to hold coverage for an annulus where vanilla delivers nothing, and where the only use of
+        // a coverage byte is to scale vanilla's light by it. The drawn half of the light needs no
+        // grid at all: it is composed per fragment in the shader against a texture sized to
+        // vanilla's own square. See VectorLightReachMath.CoverageRadius.
+        entry.CoverageRadius = (int)System.Math.Ceiling(
+            VectorLightReachMath.CoverageRadius(entry.BaseRadius, entry.Radius));
         entry.Coverage = VectorLightMath.BuildCoverage(
             entry.Polygon, entry.Cell.x, entry.Cell.z, entry.CoverageRadius,
             VectorLightMath.DefaultCoverageSamples, Scratch);
@@ -992,17 +1053,29 @@ public static class VectorLightField
             lights.Entries[key] = entry;
         }
 
+        // The reach setting multiplies every light on the map at once, so it is read here — where a
+        // resync already visits each emitter — rather than pushed at them when the slider moves.
+        // Moving the slider therefore invalidates through the same comparison a lamp being rebuilt
+        // one cell over does, with no separate propagation path to keep in step.
+        float drawn = VectorLightReachMath.ExtendedRadius(radius, VectorLightSettings.Reach);
+
         // Only a move or a resize invalidates the polygon. A recolour does not — the shape is
         // identical and the colour rides on the material, so a colour-picker lamp being retinted
         // costs nothing but a property block write.
-        if (entry.Cell != cell || entry.Radius != radius)
+        //
+        // COMPARED ON THE DRAWN RADIUS, which is what the polygon was actually built from. Testing
+        // the def's radius instead would leave every polygon on the map stale after a reach change,
+        // and stale in the way that is hardest to spot: the shapes are all still correct, they are
+        // simply the shapes from the previous setting.
+        if (entry.Cell != cell || entry.Radius != drawn)
         {
             entry.GeometryDirty = true;
             entry.PolygonDirty = true;
         }
 
         entry.Cell = cell;
-        entry.Radius = radius;
+        entry.Radius = drawn;
+        entry.BaseRadius = radius;
         entry.VanillaKey = vanillaKey;
 
         float scale = VectorLightMath.PeakScale(r, g, b);

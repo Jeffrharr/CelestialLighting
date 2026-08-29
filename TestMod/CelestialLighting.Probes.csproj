@@ -57,6 +57,7 @@
     <Compile Include="../Source/Probes/RealisticPlanetsTiltOverride.cs" Link="RealisticPlanetsTiltOverride.cs" />
     <Compile Include="../Source/Probes/CloudCoverFractionOverride.cs" Link="CloudCoverFractionOverride.cs" />
     <Compile Include="../Source/Probes/CloudOpacityOverride.cs" Link="CloudOpacityOverride.cs" />
+    <Compile Include="../Source/Probes/VectorLightReachOverride.cs" Link="VectorLightReachOverride.cs" />
     <!-- Flattens the pawn-shadow fade ramp while leaving the feathered material in place, so an arm
          can tell a shader swap apart from the curve it shipped alongside. -->
     <Compile Include="../Source/Probes/PawnShadowFlatRampOverride.cs" Link="PawnShadowFlatRampOverride.cs" />

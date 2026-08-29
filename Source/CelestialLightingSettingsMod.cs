@@ -226,31 +226,55 @@ public class CelestialLightingSettingsMod : Mod
         GatedCheckbox(listing, "    Light through open doors", ref Settings.vectorLightOpenDoors,
             vectorLightsOn,
             "Light spills through a door while it is open, and the beam narrows and widens with the leaves as they slide. Shut doors block light exactly as they always did, and so does every wall.\n\nThis is the one place the mod knowingly draws light the game itself does not deliver: RimWorld's lighting never learns that a door opened, so plants still will not grow in that beam and pawns still cannot see down it. It is off by default for that reason. What it costs you is a beam that appears and disappears as pawns walk through doorways \u2014 whether that reads as light spilling out or as the lighting glitching is a taste call, which is why you get to make it.");
-        // The indoor multiply layer (§27). Nested under the master switch for the usual reason — it is a
-        // second pass over the beam that switch draws, so it is inert without it — and shipped OFF
-        // because it is the one composition in this group that is deliberately NOT self-limiting.
+        // ASTRYL'S EXTRA VIBRANT LIGHTING, named for Astryl, whose fork of this mod
+        // (github.com/Astryls/CelestialLighting, "Soft vectorized shadows") is where the idea came
+        // from. They arrived at it independently while building a rival vector-shadow pass, and the
+        // observation it rests on is theirs: vanilla's falloff reaches its own radius and stops
+        // dead, so a lamp lights a small circle WELL and a large circle NOT AT ALL, where a real one
+        // lights a small circle well and a large circle FAINTLY. Their pass is not what shipped — it
+        // replaced the visibility polygon with a ray fan and could not compose against vanilla at
+        // all — but the curve argument is, and a credit in the one place a player will actually read
+        // it is worth more than a line in a changelog nobody opens.
         //
-        // THE TOOLTIP SAYS IT IS A LOOK AND NOT A FIX, in those words. Every other switch on this
-        // screen can be argued from what light actually does; this one doubles up two ways of
-        // drawing the same beam because the result is prettier, and a player who reads the tooltip
-        // deserves to know which kind of switch they are being handed.
+        // THE NAME IS "ASTRYL" AND THE REPOSITORY IS "Astryls", which is not a typo in either place:
+        // the credit is the one that was asked for, and the URL is kept beside it so the claim stays
+        // checkable. Do not "correct" one into the other.
         //
-        // "EXTRA VIBRANT" RATHER THAN A WORD FOR THE MECHANISM, because the mechanism is not what a
-        // player is choosing between. "Vibrant" says the level and the colour both move, which is
-        // true and is the thing they will see; a label built around "multiply" or "surface" would
-        // describe our render path to somebody who has no reason to know we have one. "Indoor" is
-        // doing the other half of the work — it is the part that bounds what this can do to their
-        // colony, and the reason the label is not simply "extra vibrant lighting".
+        // WHAT IT DOES: draws the lamp with vanilla's own falloff curve stretched over a longer
+        // radius, so the excess our per-fragment max already delivers simply gets larger. It
+        // delivers that excess ONCE, which is the difference from the checkbox it replaces — see the
+        // note below the control for the measurement that decided between them.
         //
-        // AND THE TOOLTIP SAYS THE DOORWAY SPILL OUT LOUD, because the first draft of it did not.
-        // It read "outdoors and under an open sky nothing changes", which is true of a lamp standing
-        // in the open and false of the case a player will actually notice: the gate is per EMITTER,
-        // so a roofed lamp carries the layer out through its own door, where the live scene measures
-        // the biggest lift in the frame. A tooltip that promises a bound the code does not hold is
-        // worse than one that admits the edge, since the edge is what gets reported as a bug.
-        GatedCheckbox(listing, "    Extra vibrant indoor lighting", ref Settings.vectorLightIndoorMultiply,
-            vectorLightsOn,
-            "A lamp under a roof brightens the floor it lights as well as adding a glow over it, so lit stonework and carpet keep their own pattern instead of washing toward flat light. A lamp standing out in the open is left alone.\n\nThis is a look rather than a correction, and it is off by default because of that: the beam is drawn twice, once each way, so a lit room reads brighter than the game's own lighting would make it \u2014 and a roofed lamp keeps that extra brightness in the light it spills out through its own doorway, which is the strongest place the effect shows. It can at most double the light already there, and it changes nothing about plant growth, work speed or what pawns can see. Turn it on if you like how it looks.");
+        // A SLIDER AND NOT A CHECKBOX because its bottom end is already the checkbox: at 1 our model
+        // IS vanilla's curve, the per-fragment max has only the geometry difference left to deliver,
+        // and the frame is the shipped renderer exactly. That makes "off" a position on the control
+        // rather than a separate state, and it is why no gated checkbox precedes it.
+        //
+        // GatedSlider, not LabeledSlider: everything in this group is inert while the master switch
+        // is off, and a live slider under a dead feature is the control that reads as broken.
+        GatedSlider(
+            listing, "    Astryl's extra vibrant lighting", ref Settings.vectorLightReach,
+            VectorLightReachMath.NoReach, VectorLightReachMath.MaxReach, vectorLightsOn,
+            "Named for Astryl, who came up with it. How far a lamp throws light past its own radius. At the far left lamps light exactly the area they always have. Moving right stretches the game's own falloff curve over a longer distance, so a lamp keeps its bright core and gains a wide, very dim halo around it \u2014 a torch in a dark room lighting a small circle well and a large circle faintly, instead of stopping dead at a hard edge.\n\nThis is the one setting here that makes your lamps genuinely brighter rather than just differently shaped, so it starts off. Shadows, beams and doorways all stretch with it, and it changes nothing about plant growth, work speed or what pawns can see.\n\nIt costs more the further right you go \u2014 a lamp casts its shadows over a larger area \u2014 so if you run a big colony with a lot of lamps, move it a little at a time.");
+
+        // NO "EXTRA VIBRANT INDOOR LIGHTING" CHECKBOX, and it was here rather than never built. The
+        // layer it drove delivered the same excess TWICE — once additively, once as a scaling of the
+        // surface — and was the previous answer to the want the slider above now serves. It was
+        // retired on a measurement rather than on taste.
+        //
+        // THE MEASUREMENT, because "we replaced it" is not a reason. Both were photographed in one
+        // room, one lamp, two openings, at midnight, with a bit-identical same-build control. The
+        // multiply lifted the ROOM it is named after by +0.50 L* and the outdoor ground beyond the
+        // roofed lamp's own doorway by +5.28 — ten to one, the wrong way round for a control with
+        // "indoor" in its label. The slider above lifts the room by +1.69, three times as much, and
+        // spreads the rest in proportion. The layer's own comments had already conceded the doorway
+        // spill was the largest lift in the frame; what settled it was the ratio, and that nobody
+        // reading the label would have predicted it.
+        //
+        // THE LAYER IS NOT DELETED, because one room is one room. The flag, its feature key and the
+        // whole draw path are live, and `vector_light_indoor_multiply.json` stays in the required
+        // suite, so a second scene can reopen this without a rewrite. Nothing in a player's game
+        // moves the flag now — see CelestialLightingSettings.ApplyToRuntime.
         // NO "LAMP BEAM STRENGTH" SLIDER, and its absence is deliberate rather than an oversight —
         // it was here and was taken out. §27 phase 6 composes max(vanilla, ours) per fragment, so
         // the level of a lamp is decided against what vanilla actually delivered at each point

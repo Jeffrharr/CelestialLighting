@@ -12890,6 +12890,143 @@ built to let someone make by looking. What this section adds is the number that 
 the wash costs **2.2× the whole mod's frame** and **5.9× the mask's worst frame**, and it is the only
 term in vector lighting that makes vanilla do work on our behalf.
 
+### Vector lighting: Astryl's extra vibrant lighting (`VectorLightReachMath`, `vectorLightReach`, `Tests/Scenarios/vector_light_reach.json`)
+
+Vanilla's falloff reaches its own radius and stops dead. At `d = glowRadius` the linear term is
+exactly zero and only the inverse-square residue `0.4/R²` is left — one part in 255 for a radius-10
+torch — and `SetGlowFromDist`'s cutoff finishes the job. So a RimWorld lamp lights a small circle
+**well** and a large circle **not at all**, where a real one lights a small circle well and a large
+circle **faintly**. What is missing is not brightness near the lamp; it is the long dim tail.
+
+The idea is **Astryls'**, arrived at independently on a fork of this mod
+(`github.com/Astryls/CelestialLighting`, "Soft vectorized shadows") while building a rival
+vector-shadow pass. Their pass is not what was adopted — it replaced the visibility polygon with a
+ray fan and could not compose against vanilla at all — but the curve argument is theirs, and the
+**player-facing control carries their name** rather than only a line in this document. The setting
+reads "Astryl's extra vibrant lighting". The credit is to **Astryl**; the repository is `Astryls`.
+Neither is a typo — the name is the one asked for and the URL is kept beside it so the attribution
+stays checkable.
+
+It is the **only** named credit in this mod's UI, so the rule it sets is worth stating rather than
+leaving to be inferred: a name goes on a control when the *idea* came from outside, not when a patch
+did. Nothing of Astryls' code is in the build — see the clean-room provenance note, which this does
+not weaken, because what was taken is an argument about a falloff curve and the curve we evaluate is
+vanilla's own, which we already shipped.
+
+#### What it does, and why it is a taste option rather than a correction
+
+Substitute an extended radius into vanilla's own curve: `ours = Falloff(d, glowRadius * reach)`. The
+per-fragment max in `VectorLightMax.shader` already composes `max(0, ours - vanilla)`, so nothing new
+is needed to deliver it — the excess simply gets larger.
+
+That raises the **mid-field** as well as lengthening the tail, so lamps get bigger *and* softer, not
+merely longer. It is therefore the one thing in vector lighting that deliberately breaks the
+subsystem's standing rule that we change **where** light reaches and never how bright a lamp is,
+which is why it ships off and why it is a slider rather than a switch.
+
+The peak is worth stating because it is not obvious. At the old rim the excess over vanilla is
+**exactly** `0.6 * (reach - 1) / reach`, with no `R` in it at all — both curves carry the same
+inverse-square term at that distance, so it cancels out of the difference. **Reach alone decides how
+bright the new light is** (about 51 of 255 levels at 1.5); the lamp's own radius decides only how
+many cells that brightness is spread over. A tester reporting "it does nothing on my sun lamp" is
+describing the near field, where inverse-square dominates and a large radius has already flattened
+the curve.
+
+#### The off position is 1, and it must stay exact
+
+Astryls' build carries a hard floor above 1 (`MinimumReach = 1.2`) because their pass had no
+composition against vanilla: reach *was* the whole feature there, so a multiplier of 1 made it a
+mathematical no-op, and their notes record four rounds spent debugging a pass that could not by
+construction produce a changed pixel.
+
+**That floor must not be ported across.** Here at reach 1 our model *is* vanilla's curve and the max
+has the geometry difference alone to deliver — the open door, the octile residue, the rim — which is
+the shipped renderer, working. Adding a floor would break the repo's flag rule: a feature turned off
+has to reproduce the pre-feature behaviour precisely, or the live A/B has no baseline.
+`VectorLightReachMathTests` asserts it with an exact comparison rather than a tolerance, because one
+ulp is enough to make every polygon on the map compare unequal in `Upsert` and rebake forever.
+
+#### The cost, and the one cap that pays for it
+
+Reach enters the bake as a radius, and the parts of vector lighting that scale with radius scale with
+its **square**. Two of the four were made not to, and the split is the whole optimisation:
+
+| Term | Scales with reach? | Why |
+|---|---|---|
+| Silhouette scan / blocker gather | **Yes**, as R² | Shadows in the annulus need occluders. Unavoidable |
+| Polygon corner rays | **Yes**, with visible blockers | Same reason |
+| **Coverage grid** | **No** | Capped at vanilla's radius — see below |
+| **Vanilla glow texture** | **No** | Already sized from `GlowLight.diameter`, vanilla's own square |
+
+The coverage grid is the one that mattered, because phase 7 above records it as the largest term
+inside a bake. Its **only** consumer scales vanilla's light by it, and past vanilla's cutoff the
+flood delivers nothing — so a coverage byte out in the annulus can only ever be multiplied by zero.
+`VectorLightMath.CoverageAt` already answers 255 (fully lit, subtract nothing) outside the grid,
+which is the correct answer there and was already the documented choice, so no consumer had to learn
+about the cap. A reach-2 lamp therefore bakes exactly the grid it baked at reach 1 rather than four
+times it.
+
+The vanilla glow texture needs no cap at all: `GlowLight.diameter` is `ceil(2*glowRadius + 1)`, sized
+by the engine from vanilla's own radius, and the texture clamps to its border. That border is the
+*right* value to clamp to rather than merely a safe one — an edge texel is `glowRadius` cells out,
+where vanilla's own cutoff has already put zero — so every fragment in the annulus composes against a
+vanilla of zero and the excess is our whole model, which is exactly what reach is for.
+
+What is **not** capped, stated so nobody completes the pattern by mistake: the four reach tests
+driving invalidation, polygon culling and section dirtying stay on the drawn radius, and
+`VectorLightMask.CollectReaching` stays in step with them by construction — its own header records
+that the two ends of that question must agree or a cell whose coverage moved stops dirtying the
+section that reads it. Over-admitting an emitter to a far section costs its per-emitter setup and no
+per-cell work, since the accumulation clamps to vanilla's square.
+
+The ceiling is `GlowGrid.MaxLightRadius` (40), taken from vanilla rather than invented, because the
+question it answers is vanilla's: how wide is any light in this game allowed to be. Two defs ship
+above radius 20 (24 and 30), and at the top of the slider they would ask for 48 and 60 cells.
+
+#### It replaced the indoor multiply layer, on the numbers
+
+The multiply layer was the previous answer to the same want, and the two were photographed in one
+room — one lamp, two openings, midnight, a bit-identical same-build control — so the comparison is
+per region rather than per frame. Outdoor spill is the ground beyond the roofed lamp's own doorway:
+
+| arm | room | west spill | east spill |
+|---|---|---|---|
+| vanilla | 12.65 | 4.73 | 3.50 |
+| shipped (reach 1.0) | 13.11 | 6.77 | 5.83 |
+| **reach 1.5** | 14.80 **(+1.69)** | 9.28 (+2.51) | 8.12 (+2.29) |
+| reach 2.0 | 15.65 (+2.54) | 10.39 (+3.62) | 9.29 (+3.46) |
+| **indoor multiply** | 13.61 **(+0.50)** | 12.05 **(+5.28)** | 11.23 **(+5.40)** |
+| both | 17.40 (+4.29) | 19.68 (+12.91) | 17.43 (+11.60) |
+
+**The multiply is barely an indoor effect.** It puts about ten times as much light on the outdoor
+spill as on the room it is named after. That its spill is the largest lift in the frame was already
+recorded — `CelestialLightingFeatures.VectorLightIndoorMultiply` says so, and measured it at +1.74
+L* against +1.12 on the indoor beam — but the *ratio* against a control that lifts the room three
+times harder is what retired it. A player reading "Extra vibrant **indoor** lighting" would not
+predict a control whose main effect is outdoors.
+
+Masked median ΔE over touched pixels: reach 1.5 **2.69** (5.7% of frame), reach 2.0 **3.74**, the
+multiply **1.62** (p90 13.22, concentrated in the two doorway wedges), both **7.10**. Reach lands in
+the 3–6 band this repo calibrated toward after ΔE ~9 read as distracting.
+
+**The checkbox went; the layer did not.** The flag, its feature key and the whole draw path stay
+live, and `vector_light_indoor_multiply.json` stays in the required suite, because one room is one
+room and a second scene should be able to reopen this without a rewrite. What changed is that
+nothing in a player's game moves the flag any more — `ApplyToRuntime` no longer pushes it and the
+persisted node is left unread, following `vectorLightBeamStrength`'s precedent.
+
+#### Live verification (`Tests/Scenarios/vector_light_reach.json`)
+
+Shot in `vector_light_surface_lift`'s own room, unchanged, because the incumbent it is proposed
+against — the indoor multiply layer — is measured there, and a challenger shot in a different room is
+not a comparison. Arms at midnight: vanilla, shipped, reach at 1.5, reach at 2.0, the multiply layer
+alone, both at once, and shipped again as a same-build control; then shipped/reach at noon.
+
+Two probes carry the cost argument **as a pair**, and neither is a pixel measurement.
+`vector_light_lit_area` is the polygon's own area and must **grow** with reach — that is the feature.
+`vector_light_coverage_lit_cells` counts the coverage grid and must **not**. A run where both move is
+a run where the cap did not land, and no ΔE would say so.
+
 ## Conflict risk
 
 Decompiled the user's local Dub's Skylights 1.6 copy (`Dubwise.DubsSkylights`) — its patches

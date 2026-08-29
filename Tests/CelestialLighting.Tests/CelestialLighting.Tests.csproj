@@ -282,6 +282,13 @@
          light position. Tools/VectorLightPreview links the same file for offline look-dev. -->
     <Compile Include="../../Source/VectorLightMath.cs" Link="VectorLightMath.cs" />
     <Compile Include="../../Source/VectorLightLiftMath.cs" Link="VectorLightLiftMath.cs" />
+    <!-- Lamp glow reach: how far past its own glowRadius a lamp is drawn. Verse-free and depends on
+         nothing else here — it is a clamp and a multiply — but linking rather than copying is what
+         makes two of its claims testable at all, since both are about the SHIPPED constants and not
+         about the arithmetic: that the off position returns the def's radius unchanged (so the
+         feature's baseline is the shipped renderer bit for bit), and that the ceiling is vanilla's
+         own GlowGrid.MaxLightRadius rather than a number of ours that drifted from it. -->
+    <Compile Include="../../Source/VectorLightReachMath.cs" Link="VectorLightReachMath.cs" />
     <!-- The doorway wash: where a second emitter standing in an opening enters the LAMP's falloff
          curve. Verse-free and depends on nothing else here, but it has to be the shipped file — the
          property under test is that the wash joins the beam continuously at the opening and at the
