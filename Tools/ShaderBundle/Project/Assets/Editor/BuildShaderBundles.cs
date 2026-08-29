@@ -61,8 +61,19 @@ public static class BuildShaderBundles
             assetNames = ShaderPaths,
         };
 
+        // CHUNK-BASED (LZ4) RATHER THAN THE DEFAULT LZMA, which is what the 1.6 modder primer asks
+        // for. The default is marginally smaller on disk and the wrong trade: LZMA is a whole-stream
+        // codec, so Unity cannot read one asset out of the bundle without decompressing all of it
+        // into memory, and it does that before the main menu appears. LZ4 is block-addressable, so
+        // loading a shader touches only the blocks that shader lives in. It costs a little size and
+        // buys load time and peak memory back.
+        //
+        // Worth stating that our three bundles are ~68 KB TOTAL, so nothing here is measurable today.
+        // It is set correctly because the cost of being wrong scales with the bundle and the cost of
+        // being right does not, and because a shipped default nobody revisits is how the small
+        // version of this becomes the large one.
         BuildPipeline.BuildAssetBundles(
-            output, new[] { build }, BuildAssetBundleOptions.None, target);
+            output, new[] { build }, BuildAssetBundleOptions.ChunkBasedCompression, target);
 
         Debug.Log("Built " + build.assetBundleName + " into " + output);
     }
