@@ -1939,6 +1939,36 @@ Perspective family).
     correct: it has no lit face. Note the *centre* is deliberately not averaged — that would blur every
     genuine light boundary by half a cell — so the invariant this rests on is that a reading meaning
     "nobody asked" must never reach the mesh in the first place.
+
+    **Where it is actually visible, which is not where it was first looked for.** Measured live
+    (`Tests/Scenarios/wall_wash_diamond.json`), this layer does not reach an outdoor wall's own pixels
+    at all: `wall_wash_desat_off.png` shows the wash covering every unlit cell in frame and stopping
+    dead at the wall run, so the 255 the fix removes was invisible *on* the wall, and what moved was
+    the half-cell of ground either side, whose shared corner and edge vertices average the wall in. A
+    roofed wall is covered by `SectionLayer_IndoorMask` besides (`AltitudeLayer.MetaOverlays`, above
+    this layer's `Weather`). So the artifact players see is a dark fringe hugging the wall line, worst
+    inside a lamp-lit room where the floor reads lit and the wall read black. Measured on that room's
+    interior floor cell one step in from the wall:
+
+    | vertex | before | after |
+    |---|---|---|
+    | its own centre (unchanged — the fix touches only blockers) | 10 | 10 |
+    | its four corners, two of them shared with the wall | **78** | **16.5** |
+    | wall cell's own centre / corners | 255 / 198.5 | 10 / 76 |
+
+    On pixels the effect is real but small at the shipped Cinematic strength (wash alpha 0.220): over
+    the strip of interior floor along the wall, a same-build A/A control changes **0.0%** of pixels
+    while the fix changes **21.4%**, at median ΔE **0.64**, p90 **1.37**, max **2.79**. The A/A control
+    is what makes that a claim — over the whole frame both the control and the fix sit at masked
+    median ~0.95, because the vegetation and torch flames outside the room differ between any two runs
+    by more than this does. `wall_wash_control_vs_fix.png` is the pair of masks side by side: the ring
+    is solid under the fix and absent in the control.
+
+    Counter-intuitively the Realistic preset shows it **less** (median 0.51, p90 0.94) even though its
+    wash is 2.1x stronger (alpha 0.468), because that preset also zeroes both brightness floors and
+    leaves the room near-black, where compositing toward the 0.11 grey has almost nothing to move.
+    That is the usual trap in this repo about which preset a thing is measurable under; Cinematic is
+    both the shipped default and the honest one to quote here.
   - **Map-wide strength** is the material's alpha, rewritten each frame by
     `Patch_NightDesaturationStrength` from the same factor the tint uses. Split this way for the
     reason vanilla splits its own overlay: the per-cell part only changes when the glow grid does
