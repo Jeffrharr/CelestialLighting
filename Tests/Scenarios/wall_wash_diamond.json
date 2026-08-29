@@ -1,7 +1,7 @@
 {
   "name": "wall_wash_diamond",
   "saveFile": "minimal_colony.rws",
-  "description": "Night desaturation drew a dark diamond radiating from the middle of every wall tile. GroundGlowAt in a light-blocking edifice reads ~0 however brightly lit either face is -- the glow flood never enters one -- so the reading means 'nobody asked', not 'dark'. Fed straight to CellWash it gave each wall cell a full wash while its neighbours took almost none, and SectionLayerGeometryMaker_Solid fans four triangles out of the ninth vertex at the cell's exact middle: the eight around it average over the cells they touch, the centre has one cell and nothing to average, so the disagreement renders as a diamond creased along the diagonals. TWO WALL RUNS, and the pair is the point. wallA (north, z=+10) has a TorchLamp three cells to each side, which is the isolated-spike case: every neighbour is lit, so with the wall judged by its neighbours all nine of its vertices are equal and wash_walla_diamond is exactly 0. wallB (south, z=-10) has one lamp on its south side only, which is the case in the report -- there the diamond is legitimately non-zero either way, because a wall with a lit face and a dark face IS a gradient; what changes is that the tile stops being a dark hub in a lit field and becomes the ramp it should have been. The two ground probes are controls holding no edifice and must not move at all, which separates 'the wall rule fired' from 'the whole wash moved'. Lamps are three cells clear of their wall and the two groups are 17 cells apart, which is more than TorchLamp's glowRadius of 10, so neither run lights the other. TorchLamp rather than StandingLamp because it needs no power (see indoor_glow_lamp.json). AUTHORING NOTES. The vertex alphas this pins do not depend on the clock at all -- CellWash reads local glow with ignoreSky, and only the material's alpha follows the sun -- so the probes are stable at any hour and hour 23 is chosen for the screenshots, where the wash is at full strength. Clouds are stated off explicitly rather than left to SetWeather Clear, since partial cover during Clear is our own feature and the sheet drifts on the tick counter. The preset is stated for the same reason: run_test.sh does not reset persisted mod settings, and Realistic would rescale the material alpha the screenshots are judged on. Run standalone -- PlaceThings leaves map residue.",
+  "description": "Night desaturation drew a dark diamond radiating from the middle of every wall tile. GroundGlowAt in a light-blocking edifice reads ~0 however brightly lit either face is -- the glow flood never enters one -- so the reading means 'nobody asked', not 'dark'. Fed straight to CellWash it gave each wall cell a full wash while its neighbours took almost none, and SectionLayerGeometryMaker_Solid fans four triangles out of the ninth vertex at the cell's exact middle: the eight around it average over the cells they touch, the centre has one cell and nothing to average, so the disagreement renders as a diamond creased along the diagonals. TWO WALL RUNS, and the pair is the point. wallA (north, z=+10) has a TorchLamp three cells to each side, which is the isolated-spike case: every neighbour is lit, so with the wall judged by its neighbours all nine of its vertices are equal and wash_walla_diamond is exactly 0. wallB (south, z=-10) has one lamp on its south side only, which is the case in the report -- there the diamond is legitimately non-zero either way, because a wall with a lit face and a dark face IS a gradient; what changes is that the tile stops being a dark hub in a lit field and becomes the ramp it should have been. The two ground probes are controls holding no edifice and must not move at all, which separates 'the wall rule fired' from 'the whole wash moved'. Lamps are three cells clear of their wall and the two groups are 17 cells apart, which is more than TorchLamp's glowRadius of 10, so neither run lights the other. TorchLamp rather than StandingLamp because it needs no power (see indoor_glow_lamp.json). AUTHORING NOTES. The vertex alphas this pins do not depend on the clock at all -- CellWash reads local glow with ignoreSky, and only the material's alpha follows the sun -- so the probes are stable at any hour and hour 23 is chosen for the screenshots, where the wash is at full strength. Clouds are stated off explicitly rather than left to SetWeather Clear, since partial cover during Clear is our own feature and the sheet drifts on the tick counter. The preset is stated for the same reason: run_test.sh does not reset persisted mod settings, and Realistic would rescale the material alpha the screenshots are judged on. Run standalone -- PlaceThings leaves map residue. A THIRD CAPTURE, wall_wash_desat_off.png, is taken at the same camera with the wash switched off. It is not decoration: it is the only thing that says which pixels this layer owns at all, and the first run of this scenario needed it -- the wall tiles came back bit-identical between the two builds while the ground either side of them moved, which reads as 'the fix did nothing to walls' until you can see the wash's own footprint and check whether it ever covered a wall tile in the first place. A THIRD SUBJECT, a sealed 15x15 roofed room with a TorchLamp at its centre, built at map centre + (-40, 45). It is here because the first run of this scenario found that the wash does not reach an outdoor wall's own pixels AT ALL -- wall_wash_desat_off.png shows the layer's footprint covering every unlit cell in frame and stopping dead at the wall run -- so on an outdoor wall the 255 this fix removes was invisible, and what moved was the half-cell of GROUND either side, whose shared corner and edge vertices average the wall in. A roofed room is where that fringe is worst and where the artifact was reported: the floor is lamp-lit and the wall reads 0, so the disagreement is at its largest right along the inside of the wall line. wash_room_floor_* is therefore the subject that matters here and wash_room_wall_* is recorded beside it to say whether a roofed wall renders when an outdoor one does not (SectionLayer_IndoorMask draws a quad over a roofed roof-holding cell at AltitudeLayer.MetaOverlays, which is above this layer's Weather, so the two cases are genuinely different and must be measured rather than assumed). LAST, the same room again on the Realistic preset. The vertex alphas this scenario pins do not depend on the preset at all -- only the material's alpha does, 0.22 on Cinematic against 0.4675 on Realistic -- so the second capture is the same defect at 2.1x the strength, and it is measured rather than extrapolated from the first. wash_room_floor_corners is re-read after the switch to show it did not move, which is what says the preset scales the render and not the bake.",
   "steps": [
     {
       "type": "SetTile",
@@ -103,6 +103,46 @@
       }
     },
     {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Concrete",
+        "width": "19",
+        "height": "19",
+        "offset": "-40,45",
+        "clear": "true"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "WoodLog",
+        "offset": "-40,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "-7,-7; -6,-7; -5,-7; -4,-7; -3,-7; -2,-7; -1,-7; 0,-7; 1,-7; 2,-7; 3,-7; 4,-7; 5,-7; 6,-7; 7,-7; -7,-6; 7,-6; -7,-5; 7,-5; -7,-4; 7,-4; -7,-3; 7,-3; -7,-2; 7,-2; -7,-1; 7,-1; -7,0; 7,0; -7,1; 7,1; -7,2; 7,2; -7,3; 7,3; -7,4; 7,4; -7,5; 7,5; -7,6; 7,6; -7,7; -6,7; -5,7; -4,7; -3,7; -2,7; -1,7; 0,7; 1,7; 2,7; 3,7; 4,7; 5,7; 6,7; 7,7"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "TorchLamp",
+        "offset": "-40,45",
+        "layout": "cells",
+        "clear": "false",
+        "cells": "0,0"
+      }
+    },
+    {
+      "type": "SetRoof",
+      "args": {
+        "def": "RoofConstructed",
+        "width": "15",
+        "height": "15",
+        "offset": "-40,45"
+      }
+    },
+    {
       "type": "FastForward",
       "args": {
         "ticks": "120"
@@ -130,16 +170,16 @@
       "type": "Probe",
       "args": {
         "probeName": "purkinje",
-        "expectedValue": "0",
-        "tolerance": "1000000"
+        "expectedValue": "1.0",
+        "tolerance": "0.005"
       }
     },
     {
       "type": "Probe",
       "args": {
         "probeName": "night_desaturation_wash",
-        "expectedValue": "0",
-        "tolerance": "1000000"
+        "expectedValue": "0.22",
+        "tolerance": "0.005"
       }
     },
     {
@@ -147,7 +187,7 @@
       "args": {
         "probeName": "wash_walla_centre",
         "expectedValue": "0",
-        "tolerance": "1000000"
+        "tolerance": "1.0"
       }
     },
     {
@@ -155,7 +195,7 @@
       "args": {
         "probeName": "wash_walla_corners",
         "expectedValue": "0",
-        "tolerance": "1000000"
+        "tolerance": "1.0"
       }
     },
     {
@@ -163,7 +203,7 @@
       "args": {
         "probeName": "wash_walla_diamond",
         "expectedValue": "0",
-        "tolerance": "1000000"
+        "tolerance": "1.0"
       }
     },
     {
@@ -171,23 +211,71 @@
       "args": {
         "probeName": "wash_wallb_centre",
         "expectedValue": "0",
-        "tolerance": "1000000"
+        "tolerance": "1.0"
       }
     },
     {
       "type": "Probe",
       "args": {
         "probeName": "wash_wallb_corners",
-        "expectedValue": "0",
-        "tolerance": "1000000"
+        "expectedValue": "64",
+        "tolerance": "1.0"
       }
     },
     {
       "type": "Probe",
       "args": {
         "probeName": "wash_wallb_diamond",
-        "expectedValue": "0",
-        "tolerance": "1000000"
+        "expectedValue": "-64",
+        "tolerance": "1.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wash_room_wall_centre",
+        "expectedValue": "10",
+        "tolerance": "1.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wash_room_wall_corners",
+        "expectedValue": "76",
+        "tolerance": "1.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wash_room_wall_diamond",
+        "expectedValue": "-66",
+        "tolerance": "1.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wash_room_floor_centre",
+        "expectedValue": "10",
+        "tolerance": "1.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wash_room_floor_corners",
+        "expectedValue": "16.5",
+        "tolerance": "1.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wash_room_floor_diamond",
+        "expectedValue": "-6.5",
+        "tolerance": "1.0"
       }
     },
     {
@@ -195,15 +283,15 @@
       "args": {
         "probeName": "wash_lit_ground_diamond",
         "expectedValue": "0",
-        "tolerance": "1000000"
+        "tolerance": "1.0"
       }
     },
     {
       "type": "Probe",
       "args": {
         "probeName": "wash_dark_ground_centre",
-        "expectedValue": "0",
-        "tolerance": "1000000"
+        "expectedValue": "255",
+        "tolerance": "1.0"
       }
     },
     {
@@ -211,7 +299,7 @@
       "args": {
         "probeName": "wash_dark_ground_diamond",
         "expectedValue": "0",
-        "tolerance": "1000000"
+        "tolerance": "1.0"
       }
     },
     {
@@ -250,6 +338,27 @@
       }
     },
     {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "low_light_desaturation",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "wall_wash_desat_off.png",
+        "hideUi": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "low_light_desaturation",
+        "enabled": "true"
+      }
+    },
+    {
       "type": "LookAt",
       "args": {
         "offset": "0,35",
@@ -260,6 +369,63 @@
       "type": "Screenshot",
       "args": {
         "fileName": "wall_wash_lit_one_side.png",
+        "hideUi": "true"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "-40,49",
+        "zoom": "12"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "wall_wash_roofed_room.png",
+        "hideUi": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "realistic_preset",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "10"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "night_desaturation_wash",
+        "expectedValue": "0.4675",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wash_room_floor_corners",
+        "expectedValue": "16.5",
+        "tolerance": "1.0"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "-40,49",
+        "zoom": "12"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "wall_wash_roofed_room_realistic.png",
         "hideUi": "true"
       }
     }

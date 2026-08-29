@@ -77,6 +77,24 @@ public static class ProbeRegistration
             "wash_wallb_corners", new IntVec3(0, 0, 35), NightWashVertexProbe.Metric.CornerMeanAlpha));
         ProbeRegistry.Register(new NightWashVertexProbe(
             "wash_wallb_diamond", new IntVec3(0, 0, 35), NightWashVertexProbe.Metric.CentreExcess));
+        // The roofed room, at map centre + (-40, 45): its north wall's middle cell and the interior
+        // floor cell immediately inside it. The floor cell is the subject — an outdoor wall's own
+        // pixels are never reached by this layer at all (see the scenario description), so what a
+        // player sees is the half-cell of lit floor beside the wall, whose shared corner and edge
+        // vertices average the wall's reading in. The wall's own vertices are recorded beside it to
+        // say whether a ROOFED wall renders where an outdoor one does not.
+        ProbeRegistry.Register(new NightWashVertexProbe(
+            "wash_room_wall_centre", new IntVec3(-40, 0, 52), NightWashVertexProbe.Metric.CentreAlpha));
+        ProbeRegistry.Register(new NightWashVertexProbe(
+            "wash_room_wall_corners", new IntVec3(-40, 0, 52), NightWashVertexProbe.Metric.CornerMeanAlpha));
+        ProbeRegistry.Register(new NightWashVertexProbe(
+            "wash_room_wall_diamond", new IntVec3(-40, 0, 52), NightWashVertexProbe.Metric.CentreExcess));
+        ProbeRegistry.Register(new NightWashVertexProbe(
+            "wash_room_floor_centre", new IntVec3(-40, 0, 51), NightWashVertexProbe.Metric.CentreAlpha));
+        ProbeRegistry.Register(new NightWashVertexProbe(
+            "wash_room_floor_corners", new IntVec3(-40, 0, 51), NightWashVertexProbe.Metric.CornerMeanAlpha));
+        ProbeRegistry.Register(new NightWashVertexProbe(
+            "wash_room_floor_diamond", new IntVec3(-40, 0, 51), NightWashVertexProbe.Metric.CentreExcess));
         ProbeRegistry.Register(new NightWashVertexProbe(
             "wash_lit_ground_diamond", new IntVec3(3, 0, 52), NightWashVertexProbe.Metric.CentreExcess));
         ProbeRegistry.Register(new NightWashVertexProbe(

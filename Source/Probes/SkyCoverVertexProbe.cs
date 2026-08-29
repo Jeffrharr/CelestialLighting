@@ -16,13 +16,16 @@ namespace CelestialLighting.Probes;
 // failure mode where the classification is right but the bake never landed (stale mesh, a section
 // that was never dirtied, another mod's postfix overwriting ours).
 //
-// WHY A CORNER VERTEX IS THE INTERESTING ONE. A leak is invisible at cell centres by construction:
-// IndoorOcclusionMath.CentreOcclusion forces an interior cell's centre to a flat 1.0 no matter how
-// open its corners are, so a probe reading centres would report 255 either side of the toggle and
-// conclude — wrongly — that nothing happened. The whole effect lives in the lattice corners, where
-// CornerOcclusion caps a corner that touches a leaky boundary. Both metrics are exposed here
-// precisely so a scenario can pin that contrast rather than assert one number in isolation: corner
-// moves, centre does not, and a run where BOTH moved would mean something else changed too.
+// WHY A CORNER VERTEX IS THE INTERESTING ONE. The effect originates in the lattice corners, where
+// CornerOcclusion caps a corner that touches a leaky boundary; a centre is the mean of its cell's own
+// four corners and so only ever reports a quarter of what one corner did. Both metrics are exposed
+// here so a scenario can pin the pair rather than assert one number in isolation.
+//
+// The centre used to be a *control* that could not move at all, because CentreOcclusion forced an
+// interior cell's centre to a flat 1.0 however open its corners were. That force is gone (it drew a
+// black hub inside a lit-cornered tile — see IndoorOcclusionMath.CentreOcclusion), so a centre now
+// follows its corners down at a quarter of the rate. Scenario pins written while it was a hard 255
+// were re-measured rather than re-derived when it went.
 //
 // Vertex layout is vanilla's own (MakeBaseGeometry): (Width+1)*(Height+1) corner vertices in
 // row-major z-then-x order, then Width*Height cell-centre vertices in the same order. Recomputed the
