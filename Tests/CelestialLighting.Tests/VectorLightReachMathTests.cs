@@ -115,6 +115,87 @@ public class VectorLightReachMathTests
         Assert.That(VectorLightReachMath.CoverageRadius(glowRadius, drawn), Is.EqualTo(drawn));
     }
 
+    // TICKING THE CHECKBOX HAS TO DO SOMETHING, which is a property of where DefaultReach sits
+    // rather than of any arithmetic, and is exactly the kind of thing that breaks silently. The
+    // switch pushes the slider's stored value when it is on; if that value could rest at (or below)
+    // the off position, the control would read as broken — tick it, nothing happens — and no test of
+    // the formula would notice, because the formula would be right.
+    [Test]
+    public void TheSwitchesStartingReachActuallyExtends()
+    {
+        Assert.That(VectorLightReachMath.DefaultReach, Is.GreaterThan(VectorLightReachMath.NoReach));
+        Assert.That(
+            VectorLightReachMath.DefaultReach, Is.LessThanOrEqualTo(VectorLightReachMath.MaxReach));
+
+        // And on a lamp, not merely as a number: a radius the ceiling already clamps would extend
+        // nothing however far above 1 the multiplier sat.
+        Assert.That(VectorLightReachMath.Extends(10f, VectorLightReachMath.DefaultReach), Is.True);
+    }
+
+    // The brightness axis. Same rule as reach's off position and for the same reason: its resting
+    // value has to leave the shipped renderer bit-identical, because that is the baseline every live
+    // A/B of this feature is read against.
+    [Test]
+    public void RestingBrightnessIsExactlyOne()
+    {
+        Assert.That(
+            VectorLightReachMath.Brightness(VectorLightReachMath.NoBrightness),
+            Is.EqualTo(1f));
+
+        Assert.That(VectorLightReachMath.Brightens(VectorLightReachMath.NoBrightness), Is.False);
+    }
+
+    // Clamped UPWARD from the resting value, which is the one place this differs from Astryl's own
+    // FillStrength and is deliberate rather than an oversight. Theirs scales a whole model down from
+    // 1; ours scales the excess over vanilla, which is already delivered at the fitted
+    // VectorLightMath.DefaultStrength — so going below would dim the SHIPPED renderer rather than
+    // decline an addition, and a settings file written against some future range must not be able to
+    // do that by loading.
+    [TestCase(0f)]
+    [TestCase(0.5f)]
+    [TestCase(0.99f)]
+    [TestCase(-3f)]
+    public void BelowRestingBrightnessIsClampedUp(float brightness)
+    {
+        Assert.That(VectorLightReachMath.Brightness(brightness), Is.EqualTo(1f));
+        Assert.That(VectorLightReachMath.Brightens(brightness), Is.False);
+    }
+
+    [TestCase(2.5f)]
+    [TestCase(10f)]
+    public void AboveTheCeilingIsClampedDown(float brightness)
+    {
+        Assert.That(
+            VectorLightReachMath.Brightness(brightness),
+            Is.EqualTo(VectorLightReachMath.MaxBrightness));
+    }
+
+    [TestCase(1.25f)]
+    [TestCase(1.5f)]
+    [TestCase(2f)]
+    public void InRangeBrightnessPassesThroughAndCounts(float brightness)
+    {
+        Assert.That(VectorLightReachMath.Brightness(brightness), Is.EqualTo(brightness));
+        Assert.That(VectorLightReachMath.Brightens(brightness), Is.True);
+    }
+
+    // THE TWO AXES ARE INDEPENDENT, which is the property the split exists to provide and the one a
+    // reader is most likely to doubt. Brightness must not move the radius and reach must not move
+    // the delivered fraction — so a player who turns the brightness down keeps their lamp's SIZE,
+    // which is precisely what Astryl's fork could not offer before it separated them.
+    [TestCase(1f)]
+    [TestCase(1.5f)]
+    [TestCase(2f)]
+    public void BrightnessDoesNotTouchTheRadius(float brightness)
+    {
+        float withReachOnly = VectorLightReachMath.ExtendedRadius(10f, 1.5f);
+
+        // Brightness has no way into ExtendedRadius at all, which is the point: they are separate
+        // functions of separate inputs, and the composition that joins them lives in the draw.
+        Assert.That(VectorLightReachMath.ExtendedRadius(10f, 1.5f), Is.EqualTo(withReachOnly));
+        Assert.That(VectorLightReachMath.Brightness(brightness), Is.EqualTo(brightness));
+    }
+
     [Test]
     public void AnUnlitEmitterHasNoRadiusEitherWay()
     {

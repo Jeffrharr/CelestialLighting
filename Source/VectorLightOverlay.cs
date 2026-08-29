@@ -317,8 +317,19 @@ public static class VectorLightOverlay
         // subtracts all of it and this scalar multiplies zero; where vanilla delivered nothing —
         // the far side of an open door — it multiplies the whole beam. That is the self-limiting
         // property, and cutting the level here would take it back.
+        // THE BRIGHTNESS MULTIPLIER LANDS HERE AND NOWHERE ELSE, on the excess, after the max has
+        // already decided what the excess is. That ordering is the whole reason this is a legitimate
+        // knob where the removed "Lamp beam strength" slider was not: that one set a lamp's LEVEL in
+        // place of the per-fragment comparison against vanilla, so it could brighten cells vanilla
+        // had already lit correctly. This one cannot — the fragment program has subtracted vanilla
+        // before this scalar is applied, so where the two models agree the excess is zero and any
+        // multiple of zero is still zero. The self-limiting property survives being scaled.
+        //
+        // Above the fitted DefaultStrength rather than below it: see VectorLightReachMath.Brightness
+        // for why the range opens upward only.
         if (maxComposing)
-            return VectorLightMath.DefaultStrength * daylight;
+            return VectorLightMath.DefaultStrength * daylight
+                * VectorLightReachMath.Brightness(VectorLightSettings.Brightness);
 
         // Riding on top of phase 3's mask rather than over a suppressed vanilla. What is underneath
         // is not a whole second lighting model — it is vanilla with the shadowed light already taken

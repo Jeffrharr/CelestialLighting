@@ -46,6 +46,22 @@ public static class VectorLightReachMath
     // places have to agree that this exact value means "render precisely what shipped".
     public const float NoReach = 1f;
 
+    // What the SIZE slider sits at when a player first ticks the feature on.
+    //
+    // NOT the resting value, and that is the point of having both. A checkbox whose sliders start at
+    // their own off positions does nothing when ticked, which reads as a broken control — so the box
+    // turns the feature on at a value somebody has actually looked at, and the sliders are then there
+    // to move away from it. 1.2 was picked by eye from the live captures across 1.0 / 1.5 / 2.0 — a
+    // restrained setting rather than the strongest one, on this repo's standing preference for
+    // landing an effect where it reads as the room being warmer instead of as the mod announcing
+    // itself, with the louder values left one drag away.
+    //
+    // It is also, by coincidence worth noting so nobody reads significance into it, the number
+    // Astryl's fork uses as its hard FLOOR. Their 1.2 is the point below which their pass could not
+    // work at all; ours is a starting position on a slider whose floor is 1. The two mean nothing to
+    // each other.
+    public const float DefaultReach = 1.2f;
+
     // Top of the slider. Beyond 2 the mid-field lift stops reading as a warmer room and starts
     // reading as the map being washed out, and the cost grows as the square of it — see the reach
     // notes in VectorLightField.BakeGathered for which parts of the bake actually scale and which
@@ -83,6 +99,54 @@ public static class VectorLightReachMath
 
         return radius > MaxRadiusCells ? MaxRadiusCells : radius;
     }
+
+    // --- BRIGHTNESS, the other half of the pair ---
+    //
+    // Astryl's build separates these two and is right to: reach decides how BIG a lamp is and
+    // strength decides how MUCH of the extra to accept, and a player who finds the result too bright
+    // should be able to say so without making their lamps small again. Their own note puts it
+    // plainly — "Reach sets the SIZE, FillStrength sets the brightness, and they are now
+    // independent; if this is too bright, turn strength down rather than reach" — after two rounds
+    // in which shortening reach was the only dial available and produced lamps that were small AND
+    // dim.
+    //
+    // OURS MULTIPLIES UP RATHER THAN DOWN, which is the one place the two designs differ and it
+    // follows from where the resting point is. Their fill had no composition against vanilla, so
+    // their strength had to scale a whole model down from 1. Ours scales the EXCESS over vanilla,
+    // and that excess is already delivered at VectorLightMath.DefaultStrength — a fitted constant
+    // (0.35, solved against a measured vanilla arm) whose whole job is to hold the line that vector
+    // lighting changes shape and not how bright a lamp is. Going below it would dim the shipped
+    // renderer, which is not what a "vibrant" control is for and would break the flag rule the reach
+    // slider is careful to keep. So 1 is the floor and the resting value, and the range opens
+    // upward.
+    //
+    // IT COSTS NOTHING, unlike reach, and the asymmetry is worth knowing before designing UI around
+    // the pair. Reach is GEOMETRY — it changes the radius every visibility polygon is cast to, so
+    // moving it rebakes the map. Brightness is a MATERIAL PROPERTY: VectorLightOverlay.StrengthFor
+    // recomputes the scalar per emitter per frame in the draw, so this slider is live, free, and
+    // needs no invalidation path at all.
+    public const float NoBrightness = 1f;
+
+    // Two, and the ceiling is the blend's rather than a taste call — on the surface-lift path the
+    // frame becomes dst * (1 + output) against a UNORM target, so the pass can at most double what
+    // it lands on however much is asked for. Offering more than the composition can deliver would be
+    // a slider with a dead top half.
+    public const float MaxBrightness = 2f;
+
+    // How much of the modelled excess to deliver, given the player's setting.
+    //
+    // Clamped rather than trusted for the reason ExtendedRadius clamps: a settings file written
+    // against some future range must not be able to dim the shipped renderer by loading.
+    public static float Brightness(float brightness)
+    {
+        if (brightness < NoBrightness)
+            return NoBrightness;
+
+        return brightness > MaxBrightness ? MaxBrightness : brightness;
+    }
+
+    // Whether a given brightness leaves the renderer bit-identical to the shipped one.
+    public static bool Brightens(float brightness) => Brightness(brightness) > NoBrightness;
 
     // Whether a given reach leaves the renderer bit-identical to the shipped one.
     //
