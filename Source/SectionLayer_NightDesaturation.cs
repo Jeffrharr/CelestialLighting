@@ -128,9 +128,10 @@ public class SectionLayer_NightDesaturation : SectionLayer
             subMeshes[i].disabled = true;
     }
 
-    // Reads local glow once for every cell the vertex loop can ask about — the section plus a one-cell
-    // skirt, clipped at the map edge — and hands each reading to the pure window, which applies
-    // NightDesaturationMath.CellWash and stores the result.
+    // Reads local glow once for every cell the vertex loop can ask about — the section plus a two-cell
+    // skirt, clipped at the map edge — and hands each reading to the pure window, which reduces them
+    // and applies NightDesaturationMath.CellWash. See NightWashWindow's header for why the gathered
+    // skirt is one cell wider than the one the vertex loop reads.
     //
     // Local light only — ignoreSky: true. The sky's own contribution is already the whole of
     // PurkinjeMath's factor, which scales this layer through the material's alpha; counting it again
@@ -143,19 +144,30 @@ public class SectionLayer_NightDesaturation : SectionLayer
             rect.minX, rect.minZ, rect.maxX, rect.maxZ, map.Size.x, map.Size.z);
 
         GlowGrid glowGrid = map.glowGrid;
-        for (int z = wash.MinZ; z <= wash.MaxZ; z++)
+        EdificeGrid edificeGrid = map.edificeGrid;
+        for (int z = wash.FillMinZ; z <= wash.FillMaxZ; z++)
         {
-            for (int x = wash.MinX; x <= wash.MaxX; x++)
+            for (int x = wash.FillMinX; x <= wash.FillMaxX; x++)
             {
+                IntVec3 cell = new IntVec3(x, 0, z);
                 wash.Resolve(
                     x,
                     z,
-                    glowGrid.GroundGlowAt(new IntVec3(x, 0, z), ignoreCavePlants: false, ignoreSky: true));
+                    glowGrid.GroundGlowAt(cell, ignoreCavePlants: false, ignoreSky: true),
+                    BlocksLight(edificeGrid, cell));
             }
         }
 
+        wash.Seal();
         return wash;
     }
+
+    // Vanilla's own test, character for character — SectionLayer_Darkness.LightBlockingEdificeAt asks
+    // exactly this, and SectionLayer_LightingOverlay's corner scan asks its negation — so our notion of
+    // "the glow reading in this cell is meaningless" can never drift from the thing that made it
+    // meaningless.
+    private static bool BlocksLight(EdificeGrid edificeGrid, IntVec3 cell) =>
+        edificeGrid[cell]?.def.blockLight ?? false;
 
     // The nine vertices SectionLayerGeometryMaker_Solid emits per cell, in its order: four corners,
     // four edge midpoints, then the centre. Each is averaged over the cells it actually touches — a
@@ -163,6 +175,13 @@ public class SectionLayer_NightDesaturation : SectionLayer
     // fade smoothly across cell boundaries instead of drawing a visible grid of squares. Vanilla's
     // lighting overlay does the same averaging for the same reason — and walks a vertex lattice to
     // avoid paying for the overlap, which is what NightWashWindow now does here.
+    //
+    // THE CENTRE IS THE ONE VERTEX WITH NOTHING TO AVERAGE, which makes it the one that can disagree
+    // with the eight around it, and the mesh fans four triangles out of it — so a cell whose reading
+    // is out of step with its neighbours' does not shade as a slightly-wrong tile, it shades as a
+    // diamond radiating from the tile's middle. That is not a reason to average the centre too (that
+    // would blur every genuine light boundary by half a cell); it is the reason a reading that means
+    // "nobody asked" must never reach here, which is what NightWashWindow.Seal is for.
     //
     // The nine reads below are the whole reason the window exists: each cell in the section asks about
     // itself and its eight neighbours, so every interior cell's glow is read nine times over the
