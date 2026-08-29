@@ -47,6 +47,42 @@ public static class ProbeRegistration
         // and whose effect on screen was nil. PurkinjeProbe says how dark the sky is; this says how
         // much desaturation that actually turned into.
         ProbeRegistry.Register(new NightDesaturationProbe());
+        // §9's per-cell half, which the probe above cannot see: the baked wash alphas on one cell's
+        // nine mesh vertices, for wall_wash_diamond.json. Offsets address that scenario's two wall
+        // runs and must move with it.
+        //
+        // Three metrics per subject and not one, because the claim is a SHAPE. A wall reading 255 at
+        // its centre is not by itself wrong — a wall in an unlit field should read 255 — so the centre
+        // alone cannot tell the defect from a dark night. What is wrong is a centre out of step with
+        // the corners around it, because four triangles fan out of that vertex and the disagreement
+        // renders as a diamond. wash_*_diamond is that difference; the other two say which way it went.
+        //
+        // wallA is lit from BOTH sides, which is the isolated-spike case: with the wall judged by its
+        // neighbours every one of its nine vertices is equal and the diamond is exactly 0. wallB is lit
+        // from one side only, the case in the report — there the diamond is legitimately non-zero
+        // either way, because a wall with a lit face and a dark face IS a gradient, and what changes is
+        // that the tile stops being a dark hub in a lit field and becomes the ramp it should have been.
+        //
+        // The two ground probes are the controls that separate "the wall rule fired" from "the whole
+        // wash moved": neither cell holds an edifice, so neither may move at all.
+        ProbeRegistry.Register(new NightWashVertexProbe(
+            "wash_walla_centre", new IntVec3(0, 0, 55), NightWashVertexProbe.Metric.CentreAlpha));
+        ProbeRegistry.Register(new NightWashVertexProbe(
+            "wash_walla_corners", new IntVec3(0, 0, 55), NightWashVertexProbe.Metric.CornerMeanAlpha));
+        ProbeRegistry.Register(new NightWashVertexProbe(
+            "wash_walla_diamond", new IntVec3(0, 0, 55), NightWashVertexProbe.Metric.CentreExcess));
+        ProbeRegistry.Register(new NightWashVertexProbe(
+            "wash_wallb_centre", new IntVec3(0, 0, 35), NightWashVertexProbe.Metric.CentreAlpha));
+        ProbeRegistry.Register(new NightWashVertexProbe(
+            "wash_wallb_corners", new IntVec3(0, 0, 35), NightWashVertexProbe.Metric.CornerMeanAlpha));
+        ProbeRegistry.Register(new NightWashVertexProbe(
+            "wash_wallb_diamond", new IntVec3(0, 0, 35), NightWashVertexProbe.Metric.CentreExcess));
+        ProbeRegistry.Register(new NightWashVertexProbe(
+            "wash_lit_ground_diamond", new IntVec3(3, 0, 52), NightWashVertexProbe.Metric.CentreExcess));
+        ProbeRegistry.Register(new NightWashVertexProbe(
+            "wash_dark_ground_centre", new IntVec3(17, 0, 45), NightWashVertexProbe.Metric.CentreAlpha));
+        ProbeRegistry.Register(new NightWashVertexProbe(
+            "wash_dark_ground_diamond", new IntVec3(17, 0, 45), NightWashVertexProbe.Metric.CentreExcess));
         ProbeRegistry.Register(new SkyColorTemperatureProbe());
         // §20d. sky_color_temperature above reports the CLEAN-AIR half of the curve and, since the
         // aerosol's colour left the Planckian locus, no longer moves with pollution at all. These two

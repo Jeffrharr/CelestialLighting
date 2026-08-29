@@ -204,6 +204,11 @@
          classification is right" apart from "the classification is right AND the bake reached the
          mesh". Used by glass_wall_leak.json for the ReBuild: Doors and Corners glass-wall interop. -->
     <Compile Include="../Source/Probes/SkyCoverVertexProbe.cs" Link="SkyCoverVertexProbe.cs" />
+    <!-- The same idea for §9's own mesh: the baked per-vertex wash alphas. NightDesaturationProbe
+         reads the map-wide material alpha and cannot see a single cell; this reads the nine vertices
+         of one, and its CentreExcess metric is the size of the centre-vs-corners disagreement the
+         triangle fan renders as a diamond. Used by wall_wash_diamond.json. -->
+    <Compile Include="../Source/Probes/NightWashVertexProbe.cs" Link="NightWashVertexProbe.cs" />
     <!-- The ground/artificial/sky split behind IndoorGlowPassthrough at an arbitrary cell. Used by
          indoor_glow_lamp.json to prove a lamp-lit sealed room keeps SkyFraction at 0 while its
          GroundGlow stays high — the regression that would otherwise put dawn pink on a windowless

@@ -1,0 +1,267 @@
+{
+  "name": "wall_wash_diamond",
+  "saveFile": "minimal_colony.rws",
+  "description": "Night desaturation drew a dark diamond radiating from the middle of every wall tile. GroundGlowAt in a light-blocking edifice reads ~0 however brightly lit either face is -- the glow flood never enters one -- so the reading means 'nobody asked', not 'dark'. Fed straight to CellWash it gave each wall cell a full wash while its neighbours took almost none, and SectionLayerGeometryMaker_Solid fans four triangles out of the ninth vertex at the cell's exact middle: the eight around it average over the cells they touch, the centre has one cell and nothing to average, so the disagreement renders as a diamond creased along the diagonals. TWO WALL RUNS, and the pair is the point. wallA (north, z=+10) has a TorchLamp three cells to each side, which is the isolated-spike case: every neighbour is lit, so with the wall judged by its neighbours all nine of its vertices are equal and wash_walla_diamond is exactly 0. wallB (south, z=-10) has one lamp on its south side only, which is the case in the report -- there the diamond is legitimately non-zero either way, because a wall with a lit face and a dark face IS a gradient; what changes is that the tile stops being a dark hub in a lit field and becomes the ramp it should have been. The two ground probes are controls holding no edifice and must not move at all, which separates 'the wall rule fired' from 'the whole wash moved'. Lamps are three cells clear of their wall and the two groups are 17 cells apart, which is more than TorchLamp's glowRadius of 10, so neither run lights the other. TorchLamp rather than StandingLamp because it needs no power (see indoor_glow_lamp.json). AUTHORING NOTES. The vertex alphas this pins do not depend on the clock at all -- CellWash reads local glow with ignoreSky, and only the material's alpha follows the sun -- so the probes are stable at any hour and hour 23 is chosen for the screenshots, where the wash is at full strength. Clouds are stated off explicitly rather than left to SetWeather Clear, since partial cover during Clear is our own feature and the sheet drifts on the tick counter. The preset is stated for the same reason: run_test.sh does not reset persisted mod settings, and Realistic would rescale the material alpha the screenshots are judged on. Run standalone -- PlaceThings leaves map residue.",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "20"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "realistic_preset",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "low_light_desaturation",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_cover",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_sheet",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_presence",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_deck_varieties",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Soil",
+        "width": "40",
+        "height": "40",
+        "offset": "0,45",
+        "clear": "true"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "WoodLog",
+        "offset": "0,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "-6,10; -5,10; -4,10; -3,10; -2,10; -1,10; 0,10; 1,10; 2,10; 3,10; 4,10; 5,10; 6,10; -6,-10; -5,-10; -4,-10; -3,-10; -2,-10; -1,-10; 0,-10; 1,-10; 2,-10; 3,-10; 4,-10; 5,-10; 6,-10"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "TorchLamp",
+        "offset": "0,45",
+        "layout": "cells",
+        "clear": "false",
+        "cells": "0,7; 0,13; 0,-13"
+      }
+    },
+    {
+      "type": "FastForward",
+      "args": {
+        "ticks": "120"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "23"
+      }
+    },
+    {
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "paused"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "30"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "purkinje",
+        "expectedValue": "0",
+        "tolerance": "1000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "night_desaturation_wash",
+        "expectedValue": "0",
+        "tolerance": "1000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wash_walla_centre",
+        "expectedValue": "0",
+        "tolerance": "1000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wash_walla_corners",
+        "expectedValue": "0",
+        "tolerance": "1000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wash_walla_diamond",
+        "expectedValue": "0",
+        "tolerance": "1000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wash_wallb_centre",
+        "expectedValue": "0",
+        "tolerance": "1000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wash_wallb_corners",
+        "expectedValue": "0",
+        "tolerance": "1000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wash_wallb_diamond",
+        "expectedValue": "0",
+        "tolerance": "1000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wash_lit_ground_diamond",
+        "expectedValue": "0",
+        "tolerance": "1000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wash_dark_ground_centre",
+        "expectedValue": "0",
+        "tolerance": "1000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wash_dark_ground_diamond",
+        "expectedValue": "0",
+        "tolerance": "1000000"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "0,45",
+        "zoom": "30"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "wall_wash_discard.png",
+        "hideUi": "true"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "wall_wash_scene.png",
+        "hideUi": "true"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "0,55",
+        "zoom": "10"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "wall_wash_lit_both_sides.png",
+        "hideUi": "true"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "0,35",
+        "zoom": "10"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "wall_wash_lit_one_side.png",
+        "hideUi": "true"
+      }
+    }
+  ]
+}
