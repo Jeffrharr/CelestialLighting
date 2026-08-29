@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using Verse;
 
@@ -6,6 +7,12 @@ namespace CelestialLighting;
 // One place where a ShaderTypeDef becomes a Shader, shared by the three shader classes so the
 // def-missing branch is written and reasoned about once rather than three times.
 //
+// THERE IS NO CACHED Shader HERE, AND THAT IS THE POINT. ShaderTypeDef.Shader already memoises into
+// its own shaderInt, so a static readonly mirror in each shader class was a second cache in front of
+// an existing one — and two ways to reach the same object is one way too many: the route that is not
+// used is the route that goes stale, and the only defence against that is a comment telling people
+// which one to use. Resolving through the def on every read means there is nothing to tell them.
+//
 // WHAT THIS DELIBERATELY DOES NOT DO IS VALIDATE. Each caller keeps its own check on the returned
 // shader — AuroraShader and CloudVolumeShader compare the DECLARED name, VectorLightShader tests
 // identity against ShaderDatabase.DefaultShader — because those checks differ, they are the thing
@@ -13,6 +20,12 @@ namespace CelestialLighting;
 // others. All this class decides is WHERE to look.
 internal static class ShaderLoader
 {
+    // Paths already complained about, so the missing-def error is logged once rather than once per
+    // material. It used to be safe to log unconditionally because resolution happened exactly once
+    // per session in a field initialiser; now that callers resolve on demand, an unguarded Log.Error
+    // would repeat for every material the session builds.
+    private static readonly HashSet<string> Complained = new HashSet<string>();
+
     // Resolve a shader through its def, falling back to the literal bundle path when the def is not
     // in the database.
     //
@@ -30,18 +43,21 @@ internal static class ShaderLoader
     // So: complain in a way nobody can miss, then keep the lights on. The house rule from
     // VectorLightShader applies unchanged — a missing shader must never mean missing light — and it
     // applies just as much when what went missing is the def that names the shader.
-    public static Shader Load(ShaderTypeDef def, string fallbackPath, string subsystem)
+    public static Shader Resolve(ShaderTypeDef def, string fallbackPath, string subsystem)
     {
         if (def != null)
             return def.Shader;
 
         // Error rather than Warning, and it names the defName rather than the path: the reader needs
         // to know that a FILE is missing from the install, not that a shader failed to compile.
-        Log.Error(
-            "[CelestialLighting] ShaderTypeDef for '" + fallbackPath + "' is not in the def database, "
-            + "so 1.6/Defs/ShaderTypeDefs/ShaderTypes.xml is missing from this install (or the "
-            + "assemblies are newer than the content tree, which is normal under --mod-overlay). "
-            + "Falling back to the literal bundle path for " + subsystem + ".");
+        if (Complained.Add(fallbackPath))
+        {
+            Log.Error(
+                "[CelestialLighting] ShaderTypeDef for '" + fallbackPath + "' is not in the def "
+                + "database, so 1.6/Defs/ShaderTypeDefs/ShaderTypes.xml is missing from this install "
+                + "(or the assemblies are newer than the content tree, which is normal under "
+                + "--mod-overlay). Falling back to the literal bundle path for " + subsystem + ".");
+        }
 
         return ShaderDatabase.LoadShader(fallbackPath);
     }

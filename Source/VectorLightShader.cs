@@ -21,11 +21,11 @@ namespace CelestialLighting;
 // as Available == false, and the whole subsystem falls back to the crossfade — which is a shipped,
 // measured arm rather than an unknown one. A missing shader must never mean missing light.
 //
-// [StaticConstructorOnStartup] is load-bearing, not tidiness, for the same reason it is on
-// VectorLightOverlay: Shader lookups and Material construction have to happen on Unity's main thread
-// after LoadedModManager has the bundles open, and the attribute is what guarantees the static
-// initialiser runs there rather than on whichever thread first touches the type.
-[StaticConstructorOnStartup]
+// NO [StaticConstructorOnStartup], AND THAT IS A CHANGE. It used to be here to guarantee that the
+// eager `Loaded` field's Shader lookup ran on Unity's main thread after LoadedModManager had the
+// bundles open. There is no eager field any more: the shader resolves on first use, and every use is
+// a Material construction on the render path, which is already the main thread. An attribute that
+// forces a type to initialise at load when nothing in it needs to is just a slower boot.
 public static class VectorLightShader
 {
     // The shader's path INSIDE the bundle, minus the extension: RimWorld builds the full asset path
@@ -55,11 +55,21 @@ public static class VectorLightShader
 
     private static readonly int SkyAmbientId = Shader.PropertyToID("_SkyAmbient");
 
-    private static readonly Shader Loaded = Load();
+    // The shader itself, resolved through the def on every read. ShaderTypeDef memoises into its own
+    // shaderInt, so after the first call this is a field read behind a property — cheap enough that a
+    // second cache here would buy nothing except a second way to reach the same object.
+    private static Shader Loaded => ShaderLoader.Resolve(
+        CelestialShaderDefOf.CL_VectorLightMax, ShaderPath, "vector lighting's max composition");
+
+    // The VERDICT is cached even though the shader is not, and the asymmetry is deliberate:
+    // UnityEngine.Object.name is a native call that allocates a fresh string, Validate compares it,
+    // and MaxActive reads this every frame. Caching a bool costs nothing and caching a Shader costs
+    // the clarity above.
+    private static bool? available;
 
     // Whether the max composition can actually be drawn. Read this rather than the feature flag
     // wherever the answer has to be true for the frame to be correct.
-    public static bool Available => Loaded != null;
+    public static bool Available => available ??= Validate();
 
     // Whether §27 should compose as a max this frame: asked for, and possible.
     public static bool MaxActive =>
@@ -159,10 +169,11 @@ public static class VectorLightShader
         props.SetFloat(SkyAmbientId, ambient);
     }
 
-    private static Shader Load()
+    // Runs once, behind Available's cache. Returns a verdict rather than a shader because the shader
+    // is not ours to hold — see Loaded.
+    private static bool Validate()
     {
-        Shader shader = ShaderLoader.Load(
-            CelestialShaderDefOf.CL_VectorLightMax, ShaderPath, "vector lighting's max composition");
+        Shader shader = Loaded;
 
         // LoadShader does not report failure to its caller — it logs a warning and hands back
         // ShaderDatabase.DefaultShader, which is Map/Cutout. Rendering our additive pass through a
@@ -173,7 +184,7 @@ public static class VectorLightShader
             Log.Warning(
                 "[CelestialLighting] Could not load shader '" + ShaderPath + "' from the mod's asset "
                 + "bundles. §27's max composition is unavailable; falling back to the crossfade.");
-            return null;
+            return false;
         }
 
         // Supported is a per-machine answer, not a per-build one: the bundle can be perfectly valid
@@ -186,9 +197,9 @@ public static class VectorLightShader
             Log.Warning(
                 "[CelestialLighting] Shader '" + ShaderPath + "' loaded but is not supported on this "
                 + "system. §27's max composition is unavailable; falling back to the crossfade.");
-            return null;
+            return false;
         }
 
-        return shader;
+        return true;
     }
 }
