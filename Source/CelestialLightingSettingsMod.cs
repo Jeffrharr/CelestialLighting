@@ -44,6 +44,15 @@ public class CelestialLightingSettingsMod : Mod
     {
         base.WriteSettings();
         Settings.ApplyToRuntime();
+
+        // AND THIS IS WHERE A DRAGGED SLIDER IS PAID FOR. The reach slider deliberately does not
+        // rebake while the window is open — each crossed value would rebuild every polygon on the
+        // map, and a player drags through dozens — so it records the debt and this settles it once,
+        // against the final value, on the way back to a map anybody can see.
+        //
+        // AFTER ApplyToRuntime, not before: that is what pushes the final reach into
+        // VectorLightSettings, and rebuilding first would rebuild against the previous one.
+        VectorLightRedraw.FlushPendingRebuild();
     }
 
     public override string SettingsCategory() => "Celestial Lighting";

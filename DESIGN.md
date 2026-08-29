@@ -12983,6 +12983,30 @@ The ceiling is `GlowGrid.MaxLightRadius` (40), taken from vanilla rather than in
 question it answers is vanilla's: how wide is any light in this game allowed to be. Two defs ship
 above radius 20 (24 and 30), and at the top of the slider they would ask for 48 and 60 cells.
 
+#### The slider does not rebake while it is being dragged
+
+`ApplyToRuntime` runs every frame the settings window is open, so a checkbox is crossed once per
+click and a **slider is crossed ~60 times a second** while the mouse is held. Every crossing is a
+real invalidation — change detection cannot collapse them, because each genuinely changes what
+should be on screen — and each one rebuilds every polygon on the map. That is not a stutter, it is a
+control nobody can use on a colony large enough to have an opinion about lamp brightness.
+
+So the slider takes on a **debt** instead of paying it, and `Mod.WriteSettings` settles it once when
+the window closes, against the final value. Nothing is lost by waiting: the settings window covers
+the map, so the first frame anybody can see is the one after the window closes.
+
+Two smaller pieces sit under that. The switch stays **immediate**, because a click is crossed once
+and every existing scenario was measured against that behaviour. And the reach path does not call
+`ForceRebuild`: `ClearAll` destroys every mesh and per-emitter glow texture, which is right for the
+master switch (an off run must hold no GPU memory and must not draw a stale polygon into an A/B
+baseline) and pointless for a reach change, which invalidates an emitter's *geometry* and not its
+existence — `Upsert` already marks exactly that. Marking the rosters and rebaking is enough.
+
+**Verified rather than assumed**, because "the cheap path builds the same thing" is exactly the kind
+of claim that is wrong quietly: the scenario drives the same `RebuildForReach` a player's settings
+screen does, and reads the same lit areas as the heavy path to the decimal (374.177002 / 604.056763
+/ 663.663147).
+
 #### It replaced the indoor multiply layer, on the numbers
 
 The multiply layer was the previous answer to the same want, and the two were photographed in one
