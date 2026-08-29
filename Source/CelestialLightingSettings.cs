@@ -203,11 +203,18 @@ public class CelestialLightingSettings : ModSettings
     // shorten the light — which makes lamps small AND dim, and is exactly how two earlier rounds on
     // their fork ended up with no visible effect at all.
     //
-    // 1 ON BOTH SIDES, i.e. off, and upward-only from there. It multiplies
-    // VectorLightMath.DefaultStrength, a fitted constant whose whole job is to hold the line that
-    // vector lighting changes shape and not brightness; going below it would dim the shipped
-    // renderer rather than declining an addition. See VectorLightReachMath.Brightness.
-    public float vectorLightBrightness = VectorLightReachMath.NoBrightness;
+    // IT STARTS AT ASTRYL'S OWN 0.85, which is BELOW the resting value rather than above it, and the
+    // direction is the counter-intuitive part. Their FillStrength scales a model that replaces
+    // vanilla's contribution, so 1 is its ceiling; ours scales the excess over vanilla, already
+    // delivered at the fitted DefaultStrength that reads at vanilla's own brightness. Their 0.85 is
+    // therefore ≈0.85 of ours, and adopting it means the switch starts a little under what the size
+    // slider alone would give — bigger lamps, slightly softer beams. That is their calibration and
+    // taking it whole is the point of the name on the control.
+    //
+    // The FEATURE's off state is not this value's job: the switch above pushes NoBrightness whenever
+    // it is off, so the shipped-renderer baseline holds however this slider is set. See
+    // VectorLightReachMath.DefaultBrightness.
+    public float vectorLightBrightness = VectorLightReachMath.DefaultBrightness;
 
     // --- Night-radiance tunables (drive NightRadianceSettings.Current) ---
     // The atmospheric starlight+airglow floor ("true pitch-black" when off), and the pitch-black
@@ -517,10 +524,12 @@ public class CelestialLightingSettings : ModSettings
         // feature off and this value inert.
         Scribe_Values.Look(
             ref vectorLightReach, "vectorLightReach", VectorLightReachMath.DefaultReach);
-        // Same reasoning as its sibling: the off position on both sides, so an absent node means
-        // "this config predates the option" and predating it is the same as declining it.
+        // The shipped SLIDER POSITION on both sides, like its sibling and not like a feature flag:
+        // the switch owns "off", so an absent node loads the starting value and is inert until the
+        // box is ticked.
         Scribe_Values.Look(
-            ref vectorLightBrightness, "vectorLightBrightness", VectorLightReachMath.NoBrightness);
+            ref vectorLightBrightness, "vectorLightBrightness",
+            VectorLightReachMath.DefaultBrightness);
         Scribe_Values.Look(ref skyColorTemperature, "skyColorTemperature", true);
         Scribe_Values.Look(ref polarNightBlue, "polarNightBlue", true);
         Scribe_Values.Look(ref polarNightBlueStrength, "polarNightBlueStrength", 1f);

@@ -13015,13 +13015,24 @@ which makes them small *and* dim, and is precisely how two rounds on their fork 
 effect at all. Their note puts it plainly: *"Reach sets the SIZE, FillStrength sets the brightness …
 if this is too bright, turn strength down rather than reach."*
 
-Ours multiplies **upward** where theirs scales down, and that follows from where the resting point
-is. Their fill had no composition against vanilla, so their strength scaled a whole model down from
-1. Ours scales the excess *over* vanilla, and that excess is already delivered at
-`VectorLightMath.DefaultStrength` — a fitted constant (0.35, solved against a measured vanilla arm)
-whose whole job is to hold the line that vector lighting changes shape and not brightness. Going
-below it would dim the shipped renderer rather than decline an addition, so 1 is the floor and the
-resting value.
+**Their number transfers, and it transfers DOWNWARD, which nobody predicts.** Their `FillStrength`
+scales a model that *replaces* vanilla's contribution, so 1 is its ceiling and 0.85 is a step back
+from it. Ours scales the excess *over* vanilla, and that excess is already delivered at
+`VectorLightMath.DefaultStrength` — 0.35, fitted against a measured vanilla arm precisely so our
+additive pass reads at vanilla's own brightness. So **0.35 is ≈unity in vanilla's units**, our
+multiplier of 1 is ≈their 1, and their 0.85 lands at ≈0.85 of ours.
+
+The switch therefore starts the brightness slider at **0.85**, a little *under* what the size slider
+alone would deliver: bigger lamps, slightly softer beams. That is Astryl's calibration and taking it
+whole is the point of having their name on the control.
+
+Their slider only ever reduces; ours ranges both ways, floor **0.5**. Two constants that used to be
+one had to come apart for that: `NoBrightness` (1) is the **resting** value the master switch pushes
+when the feature is off and the only one that has to leave the renderer bit-identical, while
+`MinBrightness` (0.5) is merely the bottom of the range. Letting the slider dim below the resting
+value is safe *only because the checkbox owns "off"* — before it existed, a sub-1 floor would have
+meant the feature's off state dimmed the shipped renderer, which is exactly what the flag rule
+forbids.
 
 **Why this is not the "Lamp beam strength" slider that was removed.** That one set a lamp's *level*
 in place of the per-fragment comparison against vanilla, so it could brighten cells vanilla had
@@ -13068,7 +13079,8 @@ spill is the ground beyond the roofed lamp's own doorway:
 |---|---|---|---|---|---|
 | vanilla | 12.68 | 4.74 | 3.52 | — | — |
 | shipped (both off) | 13.14 | 6.79 | 5.85 | — | — |
-| **size 1.2 (the default)** | 13.98 **(+0.84)** | 8.04 (+1.25) | 6.96 (+1.11) | **1.49** | 2.62 |
+| **ticked, untouched (1.2 + 0.85)** | 13.77 **(+0.63)** | 7.50 (+0.71) | 6.35 (+0.50) | **1.20** | 1.95 |
+| size 1.2, brightness 1.0 | 13.98 (+0.84) | 8.04 (+1.25) | 6.96 (+1.11) | 1.49 | 2.62 |
 | size 2.0 | 15.68 (+2.54) | 10.42 (+3.63) | 9.32 (+3.47) | 3.73 | 7.73 |
 | **brightness 2.0 alone** | 13.54 **(+0.40)** | 9.16 (+2.37) | 8.75 (+2.90) | 1.24 | 5.53 |
 | both at maximum | 15.24 (+2.10) | 11.62 (+4.83) | 11.16 (+5.31) | 3.34 | 8.83 |
@@ -13090,9 +13102,15 @@ Note also that brightness alone lands in the same shape as the retired multiply 
 existing excess rather than enlarging it. What size does, neither of them can.
 
 **The shipped default is restrained on purpose.** Ticking the box and touching nothing measures ΔE
-**1.49**, visible on close inspection; the top of both sliders is 3.34, visible at a glance. That is
+**1.20**, visible on close inspection; the top of both sliders is 3.34, visible at a glance. That is
 this repo's calibration preference — land around 3–6 at the loud end and keep the default below it,
 with the louder values one drag away.
+
+Adopting Astryl's 0.85 is what moved that number down from 1.49, and the row above it is what the
+same size looks like at the resting brightness. The L\* deltas do **not** scale by a flat 0.85 across
+the three regions (+0.63 against +0.84 in the room, +0.71 against +1.25 on the west spill) because
+L\* is not linear in luminance and the three regions sit at different levels — the *light* scales by
+0.85, the lightness readings do not have to.
 
 #### It replaced the indoor multiply layer, on the numbers
 
