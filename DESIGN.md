@@ -745,9 +745,9 @@ reads `map.roofGrid` / `map.edificeGrid` and rewrites `mesh.colors32`.
     against this same `thickRoof` veto. Note an interior partition wall deep in a mountain base is still
     fully occluded — but by its own four corners, every one shared with interior floor, which is the
     correct reason rather than the roof over it.
-  - **Corners OR, boundary centres average.** A corner is covered if *any* of its four cells is interior,
-    so every vertex inside a room lands on 1.0 and the interior renders flat. A cell that is not itself
-    interior takes the mean of its own four corners, so an exterior wall is `1.0` on its inner face,
+  - **Corners OR, every centre averages.** A corner is covered if *any* of its four cells is interior,
+    so every vertex inside a room lands on 1.0 and the interior renders flat. A centre vertex is the
+    mean of its own four corners and nothing else, so an exterior wall is `1.0` on its inner face,
     `0.5` at its centre and exactly `0.0` on its outer face: the whole fade is spent on the wall tile and
     nothing beyond the building is touched. Averaging the corners *instead* — while still forcing every
     roofed centre to a hard 1.0 — is what produced the reported artefact: the mesh fans four triangles
@@ -755,6 +755,21 @@ reads `map.roofGrid` / `map.edificeGrid` and rewrites `mesh.colors32`.
     boundary read as a row of black radial blooms rather than a straight edge. Cells outside the map
     contribute nothing to the OR, which needs no special case and keeps the two sections that each bake
     a shared boundary vertex in exact agreement (no 17-cell seams).
+
+    That force survived the first fix for *interior* cells alone, on the reasoning that a sealed cell's
+    centre "should" read 1.0, and it took a second pass to see that it never did anything there and did
+    harm everywhere else. Every corner of an interior cell ORs over that same cell, so all four are
+    already 1.0 and so is their mean — the force was a no-op exactly where it was aimed. Where a leak
+    reached the cell it was not: `CornerOcclusion` caps against the **max** sky-falloff of the four cells
+    a corner touches while the centre pass capped against only the cell's own, and a cell's own falloff
+    is the smallest of the five values in play — so a forced centre could never be *brighter* than a
+    corner and was routinely darker. A corner leak of 0.15 / 0.35 / 0.60 put the centre 7.5% / 17.5% /
+    30% of sky below its own corner mean: a black hub in a lit-cornered tile, fanned out into a row of
+    dark spikes down the inside of every wall carrying a door. Removing it also retires the second
+    `CapOcclusion` the centre pass applied, which the same inequality shows is dead arithmetic —
+    `1 - ownFalloff` is >= every corner and therefore >= their mean. The centre pass now reads neither
+    `BlocksSky` nor `SkyFalloffFraction`, which drops the legacy lattice resolution count from 1,585 to
+    1,296 and, the actual point, leaves it no remaining way to disagree with the corners it averages.
 - **"Roofed" means enclosed, not merely covered.** The one place we deliberately classify *narrower*
   than vanilla. Asking `roofGrid.Roofed(cell)` outright blacked out porches and overhangs at
   noon — they are roofed but stand open to the sky on their exposed sides. The `roofed` input
@@ -1908,6 +1923,22 @@ Perspective family).
     colour by construction rather than by tuning. `ignoreSky` matters: the sky's contribution is
     already the whole of `PurkinjeFactor`, and counting it per cell would make a brightening sky
     exempt the outdoor cells the effect is for.
+  - **A wall is judged by its neighbours.** `GroundGlowAt` in a light-blocking edifice reads ~0
+    however brightly lit either face is, because vanilla's flood never enters one — the reading means
+    "nobody asked", not "dark". Feeding it straight to `CellWash` gave every wall cell a full wash
+    while its neighbours took almost none, and the geometry maker turned that into a diamond: its nine
+    vertices average over the cells they touch (a corner over four, an edge over two) but the centre
+    has one cell and nothing to average, and four triangles fan out of it. A wall in flat light came
+    out **255 at the centre against 159 at the corners**, which renders as a dark blob apparently
+    radiating from the middle of the tile with the fan diagonals creasing across it — worst on walls,
+    mild on any floor cell whose glow sits well under its neighbours'. Vanilla meets exactly this in
+    `SectionLayer_Darkness` — same geometry maker, same `GroundGlowAt(ignoreSky: true)` signal — and
+    answers it by giving a blocked cell the **max glow of itself and its eight non-blocking
+    neighbours**; `NightWashWindow.Seal` does the same, so one rule reaches all nine vertices instead
+    of special-casing the centre. A cell whose every neighbour is also wall still reads unlit, which is
+    correct: it has no lit face. Note the *centre* is deliberately not averaged — that would blur every
+    genuine light boundary by half a cell — so the invariant this rests on is that a reading meaning
+    "nobody asked" must never reach the mesh in the first place.
   - **Map-wide strength** is the material's alpha, rewritten each frame by
     `Patch_NightDesaturationStrength` from the same factor the tint uses. Split this way for the
     reason vanilla splits its own overlay: the per-cell part only changes when the glow grid does

@@ -136,16 +136,27 @@ public static class IndoorOcclusionMath
     public static float CornerOcclusion(bool anyNeighbourBlocksSky) =>
         anyNeighbourBlocksSky ? 1f : 0f;
 
-    // The centre vertex of a cell. An interior cell is flat-out fully occluded; anything else — wall,
-    // door, open ground — takes the mean of its own four corners, which is exactly what vanilla does
-    // for a cell it did not force to 100. That mean is the whole reason a boundary reads as a ramp
-    // rather than a starburst: it is the value bilinear interpolation across the quad would have
-    // produced anyway, so the four triangles fanning out of the centre shade as one flat surface.
+    // The centre vertex of a cell: always the mean of its own four corners, which is exactly what
+    // vanilla does for a cell it did not force to 100. That mean is the whole reason a boundary reads
+    // as a ramp rather than a starburst: it is the value bilinear interpolation across the quad would
+    // have produced anyway, so the four triangles fanning out of the centre shade as one flat surface.
     //
     // Concretely, for an exterior wall: inner corners 1.0, outer corners 0.0, centre 0.5 — a straight
     // gradient across the wall tile, reaching exactly 0 on its outer face.
-    public static float CentreOcclusion(bool blocksSky, float cornerOcclusionSum) =>
-        blocksSky ? 1f : Clamp01(cornerOcclusionSum / CornersPerCell);
+    //
+    // This used to force an interior cell's centre to a flat 1.0 ahead of the mean, which was a no-op
+    // where it was aimed and wrong everywhere else. On a sealed cell it changed nothing: every corner
+    // of an interior cell ORs over that same cell, so all four are already 1.0 and so is their mean.
+    // On any cell a leak reached it pinned the centre at 1.0 while the corners around it were capped
+    // lower — CornerOcclusion caps against the MAX sky-falloff of its four cells and the centre pass
+    // against only the cell's own, so the centre could never be brighter than a corner and was
+    // routinely darker — and the mesh fans four triangles from that hub out to the lit corners, which
+    // renders as a row of dark spikes down the inside of every wall carrying a door. Modelled against
+    // the shipped formulas, a corner leak of 0.15 / 0.35 / 0.60 put the centre 7.5% / 17.5% / 30% of
+    // sky below its own corner mean. Diagnosed once before from a live capture and never landed;
+    // Tests/Screenshots/glass_wall_noon_leak_on_sawtooth.png is that evidence, kept.
+    public static float CentreOcclusion(float cornerOcclusionSum) =>
+        Clamp01(cornerOcclusionSum / CornersPerCell);
 
     // Default for IndoorOcclusionSettings.MinIndoorBrightness. 0 == interiors may go genuinely black,
     // which is the point of the feature, so that is what ships. The slider exists because "black" is a

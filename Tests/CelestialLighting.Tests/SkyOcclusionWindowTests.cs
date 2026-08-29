@@ -246,14 +246,15 @@ public class SkyOcclusionWindowTests
     {
         // The regression this whole change is about. SkyFalloffSource.FractionAt is the more expensive
         // of the two verdicts — two glow-grid reads per call, one of them the GroundGlowAt every
-        // interop mod postfixes — and it was being paid 1,585 times per section regenerate.
+        // interop mod postfixes — and it was being paid 1,296 times per section regenerate. (1,585
+        // before the centre pass stopped asking: see IndoorOcclusionMath.CentreOcclusion.)
         FakeMap map = SkyFalloffField(Scene());
         LatticeRun legacy = LatticeRun.Legacy(map, InnerMin, InnerMin, InnerMax, InnerMax, NoFloor);
         LatticeRun windowed = LatticeRun.Windowed(map, InnerMin, InnerMin, InnerMax, InnerMax, NoFloor);
 
         Assert.Multiple(() =>
         {
-            Assert.That(legacy.FalloffLookups, Is.EqualTo(1585));
+            Assert.That(legacy.FalloffLookups, Is.EqualTo(1296));
             Assert.That(windowed.FalloffLookups, Is.EqualTo(361));
         });
     }
@@ -261,15 +262,16 @@ public class SkyOcclusionWindowTests
     [Test]
     public void Windowed_ResolvesEachCellOnceInsteadOfOncePerRead()
     {
-        // 18*18 corner vertices x 4 cells each + 17*17 centres == 1,585 resolutions on demand,
-        // against 19*19 == 361 baked. This is the whole issue.
+        // 18*18 corner vertices x 4 cells each == 1,296 resolutions on demand, against 19*19 == 361
+        // baked. This is the whole issue. (It was 1,585 while the centre pass resolved its own cell
+        // too; that force is gone — see IndoorOcclusionMath.CentreOcclusion.)
         FakeMap map = Scene();
         LatticeRun legacy = LatticeRun.Legacy(map, InnerMin, InnerMin, InnerMax, InnerMax, NoFloor);
         LatticeRun windowed = LatticeRun.Windowed(map, InnerMin, InnerMin, InnerMax, InnerMax, NoFloor);
 
         Assert.Multiple(() =>
         {
-            Assert.That(legacy.Resolutions, Is.EqualTo(1585));
+            Assert.That(legacy.Resolutions, Is.EqualTo(1296));
             Assert.That(windowed.Resolutions, Is.EqualTo(361));
         });
     }
@@ -303,7 +305,7 @@ public class SkyOcclusionWindowTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(legacy.RoomQueries, Is.EqualTo(1585));
+            Assert.That(legacy.RoomQueries, Is.EqualTo(1296));
             Assert.That(windowed.RoomQueries, Is.EqualTo(361));
             AssertSameVertices(legacy, windowed);
         });
@@ -596,15 +598,10 @@ public class SkyOcclusionWindowTests
                     IndoorOcclusionMath.CornerOcclusion(anyBlocksSky), floor, skyFalloffFraction);
             }
 
-            // The centre pass carried no guard of its own and needed none — a centre vertex is always
-            // a cell of the section, hence always on the map.
-            return Run(map, minX, minZ, maxX, maxZ, floor, Corner, CentreBlocksSky, map.FalloffAt);
-
-            bool CentreBlocksSky(int x, int z)
-            {
-                map.Resolve(x, z, out bool blocksSky);
-                return blocksSky;
-            }
+            // The centre pass reads neither the map nor the window: a centre is the mean of the four
+            // corners resolved above and nothing else, which is what keeps it from disagreeing with
+            // them (see IndoorOcclusionMath.CentreOcclusion).
+            return Run(map, minX, minZ, maxX, maxZ, floor, Corner);
         }
 
         // The shipped shape: bake the window once, then read it.
@@ -641,14 +638,12 @@ public class SkyOcclusionWindowTests
                     IndoorOcclusionMath.CornerOcclusion(anyBlocksSky), floor, skyFalloffFraction);
             }
 
-            return Run(
-                map, minX, minZ, maxX, maxZ, floor, Corner, window.BlocksSky, window.SkyFalloffFraction);
+            return Run(map, minX, minZ, maxX, maxZ, floor, Corner);
         }
 
         private static LatticeRun Run(
             FakeMap map, int minX, int minZ, int maxX, int maxZ, float floor,
-            Func<int, int, float> corner, Func<int, int, bool> centreBlocksSky,
-            Func<int, int, float> centreFalloff)
+            Func<int, int, float> corner)
         {
             int width = maxX - minX + 1;
             int height = maxZ - minZ + 1;
@@ -668,10 +663,8 @@ public class SkyOcclusionWindowTests
                 {
                     int c = (z - minZ) * stride + (x - minX);
                     float cornerSum = corners[c] + corners[c + 1] + corners[c + stride] + corners[c + stride + 1];
-                    float occlusion = IndoorOcclusionMath.CentreOcclusion(centreBlocksSky(x, z), cornerSum);
                     centres[(z - minZ) * width + (x - minX)] =
-                        IndoorOcclusionMath.CoverAlpha(
-                            IndoorOcclusionMath.CapOcclusion(occlusion, floor, centreFalloff(x, z)), 0);
+                        IndoorOcclusionMath.CoverAlpha(IndoorOcclusionMath.CentreOcclusion(cornerSum), 0);
                 }
             }
 
