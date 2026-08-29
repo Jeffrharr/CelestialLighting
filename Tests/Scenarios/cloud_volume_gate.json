@@ -1,0 +1,26 @@
+{
+  "name": "cloud_volume_gate",
+  "saveFile": "minimal_colony.rws",
+  "description": "The volumetric cloud bake is gated on the cloud_volume flag, so a player who has turned the march off pays neither the few hundred ms of pooled CPU at load nor the Texture3D that is held for the session. THIS SCENARIO IS THE ONLY ONE THAT CAN SEE THAT, and the reason is worth stating: the gate is read in the static constructor, which runs during loading, long before step 0. Every other cloud_volume scenario starts from the shipped default of ON, so its bake has already been started by the time the scenario can toggle anything -- EnsureBakeStarted then returns early and the toggling proves nothing about the gate. This one requires the PERSISTED setting to be off at load, which is why it is not in any suite and has to be run with a prepared settings XML. THE SECOND HALF IS THE ONE THAT WOULD ACTUALLY BREAK SOMETHING. A gate that only ran at load would leave the feature permanently dead for anyone who enabled it without restarting, and that failure is silent -- the sky keeps rendering the baked atlas while the settings screen says otherwise. So the flag is flipped on mid-run and the bake has to start and finish from there. The Wait is not decoration: the bake takes 300-800 ms of wall clock and the harness runs one step per frame, so a probe placed immediately after the SetFeature would read 0 on a working build. cloud_volume_shader_loaded is pinned at 1 THROUGHOUT, including while the bake is declined, because it is what separates 'we chose not to bake' from 'the shader failed to load' -- two states that both read as an absent volume.",
+  "steps": [
+    {"type": "SetTile", "args": {"latitude": "45"}},
+    {"type": "SetSeason", "args": {"dayOfYear": "40"}},
+    {"type": "SetFeature", "args": {"featureName": "realistic_preset", "enabled": "false"}},
+    {"type": "SetWeather", "args": {"weatherDef": "Clear", "instant": "true"}},
+    {"type": "SetFeature", "args": {"featureName": "cloud_cover_forced_overcast", "enabled": "true"}},
+    {"type": "SetFeature", "args": {"featureName": "cloud_sheet", "enabled": "true"}},
+    {"type": "SetTime", "args": {"hour": "19.60"}},
+
+    {"type": "Probe", "args": {"probeName": "cloud_volume_format", "expectedValue": "1", "tolerance": "0.001"}},
+    {"type": "Probe", "args": {"probeName": "cloud_volume_shader_loaded", "expectedValue": "1", "tolerance": "0.001"}},
+    {"type": "Probe", "args": {"probeName": "cloud_volume_baked", "expectedValue": "0", "tolerance": "0.001"}},
+    {"type": "Probe", "args": {"probeName": "cloud_volume_shader", "expectedValue": "0", "tolerance": "0.001"}},
+
+    {"type": "SetFeature", "args": {"featureName": "cloud_volume", "enabled": "true"}},
+    {"type": "Wait", "args": {"frames": "240"}},
+
+    {"type": "Probe", "args": {"probeName": "cloud_volume_baked", "expectedValue": "1", "tolerance": "0.001"}},
+    {"type": "Probe", "args": {"probeName": "cloud_volume_shader", "expectedValue": "1", "tolerance": "0.001"}},
+    {"type": "Probe", "args": {"probeName": "cloud_volume_shader_loaded", "expectedValue": "1", "tolerance": "0.001"}}
+  ]
+}

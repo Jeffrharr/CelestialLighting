@@ -2430,6 +2430,34 @@ and the path route deliver the same render rather than merely both passing. With
 the absence of an error in the first proves nothing, since an absent log line and an impossible one
 look the same.
 
+**The static mirrors are gone, and the cloud bake is gated on its own flag.** Each shader class used
+to hold `static readonly Shader Loaded = Load()` behind a `[StaticConstructorOnStartup]`. With the
+def in place that is a second cache in front of `ShaderTypeDef.shaderInt`, and two ways to reach one
+object is one too many — the route that is not used is the route that goes stale, and the only
+defence is a comment telling people which to use. So the shader resolves through the def at the point
+of use, the *verdict* is memoised instead (`shader.name` is a native call that allocates, and
+`MaxActive` asks every frame), and `VectorLightShader` and `AuroraShader` no longer force themselves
+to initialise at load, because nothing in them needs to.
+
+`CloudVolumeShader` keeps the attribute, for a reason that is not shader caching: it starts the
+background volume bake. That bake now runs only when `cloud_volume` is on, so a player who has turned
+the march off pays neither the few hundred ms of pooled CPU nor the `Texture3D` held for the session.
+It is still eager in the default case — the static constructor asks during load, exactly where it
+used to — and `Available` asks again every frame, because the flag is mutable at runtime and a
+load-only gate would leave the feature permanently dead for anyone who enabled it without
+restarting. That failure would be silent: the sky keeps drawing the baked atlas while the settings
+screen says otherwise.
+
+Verified live. `cloud_volume_gate.json` is the only scenario that can see the gate at all, because
+the gate is read in the static constructor and every other cloud scenario starts from the shipped
+default of on — their toggling hits an already-started bake and proves nothing. Run with the
+persisted setting off it reads `cloud_volume_baked` 0 and `cloud_volume_shader` 0 while
+`cloud_volume_shader_loaded` stays **1**, which is what separates "we declined to bake" from "the
+shader failed"; after flipping the flag on mid-run it reads 1 and 1. It is deliberately not in a
+suite: it needs a prepared settings XML, so it must be run standalone. The rest of the refactor was
+re-gated on the existing scenarios — the vector-lighting suite 8/8, `aurora_shader`, and
+`cloud_volume_sweep`'s six off/on cycles — all green.
+
 **Pure core / adapter split**, as everywhere else:
 
 - `Source/AuroraNoise.cs` — tileable value noise + fBm, with **separate X and Y periods**. Anisotropy

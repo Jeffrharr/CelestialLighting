@@ -29,11 +29,10 @@ namespace CelestialLighting;
 // compile on the player's hardware. All three land on Available == false and the curtain falls back
 // to the bake — a shipped, measured arm rather than an unknown one.
 //
-// [StaticConstructorOnStartup] is load-bearing rather than tidiness, exactly as on VectorLightShader:
-// Shader lookups and Material construction must happen on Unity's main thread after LoadedModManager
-// has the bundles open, and the attribute is what guarantees the static initialiser runs there rather
-// than on whichever thread first touches the type.
-[StaticConstructorOnStartup]
+// NO [StaticConstructorOnStartup], exactly as on VectorLightShader. It was here to put the eager
+// `Loaded` field's Shader lookup on Unity's main thread during load; there is no eager field now, and
+// every remaining use resolves the shader while building a Material on the render path, which is
+// already the main thread.
 public static class AuroraShader
 {
     // The shader's path INSIDE the bundle, minus the extension: RimWorld builds the full asset path
@@ -60,11 +59,19 @@ public static class AuroraShader
 
     private static readonly int DriverTintId = Shader.PropertyToID("_DriverTint");
 
-    private static readonly Shader Loaded = Load();
+    // The shader itself, resolved through the def on every read. ShaderTypeDef memoises into its own
+    // shaderInt, so after the first call this is a field read behind a property — cheap enough that a
+    // second cache here would buy nothing except a second way to reach the same object.
+    private static Shader Loaded => ShaderLoader.Resolve(
+        CelestialShaderDefOf.CL_Aurora, ShaderPath, "the aurora curtain");
+
+    // The VERDICT is cached even though the shader is not: Validate reads shader.name, which is a
+    // native call that allocates a fresh string, and Active asks this every frame.
+    private static bool? available;
 
     // Whether the fragment program can be drawn at all on this machine. Read this rather than the
     // feature flag wherever the answer has to be true for the frame to be correct.
-    public static bool Available => Loaded != null;
+    public static bool Available => available ??= Validate();
 
     // Whether the curtain should be drawn by the shader this frame: asked for, and possible.
     //
@@ -138,10 +145,11 @@ public static class AuroraShader
         return material;
     }
 
-    private static Shader Load()
+    // Runs once, behind Available's cache. Returns a verdict rather than a shader because the shader
+    // is not ours to hold — see Loaded.
+    private static bool Validate()
     {
-        Shader shader = ShaderLoader.Load(
-            CelestialShaderDefOf.CL_Aurora, ShaderPath, "the aurora curtain");
+        Shader shader = Loaded;
 
         if (shader == null || shader.name != ShaderName)
         {
@@ -149,7 +157,7 @@ public static class AuroraShader
                 "[CelestialLighting] Could not load shader '" + ShaderPath + "' from the mod's asset "
                 + "bundles (got '" + (shader == null ? "null" : shader.name) + "'). The aurora "
                 + "curtain falls back to the CPU-baked field.");
-            return null;
+            return false;
         }
 
         // Supported is a per-machine answer, not a per-build one: the bundle can be perfectly valid
@@ -162,9 +170,9 @@ public static class AuroraShader
             Log.Warning(
                 "[CelestialLighting] Shader '" + ShaderPath + "' loaded but is not supported on this "
                 + "system. The aurora curtain falls back to the CPU-baked field.");
-            return null;
+            return false;
         }
 
-        return shader;
+        return true;
     }
 }

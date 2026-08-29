@@ -86,13 +86,23 @@ public static class CloudVolumeShader
         CloudRaymarchMath.RowPeakTexels(CloudSheetOverlay.AtlasSize / CloudSheetOverlay.AtlasCells,
             CloudDeckMath.DeckCount);
 
-    private static readonly Shader VolumeShader = ShaderLoader.Load(
+    // Resolved through the def on every read rather than cached here — see ShaderLoader for why the
+    // mirror went away.
+    private static Shader Loaded => ShaderLoader.Resolve(
         CelestialShaderDefOf.CL_CloudVolume, ShaderPath, "the volumetric cloud march");
+
+    // Cached because shader.name is a native call that allocates, and Available asks this every frame.
+    private static bool? shaderLoaded;
 
     // Whether the shader that came back is OURS. See ShaderName: a failed load is not a null here,
     // it is vanilla's default shader wearing the same slot, so this is the only honest test.
-    public static bool ShaderLoaded =>
-        VolumeShader != null && VolumeShader.isSupported && VolumeShader.name == ShaderName;
+    public static bool ShaderLoaded => shaderLoaded ??= Validate();
+
+    private static bool Validate()
+    {
+        Shader shader = Loaded;
+        return shader != null && shader.isSupported && shader.name == ShaderName;
+    }
 
     // THE BAKE RUNS ON A BACKGROUND THREAD AND THE MAIN THREAD NEVER WAITS FOR IT (§25e).
     //
@@ -102,11 +112,51 @@ public static class CloudVolumeShader
     // thread. That is the house rule about pure cores and thin adapters paying out rather than luck.
     // Measured in game, 328 ms of the bake moved and 9 ms of upload stayed.
     //
-    // Started from the field initialiser, which runs inside [StaticConstructorOnStartup] on the main
-    // thread during load. `ShaderDatabase.LoadShader` above it must stay there — it is a Unity call
-    // — and it is also what decides whether to bake at all, which is why the ordering warning on the
-    // property ids applies to this line too.
-    private static readonly Task<Bake> BakeTask = StartBake();
+    // GATED ON THE FEATURE FLAG, WHICH IS THE POINT OF IT BEING A FIELD RATHER THAN AN INITIALISER.
+    // The bake costs a few hundred ms of pooled CPU at load and its result is a Texture3D that is
+    // held for the session; a player who has turned the volumetric march off should pay neither. So
+    // nothing starts until something asks, and EnsureBakeStarted is what asks.
+    //
+    // It is still EAGER in the default case: the static constructor calls EnsureBakeStarted during
+    // [StaticConstructorOnStartup], so with the flag on — the shipped default — the bake begins
+    // exactly where it used to, before the main menu, rather than costing a frame later.
+    //
+    // Safe to read the flag that early because CelestialLightingSettingsMod's constructor runs
+    // inside LoadedModManager.LoadAllActiveMods and calls ApplyToRuntime, which is a long way before
+    // StaticConstructorOnStartupUtility.CallAll in PlayDataLoader.DoPlayLoad. The persisted choice is
+    // in the flag by the time this asks; the shipped default would otherwise always win and the gate
+    // would be decoration.
+    private static Task<Bake> bakeTask;
+
+    static CloudVolumeShader()
+    {
+        EnsureBakeStarted();
+    }
+
+    // Starts the bake if it should be running and is not already. Called from the static constructor
+    // for the on-at-load case and from Available for the turned-on-later case.
+    //
+    // THE SECOND CALLER IS NOT BELT-AND-BRACES. The flag is mutable at runtime — the settings window
+    // writes it through ApplyToRuntime every frame it is open, and the harness's SetFeature step
+    // writes it mid-scenario — so a gate that only ran at load would leave the feature permanently
+    // dead for anyone who enabled it without restarting. That failure is silent: the sky simply keeps
+    // rendering the baked atlas while the settings screen says otherwise.
+    //
+    // Costs two bool reads per frame once running is declined, which is the price of not needing a
+    // restart.
+    private static void EnsureBakeStarted()
+    {
+        if (bakeTask != null)
+            return;
+
+        if (!CelestialLightingFeatures.CloudVolume)
+            return;
+
+        if (!ShaderLoaded)
+            return;
+
+        bakeTask = StartBake();
+    }
 
     // Assigned once, on the main thread, by Upload(). Null until the bake has finished AND something
     // on the main thread has asked for it — see Available.
@@ -158,6 +208,7 @@ public static class CloudVolumeShader
     {
         get
         {
+            EnsureBakeStarted();
             Upload();
 
             // BOTH the texture and the materials, not just the texture. Upload assigns `volume`
@@ -174,7 +225,7 @@ public static class CloudVolumeShader
     // `ready = 1, available = 0` is looking at a texture Unity refused; one that reads `0, 0` at the
     // same instant is simply early, and the fix is to wait rather than to go looking for a driver
     // bug. Without the split those are the same reading.
-    public static bool BakeFinished => BakeTask != null && BakeTask.IsCompleted;
+    public static bool BakeFinished => bakeTask != null && bakeTask.IsCompleted;
 
     // Sets everything that varies per sheet and returns the material to draw it with.
     //
@@ -341,11 +392,9 @@ public static class CloudVolumeShader
         public double Milliseconds;
     }
 
+    // Unconditional: EnsureBakeStarted owns the "should we?" question, so this owns only "how".
     private static Task<Bake> StartBake()
     {
-        if (!ShaderLoaded)
-            return null;
-
         // Captured on the main thread and passed in, rather than read inside the task. Both are
         // compile-time constants today, but reading a `static readonly` of another
         // [StaticConstructorOnStartup] class from a worker thread is how a mod ends up running
@@ -430,7 +479,7 @@ public static class CloudVolumeShader
     // successful call — see Available, which is the only caller and calls it every frame.
     private static void Upload()
     {
-        if (uploadAttempted || BakeTask == null || !BakeTask.IsCompleted)
+        if (uploadAttempted || bakeTask == null || !bakeTask.IsCompleted)
             return;
 
         uploadAttempted = true;
@@ -439,16 +488,16 @@ public static class CloudVolumeShader
         // nothing here that should throw, which is exactly why it is worth naming the file in the
         // message if it ever does: the symptom otherwise is a sky that quietly renders one subsystem
         // older than the settings screen claims.
-        if (BakeTask.IsFaulted)
+        if (bakeTask.IsFaulted)
         {
             Log.Error("[CelestialLighting] Cloud volume bake failed; falling back to the baked "
-                + $"atlas (§25b). {BakeTask.Exception?.GetBaseException()}");
+                + $"atlas (§25b). {bakeTask.Exception?.GetBaseException()}");
             return;
         }
 
         Stopwatch watch = Stopwatch.StartNew();
 
-        Bake bake = BakeTask.Result;
+        Bake bake = bakeTask.Result;
         BakeMilliseconds = bake.Milliseconds;
 
         int size = CloudSheetOverlay.AtlasSize;
@@ -477,7 +526,7 @@ public static class CloudVolumeShader
         Material[] materials = new Material[CloudSheetLayout.MaxSheets];
         for (int i = 0; i < materials.Length; i++)
         {
-            materials[i] = new Material(VolumeShader);
+            materials[i] = new Material(Loaded);
             materials[i].SetTexture(TextureId, texture);
         }
 
