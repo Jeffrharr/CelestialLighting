@@ -20,6 +20,9 @@ public static class VectorLightRedraw
     private static bool lastEnabled = CelestialLightingFeatures.VectorLights;
     private static float lastReach = VectorLightSettings.Reach;
 
+    // Whether a reach change is waiting for the settings window to close. See SyncTo.
+    private static bool reachRebuildOwed;
+
     // TWO INPUTS, because both are baked. The checkbox decides whether the mask bakes at all, and
     // the reach multiplier decides what radius every polygon on the map is cast to — so a reach
     // change that dirtied nothing would leave the whole colony drawing the previous setting's
@@ -28,10 +31,19 @@ public static class VectorLightRedraw
     //
     // THE TWO TAKE DIFFERENT PATHS, and the reason is cadence rather than how much each changes.
     // Both genuinely invalidate every polygon on the map. But ApplyToRuntime runs every frame the
-    // settings window is open, so a checkbox is crossed once per click while a SLIDER is crossed on
+    // settings window is open, so a checkbox is crossed once per CLICK while a slider is crossed on
     // ~60 consecutive frames as the mouse is dragged — and every one of those crossings is a real
-    // change that detection cannot collapse. So the per-value path has to be the cheap one, or the
-    // drag stutters for as long as it lasts.
+    // change that detection cannot collapse.
+    //
+    // SO THE SLIDER DOES NOT REBUILD AT ALL WHILE IT IS BEING DRAGGED. It records that a rebuild is
+    // owed and FlushPendingRebuild pays it once, when the settings window closes. Rebuilding per
+    // crossed value makes the control unusable on any colony large enough to care: each one rebakes
+    // every polygon on the map, and the player is dragging through dozens of them.
+    //
+    // NOTHING IS LOST BY WAITING, which is what makes this a deferral rather than a compromise. The
+    // settings window covers the map, so there is no live preview to spoil — the first frame anybody
+    // can actually see is the one after the window closes, and that frame is built from the final
+    // value instead of from every value on the way to it.
     public static void SyncTo(bool enabled, float reach)
     {
         bool switchMoved = enabled != lastEnabled;
@@ -44,13 +56,35 @@ public static class VectorLightRedraw
         lastReach = reach;
 
         // The switch wins when both moved: it is the more thorough of the two and subsumes the
-        // other, so doing both would rebake the map twice to reach the same state.
+        // other, so doing both would rebake the map twice to reach the same state. It also clears
+        // the debt, since ForceRebuild has already rebuilt everything the reach change wanted.
+        //
+        // IMMEDIATE RATHER THAN DEFERRED, unlike the slider, and the asymmetry is the click/drag one
+        // above: a checkbox is crossed once, so paying at once costs a single rebake and keeps the
+        // behaviour every existing scenario was measured against.
         if (switchMoved)
         {
+            reachRebuildOwed = false;
             ForceRebuild();
             return;
         }
 
+        reachRebuildOwed = true;
+    }
+
+    // Pay off a deferred reach change. Called when the settings window closes — RimWorld routes that
+    // through Mod.WriteSettings, which is also where the in-game hotkey save lands, so both ways of
+    // leaving the screen settle the map.
+    //
+    // A NO-OP WHEN NOTHING IS OWED, which is the common case: closing the window without touching
+    // this slider must not rebake a colony. The debt is only ever taken on by a reach change that
+    // SyncTo already established was a real one.
+    public static void FlushPendingRebuild()
+    {
+        if (!reachRebuildOwed)
+            return;
+
+        reachRebuildOwed = false;
         RebuildForReach();
     }
 
@@ -65,7 +99,10 @@ public static class VectorLightRedraw
     // to arrive back where we started, once per frame of a drag.
     //
     // Public because the harness's own reach override calls it: a scenario has to exercise the path
-    // a player's settings screen exercises, or the arms measure a route that never ships.
+    // a player's settings screen exercises, or the arms measure a route that never ships. It calls
+    // THIS rather than SyncTo deliberately — the deferral above is about WHEN the rebuild happens
+    // and a scenario needs it to have happened before the next frame is captured, while what gets
+    // built is identical either way and is the half worth measuring.
     public static void RebuildForReach()
     {
         // What makes the next resync run Upsert over every emitter — which is where the reach
