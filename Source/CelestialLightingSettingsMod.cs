@@ -261,10 +261,37 @@ public class CelestialLightingSettingsMod : Mod
         //
         // GatedSlider, not LabeledSlider: everything in this group is inert while the master switch
         // is off, and a live slider under a dead feature is the control that reads as broken.
+        // A HEADING PLUS TWO SLIDERS, rather than one control carrying the name, because the feature
+        // genuinely has two axes and a player has to be able to tell which one they are moving. The
+        // heading is greyed with the group so the gate reads consistently; Listing_Standard has no
+        // heading concept, so it is a Label doing the job the indentation already implies.
+        GatedCheckbox(listing, "    Astryl's extra vibrant lighting", ref Settings.vectorLightVibrant,
+            vectorLightsOn,
+            "Named for Astryl, who came up with it.\n\nRimWorld's lamps stop dead at the edge of their radius: they light a small area well and everything past it not at all. Real light does not do that \u2014 a torch lights a small circle well and a large circle faintly. This gives your lamps that missing outer glow.\n\nThe two sliders below set how far it reaches and how much of it you accept. Visual only: plant growth, work speed and what pawns can see are untouched.");
+
+        // BOTH SLIDERS GATED ON THE SWITCH AS WELL AS ON THE MASTER, which is why this is its own
+        // local rather than reusing vectorLightsOn. A slider that is live while the feature above it
+        // is off is a control that appears to do something and does nothing — the same rule the
+        // whole group is already gated by, applied one level down.
+        bool vibrantOn = vectorLightsOn && Settings.vectorLightVibrant;
         GatedSlider(
-            listing, "    Astryl's extra vibrant lighting", ref Settings.vectorLightReach,
-            VectorLightReachMath.NoReach, VectorLightReachMath.MaxReach, vectorLightsOn,
-            "Named for Astryl, who came up with it. How far a lamp throws light past its own radius. At the far left lamps light exactly the area they always have. Moving right stretches the game's own falloff curve over a longer distance, so a lamp keeps its bright core and gains a wide, very dim halo around it \u2014 a torch in a dark room lighting a small circle well and a large circle faintly, instead of stopping dead at a hard edge.\n\nThis is the one setting here that makes your lamps genuinely brighter rather than just differently shaped, so it starts off. Shadows, beams and doorways all stretch with it, and it changes nothing about plant growth, work speed or what pawns can see.\n\nIt costs more the further right you go \u2014 a lamp casts its shadows over a larger area \u2014 so if you run a big colony with a lot of lamps, move it a little at a time.");
+            listing, "      Lamp glow size", ref Settings.vectorLightReach,
+            VectorLightReachMath.NoReach, VectorLightReachMath.MaxReach, vibrantOn,
+            "How far a lamp throws light past its own radius. Moving right stretches the game's own falloff curve over a longer distance, so a lamp keeps its bright core and gains a wide, very dim halo around it \u2014 a torch in a dark room lighting a small circle well and a large circle faintly, instead of stopping dead at a hard edge.\n\nThis is the one that LIGHTS THE ROOM: it lifts the floor around a lamp and its doorway beams by roughly the same amount, where the brightness slider below mostly strengthens the beams. Shadows stretch with it too, and it changes nothing about plant growth, work speed or what pawns can see.\n\nIt costs more the further right you go \u2014 a lamp casts its shadows over a larger area \u2014 so if you run a big colony with a lot of lamps, move it a little at a time. Changes here are applied when you close this window, not while you drag.");
+        // THE SECOND AXIS, and the reason the pair is worth two controls rather than one. Size
+        // decides how far a lamp reaches; this decides how much of the extra light to accept. With
+        // only the first, a player who finds the result too bright has to shorten their lamps, which
+        // makes them small AND dim — Astryl's fork spent two rounds discovering exactly that before
+        // splitting the two.
+        //
+        // IT IS FREE AND LIVE, unlike the slider above it. Size is geometry and a change to it
+        // rebakes the map, which is why that one waits for the window to close; this is a material
+        // property recomputed per frame in the draw, so it moves the moment it is dragged and needs
+        // no invalidation at all. Worth knowing when the two feel different to use.
+        GatedSlider(
+            listing, "      Lamp glow brightness", ref Settings.vectorLightBrightness,
+            VectorLightReachMath.NoBrightness, VectorLightReachMath.MaxBrightness, vibrantOn,
+            "How much of that extra light a lamp actually delivers. At the far left lamps are exactly as bright as they have always been; moving right accepts more of it.\n\nThis mostly intensifies the BEAMS \u2014 light spilling through a doorway or past a corner \u2014 rather than filling the room. Measured on one lamp in one room, turning this the whole way up lifts a doorway beam about six times as much as it lifts the room itself; the size slider above is the one that lights the room. If the beams are too strong for your taste, this is the dial to bring back down.\n\nIt only ever adds to light your lamps already cast: where the game was already lighting a spot correctly there is nothing extra to accept. Free to change \u2014 unlike the size slider it takes effect immediately.");
 
         // NO "EXTRA VIBRANT INDOOR LIGHTING" CHECKBOX, and it was here rather than never built. The
         // layer it drove delivered the same excess TWICE — once additively, once as a scaling of the

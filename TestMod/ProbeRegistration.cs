@@ -1877,6 +1877,10 @@ public static class ProbeRegistration
             VectorLightReachOverride.MaxFeatureKey,
             enabled => VectorLightReachOverride.SetMax(enabled),
             defaultEnabled: false);
+        FeatureRegistry.Register(
+            VectorLightReachOverride.BrightFeatureKey,
+            enabled => VectorLightReachOverride.SetBright(enabled),
+            defaultEnabled: false);
         // Not a CelestialLightingFeatures flag: forces CloudCoverClock.FractionForMap's result to a
         // fixed constant so a scenario gets a specific, reproducible cloud fraction on demand instead
         // of depending on which absolute year the harness's clock jump happened to land in (see

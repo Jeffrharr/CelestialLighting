@@ -14,4 +14,9 @@ public static class VectorLightSettings
     // How far past its own glowRadius a lamp is drawn, as a multiplier. See VectorLightReachMath —
     // in particular why the resting value is exactly 1 and why that has to stay exact.
     public static float Reach = VectorLightReachMath.NoReach;
+
+    // How much of the modelled excess over vanilla a lamp delivers, as a multiplier on the fitted
+    // DefaultStrength. See VectorLightReachMath — in particular why the resting value is 1, why the
+    // range opens upward only, and why this one costs nothing where Reach costs a rebake.
+    public static float Brightness = VectorLightReachMath.NoBrightness;
 }

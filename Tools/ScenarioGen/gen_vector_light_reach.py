@@ -73,7 +73,7 @@ def feature(name, enabled):
     return {"type": "SetFeature", "args": {"featureName": name, "enabled": "true" if enabled else "false"}}
 
 
-def arm(vector_lights, reach, indoor_multiply):
+def arm(vector_lights, reach, indoor_multiply, bright=False):
     """One arm's flags, stated in full.
 
     STATED IN FULL RATHER THAN INHERITED, because a flag left unstated is whatever the arm before it
@@ -86,6 +86,7 @@ def arm(vector_lights, reach, indoor_multiply):
     steps += [feature(name, enabled) for name, enabled in SHARED]
     steps.append(feature("vector_light_reach_vibrant", reach == "vibrant"))
     steps.append(feature("vector_light_reach_max", reach == "max"))
+    steps.append(feature("vector_light_brightness_max", bright))
     steps.append(feature("vector_light_indoor_multiply", indoor_multiply))
     return steps
 
@@ -107,8 +108,8 @@ def shader_pins():
     ]
 
 
-def capture(name, vector_lights, reach, indoor_multiply, pin_shader=True, pins=None):
-    steps = arm(vector_lights, reach, indoor_multiply)
+def capture(name, vector_lights, reach, indoor_multiply, pin_shader=True, pins=None, bright=False):
+    steps = arm(vector_lights, reach, indoor_multiply, bright)
     if pin_shader:
         steps += shader_pins()
     if pins:
@@ -124,6 +125,9 @@ def capture(name, vector_lights, reach, indoor_multiply, pin_shader=True, pins=N
 # argument in four numbers: 374 -> 604 -> 664 cells of lit area across reach 1 / 1.5 / 2, against a
 # coverage grid that sits at 948 cells throughout — the same number three times, to the byte.
 #
+# The areas are 374 / 485 / 664 across reach 1.0 / 1.2 / 2.0, where 1.2 is the value the checkbox
+# starts at and therefore the one most players will ever see.
+#
 # 948 is the map's FOUR emitters summed, not the torch's own square, which is why it is not a
 # perfect square. The emitter count is pinned beside it so the total means something.
 #
@@ -133,11 +137,12 @@ def capture(name, vector_lights, reach, indoor_multiply, pin_shader=True, pins=N
 # corridor beyond them. That is the feature working as designed rather than a shortfall — reach
 # lengthens what a lamp can SEE, and a wall is still a wall.
 LIT_AREA_OFF = "374.18"
-LIT_AREA_VIBRANT = "604.06"
+LIT_AREA_VIBRANT = "484.76"
 LIT_AREA_MAX = "663.66"
 COVERAGE_CELLS = "948"
 LIT_CELLS_OFF = "329"
-LIT_CELLS_REACHED = "467"
+LIT_CELLS_VIBRANT = "432"
+LIT_CELLS_MAX = "467"
 EMITTERS = "4"
 
 # Wide enough to absorb the polygon's own 48-gon discretisation and no wider.
@@ -192,14 +197,25 @@ def main():
     # THE FEATURE at the position it is proposed at.
     steps += capture(
         "reach_vibrant.png", True, "vibrant", False,
-        pins=geometry_pins(LIT_AREA_VIBRANT, LIT_CELLS_REACHED))
+        pins=geometry_pins(LIT_AREA_VIBRANT, LIT_CELLS_VIBRANT))
 
     # THE TOP OF THE SLIDER, which is where the cost is worst and where the mid-field lift is most
     # likely to read as the map being washed out rather than as a warmer room. An arm nobody looks at
     # is how a slider ships with an unusable top end.
     steps += capture(
         "reach_max.png", True, "max", False,
-        pins=geometry_pins(LIT_AREA_MAX, LIT_CELLS_REACHED))
+        pins=geometry_pins(LIT_AREA_MAX, LIT_CELLS_MAX))
+
+    # THE SECOND AXIS ON ITS OWN, at reach 1. This is the arm that says whether brightness is a
+    # separable control or a duplicate of the first: at reach 1 the excess is the GEOMETRY difference
+    # alone — the open door, the octile residue, the rim — so what this arm brightens is the shipped
+    # renderer's own contribution and nothing more. It should move, and move much less than reach
+    # does, because there is far less excess to scale.
+    steps += capture("reach_bright_only.png", True, "off", False, bright=True)
+
+    # BOTH AXES, which is how the pair is meant to be used and the arm that shows they compose. Size
+    # makes the excess larger and brightness delivers more of it, so this must exceed either alone.
+    steps += capture("reach_vibrant_bright.png", True, "vibrant", False, bright=True)
 
     # THE INCUMBENT, which is the whole reason this scenario exists. Same room, same hour, same
     # renderer: the question on the table is whether reach is a better answer to the want the
@@ -237,6 +253,9 @@ def main():
             "comparison. Arms at midnight: vanilla, §27 as shipped, reach at the proposed position, "
             "reach at the top of the slider, the multiply layer alone, both at once, and §27 as "
             "shipped again as a same-build control for the run-to-run pixel floor; then the "
+            "Two further arms carry the second axis: brightness alone at reach 1, which scales only "
+            "the geometry excess the shipped renderer already draws, and both axes together, which "
+            "must exceed either alone. Then the "
             "shipped/reach pair repeated at noon, where the floor is already brighter and any extra "
             "light must read smaller. Two probes carry the cost argument as a pair: "
             "vector_light_lit_area is the polygon's own area and MUST grow with reach, while "

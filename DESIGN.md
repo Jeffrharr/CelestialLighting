@@ -12983,7 +12983,59 @@ The ceiling is `GlowGrid.MaxLightRadius` (40), taken from vanilla rather than in
 question it answers is vanilla's: how wide is any light in this game allowed to be. Two defs ship
 above radius 20 (24 and 30), and at the top of the slider they would ask for 48 and 60 cells.
 
-#### The slider does not rebake while it is being dragged
+#### A switch above the pair, and what it is for
+
+Each slider has an off position of its own, so a checkbox above them is not obviously necessary — and
+is, for three reasons in the order they matter. A player deciding whether to want this at all is
+asking a **yes/no** question and should not have to discover that 1.0 means "no". Turning it off and
+back on has to return the settings they chose rather than a default, which a slider dragged to its
+floor cannot do. And the two axes are **one feature**: without a switch above them, declining it
+means moving two controls and hoping you got both.
+
+`ApplyToRuntime` pushes the **resting values** whenever the switch is off, regardless of where the
+sliders sit, so off is the shipped renderer exactly and the stored positions survive a trip through
+off and back. It hands `VectorLightRedraw.SyncTo` the *effective* reach rather than the slider's own,
+so ticking the box is itself a change the redraw can see — handing it the raw slider value would make
+the checkbox a control that rewrites the geometry and never asks for it to be drawn.
+
+The size slider therefore starts at **1.2** rather than at its own floor: a checkbox whose sliders
+start at their off positions does nothing when ticked, which reads as a broken control. 1.2 was
+picked by eye from the captures across 1.0 / 1.5 / 2.0 — restrained rather than strongest, on this
+repo's standing preference for landing an effect where it reads as the room being warmer instead of
+as the mod announcing itself, with the louder values one drag away. (It is also Astryl's hard floor,
+by coincidence: their 1.2 is where their pass stops working at all, ours is a starting position on a
+slider whose floor is 1. The two mean nothing to each other.)
+
+#### Two axes, and why they are two controls
+
+Size and brightness are separate questions, which is Astryl's own finding and the reason their build
+carries two knobs. Reach decides how **big** a lamp is; brightness decides how **much** of the extra
+to accept. With only the first, a player who finds the result too bright has to shorten their lamps —
+which makes them small *and* dim, and is precisely how two rounds on their fork ended with no visible
+effect at all. Their note puts it plainly: *"Reach sets the SIZE, FillStrength sets the brightness …
+if this is too bright, turn strength down rather than reach."*
+
+Ours multiplies **upward** where theirs scales down, and that follows from where the resting point
+is. Their fill had no composition against vanilla, so their strength scaled a whole model down from
+1. Ours scales the excess *over* vanilla, and that excess is already delivered at
+`VectorLightMath.DefaultStrength` — a fitted constant (0.35, solved against a measured vanilla arm)
+whose whole job is to hold the line that vector lighting changes shape and not brightness. Going
+below it would dim the shipped renderer rather than decline an addition, so 1 is the floor and the
+resting value.
+
+**Why this is not the "Lamp beam strength" slider that was removed.** That one set a lamp's *level*
+in place of the per-fragment comparison against vanilla, so it could brighten cells vanilla had
+already lit correctly, and under the max there was nothing left for it to say. This one lands on the
+excess **after** the fragment program has subtracted vanilla — so where the two models agree the
+excess is zero, and any multiple of zero is still zero. The self-limiting property survives being
+scaled, which is the whole difference.
+
+**The two cost differently, and the settings screen says so.** Reach is *geometry*: it sets the
+radius every visibility polygon is cast to, so moving it obliges a rebake and the slider defers one
+(below). Brightness is a *material property* — `VectorLightOverlay.StrengthFor` recomputes the scalar
+per emitter per frame inside the draw — so it is live, free, and has no invalidation path at all.
+
+#### The size slider does not rebake while it is being dragged
 
 `ApplyToRuntime` runs every frame the settings window is open, so a checkbox is crossed once per
 click and a **slider is crossed ~60 times a second** while the mouse is held. Every crossing is a
@@ -13006,6 +13058,41 @@ existence — `Upsert` already marks exactly that. Marking the rosters and rebak
 of claim that is wrong quietly: the scenario drives the same `RebuildForReach` a player's settings
 screen does, and reads the same lit areas as the heavy path to the decimal (374.177002 / 604.056763
 / 663.663147).
+
+#### What each axis actually does, measured
+
+One room, one lamp, two openings, midnight, against a **bit-identical** same-build control. Outdoor
+spill is the ground beyond the roofed lamp's own doorway:
+
+| arm | room | west spill | east spill | masked ΔE | p90 |
+|---|---|---|---|---|---|
+| vanilla | 12.68 | 4.74 | 3.52 | — | — |
+| shipped (both off) | 13.14 | 6.79 | 5.85 | — | — |
+| **size 1.2 (the default)** | 13.98 **(+0.84)** | 8.04 (+1.25) | 6.96 (+1.11) | **1.49** | 2.62 |
+| size 2.0 | 15.68 (+2.54) | 10.42 (+3.63) | 9.32 (+3.47) | 3.73 | 7.73 |
+| **brightness 2.0 alone** | 13.54 **(+0.40)** | 9.16 (+2.37) | 8.75 (+2.90) | 1.24 | 5.53 |
+| both at maximum | 15.24 (+2.10) | 11.62 (+4.83) | 11.16 (+5.31) | 3.34 | 8.83 |
+| indoor multiply (retired) | 13.65 (+0.51) | 12.09 (+5.30) | 11.27 (+5.42) | 1.62 | 13.25 |
+| same-build control | 13.14 | 6.79 | 5.85 | **0.00** | 0.00 |
+
+**They are different knobs, and the table is what says so rather than the design intent.** Size lifts
+the room and the spill by roughly the same factor (≈1.4:1) — it is the axis that *lights a room*.
+Brightness lifts the spill about **six times** more than the room (+2.37/+2.90 against +0.40),
+because it scales an excess that is already concentrated in the beams. Both together exceed either
+alone on every region, which is the composition property the split exists to provide.
+
+That characterisation is in the **tooltips**, not just here: a player choosing between two sliders
+needs to know which one lights their room, and the honest answer was only available once both had
+been photographed.
+
+Note also that brightness alone lands in the same shape as the retired multiply layer (+0.40 room,
++2.37/+2.90 spill against the multiply's +0.51 / +5.30 / +5.42) — unsurprising, since both scale an
+existing excess rather than enlarging it. What size does, neither of them can.
+
+**The shipped default is restrained on purpose.** Ticking the box and touching nothing measures ΔE
+**1.49**, visible on close inspection; the top of both sliders is 3.34, visible at a glance. That is
+this repo's calibration preference — land around 3–6 at the loud end and keep the default below it,
+with the louder values one drag away.
 
 #### It replaced the indoor multiply layer, on the numbers
 

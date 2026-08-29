@@ -26,14 +26,12 @@ namespace CelestialLighting.Probes;
 // wrong rather than obviously broken.
 public static class VectorLightReachOverride
 {
-    // The position this feature is actually proposed at, and the one the multiply layer is compared
-    // against. Its peak excess over vanilla — at the old rim, where the effect is strongest — works
-    // out at 0.6 * (reach - 1) / reach, i.e. about 51 of 255 glow levels, independent of the lamp's
-    // own radius. Also the value Astryls' fork shipped after eye-tuning, which is not evidence but
-    // is a second opinion.
+    // THE SHIPPED DEFAULT, taken from the constant rather than repeated as a literal so this arm
+    // cannot drift away from what a player gets by ticking the box — which is the one position in
+    // the range most people will ever see, and therefore the one an A/B has to cover.
     public const string VibrantFeatureKey = "vector_light_reach_vibrant";
 
-    public const float VibrantReach = 1.5f;
+    public const float VibrantReach = VectorLightReachMath.DefaultReach;
 
     // The top of the slider. Pinned as its own arm rather than trusted, because the cost story and
     // the look story diverge here: this is where a lamp's silhouette scan is at its most expensive
@@ -41,8 +39,14 @@ public static class VectorLightReachOverride
     // as a warmer room. An arm nobody looks at is how a slider ships with an unusable top end.
     public const string MaxFeatureKey = "vector_light_reach_max";
 
+    // The brightness axis, which is a different kind of knob and gets its own key for that reason:
+    // it scales the excess rather than enlarging it, and it takes effect without a rebake. An arm
+    // that moved both at once could not say which one the frame is showing.
+    public const string BrightFeatureKey = "vector_light_brightness_max";
+
     private static bool vibrant;
     private static bool max;
+    private static bool bright;
 
     public static void SetVibrant(bool enabled)
     {
@@ -56,11 +60,24 @@ public static class VectorLightReachOverride
         Apply();
     }
 
+    public static void SetBright(bool enabled)
+    {
+        bright = enabled;
+        Apply();
+    }
+
     private static void Apply()
     {
         // Max wins when both are on, stated rather than left to argument order — the same ruling
         // CloudOpacityOverride makes between its own two keys, and for the same reason: a scenario
         // that set both would otherwise depend on which line this method happens to read first.
+        // WRITTEN UNCONDITIONALLY AND WITHOUT A REBUILD, because it is a material property the draw
+        // recomputes every frame — the exact asymmetry the settings screen exposes as "free" against
+        // the size slider's deferred rebake.
+        VectorLightSettings.Brightness = bright
+            ? VectorLightReachMath.MaxBrightness
+            : VectorLightReachMath.NoBrightness;
+
         float reach = ReachForFlags();
 
         // Nothing to rebuild if the value did not move. A ResetAll between scenarios in a suite
@@ -85,7 +102,9 @@ public static class VectorLightReachOverride
         // Logged on every flip, not only on failure. PlanetsmithTiltOverride's rule: a silent test
         // hook is indistinguishable from the feature under test not working, and this one's visible
         // effect is a dim halo that a reader is entitled to doubt.
-        Log.Message($"[CelestialLighting.Probes] Vector light reach override: {reach}.");
+        Log.Message(
+            "[CelestialLighting.Probes] Vector light override: reach " + reach
+            + ", brightness " + VectorLightSettings.Brightness + ".");
     }
 
     private static float ReachForFlags()

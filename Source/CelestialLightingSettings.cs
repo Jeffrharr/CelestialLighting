@@ -164,7 +164,23 @@ public class CelestialLightingSettings : ModSettings
     // An existing config carrying <vectorLightIndoorMultiply> loads clean and drops the value on the
     // next write, exactly as the beam-strength node above does. DESIGN.md keeps the measurement.
 
-    // Astryl's extra vibrant lighting (§27): how far past its own glowRadius a lamp is drawn, as a multiplier.
+    // Astryl's extra vibrant lighting (§27) — the master switch for the pair of sliders below it.
+    //
+    // A CHECKBOX AS WELL AS THE SLIDERS, and not redundant with them even though each slider has an
+    // off position of its own. Three reasons, in the order they matter. A player deciding whether to
+    // want this at all is asking a yes/no question and should not have to discover that 1.0 means
+    // "no". Turning it off and back on has to return the settings they chose rather than a default,
+    // which a slider dragged to its floor cannot do. And the two axes are one feature: without a
+    // switch above them, declining it means moving two controls and hoping you got both.
+    //
+    // OFF, like everything else in this group that changes how bright a colony is. When off, the
+    // resting values are pushed to the runtime regardless of where the sliders sit — see
+    // ApplyToRuntime — so the frame is the shipped renderer exactly, which is what the repo's flag
+    // rule needs and what makes the sliders' stored positions safe to keep.
+    public bool vectorLightVibrant = false;
+
+    // How far past its own glowRadius a lamp is drawn, as a multiplier. Inert while the switch above
+    // is off.: how far past its own glowRadius a lamp is drawn, as a multiplier.
     //
     // A SLIDER RATHER THAN A CHECKBOX, on the same reasoning cloudOpacity carries: the complaint it
     // answers is a matter of degree — how much bigger and softer a player wants their lamps — and
@@ -177,7 +193,21 @@ public class CelestialLightingSettings : ModSettings
     // reaches and never how bright a lamp is. Everything else in this group is self-limiting against
     // vanilla by construction; this one is a taste call about lamp brightness, so nobody gets it
     // without asking. See VectorLightReachMath for the curve and for what the number buys.
-    public float vectorLightReach = VectorLightReachMath.NoReach;
+    public float vectorLightReach = VectorLightReachMath.DefaultReach;
+
+    // The other half of the pair: how much of the modelled excess over vanilla a lamp delivers.
+    //
+    // SEPARATE FROM REACH BECAUSE THEY ARE SEPARATE QUESTIONS, which is Astryl's own finding and the
+    // reason their build carries two knobs. Reach decides how BIG a lamp is; this decides how MUCH
+    // of the extra to accept. With only one of them, a player who finds the result too bright has to
+    // shorten the light — which makes lamps small AND dim, and is exactly how two earlier rounds on
+    // their fork ended up with no visible effect at all.
+    //
+    // 1 ON BOTH SIDES, i.e. off, and upward-only from there. It multiplies
+    // VectorLightMath.DefaultStrength, a fitted constant whose whole job is to hold the line that
+    // vector lighting changes shape and not brightness; going below it would dim the shipped
+    // renderer rather than declining an addition. See VectorLightReachMath.Brightness.
+    public float vectorLightBrightness = VectorLightReachMath.NoBrightness;
 
     // --- Night-radiance tunables (drive NightRadianceSettings.Current) ---
     // The atmospheric starlight+airglow floor ("true pitch-black" when off), and the pitch-black
@@ -362,9 +392,24 @@ public class CelestialLightingSettings : ModSettings
         // one it acted on and rebuilds every polygon on the map when they differ; the field below is
         // what the rebuild then reads back out. Pushing it afterwards would rebuild against the
         // PREVIOUS reach and leave the map one settings change behind, permanently.
-        VectorLightSettings.Reach = vectorLightReach;
+        // THE SWITCH DECIDES, NOT THE SLIDERS, and pushing the resting values when it is off is what
+        // makes "off" mean the shipped renderer rather than "whatever the sliders happen to say".
+        // It is also what lets the stored positions survive a trip through off and back.
+        VectorLightSettings.Reach =
+            vectorLightVibrant ? vectorLightReach : VectorLightReachMath.NoReach;
 
-        VectorLightRedraw.SyncTo(vectorLights, vectorLightReach);
+        // NO REDRAW TRACKING FOR THIS ONE, and its absence is the interesting half of the pair
+        // rather than an omission. Reach is geometry — it sets the radius every visibility polygon
+        // is cast to, so moving it obliges a rebake and SyncTo below defers one. Brightness is a
+        // material property: VectorLightOverlay.StrengthFor recomputes the scalar per emitter per
+        // frame inside the draw, so the next frame already has it and there is nothing to invalidate.
+        VectorLightSettings.Brightness =
+            vectorLightVibrant ? vectorLightBrightness : VectorLightReachMath.NoBrightness;
+
+        // THE EFFECTIVE REACH, not the slider's own, so that ticking the switch is itself a change
+        // SyncTo can see. Handing it the raw slider value would make the checkbox a control that
+        // rewrites the geometry and never asks for it to be redrawn.
+        VectorLightRedraw.SyncTo(vectorLights, VectorLightSettings.Reach);
         CelestialLightingFeatures.VectorLights = vectorLights;
 
         // SyncTo already rebuilt if the master switch moved. This covers the door switch moving on
@@ -465,7 +510,17 @@ public class CelestialLightingSettings : ModSettings
         // reach. Both sides must stay at NoReach exactly — a default of anything else would relight
         // every existing colony on update, silently, which is the rewrite Scribe_Values makes so
         // easy to do by accident.
-        Scribe_Values.Look(ref vectorLightReach, "vectorLightReach", VectorLightReachMath.NoReach);
+        Scribe_Values.Look(ref vectorLightVibrant, "vectorLightVibrant", false);
+        // The shipped SLIDER POSITION on both sides, which is not the same as the feature's off
+        // position — the switch above owns that. An absent node means "this config predates the
+        // option", and such a config also has no vectorLightVibrant node, so it loads with the
+        // feature off and this value inert.
+        Scribe_Values.Look(
+            ref vectorLightReach, "vectorLightReach", VectorLightReachMath.DefaultReach);
+        // Same reasoning as its sibling: the off position on both sides, so an absent node means
+        // "this config predates the option" and predating it is the same as declining it.
+        Scribe_Values.Look(
+            ref vectorLightBrightness, "vectorLightBrightness", VectorLightReachMath.NoBrightness);
         Scribe_Values.Look(ref skyColorTemperature, "skyColorTemperature", true);
         Scribe_Values.Look(ref polarNightBlue, "polarNightBlue", true);
         Scribe_Values.Look(ref polarNightBlueStrength, "polarNightBlueStrength", 1f);
