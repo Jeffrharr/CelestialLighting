@@ -2418,6 +2418,18 @@ script, `Shader "…"` declaration) are pinned against each other offline by `Sh
 and `PackagedDefOfTests` — written against an empty DefOf list and dormant until now — checks that
 what the assembly binds is what the package ships.
 
+**Both routes were measured live, and the point of the second run is that it fails loudly.** The gate
+suite passed all eight scenarios with the defs installed, with no `Failed to find`, no
+`Could not load shader` and no `ShaderLoader` error anywhere in `Player.log` — i.e. the defs resolved.
+The same `vector_light_gap_vs_door` was then re-run under a plain `--mod-overlay`, leaving `Defs/`
+stale on purpose: RimWorld logged `Failed to find Verse.ShaderTypeDef named CL_CloudVolume` (and the
+other two) against 122 loaded `ShaderTypeDef`s, `ShaderLoader` logged its three errors, and
+`Could not load shader` still did not appear — the fallback found every shader. All **29 probes were
+bit-identical between the two runs**, `vector_light_shader_max_available` included, so the def route
+and the path route deliver the same render rather than merely both passing. Without that second run
+the absence of an error in the first proves nothing, since an absent log line and an impossible one
+look the same.
+
 **Pure core / adapter split**, as everywhere else:
 
 - `Source/AuroraNoise.cs` — tileable value noise + fBm, with **separate X and Y periods**. Anisotropy
