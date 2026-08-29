@@ -1,7 +1,7 @@
 {
   "name": "vector_light_reach",
   "saveFile": "minimal_colony.rws",
-  "description": "Lamp glow reach against the indoor multiply layer, in one frame. Both answer the same want \u2014 a lit room that reads richer \u2014 and they disagree about how: reach draws the lamp with vanilla's own falloff curve stretched over a longer radius so the excess the max composition delivers is larger, while the multiply layer keeps the excess where it is and delivers it twice. The scene is vector_light_surface_lift's own, unchanged, because the incumbent is measured in it and a challenger shot in a different room is not a comparison. Arms at midnight: vanilla, \u00a727 as shipped, reach at the proposed position, reach at the top of the slider, the multiply layer alone, both at once, and \u00a727 as shipped again as a same-build control for the run-to-run pixel floor; then the Two further arms carry the second axis: brightness alone at reach 1, which scales only the geometry excess the shipped renderer already draws, and both axes together, which must exceed either alone. Then the shipped/reach pair repeated at noon, where the floor is already brighter and any extra light must read smaller. Two probes carry the cost argument as a pair: vector_light_lit_area is the polygon's own area and MUST grow with reach, while vector_light_coverage_lit_cells counts the coverage grid and must NOT, because the grid is capped at vanilla's radius on the grounds that its only use is scaling vanilla's light and vanilla delivers nothing past its cutoff. A run where both move is a run where that optimisation did not land, and no pixel measurement would say so. Every cloud flag is off and stated: half this scene is open ground under a measured beam.",
+  "description": "Lamp glow reach against the indoor multiply layer, in one frame. Both answer the same want \u2014 a lit room that reads richer \u2014 and they disagree about how: reach draws the lamp with vanilla's own falloff curve stretched over a longer radius so the excess the max composition delivers is larger, while the multiply layer keeps the excess where it is and delivers it twice. The scene is vector_light_surface_lift's own, unchanged, because the incumbent is measured in it and a challenger shot in a different room is not a comparison. Arms at midnight: vanilla, \u00a727 as shipped, reach at the proposed position, reach at the top of the slider, the multiply layer alone, both at once, and \u00a727 as shipped again as a same-build control for the run-to-run pixel floor; then the The arm that matters most is the shipped pair \u2014 size 1.2 with brightness at Astryl's own 0.85 \u2014 which is what ticking the checkbox and touching nothing gives, and which DIMS relative to size alone because 0.85 sits below the resting value. Two further arms carry the second axis: brightness alone at reach 1, which scales only the geometry excess the shipped renderer already draws, and both axes together, which must exceed either alone. Then the shipped/reach pair repeated at noon, where the floor is already brighter and any extra light must read smaller. Two probes carry the cost argument as a pair: vector_light_lit_area is the polygon's own area and MUST grow with reach, while vector_light_coverage_lit_cells counts the coverage grid and must NOT, because the grid is capped at vanilla's radius on the grounds that its only use is scaling vanilla's light and vanilla delivers nothing past its cutoff. A run where both move is a run where that optimisation did not land, and no pixel measurement would say so. Every cloud flag is off and stated: half this scene is open ground under a measured beam.",
   "steps": [
     {
       "type": "SetTile",
@@ -262,6 +262,13 @@
     {
       "type": "SetFeature",
       "args": {
+        "featureName": "vector_light_brightness_default",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
         "featureName": "vector_light_indoor_multiply",
         "enabled": "false"
       }
@@ -452,6 +459,13 @@
     {
       "type": "SetFeature",
       "args": {
+        "featureName": "vector_light_brightness_default",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
         "featureName": "vector_light_indoor_multiply",
         "enabled": "false"
       }
@@ -620,6 +634,13 @@
       "type": "SetFeature",
       "args": {
         "featureName": "vector_light_brightness_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_brightness_default",
         "enabled": "false"
       }
     },
@@ -848,6 +869,13 @@
     {
       "type": "SetFeature",
       "args": {
+        "featureName": "vector_light_brightness_default",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
         "featureName": "vector_light_indoor_multiply",
         "enabled": "false"
       }
@@ -1070,6 +1098,13 @@
     {
       "type": "SetFeature",
       "args": {
+        "featureName": "vector_light_brightness_default",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
         "featureName": "vector_light_indoor_multiply",
         "enabled": "false"
       }
@@ -1272,6 +1307,203 @@
       "type": "SetFeature",
       "args": {
         "featureName": "vector_light_reach_vibrant",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_reach_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_brightness_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_brightness_default",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_indoor_multiply",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_shader_max_available",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_available",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "reach_default_pair.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_suppress",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_beam",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max_lift",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max_seed",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max_subtract",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_open_doors",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_glow_blocker",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_aperture",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_surface_lift",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_cover",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_sheet",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_presence",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_deck_varieties",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_reach_vibrant",
         "enabled": "false"
       }
     },
@@ -1287,6 +1519,13 @@
       "args": {
         "featureName": "vector_light_brightness_max",
         "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_brightness_default",
+        "enabled": "false"
       }
     },
     {
@@ -1482,6 +1721,13 @@
     {
       "type": "SetFeature",
       "args": {
+        "featureName": "vector_light_brightness_default",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
         "featureName": "vector_light_indoor_multiply",
         "enabled": "false"
       }
@@ -1666,6 +1912,13 @@
       "type": "SetFeature",
       "args": {
         "featureName": "vector_light_brightness_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_brightness_default",
         "enabled": "false"
       }
     },
@@ -1862,6 +2115,13 @@
     {
       "type": "SetFeature",
       "args": {
+        "featureName": "vector_light_brightness_default",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
         "featureName": "vector_light_indoor_multiply",
         "enabled": "true"
       }
@@ -2046,6 +2306,13 @@
       "type": "SetFeature",
       "args": {
         "featureName": "vector_light_brightness_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_brightness_default",
         "enabled": "false"
       }
     },
@@ -2256,6 +2523,13 @@
     {
       "type": "SetFeature",
       "args": {
+        "featureName": "vector_light_brightness_default",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
         "featureName": "vector_light_indoor_multiply",
         "enabled": "false"
       }
@@ -2440,6 +2714,13 @@
       "type": "SetFeature",
       "args": {
         "featureName": "vector_light_brightness_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_brightness_default",
         "enabled": "false"
       }
     },

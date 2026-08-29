@@ -44,9 +44,16 @@ public static class VectorLightReachOverride
     // that moved both at once could not say which one the frame is showing.
     public const string BrightFeatureKey = "vector_light_brightness_max";
 
+    // ASTRYL'S OWN CALIBRATION, which is what the checkbox actually starts at and therefore the one
+    // brightness a live A/B has to cover. It sits BELOW the resting value, so this key dims where
+    // the one above it lifts — an arm that assumed a single direction would read one of them as
+    // broken.
+    public const string DefaultBrightFeatureKey = "vector_light_brightness_default";
+
     private static bool vibrant;
     private static bool max;
     private static bool bright;
+    private static bool defaultBright;
 
     public static void SetVibrant(bool enabled)
     {
@@ -66,6 +73,12 @@ public static class VectorLightReachOverride
         Apply();
     }
 
+    public static void SetDefaultBright(bool enabled)
+    {
+        defaultBright = enabled;
+        Apply();
+    }
+
     private static void Apply()
     {
         // Max wins when both are on, stated rather than left to argument order — the same ruling
@@ -74,9 +87,7 @@ public static class VectorLightReachOverride
         // WRITTEN UNCONDITIONALLY AND WITHOUT A REBUILD, because it is a material property the draw
         // recomputes every frame — the exact asymmetry the settings screen exposes as "free" against
         // the size slider's deferred rebake.
-        VectorLightSettings.Brightness = bright
-            ? VectorLightReachMath.MaxBrightness
-            : VectorLightReachMath.NoBrightness;
+        VectorLightSettings.Brightness = BrightnessForFlags();
 
         float reach = ReachForFlags();
 
@@ -105,6 +116,19 @@ public static class VectorLightReachOverride
         Log.Message(
             "[CelestialLighting.Probes] Vector light override: reach " + reach
             + ", brightness " + VectorLightSettings.Brightness + ".");
+    }
+
+    // Max wins over the shipped default when both are set, stated rather than left to argument
+    // order, for the reason the reach keys make the same ruling: a scenario that set both would
+    // otherwise depend on which line this method happens to read first.
+    private static float BrightnessForFlags()
+    {
+        if (bright)
+            return VectorLightReachMath.MaxBrightness;
+
+        return defaultBright
+            ? VectorLightReachMath.DefaultBrightness
+            : VectorLightReachMath.NoBrightness;
     }
 
     private static float ReachForFlags()

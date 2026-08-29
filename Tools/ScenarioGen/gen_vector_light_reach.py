@@ -73,7 +73,7 @@ def feature(name, enabled):
     return {"type": "SetFeature", "args": {"featureName": name, "enabled": "true" if enabled else "false"}}
 
 
-def arm(vector_lights, reach, indoor_multiply, bright=False):
+def arm(vector_lights, reach, indoor_multiply, bright=False, default_bright=False):
     """One arm's flags, stated in full.
 
     STATED IN FULL RATHER THAN INHERITED, because a flag left unstated is whatever the arm before it
@@ -87,6 +87,7 @@ def arm(vector_lights, reach, indoor_multiply, bright=False):
     steps.append(feature("vector_light_reach_vibrant", reach == "vibrant"))
     steps.append(feature("vector_light_reach_max", reach == "max"))
     steps.append(feature("vector_light_brightness_max", bright))
+    steps.append(feature("vector_light_brightness_default", default_bright))
     steps.append(feature("vector_light_indoor_multiply", indoor_multiply))
     return steps
 
@@ -108,8 +109,9 @@ def shader_pins():
     ]
 
 
-def capture(name, vector_lights, reach, indoor_multiply, pin_shader=True, pins=None, bright=False):
-    steps = arm(vector_lights, reach, indoor_multiply, bright)
+def capture(name, vector_lights, reach, indoor_multiply, pin_shader=True, pins=None, bright=False,
+            default_bright=False):
+    steps = arm(vector_lights, reach, indoor_multiply, bright, default_bright)
     if pin_shader:
         steps += shader_pins()
     if pins:
@@ -206,6 +208,16 @@ def main():
         "reach_max.png", True, "max", False,
         pins=geometry_pins(LIT_AREA_MAX, LIT_CELLS_MAX))
 
+    # WHAT TICKING THE CHECKBOX ACTUALLY GIVES, and the most important arm in the file for that
+    # reason: size at its starting 1.2 AND brightness at Astryl's own 0.85, which is the pair a
+    # player gets by turning the feature on and touching nothing. Every other arm here is a position
+    # somebody has to go looking for.
+    #
+    # Note it dims where the arms below lift — 0.85 is BELOW the resting value, because Astryl's
+    # strength scales a model that replaces vanilla's contribution while ours scales the excess over
+    # it. An arm that assumed one direction would read this as a regression.
+    steps += capture("reach_default_pair.png", True, "vibrant", False, default_bright=True)
+
     # THE SECOND AXIS ON ITS OWN, at reach 1. This is the arm that says whether brightness is a
     # separable control or a duplicate of the first: at reach 1 the excess is the GEOMETRY difference
     # alone — the open door, the octile residue, the rim — so what this arm brightens is the shipped
@@ -253,6 +265,9 @@ def main():
             "comparison. Arms at midnight: vanilla, §27 as shipped, reach at the proposed position, "
             "reach at the top of the slider, the multiply layer alone, both at once, and §27 as "
             "shipped again as a same-build control for the run-to-run pixel floor; then the "
+            "The arm that matters most is the shipped pair \u2014 size 1.2 with brightness at "
+            "Astryl's own 0.85 \u2014 which is what ticking the checkbox and touching nothing gives, "
+            "and which DIMS relative to size alone because 0.85 sits below the resting value. "
             "Two further arms carry the second axis: brightness alone at reach 1, which scales only "
             "the geometry excess the shipped renderer already draws, and both axes together, which "
             "must exceed either alone. Then the "

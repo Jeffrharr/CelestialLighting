@@ -132,33 +132,55 @@ public class VectorLightReachMathTests
         Assert.That(VectorLightReachMath.Extends(10f, VectorLightReachMath.DefaultReach), Is.True);
     }
 
-    // The brightness axis. Same rule as reach's off position and for the same reason: its resting
-    // value has to leave the shipped renderer bit-identical, because that is the baseline every live
-    // A/B of this feature is read against.
+    // The brightness axis. The RESTING value is what the master switch pushes when the feature is
+    // off, and it alone has to leave the shipped renderer bit-identical — the slider's own range is
+    // free to sit either side of it, which is what lets Astryl's sub-1 calibration be adopted at all.
     [Test]
-    public void RestingBrightnessIsExactlyOne()
+    public void RestingBrightnessIsExactlyOneAndAltersNothing()
     {
         Assert.That(
             VectorLightReachMath.Brightness(VectorLightReachMath.NoBrightness),
             Is.EqualTo(1f));
 
-        Assert.That(VectorLightReachMath.Brightens(VectorLightReachMath.NoBrightness), Is.False);
+        Assert.That(VectorLightReachMath.AltersBrightness(VectorLightReachMath.NoBrightness), Is.False);
     }
 
-    // Clamped UPWARD from the resting value, which is the one place this differs from Astryl's own
-    // FillStrength and is deliberate rather than an oversight. Theirs scales a whole model down from
-    // 1; ours scales the excess over vanilla, which is already delivered at the fitted
-    // VectorLightMath.DefaultStrength — so going below would dim the SHIPPED renderer rather than
-    // decline an addition, and a settings file written against some future range must not be able to
-    // do that by loading.
-    [TestCase(0f)]
-    [TestCase(0.5f)]
-    [TestCase(0.99f)]
-    [TestCase(-3f)]
-    public void BelowRestingBrightnessIsClampedUp(float brightness)
+    // THE STARTING VALUE IS ASTRYL'S OWN AND SITS BELOW THE RESTING ONE, which is the direction
+    // nobody predicts and the reason it is pinned rather than left to the field initialiser. Their
+    // FillStrength scales a model that replaces vanilla's contribution; ours scales the excess over
+    // it, already delivered at a constant fitted to read at vanilla's brightness — so their 0.85 is
+    // ≈0.85 of ours, and the switch starts a little under what the size slider alone would give.
+    [Test]
+    public void TheSwitchStartsAtAstrylsCalibrationBelowResting()
     {
-        Assert.That(VectorLightReachMath.Brightness(brightness), Is.EqualTo(1f));
-        Assert.That(VectorLightReachMath.Brightens(brightness), Is.False);
+        Assert.That(VectorLightReachMath.DefaultBrightness, Is.EqualTo(0.85f));
+        Assert.That(
+            VectorLightReachMath.DefaultBrightness, Is.LessThan(VectorLightReachMath.NoBrightness));
+
+        // Inside the range, and not ON the floor: a slider whose default sits at its minimum cannot
+        // be turned down, which is the one thing splitting the axes was supposed to make possible.
+        Assert.That(
+            VectorLightReachMath.DefaultBrightness, Is.GreaterThan(VectorLightReachMath.MinBrightness));
+        Assert.That(
+            VectorLightReachMath.Brightness(VectorLightReachMath.DefaultBrightness),
+            Is.EqualTo(VectorLightReachMath.DefaultBrightness));
+
+        // And it is a real change, in the dimming direction.
+        Assert.That(
+            VectorLightReachMath.AltersBrightness(VectorLightReachMath.DefaultBrightness), Is.True);
+    }
+
+    // Clamped to the FLOOR now, not up to the resting value — the range deliberately extends below
+    // 1 so the beams can be softened, which is only safe because the master switch owns "off" and
+    // pushes NoBrightness regardless of where this sits.
+    [TestCase(0f)]
+    [TestCase(0.25f)]
+    [TestCase(-3f)]
+    public void BelowTheFloorIsClampedToIt(float brightness)
+    {
+        Assert.That(
+            VectorLightReachMath.Brightness(brightness),
+            Is.EqualTo(VectorLightReachMath.MinBrightness));
     }
 
     [TestCase(2.5f)]
@@ -170,13 +192,15 @@ public class VectorLightReachMathTests
             Is.EqualTo(VectorLightReachMath.MaxBrightness));
     }
 
+    // Both directions count as altering it, which is why the predicate is not named for brightening.
+    [TestCase(0.5f)]
+    [TestCase(0.85f)]
     [TestCase(1.25f)]
-    [TestCase(1.5f)]
     [TestCase(2f)]
-    public void InRangeBrightnessPassesThroughAndCounts(float brightness)
+    public void InRangeBrightnessPassesThroughAndCountsEitherWay(float brightness)
     {
         Assert.That(VectorLightReachMath.Brightness(brightness), Is.EqualTo(brightness));
-        Assert.That(VectorLightReachMath.Brightens(brightness), Is.True);
+        Assert.That(VectorLightReachMath.AltersBrightness(brightness), Is.True);
     }
 
     // THE TWO AXES ARE INDEPENDENT, which is the property the split exists to provide and the one a

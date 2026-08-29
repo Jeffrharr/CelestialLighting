@@ -110,22 +110,49 @@ public static class VectorLightReachMath
     // in which shortening reach was the only dial available and produced lamps that were small AND
     // dim.
     //
-    // OURS MULTIPLIES UP RATHER THAN DOWN, which is the one place the two designs differ and it
-    // follows from where the resting point is. Their fill had no composition against vanilla, so
-    // their strength had to scale a whole model down from 1. Ours scales the EXCESS over vanilla,
-    // and that excess is already delivered at VectorLightMath.DefaultStrength — a fitted constant
-    // (0.35, solved against a measured vanilla arm) whose whole job is to hold the line that vector
-    // lighting changes shape and not how bright a lamp is. Going below it would dim the shipped
-    // renderer, which is not what a "vibrant" control is for and would break the flag rule the reach
-    // slider is careful to keep. So 1 is the floor and the resting value, and the range opens
-    // upward.
-    //
     // IT COSTS NOTHING, unlike reach, and the asymmetry is worth knowing before designing UI around
     // the pair. Reach is GEOMETRY — it changes the radius every visibility polygon is cast to, so
     // moving it rebakes the map. Brightness is a MATERIAL PROPERTY: VectorLightOverlay.StrengthFor
     // recomputes the scalar per emitter per frame in the draw, so this slider is live, free, and
     // needs no invalidation path at all.
+
+    // The value that leaves the renderer bit-identical to the shipped one, and what the master
+    // switch pushes whenever it is off.
+    //
+    // NOT THE SAME AS THE FLOOR, and separating the two is the whole of what this file learned when
+    // Astryl's own default was transferred across. It is the RESTING value: the multiplier at which
+    // our pass delivers exactly VectorLightMath.DefaultStrength, the fitted constant that holds the
+    // line that vector lighting changes shape and not how bright a lamp is. The slider is free to
+    // range either side of it; the FEATURE's off state is what has to land on it exactly, and the
+    // checkbox owns that.
     public const float NoBrightness = 1f;
+
+    // What the switch starts the brightness slider at — Astryl's own shipped FillStrength.
+    //
+    // WHY IT IS BELOW THE RESTING VALUE, which is the opposite of what "extra vibrant" suggests and
+    // is the interesting part. Their FillStrength scales a model that REPLACES vanilla's own
+    // contribution, so 1 is its natural ceiling and 0.85 is a step back from it. Ours scales the
+    // EXCESS over vanilla, and that excess is already delivered at DefaultStrength = 0.35 — a value
+    // fitted against a measured vanilla arm precisely so that our additive pass reads at vanilla's
+    // own brightness. So 0.35 is ≈unity in vanilla's units, our multiplier of 1 is ≈their 1, and
+    // their 0.85 lands at ≈0.85 of ours.
+    //
+    // Their slider only ever reduces and ours ranges both ways: same name, and for a long time the
+    // same assumed direction, which is why this is written down. Taking their number literally means
+    // the switch starts a little UNDER the level the size slider alone would deliver — lamps bigger,
+    // beams slightly softer — which is their calibration and is the point of adopting it.
+    public const float DefaultBrightness = 0.85f;
+
+    // Floor of the slider. Half, which is a round number rather than a measured one, and is meant as
+    // headroom under the default rather than as a position anybody is expected to want: a control
+    // whose default sits ON its floor cannot be turned down, and the whole argument for splitting
+    // the axes was that "too bright" needs an answer other than shortening the light.
+    //
+    // IT IS DELIBERATELY BELOW NoBrightness, so this slider CAN dim the beams below what §27 draws
+    // on its own. That is safe now in a way it would not have been before the master switch existed:
+    // "feature off" is the checkbox's job and the checkbox pushes NoBrightness regardless of where
+    // this sits, so the shipped-renderer baseline the flag rule needs is untouched by the range.
+    public const float MinBrightness = 0.5f;
 
     // Two, and the ceiling is the blend's rather than a taste call — on the surface-lift path the
     // frame becomes dst * (1 + output) against a UNORM target, so the pass can at most double what
@@ -136,17 +163,21 @@ public static class VectorLightReachMath
     // How much of the modelled excess to deliver, given the player's setting.
     //
     // Clamped rather than trusted for the reason ExtendedRadius clamps: a settings file written
-    // against some future range must not be able to dim the shipped renderer by loading.
+    // against some other range must not be able to push the pass somewhere the composition was never
+    // measured at.
     public static float Brightness(float brightness)
     {
-        if (brightness < NoBrightness)
-            return NoBrightness;
+        if (brightness < MinBrightness)
+            return MinBrightness;
 
         return brightness > MaxBrightness ? MaxBrightness : brightness;
     }
 
-    // Whether a given brightness leaves the renderer bit-identical to the shipped one.
-    public static bool Brightens(float brightness) => Brightness(brightness) > NoBrightness;
+    // Whether a given brightness moves the renderer off the shipped one AT ALL — in either
+    // direction, which is why it is not named for brightening. Below the resting value it dims the
+    // beams and above it lifts them, and both are changes a caller may need to know about.
+    public static bool AltersBrightness(float brightness)
+        => Brightness(brightness) != NoBrightness;
 
     // Whether a given reach leaves the renderer bit-identical to the shipped one.
     //
