@@ -264,19 +264,19 @@
       }
     },
     {
-      "_comment": "ARM D -- Undercave, and this arm is here because it FAILS the intuition rather than confirming it. An undercave is underground, but its BiomeDef inherits from Biome_Underground and RimWorld MERGES inherited list nodes, so its baseWeatherCommonalities holds two entries (Underground + Undercave), not one -- which puts it over BiomeHasChangingWeather's threshold and makes MapSky.HasSky return TRUE. The sky gate therefore does not catch it. Pinned so the number is on the record rather than discovered again later.",
+      "_comment": "ARM D -- Undercave. Added when it FAILED the intuition: its BiomeDef inherits from Biome_Underground and RimWorld merges inherited list nodes, so its weather list held two entries and the old entry-counting heuristic called a sealed cave skyful. It reads zero now because MapSky counts SUN-RESPONSIVE weathers instead, and both of Undercave's entries are the same frozen cave palette. Kept beside Underground and Labyrinth because it is the case the rule was rewritten for; undercave_sky.json measures the same fix on a real generated undercave.",
       "type": "SetBiome",
       "args": {
         "biomeDef": "Undercave"
       }
     },
     {
-      "_comment": "NON-ZERO, and that is the assertion. An undercave is underground and is still not caught by the sky gate, because its BiomeDef inherits from Biome_Underground and RimWorld MERGES inherited list nodes: baseWeatherCommonalities ends up holding two entries (Underground + Undercave), which is over BiomeHasChangingWeather's threshold, so MapSky.HasSky returns TRUE. In real play this is harmless -- an undercave is a pocket map, so the tile gate zeroes it first (see cloud_cover_pocket_map.json, which reaches the real thing) -- and reaching this biome on a valid tile is the only way the sky gate's own answer here is observable at all. Pinned so the number is on the record rather than rediscovered as a surprise later.",
+      "_comment": "ZERO NOW; it was 0.1896 before the weather-count filter. See the arm comment above.",
       "type": "Probe",
       "args": {
         "probeName": "cloud_cover_fraction",
-        "expectedValue": "0.275",
-        "tolerance": "0.240"
+        "expectedValue": "0.0000",
+        "tolerance": "0.0005"
       }
     },
     {
