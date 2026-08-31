@@ -34,12 +34,24 @@ public class GameComponent_SkyFalloffRedraw : GameComponent
     // granularity this repo already uses to avoid missing narrow effects — 250 ticks is 0.1 h).
     private const int CheckIntervalTicks = 250;
 
-    // Keyed by TILE id, same reasoning as CloudCoverClock.Cache: the value is a pure function of
-    // (tileId, glow), and a map's tile does not change mid-game, so a stale entry from an earlier
-    // session/world is harmless — the map's meshes were already baked correctly at spawn, and the next
-    // real drift still triggers off whatever this dictionary happens to hold. Never cleared for a
-    // despawned map: an orphaned float entry costs a few bytes and is bounded by how many tiles were
-    // ever settled this process's lifetime, never by anything that grows per tick.
+    // Keyed by MAP uniqueID, which is the same key GeometryMemo uses and for the same reason: the
+    // value is this map's last-baked glow, so the key has to be the thing that identifies a map.
+    //
+    // IT USED TO BE THE TILE ID, on the reasoning that a map's tile does not change mid-game and no
+    // two maps share one. The second half is false for pocket maps. Every one of them — Anomaly's
+    // labyrinth, metal hell and undercave, Odyssey's ancient stockpile, insect lair and space pocket —
+    // carries PlanetTile.Invalid, tileId -1, so they all collided on a single entry (see
+    // MapWorldTile.cs). Two pocket maps open at once therefore overwrote each other's baseline, and
+    // whichever one was checked second compared its own glow against the OTHER map's and skipped the
+    // redraw it needed. That reads as an indoor-occlusion mesh that stops tracking dusk, on one map
+    // only, which is close to undiagnosable from a bug report. It also directly contradicted this
+    // class's own PER-MAP header.
+    //
+    // What the tile key bought was survival across a reload, and that was never worth anything here:
+    // a map's meshes are baked correctly at spawn, so the worst a missing entry does is trigger one
+    // redundant redraw at the next check. uniqueID pays that and gets the invariant the value needs.
+    // Never cleared for a despawned map, as before: an orphaned float costs a few bytes and is
+    // bounded by how many maps existed this process's lifetime, never by anything that grows per tick.
     private static readonly Dictionary<int, float> lastBakedGlow = new Dictionary<int, float>();
 
     public GameComponent_SkyFalloffRedraw(Game game)
@@ -92,14 +104,14 @@ public class GameComponent_SkyFalloffRedraw : GameComponent
 
     private static void CheckMap(Map map)
     {
-        int tileId = map.Tile.tileId;
+        int mapId = map.uniqueID;
         float curGlow = map.skyManager.CurSkyGlow;
 
-        bool hasBaseline = lastBakedGlow.TryGetValue(tileId, out float bakedGlow);
+        bool hasBaseline = lastBakedGlow.TryGetValue(mapId, out float bakedGlow);
         if (hasBaseline && !SkyFalloffRedrawMath.ShouldRedraw(bakedGlow, curGlow, SkyFalloffRedrawMath.DefaultThreshold))
             return;
 
-        lastBakedGlow[tileId] = curGlow;
+        lastBakedGlow[mapId] = curGlow;
         IndoorOcclusionRedraw.ForceRebuildMap(map);
     }
 }
