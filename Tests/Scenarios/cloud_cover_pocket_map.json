@@ -1,0 +1,91 @@
+{
+  "name": "cloud_cover_pocket_map",
+  "description": "Partial cloud cover on a map with NO WORLD TILE -- the Anomaly labyrinth crash, reproduced against the real thing rather than a repainted biome. EnterPocketMap generates an actual tileless pocket map (PlanetTile.Invalid, tileId -1), which is the one condition SetBiome cannot produce and the one that made vanilla's unchecked WorldGrid indexer throw out of SkyManagerUpdate every frame. Run it against a build without MapWorldTile's guard and it fails; that A/B is the evidence, not the pin. EnterPocketMap dirties ScenarioResidue.NewMap, so this runs standalone.",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    {
+      "_comment": "The source colony's tile, fixed only so the labyrinth is generated from a known starting map. Nothing downstream reads it -- that is the whole point of the scenario.",
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "_comment": "Clear on the SOURCE map. Cloud cover only has an opinion while curWeather == Clear, so this is what makes the labyrinth's own reading reachable rather than short-circuited by a weather gate before the tile is ever touched. A pocket map inherits nothing from here -- it runs its generator's own weather -- but a run that started overcast would prove nothing about the tile guard.",
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "_comment": "FREEZE THE CLOCK, and it is load-bearing rather than tidiness. Cloud cover is continuous in the absolute tick, and the harness does not pause between steps -- so the fraction each probe sees depends on how many ticks elapsed getting to it, which depends on how long the preceding steps took in REAL time. Screenshots are the expensive ones (a 2 MB PNG each), and adding a single capture to this scenario moved every non-zero reading from 0.227 to 0.185: an 18% swing that looks exactly like a formula regression and is nothing but wall-clock. Paused, the biome is the only variable, which is what the scenario claims to measure.",
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "paused"
+      }
+    },
+    {
+      "_comment": "A THROWAWAY CAPTURE, and it has to be first. hideUi defaults true but is not honoured on a run's FIRST screenshot -- RimWorld's screenshot mode takes a frame to take effect -- so without this the first real capture carries the HUD while its pair does not, and an A/B between them measures UI pixels as if they were the effect. Discarded, never committed.",
+      "type": "Screenshot",
+      "args": {
+        "fileName": "discard_hud_primer.png"
+      }
+    },
+    {
+      "_comment": "The control, on the SOURCE map, before anything unusual happens. A non-zero reading here is what makes every zero below meaningful: it says the feature is alive in this build and this mod list, so the zeros are a gate firing rather than a subsystem that never ran. Banded rather than exact for the reason cloud_cover_skyless.json records at length: the absolute tick a run arrives at is not reproducible, so this reading spans roughly 0.06-0.49 across runs of one build. The assertion is which side of zero it falls on.",
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_cover_fraction",
+        "expectedValue": "0.275",
+        "tolerance": "0.240"
+      }
+    },
+    {
+      "_comment": "THE REPRODUCTION. An obelisk's labyrinth, generated through PocketMapUtility.GeneratePocketMap exactly as CompObelisk_Abductor does, at the obelisk's own 90x90. The step itself asserts the generated map has no valid world tile, so if a future RimWorld starts assigning pocket maps a real tile this scenario fails loudly rather than passing while testing nothing.\n\nOn a build without the tile guard this is where it ends: cloud cover reaches GenTemperature.GetTemperatureFromSeasonAtTile with tileId -1, that indexes Find.WorldGrid's backing List<Tile> unchecked, and the ArgumentOutOfRangeException comes out of SkyManagerUpdate on every rendered frame -- taking the whole sky composite with it.",
+      "type": "EnterPocketMap",
+      "args": {
+        "mapGenerator": "Labyrinth",
+        "size": "90",
+        "dlc": "Anomaly"
+      }
+    },
+    {
+      "_comment": "The gate. Zero, not merely small, and reached without throwing -- which is the half of this assertion that no number can express. The run's error count is the other half.",
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_cover_fraction",
+        "expectedValue": "0.0000",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "_comment": "The labyrinth actually rendering. On an unguarded build the sky composite is dead here, so this frame is evidence about the whole mod, not only about cloud cover.",
+      "type": "Screenshot",
+      "args": {
+        "fileName": "pocket_labyrinth_lit.png"
+      }
+    },
+    {
+      "_comment": "Sky glow on the pocket map, pinned wide. It is here to prove the sky pipeline RAN at all: the exception this scenario reproduces comes out of SkyManagerUpdate, so on a broken build there is no sky value to read, whereas a working one produces some number whatever it is. PINNED NON-ZERO, which is the whole point: on an unguarded build this reads 0 because SkyManagerUpdate threw before producing a sky at all. Measured 1 on the fixed build, 0 on main. Banded because a future change to enclosed ambient could legitimately move it; a drop to 0 could not be legitimate.",
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_glow",
+        "expectedValue": "1.0",
+        "tolerance": "0.5"
+      }
+    }
+  ]
+}
