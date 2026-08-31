@@ -3343,6 +3343,59 @@ reason to patch, and the occlusion change is confined to a predicate inside our 
 `Room.UsesOutdoorTemperature` is the right predicate. No code was copied, and the two
 implementations share neither structure nor mechanism.
 
+### 15c. The mask edit, and what it is NOT allowed to reach (`Patch_IndoorMaskOverage`)
+
+The seam fix edits vanilla's weather clip — `SectionLayer_IndoorMask` bakes an invisible quad per
+hidden cell, and the same depth pass that stops a sun shadow on roofed ground is what stops the rain
+overlay there. So the fix that closes a 3-4 px shading sliver is, mechanically, an edit to the thing
+that keeps rain off the floor, and it is worth being exact about the difference: the clamp takes a
+quad from `[x-0.16, x+1.16]` to `[x, x+1]`. That is a change of **margin**, not of **cover** — the
+quad still spans its whole cell, and neighbouring quads still tile edge to edge — which is why it
+cannot let weather through a roof, and why the porch mask vanilla already ships flush has never let
+weather through one either.
+
+**Two narrowings, taken after a subscriber reported rain falling through ceilings** (the report did
+not reproduce here — see below — but it was a fair question to ask of a patch that edits this):
+
+- **By material.** `AppendQuadToMesh` is public, static, and shared: its other shipped caller is
+  `BakeGravshipIndoorMesh`, which `WorldComponent_GravshipController` runs three times per takeoff or
+  landing to bake the free submeshes that fly with the ship and curtain the terrain. There is no eave
+  seam in a cutscene, so reaching those was only blast radius. The clamp now runs only for meshes
+  built with `MatBases.IndoorMask` (the 0.16 flavour) and `MatBases.DebugOverlay` (`drawIndoorMask`'s
+  mirror, which has to keep showing the real clip region). Identity, not a scope: nothing to enter,
+  leak, or unwind out of when another mod's patch throws.
+- **By value.** It moves only vanilla's own `0.16`. If another mod has already set the mask edge we
+  leave it alone rather than winning on patch order — a cosmetic sliver is not worth silently
+  overriding another mod's geometry. `ApiCompatibilityTests` pins that `0.16` is still the literal
+  `GenerateSectionLayer` bakes, so a Ludeon retune fails a test instead of switching the fix off
+  quietly.
+
+**Measured, live** (`rain_roof_mask`, `rain_roof_mask_flag`, `rain_roof_variants`, all at noon under
+`RainyThunderstorm`):
+
+| Probe | `eave_shadows` on | off |
+|---|---|---|
+| `indoor_mask_uncovered` — hidden cells with no quad over them, whole map | **0** | **0** |
+| `indoor_mask_overage` — largest inflation on a section quad | **0** | **0.1600** |
+| `gravship_mask_overage` — the same through `BakeGravshipIndoorMesh` | **0.1600** | 0.1600 |
+| `gravship_mask_uncovered` | 0 | 0 |
+| `indoor_mask_visible` — `DebugViewSettings.drawShadows` | 1 | 1 |
+
+`gravship_mask_overage` holding at vanilla's 0.16 while `indoor_mask_overage` reads 0 is the whole
+statement of the material gate, checked against live vanilla code rather than against this paragraph.
+It is pinned as a probe because it is the one mask path no frame here can photograph: the harness
+cannot fly a gravship, and a landed one is ordinary roofed cells that the section masks already own.
+
+Rain was verified stopping at the roofline in four flavours — sealed constructed room, porch (roofed,
+no walls), room with one wall cell missing, and `RoofRockThick` over open ground — the last three
+being the branches a sealed room does not exercise. The frames are in `Tests/Screenshots/`.
+
+**The failure mode worth knowing when this is reported again.** `SectionLayer_IndoorMask.Visible` is
+`DebugViewSettings.drawShadows` verbatim, so that one dev-mode toggle removes rain masking from every
+roof on the map at once — the whole-colony version of the symptom, and one nothing in this mod can
+cause. `indoor_mask_visible` reports it so a scenario cannot measure a layer that is not being drawn.
+
+
 ## 16. Section-layer invalidation: what one dirty flag now costs (§7b / §9 / §15)
 
 **Problem.** Four separate decisions — §9's desaturation layer, §15b's eave-shade layer, §15's

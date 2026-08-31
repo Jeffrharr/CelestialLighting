@@ -188,6 +188,11 @@
     <Compile Include="../Source/Probes/SkyOverlayLuminanceProbe.cs" Link="SkyOverlayLuminanceProbe.cs" />
     <Compile Include="../Source/Probes/SunClockProbe.cs" Link="SunClockProbe.cs" />
     <Compile Include="../Source/Probes/EaveCellProbe.cs" Link="EaveCellProbe.cs" />
+    <!-- Beside EaveCellProbe because it guards the other half of §15's seam fix: EaveCellProbe
+         counts what we shade, this counts what vanilla's mask still clips. Reaches vanilla's private
+         hide predicates and the gravship cutscene's own bake material, so like GeometryEvalCountProbe
+         above it needs Harmony's AccessTools. -->
+    <Compile Include="../Source/Probes/IndoorMaskProbe.cs" Link="IndoorMaskProbe.cs" />
     <Compile Include="../Source/Probes/SectionRegenerateTimingProbe.cs" Link="SectionRegenerateTimingProbe.cs" />
     <Compile Include="../Source/Probes/GeometryEvalCountProbe.cs" Link="GeometryEvalCountProbe.cs" />
     <Compile Include="../Source/Probes/SectionLayerDrawCountProbe.cs" Link="SectionLayerDrawCountProbe.cs" />

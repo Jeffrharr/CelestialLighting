@@ -306,6 +306,29 @@ public static class ProbeRegistration
         ProbeRegistry.Register(new EaveCellProbe("eave_cells", EaveCellProbe.Metric.Eaves));
         ProbeRegistry.Register(
             new EaveCellProbe("roof_shadow_cells", EaveCellProbe.Metric.ShadowCasters));
+        // The other half of §15's seam fix, and the only numeric answer this repo has to "rain falls
+        // through the ceiling". Patch_IndoorMaskOverage edits the geometry of vanilla's weather clip,
+        // so the coverage that clip provides is measured rather than argued: indoor_mask_uncovered is
+        // the defect count and must read 0 on every map with a roof on it.
+        //
+        // The other four exist because a lone zero is ambiguous. indoor_mask_overage says the clamp
+        // actually ran (0 with eave_shadows on, vanilla's 0.16 off), so a scenario cannot pass by
+        // measuring a patch that never applied. The gravship pair reads the same two numbers through
+        // BakeGravshipIndoorMesh with the takeoff cutscene's own material, which is the one mask path
+        // no harness frame can photograph — gravship_mask_overage holding at 0.16 while
+        // indoor_mask_overage sits at 0 is what proves the clamp stops at the section mask.
+        // indoor_mask_visible reports DebugViewSettings.drawShadows, the switch that deletes the mask
+        // wholesale: with it off every other number here is measuring a layer that is not drawn.
+        ProbeRegistry.Register(
+            new IndoorMaskProbe("indoor_mask_uncovered", IndoorMaskProbe.Metric.UncoveredCells));
+        ProbeRegistry.Register(
+            new IndoorMaskProbe("indoor_mask_overage", IndoorMaskProbe.Metric.Overage));
+        ProbeRegistry.Register(new IndoorMaskProbe(
+            "gravship_mask_uncovered", IndoorMaskProbe.Metric.GravshipUncoveredCells));
+        ProbeRegistry.Register(
+            new IndoorMaskProbe("gravship_mask_overage", IndoorMaskProbe.Metric.GravshipOverage));
+        ProbeRegistry.Register(
+            new IndoorMaskProbe("indoor_mask_visible", IndoorMaskProbe.Metric.LayerVisible));
         // §27 vector lights. Four metrics off one class, and they are read together on purpose:
         // vector_light_shadow_fraction is the claim ("walls are blocking light"), and the other three
         // are what stop a zero in it being mistaken for a disproof — no emitters, no reach, or no mesh

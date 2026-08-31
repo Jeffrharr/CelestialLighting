@@ -1,0 +1,140 @@
+{
+  "name": "rain_roof_mask",
+  "saveFile": "minimal_colony.rws",
+  "description": "Does rain draw through a roof? One sealed 12x12 granite room, fully roofed with RoofConstructed, under RainyThunderstorm at noon. Vanilla hides the rain overlay over roofed cells with SectionLayer_IndoorMask's invisible depth pass, and Patch_IndoorMaskOverage edits that pass's geometry, so this scenario is the regression gate for it: the screenshots are the look, the probes are the claim. indoor_mask_uncovered is the defect count and must stay at 0; indoor_mask_overage shows the clamp actually ran, so a frame cannot pass by measuring a patch that never applied.",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Concrete",
+        "width": "60",
+        "height": "32",
+        "offset": "0,45",
+        "clear": "true"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "0,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "-6,5; -5,5; -4,5; -3,5; -2,5; -1,5; 0,5; 1,5; 2,5; 3,5; 4,5; 5,5; -6,-6; -5,-6; -4,-6; -3,-6; -2,-6; -1,-6; 0,-6; 1,-6; 2,-6; 3,-6; 4,-6; 5,-6; -6,-5; -6,-4; -6,-3; -6,-2; -6,-1; -6,0; -6,1; -6,2; -6,3; -6,4; 5,-5; 5,-4; 5,-3; 5,-2; 5,-1; 5,0; 5,1; 5,2; 5,3; 5,4"
+      }
+    },
+    {
+      "type": "SetRoof",
+      "args": {
+        "def": "RoofConstructed",
+        "width": "12",
+        "height": "12",
+        "offset": "0,45"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "0,45",
+        "zoom": "22"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "60"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "rain_roof_clear.png"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "RainyThunderstorm",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "120"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "rain_roof_rain.png"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "indoor_mask_visible",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "indoor_mask_uncovered",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "indoor_mask_overage",
+        "expectedValue": "0",
+        "tolerance": "0.0001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "gravship_mask_uncovered",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "gravship_mask_overage",
+        "expectedValue": "0.16",
+        "tolerance": "0.0001"
+      }
+    }
+  ]
+}
