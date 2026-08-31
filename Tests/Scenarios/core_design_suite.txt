@@ -136,3 +136,18 @@ weather_dimming_census.json
 #
 # Its no-Clouds counterpart is cloud_sheet_default.json, which is in this list and shares its setup
 # exactly, so the pair reads as one A/B across the two runs.
+
+# rain_roof_mask.json / rain_roof_mask_flag.json / rain_roof_variants.json are absent for
+# indoor_glow_lamp.json's reason (PlaceThings and SetRoof leave map residue), but unlike it they are
+# happy TOGETHER in one load -- the reload between them is enough, and that is how they were measured.
+# They are the regression gate on §15c's edit to vanilla's weather clip, i.e. on "does rain fall
+# through a roof". Run the three as their own suite after anything touching Patch_IndoorMaskOverage,
+# SectionLayer_IndoorMask, or the eave shade:
+#
+#   ../RimWorldTestHarness/Runner/run_test.sh --mod . --mod TestMod \
+#       Tests/Scenarios/rain_roof_mask.json Tests/Scenarios/rain_roof_mask_flag.json \
+#       Tests/Scenarios/rain_roof_variants.json
+#
+# Read indoor_mask_uncovered first (0 = every hidden cell is covered; anything else IS the bug) and
+# indoor_mask_overage second, because the first number cannot tell a working clamp from a patch that
+# never applied and the second can.

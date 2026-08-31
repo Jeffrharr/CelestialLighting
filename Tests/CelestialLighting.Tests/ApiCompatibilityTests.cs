@@ -1475,6 +1475,95 @@ public class ApiCompatibilityTests
     }
 
     [Test]
+    public void SectionLayer_IndoorMask_AppendQuadToMesh_StillTakesAnOverage()
+    {
+        // Patch_IndoorMaskOverage prefixes this method by name and edits its `overage` argument by
+        // position. A rename or a reshuffled parameter list is the failure that would leave the eave
+        // seam back on screen with no error anywhere, since Harmony would simply never patch.
+        var type = GetType("Verse.SectionLayer_IndoorMask");
+        Assert.That(type, Is.Not.Null, "Verse.SectionLayer_IndoorMask no longer exists");
+        var method = type!.Methods.SingleOrDefault(m => m.Name == "AppendQuadToMesh");
+        Assert.That(method, Is.Not.Null, "SectionLayer_IndoorMask.AppendQuadToMesh no longer exists");
+        Assert.That(method!.IsPublic && method.IsStatic, Is.True,
+            "AppendQuadToMesh is no longer a public static — Patch_IndoorMaskOverage's patch target moved");
+        Assert.That(method.Parameters.Select(p => p.ParameterType.Name).ToArray(),
+            Is.EqualTo(new[] { "LayerSubMesh", "Single", "Single", "Single" }),
+            "AppendQuadToMesh's parameters changed — the prefix reads the mesh and writes the overage by name");
+        Assert.That(method.Parameters.Last().Name, Is.EqualTo("overage"),
+            "AppendQuadToMesh's last parameter is no longer called `overage` — Harmony binds the prefix by name");
+    }
+
+    [Test]
+    public void SectionLayer_IndoorMask_StillBakesTheOverageWeClamp()
+    {
+        // Patch_IndoorMaskOverage deliberately only moves vanilla's OWN value: it clamps 0.16 to zero
+        // and leaves anything else alone, so another mod that has already set the mask edge wins
+        // instead of losing to patch order. That politeness has a cost — if Ludeon retunes 0.16, our
+        // prefix silently stops matching and the seam comes back with nothing logged. This is the
+        // tripwire for that, and it is why the constant may be compared exactly in the patch.
+        var type = GetType("Verse.SectionLayer_IndoorMask");
+        Assert.That(type, Is.Not.Null, "Verse.SectionLayer_IndoorMask no longer exists");
+        var method = type!.Methods.SingleOrDefault(m => m.Name == "GenerateSectionLayer");
+        Assert.That(method, Is.Not.Null, "SectionLayer_IndoorMask.GenerateSectionLayer no longer exists");
+        Assert.That(method!.Body.Instructions.Any(i => i.Operand is float f && f == 0.16f), Is.True,
+            "Vanilla no longer bakes a 0.16 mask overage — Patch_IndoorMaskOverage.VanillaOverage must be re-derived");
+    }
+
+    [Test]
+    public void SectionLayer_IndoorMask_HidePredicates_Exist()
+    {
+        // IndoorMaskProbe asks vanilla itself which cells must be masked rather than reimplementing
+        // the rules, so these two private statics are load-bearing for the only numeric answer this
+        // repo has to "rain falls through the ceiling".
+        var type = GetType("Verse.SectionLayer_IndoorMask");
+        Assert.That(type, Is.Not.Null, "Verse.SectionLayer_IndoorMask no longer exists");
+
+        foreach (var name in new[] { "HideCommon", "HideRainFogOverlay" })
+        {
+            var method = type!.Methods.SingleOrDefault(m => m.Name == name);
+            Assert.That(method, Is.Not.Null, $"SectionLayer_IndoorMask.{name} no longer exists — IndoorMaskProbe cannot resolve it");
+            Assert.That(method!.IsStatic, Is.True, $"{name} is no longer static — IndoorMaskProbe invokes it with a null instance");
+            Assert.That(method.Parameters.Select(p => p.ParameterType.Name).ToArray(),
+                Is.EqualTo(new[] { "Map", "IntVec3" }), $"{name}'s parameters changed");
+        }
+    }
+
+    [Test]
+    public void SectionLayer_IndoorMask_BakeGravshipIndoorMesh_Exists()
+    {
+        // The other caller of AppendQuadToMesh, and the one Patch_IndoorMaskOverage's material gate
+        // exists to stay out of: WorldComponent_GravshipController bakes the flying mask with it
+        // three times per takeoff or landing. IndoorMaskProbe calls it directly, because no harness
+        // frame can fly a gravship.
+        var type = GetType("Verse.SectionLayer_IndoorMask");
+        Assert.That(type, Is.Not.Null, "Verse.SectionLayer_IndoorMask no longer exists");
+        Assert.That(type!.Methods.Any(m => m.Name == "BakeGravshipIndoorMesh" && m.IsPublic && m.IsStatic),
+            Is.True, "SectionLayer_IndoorMask.BakeGravshipIndoorMesh no longer exists — the gravship mask probes are measuring nothing");
+
+        var controller = GetType("Verse.WorldComponent_GravshipController");
+        Assert.That(controller, Is.Not.Null, "Verse.WorldComponent_GravshipController no longer exists");
+        Assert.That(controller!.Fields.Any(f => f.Name == "IndoorMaskGravship"), Is.True,
+            "WorldComponent_GravshipController.IndoorMaskGravship no longer exists — IndoorMaskProbe would fall back to a stand-in material and stop measuring the cutscene's own path");
+    }
+
+    [Test]
+    public void SectionLayer_IndoorMask_VisibilityStillFollowsDrawShadows()
+    {
+        // Not a member we patch — a diagnosis we hand out. The mask layer is only drawn while
+        // DebugViewSettings.drawShadows is on, so that one dev-mode toggle removes rain masking from
+        // every roof on the map at once. indoor_mask_visible reports it, and a support answer that
+        // says "check Draw shadows" has to stay true for the build the player is running.
+        var type = GetType("Verse.SectionLayer_IndoorMask");
+        Assert.That(type, Is.Not.Null, "Verse.SectionLayer_IndoorMask no longer exists");
+        var visible = type!.Methods.SingleOrDefault(m => m.Name == "get_Visible");
+        Assert.That(visible, Is.Not.Null, "SectionLayer_IndoorMask.Visible no longer overrides anything");
+        Assert.That(
+            visible!.Body.Instructions.Any(i => i.Operand is FieldReference f && f.Name == "drawShadows"),
+            Is.True,
+            "SectionLayer_IndoorMask.Visible no longer reads DebugViewSettings.drawShadows — IndoorMaskProbe's visibility metric is measuring the wrong switch");
+    }
+
+    [Test]
     public void MapDrawLayer_GetSubMesh_Exists()
     {
         // How Patch_IndoorSkyOcclusion reaches the lighting mesh whose vertex alphas it rewrites.

@@ -1,0 +1,169 @@
+{
+  "name": "rain_roof_variants",
+  "saveFile": "minimal_colony.rws",
+  "description": "The three OTHER mask branches under rain, since a sealed constructed room only exercises one of them. A: a porch \u2014 roofed cells with no walls, which is not a ProperRoom and bakes into MatBases.RoofedOutdoorMask. B: an enclosed room with one wall cell missing, the case that flips a room to porch. C: thick rock roof over open ground, which takes the isThickRoof branch back into the indoor mask. Vanilla-only steps so the file also runs with the mod absent.",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Concrete",
+        "width": "90",
+        "height": "32",
+        "offset": "0,45",
+        "clear": "true"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Concrete",
+        "width": "30",
+        "height": "30",
+        "offset": "-30,10",
+        "clear": "true"
+      }
+    },
+    {
+      "type": "SetRoof",
+      "args": {
+        "def": "RoofConstructed",
+        "width": "8",
+        "height": "8",
+        "offset": "-28,45"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "28,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "-6,5; -5,5; -4,5; -3,5; -2,5; -1,5; 0,5; 1,5; 2,5; 3,5; 4,5; 5,5; -6,-6; -5,-6; -4,-6; -3,-6; -2,-6; -1,-6; 0,-6; 1,-6; 2,-6; 3,-6; 4,-6; 5,-6; -6,-5; -6,-4; -6,-3; -6,-2; -6,-1; -6,1; -6,2; -6,3; -6,4; 5,-5; 5,-4; 5,-3; 5,-2; 5,-1; 5,0; 5,1; 5,2; 5,3; 5,4"
+      }
+    },
+    {
+      "type": "SetRoof",
+      "args": {
+        "def": "RoofConstructed",
+        "width": "12",
+        "height": "12",
+        "offset": "28,45"
+      }
+    },
+    {
+      "type": "SetRoof",
+      "args": {
+        "def": "RoofRockThick",
+        "width": "10",
+        "height": "10",
+        "offset": "-30,10"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "RainyThunderstorm",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "120"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "-28,45",
+        "zoom": "20"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "30"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "rain_variant_porch.png"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "28,45",
+        "zoom": "20"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "30"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "rain_variant_gapped_room.png"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "-30,10",
+        "zoom": "20"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "30"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "rain_variant_thick_roof.png"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "indoor_mask_uncovered",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "gravship_mask_uncovered",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    }
+  ]
+}
