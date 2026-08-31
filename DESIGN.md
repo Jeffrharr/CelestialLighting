@@ -3951,14 +3951,27 @@ mirrors what `GameCondition_Aurora` does to itself.
 here for another mod to collide with — a mod that wants its map treated as enclosed gets there by
 declaring biome data, exactly as Biomes! Caverns already does, and one that wants a blackout gets there
 by subclassing `GameCondition_NoSunlight`, which is what a blackout already is.
-Not cached, deliberately, even at nine callers: every call is per-map-per-frame at worst, and a
-BiomeDef-keyed cache would have to be invalidated against the harness's own `SetBiome` step, which
-mutates `map.Biome` at runtime so scenarios can sweep biomes inside one run. `SkyBlackedOut` is
-uncached for a stronger reason: a colony carries a handful of conditions against the dozen weather
-entries `IsEnclosed` already walks at the same call sites, and it is the one predicate here that
-genuinely changes mid-session, so a cache would need the `RegisterCondition` / `OnConditionEnd` hooks
-the static gates do not — cost and risk on the same side. Vanilla makes the opposite trade with
-`GameConditionManager.cachedAlwaysDark` and pays exactly those two hooks for it.
+**Memoised per frame per map**, through the same `GeometryMemo` the solar/lunar geometry uses. This
+paragraph used to say "not cached, deliberately, ... every call is per-map-per-frame at worst", and
+that premise was measured wrong rather than argued wrong: a Circinus arm over a 540-frame window
+counted `HasSky` at 18,515 calls and `SkyBlackedOut` at 10,600 — 34.3 and 19.6 times *per frame*.
+`SkyManager.CurrentSkyTarget` evaluates `WeatherWorker.CurSkyTarget` twice, eight of our postfixes
+hang off it, and each asks two gates. Together the pair was 12.9% of the whole per-frame sky budget.
+
+Both original objections were to a *different* cache, and keying on the frame stamp rather than on
+the subject answers them. A `BiomeDef`-keyed cache would indeed have to be invalidated against the
+harness's `SetBiome` step; a frame key does not, because `SetBiome` mutates `map.Biome` and the next
+frame carries a new stamp. `SkyBlackedOut` would indeed need `RegisterCondition` / `OnConditionEnd`
+hooks if the key were the condition list; `GeometryStamp` carries the tick as well as the frame, and
+conditions move on the tick, so a stamp that is still valid is one across which no condition can have
+moved. That is precisely why vanilla's `GameConditionManager.cachedAlwaysDark` needs those two hooks
+and this needs none: vanilla caches across ticks and we do not.
+
+All four gates that walk the `GameConditionManager` chain are memoised. The dividing line is the
+**walk**, not the call count. `DrawsShadows` is not: two field reads and no loop, so a dictionary
+lookup and a stamp compare would cost more than the thing they replace. `IsEnclosed` is not either —
+it is a field read composed onto `HasSky`, and memoising `HasSky` already removes everything
+expensive underneath it. See `MapSky.cs`'s own header, which carries this in full.
 
 ### A map with no world tile at all: pocket maps (`MapWorldTile`)
 
