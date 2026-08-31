@@ -1,6 +1,6 @@
 {
   "name": "undercave_sky",
-  "description": "Does a real Anomaly undercave track the sun? It is a sealed cave under the ground, so it should sit at the enclosed constant at every hour. The mod decides that through MapSky.IsEnclosed, which is derived from a weather-count heuristic, and Undercave's BiomeDef inherits from Biome_Underground so RimWorld's list merging gives it two weather entries -- over the threshold. Noon and midnight on one generated undercave, with the clock paused so each is a held moment. EnterPocketMap dirties ScenarioResidue.NewMap, so this runs standalone.",
+  "description": "Does a real Anomaly undercave track the sun? It is a sealed cave under the ground, so it should sit at the enclosed constant at every hour. The mod decides that through MapSky.IsEnclosed, which is derived from a weather-count heuristic, and Undercave's BiomeDef inherits from Biome_Underground so RimWorld's list merging gives it two weather entries -- over the threshold. Noon and midnight on one generated undercave, with the clock paused so each is a held moment. The assertion is that the two hours AGREE. Compare them WITHIN a run and never across runs: each run generates a fresh undercave, so two runs' frames differ in fleshmass layout as well as in lighting, and a cross-run frame diff measures the generator. Within a run the map is the same map. EnterPocketMap dirties ScenarioResidue.NewMap, so this runs standalone.",
   "saveFile": "minimal_colony.rws",
   "steps": [
     {
@@ -49,8 +49,8 @@
       "type": "Probe",
       "args": {
         "probeName": "sky_glow",
-        "expectedValue": "0",
-        "tolerance": "999"
+        "expectedValue": "1.0000",
+        "tolerance": "0.0005"
       }
     },
     {
@@ -66,12 +66,12 @@
       }
     },
     {
-      "_comment": "MIDNIGHT, same map, nothing else changed. If this differs from the noon reading the cave is tracking a sun it cannot see; if the two agree, the enclosed constant is in force.",
+      "_comment": "MIDNIGHT, same map, nothing else changed. If this differs from the noon reading the cave is tracking a sun it cannot see; if the two agree, the enclosed constant is in force.\n\nMEASURED 0.0912 HERE BEFORE THE FIX, against 1.0000 at noon in the same run -- a sealed cave under a monolith going nearly black at midnight because the enclosed-ambient constant never engaged. Pinned TIGHT at both hours now: a cave has no day, so these two readings being the identical number is the assertion, not an approximation of one.",
       "type": "Probe",
       "args": {
         "probeName": "sky_glow",
-        "expectedValue": "0",
-        "tolerance": "999"
+        "expectedValue": "1.0000",
+        "tolerance": "0.0005"
       }
     },
     {
@@ -85,8 +85,8 @@
       "type": "Probe",
       "args": {
         "probeName": "sky_overlay_warmth",
-        "expectedValue": "0",
-        "tolerance": "99999"
+        "expectedValue": "-0.1000",
+        "tolerance": "0.0050"
       }
     }
   ]

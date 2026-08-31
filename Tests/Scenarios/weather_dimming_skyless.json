@@ -1,7 +1,7 @@
 {
   "name": "weather_dimming_skyless",
   "saveFile": "minimal_colony.rws",
-  "description": "§13 — the map-level guard. Weather dimming must be OFF on a map whose biome has no climate, and ON again the moment the biome does, with the deck-shaped weather held constant across the switch so the biome is provably the only variable.",
+  "description": "\u00a713 \u2014 the map-level guard. Weather dimming must be OFF on a map whose biome has no climate, and ON again the moment the biome does, with the deck-shaped weather held constant across the switch so the biome is provably the only variable.",
   "steps": [
     {
       "type": "SetTile",
@@ -21,9 +21,8 @@
         "hour": "12"
       }
     },
-
     {
-      "_comment": "Fog is held for the whole biome sweep on purpose. Its palette classifies as a full deck under every biome, so the ONLY thing that can move the reading is the guard. Note this is deliberately an impossible pairing on a cave map — no cave biome can roll Fog — which is what makes it a clean probe of the guard rather than of the classifier.",
+      "_comment": "Fog is held for the whole biome sweep on purpose. Its palette classifies as a full deck under every biome, so the ONLY thing that can move the reading is the guard. Note this is deliberately an impossible pairing on a cave map \u2014 no cave biome can roll Fog \u2014 which is what makes it a clean probe of the guard rather than of the classifier.",
       "type": "SetWeather",
       "args": {
         "weatherDef": "Fog",
@@ -45,9 +44,8 @@
         "fileName": "skyless_a_forest_fog_dimmed.png"
       }
     },
-
     {
-      "_comment": "Underground: vanilla's own cave biome, and the shape every modded cave environment shares — one possible weather, so the weather can never change and there is no deck to dim. A nonzero reading here means the guard is not being consulted.",
+      "_comment": "Underground: vanilla's own cave biome, and the shape every modded cave environment shares \u2014 one possible weather, so the weather can never change and there is no deck to dim. A nonzero reading here means the guard is not being consulted.",
       "type": "SetBiome",
       "args": {
         "biomeDef": "Underground"
@@ -67,9 +65,8 @@
         "fileName": "skyless_b_underground_fog_undimmed.png"
       }
     },
-
     {
-      "_comment": "And back. Proves the guard is a live per-frame read rather than something latched at map load — the same Fog on the same map dims again as soon as the biome has a climate.",
+      "_comment": "And back. Proves the guard is a live per-frame read rather than something latched at map load \u2014 the same Fog on the same map dims again as soon as the biome has a climate.",
       "type": "SetBiome",
       "args": {
         "biomeDef": "TemperateForest"
@@ -83,9 +80,8 @@
         "tolerance": "0.12"
       }
     },
-
     {
-      "_comment": "The other skyless shape: Orbit is not enclosed at all, it is space. Same single-weather structure, same answer, and it covers the vacuum case that §13 previously only got right by the luck of Orbit's palette matching Clear's.",
+      "_comment": "The other skyless shape: Orbit is not enclosed at all, it is space. Same single-weather structure, same answer, and it covers the vacuum case that \u00a713 previously only got right by the luck of Orbit's palette matching Clear's.",
       "type": "SetBiome",
       "args": {
         "biomeDef": "Orbit"
@@ -99,9 +95,8 @@
         "tolerance": "0.0005"
       }
     },
-
     {
-      "_comment": "Undercave is the documented boundary case: XML inheritance gives it TWO weathers (its own plus Biome_Underground's), so the count rule does NOT spare it. It is harmless anyway because both weathers it can roll classify to 0 — but under Fog, which it can never actually roll, it must and does still dim. Pinned so that if a future RimWorld drops that inherited entry, or someone strengthens the guard, this row is the record of which behaviour changed.",
+      "_comment": "Undercave is the documented boundary case: XML inheritance gives it TWO weathers (its own plus Biome_Underground's), so the count rule does NOT spare it. It is harmless anyway because both weathers it can roll classify to 0 \u2014 but under Fog, which it can never actually roll, it must and does still dim. Pinned so that if a future RimWorld drops that inherited entry, or someone strengthens the guard, this row is the record of which behaviour changed.",
       "type": "SetBiome",
       "args": {
         "biomeDef": "Undercave"
@@ -111,12 +106,13 @@
       "type": "Probe",
       "args": {
         "probeName": "weather_dimming",
-        "expectedValue": "0.15",
-        "tolerance": "0.12"
-      }
+        "expectedValue": "0.0000",
+        "tolerance": "0.0005"
+      },
+      "_comment": "WAS 0.15 (dimming ON), AND THAT PIN ENCODED A BUG. It was measured honestly and it was correct about what the mod did -- what the mod did was call a sealed undercave skyful, because Undercave's BiomeDef inherits from Biome_Underground and RimWorld merges inherited list nodes, so two entries cleared the changeable-weather threshold. MapSky counts sun-responsive weathers now and both entries are the same frozen cave palette, so the skyless guard fires here exactly as it does for Underground above. Re-measured, not re-derived."
     },
     {
-      "_comment": "The reading that actually matters for Undercave: under a weather it CAN roll, dimming is zero — which is why the count rule not sparing it costs nothing.",
+      "_comment": "The reading that actually matters for Undercave: under a weather it CAN roll, dimming is zero \u2014 which is why the count rule not sparing it costs nothing.",
       "type": "SetWeather",
       "args": {
         "weatherDef": "Undercave",
@@ -131,7 +127,6 @@
         "tolerance": "0.0005"
       }
     },
-
     {
       "type": "SetBiome",
       "args": {
@@ -169,7 +164,6 @@
         "tolerance": "0.0005"
       }
     },
-
     {
       "type": "Assert",
       "args": {

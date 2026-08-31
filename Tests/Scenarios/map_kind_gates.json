@@ -61,7 +61,7 @@
       }
     },
     {
-      "_comment": "UNDERCAVE \u2014 the documented boundary case, and the live run corrected this file's first draft. Anomaly's undercave is a genuinely enclosed map, yet it reads NOT enclosed: XML inheritance appends rather than replaces baseWeatherCommonalities, so it arrives with TWO weathers (its own Undercave plus the Underground it inherits from Biome_Underground) and the count rule spares it. It does not set disableSkyLighting either \u2014 nothing in vanilla or in any installed workshop mod sets that field true, so the other clause cannot catch it. This is PRE-EXISTING \u00a713 behaviour, not a regression from the Caverns work: weather_dimming_skyless.json already pins Undercave as dimming under Fog for exactly this reason. Pinned at 0 so the gap is recorded rather than rediscovered, and so that closing it later shows up here as a deliberate change.",
+      "_comment": "Undercave -- a sealed Anomaly cavern. This arm used to pin map_enclosed 0, and that pin WAS THE BUG WRITTEN DOWN AS AN ASSERTION. It was an honest measurement of what the mod did: the enclosure test counted rollable weather entries, Undercave's BiomeDef inherits from Biome_Underground, and RimWorld merges inherited list nodes -- so two entries cleared the changeable-weather threshold and a cave under a monolith was declared to have a sky. MapSky counts SUN-RESPONSIVE weathers now, and both of Undercave's entries are the same frozen cave palette.",
       "type": "SetBiome",
       "args": {
         "biomeDef": "Undercave"
@@ -71,9 +71,10 @@
       "type": "Probe",
       "args": {
         "probeName": "map_enclosed",
-        "expectedValue": "0",
+        "expectedValue": "1",
         "tolerance": "0.001"
-      }
+      },
+      "_comment": "ENCLOSED, where it read 0 before. Measured on a real generated undercave in undercave_sky.json as sky glow 0.091 at midnight against 1.000 at noon before the fix, and 1.000 at both hours after it -- a cave that had a day, and now does not."
     },
     {
       "_comment": "UNDERGROUND \u2014 vanilla's cave biome, caught by the single-weather clause. The vanilla stand-in for the Biomes! Caverns shape.",
@@ -131,7 +132,7 @@
       }
     },
     {
-      "_comment": "GLOWFOREST (Odyssey) \u2014 a bioluminescent biome that is NOT a cave, pinned because the name invites exactly that confusion. It is an ordinary open-air surface tile offering ELEVEN weathers, sets none of disableSkyLighting / disableShadows / inVacuum, and its glow comes from CompGlower plants in the glow grid, which this mod never touches. Every STATIC gate must stay open: it keeps its full day/night cycle, twilight, colour temperature and shadows. Not to be confused with Biomes! Caverns' BMT_FungalForest, which IS an enclosed cavern and is covered by the caverns_* scenarios. §17's DYNAMIC gate is a separate matter and does close on a real Glowforest: Odyssey gives it a permanent DarkenedSkies condition through biomeMapConditions, which SetBiome does not run, so this file sees the biome without it. That is the right split — these two pins are about biome data, and sky_blackout_gate.json owns the condition.",
+      "_comment": "GLOWFOREST (Odyssey) \u2014 a bioluminescent biome that is NOT a cave, pinned because the name invites exactly that confusion. It is an ordinary open-air surface tile offering ELEVEN weathers, sets none of disableSkyLighting / disableShadows / inVacuum, and its glow comes from CompGlower plants in the glow grid, which this mod never touches. Every STATIC gate must stay open: it keeps its full day/night cycle, twilight, colour temperature and shadows. Not to be confused with Biomes! Caverns' BMT_FungalForest, which IS an enclosed cavern and is covered by the caverns_* scenarios. \u00a717's DYNAMIC gate is a separate matter and does close on a real Glowforest: Odyssey gives it a permanent DarkenedSkies condition through biomeMapConditions, which SetBiome does not run, so this file sees the biome without it. That is the right split \u2014 these two pins are about biome data, and sky_blackout_gate.json owns the condition.",
       "type": "SetBiome",
       "args": {
         "biomeDef": "Glowforest"

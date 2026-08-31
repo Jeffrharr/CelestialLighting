@@ -3840,6 +3840,79 @@ instead of stamping the cavern sentinel roof. Geological Landforms patches `Map.
 rock is handled per-cell by §7b as real thick roof. `map_kind_gates.json` reproduces that shape and
 pins `map_enclosed 0`.
 
+### Counting weathers that answer to the sun, not weather entries
+
+**Problem.** A sealed Anomaly undercave was tracking a sun it cannot see. Measured on a real
+generated one:
+
+| | before | after |
+|---|---|---|
+| `sky_glow` at noon | 1.000 | 1.000 |
+| `sky_glow` at midnight | **0.091** | **1.000** |
+| noon vs midnight, same run | median ΔE **2.78** | median ΔE **0.00**, p90 0.00 |
+
+The enclosed-ambient constant exists precisely to remove that curve, and it never engaged, because
+`IsEnclosed` is `!hasSky && !inVacuum` and the biome was being called skyful.
+
+**Why it was called skyful.** `HasSky`'s live clause is a heuristic — two or more rollable weathers
+means a climate. `Undercave`'s `BiomeDef` declares `ParentName="Biome_Underground"` and adds one
+weather of its own, and RimWorld **merges** inherited list nodes, so the merged list holds two
+entries and cleared the threshold. But Anomaly's `Undercave` `WeatherDef` inherits
+`Weather_Underground` wholesale, adding only a label and an ambient sound. The biome was called
+skyful on the strength of counting **one cave palette twice**.
+
+Worth recording how thin the ground under that heuristic was: **no vanilla biome sets
+`disableSkyLighting` at all** — not `Underground`, not `Undercave`, not `Labyrinth`, not `MetalHell`.
+The middle clause of `HasSky` never fires against shipped content, so the weather count was carrying
+the whole cave detection by itself.
+
+**Approach.** Count **sun-responsive** weathers rather than weather entries
+(`MapSkyMath.WeatherRespondsToSun`). A cave weather is not "a dark weather" — that is the axis a
+palette-brightness classifier reads, and it is exactly the axis that already failed, because a heavy
+overcast is dark too. The difference that holds is structural: **an overcast day still gets darker at
+night, and a cave never does.** So the question is not how dark a palette is but whether it moves at
+all. Vanilla states it plainly:
+
+| | `skyColorsDay` | `skyColorsDusk` | `skyColorsNightMid` |
+|---|---|---|---|
+| `Clear` | (1, 1, 1) | (0.858, 0.650, 0.423) | (0.482, 0.603, 0.682) |
+| `Underground` | (0.3, 0.4, 0.4) | (0.3, 0.4, 0.4) | (0.3, 0.4, 0.4) |
+
+— with shadow and overlay equally frozen, and "There is no weather underground" as the def's own
+description. Biomes! Caverns' `BMT_Calm` does the same thing independently, which is what makes this
+a rule about cave content rather than an observation about two defs.
+
+**It can only ever remove a sky, never add one**, and that one-directional property is what makes it
+safe to ship against content nobody here can test. The filter subtracts from the count
+`BiomeHasChangingWeather` already thresholds, so a biome that has a sky today keeps it unless *every*
+weather it can roll is diurnally frozen — and a biome whose every weather renders identically at
+midnight and noon has no daylight to lose. A false positive is close to self-justifying for the same
+reason: to be wrongly classified a weather must render the same at every hour, which is what having
+no sky looks like. An unresolved `WeatherDef` counts as sun-responsive, because missing information
+must never be what takes a map's sky away.
+
+**Rejected: "a pocket map is enclosed."** It looks like the cheaper fix now that `MapWorldTile`
+exists, and it is *wrong* rather than merely narrow — Odyssey's `SpacePocket` generator makes a
+pocket map whose biome is `Orbit`: tileless, in vacuum, with a completely unobstructed view of the
+sun. Treating tilelessness as enclosure would black out orbital sky effects this section
+deliberately keeps on. Tilelessness answers a different question, and it has its own gate.
+
+**Three existing scenarios had pins that encoded the bug**, and all three were re-measured rather than
+re-derived. `map_kind_gates.json` asserted `map_enclosed` **0** for Undercave — the bug written down
+as an assertion — and now reads 1. `weather_dimming_skyless.json` pinned dimming at 0.15 there and
+now reads 0.0000, matching its own `Underground` arm. `cloud_cover_skyless.json`'s Undercave arm read
+0.1896 and now reads 0.0000. `enclosed_biomes.json` was unaffected.
+
+**Verification.** `undercave_sky.json` generates a real undercave with `EnterPocketMap` and reads
+noon against midnight. Two notes on reading it. Compare the two hours **within** a run and never
+across runs: each run generates a fresh undercave, so two runs' frames differ in fleshmass layout as
+well as in lighting, and a cross-run frame diff measures the generator. And the scenario's second
+witness is `sky_overlay_warmth`, not `sky_color_temperature` — the latter was tried first and
+rejected, because it recomputes the ramp from solar elevation and never consults `IsEnclosed`, so it
+reads the same 2000 K whether or not a tint was applied. It is a *formula* probe and the question
+here is about *application*; it read 2000 identically before and after, which would have been
+mistaken for the fix not working.
+
 ### A third kind of map: a sky with nothing visible through it (issue #35)
 
 **Problem.** The two gates above are both properties of a `BiomeDef`, and there is a third kind of map
