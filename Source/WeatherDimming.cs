@@ -246,9 +246,15 @@ public static class WeatherDimming
         bool weatherIsClear = map?.weatherManager?.curWeather == WeatherDefOf.Clear;
 
         // Read §22 only when it can matter — a cheap per-tile dictionary lookup, but there is no
-        // reason to touch it (or seed its cache) on a map that is not in Clear weather right now, and
-        // no reason to walk MapSky a second time either.
-        float cloudCoverFraction = weatherIsClear && MapSky.HasSky(map)
+        // reason to touch it (or seed its cache) on a map that is not in Clear weather right now.
+        //
+        // THE MapSky.HasSky CLAUSE THAT USED TO BE HERE HAS MOVED INTO CloudCoverClock itself, where
+        // every caller of the fraction gets it rather than only this one. Keeping a copy here would
+        // have been free (the gate is memoised per frame) and still wrong to keep: two gates on one
+        // question is how they drift apart, and this one would have quietly become the authority on
+        // skyless maps for the one caller that happened to hold it. Behaviour is identical — the
+        // fraction is 0 on exactly the maps this clause used to reject.
+        float cloudCoverFraction = weatherIsClear
             ? CloudCoverClock.FractionForMap(map)
             : 0f;
 

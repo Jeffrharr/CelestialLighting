@@ -95,9 +95,14 @@ public static class MapSky
     private static readonly Func<Map, bool> ComputeUnnaturalDarkness = ComputeUnnaturalDarknessFor;
     private static readonly Func<Map, bool> ComputeEclipse = ComputeEclipseFor;
 
-    // Whether weather can roll overhead — see MapSkyMath.HasSky. This is §13's question. If you are
-    // reaching for it to decide whether a SKY effect applies, you want IsEnclosed below instead:
-    // this one is false in orbit, which has no weather but a perfect view of the sky.
+    // Whether weather can roll overhead — see MapSkyMath.HasSky. This is the question weather
+    // dimming was written for, and it is also partial cloud cover's, which is the second consumer and
+    // the one that shows what the gate actually means: cloud IS weather, so a map that cannot roll
+    // weather has no cloud to report, in a cavern or in orbit alike.
+    //
+    // If you are reaching for it to decide whether some other SKY effect applies, you probably want
+    // IsEnclosed below instead: this one is false in orbit, which has no weather but a perfect view of
+    // the sky, so twilight and blackbody colour still mean something there.
     public static bool HasSky(Map map)
     {
         // Null map and no-TickManager both bypass the memo rather than being cached under a made-up
