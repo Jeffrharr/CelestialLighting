@@ -4039,15 +4039,72 @@ other map's and skipped the redraw it needed: an indoor-occlusion mesh that stop
 one map only. It is keyed by `map.uniqueID` now, the key `GeometryMemo` already uses for per-map
 state, which is what the value's meaning demanded all along.
 
-**Verification.** Offline only, and deliberately stated as a limit rather than glossed. Two Cecil
-pins carry it: `PlanetTile.Valid`, whose rename would silently restore the throw, and
-`GetTemperatureFromSeasonAtTile`'s `PlanetTile` parameter, since a `Map` overload resolving
-`pocketTileInfo` itself would mean the guard no longer describes the call it guards. **There is no
-live scenario**, because the harness cannot generate a pocket map — `SetBiome` repoints an existing
-map's tile at a biome, which leaves the tile perfectly valid and so cannot reach this branch at all.
-Reaching it live needs a harness step that calls `PocketMapUtility.GeneratePocketMap`. The harness's
-own `SetTilePropertiesAction` already documents this exact `WorldGrid`-throws-on-pocket-maps hazard,
-so the knowledge was in the tree; it had simply never crossed into the mod.
+**A second gate, on the sky rather than the tile.** Cloud cover was also gated only on
+`curWeather == Clear`, so it tinted the sky of any map whose weather happened to be Clear — a cavern
+under a rock ceiling, an orbital platform in vacuum. Its sibling `WeatherDimming.DeckOpacityFor` had
+asked `MapSky.HasSky` since the skyless-map work; this lane never did. It does now, in
+`CloudCoverClock` rather than in `Patch_CloudCoverSky`, because that is the one point every caller
+funnels through — gating the sky patch alone would have left the weather label reporting
+"Clear · 34% cloudy" in an undercave. The redundant copy in `DeckOpacityFor` was removed rather than
+kept: two gates on one question is how they drift apart.
+
+`HasSky` is the right question rather than the convenient one. It asks "can weather roll overhead",
+and cloud *is* weather — the same question this subsystem's estimate answers, since the estimate
+reads the biome's own weather list. That covers **orbit** as well as caverns, deliberately, even
+though this section otherwise keeps vacuum maps' sky effects on: twilight and blackbody colour still
+mean something with no atmosphere to scatter through, and cloud does not, because there is no water
+vapour in a vacuum.
+
+**Verification.** Both gates have live scenarios, and getting there required a new harness step.
+
+`cloud_cover_pocket_map.json` generates a real Anomaly labyrinth through the harness's
+`EnterPocketMap` step — a genuinely tileless map — rather than repainting a biome onto a map whose
+tile is fine. That distinction is the scenario: `SetBiome` cannot produce `tileId` −1, and `tileId`
+−1 is what threw. It is a red/green gate rather than a pin that happens to hold:
+
+| | unguarded (`main`) | guarded |
+|---|---|---|
+| `cloud_cover_fraction` on the labyrinth | Probe **threw** `ArgumentOutOfRangeException` | 0.0000 |
+| `sky_glow` on the labyrinth | **0** — `SkyManagerUpdate` never produced a sky | **1** |
+| `Player.log` root-level exceptions | **15**, one per rendered frame | **0** |
+| the committed capture | labyrinth **never drawn** — the frame still holds the previous map behind RimWorld's error dialog | corridors and obelisk chamber render normally |
+
+`Map.MapUpdate` aborting is why this was never confined to cloud cover, and it is what the reporter
+meant by "breaks the map lighting/rendering".
+
+`cloud_cover_skyless.json` measures the sky gate by flipping the feature flag **without touching the
+biome** and reading `sky_overlay_luminance` either side, because switching biome moves the sky for a
+dozen unrelated reasons and only a same-biome flip isolates this feature's contribution:
+
+| arm | flag off → on |
+|---|---|
+| surface (`TemperateForest`) | median ΔE **2.00**, p90 2.39, **94.4%** of pixels changed — a global tint |
+| underground (`Underground`) | median ΔE **0.00**, p90 0.00, **0.0%** of pixels changed — bit-identical |
+| orbit (`Orbit`) | overlay luminance exactly **1.0000** either side |
+| `Labyrinth` biome, valid tile | fraction **0.0000** |
+
+The surface arm is not decoration: it is what makes the zeros falsifiable. Without a demonstrated
+non-zero on some arm, every zero below is equally consistent with a subsystem that never ran.
+
+**`Undercave` is pinned NON-ZERO**, and it is the arm that failed the intuition. Its `BiomeDef`
+declares `ParentName="Biome_Underground"`, and RimWorld *merges* inherited list nodes — so its
+`baseWeatherCommonalities` ends up holding two entries (Underground + Undercave), which is over
+`BiomeHasChangingWeather`'s threshold, so `HasSky` returns true and the sky gate does not catch it.
+Harmless in play, because an undercave is a pocket map and the tile gate zeroes it first; pinned so
+the number is on the record rather than rediscovered as a surprise.
+
+**Two Cecil pins** carry the offline half: `PlanetTile.Valid`, whose rename would silently restore
+the throw, and `GetTemperatureFromSeasonAtTile`'s `PlanetTile` parameter, since a `Map` overload
+resolving `pocketTileInfo` itself would mean the guard no longer describes the call it guards.
+
+**Both scenarios pause the clock, and that is load-bearing rather than tidiness.** Cloud cover is
+continuous in the absolute tick, the harness does not pause between steps, and screenshots are slow
+(a 2 MB PNG each) — so adding a single capture moved every live reading from 0.227 to 0.185, an 18%
+swing that reads exactly like a formula regression and is nothing but wall-clock. Paused, every live
+arm within a run returns the identical float to the last bit. The arrival tick still varies *across*
+runs (five runs of one build at the same latitude, season and hour read 0.061, 0.149, 0.185, 0.227
+and 0.490), which is why the live arms are pinned as a band and only the zeros are pinned tight —
+a gate returns a literal `0f` and cannot drift.
 
 ## 18. Vacuum maps (`Vacuum.cs`) — the shared `inVacuum` gate
 
