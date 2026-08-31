@@ -341,6 +341,27 @@ public static class MapSky
     // list here is already the INHERITED one, so `Undercave` arrives with both its own weather and the
     // `Underground` it inherits from `Biome_Underground`. Any offline reasoning about this rule has to
     // reproduce that merge or it will undercount — see WeatherDimmingMath.BiomeHasChangingWeather.
+    // How many weathers this biome can roll that ACTUALLY RESPOND TO THE SUN.
+    //
+    // It used to be a plain count of rollable weathers, and that is what let a sealed cave keep a
+    // sky. Anomaly's `Undercave` BiomeDef declares ParentName="Biome_Underground" and adds one
+    // weather of its own; RimWorld MERGES inherited list nodes, so the merged list holds two entries
+    // (Underground + Undercave) and cleared BiomeHasChangingWeather's threshold of two. Both of them
+    // are the same frozen cave palette -- Anomaly's Undercave WeatherDef inherits Weather_Underground
+    // wholesale and adds only a label and an ambient sound -- so the biome was called skyful on the
+    // strength of counting one cave weather twice.
+    //
+    // Measured on a real generated undercave before the filter: sky glow 1.00 at noon and 0.099 at
+    // midnight, with sky colour temperature at 2000 K. A fleshy cavern under a monolith was tracking
+    // a sun it cannot see, because IsEnclosed is !hasSky && !inVacuum and so the enclosed-ambient
+    // constant never engaged. See Tests/Scenarios/undercave_sky.json, which is that measurement.
+    //
+    // WHY NOT "A POCKET MAP IS ENCLOSED", which looks like the cheaper fix now that MapWorldTile
+    // exists: it is wrong, not merely narrow. Odyssey's SpacePocket generator makes a POCKET map
+    // whose biome is `Orbit` -- tileless and in vacuum, with a completely unobstructed view of the
+    // sun. Treating tilelessness as enclosure would black out orbital sky effects that this mod
+    // deliberately keeps on. Tilelessness answers "is there a world tile", which is MapWorldTile's
+    // question and not this one.
     private static int WeatherChoiceCount(BiomeDef biome)
     {
         List<WeatherCommonalityRecord> records = biome.baseWeatherCommonalities;
@@ -350,10 +371,36 @@ public static class MapSky
         int count = 0;
         foreach (WeatherCommonalityRecord record in records)
         {
-            if (record != null && record.commonality > 0f)
+            if (record != null && record.commonality > 0f && RespondsToSun(record.weather))
                 count++;
         }
 
         return count;
     }
+
+    // The live read behind MapSkyMath.WeatherRespondsToSun: pulls the four palettes off a WeatherDef
+    // and hands the pure test nine floats apiece.
+    //
+    // A null WeatherDef counts as sun-responsive rather than as a cave weather. That is the
+    // one-directional rule this whole filter is built on, applied to the degenerate case: an
+    // unresolved cross-ref is missing information, and missing information must never be what takes
+    // a map's sky away. WeatherDimming's own entry list makes the identical choice for the identical
+    // reason (see SeasonalWetFraction's defensive posture toward malformed entries).
+    private static bool RespondsToSun(WeatherDef weather)
+    {
+        if (weather == null)
+            return true;
+
+        return MapSkyMath.WeatherRespondsToSun(
+            PaletteOf(weather.skyColorsDay),
+            PaletteOf(weather.skyColorsDusk),
+            PaletteOf(weather.skyColorsNightEdge),
+            PaletteOf(weather.skyColorsNightMid));
+    }
+
+    private static MapSkyMath.SkyPalette PaletteOf(SkyColorSet colors) =>
+        new MapSkyMath.SkyPalette(
+            colors.sky.r, colors.sky.g, colors.sky.b,
+            colors.shadow.r, colors.shadow.g, colors.shadow.b,
+            colors.overlay.r, colors.overlay.g, colors.overlay.b);
 }

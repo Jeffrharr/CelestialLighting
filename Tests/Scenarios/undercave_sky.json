@@ -1,0 +1,93 @@
+{
+  "name": "undercave_sky",
+  "description": "Does a real Anomaly undercave track the sun? It is a sealed cave under the ground, so it should sit at the enclosed constant at every hour. The mod decides that through MapSky.IsEnclosed, which is derived from a weather-count heuristic, and Undercave's BiomeDef inherits from Biome_Underground so RimWorld's list merging gives it two weather entries -- over the threshold. Noon and midnight on one generated undercave, with the clock paused so each is a held moment. EnterPocketMap dirties ScenarioResidue.NewMap, so this runs standalone.",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "_comment": "Paused so each hour below is a held moment rather than a moving one; see cloud_cover_skyless.json for what an unpaused clock does to a reading.",
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "paused"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "_comment": "Throwaway: hideUi is not honoured on a run's first capture.",
+      "type": "Screenshot",
+      "args": {
+        "fileName": "discard_hud_primer.png"
+      }
+    },
+    {
+      "_comment": "A real Anomaly undercave -- Anomaly's fleshy cavern under a monolith. Generated rather than painted, because the question is about a map kind and not a palette.",
+      "type": "EnterPocketMap",
+      "args": {
+        "mapGenerator": "Undercave",
+        "size": "90",
+        "dlc": "Anomaly"
+      }
+    },
+    {
+      "_comment": "NOON. The whole question in one number: does a sealed cave under the ground track the sun?\n\nA cave has no day, so the mod's enclosed-ambient patch is supposed to replace the diurnal curve with a constant here. It only fires when MapSky.IsEnclosed is true, and IsEnclosed is !hasSky && !inVacuum -- so a biome the weather-count heuristic calls skyful is not enclosed, and the sun comes back.",
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_glow",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "undercave_a_noon.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "0"
+      }
+    },
+    {
+      "_comment": "MIDNIGHT, same map, nothing else changed. If this differs from the noon reading the cave is tracking a sun it cannot see; if the two agree, the enclosed constant is in force.",
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_glow",
+        "expectedValue": "0",
+        "tolerance": "999"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "undercave_b_midnight.png"
+      }
+    },
+    {
+      "_comment": "Warmth of the RENDERED overlay at midnight, as a second and independent witness.\n\nIt replaces a sky_color_temperature probe that was tried here first and rejected, which is worth recording because the mistake is easy to repeat: that probe recomputes the ramp from solar elevation and never consults MapSky.IsEnclosed, so it reads the same 2000 K whether or not Patch_SkyColorTemperature actually applied a tint. It is a FORMULA probe, and the question here is about APPLICATION. It read 2000 identically before and after the fix, which would have been mistaken for the fix not working.",
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_overlay_warmth",
+        "expectedValue": "0",
+        "tolerance": "99999"
+      }
+    }
+  ]
+}

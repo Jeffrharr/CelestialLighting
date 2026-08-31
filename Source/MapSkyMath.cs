@@ -50,10 +50,107 @@ public static class MapSkyMath
     // same field SkyManagerUpdate branches on to stop writing colors.sky to MatBases.LightOverlay
     // at all, so it is vanilla's notion of "skyless", not one we invented.
     //
-    // `weatherChoices` is how many weathers the biome can actually roll. The reasoning for the
+    // `weatherChoices` is how many SUN-RESPONSIVE weathers the biome can actually roll -- see
+    // WeatherRespondsToSun above for why the filter is there and why it can only ever subtract. The reasoning for the
     // threshold, what it catches, what it provably does not catch, and why being wrong is cheap and
     // one-directional all live on WeatherDimmingMath.BiomeHasChangingWeather — deliberately not
     // restated here, so there is one place to correct if a future census moves it.
+    // A weather's sky palette at one time of day, as plain floats. Exists so the sun-response test
+    // below can be pure: Verse's SkyColorSet carries UnityEngine.Color, and nothing in this file is
+    // allowed to know that type.
+    //
+    // Saturation is deliberately absent. Vanilla holds it at 1.25 across every one of Clear's four
+    // blocks AND across every one of Underground's, so it separates nothing and would only add a
+    // field for a reader to wonder about. Shadow IS carried, because it does vary diurnally in real
+    // weathers (Clear runs 0.718 by day against 0.92 at night edge) and is therefore a third
+    // independent chance to notice that a weather follows the sun.
+    public readonly struct SkyPalette
+    {
+        public readonly float SkyR, SkyG, SkyB;
+        public readonly float ShadowR, ShadowG, ShadowB;
+        public readonly float OverlayR, OverlayG, OverlayB;
+
+        public SkyPalette(
+            float skyR, float skyG, float skyB,
+            float shadowR, float shadowG, float shadowB,
+            float overlayR, float overlayG, float overlayB)
+        {
+            SkyR = skyR; SkyG = skyG; SkyB = skyB;
+            ShadowR = shadowR; ShadowG = shadowG; ShadowB = shadowB;
+            OverlayR = overlayR; OverlayG = overlayG; OverlayB = overlayB;
+        }
+
+        // Largest per-channel gap between two palettes, across all nine channels.
+        public static float MaxDifference(SkyPalette a, SkyPalette b)
+        {
+            float worst = Abs(a.SkyR - b.SkyR);
+            worst = Max(worst, Abs(a.SkyG - b.SkyG));
+            worst = Max(worst, Abs(a.SkyB - b.SkyB));
+            worst = Max(worst, Abs(a.ShadowR - b.ShadowR));
+            worst = Max(worst, Abs(a.ShadowG - b.ShadowG));
+            worst = Max(worst, Abs(a.ShadowB - b.ShadowB));
+            worst = Max(worst, Abs(a.OverlayR - b.OverlayR));
+            worst = Max(worst, Abs(a.OverlayG - b.OverlayG));
+            worst = Max(worst, Abs(a.OverlayB - b.OverlayB));
+            return worst;
+        }
+
+        private static float Abs(float v) => v < 0f ? -v : v;
+        private static float Max(float a, float b) => a > b ? a : b;
+    }
+
+    // How far apart two of a weather's four palettes must sit before we call it a response to the sun.
+    //
+    // Small but not zero, and NOT Unity's Color== epsilon (1e-5), which is a different decision made
+    // for a different purpose. This is a content-authoring tolerance: a modder who writes 0.3 in one
+    // block and 0.30001 in another has authored a flat palette and made a typo, not a diurnal cycle.
+    // Anything a player could actually see is orders of magnitude above it -- vanilla's smallest real
+    // diurnal step is Clear's overlay, 1.0 by day against 0.8 at dusk.
+    public const float SunResponseTolerance = 0.002f;
+
+    // Does this weather's own palette change with the time of day?
+    //
+    // THE SIGNAL, and why it is the right one. A cave weather is not "a dark weather" -- that is the
+    // axis a palette-brightness classifier reads, and it is exactly the axis that failed, because a
+    // heavy overcast is dark too (see WeatherDimmingMath's header on the census that motivated the
+    // map-level veto). The difference that actually holds is STRUCTURAL: an overcast day still gets
+    // darker at night, and a cave never does. So the question is not how dark the palette is but
+    // whether it moves at all.
+    //
+    // Vanilla states it plainly. `Clear` runs sky (1,1,1) by day, (0.858,0.650,0.423) at dusk and
+    // (0.482,0.603,0.682) at night. `Underground` runs (0.3,0.4,0.4) at all four, with shadow and
+    // overlay equally frozen -- "There is no weather underground", as its own description says.
+    // Anomaly's `Undercave` inherits that palette wholesale and adds only a label and an ambient
+    // sound. Biomes! Caverns' BMT_Calm does the same thing independently, which is what makes this a
+    // rule about cave content rather than an observation about two defs.
+    //
+    // IT CAN ONLY EVER REMOVE A SKY, NEVER ADD ONE, and that one-directional property is what makes
+    // it safe to ship against content nobody here can test. It filters the weather count that
+    // BiomeHasChangingWeather already thresholds, so a biome that has a sky today keeps it unless
+    // EVERY weather it can roll is diurnally frozen -- and a biome whose every weather renders
+    // identically at midnight and noon has no daylight to lose.
+    //
+    // A false positive is close to self-justifying for the same reason: to be wrongly classified, a
+    // weather must render the same at every hour, which is what having no sky looks like.
+    public static bool WeatherRespondsToSun(
+        SkyPalette day, SkyPalette dusk, SkyPalette nightEdge, SkyPalette nightMid)
+    {
+        // Compared against DAY rather than pairwise around the cycle, because the day palette is the
+        // one every weather has to define meaningfully and the one the others are authored relative
+        // to. Three comparisons rather than six, and no ordering question about which pair counts.
+        float worst = SkyPalette.MaxDifference(day, dusk);
+
+        float toNightEdge = SkyPalette.MaxDifference(day, nightEdge);
+        if (toNightEdge > worst)
+            worst = toNightEdge;
+
+        float toNightMid = SkyPalette.MaxDifference(day, nightMid);
+        if (toNightMid > worst)
+            worst = toNightMid;
+
+        return worst > SunResponseTolerance;
+    }
+
     public static bool HasSky(bool biomeExists, bool disableSkyLighting, int weatherChoices)
     {
         if (!biomeExists)
