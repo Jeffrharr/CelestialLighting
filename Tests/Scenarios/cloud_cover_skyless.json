@@ -1,0 +1,299 @@
+{
+  "name": "cloud_cover_skyless",
+  "saveFile": "minimal_colony.rws",
+  "description": "Partial cloud cover's map-kind gate: no cloud tint on a map that cannot roll weather overhead. Each arm flips the cloud_cover flag WITHOUT touching the biome and reads sky_overlay_luminance either side, because switching biome moves the sky for a dozen unrelated reasons and only a same-biome flag flip isolates this feature's own contribution -- the flip must move the sky on an ordinary surface tile and must be exactly inert underground and in orbit. Orbit is a deliberate carve-out rather than a consequence: vacuum maps keep their other sky effects. Undercave is included because it does NOT pass the gate (merged inherited weather lists put it over the changeable-weather threshold) and that is worth pinning rather than rediscovering. The drawn cloud lanes are all switched off so the tint is the only cloud thing in frame. SetBiome dirties ScenarioResidue.Biome, so this scenario runs standalone, never in a suite.",
+  "steps": [
+    {
+      "_comment": "Latitude, season and hour are copied from cloud_cover.json on purpose: same tile, same day, same clock means the surface arm's fraction should land on that scenario's own measured 0.2113, so a drift in the underlying noise shows up here as well as there.",
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "_comment": "Cloud cover only has an opinion while curWeather == Clear (Patch_CloudCoverSky's gate), so Clear is held for the whole biome sweep and never touched again -- the biome is the only variable.",
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "16"
+      },
+      "_comment": "Hour 16 rather than noon because the surface arm has to carry the whole scenario: it is the control that proves the feature is alive, so it wants a cloudy hour rather than a representative one. cloud_cover.json surveys this tile and season and finds its peak here."
+    },
+    {
+      "_comment": "FREEZE THE CLOCK, and it is load-bearing rather than tidiness. Cloud cover is continuous in the absolute tick, and the harness does not pause between steps -- so the fraction each probe sees depends on how many ticks elapsed getting to it, which depends on how long the preceding steps took in REAL time. Screenshots are the expensive ones (a 2 MB PNG each), and adding a single capture to this scenario moved every non-zero reading from 0.227 to 0.185: an 18% swing that looks exactly like a formula regression and is nothing but wall-clock. Paused, the biome is the only variable, which is what the scenario claims to measure.",
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "paused"
+      }
+    },
+    {
+      "_comment": "A THROWAWAY CAPTURE, and it has to be first. hideUi defaults true but is not honoured on a run's FIRST screenshot -- RimWorld's screenshot mode takes a frame to take effect -- so without this the first real capture carries the HUD while its pair does not, and an A/B between them measures UI pixels as if they were the effect. Discarded, never committed.",
+      "type": "Screenshot",
+      "args": {
+        "fileName": "discard_hud_primer.png"
+      }
+    },
+    {
+      "_comment": "The drawn cloud lanes are turned OFF explicitly rather than left to the shipped defaults. All of them ship ON and the sheet drifts on the tick counter, so leaving them on would put moving objects over the exact pixels the screenshots below compare (parent CLAUDE.md's largest single source of run-to-run noise). This scenario is about the SKY TINT, which is a whole-frame colour shift and the one cloud effect that has no drawn object.",
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_sheet",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_presence",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_deck_varieties",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_underlight",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_shadow",
+        "enabled": "false"
+      }
+    },
+    {
+      "_comment": "ARM A -- TemperateForest, an ordinary surface tile with ten weathers. Establishes that the gate has not simply switched the whole subsystem off: the flag flip below must MOVE the rendered sky here, or every zero further down is unfalsifiable.",
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_cover",
+        "enabled": "false"
+      }
+    },
+    {
+      "_comment": "Baseline with cloud cover off. The scenario's real measurement is the DIFFERENCE between this and the next probe, not either value: switching biome changes the sky for a dozen reasons that have nothing to do with cloud, so only a same-biome flag flip isolates this feature's own contribution.",
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_overlay_luminance",
+        "expectedValue": "0.93",
+        "tolerance": "0.09"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "ccsky_a1_forest_cover_off.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_cover",
+        "enabled": "true"
+      }
+    },
+    {
+      "_comment": "Cloud cover on, same biome, same tick-frozen hour. Must differ from the probe above.",
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_overlay_luminance",
+        "expectedValue": "0.93",
+        "tolerance": "0.09"
+      }
+    },
+    {
+      "_comment": "WIDE BAND ON THE LIVE ARMS, TIGHT ZEROS ON THE GATE, exactly as weather_dimming_skyless.json does for the sibling gate and for the same reason: this scenario is about WHICH SIDE OF ZERO each reading falls on, and an exact figure here would fail for reasons that have nothing to do with the gate.\n\nThe reason it cannot be pinned tightly was measured rather than assumed. Cloud cover is continuous in the ABSOLUTE tick, and the tick a run arrives at is not reproducible: four runs of one build at the same latitude, season and hour read 0.061, 0.149, 0.185, 0.227 and 0.490. Pausing the clock (SetTimeSpeed above) fixed the INTRA-run half completely -- every live arm below now returns the identical float within a run, to the last bit -- but the paused tick itself still lands differently each boot. So the band spans the observed spread with room, and the tight pins are on the zeros, which cannot drift because a gate returns a literal 0f.\n\nThe 'the effect is live' claim rests on the committed A/B captures and their measured delta E, not on this number; see the scenario description.",
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_cover_fraction",
+        "expectedValue": "0.275",
+        "tolerance": "0.240"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "ccsky_a2_forest_cover_on.png"
+      }
+    },
+    {
+      "_comment": "ARM B -- Underground, the Core cave biome (one weather, so MapSkyMath.HasSky is false). This is the biome Odyssey's ancient stockpile and insect lair pocket maps use.",
+      "type": "SetBiome",
+      "args": {
+        "biomeDef": "Underground"
+      }
+    },
+    {
+      "_comment": "The gate. Zero, not merely small.",
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_cover_fraction",
+        "expectedValue": "0.0000",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_cover",
+        "enabled": "false"
+      }
+    },
+    {
+      "_comment": "EXACTLY 1.0000, AND THE EXACTNESS IS THE ASSERTION. The tint can only ever DARKEN -- Patch_CloudCoverSky multiplies the sky by a factor below 1 -- so a luminance of exactly 1 means no tint was applied at all, rather than a small one hiding under a loose tolerance. The pair of readings either side of the flag flip must both be this.",
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_overlay_luminance",
+        "expectedValue": "1.0000",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "ccsky_b1_underground_cover_off.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_cover",
+        "enabled": "true"
+      }
+    },
+    {
+      "_comment": "Same value as the probe above = the tint is gone underground.",
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_overlay_luminance",
+        "expectedValue": "1.0000",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "ccsky_b2_underground_cover_on.png"
+      }
+    },
+    {
+      "_comment": "ARM C -- Orbit. This is the arm that is NOT implied by the others. MapSky's own design keeps vacuum maps' sky effects on, deliberately, because twilight and blackbody colour still mean something with no atmosphere; cloud is the exception, because there is no water vapour in a vacuum. So this pins a carve-out, not a consequence.",
+      "type": "SetBiome",
+      "args": {
+        "biomeDef": "Orbit"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_cover_fraction",
+        "expectedValue": "0.0000",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_cover",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_overlay_luminance",
+        "expectedValue": "1.0000",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_cover",
+        "enabled": "true"
+      }
+    },
+    {
+      "_comment": "Must equal the probe above.",
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_overlay_luminance",
+        "expectedValue": "1.0000",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "_comment": "ARM D1 -- the Labyrinth biome itself, on a map that still has a valid tile. This separates the two gates that both fire on a real labyrinth: here only the SKY gate can be responsible, because the tile is fine. Labyrinth's BiomeDef declares no ParentName, so its one weather is its whole list and MapSkyMath.HasSky is false.",
+      "type": "SetBiome",
+      "args": {
+        "biomeDef": "Labyrinth"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_cover_fraction",
+        "expectedValue": "0.0000",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "_comment": "ARM D -- Undercave, and this arm is here because it FAILS the intuition rather than confirming it. An undercave is underground, but its BiomeDef inherits from Biome_Underground and RimWorld MERGES inherited list nodes, so its baseWeatherCommonalities holds two entries (Underground + Undercave), not one -- which puts it over BiomeHasChangingWeather's threshold and makes MapSky.HasSky return TRUE. The sky gate therefore does not catch it. Pinned so the number is on the record rather than discovered again later.",
+      "type": "SetBiome",
+      "args": {
+        "biomeDef": "Undercave"
+      }
+    },
+    {
+      "_comment": "NON-ZERO, and that is the assertion. An undercave is underground and is still not caught by the sky gate, because its BiomeDef inherits from Biome_Underground and RimWorld MERGES inherited list nodes: baseWeatherCommonalities ends up holding two entries (Underground + Undercave), which is over BiomeHasChangingWeather's threshold, so MapSky.HasSky returns TRUE. In real play this is harmless -- an undercave is a pocket map, so the tile gate zeroes it first (see cloud_cover_pocket_map.json, which reaches the real thing) -- and reaching this biome on a valid tile is the only way the sky gate's own answer here is observable at all. Pinned so the number is on the record rather than rediscovered as a surprise later.",
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_cover_fraction",
+        "expectedValue": "0.275",
+        "tolerance": "0.240"
+      }
+    },
+    {
+      "_comment": "ARM E -- back to TemperateForest. A gate that latched off would pass every arm above; this is what distinguishes 'gated' from 'broken'.",
+      "type": "SetBiome",
+      "args": {
+        "biomeDef": "TemperateForest"
+      }
+    },
+    {
+      "_comment": "Must return to a non-zero value.",
+      "type": "Probe",
+      "args": {
+        "probeName": "cloud_cover_fraction",
+        "expectedValue": "0.275",
+        "tolerance": "0.240"
+      }
+    }
+  ]
+}

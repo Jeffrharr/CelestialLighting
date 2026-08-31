@@ -129,6 +129,34 @@ public static class CloudCoverClock
         if (!MapWorldTile.HasWorldTile(map))
             return 0f;
 
+        // NO SKY, NO CLOUD. The gate is MapSky.HasSky rather than IsEnclosed, and for once the
+        // narrower-looking question is the exactly right one: HasSky asks "can weather roll overhead",
+        // and cloud IS weather. That is the same question this subsystem's estimate is an answer to —
+        // it reads the biome's own weather list — so gating on anything else would mean deriving a
+        // cloud fraction from a weather table for a map that cannot roll weather.
+        //
+        // It follows that this deliberately covers ORBIT as well as caverns, even though MapSky's
+        // header records that vacuum maps otherwise keep their sky effects. That exception exists
+        // because twilight and blackbody colour still mean something with no atmosphere to scatter
+        // through; cloud does not. There is no water vapour in a vacuum, so nothing is being
+        // suppressed here that had a defensible value.
+        //
+        // GATED HERE RATHER THAN IN Patch_CloudCoverSky, for the reason the flag check above gives:
+        // this is the one point every caller funnels through. Putting it in the sky patch alone would
+        // have left the weather LABEL reporting "Clear · 34% cloudy" in an undercave — the exact
+        // caller-drift this file gates centrally to prevent. The lanes that draw cloud objects
+        // (CloudLayers' underlight, ground shadow and sheet alpha) already ask MapSky themselves and
+        // are unaffected; their checks are now belt-and-braces rather than load-bearing, which is the
+        // right direction for a gate to be redundant in.
+        //
+        // NOT COMPOSED WITH SkyBlackedOut, which the draw lanes do add. A blacked-out sky is an
+        // opaque one, so the question of how much cloud is in it is still meaningful and still what
+        // the label should report; what changes is only whether you can SEE the cloud, which is a
+        // question for the things that draw it. The lanes ask both because they draw; this returns
+        // the underlying fraction.
+        if (!MapSky.HasSky(map))
+            return 0f;
+
         int tileId = map.Tile.tileId;
 
         // The tile id doubles as the noise seed, same as AerosolDriftClock — stable across save/load,
