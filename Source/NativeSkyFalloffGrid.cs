@@ -240,12 +240,13 @@ public static class NativeSkyFalloffGrid
                 if (visited[neighbourIndex])
                     continue;
 
-                // A wall never gets flooded into (and is never a seed either -- it's roofed). Without
-                // this, a wall cell reached from one room's interior would still get enqueued and could
-                // hand its depth on to whatever is on the *other* side of that wall, leaking one sealed
-                // room's falloff into its neighbour through solid geometry. A door is explicitly not a
-                // wall here (AltitudeLayer.DoorMoveable), so the flood still crosses an open threshold.
-                if (IsWall(map, neighbour))
+                // A blocker never gets flooded into (and is never a seed either -- it's roofed).
+                // Without this, a wall cell reached from one room's interior would still get enqueued
+                // and could hand its depth on to whatever is on the *other* side of that wall, leaking
+                // one sealed room's falloff into its neighbour through solid geometry. A door is
+                // explicitly not a blocker (AltitudeLayer.DoorMoveable), so the flood still crosses an
+                // open threshold.
+                if (BlocksFlood(map, neighbour))
                     continue;
 
                 // Diagonal step through a wall corner: refuse it unless both orthogonal cells that
@@ -281,11 +282,17 @@ public static class NativeSkyFalloffGrid
         return DoorLeakMath.CrossingMultiplier(edifice.def.BaseMaxHitPoints, doorReferenceMaxHitPoints, doorStrengthSensitivity, edifice.def.blockLight);
     }
 
-    // Physically solid -- holds up the roof, is not a door, and actually blocks light. Deliberately NOT
-    // IndoorOcclusionMath.BlocksSky: that predicate answers "should §7b's rendering pass paint this
-    // cell fully dark" (false for a wall, which gets the corner-ramp treatment instead), not "can the
-    // flood pass through this cell". A door never counts as a wall here, so the BFS still crosses an
-    // open threshold the way both DepthAt's own header and Rebuild's seed loop above expect.
+    // Whether the flood stops at this cell. The rule itself is NativeSkyFalloffMath.BlocksFlood, which
+    // carries the full "why" -- including why it is vanilla's own blockLight set and why a door is
+    // deliberately not a blocker; everything here is the reading of live grids a pure function cannot
+    // do. Deliberately NOT IndoorOcclusionMath.BlocksSky: that predicate answers "should §7b's
+    // rendering pass paint this cell fully dark" (false for a wall, which gets the corner-ramp
+    // treatment instead), not "can the flood pass through this cell".
+    //
+    // Named for what it does rather than what usually does it. It was called IsWall while it required
+    // def.holdsRoof, and the name was load-bearing in the wrong direction: a Vent is not a wall, and it
+    // was not treated as one, so sky light poured through it into a sealed room. What stops light is
+    // not what holds up a roof.
     //
     // The blockLight check is what makes a see-through wall (a modded glass partition, e.g. Vanilla
     // Furniture Expanded - Architect's VFEArch_CellWall: holdsRoof true, blockLight false, and -- unlike
@@ -297,18 +304,18 @@ public static class NativeSkyFalloffGrid
     // that measurement was taken with ReBuild loaded, which stands this entire BFS down map-wide via
     // UnderRoofFalloffOwner, so it could never have exercised this branch in the first place. A glass
     // wall from a mod that does not own the gradient is the one live case where this is not inert.
-    private static bool IsWall(Map map, IntVec3 cell)
+    private static bool BlocksFlood(Map map, IntVec3 cell)
     {
         Building edifice = map.edificeGrid[cell];
-        return edifice != null && edifice.def.holdsRoof
-            && edifice.def.altitudeLayer != AltitudeLayer.DoorMoveable
-            && edifice.def.blockLight;
+        return edifice != null && NativeSkyFalloffMath.BlocksFlood(
+            edifice.def.blockLight,
+            edifice.def.altitudeLayer == AltitudeLayer.DoorMoveable);
     }
 
     private static bool CornerBlocked(Map map, IntVec3 cell, IntVec3 diagonalOffset)
     {
         IntVec3 a = new IntVec3(cell.x + diagonalOffset.x, 0, cell.z);
         IntVec3 b = new IntVec3(cell.x, 0, cell.z + diagonalOffset.z);
-        return (a.InBounds(map) && IsWall(map, a)) || (b.InBounds(map) && IsWall(map, b));
+        return (a.InBounds(map) && BlocksFlood(map, a)) || (b.InBounds(map) && BlocksFlood(map, b));
     }
 }

@@ -1003,13 +1003,13 @@ public static class ProbeRegistration
             "door_strength_depth", NativeSkyFalloffProbe.Metric.Depth, new IntVec3(13, 0, 45)));
         ProbeRegistry.Register(new NativeSkyFalloffProbe(
             "door_strength_fraction", NativeSkyFalloffProbe.Metric.Fraction, new IntVec3(13, 0, 45)));
-        // glass_wall_leak2.json (§7c's IsWall blockLight gate, distinct from IndoorGlowPassthrough's own
+        // glass_wall_leak2.json (§7c's BlocksFlood blockLight gate, distinct from IndoorGlowPassthrough's own
         // glass_wall_leak.json): same two-room-side-by-side shape as door_strength_leak.json above, at
         // (-13, 65) and (13, 65) so it cannot collide with either scenario's rooms. Room A's south wall
         // is unbroken granite (wall_control_*) -- the BFS must never reach the near-wall interior cell
         // at all, since a solid wall is never a seed and is never crossed. Room B swaps the single wall
         // cell a door would otherwise occupy for VFEArch_CellWall itself (holdsRoof true, blockLight
-        // false) instead (glass_wall_*) -- IsWall's own blockLight check is what lets the flood cross it
+        // false) instead (glass_wall_*) -- BlocksFlood's own blockLight check is what lets the flood cross it
         // exactly like an open threshold.
         ProbeRegistry.Register(new NativeSkyFalloffProbe(
             "wall_control_depth", NativeSkyFalloffProbe.Metric.Depth, new IntVec3(-13, 0, 65)));
@@ -1019,6 +1019,78 @@ public static class ProbeRegistration
             "glass_wall_depth", NativeSkyFalloffProbe.Metric.Depth, new IntVec3(13, 0, 65)));
         ProbeRegistry.Register(new NativeSkyFalloffProbe(
             "glass_wall_fraction", NativeSkyFalloffProbe.Metric.Fraction, new IntVec3(13, 0, 65)));
+        // vent_sky_falloff.json: the same two-room shape again, one row further north at (-13, 85) /
+        // (13, 85) so it collides with neither glass_wall_leak2.json's rooms nor door_strength_leak's.
+        // Room A is the sealed granite control (vent_wall_control_*); room B has a core Vent in the
+        // single south-wall cell (vent_*). A Vent blocks light by its own def -- vanilla's glow grid
+        // will not pass it -- so the near-wall interior cell must read depth 0, exactly like the solid
+        // control beside it. It reading 2 is the flood crossing the vent as though it were a doorway.
+        ProbeRegistry.Register(new NativeSkyFalloffProbe(
+            "vent_wall_control_depth", NativeSkyFalloffProbe.Metric.Depth, new IntVec3(-13, 0, 85)));
+        ProbeRegistry.Register(new NativeSkyFalloffProbe(
+            "vent_wall_control_fraction", NativeSkyFalloffProbe.Metric.Fraction, new IntVec3(-13, 0, 85)));
+        ProbeRegistry.Register(new NativeSkyFalloffProbe(
+            "vent_depth", NativeSkyFalloffProbe.Metric.Depth, new IntVec3(13, 0, 85)));
+        ProbeRegistry.Register(new NativeSkyFalloffProbe(
+            "vent_fraction", NativeSkyFalloffProbe.Metric.Fraction, new IntVec3(13, 0, 85)));
+        // vent_lamp_leak.json: does LAMP light get through a vent? Two sealed roofed rooms at
+        // (-13, -25) / (13, -25), a torch in each, midnight so the sky contributes nothing and the only
+        // light in the frame is the torches'. Room A's south wall is unbroken granite; room B has a
+        // Vent in the middle of its south wall. The *_out_* probes sit on the outdoor cell one south
+        // of that wall cell, which is where light that escaped would land; the *_in_* probes sit one
+        // cell inside and exist to prove the torches are lit at all, since two dark cells outside mean
+        // nothing if the rooms were dark too.
+        //
+        // Three instruments per cell, because "light comes through" is three different claims. Glow is
+        // GlowGrid.GroundGlowAt -- vanilla's gameplay light, which we never write, so a difference
+        // there is vanilla's own flood crossing the vent. Rendered is the composed lighting-overlay
+        // vertex, which is what a player actually sees and what our mask and max both feed. Reading
+        // them side by side separates "vanilla leaks and we inherit it" from "vanilla blocks and we
+        // draw light there anyway".
+        ProbeRegistry.Register(new GlowGridCellProbe("vent_lamp_control_out_glow", new IntVec3(-13, 0, -31)));
+        ProbeRegistry.Register(new GlowGridCellProbe("vent_lamp_out_glow", new IntVec3(13, 0, -31)));
+        ProbeRegistry.Register(new RenderedLightCellProbe(
+            "vent_lamp_control_out_rendered", new IntVec3(-13, 0, -31), RenderedLightCellProbe.Metric.Level));
+        ProbeRegistry.Register(new RenderedLightCellProbe(
+            "vent_lamp_out_rendered", new IntVec3(13, 0, -31), RenderedLightCellProbe.Metric.Level));
+        ProbeRegistry.Register(new GlowGridCellProbe("vent_lamp_control_in_glow", new IntVec3(-13, 0, -29)));
+        ProbeRegistry.Register(new GlowGridCellProbe("vent_lamp_in_glow", new IntVec3(13, 0, -29)));
+        ProbeRegistry.Register(new RenderedLightCellProbe(
+            "vent_lamp_control_in_rendered", new IntVec3(-13, 0, -29), RenderedLightCellProbe.Metric.Level));
+        ProbeRegistry.Register(new RenderedLightCellProbe(
+            "vent_lamp_in_rendered", new IntVec3(13, 0, -29), RenderedLightCellProbe.Metric.Level));
+        // The vent cell itself, and the control's wall cell opposite it.
+        ProbeRegistry.Register(new GlowGridCellProbe("vent_lamp_control_wall_glow", new IntVec3(-13, 0, -30)));
+        ProbeRegistry.Register(new GlowGridCellProbe("vent_lamp_wall_glow", new IntVec3(13, 0, -30)));
+        ProbeRegistry.Register(new RenderedLightCellProbe(
+            "vent_lamp_control_wall_rendered", new IntVec3(-13, 0, -30), RenderedLightCellProbe.Metric.Level));
+        ProbeRegistry.Register(new RenderedLightCellProbe(
+            "vent_lamp_wall_rendered", new IntVec3(13, 0, -30), RenderedLightCellProbe.Metric.Level));
+        // vent_lamp_interior.json: the placement a vent is actually FOR -- an interior divider between
+        // a lit room and a dark one, which is where a player would see a leak and report it. Same two
+        // buildings at (-13, 25) / (13, 25), each an 11x11 sealed box split down the middle by a full-
+        // height interior wall, torch three cells into the west half. The control's divider is solid
+        // granite; the test building's has a Vent in its middle cell. *_lit_* is the torch's own half
+        // (both must match, or the two buildings are not comparable); *_dark_* is one and three cells
+        // into the east half, which must stay dark if the vent blocks.
+        ProbeRegistry.Register(new GlowGridCellProbe("vent_div_control_lit_glow", new IntVec3(-15, 0, -25)));
+        ProbeRegistry.Register(new GlowGridCellProbe("vent_div_lit_glow", new IntVec3(11, 0, -25)));
+        ProbeRegistry.Register(new RenderedLightCellProbe(
+            "vent_div_control_lit_rendered", new IntVec3(-15, 0, -25), RenderedLightCellProbe.Metric.Level));
+        ProbeRegistry.Register(new RenderedLightCellProbe(
+            "vent_div_lit_rendered", new IntVec3(11, 0, -25), RenderedLightCellProbe.Metric.Level));
+        ProbeRegistry.Register(new GlowGridCellProbe("vent_div_control_dark1_glow", new IntVec3(-12, 0, -25)));
+        ProbeRegistry.Register(new GlowGridCellProbe("vent_div_dark1_glow", new IntVec3(14, 0, -25)));
+        ProbeRegistry.Register(new RenderedLightCellProbe(
+            "vent_div_control_dark1_rendered", new IntVec3(-12, 0, -25), RenderedLightCellProbe.Metric.Level));
+        ProbeRegistry.Register(new RenderedLightCellProbe(
+            "vent_div_dark1_rendered", new IntVec3(14, 0, -25), RenderedLightCellProbe.Metric.Level));
+        ProbeRegistry.Register(new GlowGridCellProbe("vent_div_control_dark3_glow", new IntVec3(-10, 0, -25)));
+        ProbeRegistry.Register(new GlowGridCellProbe("vent_div_dark3_glow", new IntVec3(16, 0, -25)));
+        ProbeRegistry.Register(new RenderedLightCellProbe(
+            "vent_div_control_dark3_rendered", new IntVec3(-10, 0, -25), RenderedLightCellProbe.Metric.Level));
+        ProbeRegistry.Register(new RenderedLightCellProbe(
+            "vent_div_dark3_rendered", new IntVec3(16, 0, -25), RenderedLightCellProbe.Metric.Level));
         // §16: what one map-mesh dirty flag costs, per layer, in microseconds. Seven probes rather
         // than one because the question is a comparison — our three added regenerates against the
         // vanilla ones already on the same flag — and a single total would hide exactly that. The

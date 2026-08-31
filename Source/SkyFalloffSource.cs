@@ -30,7 +30,7 @@ namespace CelestialLighting;
 // cells near its GLASS WALLS receive sky glow, and ReBuild's own patch makes it an
 // UnderRoofFalloffOwner, standing §7c's BFS down entirely wherever it is installed. A glass wall from a
 // mod that does NOT own the gradient is now covered by §7c's own BFS instead (NativeSkyFalloffGrid's
-// IsWall reads blockLight directly), so between the two arms every glass-wall mod is covered one way or
+// BlocksFlood reads blockLight directly), so between the two arms every glass-wall mod is covered one way or
 // the other -- passthrough wherever another mod owns the gradient, native BFS passthrough everywhere
 // else.
 public static class SkyFalloffSource
