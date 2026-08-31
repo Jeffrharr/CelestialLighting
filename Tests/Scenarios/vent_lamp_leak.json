@@ -1,0 +1,358 @@
+{
+ "name": "vent_lamp_leak",
+ "saveFile": "minimal_colony.rws",
+ "description": "Lamp light must NOT cross a Vent in an exterior wall, and this pins that it does not. Two sealed 11x11 roofed boxes at (-13,25) and (13,25), a TorchLamp three cells north of the south wall in each, midnight so the torches are the only light in the frame. The control's south wall is unbroken granite; the test room has a core Vent in the middle of its south wall. Vent is blockLight=true, so vanilla's glow flood refuses to cross it and every blocker test in this mod reads it as solid. Written while chasing a report of light coming through vents: it came back CLEAN, in both the gameplay light (*_out_glow, equal to the control within run-to-run drift) and the composed overlay (*_out_rendered, 0 on both), with vector lighting on and off -- which is what identified the real leak as the sky path (NativeSkyFalloffGrid.BlocksFlood) rather than the lamp path. Kept as a regression test because a future change to the vector polygon or the mask could open exactly this. The *_in_* pins exist because two dark cells outside prove nothing if the rooms were dark too. Clouds off explicitly, Realistic preset.",
+ "steps": [
+  {
+   "type": "SetTile",
+   "args": {
+    "latitude": "45"
+   }
+  },
+  {
+   "type": "SetSeason",
+   "args": {
+    "dayOfYear": "40"
+   }
+  },
+  {
+   "type": "SetWeather",
+   "args": {
+    "weatherDef": "Clear",
+    "instant": "true"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "realistic_preset",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "cloud_cover",
+    "enabled": "false"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "cloud_sheet",
+    "enabled": "false"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "cloud_presence",
+    "enabled": "false"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "cloud_deck_varieties",
+    "enabled": "false"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "cloud_volume",
+    "enabled": "false"
+   }
+  },
+  {
+   "type": "SetTerrain",
+   "args": {
+    "def": "Concrete",
+    "width": "50",
+    "height": "20",
+    "offset": "0,-25",
+    "clear": "true"
+   }
+  },
+  {
+   "type": "PlaceThings",
+   "args": {
+    "def": "Wall",
+    "stuff": "BlocksGranite",
+    "offset": "-13,-25",
+    "layout": "cells",
+    "clear": "true",
+    "cells": "-5,5; -4,5; -3,5; -2,5; -1,5; 0,5; 1,5; 2,5; 3,5; 4,5; 5,5; -5,-5; -4,-5; -3,-5; -2,-5; -1,-5; 0,-5; 1,-5; 2,-5; 3,-5; 4,-5; 5,-5; -5,-4; -5,-3; -5,-2; -5,-1; -5,0; -5,1; -5,2; -5,3; -5,4; 5,-4; 5,-3; 5,-2; 5,-1; 5,0; 5,1; 5,2; 5,3; 5,4"
+   }
+  },
+  {
+   "type": "PlaceThings",
+   "args": {
+    "def": "Wall",
+    "stuff": "BlocksGranite",
+    "offset": "13,-25",
+    "layout": "cells",
+    "clear": "true",
+    "cells": "-5,5; -4,5; -3,5; -2,5; -1,5; 0,5; 1,5; 2,5; 3,5; 4,5; 5,5; -5,-5; -4,-5; -3,-5; -2,-5; -1,-5; 1,-5; 2,-5; 3,-5; 4,-5; 5,-5; -5,-4; -5,-3; -5,-2; -5,-1; -5,0; -5,1; -5,2; -5,3; -5,4; 5,-4; 5,-3; 5,-2; 5,-1; 5,0; 5,1; 5,2; 5,3; 5,4"
+   }
+  },
+  {
+   "type": "PlaceThings",
+   "args": {
+    "def": "Vent",
+    "offset": "13,-25",
+    "layout": "cells",
+    "clear": "false",
+    "cells": "0,-5"
+   }
+  },
+  {
+   "type": "PlaceThings",
+   "args": {
+    "def": "TorchLamp",
+    "offset": "-13,-25",
+    "layout": "cells",
+    "clear": "false",
+    "cells": "0,-3"
+   }
+  },
+  {
+   "type": "PlaceThings",
+   "args": {
+    "def": "TorchLamp",
+    "offset": "13,-25",
+    "layout": "cells",
+    "clear": "false",
+    "cells": "0,-3"
+   }
+  },
+  {
+   "type": "SetRoof",
+   "args": {
+    "def": "RoofConstructed",
+    "width": "11",
+    "height": "11",
+    "offset": "-13,-25"
+   }
+  },
+  {
+   "type": "SetRoof",
+   "args": {
+    "def": "RoofConstructed",
+    "width": "11",
+    "height": "11",
+    "offset": "13,-25"
+   }
+  },
+  {
+   "type": "LookAt",
+   "args": {
+    "offset": "0,-25",
+    "zoom": "34"
+   }
+  },
+  {
+   "type": "SetTime",
+   "args": {
+    "hour": "0"
+   }
+  },
+  {
+   "type": "FastForward",
+   "args": {
+    "ticks": "250"
+   }
+  },
+  {
+   "type": "Screenshot",
+   "args": {
+    "fileName": "warmup_discard.png"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "vent_lamp_control_in_rendered",
+    "expectedValue": "110",
+    "tolerance": "2"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "vent_lamp_in_rendered",
+    "expectedValue": "110",
+    "tolerance": "2"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "vent_lamp_control_wall_glow",
+    "expectedValue": "0",
+    "tolerance": "0"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "vent_lamp_wall_glow",
+    "expectedValue": "0",
+    "tolerance": "0"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "vent_lamp_control_wall_rendered",
+    "expectedValue": "50",
+    "tolerance": "2"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "vent_lamp_wall_rendered",
+    "expectedValue": "50",
+    "tolerance": "2"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "vent_lamp_control_out_glow",
+    "expectedValue": "0.0996667519",
+    "tolerance": "0.02"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "vent_lamp_out_glow",
+    "expectedValue": "0.0998186767",
+    "tolerance": "0.02"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "vent_lamp_control_out_rendered",
+    "expectedValue": "0",
+    "tolerance": "0"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "vent_lamp_out_rendered",
+    "expectedValue": "0",
+    "tolerance": "0"
+   }
+  },
+  {
+   "type": "Screenshot",
+   "args": {
+    "fileName": "vent_lamp_vector_on.png"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "vector_lights",
+    "enabled": "false"
+   }
+  },
+  {
+   "type": "FastForward",
+   "args": {
+    "ticks": "60"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "vent_lamp_control_in_rendered",
+    "expectedValue": "110",
+    "tolerance": "2"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "vent_lamp_in_rendered",
+    "expectedValue": "110",
+    "tolerance": "2"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "vent_lamp_control_wall_glow",
+    "expectedValue": "0",
+    "tolerance": "0"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "vent_lamp_wall_glow",
+    "expectedValue": "0",
+    "tolerance": "0"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "vent_lamp_control_wall_rendered",
+    "expectedValue": "50",
+    "tolerance": "2"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "vent_lamp_wall_rendered",
+    "expectedValue": "50",
+    "tolerance": "2"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "vent_lamp_control_out_glow",
+    "expectedValue": "0.103277117",
+    "tolerance": "0.02"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "vent_lamp_out_glow",
+    "expectedValue": "0.103364289",
+    "tolerance": "0.02"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "vent_lamp_control_out_rendered",
+    "expectedValue": "0",
+    "tolerance": "0"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "vent_lamp_out_rendered",
+    "expectedValue": "0",
+    "tolerance": "0"
+   }
+  },
+  {
+   "type": "Screenshot",
+   "args": {
+    "fileName": "vent_lamp_vector_off.png"
+   }
+  }
+ ]
+}

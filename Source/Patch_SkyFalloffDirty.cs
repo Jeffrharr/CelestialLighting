@@ -6,8 +6,8 @@ namespace CelestialLighting;
 // Invalidation for §7c's whole-map BFS cache (NativeSkyFalloffGrid). Mirrors
 // AmbientLightFalloff.DirtyHooks's own validated trigger set (decompiled in full this session, see the
 // Epic B plan) rather than inventing a new one: roof changes, plus spawn/despawn of anything that can
-// change what NativeSkyFalloffGrid.BlocksSky reads for a cell -- a wall (holdsRoof) or a door
-// (AltitudeLayer.DoorMoveable). Nothing else NativeSkyFalloffGrid.BlocksSky reads can change from a
+// change what NativeSkyFalloffGrid.BlocksFlood reads for a cell -- anything that blocks light, or a
+// door (AltitudeLayer.DoorMoveable). Nothing else NativeSkyFalloffGrid.BlocksFlood reads can change from a
 // Thing spawning or despawning, so filtering here (rather than patching Thing-wide, as Ambient Light's
 // own OnThingSpawn/OnThingDespawn do) keeps an ordinary item drop or a pawn walking by from touching
 // this path at all.
@@ -30,8 +30,8 @@ public static class Patch_SkyFalloffDirty
     }
 
     // Building.SpawnSetup(Map, bool) -- not Thing.SpawnSetup: Building overrides it directly
-    // (decompiled to confirm), and every holdsRoof/door Thing is a Building by construction, so
-    // patching the narrower type still catches every case NativeSkyFalloffGrid.BlocksSky cares about.
+    // (decompiled to confirm), and every light-blocking/door Thing is a Building by construction, so
+    // patching the narrower type still catches every case NativeSkyFalloffGrid.BlocksFlood cares about.
     [HarmonyPatch(typeof(Building), nameof(Building.SpawnSetup))]
     private static class SpawnSetup
     {
@@ -56,12 +56,17 @@ public static class Patch_SkyFalloffDirty
         }
     }
 
-    // holdsRoof and isDoor are the two edifice-derived inputs IsWall reads that this needs to gate on --
-    // kept as one predicate so SpawnSetup and DeSpawn cannot drift apart on what counts as relevant.
-    // blockLight is a third input IsWall reads (glass-wall passthrough) but needs no separate trigger
-    // here: it is a static ThingDef property that can only vary among buildings that already satisfy
-    // holdsRoof, so any spawn/despawn this predicate already catches also catches every blockLight
-    // change.
+    // blockLight and isDoor are the two edifice-derived inputs NativeSkyFalloffGrid.BlocksFlood reads,
+    // so they are what this gates on -- kept as one predicate so SpawnSetup and DeSpawn cannot drift
+    // apart on what counts as relevant, and expressed through the pure NativeSkyFalloffMath.AffectsFlood
+    // so it cannot drift from the blocker rule either.
+    //
+    // This used to read `holdsRoof || isDoor`, on the stated assumption that blockLight "can only vary
+    // among buildings that already satisfy holdsRoof". A Vent is the counterexample: blockLight true,
+    // holdsRoof false. Building one therefore fired no invalidation at all, so even a corrected blocker
+    // set would have kept serving the pre-vent grid until some unrelated wall or roof change happened
+    // to dirty it.
     private static bool RelevantToFalloff(Building building) =>
-        building.def.holdsRoof || building.def.altitudeLayer == AltitudeLayer.DoorMoveable;
+        NativeSkyFalloffMath.AffectsFlood(
+            building.def.blockLight, building.def.altitudeLayer == AltitudeLayer.DoorMoveable);
 }

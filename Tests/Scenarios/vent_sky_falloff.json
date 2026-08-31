@@ -1,0 +1,70 @@
+{
+  "name": "vent_sky_falloff",
+  "description": "Bug: sky light floods through a VENT. Same two-room shape glass_wall_leak2.json uses, at (-13,85)/(13,85) so it collides with neither that scenario's rooms nor door_strength_leak.json's. Room A's south wall is unbroken granite (vent_wall_control_*), which pins the control genuinely sealed at depth 0. Room B swaps the single south-wall cell for a vanilla Vent -- passability Impassable, fillPercent 1, blockLight TRUE, so vanilla's own glow grid refuses to pass it and every other blocker test in this mod (VectorLightBlockers, VectorLightMask, SectionLayer_NightDesaturation) reads it as solid. The under-roof falloff BFS asks a different question: NativeSkyFalloffGrid.IsWall requires def.holdsRoof, which a Vent does NOT set, so the flood crosses it exactly like an open doorway. vent_depth must read 0. Needs no mods beyond this one -- Vent is core. Run WITHOUT Ambient Light and forces the Realistic preset first, same reasons native_sky_falloff.json gives.",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "20" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "40" } },
+    { "type": "SetWeather", "args": { "weatherDef": "Clear", "instant": "true" } },
+    {
+      "type": "SetTerrain",
+      "args": { "def": "Concrete", "width": "50", "height": "20", "offset": "0,85", "clear": "true" }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "-13,85",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "-5,5; -4,5; -3,5; -2,5; -1,5; 0,5; 1,5; 2,5; 3,5; 4,5; 5,5; -5,-5; -4,-5; -3,-5; -2,-5; -1,-5; 0,-5; 1,-5; 2,-5; 3,-5; 4,-5; 5,-5; -5,-4; -5,-3; -5,-2; -5,-1; -5,0; -5,1; -5,2; -5,3; -5,4; 5,-4; 5,-3; 5,-2; 5,-1; 5,0; 5,1; 5,2; 5,3; 5,4"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "13,85",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "-5,5; -4,5; -3,5; -2,5; -1,5; 0,5; 1,5; 2,5; 3,5; 4,5; 5,5; -5,-5; -4,-5; -3,-5; -2,-5; -1,-5; 1,-5; 2,-5; 3,-5; 4,-5; 5,-5; -5,-4; -5,-3; -5,-2; -5,-1; -5,0; -5,1; -5,2; -5,3; -5,4; 5,-4; 5,-3; 5,-2; 5,-1; 5,0; 5,1; 5,2; 5,3; 5,4"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Vent", "offset": "13,85", "layout": "cells", "clear": "false",
+        "cells": "0,-5"
+      }
+    },
+    {
+      "type": "SetRoof",
+      "args": { "def": "RoofConstructed", "width": "11", "height": "11", "offset": "-13,85" }
+    },
+    {
+      "type": "SetRoof",
+      "args": { "def": "RoofConstructed", "width": "11", "height": "11", "offset": "13,85" }
+    },
+    { "type": "LookAt", "args": { "offset": "0,85", "zoom": "34" } },
+
+    { "type": "SetFeature", "args": { "featureName": "realistic_preset", "enabled": "true" } },
+
+    { "type": "FastForward", "args": { "ticks": "250" } },
+
+    { "type": "SetTime", "args": { "hour": "12" } },
+
+    { "type": "Probe", "args": { "probeName": "vent_wall_control_depth", "expectedValue": "0", "tolerance": "0" } },
+    { "type": "Probe", "args": { "probeName": "vent_wall_control_fraction", "expectedValue": "0", "tolerance": "0" } },
+    { "type": "Probe", "args": { "probeName": "vent_depth", "expectedValue": "0", "tolerance": "0" } },
+    { "type": "Probe", "args": { "probeName": "vent_fraction", "expectedValue": "0", "tolerance": "0" } },
+    { "type": "Screenshot", "args": { "fileName": "vent_sky_falloff_noon.png" } },
+
+    { "type": "SetTime", "args": { "hour": "23" } },
+
+    { "type": "Probe", "args": { "probeName": "vent_depth", "expectedValue": "0", "tolerance": "0" } },
+    { "type": "Probe", "args": { "probeName": "vent_fraction", "expectedValue": "0", "tolerance": "0" } },
+    { "type": "Screenshot", "args": { "fileName": "vent_sky_falloff_night.png" } }
+  ]
+}

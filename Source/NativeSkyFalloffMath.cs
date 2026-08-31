@@ -56,5 +56,45 @@ public static class NativeSkyFalloffMath
         return Clamp01(passThrough01 * (1f - depthFraction));
     }
 
+    // Whether an edifice standing on a cell stops the flood there. `blocksLight` is the cell's own
+    // ThingDef.blockLight and `isDoor` is altitudeLayer == AltitudeLayer.DoorMoveable; the adapter
+    // (NativeSkyFalloffGrid.BlocksFlood) reads both off the live edifice grid.
+    //
+    // THE BLOCKER SET IS VANILLA'S, EXACTLY -- the same argument VectorLightBlockers' own header makes
+    // for the vector-light occluders, and for the same reason. Verse.Building.SpawnSetup writes
+    // def.blockLight into GlowGrid's lightBlockers bit array on spawn and clears it on despawn, so
+    // blockLight is precisely the set vanilla's own glow flood refuses to pass. A flood that answers a
+    // DIFFERENT question than the gameplay light disagrees with what the player sees in exactly the
+    // places they are looking.
+    //
+    // This used to also require def.holdsRoof, mirrored from AmbientLightFalloff.MapComp_AmbientLight's
+    // own RebuildDistance, on the reading that a solid cell is a cell holding up the roof. It is not: a
+    // core Vent is Impassable, fillPercent 1, blockLight TRUE and holdsRoof FALSE, so it was crossed
+    // exactly like an open doorway -- an interior cell behind a vent read depth 2 and fraction
+    // 0.2625 at noon, bit-identical to a cell behind a plain wood door, and a sealed room with a vent
+    // in its wall glowed at night while the same room without one stayed black. The same class covers
+    // ten more core defs (Cooler, GeothermalGenerator, WatermillGenerator, Noctolith and the ship
+    // parts), every one of them Impassable and light-blocking. Vent and Cooler are the two players
+    // build INTO an exterior wall, so they were also the two that leaked.
+    //
+    // A door is still not a blocker, and that clause is why this is not simply `blocksLight`: the flood
+    // has to cross a threshold, which is what DoorLeakMath's crossing multiplier then dims. Core's
+    // FenceGate is the one light-blocking, non-roof-holding def that must NOT become solid here, and
+    // the door clause is what keeps it crossable.
+    public static bool BlocksFlood(bool blocksLight, bool isDoor) => blocksLight && !isDoor;
+
+    // Whether a building spawning or despawning can change any answer the flood depends on, i.e.
+    // whether Patch_SkyFalloffDirty has to invalidate the cached grid for it. The complement pair to
+    // BlocksFlood rather than the same predicate: a DOOR appearing changes no BlocksFlood answer (it
+    // was crossable before and after) but does change the crossing multiplier the strengths carry, so
+    // the invalidation set is the union, not the blocker set.
+    //
+    // Stated here beside BlocksFlood on purpose. The two drifting apart is silent by construction --
+    // the grid simply keeps serving a stale answer, which looks like a formula bug and not a missing
+    // trigger -- and that is exactly what happened: the old trigger gated on holdsRoof, so building a
+    // vent fired no invalidation at all and the fix to the blocker set alone would not have shown up
+    // until something else happened to dirty the map.
+    public static bool AffectsFlood(bool blocksLight, bool isDoor) => blocksLight || isDoor;
+
     private static float Clamp01(float v) => v < 0f ? 0f : (v > 1f ? 1f : v);
 }

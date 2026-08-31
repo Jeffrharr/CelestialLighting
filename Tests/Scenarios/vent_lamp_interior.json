@@ -1,0 +1,390 @@
+{
+ "name": "vent_lamp_interior",
+ "saveFile": "minimal_colony.rws",
+ "description": "Lamp light must NOT cross an INTERIOR Vent -- the placement a vent is actually for, and the one a player would report. Two identical 11x11 sealed roofed boxes at (-13,25) and (13,25), each split down the middle by a full-height interior granite wall; the control's divider is unbroken, the test building's middle divider cell is a core Vent. The TorchLamp sits IMMEDIATELY beside the divider rather than back in the room, deliberately: a negative result from a dim corner of a dark frame is worth very little, so the lamp is put where its falloff is at its peak and any leak would be at its most conspicuous. The east half stays as dark as the control's even so -- dark1 and dark3 read 0 on the gameplay glow AND on the composed overlay in both buildings, with vector lighting on and off. The companion to vent_lamp_leak.json's exterior case; between them they are why the vent report was traced to the sky falloff path (NativeSkyFalloffGrid.BlocksFlood) rather than the lamp path. Kept as a regression test because a future change to the vector polygon or the mask could open exactly this. Clouds off explicitly, Realistic preset, midnight -- the torches are the only light in the frame.",
+ "steps": [
+  {
+   "type": "SetTile",
+   "args": {
+    "latitude": "45"
+   }
+  },
+  {
+   "type": "SetSeason",
+   "args": {
+    "dayOfYear": "40"
+   }
+  },
+  {
+   "type": "SetWeather",
+   "args": {
+    "weatherDef": "Clear",
+    "instant": "true"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "realistic_preset",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "cloud_cover",
+    "enabled": "false"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "cloud_sheet",
+    "enabled": "false"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "cloud_presence",
+    "enabled": "false"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "cloud_deck_varieties",
+    "enabled": "false"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "cloud_volume",
+    "enabled": "false"
+   }
+  },
+  {
+   "type": "SetTerrain",
+   "args": {
+    "def": "Concrete",
+    "width": "50",
+    "height": "20",
+    "offset": "0,-25",
+    "clear": "true"
+   }
+  },
+  {
+   "type": "PlaceThings",
+   "args": {
+    "def": "Wall",
+    "stuff": "BlocksGranite",
+    "offset": "-13,-25",
+    "layout": "cells",
+    "clear": "true",
+    "cells": "-5,5; -4,5; -3,5; -2,5; -1,5; 0,5; 1,5; 2,5; 3,5; 4,5; 5,5; -5,-5; -4,-5; -3,-5; -2,-5; -1,-5; 0,-5; 1,-5; 2,-5; 3,-5; 4,-5; 5,-5; -5,-4; -5,-3; -5,-2; -5,-1; -5,0; -5,1; -5,2; -5,3; -5,4; 5,-4; 5,-3; 5,-2; 5,-1; 5,0; 5,1; 5,2; 5,3; 5,4; 0,-4; 0,-3; 0,-2; 0,-1; 0,0; 0,1; 0,2; 0,3; 0,4"
+   }
+  },
+  {
+   "type": "PlaceThings",
+   "args": {
+    "def": "Wall",
+    "stuff": "BlocksGranite",
+    "offset": "13,-25",
+    "layout": "cells",
+    "clear": "true",
+    "cells": "-5,5; -4,5; -3,5; -2,5; -1,5; 0,5; 1,5; 2,5; 3,5; 4,5; 5,5; -5,-5; -4,-5; -3,-5; -2,-5; -1,-5; 0,-5; 1,-5; 2,-5; 3,-5; 4,-5; 5,-5; -5,-4; -5,-3; -5,-2; -5,-1; -5,0; -5,1; -5,2; -5,3; -5,4; 5,-4; 5,-3; 5,-2; 5,-1; 5,0; 5,1; 5,2; 5,3; 5,4; 0,-4; 0,-3; 0,-2; 0,-1; 0,1; 0,2; 0,3; 0,4"
+   }
+  },
+  {
+   "type": "PlaceThings",
+   "args": {
+    "def": "Vent",
+    "offset": "13,-25",
+    "layout": "cells",
+    "clear": "false",
+    "cells": "0,0"
+   }
+  },
+  {
+   "type": "PlaceThings",
+   "args": {
+    "def": "TorchLamp",
+    "offset": "-13,-25",
+    "layout": "cells",
+    "clear": "false",
+    "cells": "-1,0"
+   }
+  },
+  {
+   "type": "PlaceThings",
+   "args": {
+    "def": "TorchLamp",
+    "offset": "13,-25",
+    "layout": "cells",
+    "clear": "false",
+    "cells": "-1,0"
+   }
+  },
+  {
+   "type": "SetRoof",
+   "args": {
+    "def": "RoofConstructed",
+    "width": "11",
+    "height": "11",
+    "offset": "-13,-25"
+   }
+  },
+  {
+   "type": "SetRoof",
+   "args": {
+    "def": "RoofConstructed",
+    "width": "11",
+    "height": "11",
+    "offset": "13,-25"
+   }
+  },
+  {
+   "type": "LookAt",
+   "args": {
+    "offset": "0,-25",
+    "zoom": "34"
+   }
+  },
+  {
+   "type": "SetTime",
+   "args": {
+    "hour": "0"
+   }
+  },
+  {
+   "type": "FastForward",
+   "args": {
+    "ticks": "250"
+   }
+  },
+  {
+   "type": "Screenshot",
+   "args": {
+    "fileName": "warmup_discard.png"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "vent_div_control_lit_glow",
+    "expectedValue": "0.5",
+    "tolerance": "0.01"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "vent_div_lit_glow",
+    "expectedValue": "0.5",
+    "tolerance": "0.01"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "vent_div_control_lit_rendered",
+    "expectedValue": "105",
+    "tolerance": "2"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "vent_div_lit_rendered",
+    "expectedValue": "105",
+    "tolerance": "2"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "vent_div_control_dark1_glow",
+    "expectedValue": "0",
+    "tolerance": "0"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "vent_div_dark1_glow",
+    "expectedValue": "0",
+    "tolerance": "0"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "vent_div_control_dark1_rendered",
+    "expectedValue": "0",
+    "tolerance": "0"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "vent_div_dark1_rendered",
+    "expectedValue": "0",
+    "tolerance": "0"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "vent_div_control_dark3_glow",
+    "expectedValue": "0",
+    "tolerance": "0"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "vent_div_dark3_glow",
+    "expectedValue": "0",
+    "tolerance": "0"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "vent_div_control_dark3_rendered",
+    "expectedValue": "0",
+    "tolerance": "0"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "vent_div_dark3_rendered",
+    "expectedValue": "0",
+    "tolerance": "0"
+   }
+  },
+  {
+   "type": "Screenshot",
+   "args": {
+    "fileName": "vent_interior_vector_on.png"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "vector_lights",
+    "enabled": "false"
+   }
+  },
+  {
+   "type": "FastForward",
+   "args": {
+    "ticks": "60"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "vent_div_control_lit_glow",
+    "expectedValue": "0.5",
+    "tolerance": "0.01"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "vent_div_lit_glow",
+    "expectedValue": "0.5",
+    "tolerance": "0.01"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "vent_div_control_lit_rendered",
+    "expectedValue": "105",
+    "tolerance": "2"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "vent_div_lit_rendered",
+    "expectedValue": "105",
+    "tolerance": "2"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "vent_div_control_dark1_glow",
+    "expectedValue": "0",
+    "tolerance": "0"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "vent_div_dark1_glow",
+    "expectedValue": "0",
+    "tolerance": "0"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "vent_div_control_dark1_rendered",
+    "expectedValue": "0",
+    "tolerance": "0"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "vent_div_dark1_rendered",
+    "expectedValue": "0",
+    "tolerance": "0"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "vent_div_control_dark3_glow",
+    "expectedValue": "0",
+    "tolerance": "0"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "vent_div_dark3_glow",
+    "expectedValue": "0",
+    "tolerance": "0"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "vent_div_control_dark3_rendered",
+    "expectedValue": "0",
+    "tolerance": "0"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "vent_div_dark3_rendered",
+    "expectedValue": "0",
+    "tolerance": "0"
+   }
+  },
+  {
+   "type": "Screenshot",
+   "args": {
+    "fileName": "vent_interior_vector_off.png"
+   }
+  }
+ ]
+}

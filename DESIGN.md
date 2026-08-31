@@ -1357,6 +1357,55 @@ depth/maxDepth falloff by this strength as a final term.
   bright the room actually is for gameplay purposes (pathing, plant growth, mood, `Room` mechanics all
   still see the wall as solid) — the same visual/atmospheric-only boundary this repo holds everywhere
   else it writes `.glow` at all (§7's own "few patches write `SkyTarget.glow`" scope note).
+- **A vent is not a wall, and for a while that meant the sky poured through one.** The blocker test
+  additionally required `def.holdsRoof`, mirrored from `AmbientLightFalloff.MapComp_AmbientLight`'s own
+  `RebuildDistance` on the reading that a solid cell is a cell holding up the roof. It is not. A core
+  `Vent` is `passability` Impassable, `fillPercent` 1, `blockLight` **true** and `holdsRoof` **false**,
+  so the flood crossed it exactly like an open doorway: an interior cell one step behind a vent measured
+  `depth` 2 and `fraction` 0.262499988 at noon — bit-identical to the same cell behind a plain wood door
+  — and a sealed room with a vent in its outer wall was visibly washed with sky light at 23:00 while an
+  otherwise identical room without one stayed black. Ten more Core defs share the shape (`Cooler`,
+  `GeothermalGenerator`, `WatermillGenerator`, `Noctolith`, and the five `Ship_*` parts), every one of
+  them Impassable and light-blocking; `Vent` and `Cooler` are the two players build *into* an exterior
+  wall, so they were the two that leaked in practice. The blocker set is now `blockLight && !isDoor` —
+  vanilla's own, since `Verse.Building.SpawnSetup` writes `def.blockLight` into `GlowGrid`'s
+  `lightBlockers` and that is precisely the set vanilla's flood refuses to pass, the same argument the
+  vector-light occluders already make. Core's `FenceGate` is the one light-blocking, non-roof-holding def
+  that must *not* become solid, and the door clause is what keeps it crossable. The rule moved into
+  `NativeSkyFalloffMath.BlocksFlood` so it can be exhausted offline, and the adapter was renamed off
+  `IsWall` with it: the old name was load-bearing in the wrong direction, since a vent is not a wall and
+  was not treated as one. **The invalidation half had the same bug and had to move with it.** The dirty
+  trigger gated on `holdsRoof || isDoor`, on the stated assumption that `blockLight` "can only vary among
+  buildings that already satisfy `holdsRoof`" — the vent is that assumption's counterexample, so building
+  one fired no invalidation at all and a corrected blocker set alone would have kept serving the pre-vent
+  grid until some unrelated wall or roof change happened to dirty it. It is now
+  `NativeSkyFalloffMath.AffectsFlood`, the union `blockLight || isDoor`, stated beside `BlocksFlood` in
+  the same file because the two drifting apart is silent by construction. Live-verified in
+  `Tests/Scenarios/vent_sky_falloff.json`: a granite control room and a vent room side by side, the vent
+  room reading `vent_depth` 2 / `vent_fraction` 0.262499988 before and 0 / 0 after, against a control
+  pinned at 0 throughout. Median CIELAB ΔE (CIE76) over the vent room's interior is **0.82 at noon**
+  (p90 2.47, max 6.50) against **0.00 / 0.00 / 0.00** for the sealed control room in the same frame pair
+  — an in-frame noise floor rather than a same-build control run, which is stronger. The median
+  understates it on purpose-of-shape grounds: the leak is a gradient that is brightest at the vent and
+  falls to nothing at the far wall, so half the masked pixels were never lit and drag the median down;
+  the p90 is the near-vent half and is what the eye lands on. At 23:00 it measures median 0.00 / p90 0.40
+  — the fraction there is 0.0105, too small to read on screen, exactly as the glass-wall bullet above
+  records for the same reason. **Quote the noon number, not the night one.** `door_strength_leak.json`,
+  `glass_wall_leak2.json`, `native_sky_falloff.json` and `sky_falloff_redraw.json` are unmoved — doors and
+  glass walls both still cross, which is the point of keeping the door clause and the `blockLight` clause
+  separate.
+  **The lamp path was checked and is clean.** The originating report read as lamp light coming through a
+  vent, so it was measured rather than assumed: `vent_lamp_leak.json` (vent in an exterior wall, torch
+  inside) and `vent_lamp_interior.json` (vent in an interior divider, torch immediately beside it — the
+  placement a vent is actually for) both read 0 on the far side, on the gameplay glow *and* on the
+  composed overlay, with vector lighting on and off, matching a solid-wall control exactly. Both are kept
+  as regression tests: a future change to the vector polygon or the mask could open exactly that, and the
+  overlay probe alone would not catch a beam drawn in the vector pass, which is why the frames were
+  judged on pixels too.
+  **A small deliberate vent leak, closed-door style, is explicitly NOT this change.** Letting a vent pass
+  a little light the way `DoorLeakMath`'s crossing multiplier lets a shut door pass some is a reasonable
+  thing to want and a separate decision; this change makes a vent as opaque as the wall it replaces,
+  which is what vanilla's own gameplay light already does.
 - **The reference is a wood door, and ratio 1 there is load-bearing.** `DoorStrengthReference` memoizes
   `ThingDefOf.Door.BaseMaxHitPoints` (160, `DoorBase`'s own `statBases` override, not the 100 `StatDef`
   default) once — defs never change at runtime, so re-deriving it on every `Rebuild` would pay a stat
