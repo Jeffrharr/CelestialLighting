@@ -109,6 +109,26 @@ public static class CloudCoverClock
         if (!CelestialLightingFeatures.CloudCover)
             return 0f;
 
+        // A POCKET MAP HAS NO WORLD TILE, and this is the one gate in the file that is about the map
+        // rather than about the feature. It sits beside the flag check for the same reason the flag
+        // check is here at all: every caller funnels through FractionForTick, so guarding it once is
+        // what stops Patch_CloudCoverSky and Patch_CloudCoverLabel drifting apart about it.
+        //
+        // WHAT IT PREVENTS is a hard throw, not a wrong number. SeasonalWetFractionFor below calls
+        // GenTemperature.GetTemperatureFromSeasonAtTile, which indexes Find.WorldGrid unchecked and so
+        // raises ArgumentOutOfRangeException on tileId -1 — see MapWorldTile.cs for the full account of
+        // which vanilla accessors throw and which quietly answer about a different tile. Because this
+        // runs inside the sky composite, that throw took the mod's ENTIRE sky rendering down on every
+        // frame of an Anomaly labyrinth, which is what it was reported as: "disabling cloud cover fixes
+        // the lighting". Reported against 1.6.4871.
+        //
+        // ZERO IS THE HONEST ANSWER, not merely the safe one. Cloud cover is a property of the sky over
+        // a world tile; a map with no tile has neither, so there is nothing to estimate rather than
+        // something we are declining to estimate. It is also exactly what WeatherDimming.DeckOpacityFor
+        // already passes down for a map its own MapSky.HasSky gate rejects, so the two agree.
+        if (!MapWorldTile.HasWorldTile(map))
+            return 0f;
+
         int tileId = map.Tile.tileId;
 
         // The tile id doubles as the noise seed, same as AerosolDriftClock — stable across save/load,

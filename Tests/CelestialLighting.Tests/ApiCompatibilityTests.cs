@@ -941,6 +941,58 @@ public class ApiCompatibilityTests
     }
 
     [Test]
+    public void PlanetTile_HasValid()
+    {
+        // Source/MapWorldTile.cs's whole implementation. Every pocket map — Anomaly's labyrinth,
+        // metal hell and undercave, Odyssey's ancient stockpile, insect lair and space pocket, and
+        // any modded generator calling PocketMapUtility — carries PlanetTile.Invalid, and this is
+        // vanilla's own predicate for spotting it.
+        //
+        // Reusing vanilla's predicate rather than writing `tileId >= 0` ourselves is deliberate: it
+        // is the same comparison PlanetLayer's indexer bounds-checks with, so the gate cannot drift
+        // away from the thing it is protecting. If Ludeon changes what "invalid" means, this test is
+        // what tells us, instead of a hand-rolled comparison silently continuing to agree with the
+        // old definition.
+        //
+        // A rename here does not fail loudly on its own — the mod would simply stop declining to read
+        // the world grid, and cloud cover would go back to throwing ArgumentOutOfRangeException on
+        // every rendered frame of a labyrinth, taking the sky composite with it.
+        var type = GetType("RimWorld.Planet.PlanetTile");
+        Assert.That(type, Is.Not.Null, "RimWorld.Planet.PlanetTile no longer exists");
+        var valid = type!.Properties.SingleOrDefault(p => p.Name == "Valid");
+        Assert.That(valid, Is.Not.Null,
+            "PlanetTile.Valid no longer exists — MapWorldTile.HasWorldTile is the only thing keeping "
+            + "cloud cover off a pocket map's missing world tile");
+        Assert.That(valid!.PropertyType.FullName, Is.EqualTo("System.Boolean"),
+            "PlanetTile.Valid changed shape — MapWorldTile treats it as a plain predicate");
+    }
+
+    [Test]
+    public void GenTemperature_SeasonalTemperature_TakesPlanetTile()
+    {
+        // The call MapWorldTile.HasWorldTile exists to guard (Source/CloudCoverClock.cs). It is the
+        // only vanilla helper this mod hands a raw PlanetTile to that reaches Find.WorldGrid's
+        // UNCHECKED indexer, so it is the only one that throws rather than returning null or quietly
+        // answering about the player's home tile.
+        //
+        // Asserted by signature rather than by body: what matters to us is that we are still the ones
+        // choosing which tile it sees. If the parameter stops being a tile — if it grows a Map
+        // overload that resolves pocketTileInfo itself, say — the guard is no longer describing the
+        // call it guards, and that is worth a failing test even though nothing would crash.
+        var type = GetType("Verse.GenTemperature");
+        Assert.That(type, Is.Not.Null, "Verse.GenTemperature no longer exists");
+        var method = type!.Methods.SingleOrDefault(m => m.Name == "GetTemperatureFromSeasonAtTile");
+        Assert.That(method, Is.Not.Null,
+            "GenTemperature.GetTemperatureFromSeasonAtTile no longer exists — cloud cover's seasonal "
+            + "wet-fraction estimate reads the biome's weather list against it");
+        Assert.That(
+            method!.Parameters.Any(p => p.ParameterType.FullName == "RimWorld.Planet.PlanetTile"),
+            Is.True,
+            "GetTemperatureFromSeasonAtTile no longer takes a PlanetTile — MapWorldTile's guard is "
+            + "written against the assumption that we pick the tile it looks up");
+    }
+
+    [Test]
     public void Tile_HasElevation()
     {
         // §20's single live read (Source/SiteAltitude.cs). Three things matter and all three are
