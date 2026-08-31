@@ -3960,6 +3960,82 @@ genuinely changes mid-session, so a cache would need the `RegisterCondition` / `
 the static gates do not — cost and risk on the same side. Vanilla makes the opposite trade with
 `GameConditionManager.cachedAlwaysDark` and pays exactly those two hooks for it.
 
+### A map with no world tile at all: pocket maps (`MapWorldTile`)
+
+**Problem.** Every gate above asks a question about a map's *biome*. There is a second, entirely
+structural way a map can differ, and no biome field reports it: a pocket map has no world tile.
+`PocketMapUtility.GeneratePocketMap` builds a `PocketMapParent` and never assigns its tile, so it
+keeps `WorldObject`'s own initialiser — `PlanetTile.Invalid`, `tileId` −1 — for the map's whole life.
+That is Anomaly's labyrinth, metal hell and undercave, Odyssey's ancient stockpile, insect lair and
+space pocket, and any modded generator calling the same helper. An obelisk-generated labyrinth is
+ordinary Anomaly play, not a corner case.
+
+Vanilla's tile accessors disagree about an invalid tile, and every one of the disagreements is
+silent:
+
+| Accessor | On `tileId` −1 |
+|---|---|
+| `Find.WorldGrid[tile]` | subscripts the backing `List<Tile>` **unchecked** → `ArgumentOutOfRangeException` |
+| `PlanetLayer`'s own indexer | bounds-checks, returns `null` |
+| `WorldGrid.LongLatOf(tile)` | substitutes the player's home-map tile, or `(0,0)` if there is none |
+| `Map.TileInfo` | returns the map's `pocketTileInfo`, so biome reads are always fine |
+
+So handing an invalid tile to a vanilla helper is a coin toss between throwing every frame, handing
+back null, and quietly answering about somewhere else entirely.
+
+Partial cloud cover drew the first. Its seasonal wet-fraction estimate calls
+`GenTemperature.GetTemperatureFromSeasonAtTile`, which reaches `Find.WorldGrid`'s indexer — and
+vanilla even null-checks the `Tile` it gets back, on a line the indexer throws before reaching. The
+throw happens inside the sky composite, so it did not merely disable cloud cover: it took the mod's
+**entire sky rendering** down on every rendered frame of a labyrinth. Reported against 1.6.4871 as
+"the map's lighting breaks, and disabling cloud cover fixes it", which is exactly what a patch
+throwing out of `SkyManagerUpdate` looks like from a player's seat.
+
+**Approach.** `MapWorldTile.HasWorldTile(map)` — one question, one place, in the shape of
+`Vacuum.cs`. It is `map.Tile.Valid`, vanilla's own predicate, rather than a hand-rolled `tileId >= 0`,
+so it cannot drift away from the bounds check inside `PlanetLayer`'s indexer that it exists to agree
+with. `CloudCoverClock.FractionForTick` returns 0 when it is false, gated beside the feature flag
+because that is the single point every cloud-cover caller funnels through.
+
+Zero is the honest answer there rather than merely the safe one: cloud cover is a property of the sky
+over a world tile, and a map with no tile has neither, so there is nothing to estimate rather than
+something we are declining to estimate. It is also what `WeatherDimming.DeckOpacityFor` already
+passes down for a map its own `MapSky.HasSky` gate rejects, so the two agree.
+
+**Why this is not a clause on `MapSky`,** which is the interesting part and the reason it is written
+up here rather than fixed quietly. `MapSky.HasSky` is already false for all six vanilla pocket-map
+biomes — but only by coincidence of def data. Each of them lists exactly one weather, so
+`MapSkyMath.HasSky` returns false through `BiomeHasChangingWeather`, for reasons that have nothing
+whatsoever to do with the planet grid. A modded pocket map with two weathers would be skyful and
+still tileless; a surface cavern is skyless with a perfectly good tile. The two questions agree today
+on the maps we can test and are independent in principle, which is the same argument this section
+already makes for keeping `HasSky`, `IsEnclosed` and `DrawsShadows` apart.
+
+**Not pushed down as a `bool` parameter** the way the vacuum gate is, and the distinction is worth
+stating because the vacuum convention is otherwise the model here. `inVacuum` selects between two
+pieces of *arithmetic*, so the pure function has to know. There is no tile-free arithmetic to select:
+there is only a live read to decline to make. The decision therefore belongs at the boundary where
+the read happens, and pushing it down would carry a live-state question into a file whose whole point
+is not having any.
+
+**A second defect in the same class, found in the same audit.** The sky-falloff redraw's
+last-baked-glow dictionary was keyed by tile id, on the reasoning that no two maps share a tile —
+true for surface maps and false for pocket maps, which all share −1. Two pocket maps open at once
+overwrote each other's baseline, and whichever was checked second compared its glow against the
+other map's and skipped the redraw it needed: an indoor-occlusion mesh that stops tracking dusk, on
+one map only. It is keyed by `map.uniqueID` now, the key `GeometryMemo` already uses for per-map
+state, which is what the value's meaning demanded all along.
+
+**Verification.** Offline only, and deliberately stated as a limit rather than glossed. Two Cecil
+pins carry it: `PlanetTile.Valid`, whose rename would silently restore the throw, and
+`GetTemperatureFromSeasonAtTile`'s `PlanetTile` parameter, since a `Map` overload resolving
+`pocketTileInfo` itself would mean the guard no longer describes the call it guards. **There is no
+live scenario**, because the harness cannot generate a pocket map — `SetBiome` repoints an existing
+map's tile at a biome, which leaves the tile perfectly valid and so cannot reach this branch at all.
+Reaching it live needs a harness step that calls `PocketMapUtility.GeneratePocketMap`. The harness's
+own `SetTilePropertiesAction` already documents this exact `WorldGrid`-throws-on-pocket-maps hazard,
+so the knowledge was in the tree; it had simply never crossed into the mod.
+
 ## 18. Vacuum maps (`Vacuum.cs`) — the shared `inVacuum` gate
 
 Odyssey adds space maps (orbital platforms, gravships in transit). Every subsystem above models
