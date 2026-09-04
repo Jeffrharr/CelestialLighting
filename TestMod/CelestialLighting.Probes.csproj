@@ -82,6 +82,10 @@
     <!-- §27e: vanilla's gameplay light at a named cell, the only probe that can tell the drawn-only
          arm from the glow-grid-driven one, since our polygon is identical in both. -->
     <Compile Include="../Source/Probes/GlowGridCellProbe.cs" Link="GlowGridCellProbe.cs" />
+    <!-- The two blocker tests vanilla itself keeps, read side by side at one cell: the edifice grid
+         its section layers ask, and the every-building set its glow grid holds. They can only
+         disagree where a mod stands two buildings in one cell, which is what an over-wall vent is. -->
+    <Compile Include="../Source/Probes/CellBlockerProbe.cs" Link="CellBlockerProbe.cs" />
     <!-- §27 phase 5b: what a named cell actually RENDERS at, read out of the lighting overlay's own
          vertex colours. The glow-grid probe above cannot see the mask at all — §27 deliberately
          never touches gameplay light — so this is the only probe that can hold a monotonicity
@@ -94,6 +98,11 @@
          assembly for the same reason: StepDiscovery scans loaded mod assemblies, and this must
          never reach the shipped DLL. -->
     <Compile Include="../Source/Probes/SetDoorOpenStep.cs" Link="SetDoorOpenStep.cs" />
+    <!-- The StackThing scenario step, which puts one building into a cell another already holds:
+         the arrangement Replace Stuff's over-wall vent creates, and the one PlaceThings cannot build,
+         since its GenSpawn.CanSpawnAt guard refuses any cell that is not walkable. Same dev-only
+         placement and the same reason as SetDoorOpen above. -->
+    <Compile Include="../Source/Probes/StackThingStep.cs" Link="StackThingStep.cs" />
     <!-- Issue #218's instrument, and the pure core it folds samples with. Reads the lighting
          overlay once per RENDERED FRAME across a whole box of cells, because the defect it exists to
          catch lasts one or two frames in the middle of a door swing and every other scenario here

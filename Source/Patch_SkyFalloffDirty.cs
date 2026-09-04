@@ -56,17 +56,21 @@ public static class Patch_SkyFalloffDirty
         }
     }
 
-    // blockLight and isDoor are the two edifice-derived inputs NativeSkyFalloffGrid.BlocksFlood reads,
-    // so they are what this gates on -- kept as one predicate so SpawnSetup and DeSpawn cannot drift
-    // apart on what counts as relevant, and expressed through the pure NativeSkyFalloffMath.AffectsFlood
-    // so it cannot drift from the blocker rule either.
+    // blockLight, isDoor and "is this a vent or a cooler" are the three building-derived inputs
+    // NativeSkyFalloffGrid's blocker test reads, so they are what this gates on -- kept as one
+    // predicate so SpawnSetup and DeSpawn cannot drift apart on what counts as relevant, and expressed
+    // through the pure NativeSkyFalloffMath.AffectsFlood so it cannot drift from the blocker rule
+    // either.
     //
     // This used to read `holdsRoof || isDoor`, on the stated assumption that blockLight "can only vary
     // among buildings that already satisfy holdsRoof". A Vent is the counterexample: blockLight true,
     // holdsRoof false. Building one therefore fired no invalidation at all, so even a corrected blocker
     // set would have kept serving the pre-vent grid until some unrelated wall or roof change happened
-    // to dirty it.
+    // to dirty it. Replace Stuff's over-wall vent is the same trap one step along: blockLight FALSE and
+    // not a door, so it needs the aperture-fixture term here for the same reason it needs it there.
     private static bool RelevantToFalloff(Building building) =>
         NativeSkyFalloffMath.AffectsFlood(
-            building.def.blockLight, building.def.altitudeLayer == AltitudeLayer.DoorMoveable);
+            building.def.blockLight,
+            building.def.altitudeLayer == AltitudeLayer.DoorMoveable,
+            NativeSkyFalloffGrid.IsWallApertureFixture(building));
 }

@@ -1,0 +1,433 @@
+{
+  "name": "overwall_vent_sky_falloff",
+  "description": "Follow-up to the vent report: the player narrowed it to Replace Stuff's OVER-WALL vent (Vent_Over) and blamed the way that mod puts a building into a wall's own cell, which is exactly right. Vent_Over is an edifice in its 1.6 def (the isEdifice=false its pre-1.6 def carried is gone), and EdificeGrid.Register just writes the cell's one slot -- so building a vent onto a wall EVICTS that wall from the edifice grid while the wall goes on standing there, and a blocker test that asks the edifice grid sees a blockLight=false vent where a granite wall is. Five 11x11 roofed rooms along z=105, identical but for the middle cell of the south wall: (-39) unbroken granite control, (-13) a wall with a Vent_Over built onto it in that order via StackThing -- the reported case -- (13) a Vent_Over with no wall under it, which Replace Stuff's PlaceWorker_Vent prefix makes buildable and whose def has blockLight FALSE, (39) a core Vent alone, re-measuring the fix already shipped in the same frame, and (65) the same pair as (-13) in the opposite order, which is not player-reachable and is kept because it reads CLEAN on the broken build: PlaceThings cannot spawn onto a wall cell, so the first version of this scenario built that arrangement and reported no bug at all. Every arm's *_depth must read 0. The CellBlockerProbe pins at the gap cell say why, separating what our flood used to ask (edifice_blocks) from what vanilla's glow grid holds (any_blocks), proving the wall was not wiped (buildings=2) and ruling out a lost roof. The first capture is discarded (overwall_vent_hud_discard.png) because hideUi is only honoured from the second onward, and the frame the A/B is measured on must not carry the HUD's run-to-run message log. Forces the Realistic preset and runs without Ambient Light for the same reasons native_sky_falloff.json gives.",
+  "saveFile": "minimal_colony.rws",
+  "requiredMods": {
+    "Memegoddess.ReplaceStuff": "3526354009"
+  },
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "20"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Concrete",
+        "width": "150",
+        "height": "20",
+        "offset": "13,105",
+        "clear": "true"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "-39,105",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "-5,5; -4,5; -3,5; -2,5; -1,5; 0,5; 1,5; 2,5; 3,5; 4,5; 5,5; -5,-5; -4,-5; -3,-5; -2,-5; -1,-5; 0,-5; 1,-5; 2,-5; 3,-5; 4,-5; 5,-5; -5,-4; -5,-3; -5,-2; -5,-1; -5,0; -5,1; -5,2; -5,3; -5,4; 5,-4; 5,-3; 5,-2; 5,-1; 5,0; 5,1; 5,2; 5,3; 5,4"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "-13,105",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "-5,5; -4,5; -3,5; -2,5; -1,5; 0,5; 1,5; 2,5; 3,5; 4,5; 5,5; -5,-5; -4,-5; -3,-5; -2,-5; -1,-5; 0,-5; 1,-5; 2,-5; 3,-5; 4,-5; 5,-5; -5,-4; -5,-3; -5,-2; -5,-1; -5,0; -5,1; -5,2; -5,3; -5,4; 5,-4; 5,-3; 5,-2; 5,-1; 5,0; 5,1; 5,2; 5,3; 5,4"
+      }
+    },
+    {
+      "type": "StackThing",
+      "args": {
+        "def": "Vent_Over",
+        "offset": "-13,100"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "13,105",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "-5,5; -4,5; -3,5; -2,5; -1,5; 0,5; 1,5; 2,5; 3,5; 4,5; 5,5; -5,-5; -4,-5; -3,-5; -2,-5; -1,-5; 1,-5; 2,-5; 3,-5; 4,-5; 5,-5; -5,-4; -5,-3; -5,-2; -5,-1; -5,0; -5,1; -5,2; -5,3; -5,4; 5,-4; 5,-3; 5,-2; 5,-1; 5,0; 5,1; 5,2; 5,3; 5,4"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Vent_Over",
+        "offset": "13,105",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "0,-5"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "39,105",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "-5,5; -4,5; -3,5; -2,5; -1,5; 0,5; 1,5; 2,5; 3,5; 4,5; 5,5; -5,-5; -4,-5; -3,-5; -2,-5; -1,-5; 1,-5; 2,-5; 3,-5; 4,-5; 5,-5; -5,-4; -5,-3; -5,-2; -5,-1; -5,0; -5,1; -5,2; -5,3; -5,4; 5,-4; 5,-3; 5,-2; 5,-1; 5,0; 5,1; 5,2; 5,3; 5,4"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Vent",
+        "offset": "39,105",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "0,-5"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "65,105",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "-5,5; -4,5; -3,5; -2,5; -1,5; 0,5; 1,5; 2,5; 3,5; 4,5; 5,5; -5,-5; -4,-5; -3,-5; -2,-5; -1,-5; 1,-5; 2,-5; 3,-5; 4,-5; 5,-5; -5,-4; -5,-3; -5,-2; -5,-1; -5,0; -5,1; -5,2; -5,3; -5,4; 5,-4; 5,-3; 5,-2; 5,-1; 5,0; 5,1; 5,2; 5,3; 5,4"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Vent_Over",
+        "offset": "65,105",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "0,-5"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "65,105",
+        "layout": "cells",
+        "clear": "false",
+        "cells": "0,-5"
+      }
+    },
+    {
+      "type": "SetRoof",
+      "args": {
+        "def": "RoofConstructed",
+        "width": "11",
+        "height": "11",
+        "offset": "-39,105"
+      }
+    },
+    {
+      "type": "SetRoof",
+      "args": {
+        "def": "RoofConstructed",
+        "width": "11",
+        "height": "11",
+        "offset": "-13,105"
+      }
+    },
+    {
+      "type": "SetRoof",
+      "args": {
+        "def": "RoofConstructed",
+        "width": "11",
+        "height": "11",
+        "offset": "13,105"
+      }
+    },
+    {
+      "type": "SetRoof",
+      "args": {
+        "def": "RoofConstructed",
+        "width": "11",
+        "height": "11",
+        "offset": "39,105"
+      }
+    },
+    {
+      "type": "SetRoof",
+      "args": {
+        "def": "RoofConstructed",
+        "width": "11",
+        "height": "11",
+        "offset": "65,105"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "13,105",
+        "zoom": "70"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "realistic_preset",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "FastForward",
+      "args": {
+        "ticks": "250"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "overwall_vent_hud_discard.png"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "ow_stacked_buildings",
+        "expectedValue": "2",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "ow_alone_buildings",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "ow_stacked_roofed",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "ow_alone_roofed",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "ow_alone_edifice_present",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "ow_control_edifice_blocks",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "ow_control_any_blocks",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "ow_stacked_edifice_blocks",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "ow_stacked_any_blocks",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "ow_alone_edifice_blocks",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "ow_alone_any_blocks",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "ow_corevent_edifice_blocks",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "ow_corevent_any_blocks",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "ow_reversed_buildings",
+        "expectedValue": "2",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "ow_reversed_edifice_blocks",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "ow_reversed_any_blocks",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "ow_control_depth",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "ow_control_fraction",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "ow_stacked_depth",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "ow_stacked_fraction",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "ow_alone_depth",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "ow_alone_fraction",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "ow_corevent_depth",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "ow_corevent_fraction",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "ow_reversed_depth",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "ow_reversed_fraction",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "overwall_vent_noon.png"
+      }
+    }
+  ]
+}

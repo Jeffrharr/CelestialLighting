@@ -1056,6 +1056,83 @@ public static class ProbeRegistration
             "vent_depth", NativeSkyFalloffProbe.Metric.Depth, new IntVec3(13, 0, 85)));
         ProbeRegistry.Register(new NativeSkyFalloffProbe(
             "vent_fraction", NativeSkyFalloffProbe.Metric.Fraction, new IntVec3(13, 0, 85)));
+        // overwall_vent_sky_falloff.json: the follow-up report, which named Replace Stuff's OVER-WALL
+        // vent rather than the core one the row above covers. Five copies of the same 11x11 room along
+        // z = 105, differing only in what stands in the middle cell of the south wall:
+        //
+        //   (-39) sealed granite -- the control, which pins the row genuinely sealed
+        //   (-13) a granite wall with a Vent_Over built ONTO it, in that order -- how the mod is meant
+        //         to be used, and the reported case. Vent_Over is an edifice in 1.6, so its spawn
+        //         evicts the wall from the edifice grid while the wall goes on standing there
+        //   ( 13) a Vent_Over alone, no wall under it -- Replace Stuff patches PlaceWorker_Vent to
+        //         allow this, and a Vent_Over's own def has blockLight FALSE
+        //   ( 39) a core Vent alone -- the case already fixed, carried along so the run says whether
+        //         the fix is still in force in the same frame that measures the new one
+        //   ( 65) the same two buildings as (-13) in the OPPOSITE order, vent first. It is not a
+        //         player-reachable arrangement; it is here because it is the one this scenario
+        //         originally built (PlaceThings cannot spawn onto a wall cell, which is why StackThing
+        //         exists), and it read clean on the broken build. Keeping it pins the order dependence
+        //         itself, so nobody re-derives the reassuring half of the answer later.
+        //
+        // The *_depth / *_fraction pairs read the interior cell one north of that wall cell, exactly as
+        // vent_* above. The gap cell itself gets CellBlockerProbe, because "light came through" and
+        // "the cell does not read as a blocker" are different claims and only the second one names a
+        // cause: edifice_blocks is what our flood used to ask, any_blocks is what vanilla's glow grid
+        // holds and what it asks now, buildings proves the wall was not wiped, edifice_present tells a
+        // blockLight=false edifice apart from no edifice at all, and roofed rules out the cell having
+        // become a BFS seed instead of a blocker.
+        ProbeRegistry.Register(new NativeSkyFalloffProbe(
+            "ow_control_depth", NativeSkyFalloffProbe.Metric.Depth, new IntVec3(-39, 0, 105)));
+        ProbeRegistry.Register(new NativeSkyFalloffProbe(
+            "ow_control_fraction", NativeSkyFalloffProbe.Metric.Fraction, new IntVec3(-39, 0, 105)));
+        ProbeRegistry.Register(new NativeSkyFalloffProbe(
+            "ow_stacked_depth", NativeSkyFalloffProbe.Metric.Depth, new IntVec3(-13, 0, 105)));
+        ProbeRegistry.Register(new NativeSkyFalloffProbe(
+            "ow_stacked_fraction", NativeSkyFalloffProbe.Metric.Fraction, new IntVec3(-13, 0, 105)));
+        ProbeRegistry.Register(new NativeSkyFalloffProbe(
+            "ow_alone_depth", NativeSkyFalloffProbe.Metric.Depth, new IntVec3(13, 0, 105)));
+        ProbeRegistry.Register(new NativeSkyFalloffProbe(
+            "ow_alone_fraction", NativeSkyFalloffProbe.Metric.Fraction, new IntVec3(13, 0, 105)));
+        ProbeRegistry.Register(new NativeSkyFalloffProbe(
+            "ow_corevent_depth", NativeSkyFalloffProbe.Metric.Depth, new IntVec3(39, 0, 105)));
+        ProbeRegistry.Register(new NativeSkyFalloffProbe(
+            "ow_corevent_fraction", NativeSkyFalloffProbe.Metric.Fraction, new IntVec3(39, 0, 105)));
+        ProbeRegistry.Register(new CellBlockerProbe(
+            "ow_control_edifice_blocks", CellBlockerProbe.Metric.EdificeBlocksLight, new IntVec3(-39, 0, 100)));
+        ProbeRegistry.Register(new CellBlockerProbe(
+            "ow_control_any_blocks", CellBlockerProbe.Metric.AnyBuildingBlocksLight, new IntVec3(-39, 0, 100)));
+        ProbeRegistry.Register(new CellBlockerProbe(
+            "ow_stacked_edifice_blocks", CellBlockerProbe.Metric.EdificeBlocksLight, new IntVec3(-13, 0, 100)));
+        ProbeRegistry.Register(new CellBlockerProbe(
+            "ow_stacked_any_blocks", CellBlockerProbe.Metric.AnyBuildingBlocksLight, new IntVec3(-13, 0, 100)));
+        ProbeRegistry.Register(new CellBlockerProbe(
+            "ow_stacked_buildings", CellBlockerProbe.Metric.BuildingCount, new IntVec3(-13, 0, 100)));
+        ProbeRegistry.Register(new CellBlockerProbe(
+            "ow_stacked_roofed", CellBlockerProbe.Metric.Roofed, new IntVec3(-13, 0, 100)));
+        ProbeRegistry.Register(new CellBlockerProbe(
+            "ow_alone_edifice_blocks", CellBlockerProbe.Metric.EdificeBlocksLight, new IntVec3(13, 0, 100)));
+        ProbeRegistry.Register(new CellBlockerProbe(
+            "ow_alone_any_blocks", CellBlockerProbe.Metric.AnyBuildingBlocksLight, new IntVec3(13, 0, 100)));
+        ProbeRegistry.Register(new CellBlockerProbe(
+            "ow_alone_buildings", CellBlockerProbe.Metric.BuildingCount, new IntVec3(13, 0, 100)));
+        ProbeRegistry.Register(new CellBlockerProbe(
+            "ow_alone_edifice_present", CellBlockerProbe.Metric.EdificePresent, new IntVec3(13, 0, 100)));
+        ProbeRegistry.Register(new CellBlockerProbe(
+            "ow_alone_roofed", CellBlockerProbe.Metric.Roofed, new IntVec3(13, 0, 100)));
+        ProbeRegistry.Register(new CellBlockerProbe(
+            "ow_corevent_edifice_blocks", CellBlockerProbe.Metric.EdificeBlocksLight, new IntVec3(39, 0, 100)));
+        ProbeRegistry.Register(new CellBlockerProbe(
+            "ow_corevent_any_blocks", CellBlockerProbe.Metric.AnyBuildingBlocksLight, new IntVec3(39, 0, 100)));
+        ProbeRegistry.Register(new NativeSkyFalloffProbe(
+            "ow_reversed_depth", NativeSkyFalloffProbe.Metric.Depth, new IntVec3(65, 0, 105)));
+        ProbeRegistry.Register(new NativeSkyFalloffProbe(
+            "ow_reversed_fraction", NativeSkyFalloffProbe.Metric.Fraction, new IntVec3(65, 0, 105)));
+        ProbeRegistry.Register(new CellBlockerProbe(
+            "ow_reversed_edifice_blocks", CellBlockerProbe.Metric.EdificeBlocksLight, new IntVec3(65, 0, 100)));
+        ProbeRegistry.Register(new CellBlockerProbe(
+            "ow_reversed_any_blocks", CellBlockerProbe.Metric.AnyBuildingBlocksLight, new IntVec3(65, 0, 100)));
+        ProbeRegistry.Register(new CellBlockerProbe(
+            "ow_reversed_buildings", CellBlockerProbe.Metric.BuildingCount, new IntVec3(65, 0, 100)));
         // vent_lamp_leak.json: does LAMP light get through a vent? Two sealed roofed rooms at
         // (-13, -25) / (13, -25), a torch in each, midnight so the sky contributes nothing and the only
         // light in the frame is the torches'. Room A's south wall is unbroken granite; room B has a
