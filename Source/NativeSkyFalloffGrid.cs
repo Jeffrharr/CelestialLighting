@@ -26,14 +26,6 @@ namespace CelestialLighting;
 // type later never leaves a scribed node behind on every map.
 public static class NativeSkyFalloffGrid
 {
-    // 8-directional, orthogonal-first so the corner-cut check below (index >= 4) can assume the last
-    // four entries are the diagonals -- same ordering AmbientLightFalloff's own Neigh8 uses.
-    private static readonly IntVec3[] Neigh8 =
-    {
-        new IntVec3(1, 0, 0), new IntVec3(-1, 0, 0), new IntVec3(0, 0, 1), new IntVec3(0, 0, -1),
-        new IntVec3(1, 0, 1), new IntVec3(1, 0, -1), new IntVec3(-1, 0, 1), new IntVec3(-1, 0, -1),
-    };
-
     // Fully qualified: Verse.WeakReference<T> and System.WeakReference<T> collide under `using System;`
     // + `using Verse;`.
     private static readonly System.WeakReference<Map> CachedMap = new System.WeakReference<Map>(null);
@@ -187,20 +179,65 @@ public static class NativeSkyFalloffGrid
     // only ever multiplied, never used to decide traversal order -- so first-visit-wins is still exactly
     // correct for depth, the same guarantee the pre-§7d flat-weight BFS relied on. See DoorLeakMath's
     // header for why a door dims the flood instead of pushing it further away.
+    // Scratch buffers, reused across rebuilds so a colony under construction is not handing the GC
+    // ~560 KB of short-lived arrays every time a wall goes up.
+    //
+    // DOUBLE-BUFFERED, not reused in place, and the distinction is load-bearing. A Reader hands out
+    // the live arrays and is documented as valid only for the call that made it, but SectionWorkerPool
+    // regenerates sections on worker threads -- so a rebuild that wrote into the arrays a worker was
+    // mid-loop over would tear its results rather than serve it stale ones. Writing into the OTHER set
+    // and swapping at the end keeps exactly the guarantee the previous allocate-every-time code had,
+    // for one generation, which is one more than any Reader lives for.
+    private static int[][] scratchDepth = { null, null };
+    private static float[][] scratchStrength = { null, null };
+    private static bool[][] scratchVisited = { null, null };
+    private static byte[] scratchKind;
+    private static bool[] scratchRoofed;
+    private static int[] scratchQueue;
+    private static int scratchGeneration;
+    private static int scratchCells = -1;
+
+    // Cell classification for the flood, resolved once per rebuild. A byte rather than the previous
+    // bool[] because the door question rides along in the same read: without it, every cell the flood
+    // enters pays an edifice lookup and an altitudeLayer compare to ask "is this a door", and the
+    // answer is no for all but a handful of cells on the map.
+    private const byte CellOpen = 0;
+    private const byte CellBlocker = 1;
+    private const byte CellDoor = 2;
+
     private static void Rebuild(Map map, int maxDepth, float doorStrengthSensitivity)
     {
         CellIndices cellIndices = map.cellIndices;
         int numCells = cellIndices.NumGridCells;
-        var resultDepth = new int[numCells];
-        var resultStrength = new float[numCells];
-        var visited = new bool[numCells];
-        var queue = new Queue<IntVec3>(numCells / 6 + 32);
+        int sizeX = map.Size.x;
+        int sizeZ = map.Size.z;
 
-        // Blockers are resolved for the whole map up front rather than at each neighbour visit. The BFS
-        // asks about a given cell up to nine times over (once as each of its eight neighbours' targets,
-        // plus the corner tests), so answering once per cell costs less than answering per visit even
-        // though each answer now walks a thing list instead of indexing the edifice grid.
-        bool[] blocked = BuildBlockerGrid(map);
+        EnsureScratch(numCells);
+        scratchGeneration ^= 1;
+        int[] resultDepth = scratchDepth[scratchGeneration];
+        float[] resultStrength = scratchStrength[scratchGeneration];
+        bool[] visited = scratchVisited[scratchGeneration];
+        byte[] kind = scratchKind;
+        bool[] roofed = scratchRoofed;
+        int[] queue = scratchQueue;
+
+        Array.Clear(resultDepth, 0, numCells);
+        Array.Clear(resultStrength, 0, numCells);
+        Array.Clear(visited, 0, numCells);
+        Array.Clear(kind, 0, numCells);
+
+        // WHY EVERYTHING BELOW IS INDEXED RATHER THAN WALKED AS CELLS. The BFS used to carry IntVec3s
+        // through the queue and call cellIndices.CellToIndex on every neighbour it looked at -- a
+        // multiply-add and a struct copy per look, against an array read once the index is the thing
+        // being carried. RoofGrid.Roofed and EdificeGrid.InnerArray are both index-addressable
+        // (decompiled to confirm), so nothing here needs a cell at all. Index arithmetic is
+        // z * sizeX + x, the same CellIndicesUtility.CellToIndex uses, so the two agree by
+        // construction.
+        BuildCellKinds(map, kind, numCells);
+
+        RoofGrid roofGrid = map.roofGrid;
+        for (int index = 0; index < numCells; index++)
+            roofed[index] = roofGrid.Roofed(index);
 
         // Seeds: every UNROOFED cell (depth 0, strength 1.0 -- sky is already directly overhead,
         // nothing crossed yet). Matches AmbientLightFalloff.MapComp_AmbientLight's own RebuildDistance
@@ -212,62 +249,106 @@ public static class NativeSkyFalloffGrid
         // the whole room read a shallow, near-uniform depth instead of a gradient from the door outward
         // (#124 follow-up). A negative/zero maxDepth still seeds correctly; the expansion loop below is
         // what refuses to walk past it.
-        foreach (IntVec3 cell in map.AllCells)
+        //
+        // ONLY THE FRONTIER IS QUEUED, and this is the single biggest thing the rebuild does not do any
+        // more. Every unroofed cell is still marked visited at depth 0 with strength 1 -- that is what
+        // the seed set MEANS and the arrays say so -- but a seed whose eight neighbours are all
+        // unroofed can never contribute anything: every one of them is a seed too, so it is already
+        // visited, and expanding into it is eight bounds checks and eight array reads that reject
+        // themselves. On an open map that is essentially the entire outdoors, tens of thousands of
+        // cells queued to do nothing. A cell the flood can actually enter is by definition roofed, so
+        // "has a roofed neighbour" is exactly the set worth expanding from.
+        // Walked as rows rather than as a flat range so x comes free from the loop counter. The flat
+        // version needed `index % sizeX` to know whether a cell was against the map's east or west
+        // edge, and that is a division per cell over the whole map -- on an open map, tens of
+        // thousands of them, for a number the loop already knows.
+        int head = 0;
+        int tail = 0;
+        int seedIndex = 0;
+        for (int z = 0; z < sizeZ; z++)
         {
-            if (map.roofGrid.Roofed(cell))
-                continue;
+            for (int x = 0; x < sizeX; x++, seedIndex++)
+            {
+                if (!roofed[seedIndex])
+                {
+                    visited[seedIndex] = true;
+                    resultStrength[seedIndex] = 1f;
 
-            int index = cellIndices.CellToIndex(cell);
-            visited[index] = true;
-            resultStrength[index] = 1f;
-            queue.Enqueue(cell);
+                    if (HasRoofedNeighbour(roofed, seedIndex, x, sizeX, numCells))
+                        queue[tail++] = seedIndex;
+                }
+            }
         }
 
         int clampedMaxDepth = maxDepth < 0 ? 0 : maxDepth;
         float doorReference = DoorStrengthReference.WoodDoorBaseMaxHitPoints;
 
-        while (queue.Count > 0)
+        while (head < tail)
         {
-            IntVec3 cell = queue.Dequeue();
-            int cellIndex = cellIndices.CellToIndex(cell);
+            int cellIndex = queue[head++];
             int nextDepth = resultDepth[cellIndex] + 1;
-            if (nextDepth > clampedMaxDepth)
-                continue;
-
-            float cellStrength = resultStrength[cellIndex];
-
-            for (int i = 0; i < Neigh8.Length; i++)
+            if (nextDepth <= clampedMaxDepth)
             {
-                IntVec3 offset = Neigh8[i];
-                IntVec3 neighbour = cell + offset;
-                if (!neighbour.InBounds(map))
-                    continue;
+                float cellStrength = resultStrength[cellIndex];
+                int x = cellIndex % sizeX;
+                bool hasEast = x + 1 < sizeX;
+                bool hasWest = x > 0;
+                bool hasNorth = cellIndex + sizeX < numCells;
+                bool hasSouth = cellIndex - sizeX >= 0;
 
-                int neighbourIndex = cellIndices.CellToIndex(neighbour);
-                if (visited[neighbourIndex])
-                    continue;
-
-                // A blocker never gets flooded into (and is never a seed either -- it's roofed).
-                // Without this, a wall cell reached from one room's interior would still get enqueued
-                // and could hand its depth on to whatever is on the *other* side of that wall, leaking
-                // one sealed room's falloff into its neighbour through solid geometry. A door is
-                // explicitly not a blocker (AltitudeLayer.DoorMoveable), so the flood still crosses an
-                // open threshold.
-                if (blocked[neighbourIndex])
-                    continue;
+                // The four orthogonals first and then the four diagonals, in this exact order, because
+                // FIRST VISIT WINS for strength: two parents at the same depth can both reach a cell,
+                // and whichever is examined first sets the multiplier it carries. Depth is
+                // order-independent, strength is not, so reordering these would be a silent change to
+                // what a door leaks. Same order the IntVec3 neighbour table this replaced used.
+                if (hasEast)
+                    TryVisit(cellIndex + 1);
+                if (hasWest)
+                    TryVisit(cellIndex - 1);
+                if (hasNorth)
+                    TryVisit(cellIndex + sizeX);
+                if (hasSouth)
+                    TryVisit(cellIndex - sizeX);
 
                 // Diagonal step through a wall corner: refuse it unless both orthogonal cells that
                 // make up the corner are open, the same "no cutting corners" rule
                 // AmbientLightFalloff.MapComp_AmbientLight's own RebuildDistance applies to its
                 // diagonal neighbours -- otherwise light would flood diagonally past a corner no pawn
-                // (or photon) could actually walk or pass through.
-                if (i >= 4 && CornerBlocked(map, blocked, cell, offset))
-                    continue;
+                // (or photon) could actually walk or pass through. Both of those cells are in bounds
+                // whenever the diagonal itself is, so they need no bounds test of their own.
+                if (hasEast && hasNorth)
+                    TryVisitDiagonal(cellIndex + sizeX + 1, cellIndex + 1, cellIndex + sizeX);
+                if (hasEast && hasSouth)
+                    TryVisitDiagonal(cellIndex - sizeX + 1, cellIndex + 1, cellIndex - sizeX);
+                if (hasWest && hasNorth)
+                    TryVisitDiagonal(cellIndex + sizeX - 1, cellIndex - 1, cellIndex + sizeX);
+                if (hasWest && hasSouth)
+                    TryVisitDiagonal(cellIndex - sizeX - 1, cellIndex - 1, cellIndex - sizeX);
 
-                visited[neighbourIndex] = true;
-                resultDepth[neighbourIndex] = nextDepth;
-                resultStrength[neighbourIndex] = cellStrength * CrossingMultiplier(map, neighbour, doorReference, doorStrengthSensitivity);
-                queue.Enqueue(neighbour);
+                void TryVisit(int neighbourIndex)
+                {
+                    // A blocker never gets flooded into (and is never a seed either -- it's roofed).
+                    // Without this, a wall cell reached from one room's interior would still get
+                    // enqueued and could hand its depth on to whatever is on the *other* side of that
+                    // wall, leaking one sealed room's falloff into its neighbour through solid
+                    // geometry. A door is explicitly not a blocker (AltitudeLayer.DoorMoveable), so the
+                    // flood still crosses an open threshold.
+                    if (!visited[neighbourIndex] && kind[neighbourIndex] != CellBlocker)
+                    {
+                        visited[neighbourIndex] = true;
+                        resultDepth[neighbourIndex] = nextDepth;
+                        resultStrength[neighbourIndex] = kind[neighbourIndex] == CellDoor
+                            ? cellStrength * DoorCrossingMultiplier(map, neighbourIndex, doorReference, doorStrengthSensitivity)
+                            : cellStrength;
+                        queue[tail++] = neighbourIndex;
+                    }
+                }
+
+                void TryVisitDiagonal(int neighbourIndex, int cornerA, int cornerB)
+                {
+                    if (kind[cornerA] != CellBlocker && kind[cornerB] != CellBlocker)
+                        TryVisit(neighbourIndex);
+                }
             }
         }
 
@@ -275,36 +356,82 @@ public static class NativeSkyFalloffGrid
         strengths = resultStrength;
     }
 
-    // 1.0 (no dimming) for every ordinary cell; DoorLeakMath.CrossingMultiplier for a cell a door
-    // occupies -- §7d. The multiplier lands on the cell being ENTERED, not a separate "crossing"
-    // concept, because a door occupies exactly one cell by construction: stepping onto it is the one
-    // place its strength can be charged, and stepping off it back into ordinary open floor multiplies
-    // by the ordinary 1 again.
-    private static float CrossingMultiplier(Map map, IntVec3 cell, float doorReferenceMaxHitPoints, float doorStrengthSensitivity)
+    // Whether any of the eight neighbours is roofed, i.e. whether the flood could ever step out of this
+    // seed into somewhere it has not already been.
+    private static bool HasRoofedNeighbour(bool[] roofed, int index, int x, int sizeX, int numCells)
     {
-        Building edifice = map.edificeGrid[cell];
-        if (edifice == null || edifice.def.altitudeLayer != AltitudeLayer.DoorMoveable)
-            return 1f;
+        bool hasEast = x + 1 < sizeX;
+        bool hasWest = x > 0;
+        bool hasNorth = index + sizeX < numCells;
+        bool hasSouth = index - sizeX >= 0;
 
-        return DoorLeakMath.CrossingMultiplier(edifice.def.BaseMaxHitPoints, doorReferenceMaxHitPoints, doorStrengthSensitivity, edifice.def.blockLight);
+        return (hasEast && roofed[index + 1])
+            || (hasWest && roofed[index - 1])
+            || (hasNorth && roofed[index + sizeX])
+            || (hasSouth && roofed[index - sizeX])
+            || (hasEast && hasNorth && roofed[index + sizeX + 1])
+            || (hasEast && hasSouth && roofed[index - sizeX + 1])
+            || (hasWest && hasNorth && roofed[index + sizeX - 1])
+            || (hasWest && hasSouth && roofed[index - sizeX - 1]);
     }
 
-    // One pass over the map, so the BFS below can index an array instead of re-deciding a cell every
-    // time one of its neighbours is dequeued.
+    // Allocated once per map size and then reused. The queue is numCells wide because `visited` is set
+    // before a cell is enqueued, so no cell can be queued twice and it can never need to grow -- which
+    // is also why it is a plain array with a head and a tail rather than a Queue<T>.
+    private static void EnsureScratch(int numCells)
+    {
+        if (scratchCells != numCells)
+        {
+            scratchCells = numCells;
+            for (int generation = 0; generation < 2; generation++)
+            {
+                scratchDepth[generation] = new int[numCells];
+                scratchStrength[generation] = new float[numCells];
+                scratchVisited[generation] = new bool[numCells];
+            }
+
+            scratchKind = new byte[numCells];
+            scratchRoofed = new bool[numCells];
+            scratchQueue = new int[numCells];
+        }
+    }
+
+    // The DoorLeakMath crossing multiplier for a cell the kind grid has already identified as a door
+    // (§7d). Only called for those, which is the point of the kind grid: this used to run for every
+    // cell the flood entered and answer 1.0 for almost all of them, at the cost of an edifice lookup
+    // and a field compare each time.
+    //
+    // The multiplier lands on the cell being ENTERED, not on a separate "crossing" concept, because a
+    // door occupies exactly one cell by construction: stepping onto it is the one place its strength
+    // can be charged, and stepping off it back into ordinary open floor multiplies by the ordinary 1
+    // again.
+    private static float DoorCrossingMultiplier(
+        Map map, int cellIndex, float doorReferenceMaxHitPoints, float doorStrengthSensitivity)
+    {
+        Building edifice = map.edificeGrid.InnerArray[cellIndex];
+        if (edifice == null)
+            return 1f;
+
+        return DoorLeakMath.CrossingMultiplier(
+            edifice.def.BaseMaxHitPoints, doorReferenceMaxHitPoints, doorStrengthSensitivity, edifice.def.blockLight);
+    }
+
+    // One pass over the map, so the BFS above can read a cell's classification instead of re-deciding
+    // it every time one of its neighbours is dequeued.
     //
     // TWO PASSES, AND THE SHAPE IS THE PERFORMANCE. The obvious way to ask "does any building in this
     // cell block" is to walk the cell's thing list, and it was written that way first: correct, and
-    // measurably slower than the per-visit edifice lookups it replaced -- 14.24 ms per whole-map rebuild
-    // before, 16.93 and 18.44 after, armed through Circinus in sky_falloff_rebuild_cost.json. 62,500
-    // List<Thing> fetches with a type check each cost more than the array reads they saved, because the
-    // BFS's `visited` short-circuit meant most cells were never asked about nine times in the first
-    // place.
+    // measurably slower than the per-visit edifice lookups it replaced -- 14.11 ms per whole-map
+    // rebuild before, 16.78 after, timed by SkyFalloffRebuildTimingProbe. 62,500 List<Thing> fetches
+    // with a type check each cost more than the array reads they saved.
     //
     // So the union is assembled the way vanilla assembles its own: per BUILDING, not per cell.
-    //   1. The edifice grid, walked as the flat array it is -- one branch and two field reads per cell,
-    //      no CellToIndex, no list, no allocation. This is the whole answer for every ordinary wall and
-    //      for natural rock, which cannot be anything BUT its cell's edifice (nothing stacks under
-    //      rock), and rock is why the base pass exists at all rather than being folded into step 2.
+    //   1. The edifice grid, walked as the flat array it is -- one branch and a couple of field reads
+    //      per cell, no CellToIndex, no list, no allocation. This is the whole answer for every
+    //      ordinary wall and for natural rock, which cannot be anything BUT its cell's edifice
+    //      (nothing stacks under rock), and rock is why the base pass exists at all rather than being
+    //      folded into step 2. It is also the only pass that can mark a DOOR, because
+    //      DoorCrossingMultiplier reads the edifice and so must agree with it exactly.
     //   2. Every artificial building on the map, from vanilla's own maintained lister group, ORed in
     //      over its occupied cells. This is the pass that catches a building which is NOT its cell's
     //      registered edifice -- the over-wall vent's evicted wall, and any non-edifice wall fixture --
@@ -313,19 +440,22 @@ public static class NativeSkyFalloffGrid
     // ThingRequestGroup.BuildingArtificial is every Building except natural and resource rock
     // (ThingDef.IsBuildingArtificial, decompiled to confirm), and it StoreInRegion()s, so ListerThings
     // keeps the list rather than building one per call.
-    private static bool[] BuildBlockerGrid(Map map)
+    private static void BuildCellKinds(Map map, byte[] kind, int numCells)
     {
-        CellIndices cellIndices = map.cellIndices;
-        var blocked = new bool[cellIndices.NumGridCells];
-
         Building[] edifices = map.edificeGrid.InnerArray;
-        for (int i = 0; i < blocked.Length; i++)
+        for (int index = 0; index < numCells; index++)
         {
-            Building edifice = edifices[i];
-            if (edifice != null && BuildingBlocksFlood(edifice))
-                blocked[i] = true;
+            Building edifice = edifices[index];
+            if (edifice != null)
+            {
+                if (BuildingBlocksFlood(edifice))
+                    kind[index] = CellBlocker;
+                else if (edifice.def.altitudeLayer == AltitudeLayer.DoorMoveable)
+                    kind[index] = CellDoor;
+            }
         }
 
+        CellIndices cellIndices = map.cellIndices;
         List<Thing> buildings = map.listerThings.ThingsInGroup(ThingRequestGroup.BuildingArtificial);
         for (int i = 0; i < buildings.Count; i++)
         {
@@ -334,12 +464,10 @@ public static class NativeSkyFalloffGrid
                 foreach (IntVec3 cell in building.OccupiedRect())
                 {
                     if (cell.InBounds(map))
-                        blocked[cellIndices.CellToIndex(cell)] = true;
+                        kind[cellIndices.CellToIndex(cell)] = CellBlocker;
                 }
             }
         }
-
-        return blocked;
     }
 
     // Whether the flood stops at this cell. The rule itself is NativeSkyFalloffMath.BlocksFlood, which
@@ -416,13 +544,4 @@ public static class NativeSkyFalloffGrid
     // free-standing appliance inside a room and would notch a dark cell out of the interior gradient.
     public static bool IsWallApertureFixture(Building building) =>
         building is Building_Vent || building is Building_Cooler;
-
-    private static bool CornerBlocked(Map map, bool[] blocked, IntVec3 cell, IntVec3 diagonalOffset)
-    {
-        IntVec3 a = new IntVec3(cell.x + diagonalOffset.x, 0, cell.z);
-        IntVec3 b = new IntVec3(cell.x, 0, cell.z + diagonalOffset.z);
-        CellIndices cellIndices = map.cellIndices;
-        return (a.InBounds(map) && blocked[cellIndices.CellToIndex(a)])
-            || (b.InBounds(map) && blocked[cellIndices.CellToIndex(b)]);
-    }
 }

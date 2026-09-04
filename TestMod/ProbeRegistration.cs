@@ -757,6 +757,19 @@ public static class ProbeRegistration
         // Compare it across BUILDS only; it is a benchmark, not a per-frame cost.
         ProbeRegistry.Register(new SkyFalloffRebuildTimingProbe("falloff_rebuild_ms"));
 
+        // The whole grid, checksummed, so a rewrite of the BFS is held to the identical answer over
+        // all 62,500 cells rather than over the six the scenarios pin. Baseline captured on the build
+        // BEFORE the rewrite -- the oracle is the old implementation, not the new one agreeing with
+        // itself.
+        ProbeRegistry.Register(new SkyFalloffGridChecksumProbe(
+            "falloff_depth_sum", SkyFalloffGridChecksumProbe.Metric.DepthSum));
+        ProbeRegistry.Register(new SkyFalloffGridChecksumProbe(
+            "falloff_depth_hash", SkyFalloffGridChecksumProbe.Metric.DepthHash));
+        ProbeRegistry.Register(new SkyFalloffGridChecksumProbe(
+            "falloff_strength_hash", SkyFalloffGridChecksumProbe.Metric.StrengthHash));
+        ProbeRegistry.Register(new SkyFalloffGridChecksumProbe(
+            "falloff_reached_cells", SkyFalloffGridChecksumProbe.Metric.ReachedCells));
+
         // §7c's whole-map BFS, armed on the method the over-wall vent fix rewrote the inside of.
         // Rebuild is NOT per-frame -- it runs once per map per invalidation, lazily on the next read --
         // so it appears in no Dubs window and the per-frame table cannot see it at all. That is not a
