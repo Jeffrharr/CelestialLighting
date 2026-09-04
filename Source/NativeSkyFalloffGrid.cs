@@ -291,13 +291,53 @@ public static class NativeSkyFalloffGrid
 
     // One pass over the map, so the BFS below can index an array instead of re-deciding a cell every
     // time one of its neighbours is dequeued.
+    //
+    // TWO PASSES, AND THE SHAPE IS THE PERFORMANCE. The obvious way to ask "does any building in this
+    // cell block" is to walk the cell's thing list, and it was written that way first: correct, and
+    // measurably slower than the per-visit edifice lookups it replaced -- 14.24 ms per whole-map rebuild
+    // before, 16.93 and 18.44 after, armed through Circinus in sky_falloff_rebuild_cost.json. 62,500
+    // List<Thing> fetches with a type check each cost more than the array reads they saved, because the
+    // BFS's `visited` short-circuit meant most cells were never asked about nine times in the first
+    // place.
+    //
+    // So the union is assembled the way vanilla assembles its own: per BUILDING, not per cell.
+    //   1. The edifice grid, walked as the flat array it is -- one branch and two field reads per cell,
+    //      no CellToIndex, no list, no allocation. This is the whole answer for every ordinary wall and
+    //      for natural rock, which cannot be anything BUT its cell's edifice (nothing stacks under
+    //      rock), and rock is why the base pass exists at all rather than being folded into step 2.
+    //   2. Every artificial building on the map, from vanilla's own maintained lister group, ORed in
+    //      over its occupied cells. This is the pass that catches a building which is NOT its cell's
+    //      registered edifice -- the over-wall vent's evicted wall, and any non-edifice wall fixture --
+    //      and it is O(buildings on the map) rather than O(cells), which is one to three orders of
+    //      magnitude smaller.
+    // ThingRequestGroup.BuildingArtificial is every Building except natural and resource rock
+    // (ThingDef.IsBuildingArtificial, decompiled to confirm), and it StoreInRegion()s, so ListerThings
+    // keeps the list rather than building one per call.
     private static bool[] BuildBlockerGrid(Map map)
     {
         CellIndices cellIndices = map.cellIndices;
         var blocked = new bool[cellIndices.NumGridCells];
 
-        foreach (IntVec3 cell in map.AllCells)
-            blocked[cellIndices.CellToIndex(cell)] = CellBlocksFlood(map, cell);
+        Building[] edifices = map.edificeGrid.InnerArray;
+        for (int i = 0; i < blocked.Length; i++)
+        {
+            Building edifice = edifices[i];
+            if (edifice != null && BuildingBlocksFlood(edifice))
+                blocked[i] = true;
+        }
+
+        List<Thing> buildings = map.listerThings.ThingsInGroup(ThingRequestGroup.BuildingArtificial);
+        for (int i = 0; i < buildings.Count; i++)
+        {
+            if (buildings[i] is Building building && BuildingBlocksFlood(building))
+            {
+                foreach (IntVec3 cell in building.OccupiedRect())
+                {
+                    if (cell.InBounds(map))
+                        blocked[cellIndices.CellToIndex(cell)] = true;
+                }
+            }
+        }
 
         return blocked;
     }
@@ -325,42 +365,37 @@ public static class NativeSkyFalloffGrid
     // UnderRoofFalloffOwner, so it could never have exercised this branch in the first place. A glass
     // wall from a mod that does not own the gradient is the one live case where this is not inert.
     //
-    // It asks EVERY BUILDING IN THE CELL, not the cell's edifice. This read map.edificeGrid[cell] until
-    // an over-wall vent report made the difference matter, and the edifice grid is the wrong grid for
-    // this question in two ways at once.
+    // ASKED OF EVERY BUILDING ON THE CELL, not of the cell's edifice -- see BuildBlockerGrid above for
+    // how the union is assembled. The blocker test read map.edificeGrid[cell] until an over-wall vent
+    // report made the difference matter, and the edifice grid is the wrong grid for this question.
     //
     // It holds ONE building per cell -- Verse.EdificeGrid.Register just writes the array slot, and
     // DeRegister nulls it without checking who is in it -- while Verse.Building.SpawnSetup calls
     // GlowGrid.LightBlockerAdded for EVERY building it spawns, edifice or not. So vanilla's own glow
     // flood answers per building in the cell and this answered per edifice, and the two only agree
-    // because vanilla never stands two buildings in one cell. Replace Stuff does exactly that (its
-    // over-wall cooler and vent share the wall's cell, with SpawningWipes patched so neither wipes the
-    // other), and mods that add non-edifice wall fixtures do too.
+    // because vanilla never stands two buildings in one cell. Replace Stuff does exactly that: its
+    // over-wall vent shares the wall's cell, with SpawningWipes patched so neither wipes the other, and
+    // its 1.6 def no longer carries the isEdifice=false its pre-1.6 def did -- so the vent registers as
+    // the edifice and the granite wall it was built onto is silently dropped from that grid while it
+    // goes on standing there. Every mod that stands two buildings in one cell has the same shape.
     //
-    // And a non-edifice building is invisible to it entirely: Replace Stuff's Vent_Over sets
-    // isEdifice false, so a bare one -- no wall under it, which that mod's PlaceWorker_Vent prefix
-    // allows -- never reached this test at all, whatever it then asked about the def.
+    // Asking it per building is also what makes IsWallApertureFixture reachable, since the question is
+    // put to the vent rather than to the cell.
     //
-    // Walking the thing list is what makes IsWallApertureFixture reachable as well, since it is asked
-    // of the vent rather than of the cell.
-    private static bool CellBlocksFlood(Map map, IntVec3 cell)
+    // The aperture test is skipped whenever blockLight has already said yes, which is semantics-
+    // preserving -- BlocksFlood ORs the two terms, so it cannot change an answer -- and is worth the
+    // line because it keeps two type checks off every wall and every rock cell on the map. A mountain
+    // map has tens of thousands of those and exactly none of them are vents.
+    private static bool BuildingBlocksFlood(Building building)
     {
-        List<Thing> things = map.thingGrid.ThingsListAtFast(cell);
+        ThingDef def = building.def;
+        bool blocksLight = def.blockLight;
 
-        for (int i = 0; i < things.Count; i++)
-        {
-            if (things[i] is Building building && BuildingBlocksFlood(building))
-                return true;
-        }
-
-        return false;
+        return NativeSkyFalloffMath.BlocksFlood(
+            blocksLight,
+            def.altitudeLayer == AltitudeLayer.DoorMoveable,
+            !blocksLight && IsWallApertureFixture(building));
     }
-
-    private static bool BuildingBlocksFlood(Building building) =>
-        NativeSkyFalloffMath.BlocksFlood(
-            building.def.blockLight,
-            building.def.altitudeLayer == AltitudeLayer.DoorMoveable,
-            IsWallApertureFixture(building));
 
     // A vent or a cooler: the two vanilla buildings that exist to fill an aperture in a wall, and the
     // two whose PlaceWorkers (PlaceWorker_Vent, PlaceWorker_Cooler) demand a wall between two rooms to

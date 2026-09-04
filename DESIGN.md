@@ -1424,17 +1424,30 @@ depth/maxDepth falloff by this strength as a final term.
   list instead of the edifice grid restores agreement with it in every stacked-building case at once, and
   it is what makes a non-edifice light blocker (any wall-fixture mod) visible to the flood at all. The
   blockers are resolved into a `bool[]` in one pass at the top of `Rebuild` rather than at each neighbour
-  visit. **It costs, and the first attempt to price it was measuring the wrong thing.** `Rebuild` runs
+  visit — and the union is assembled per BUILDING rather than per cell, in two passes: the edifice grid
+  walked as the flat array it is (the whole answer for ordinary walls and for natural rock, which cannot
+  be anything but its own cell's edifice), then every artificial building on the map ORed in over its
+  occupied cells from `ListerThings`' own maintained `BuildingArtificial` group. That second pass is
+  O(buildings), not O(cells), and it is what catches a building which is not its cell's registered
+  edifice.
+  **Pricing this took three instruments, two of which answered a different question.** `Rebuild` runs
   once per map per invalidation, lazily on the next read, so it appears in no Dubs per-frame window at
-  all: a `door_strength_perf.json` table quoted as 0.3192 ms/frame after against 0.3734 before was
-  reading section-regenerate COUNTS (`Patch_IndoorSkyOcclusion:Postfix` 756 → 428), which vary run to
-  run and which this change does not touch. Armed directly through Circinus on the BFS
-  (`sky_falloff_rebuild_cost.json`, 24 rebuilds per run, same arm across both builds) one whole-map
-  rebuild on a 250×250 map costs **14.24 ms before against 16.93 and 18.44 ms after** — 19–30% slower,
-  corroborated by the independent `DepthAt` arm (14.80 → 19.63). The `visited` short-circuit meant most
-  cells were never tested nine times, so the per-visit `edificeGrid` array reads were cheaper than 62,500
-  thing-list fetches with type checks. That number also prices something nobody had measured before: a
-  rebuild is ~14 ms *already*, i.e. every finished wall costs a frame on the next read.
+  all — a `door_strength_perf.json` table quoted as 0.3192 ms/frame after against 0.3734 before was
+  reading section-regenerate COUNTS (`Patch_IndoorSkyOcclusion:Postfix` 756 → 428), run-to-run variance
+  in a method this change does not touch. Circinus armed directly on the BFS was worse than useless:
+  24 calls / 442.67 ms on one run and **0 calls on the next for the same build**, with
+  `circinus_falloff_patched` reading 1 and the scenario's depth probes returning 2 in both, and arms on
+  the two enclosing methods zeroing in the same run. `SkyFalloffRebuildTimingProbe` holds the stopwatch
+  itself — ten forced `MarkDirty`/`DepthAt` cycles, mean milliseconds — and is what
+  `sky_falloff_rebuild_cost.json` reads. One whole-map rebuild on a 250×250 map:
+  **14.11 ms before the fix, 16.78 with the first (per-cell thing-list) version, 13.95 with the two-pass
+  one that shipped** — the cost is recovered and lands a hair under the baseline, and the frames are
+  bit-identical between the two versions (median ΔE 0.00, p90 0.00 over the wall-plus-vent room; the
+  bare-vent room's 0.47 is cloud noise on a room that is outdoor-lit by construction, since this
+  scenario leaves the cloud flags at their shipped defaults). The stopwatch also corroborates the two
+  Circinus readings that were not zero (14.24 and 16.93/18.44), which is the only reason those are
+  quoted at all. It prices something nobody had measured before as well: a rebuild is ~14 ms *whatever*
+  we do here, i.e. every finished wall costs a frame on the next read.
   Note vanilla's own `SectionLayer_LightingOverlay` and
   `SectionLayer_Darkness` still read `edificeGrid`, and so do our rendering-side blocker tests
   (`SectionLayer_NightDesaturation`, the vector-light mask) — deliberately: matching vanilla's RENDERER is

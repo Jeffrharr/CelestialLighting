@@ -86,6 +86,10 @@
          its section layers ask, and the every-building set its glow grid holds. They can only
          disagree where a mod stands two buildings in one cell, which is what an over-wall vent is. -->
     <Compile Include="../Source/Probes/CellBlockerProbe.cs" Link="CellBlockerProbe.cs" />
+    <!-- Times one whole-map sky-falloff rebuild with its own stopwatch, because the two profilers
+         both answered the wrong question here: Rebuild is not per-frame so Dubs cannot see it, and
+         Circinus's counters read zero on a build they had read 24 calls on minutes earlier. -->
+    <Compile Include="../Source/Probes/SkyFalloffRebuildTimingProbe.cs" Link="SkyFalloffRebuildTimingProbe.cs" />
     <!-- §27 phase 5b: what a named cell actually RENDERS at, read out of the lighting overlay's own
          vertex colours. The glow-grid probe above cannot see the mask at all — §27 deliberately
          never touches gameplay light — so this is the only probe that can hold a monotonicity

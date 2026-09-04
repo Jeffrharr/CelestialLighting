@@ -751,6 +751,47 @@ public static class ProbeRegistration
         // and another. Read total_ms/calls, not avg_ms: a rebake is not guaranteed to bake the same
         // number of sections twice, and a per-cycle mean silently mixes "cheaper per call" with
         // "called fewer times". circinus_occl_calls is pinned in the scenario for exactly that.
+        // §7c's whole-map BFS, timed directly: ten forced rebuilds, mean milliseconds each. This is
+        // the number the over-wall vent fix is priced on, and it exists because both profilers below
+        // answered a different question -- see the probe's own header for what each of them got wrong.
+        // Compare it across BUILDS only; it is a benchmark, not a per-frame cost.
+        ProbeRegistry.Register(new SkyFalloffRebuildTimingProbe("falloff_rebuild_ms"));
+
+        // §7c's whole-map BFS, armed on the method the over-wall vent fix rewrote the inside of.
+        // Rebuild is NOT per-frame -- it runs once per map per invalidation, lazily on the next read --
+        // so it appears in no Dubs window and the per-frame table cannot see it at all. That is not a
+        // hypothetical: the first attempt to price this change quoted a 0.3734 -> 0.3192 ms/frame move
+        // out of door_strength_perf, and the rows that had actually moved were section-regenerate
+        // COUNTS (756 -> 428), i.e. run-to-run variance in a method this change does not touch.
+        //
+        // The parent is armed, not the blocker test inside it, and that is what makes the comparison
+        // honest: the change replaces ~9 blocker lookups per cell with one, so instrumenting the
+        // blocker test itself would credit the fix for deleting its own instrumentation. Rebuild is
+        // called the same number of times in both arms, so Circinus's per-call overhead cancels.
+        // Read total_ms over calls.
+        const string falloffGrid = "CelestialLighting.NativeSkyFalloffGrid";
+        ProbeRegistry.Register(new CircinusProbe("circinus_falloff_patched", CircinusProbe.Metric.Patched, falloffGrid, "Rebuild"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_falloff_calls", CircinusProbe.Metric.Calls, falloffGrid, "Rebuild"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_falloff_total_ms", CircinusProbe.Metric.TotalMs, falloffGrid, "Rebuild"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_falloff_max_ms", CircinusProbe.Metric.MaxMs, falloffGrid, "Rebuild"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_falloff_reset", CircinusProbe.Metric.Reset, falloffGrid, "Rebuild"));
+        // The two ENCLOSING methods, armed as well, because the Rebuild arm alone is not trustworthy
+        // across builds: it read 24 calls on one and 0 on the other in the same scenario, while that
+        // scenario's depth probes returned 2 thirteen times over in both -- so the work plainly ran
+        // and the arm on it did not see it. Rather than price a change off a counter that can silently
+        // read zero, DepthAt (public, one call per probe read, same signature in both builds) and
+        // EnsureCurrent (Rebuild's only caller) bracket the same work from outside. A rebuild happens
+        // inside DepthAt, so total_ms over calls prices it whether or not Mono inlined anything.
+        ProbeRegistry.Register(new CircinusProbe("circinus_depthat_calls", CircinusProbe.Metric.Calls, falloffGrid, "DepthAt"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_depthat_total_ms", CircinusProbe.Metric.TotalMs, falloffGrid, "DepthAt"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_depthat_max_ms", CircinusProbe.Metric.MaxMs, falloffGrid, "DepthAt"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_depthat_patched", CircinusProbe.Metric.Patched, falloffGrid, "DepthAt"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_depthat_reset", CircinusProbe.Metric.Reset, falloffGrid, "DepthAt"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_ensure_calls", CircinusProbe.Metric.Calls, falloffGrid, "EnsureCurrent"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_ensure_total_ms", CircinusProbe.Metric.TotalMs, falloffGrid, "EnsureCurrent"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_ensure_patched", CircinusProbe.Metric.Patched, falloffGrid, "EnsureCurrent"));
+        ProbeRegistry.Register(new CircinusProbe("circinus_ensure_reset", CircinusProbe.Metric.Reset, falloffGrid, "EnsureCurrent"));
+
         const string occlusion = "CelestialLighting.Patch_IndoorSkyOcclusion";
         ProbeRegistry.Register(new CircinusProbe("circinus_occl_patched", CircinusProbe.Metric.Patched, occlusion, "Postfix"));
         ProbeRegistry.Register(new CircinusProbe("circinus_occl_calls", CircinusProbe.Metric.Calls, occlusion, "Postfix"));

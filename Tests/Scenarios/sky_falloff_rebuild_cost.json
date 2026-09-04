@@ -1,0 +1,449 @@
+{
+  "name": "sky_falloff_rebuild_cost",
+  "description": "What ONE whole-map \u00a77c BFS rebuild costs. falloff_rebuild_ms is the number to read: it forces ten rebuilds with a stopwatch around each and reports the mean, because Rebuild runs once per map per invalidation (lazily, on the next read) and so appears in no Dubs per-frame window, while the Circinus arms kept here alongside it proved unreliable -- 24 calls / 442.67 ms on one run and 0 calls on the next for the SAME build, with circinus_falloff_patched reading 1 and the depth probes returning 2 in both. The PlaceThings/Probe pairs dirty and re-read the grid by hand so the Circinus arms have something to count at all. Compare the same probe across two builds, never two arms in one run. Pins circinus_available at 1 so a run without Circinus (astryl.Circinus, 3773680130) fails loudly rather than reporting a confident zero.",
+  "saveFile": "minimal_colony.rws",
+  "requiredMods": {
+    "astryl.Circinus": "3773680130"
+  },
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "20"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Concrete",
+        "width": "30",
+        "height": "20",
+        "offset": "0,45",
+        "clear": "true"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "0,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "-5,5; -4,5; -3,5; -2,5; -1,5; 0,5; 1,5; 2,5; 3,5; 4,5; 5,5; -5,-5; -4,-5; -3,-5; -2,-5; -1,-5; 1,-5; 2,-5; 3,-5; 4,-5; 5,-5; -5,-4; -5,-3; -5,-2; -5,-1; -5,0; -5,1; -5,2; -5,3; -5,4; 5,-4; 5,-3; 5,-2; 5,-1; 5,0; 5,1; 5,2; 5,3; 5,4"
+      }
+    },
+    {
+      "type": "SetRoof",
+      "args": {
+        "def": "RoofConstructed",
+        "width": "11",
+        "height": "11",
+        "offset": "0,45"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "0,45",
+        "zoom": "34"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "realistic_preset",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "FastForward",
+      "args": {
+        "ticks": "250"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circinus_available",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "native_falloff_depth",
+        "expectedValue": "2",
+        "tolerance": "1000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circinus_falloff_patched",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circinus_depthat_patched",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circinus_ensure_patched",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circinus_falloff_reset",
+        "expectedValue": "0",
+        "tolerance": "1000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circinus_depthat_reset",
+        "expectedValue": "0",
+        "tolerance": "1000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circinus_ensure_reset",
+        "expectedValue": "0",
+        "tolerance": "1000000"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "0,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "12,-4"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "native_falloff_depth",
+        "expectedValue": "2",
+        "tolerance": "1000000"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "0,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "12,-3"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "native_falloff_depth",
+        "expectedValue": "2",
+        "tolerance": "1000000"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "0,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "12,-2"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "native_falloff_depth",
+        "expectedValue": "2",
+        "tolerance": "1000000"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "0,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "12,-1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "native_falloff_depth",
+        "expectedValue": "2",
+        "tolerance": "1000000"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "0,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "12,0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "native_falloff_depth",
+        "expectedValue": "2",
+        "tolerance": "1000000"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "0,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "12,1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "native_falloff_depth",
+        "expectedValue": "2",
+        "tolerance": "1000000"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "0,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "12,2"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "native_falloff_depth",
+        "expectedValue": "2",
+        "tolerance": "1000000"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "0,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "12,3"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "native_falloff_depth",
+        "expectedValue": "2",
+        "tolerance": "1000000"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "0,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "12,4"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "native_falloff_depth",
+        "expectedValue": "2",
+        "tolerance": "1000000"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "0,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "12,5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "native_falloff_depth",
+        "expectedValue": "2",
+        "tolerance": "1000000"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "0,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "12,6"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "native_falloff_depth",
+        "expectedValue": "2",
+        "tolerance": "1000000"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "0,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "12,7"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "native_falloff_depth",
+        "expectedValue": "2",
+        "tolerance": "1000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circinus_falloff_calls",
+        "expectedValue": "12",
+        "tolerance": "1000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circinus_falloff_total_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circinus_falloff_max_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circinus_depthat_calls",
+        "expectedValue": "0",
+        "tolerance": "1000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circinus_depthat_total_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circinus_depthat_max_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circinus_ensure_calls",
+        "expectedValue": "0",
+        "tolerance": "1000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circinus_ensure_total_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "falloff_rebuild_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000"
+      }
+    }
+  ]
+}
