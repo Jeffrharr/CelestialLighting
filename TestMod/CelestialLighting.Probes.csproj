@@ -90,6 +90,9 @@
          both answered the wrong question here: Rebuild is not per-frame so Dubs cannot see it, and
          Circinus's counters read zero on a build they had read 24 calls on minutes earlier. -->
     <Compile Include="../Source/Probes/SkyFalloffRebuildTimingProbe.cs" Link="SkyFalloffRebuildTimingProbe.cs" />
+    <!-- The oracle for any rewrite of that same BFS: a checksum over all 62,500 cells' depths and
+         strengths, so "bit-identical" is a measurement rather than six pinned cells and a hope. -->
+    <Compile Include="../Source/Probes/SkyFalloffGridChecksumProbe.cs" Link="SkyFalloffGridChecksumProbe.cs" />
     <!-- §27 phase 5b: what a named cell actually RENDERS at, read out of the lighting overlay's own
          vertex colours. The glow-grid probe above cannot see the mask at all — §27 deliberately
          never touches gameplay light — so this is the only probe that can hold a monotonicity

@@ -1441,7 +1441,8 @@ depth/maxDepth falloff by this strength as a final term.
   itself — ten forced `MarkDirty`/`DepthAt` cycles, mean milliseconds — and is what
   `sky_falloff_rebuild_cost.json` reads. One whole-map rebuild on a 250×250 map:
   **14.11 ms before the fix, 16.78 with the first (per-cell thing-list) version, 13.95 with the two-pass
-  one that shipped** — the cost is recovered and lands a hair under the baseline, and the frames are
+  one that shipped** (and 1.35 ms once the BFS itself was rewritten — see below) — the cost is recovered
+  and lands a hair under the baseline, and the frames are
   bit-identical between the two versions (median ΔE 0.00, p90 0.00 over the wall-plus-vent room; the
   bare-vent room's 0.47 is cloud noise on a room that is outdoor-lit by construction, since this
   scenario leaves the cloud flags at their shipped defaults). The stopwatch also corroborates the two
@@ -1479,6 +1480,29 @@ depth/maxDepth falloff by this strength as a final term.
   bare-vent room measures **0.47** and is a probe-level fix only: with a walkable vent and no wall, the
   room is region-connected to the outdoors, so RimWorld itself lights it as outdoor space and the flood
   was never what made it bright.
+- **The rebuild itself was then 10.7× too slow, and the reason was in the seed set rather than the
+  formula.** Measuring the fix above priced something nobody had measured before: **14.48 ms per
+  whole-map rebuild**, paid on the next read after every finished wall, roof or door. The same run says
+  where it went — the flood reached **125 cells** on that map. Every one of the ~62,000 UNROOFED cells
+  was being queued as a seed, and almost all of them then examined eight neighbours only to find each
+  one already visited, because an unroofed cell's neighbours are seeds too. **Only the frontier is
+  queued now**: every unroofed cell is still marked visited at depth 0 with strength 1, which is what
+  the seed set means, but a cell is enqueued only if it has a ROOFED neighbour — precisely the set the
+  flood can step out of. Alongside it the queue carries `int` indices instead of `IntVec3`s (no
+  `CellToIndex` per neighbour; `RoofGrid.Roofed` and `EdificeGrid.InnerArray` are both
+  index-addressable), the seed pass walks rows so `x` falls out of the loop counter instead of a
+  division per cell, the blocker grid became a byte kind grid so the door test rides in the same read,
+  and the scratch buffers are reused — double-buffered rather than in place, because `SectionWorkerPool`
+  regenerates sections on worker threads and a `Reader` hands out the live arrays.
+  **14.48 ms → 1.35 ms**, corroborated by the Circinus arm over the same 24 rebuilds (416.63 → 32.80 ms).
+  **Held to bit-identity, not to the scenarios' six pinned cells.** `SkyFalloffGridChecksumProbe` hashes
+  every cell's depth and strength across the whole map, with the baseline captured on the OLD build
+  first — the oracle is the previous implementation, not the new one agreeing with itself. All four
+  matched exactly: depth sum 752, depth hash 902809, strength hash 539120, reached cells 125. Two places
+  could have been silently wrong and are commented as such: the neighbour visit ORDER is preserved
+  exactly, because first-visit-wins decides which parent's strength a tied cell inherits, and the
+  aperture-fixture type check is skipped only where `blockLight` has already said yes, which cannot
+  change an OR.
 - **The reference is a wood door, and ratio 1 there is load-bearing.** `DoorStrengthReference` memoizes
   `ThingDefOf.Door.BaseMaxHitPoints` (160, `DoorBase`'s own `statBases` override, not the 100 `StatDef`
   default) once — defs never change at runtime, so re-deriving it on every `Rebuild` would pay a stat
