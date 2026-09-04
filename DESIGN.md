@@ -1406,6 +1406,66 @@ depth/maxDepth falloff by this strength as a final term.
   a little light the way `DoorLeakMath`'s crossing multiplier lets a shut door pass some is a reasonable
   thing to want and a separate decision; this change makes a vent as opaque as the wall it replaces,
   which is what vanilla's own gameplay light already does.
+- **The same reporter came back naming an OVER-WALL vent, and they were right: the wall is still there,
+  and the edifice grid has forgotten it.** Replace Stuff (`Memegoddess.ReplaceStuff`) adds `Vent_Over` and
+  `Cooler_Over`, built *onto* a wall rather than in place of one — its `GenSpawn.SpawningWipes` postfix is
+  what lets the pair share a cell. Two things then combine. `Vent_Over`'s 1.6 def no longer carries the
+  `isEdifice false` its pre-1.6 def did, so it IS an edifice; and `Verse.EdificeGrid.Register` simply
+  writes the cell's one array slot, so the vent's spawn EVICTS the granite wall from the edifice grid
+  while that wall goes on standing, blocking light, in the same cell. Our blocker test asked
+  `map.edificeGrid[cell]`, found a `blockLight` **false** vent where a wall is, and flooded a sealed room
+  with daylight. Measured on the shipped build in `Tests/Scenarios/overwall_vent_sky_falloff.json`:
+  `ow_stacked_buildings` 2 (the wall was never wiped), `ow_stacked_edifice_blocks` **0** against
+  `ow_stacked_any_blocks` **1** — the disagreement itself — and `ow_stacked_depth` 2 /
+  `ow_stacked_fraction` 0.262499988, once again a plain open doorway.
+  **The blocker test is now per BUILDING in the cell, which is where vanilla asks it too.**
+  `Verse.Building.SpawnSetup` calls `GlowGrid.LightBlockerAdded` for every building it spawns, edifice or
+  not, so the glow grid's `lightBlockers` is a per-building set and never lost the wall. Reading the thing
+  list instead of the edifice grid restores agreement with it in every stacked-building case at once, and
+  it is what makes a non-edifice light blocker (any wall-fixture mod) visible to the flood at all. The
+  blockers are resolved into a `bool[]` in one pass at the top of `Rebuild` rather than at each neighbour
+  visit. **It costs, and the first attempt to price it was measuring the wrong thing.** `Rebuild` runs
+  once per map per invalidation, lazily on the next read, so it appears in no Dubs per-frame window at
+  all: a `door_strength_perf.json` table quoted as 0.3192 ms/frame after against 0.3734 before was
+  reading section-regenerate COUNTS (`Patch_IndoorSkyOcclusion:Postfix` 756 → 428), which vary run to
+  run and which this change does not touch. Armed directly through Circinus on the BFS
+  (`sky_falloff_rebuild_cost.json`, 24 rebuilds per run, same arm across both builds) one whole-map
+  rebuild on a 250×250 map costs **14.24 ms before against 16.93 and 18.44 ms after** — 19–30% slower,
+  corroborated by the independent `DepthAt` arm (14.80 → 19.63). The `visited` short-circuit meant most
+  cells were never tested nine times, so the per-visit `edificeGrid` array reads were cheaper than 62,500
+  thing-list fetches with type checks. That number also prices something nobody had measured before: a
+  rebuild is ~14 ms *already*, i.e. every finished wall costs a frame on the next read.
+  Note vanilla's own `SectionLayer_LightingOverlay` and
+  `SectionLayer_Darkness` still read `edificeGrid`, and so do our rendering-side blocker tests
+  (`SectionLayer_NightDesaturation`, the vector-light mask) — deliberately: matching vanilla's RENDERER is
+  the right rule there, and matching vanilla's FLOOD is the right rule here.
+  **`blockLight` alone is still not enough, because the over-wall vent sets it false on purpose.** The
+  wall beside it does the blocking, so a bare `Vent_Over` — buildable, since the same mod prefixes
+  `PlaceWorker_Vent` to accept any cell — is an open window to every `blockLight` test there is, vanilla's
+  included: `ow_alone_any_blocks` reads 0 and the room behind it read `ow_alone_depth` 2. `BlocksFlood`
+  therefore takes a third term, `isApertureFixture`, true for `Building_Vent` and `Building_Cooler`: the
+  two vanilla classes whose whole job is to fill an aperture in a wall, and whose `PlaceWorker`s demand a
+  wall between two rooms. Both Core defs already set `blockLight` true, so the term changes nothing for
+  vanilla and is an agreement with it rather than an override. Deliberately NOT their shared
+  `Building_TempControl` base, which would take in `Building_Heater` — a free-standing appliance inside a
+  room, whose cell blocking would notch a dark cell out of the interior gradient. A glass wall makes the
+  opposite claim with the same `blockLight` flag and is neither class, so it still crosses freely;
+  `glass_wall_leak2.json` re-run with the real `VFEArch_CellWall` present pins that unchanged
+  (0.262499988 / 0.0104999989, bit-identical). `AffectsFlood` takes the third term too, for the reason the
+  bullet above gives: `Vent_Over` is `blockLight` false and not a door, so on the old union building one
+  fired no invalidation at all.
+  **The order the two buildings spawn in is the whole bug, and it defeated the first version of the
+  scenario.** `PlaceThings` guards on `GenSpawn.CanSpawnAt`, which refuses any cell that is not
+  `Walkable` — so it cannot put a vent onto a wall, and the scenario originally built the pair the other
+  way round (vent first, wall second). That leaves the *wall* owning the edifice slot, and it reads
+  perfectly clean on the broken build: `ow_reversed_depth` 0. The `StackThing` step
+  (`Source/Probes/StackThingStep.cs`, dev-only) exists to spawn in the game's own order, and the reversed
+  arm is kept in the scenario so the order dependence is pinned rather than rediscovered. Median CIELAB ΔE
+  over the wall-plus-vent room's interior is **1.10 at noon** (p90 2.47, max 5.88; mean channel level
+  5.10 → 0.87) against **0.00 / 0.00 / 0.00** for the sealed granite control in the same frame pair. The
+  bare-vent room measures **0.47** and is a probe-level fix only: with a walkable vent and no wall, the
+  room is region-connected to the outdoors, so RimWorld itself lights it as outdoor space and the flood
+  was never what made it bright.
 - **The reference is a wood door, and ratio 1 there is load-bearing.** `DoorStrengthReference` memoizes
   `ThingDefOf.Door.BaseMaxHitPoints` (160, `DoorBase`'s own `statBases` override, not the 100 `StatDef`
   default) once — defs never change at runtime, so re-deriving it on every `Rebuild` would pay a stat

@@ -99,36 +99,59 @@ public class NativeSkyFalloffMathTests
 
     // A Vent: Impassable, fillPercent 1, blockLight true, holdsRoof FALSE. The regression this fixture
     // exists for -- the old rule required holdsRoof, so this was crossed like an open doorway and a
-    // sealed room with a vent in its wall was lit by the sky through it.
-    [TestCase(true, false, true, TestName = "BlocksFlood_Vent_Blocks")]
+    // sealed room with a vent in its wall was lit by the sky through it. It is an aperture fixture too,
+    // which changes nothing for it: the two terms agree on every CORE def, and that agreement is the
+    // argument that the aperture term is not an override of vanilla.
+    [TestCase(true, false, true, true, TestName = "BlocksFlood_Vent_Blocks")]
     // A granite Wall: blockLight true, not a door. Unchanged by the fix, and the control the live
     // scenario pins beside the vent.
-    [TestCase(true, false, true, TestName = "BlocksFlood_Wall_Blocks")]
+    [TestCase(true, false, false, true, TestName = "BlocksFlood_Wall_Blocks")]
     // A wood Door: blockLight true, but a door. The flood must still cross a threshold -- DoorLeakMath
     // is what dims it, not this predicate. Core's FenceGate is the same shape and the same answer.
-    [TestCase(true, true, false, TestName = "BlocksFlood_Door_DoesNotBlock")]
+    [TestCase(true, true, false, false, TestName = "BlocksFlood_Door_DoesNotBlock")]
     // A glass wall (Vanilla Furniture Expanded - Architect's VFEArch_CellWall): holdsRoof true but
-    // blockLight FALSE. Crossable, which is the behaviour glass_wall_leak2.json pins live.
-    [TestCase(false, false, false, TestName = "BlocksFlood_GlassWall_DoesNotBlock")]
-    public void BlocksFlood_MatchesVanillasOwnBlockerSet(bool blocksLight, bool isDoor, bool expected)
+    // blockLight FALSE. Crossable, which is the behaviour glass_wall_leak2.json pins live -- and the
+    // case the aperture term must NOT catch, since it makes the same blockLight=false claim an
+    // over-wall vent does and means the opposite by it.
+    [TestCase(false, false, false, false, TestName = "BlocksFlood_GlassWall_DoesNotBlock")]
+    // Replace Stuff's over-wall vent (Vent_Over): thingClass Building_Vent, blockLight FALSE because
+    // the wall it is built onto is expected to do the blocking. With no wall under it -- which that
+    // mod allows -- blockLight alone crossed it like an open doorway, measured at depth 2 / fraction
+    // 0.2625 in overwall_vent_sky_falloff.json. Its over-wall cooler is the same shape.
+    [TestCase(false, false, true, true, TestName = "BlocksFlood_OverWallVent_Blocks")]
+    // The one combination that is not a real def, asserted anyway because it is the one a reader has
+    // to guess at: a DOOR that is somehow also an aperture fixture stays crossable. The door clause
+    // outranks both other terms, which is what keeps a FenceGate crossable as well.
+    [TestCase(false, true, true, false, TestName = "BlocksFlood_DoorOutranksApertureFixture")]
+    public void BlocksFlood_MatchesVanillasOwnBlockerSet(
+        bool blocksLight, bool isDoor, bool isApertureFixture, bool expected)
     {
-        Assert.That(NativeSkyFalloffMath.BlocksFlood(blocksLight, isDoor), Is.EqualTo(expected));
+        Assert.That(
+            NativeSkyFalloffMath.BlocksFlood(blocksLight, isDoor, isApertureFixture),
+            Is.EqualTo(expected));
     }
 
-    [TestCase(true, false, true, TestName = "AffectsFlood_Vent_Invalidates")]
-    [TestCase(true, false, true, TestName = "AffectsFlood_Wall_Invalidates")]
+    [TestCase(true, false, true, true, TestName = "AffectsFlood_Vent_Invalidates")]
+    [TestCase(true, false, false, true, TestName = "AffectsFlood_Wall_Invalidates")]
     // A door changes no BlocksFlood answer but does change the crossing multiplier, so it still has to
     // dirty the grid -- this is why the invalidation set is a union rather than the blocker set.
-    [TestCase(true, true, true, TestName = "AffectsFlood_Door_Invalidates")]
+    [TestCase(true, true, false, true, TestName = "AffectsFlood_Door_Invalidates")]
     // A glass wall crosses freely whether it is there or not, and it is not a door, so nothing about
     // the flood changes when one is built.
-    [TestCase(false, false, false, TestName = "AffectsFlood_GlassWall_DoesNot")]
+    [TestCase(false, false, false, false, TestName = "AffectsFlood_GlassWall_DoesNot")]
     // An ordinary chair or a dropped item: neither blocks light nor is a door. The reason this
     // predicate is a filter at all rather than an unconditional MarkDirty on every Building spawn.
-    [TestCase(false, false, false, TestName = "AffectsFlood_Furniture_DoesNot")]
-    public void AffectsFlood_IsTheUnionOfBlockersAndDoors(bool blocksLight, bool isDoor, bool expected)
+    [TestCase(false, false, false, false, TestName = "AffectsFlood_Furniture_DoesNot")]
+    // An over-wall vent: blockLight false and not a door, so the first two terms alone would let one be
+    // built without dirtying the grid -- which would leave the corrected blocker set serving the
+    // pre-vent answer until something unrelated happened to invalidate it.
+    [TestCase(false, false, true, true, TestName = "AffectsFlood_OverWallVent_Invalidates")]
+    public void AffectsFlood_IsTheUnionOfBlockersAndDoors(
+        bool blocksLight, bool isDoor, bool isApertureFixture, bool expected)
     {
-        Assert.That(NativeSkyFalloffMath.AffectsFlood(blocksLight, isDoor), Is.EqualTo(expected));
+        Assert.That(
+            NativeSkyFalloffMath.AffectsFlood(blocksLight, isDoor, isApertureFixture),
+            Is.EqualTo(expected));
     }
 
     [Test]
@@ -136,16 +159,22 @@ public class NativeSkyFalloffMathTests
     {
         // The one relationship between the two that must hold whatever either says: a cell that stops
         // the flood must also be one whose arrival or removal invalidates the cached grid. Asserted
-        // over the whole 2x2 input space rather than by inspection, since the two live in different
+        // over the whole 2x2x2 input space rather than by inspection, since the two live in different
         // files at the call site (NativeSkyFalloffGrid vs Patch_SkyFalloffDirty) and drift silently.
         foreach (bool blocksLight in new[] { false, true })
         {
             foreach (bool isDoor in new[] { false, true })
             {
-                if (NativeSkyFalloffMath.BlocksFlood(blocksLight, isDoor))
+                foreach (bool isApertureFixture in new[] { false, true })
                 {
-                    Assert.That(NativeSkyFalloffMath.AffectsFlood(blocksLight, isDoor), Is.True,
-                        $"blocksLight={blocksLight}, isDoor={isDoor} blocks the flood but would not dirty the grid");
+                    if (NativeSkyFalloffMath.BlocksFlood(blocksLight, isDoor, isApertureFixture))
+                    {
+                        Assert.That(
+                            NativeSkyFalloffMath.AffectsFlood(blocksLight, isDoor, isApertureFixture),
+                            Is.True,
+                            $"blocksLight={blocksLight}, isDoor={isDoor}, isApertureFixture={isApertureFixture} " +
+                            "blocks the flood but would not dirty the grid");
+                    }
                 }
             }
         }

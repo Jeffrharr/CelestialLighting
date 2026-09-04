@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using RimWorld;
 using Verse;
 
 namespace CelestialLighting;
@@ -195,6 +196,12 @@ public static class NativeSkyFalloffGrid
         var visited = new bool[numCells];
         var queue = new Queue<IntVec3>(numCells / 6 + 32);
 
+        // Blockers are resolved for the whole map up front rather than at each neighbour visit. The BFS
+        // asks about a given cell up to nine times over (once as each of its eight neighbours' targets,
+        // plus the corner tests), so answering once per cell costs less than answering per visit even
+        // though each answer now walks a thing list instead of indexing the edifice grid.
+        bool[] blocked = BuildBlockerGrid(map);
+
         // Seeds: every UNROOFED cell (depth 0, strength 1.0 -- sky is already directly overhead,
         // nothing crossed yet). Matches AmbientLightFalloff.MapComp_AmbientLight's own RebuildDistance
         // seed condition exactly (`!roofGrid.Roofed(cell)`, decompiled to confirm) -- deliberately NOT
@@ -246,7 +253,7 @@ public static class NativeSkyFalloffGrid
                 // one sealed room's falloff into its neighbour through solid geometry. A door is
                 // explicitly not a blocker (AltitudeLayer.DoorMoveable), so the flood still crosses an
                 // open threshold.
-                if (BlocksFlood(map, neighbour))
+                if (blocked[neighbourIndex])
                     continue;
 
                 // Diagonal step through a wall corner: refuse it unless both orthogonal cells that
@@ -254,7 +261,7 @@ public static class NativeSkyFalloffGrid
                 // AmbientLightFalloff.MapComp_AmbientLight's own RebuildDistance applies to its
                 // diagonal neighbours -- otherwise light would flood diagonally past a corner no pawn
                 // (or photon) could actually walk or pass through.
-                if (i >= 4 && CornerBlocked(map, cell, offset))
+                if (i >= 4 && CornerBlocked(map, blocked, cell, offset))
                     continue;
 
                 visited[neighbourIndex] = true;
@@ -282,6 +289,19 @@ public static class NativeSkyFalloffGrid
         return DoorLeakMath.CrossingMultiplier(edifice.def.BaseMaxHitPoints, doorReferenceMaxHitPoints, doorStrengthSensitivity, edifice.def.blockLight);
     }
 
+    // One pass over the map, so the BFS below can index an array instead of re-deciding a cell every
+    // time one of its neighbours is dequeued.
+    private static bool[] BuildBlockerGrid(Map map)
+    {
+        CellIndices cellIndices = map.cellIndices;
+        var blocked = new bool[cellIndices.NumGridCells];
+
+        foreach (IntVec3 cell in map.AllCells)
+            blocked[cellIndices.CellToIndex(cell)] = CellBlocksFlood(map, cell);
+
+        return blocked;
+    }
+
     // Whether the flood stops at this cell. The rule itself is NativeSkyFalloffMath.BlocksFlood, which
     // carries the full "why" -- including why it is vanilla's own blockLight set and why a door is
     // deliberately not a blocker; everything here is the reading of live grids a pure function cannot
@@ -304,18 +324,70 @@ public static class NativeSkyFalloffGrid
     // that measurement was taken with ReBuild loaded, which stands this entire BFS down map-wide via
     // UnderRoofFalloffOwner, so it could never have exercised this branch in the first place. A glass
     // wall from a mod that does not own the gradient is the one live case where this is not inert.
-    private static bool BlocksFlood(Map map, IntVec3 cell)
+    //
+    // It asks EVERY BUILDING IN THE CELL, not the cell's edifice. This read map.edificeGrid[cell] until
+    // an over-wall vent report made the difference matter, and the edifice grid is the wrong grid for
+    // this question in two ways at once.
+    //
+    // It holds ONE building per cell -- Verse.EdificeGrid.Register just writes the array slot, and
+    // DeRegister nulls it without checking who is in it -- while Verse.Building.SpawnSetup calls
+    // GlowGrid.LightBlockerAdded for EVERY building it spawns, edifice or not. So vanilla's own glow
+    // flood answers per building in the cell and this answered per edifice, and the two only agree
+    // because vanilla never stands two buildings in one cell. Replace Stuff does exactly that (its
+    // over-wall cooler and vent share the wall's cell, with SpawningWipes patched so neither wipes the
+    // other), and mods that add non-edifice wall fixtures do too.
+    //
+    // And a non-edifice building is invisible to it entirely: Replace Stuff's Vent_Over sets
+    // isEdifice false, so a bare one -- no wall under it, which that mod's PlaceWorker_Vent prefix
+    // allows -- never reached this test at all, whatever it then asked about the def.
+    //
+    // Walking the thing list is what makes IsWallApertureFixture reachable as well, since it is asked
+    // of the vent rather than of the cell.
+    private static bool CellBlocksFlood(Map map, IntVec3 cell)
     {
-        Building edifice = map.edificeGrid[cell];
-        return edifice != null && NativeSkyFalloffMath.BlocksFlood(
-            edifice.def.blockLight,
-            edifice.def.altitudeLayer == AltitudeLayer.DoorMoveable);
+        List<Thing> things = map.thingGrid.ThingsListAtFast(cell);
+
+        for (int i = 0; i < things.Count; i++)
+        {
+            if (things[i] is Building building && BuildingBlocksFlood(building))
+                return true;
+        }
+
+        return false;
     }
 
-    private static bool CornerBlocked(Map map, IntVec3 cell, IntVec3 diagonalOffset)
+    private static bool BuildingBlocksFlood(Building building) =>
+        NativeSkyFalloffMath.BlocksFlood(
+            building.def.blockLight,
+            building.def.altitudeLayer == AltitudeLayer.DoorMoveable,
+            IsWallApertureFixture(building));
+
+    // A vent or a cooler: the two vanilla buildings that exist to fill an aperture in a wall, and the
+    // two whose PlaceWorkers (PlaceWorker_Vent, PlaceWorker_Cooler) demand a wall between two rooms to
+    // be placed at all. Both core defs already set blockLight true, so this changes nothing for them
+    // and is stated as an agreement with vanilla rather than an override of it.
+    //
+    // What it is FOR is the modded over-wall pair -- Replace Stuff's Cooler_Over / Vent_Over, which are
+    // the same two thingClasses with blockLight turned FALSE because the wall they are built onto is
+    // expected to do the blocking. Built without that wall they read as an open window to every
+    // blockLight test there is, vanilla's included, and the sky poured through one at exactly the
+    // strength of an open doorway (depth 2, fraction 0.2625 -- measured beside a wall-plus-vent arm
+    // that read 0). A glass wall makes the opposite claim with the same flag and is neither of these
+    // two classes, so it still crosses freely: this is the narrowest thing that separates them.
+    //
+    // Type checks rather than defNames on purpose -- any mod's vent subclassing Building_Vent gets the
+    // same answer, and a defName list would go stale the day Replace Stuff adds its wide variants.
+    // Not Building_TempControl, their shared base: that would take in Building_Heater, which is a
+    // free-standing appliance inside a room and would notch a dark cell out of the interior gradient.
+    public static bool IsWallApertureFixture(Building building) =>
+        building is Building_Vent || building is Building_Cooler;
+
+    private static bool CornerBlocked(Map map, bool[] blocked, IntVec3 cell, IntVec3 diagonalOffset)
     {
         IntVec3 a = new IntVec3(cell.x + diagonalOffset.x, 0, cell.z);
         IntVec3 b = new IntVec3(cell.x, 0, cell.z + diagonalOffset.z);
-        return (a.InBounds(map) && BlocksFlood(map, a)) || (b.InBounds(map) && BlocksFlood(map, b));
+        CellIndices cellIndices = map.cellIndices;
+        return (a.InBounds(map) && blocked[cellIndices.CellToIndex(a)])
+            || (b.InBounds(map) && blocked[cellIndices.CellToIndex(b)]);
     }
 }

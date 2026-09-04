@@ -56,9 +56,12 @@ public static class NativeSkyFalloffMath
         return Clamp01(passThrough01 * (1f - depthFraction));
     }
 
-    // Whether an edifice standing on a cell stops the flood there. `blocksLight` is the cell's own
-    // ThingDef.blockLight and `isDoor` is altitudeLayer == AltitudeLayer.DoorMoveable; the adapter
-    // (NativeSkyFalloffGrid.BlocksFlood) reads both off the live edifice grid.
+    // Whether one BUILDING standing on a cell stops the flood there -- asked once per building in the
+    // cell, not once per cell, because vanilla asks it that way (see below). `blocksLight` is that
+    // building's ThingDef.blockLight, `isDoor` is altitudeLayer == AltitudeLayer.DoorMoveable, and
+    // `isApertureFixture` is NativeSkyFalloffGrid.IsWallApertureFixture -- a vent or a cooler, the two
+    // vanilla buildings whose whole job is to fill a hole in a wall. The adapter
+    // (NativeSkyFalloffGrid.CellBlocksFlood) reads all three off the live thing grid.
     //
     // THE BLOCKER SET IS VANILLA'S, EXACTLY -- the same argument VectorLightBlockers' own header makes
     // for the vector-light occluders, and for the same reason. Verse.Building.SpawnSetup writes
@@ -81,7 +84,26 @@ public static class NativeSkyFalloffMath
     // has to cross a threshold, which is what DoorLeakMath's crossing multiplier then dims. Core's
     // FenceGate is the one light-blocking, non-roof-holding def that must NOT become solid here, and
     // the door clause is what keeps it crossable.
-    public static bool BlocksFlood(bool blocksLight, bool isDoor) => blocksLight && !isDoor;
+    //
+    // `isApertureFixture` is the one place this deliberately says MORE than blockLight does, and it was
+    // added for a reported leak through Replace Stuff's over-wall vent (Vent_Over). That def is a vent
+    // meant to be built into a wall's own cell, and because the wall beside it already blocks, the mod
+    // sets blockLight FALSE on the vent itself -- so a vent built WITHOUT a wall under it (which the
+    // same mod allows, by prefixing PlaceWorker_Vent to accept any cell) is, to every blockLight test
+    // including vanilla's own, an open hole. Measured: the interior cell behind one read depth 2 and
+    // fraction 0.2625, identical to a cell behind a plain wood door, while the wall-plus-vent
+    // arrangement beside it read 0. Vanilla never notices because vanilla has no sky flood at all -- a
+    // vent with no light behind it passes no gameplay light either way -- and it is exactly the case
+    // where a mod's blockLight=false means "the wall does the blocking here", not "you can see through
+    // me". A glass wall means the second, keeps blockLight=false, is not a vent or a cooler, and still
+    // crosses freely.
+    //
+    // Deliberately NOT the whole Building_TempControl hierarchy, which would also take in
+    // Building_Heater: a heater is a free-standing appliance inside a room, so blocking its cell would
+    // notch a dark cell out of the interior gradient for no reason. Vent and cooler are the two whose
+    // PlaceWorkers demand a wall between two rooms.
+    public static bool BlocksFlood(bool blocksLight, bool isDoor, bool isApertureFixture) =>
+        (blocksLight || isApertureFixture) && !isDoor;
 
     // Whether a building spawning or despawning can change any answer the flood depends on, i.e.
     // whether Patch_SkyFalloffDirty has to invalidate the cached grid for it. The complement pair to
@@ -94,7 +116,8 @@ public static class NativeSkyFalloffMath
     // trigger -- and that is exactly what happened: the old trigger gated on holdsRoof, so building a
     // vent fired no invalidation at all and the fix to the blocker set alone would not have shown up
     // until something else happened to dirty the map.
-    public static bool AffectsFlood(bool blocksLight, bool isDoor) => blocksLight || isDoor;
+    public static bool AffectsFlood(bool blocksLight, bool isDoor, bool isApertureFixture) =>
+        blocksLight || isDoor || isApertureFixture;
 
     private static float Clamp01(float v) => v < 0f ? 0f : (v > 1f ? 1f : v);
 }
