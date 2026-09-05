@@ -498,6 +498,9 @@ public static class ProbeRegistration
             "vector_light_mask_index_build_ms", VectorLightBakeProbe.Metric.MaskIndexBuildMs));
         ProbeRegistry.Register(new VectorLightBakeProbe(
             "vector_light_mask_index_builds", VectorLightBakeProbe.Metric.MaskIndexBuilds));
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_mask_saturation_candidates",
+            VectorLightBakeProbe.Metric.MaskSaturationCandidates));
         // The one metric here that is a DEFECT COUNT rather than a workload figure: sections that
         // baked with an emitter reaching them dropped for want of a polygon, i.e. frames that
         // rendered with a shadow missing. Its partner says the fallback was exercised at all, which
@@ -1995,6 +1998,19 @@ public static class ProbeRegistration
             enabled =>
             {
                 CelestialLightingFeatures.VectorLightMaskSaturation = enabled;
+                VectorLightRedraw.ForceRebuild();
+            });
+
+        // The saturation pass's cell gate. ForceRebuild for the same reason the correction itself
+        // needs it: the gate changes what a section regenerate COSTS and nothing about what it
+        // draws, so flipping it changes nothing until something rebakes — and the rebake is the
+        // thing the timing scenario reads. Output is identical on both arms by construction; the
+        // off arm is the control for a duration that only a calling-thread stopwatch can see.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightMaskSaturationGateKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.VectorLightMaskSaturationGate = enabled;
                 VectorLightRedraw.ForceRebuild();
             });
 

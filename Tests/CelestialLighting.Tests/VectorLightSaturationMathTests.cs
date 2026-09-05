@@ -49,6 +49,82 @@ public class VectorLightSaturationMathTests
         Assert.That(VectorLightSaturationMath.Saturates(r, g, b), Is.EqualTo(expected));
     }
 
+    // ---- the gate on the displayed value ---------------------------------------------------------
+
+    [TestCase(255, 10, 0, true)]
+    [TestCase(0, 0, 255, true)]
+    [TestCase(254, 254, 254, false)]
+    [TestCase(0, 0, 0, false)]
+    public void DisplayedAtCeilingReadsThePeak(int r, int g, int b, bool expected)
+    {
+        Assert.That(VectorLightSaturationMath.DisplayedAtCeiling(r, g, b), Is.EqualTo(expected));
+    }
+
+    // THE THEOREM THE GATE RESTS ON: a raw sum over the ceiling always folds to a displayed peak of
+    // exactly 255, whatever the emitters and whatever their order. VectorLightMask reads vanilla's
+    // displayed value to decide which cells are worth folding at all, so a counterexample here is a
+    // cell the correction would silently stop correcting. Swept rather than argued, over random
+    // sequences of up to fourteen emitters of arbitrary hue including zero addends, because the fold
+    // is lossy and an argument about a lossy fold is exactly the kind that has been wrong in this
+    // file before. Deterministically seeded, as SameHueFoldNoiseIsSmallAndMixedHueNoiseIsNot is.
+    [Test]
+    public void ASaturatingSumAlwaysDisplaysAtTheCeiling()
+    {
+        Random random = new Random(11);
+        int saturating = 0;
+
+        for (int trial = 0; trial < 200_000; trial++)
+        {
+            int count = random.Next(1, 15);
+            int rawR = 0;
+            int rawG = 0;
+            int rawB = 0;
+            int r = 0;
+            int g = 0;
+            int b = 0;
+
+            for (int i = 0; i < count; i++)
+            {
+                int addR = random.Next(0, 256);
+                int addG = random.Next(0, 256);
+                int addB = random.Next(0, 256);
+
+                rawR += addR;
+                rawG += addG;
+                rawB += addB;
+                VectorLightSaturationMath.Accumulate(ref r, ref g, ref b, addR, addG, addB);
+            }
+
+            if (VectorLightSaturationMath.Saturates(rawR, rawG, rawB))
+            {
+                saturating++;
+                Assert.That(
+                    VectorLightSaturationMath.DisplayedAtCeiling(r, g, b), Is.True,
+                    $"raw ({rawR},{rawG},{rawB}) saturates but folds to ({r},{g},{b})");
+            }
+        }
+
+        // The sweep has to have exercised the case, or a bug in the generator passes it trivially.
+        Assert.That(saturating, Is.GreaterThan(100_000));
+    }
+
+    // AND THE CONVERSE DOES NOT HOLD, stated so nobody tightens the gate into the test itself: a
+    // sum of exactly 255 displays 255 and is not saturated, so the gate admits it and Saturates,
+    // asked of the raw sum afterwards, is what declines it.
+    [Test]
+    public void DisplayedAtCeilingAdmitsAnUnsaturatedCellOnTheCeiling()
+    {
+        int r = 0;
+        int g = 0;
+        int b = 0;
+
+        VectorLightSaturationMath.Accumulate(ref r, ref g, ref b, 200, 0, 0);
+        VectorLightSaturationMath.Accumulate(ref r, ref g, ref b, 55, 0, 0);
+
+        Assert.That(VectorLightSaturationMath.DisplayedAtCeiling(r, g, b), Is.True);
+        Assert.That(VectorLightSaturationMath.Saturates(255, 0, 0), Is.False);
+    }
+
     // ColorInt.ProjectToColor32Fast, channel by channel: over the ceiling the whole colour is scaled
     // by 255/peak so the hue survives, rather than each channel being clipped where it happens to
     // cross. A per-channel clamp would tint the result, which is the mistake
