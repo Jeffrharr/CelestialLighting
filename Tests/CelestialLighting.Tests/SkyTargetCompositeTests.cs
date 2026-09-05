@@ -147,12 +147,36 @@ public class SkyTargetCompositeTests
             + "name as a string, so PatchAll will throw and every patch in the mod will fail to apply");
     }
 
+    [Test]
+    public void CompositeBuildsExactlyOneSkyInputsPerPass()
+    {
+        // The per-pass cache only pays for itself if the whole pass shares one. Constructing it inside
+        // a stage, or once per stage, is the shape a later refactor is most likely to reach for when
+        // adding a stage that wants a value — and it would leave every lookup going back through
+        // GeometryMemo exactly as before, with nothing else in the repo showing a difference.
+        MethodDefinition postfix = Method(CompositeTypeName, "Postfix");
+        int constructed = postfix.Body.Instructions
+            .Where(i => i.OpCode == OpCodes.Call || i.OpCode == OpCodes.Newobj)
+            .Select(i => (MethodReference)i.Operand)
+            .Count(r => r.Name == ".ctor" && r.DeclaringType.FullName == "CelestialLighting.SkyInputs");
+
+        Assert.That(constructed, Is.EqualTo(1),
+            "the composite should build exactly one SkyInputs and pass it to every stage by ref");
+    }
+
     // --- Helpers ---
 
     // A "sky stage" is any type in the assembly exposing the exact method the composite calls:
-    // static void Apply(Verse.Map, ref Verse.SkyTarget). Discovered from the assembly rather than
-    // listed here on purpose — a hard-coded list would need updating by the same person who forgot to
-    // update the composite, so it would pass in exactly the case the test exists to catch.
+    // static void Apply(Verse.Map, ref SkyInputs, ref Verse.SkyTarget). Discovered from the assembly
+    // rather than listed here on purpose — a hard-coded list would need updating by the same person
+    // who forgot to update the composite, so it would pass in exactly the case the test exists to catch.
+    //
+    // The `SkyInputs&` clause is load-bearing beyond discovery. SkyInputs is a mutable struct used as
+    // a per-pass cache, so a stage taking it BY VALUE still returns every correct answer — it just
+    // fills a copy that is discarded, and the repeated lookups the type exists to remove quietly come
+    // back. Nothing else in the repo can see that: no pixel moves, no probe shifts, and the only
+    // symptom is a call count in a profiler nobody re-reads. Requiring the by-ref form here means such
+    // a stage stops being discovered and fails the wiring test above instead.
     private IEnumerable<TypeDefinition> SkyStageTypes() =>
         _module.Types.Where(t => t.Methods.Any(IsSkyStageMethod));
 
@@ -160,9 +184,10 @@ public class SkyTargetCompositeTests
         m.Name == StageMethodName
         && m.IsStatic
         && m.ReturnType.FullName == "System.Void"
-        && m.Parameters.Count == 2
+        && m.Parameters.Count == 3
         && m.Parameters[0].ParameterType.FullName == "Verse.Map"
-        && m.Parameters[1].ParameterType.FullName == "Verse.SkyTarget&";
+        && m.Parameters[1].ParameterType.FullName == "CelestialLighting.SkyInputs&"
+        && m.Parameters[2].ParameterType.FullName == "Verse.SkyTarget&";
 
     private IEnumerable<string> StagesCalledByComposite()
     {

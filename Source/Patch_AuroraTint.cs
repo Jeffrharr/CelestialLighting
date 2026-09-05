@@ -24,7 +24,7 @@ namespace CelestialLighting;
 // result in.
 public static class Patch_AuroraTint
 {
-    internal static void Apply(Map map, ref SkyTarget target)
+    internal static void Apply(Map map, ref SkyInputs inputs, ref SkyTarget target)
     {
         // Feature gate (default on): when off, leave the sky exactly as vanilla/§2/§8 composed it —
         // the faithful pre-feature baseline. Sits before the condition lookup so "off" is a true no-op.
@@ -35,7 +35,7 @@ public static class Patch_AuroraTint
         // upper-atmosphere effect; a solar flare can be in progress overhead while the map itself is
         // under rock, and vanilla's condition is map-wide rather than sky-aware, so without this the
         // flare tinted the inside of a cave green. See MapSkyMath.
-        if (MapSky.IsEnclosed(map))
+        if (inputs.IsEnclosed)
             return;
 
         // Sky blacked out right now (issue #35 — Glowforest, a smoke vent, a sun blocker; never an
@@ -48,7 +48,7 @@ public static class Patch_AuroraTint
         // vent's timed one, which is most of issue #35) and does not exclude the eclipse. It stays
         // because its own justification is different: it mirrors what vanilla's GameCondition_Aurora
         // does to itself, and matching vanilla there is worth keeping independently of this gate.
-        if (MapSky.SkyBlackedOut(map))
+        if (inputs.SkyBlackedOut)
             return;
 
         GameCondition driver = AuroraConditions.ActiveTintDriver(map);

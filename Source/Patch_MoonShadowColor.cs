@@ -37,7 +37,7 @@ namespace CelestialLighting;
 // bug as this one, found at the other end of the day.
 public static class Patch_MoonShadowColor
 {
-    internal static void Apply(Map map, ref SkyTarget target)
+    internal static void Apply(Map map, ref SkyInputs inputs, ref SkyTarget target)
     {
         // Gated on the same flag as the moon shadows themselves: with MoonShadows off there is no moon
         // shadow to make visible, and darkening colors.shadow would only alter vanilla's own (fake,
@@ -53,7 +53,7 @@ public static class Patch_MoonShadowColor
         // that holds for the whole of daylight, and it is the cheapest: ElevationForMap is a
         // per-map-per-frame memo hit, while DrawsShadows and SkyBlackedOut are uncached walks paid
         // twice per frame per map on the CurSkyTarget path.
-        float sunElevation = SolarPosition.ElevationForMap(map);
+        float sunElevation = inputs.SunElevation;
         if (sunElevation > Formulas.AtmosphericRefractionDegrees)
             return;
 
@@ -77,7 +77,7 @@ public static class Patch_MoonShadowColor
         // OverrideShadowVector, SkyManager skips `Color.Lerp(Color.white, ..., CurShadowStrength)`
         // entirely and uses colors.shadow as the material colour directly. On those frames a darkened
         // night shadow colour would render at full depth under a blacked-out sky.
-        if (MapSky.SkyBlackedOut(map))
+        if (inputs.SkyBlackedOut)
             return;
 
         // No moon shadow being cast (moon down, new, or the sky still too bright for one to register —

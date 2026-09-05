@@ -30,7 +30,7 @@ namespace CelestialLighting;
 // of §7b's cap, so a second switch would only let a user re-create the broken shape.
 public static class Patch_EnclosedAmbient
 {
-    internal static void Apply(Map map, ref SkyTarget target)
+    internal static void Apply(Map map, ref SkyInputs inputs, ref SkyTarget target)
     {
         // Gated on the indoor-occlusion feature rather than on a flag of its own: §7b's cap is what
         // turns this constant into a visible brightness, so with that feature off this has nothing
@@ -38,7 +38,7 @@ public static class Patch_EnclosedAmbient
         if (!CelestialLightingFeatures.IndoorSkyOcclusion)
             return;
 
-        if (!MapSky.IsEnclosed(map))
+        if (!inputs.IsEnclosed)
             return;
 
         target.glow = MapSkyMath.AmbientGlow(enclosed: true, diurnalGlow: target.glow);

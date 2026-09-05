@@ -78,7 +78,7 @@ public static class Patch_SkyColorTemperature
     // express in the first place.
     private const float AerosolBlendBoost = 0.7f;
 
-    internal static void Apply(Map map, ref SkyTarget target)
+    internal static void Apply(Map map, ref SkyInputs inputs, ref SkyTarget target)
     {
         // Feature gate (default on): when off, leave each WeatherDef's palette untouched — the
         // faithful pre-feature baseline. Sits before the elevation lookup so "off" is a true no-op.
@@ -89,7 +89,7 @@ public static class Patch_SkyColorTemperature
         // atmospheric scattering to shift warm at dawn and cool at noon, so the def's palette stands
         // as authored. Notably this is what keeps BMT_FungalForest's bioluminescent palette intact
         // rather than dragging it toward a blackbody curve it was never meant to sit on. See MapSkyMath.
-        if (MapSky.IsEnclosed(map))
+        if (inputs.IsEnclosed)
             return;
 
         // Sky blacked out right now (issue #35 — Glowforest, a smoke vent, a sun blocker; never an
@@ -97,7 +97,7 @@ public static class Patch_SkyColorTemperature
         // scattered SUNLIGHT and none is arriving: what is overhead is opaque sulfur cloud, whose colour
         // belongs to the condition rather than to a solar-elevation curve. Leaving it to vanilla's
         // LerpDarken min() was not enough for the reason Patch_TwilightColor spells out.
-        if (MapSky.SkyBlackedOut(map))
+        if (inputs.SkyBlackedOut)
             return;
 
         // Re-derive sun elevation from our own simulator (via the shared SolarPosition adapter)
@@ -108,7 +108,7 @@ public static class Patch_SkyColorTemperature
         // (The reason originally cited here — that glow "may already be clamped by the active
         // WeatherDef's maxGlow" — was wrong; maxGlow is set exactly once in all of vanilla. See
         // DESIGN.md §13. The choice is unchanged and better justified.)
-        float elevation = SolarPosition.ElevationForMap(map);
+        float elevation = inputs.SunElevation;
 
         // The §18 vacuum gate (Vacuum.cs). Threaded into the pure layer rather than early-returning
         // here for the same reason as Patch_TwilightColor: the "no air, no reddening" decision lives

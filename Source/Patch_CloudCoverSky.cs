@@ -29,7 +29,7 @@ namespace CelestialLighting;
 // happens to sequence the two is safe.
 public static class Patch_CloudCoverSky
 {
-    internal static void Apply(Map map, ref SkyTarget target)
+    internal static void Apply(Map map, ref SkyInputs inputs, ref SkyTarget target)
     {
         if (map.weatherManager.curWeather != WeatherDefOf.Clear)
             return;

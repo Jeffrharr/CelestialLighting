@@ -54,7 +54,7 @@ public static class Patch_PurpleLight
     private const float OverlayBlend =
         1f - (1f - Patch_SkyColorTemperature.OverlayBlend) * (1f - Patch_PolarNightBlue.OverlayBlend);
 
-    internal static void Apply(Map map, ref SkyTarget target)
+    internal static void Apply(Map map, ref SkyInputs inputs, ref SkyTarget target)
     {
         // One shared adapter call carrying every gate — the feature toggle, the enclosed/blacked-out
         // sky, the window envelope, §18's vacuum flag and the user's strength slider. Outside the

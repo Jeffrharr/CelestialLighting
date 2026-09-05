@@ -28,7 +28,7 @@ namespace CelestialLighting;
 // game years) and the two never share a code path — see LimbRefractionMath's header for the boundary.
 public static class Patch_LimbRefraction
 {
-    internal static void Apply(Map map, ref SkyTarget target)
+    internal static void Apply(Map map, ref SkyInputs inputs, ref SkyTarget target)
     {
         // One read of map.Biome.inVacuum for the whole subsystem, per Vacuum.cs's convention, handed
         // down as a primitive. The "what does an orbital sunset look like" decision still belongs next
@@ -53,7 +53,7 @@ public static class Patch_LimbRefraction
         // radiance, the shadow patches), so the terminator can never disagree with them about where
         // the sun is. Memoized per (map, frame) — see GeometryMemo.cs — so this costs nothing beyond
         // the first caller in the frame.
-        float sunElevation = SolarPosition.ElevationForMap(map);
+        float sunElevation = inputs.SunElevation;
 
         // §18b's shared night floor, read rather than re-derived. This is the value the ramp steps
         // down to once the solid limb covers the disc, and it is deliberately somebody else's number:
@@ -67,7 +67,7 @@ public static class Patch_LimbRefraction
         // behaviour rather than a wobble to be pinned out: under a bright moon the last of the limb
         // light is genuinely outshone before it reaches its reddest, and the spike becomes a dark-moon
         // spectacle. The same way §7's floor swallows the tail of ground twilight on a surface map.
-        float planetshineFloor = NightRadiance.FloorGlowFor(map);
+        float planetshineFloor = inputs.NightFloorGlow;
 
         // One evaluation of the band for this elevation, shared by the glow write and the tint write
         // below (issue #64). Both questions are functions of the same limb transmission and the same

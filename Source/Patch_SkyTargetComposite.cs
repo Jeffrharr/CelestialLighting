@@ -46,10 +46,12 @@ namespace CelestialLighting;
 // CloudCoverClock.FractionForMap). Nothing about "a flag off must reproduce the pre-feature
 // behaviour exactly" changes here; this class only decides who is asked, and in what order.
 //
-// The stage methods are `internal static Apply(Map, ref SkyTarget target)` rather than `Postfix`,
-// because they are now plain functions that nothing reflects over. The one-file-per-subsystem layout
-// is deliberately untouched: the reasoning for each effect stays next to that effect, and this file
-// holds only the sequence.
+// The stage methods are `internal static Apply(Map, ref SkyInputs, ref SkyTarget target)` rather than
+// `Postfix`, because they are now plain functions that nothing reflects over. The one-file-per-subsystem
+// layout is deliberately untouched: the reasoning for each effect stays next to that effect, and this
+// file holds only the sequence. The SkyInputs in the middle is a per-pass cache of the few values the
+// stages ask for repeatedly; SkyTargetCompositeTests enforces the by-ref form, because a stage taking
+// it by value would still be perfectly correct and would silently stop sharing.
 //
 // THE POSTFIX PARAMETER BELOW MUST STAY NAMED `__result`. It is not a style choice and it is not
 // interchangeable with the `target` the stages take: `__result` is Harmony's magic name for the
@@ -99,19 +101,24 @@ public static class Patch_SkyTargetComposite
     //   it applies" is not a property worth keeping once the order is expressible.
     static void Postfix(Map map, ref SkyTarget __result)
     {
-        Patch_AuroraTint.Apply(map, ref __result);              // §11  night sky tint under an auroral event
-        Patch_BloodMoon.Apply(map, ref __result);               // §12  crimson night under a blood-moon condition
-        Patch_CloudCoverSky.Apply(map, ref __result);           // §22  partial cloud cover, Clear weather only
-        Patch_EnclosedAmbient.Apply(map, ref __result);         // §17b constant ambient glow in a cavern
-        Patch_LimbRefraction.Apply(map, ref __result);          // §18d orbital sunset; owns .glow in vacuum
-        Patch_MoonShadowColor.Apply(map, ref __result);         // §6a  colors.shadow below the horizon
-        Patch_NightRadiance.Apply(map, ref __result);           // §7   starlight/airglow/moonlight night floor on .glow
-        Patch_LowLightDesaturation.Apply(map, ref __result);    // §9   Purkinje cool-grey drift — MUST follow §7, see note
-        Patch_PolarNightBlue.Apply(map, ref __result);          // §19  ozone Chappuis band
-        Patch_SkyColorTemperature.Apply(map, ref __result);     // §8   blackbody curve, site altitude, aerosol
-        Patch_PurpleLight.Apply(map, ref __result);             // §19c -6..-4 window correction — MUST follow §8 and §19, see note
-        Patch_TwilightColor.Apply(map, ref __result);           // §2   warm nudge through civil twilight
-        Patch_WeatherDimming.Apply(map, ref __result);          // §13  storm darkening, colour-only
-        Patch_WeatherShadowColor.Apply(map, ref __result);      // §13a/§18c colors.shadow above the horizon
+        // One scratchpad per pass, filled on demand. See SkyInputs for why it sits in front of
+        // GeometryMemo rather than replacing it, and why every stage must take it by ref.
+        SkyInputs inputs = new SkyInputs(map);
+
+        Patch_AuroraTint.Apply(map, ref inputs, ref __result);              // §11  night sky tint under an auroral event
+        Patch_BloodMoon.Apply(map, ref inputs, ref __result);               // §12  crimson night under a blood-moon condition
+        Patch_CloudCoverSky.Apply(map, ref inputs, ref __result);           // §22  partial cloud cover, Clear weather only
+        Patch_EnclosedAmbient.Apply(map, ref inputs, ref __result);         // §17b constant ambient glow in a cavern
+        Patch_LimbRefraction.Apply(map, ref inputs, ref __result);          // §18d orbital sunset; owns .glow in vacuum
+        Patch_MoonShadowColor.Apply(map, ref inputs, ref __result);         // §6a  colors.shadow below the horizon
+        Patch_NightRadiance.Apply(map, ref inputs, ref __result);           // §7   starlight/airglow/moonlight night floor on .glow
+        Patch_LowLightDesaturation.Apply(map, ref inputs, ref __result);    // §9   Purkinje cool-grey drift — MUST follow §7, see note
+        Patch_PolarNightBlue.Apply(map, ref inputs, ref __result);          // §19  ozone Chappuis band
+        Patch_SkyColorTemperature.Apply(map, ref inputs, ref __result);     // §8   blackbody curve, site altitude, aerosol
+        Patch_PurpleLight.Apply(map, ref inputs, ref __result);             // §19c -6..-4 window correction — MUST follow §8 and §19, see note
+        Patch_TwilightColor.Apply(map, ref inputs, ref __result);           // §2   warm nudge through civil twilight
+        Patch_WeatherDimming.Apply(map, ref inputs, ref __result);          // §13  storm darkening, colour-only
+        Patch_WeatherShadowColor.Apply(map, ref inputs, ref __result);      // §13a/§18c colors.shadow above the horizon
     }
+
 }
