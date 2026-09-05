@@ -12526,7 +12526,8 @@ of what remains is genuine per-cell fold work over the lights that really do ove
 over the glow grid's lights — built once per frame inside `Reader`, which already walks the whole
 list to fill `indexByKey` — would take the residual scans out entirely, and the arithmetic above puts
 that at roughly 4–6 ms of a 59 ms rebake rather than at another 16%. It is the next slice and it is a
-smaller one than this was.
+smaller one than this was. The saturation pass's own remaining 47% turned out to have a larger
+slice in it than the index does — see "decide the cells before resolving the lights" below.
 
 #### Two warts fixed in passing
 
@@ -12543,6 +12544,77 @@ calls into `VectorLightLiftMath` and the preview's csproj linked only the former
 nothing to A/B: the output is identical on two runtimes and the offline suite proves it bit-for-bit.
 What stands in for the off arm is `vector_light_bake_brute.json` plus a one-file revert, which is
 what produced the table above.
+
+#### The saturation pass: decide the cells before resolving the lights (`VectorLightMask.CollectCandidates`, `VectorLightSaturationMath.DisplayedAtCeiling`)
+
+The reorder above left `CorrectSaturation` at 47% of a whole-map rebake, and the counters added to
+read it — `vector_light_mask_fold_cells` against `vector_light_mask_saturated_samples` — said what
+the 47% was buying: **91,708 cell-light pairs folded to rewrite 4,834 cells**, 94.7% of the stage's
+work completed and then discarded. `CorrectCell` rewrites a cell only if the mask edited it AND its
+raw sum saturates, and the fold was how both were being found out.
+
+Both are answerable before a light is resolved. The edit is in the two arrays the shadow stage just
+filled. Saturation cannot be read without the fold — the fold exists to reconstruct the sum — but it
+has a necessary condition that costs one array read: **a raw sum over the ceiling always displays a
+peak of exactly 255.** The first step whose running sum crosses the ceiling is projected onto it,
+and no later step can pull the peak back: every addend is non-negative, and the projection either
+leaves an under-ceiling sum alone or scales its peak to 255. If no step ever crossed, the fold was
+a plain sum and does not saturate. So `VisualGlowAt` answers "could this cell have saturated", and a
+cell displaying under 255 provably did not. The converse fails — a sum of exactly 255 displays 255
+without being over it — so `Saturates` is still asked of the raw sum afterwards, on the cells
+admitted. `VectorLightSaturationMathTests` sweeps the implication over 200,000 random mixed-hue
+sequences, zero addends allowed, rather than trusting the paragraph above; arguments about this
+fold have been wrong before.
+
+`CollectCandidates` marks each edited, in-bounds, at-ceiling cell and returns their bounding box;
+the two-light count, the light-level reject, the fold and the correction loop all run over that box
+and skip non-candidates. **Skipping a cell removes no step from any other** — each cell's fold is
+its own accumulation, `AccumulateFold` indexes every write by cell — so the kept cells see every
+light they saw before, in vanilla's order, and the correction is byte-identical. It is the same
+property the light-level reject stands on: what is dropped contributed nothing to what is kept.
+
+**Measured off, on, off, on inside one boot** — `stress_light_mask_gate.json`, four rounds, each arm
+one whole-map rebake of the same 503 emitters over the same 91 sections. Alternated rather than
+blocked because this box's run-to-run timing noise is 2.4x, and a blocked design hands whichever arm
+ran in the quiet half a win it did not earn.
+
+| | off | on | on ÷ off |
+|---|---|---|---|
+| cells rewritten (`saturated_samples`) | 4,834 | 4,834 | 1.000 |
+| cells declined (`saturation_skipped`) | 0 | 0 | — |
+| cells admitted (`saturation_candidates`) | — | 4,849 | — |
+| cell-light pairs folded (`fold_cells`) | 91,708 | 45,188 | 0.493 |
+| lights folded (`lights_folded`) | 2,826 | 2,661 | 0.942 |
+| **`CorrectSaturation`, median ms** | **30.06** | **16.59** | **0.552** |
+| *control:* `BuildCellShadow` | 22.27 | 21.90 | *0.983* |
+| *control:* `CollectReaching` | 1.69 | 1.43 | *0.843* |
+| **`Apply`, whole, median ms** | **61.45** | **47.11** | **0.767** |
+
+The four neighbouring-pair ratios on the subject are 0.454, 0.602, 0.557 and 0.548; its ranges do
+not overlap (29.50–36.69 against 16.17–18.32) while both controls' do. The output rows are the live
+half of the identity claim — the same 4,834 cells rewritten on every arm, none declined — and the
+offline sweep is the other half.
+
+**Why the pairs only halved when the cells fell twenty-fold.** The gate's precision is 99.7% —
+4,849 admitted for 4,834 rewritten — so what remains is genuine: the cells that saturate are the
+ones the most lamps reach, about nine each against the section's average of under three, and every
+step of their fold projects, because they are saturated. What is left of the stage is the fold over
+cells it really rewrites. The next slice of it, if there is one, is per-pair cost, not cell
+selection.
+
+**Behind `vector_light_mask_saturation_gate`, on — flagged, unlike the reorder above.** The reorder
+shipped unflagged because there was nothing to A/B. This one's output is identical too, but its
+saving is a duration on a section regenerate, invisible to both frame-based analyzers, and measured
+build-against-build a twofold saving can vanish into the 2.4x weather. The flag is what lets one
+boot alternate arms; the off arm walks exactly the cells it walked before the gate existed.
+
+**What it leaves, stated for the next reader.** The light-level scan is untouched: a per-section
+light index is being built on another branch and the two compose — this shrinks what each admitted
+light does, that shrinks how many are asked. After this, `BuildCellShadow` is the mask's largest
+stage at 21.9 ms of 47, per reaching emitter per cell of its square. It does not have this gate's
+shape: it is the pass that DECIDES the edit rather than one that restates it, so there is no
+already-known answer to read a candidate set from.
+
 
 ### Vector lighting, phase 7: the coverage grid was mostly outside the light (`VectorLightMath.BuildCoverage`, `VectorLightCoverageOracle`, epic #174 phase 7)
 

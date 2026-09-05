@@ -100,6 +100,14 @@ public static class VectorLightMask
 
     private static ColorInt[] cellFoldOurs = new ColorInt[0];
 
+    // Which cells of the section the correction could rewrite at all, decided BEFORE the fold from
+    // two things already in hand: the shadow and lift accumulated above, and what vanilla displays.
+    // A cell with no edit is never rewritten — CorrectCell's first test — and a cell displaying under
+    // the ceiling provably never saturated (VectorLightSaturationMath.DisplayedAtCeiling). Every
+    // other cell is one the fold can skip without removing a step from any cell it keeps, because
+    // each cell's fold is its own. See CollectCandidates.
+    private static bool[] cellCandidate = new bool[0];
+
     // What the last whole-map rebake's lift actually came to, for the probes.
     //
     // TWO NUMBERS, READ TOGETHER, because a zero in either has an entirely different cause. Samples
@@ -175,8 +183,64 @@ public static class VectorLightMask
 
     public static double SaturationWallMs;
 
+    // How much of each full-map scan was WORTH doing, in counts rather than milliseconds.
+    //
+    // WHY COUNTS ARE THE RIGHT INSTRUMENT FOR THIS PARTICULAR QUESTION. The three stages above each
+    // walk a whole list to find the few entries that touch one section, and the case for indexing
+    // them is exactly the ratio between "walked" and "used". A millisecond cannot separate a scan
+    // that is long from a scan that is short but expensive per step, and this repo has already
+    // spent one branch discovering that a per-call timer cannot see a call count. A ratio of two
+    // counts is also stable across a noisy box in a way a duration is not: it is a property of the
+    // scene, so two runs of one build agree on it exactly.
+    //
+    // Scanned counts every entry the loop examined; the second of each pair counts the ones it went
+    // on to do work for. An index over the light list can remove at most the difference, which
+    // makes these the SIZE OF THE PRIZE rather than a description of the current cost.
+    public static long LightsScanned;
+
+    public static long LightsFolded;
+
+    public static long EmittersScanned;
+
+    public static long EmittersReaching;
+
+    // Sections that really did rebake through the mask, drained on THIS class's schedule.
+    //
+    // WHY A SECOND COUNTER WHEN VectorLightField.MaskApplies ALREADY EXISTS. Because it drains on
+    // the other one. That field is zeroed by VectorLightField.ResetCounters, which the bake_reset
+    // probe calls; everything else here is zeroed by ResetTelemetry, which ForceRebuild calls on
+    // every SetFeature. The two therefore span DIFFERENT WINDOWS, and dividing a duration from one
+    // by a count from the other is the "two true numbers over two different windows" mistake this
+    // repo keeps a note about. MaskApplies' own header warns that a counter split across the two
+    // resets will drain at the wrong moment, and this is that warning coming true from the other
+    // side: the stage clocks were added to this class and the divisor was left on that one.
+    //
+    // Both are kept and both are read. If they disagree, the disagreement is the finding -- the
+    // first run of the stage clocks read MaskApplies at 0 against 59 ms of measured Apply time, and
+    // that is still unexplained. Two counters on two schedules is what will localise it.
+    public static long Applies;
+
+    // Cells the saturation reconstruction actually folded a light into -- the denominator its yield
+    // is read against. SaturatedSamples counts the cells it went on to REWRITE, and the ratio between
+    // the two is the question "is this pass earning the section it is charged to".
+    public static long FoldCells;
+
+    // Cells the saturation pass admitted to its fold: edited, and displayed at the ceiling. Read
+    // against FoldCells for how much of the fold the gate left standing, and against
+    // SaturatedSamples for how many admitted cells the fold then rewrote — the second ratio is the
+    // gate's precision and the first is its yield. Zero on a gated arm that rewrote something is a
+    // gate that is wrong, and VectorLightSaturationMath's sweep is the offline half of that check.
+    public static long SaturationCandidates;
+
     public static void ResetTelemetry()
     {
+        SaturationCandidates = 0;
+        LightsScanned = 0;
+        LightsFolded = 0;
+        EmittersScanned = 0;
+        EmittersReaching = 0;
+        Applies = 0;
+        FoldCells = 0;
         LiftSamples = 0;
         LiftPeak = 0;
         SaturatedSamples = 0;
@@ -264,6 +328,8 @@ public static class VectorLightMask
         // that really did rebake through the mask rather than calls that turned round at the door.
         // Same boundary MaskApplies is counted at, which is what makes the two divide.
         System.Diagnostics.Stopwatch clock = System.Diagnostics.Stopwatch.StartNew();
+
+        Applies++;
 
         CollectReaching(map, rect, lifting);
 
@@ -362,6 +428,8 @@ public static class VectorLightMask
 
         foreach (VectorLightField.LightEntry entry in VectorLightField.LightsFor(map))
         {
+            EmittersScanned++;
+
             int reach = Mathf.CeilToInt(entry.Radius) + ReachMargin;
 
             bool overlaps = entry.Cell.x + reach >= rect.minX - 1
@@ -410,6 +478,8 @@ public static class VectorLightMask
 
             if (overlaps && worthVisiting && hasPrior)
             {
+                EmittersReaching++;
+
                 Reaching.Add(entry);
 
                 // Counted where it happens rather than inferred from the dirty flag afterwards: by
@@ -543,7 +613,26 @@ public static class VectorLightMask
         // carry a shadow at all carry it from a single lamp.
         System.Diagnostics.Stopwatch clock = System.Diagnostics.Stopwatch.StartNew();
 
-        if (OverlappingLights(rect, reader) < 2)
+        // THE CELLS BEFORE THE LIGHTS. Everything below is priced per light on the map, and the
+        // question "which cells could this rewrite" is priced per cell of the section and needs no
+        // light resolved to answer. Asked first, a section whose edits all sit under the ceiling —
+        // most sections of most colonies — turns round here having read a few hundred bytes of
+        // vanilla's grid, instead of walking five hundred emitters to learn the same thing. Read
+        // once per call rather than per cell, for the reason Lifting's header gives.
+        bool gated = CelestialLightingFeatures.VectorLightMaskSaturationGate;
+        CellRect box = CellRect.FromLimits(rect.minX - 1, rect.minZ - 1, rect.maxX + 1, rect.maxZ + 1);
+
+        if (gated && !CollectCandidates(map, rect, box, out box))
+        {
+            SaturationWallMs += clock.Elapsed.TotalMilliseconds;
+            lastSaturationMs += clock.Elapsed.TotalMilliseconds;
+            return;
+        }
+
+        // The box is the candidates' bounds from here on, so "overlapping" and "reaching" both mean
+        // reaching a cell that could be rewritten, and a light whose square misses every candidate
+        // is dropped from the count as well as from the fold.
+        if (OverlappingLights(box, reader) < 2)
         {
             // THE EARLY RETURN IS TIMED TOO, and on a colony it is the interesting half. Proving
             // there is no second overlapping light means walking the whole glow grid, so the cheap
@@ -591,33 +680,43 @@ public static class VectorLightMask
         // -- and the surviving lights are still visited in ascending index order, which is the order
         // CombineColorsJob.Execute added them in and the only order that reproduces vanilla's answer.
         // See FoldInto for why that order is load-bearing rather than tidy.
-        int foldMinX = rect.minX - 1;
-        int foldMaxX = rect.maxX + 1;
-        int foldMinZ = rect.minZ - 1;
-        int foldMaxZ = rect.maxZ + 1;
+        //
+        // AND ONLY THE CANDIDATE CELLS OF EACH, under the gate. The same property that lets the
+        // light-level reject sit under a lossy fold lets the cell-level one: what is dropped
+        // contributed nothing to what is kept. A light's fold into cell A never reads cell B, so
+        // skipping B removes no step from A's accumulation, and A still sees every light in
+        // vanilla's order. CollectCandidates has the argument for why the dropped cells could not
+        // have been rewritten.
+        LightsScanned += reader.LightCount;
 
         for (int i = 0; i < reader.LightCount; i++)
         {
-            if (!reader.OverlapsAt(i, foldMinX, foldMaxX, foldMinZ, foldMaxZ))
+            if (!reader.OverlapsAt(i, box.minX, box.maxX, box.minZ, box.maxZ))
                 continue;
 
+            LightsFolded++;
+
             if (reader.TryLightAt(i, out GlowLight light, out UnsafeList<Color32> colors))
-                AccumulateFold(map, rect, light, colors, ReachingEntryFor(light), lifting);
+                AccumulateFold(map, rect, box, light, colors, ReachingEntryFor(light), lifting, gated);
         }
 
-        for (int z = rect.minZ - 1; z <= rect.maxZ + 1; z++)
+        for (int z = box.minZ; z <= box.maxZ; z++)
         {
-            for (int x = rect.minX - 1; x <= rect.maxX + 1; x++)
-                CorrectCell(map, rect, x, z);
+            for (int x = box.minX; x <= box.maxX; x++)
+            {
+                if (!gated || cellCandidate[CellIndex(rect, x, z)])
+                    CorrectCell(map, rect, x, z);
+            }
         }
 
         SaturationWallMs += clock.Elapsed.TotalMilliseconds;
         lastSaturationMs += clock.Elapsed.TotalMilliseconds;
     }
 
-    // How many emitters reach any cell this section's vertices average over — the same one-cell
-    // margin the accumulators use, and stopping at two because that is all the caller asks.
-    private static int OverlappingLights(CellRect rect, GlowGridPerLight.Reader reader)
+    // How many emitters reach any cell of `box` — the section plus the one-cell margin the
+    // accumulators use, or under the gate the candidates' own bounds — stopping at two because that
+    // is all the caller asks.
+    private static int OverlappingLights(CellRect box, GlowGridPerLight.Reader reader)
     {
         int found = 0;
 
@@ -630,7 +729,7 @@ public static class VectorLightMask
         // establishing that nothing needed correcting.
         for (int i = 0; i < reader.LightCount && found < 2; i++)
         {
-            if (!reader.OverlapsAt(i, rect.minX - 1, rect.maxX + 1, rect.minZ - 1, rect.maxZ + 1))
+            if (!reader.OverlapsAt(i, box.minX, box.maxX, box.minZ, box.maxZ))
                 continue;
 
             if (reader.TryLightAt(i, out GlowLight _, out UnsafeList<Color32> _))
@@ -638,6 +737,92 @@ public static class VectorLightMask
         }
 
         return found;
+    }
+
+    // Which cells of this section the correction could possibly rewrite, decided before any light is
+    // resolved. Returns false when there are none, which is when the whole pass is a no-op; otherwise
+    // `candidates` is their bounding box and cellCandidate marks each one.
+    //
+    // TWO TESTS, BOTH ALREADY ANSWERABLE. CorrectCell rewrites a cell only if the accumulation above
+    // edited it AND its raw sum saturates. The first is a read of two arrays this pass owns. The
+    // second cannot be read without the fold — that is what the fold is for — but it has a cheap
+    // necessary condition: a saturating sum always DISPLAYS a peak of 255, whatever its emitters and
+    // whatever their order (VectorLightSaturationMath.DisplayedAtCeiling has the argument and the
+    // tests sweep it), and vanilla's accumulated grid is one array read away. A cell failing either
+    // test used to be folded and then declined, and on the 500-lamp colony that was 94.7% of the
+    // stage: 91,708 cell-light pairs folded for 4,834 cells rewritten.
+    //
+    // SKIPPING A CELL REMOVES NO STEP FROM ANY OTHER. Each cell's fold is its own accumulation —
+    // AccumulateFold indexes every write by cell and reads nothing across cells — so the surviving
+    // cells see every light they saw before, in vanilla's order, and the correction they receive is
+    // byte-identical. That is the property that lets this sit under a lossy fold at all, and it is
+    // the same one the light-level reject relies on: what is dropped contributed nothing to what is
+    // kept.
+    //
+    // THE BOX IS THE CANDIDATES' BOUNDS, not the section's, and it is what both light loops
+    // intersect against. A section whose only saturated edit is one lamp's wedge in a corner admits
+    // only the lights reaching that corner, and folds only the corner's cells of them.
+    private static bool CollectCandidates(Map map, CellRect rect, CellRect box, out CellRect candidates)
+    {
+        Grow(ref cellCandidate, CellsWide(rect) * CellsHigh(rect));
+
+        int minX = int.MaxValue;
+        int maxX = int.MinValue;
+        int minZ = int.MaxValue;
+        int maxZ = int.MinValue;
+        int count = 0;
+
+        for (int z = box.minZ; z <= box.maxZ; z++)
+        {
+            for (int x = box.minX; x <= box.maxX; x++)
+            {
+                int index = CellIndex(rect, x, z);
+                bool candidate = IsCandidate(map, index, x, z);
+                cellCandidate[index] = candidate;
+
+                if (candidate)
+                {
+                    count++;
+                    minX = Math.Min(minX, x);
+                    maxX = Math.Max(maxX, x);
+                    minZ = Math.Min(minZ, z);
+                    maxZ = Math.Max(maxZ, z);
+                }
+            }
+        }
+
+        SaturationCandidates += count;
+        candidates = count == 0 ? CellRect.Empty : CellRect.FromLimits(minX, minZ, maxX, maxZ);
+        return count > 0;
+    }
+
+    // Edited by the accumulation above, on the map, and displayed by vanilla at the ceiling. The
+    // first two are CorrectCell's own tests, in its order; the third is the necessary condition for
+    // its Saturates test, which CorrectCell still asks of the raw sum afterwards.
+    private static bool IsCandidate(Map map, int index, int x, int z)
+    {
+        if (!Edited(index))
+            return false;
+
+        IntVec3 cell = new IntVec3(x, 0, z);
+
+        if (!cell.InBounds(map))
+            return false;
+
+        Color32 delivered = map.glowGrid.VisualGlowAt(cell);
+        return VectorLightSaturationMath.DisplayedAtCeiling(delivered.r, delivered.g, delivered.b);
+    }
+
+    // Whether the accumulation wrote anything at this cell. A cell with no edit is left exactly as
+    // vanilla wrote it, whatever any sum says: the correction is a restatement of an edit, not an
+    // edit of its own.
+    private static bool Edited(int index)
+    {
+        ColorInt shadow = cellShadow[index];
+        ColorInt lift = cellLift[index];
+
+        return shadow.r != 0 || shadow.g != 0 || shadow.b != 0
+            || lift.r != 0 || lift.g != 0 || lift.b != 0;
     }
 
     // Which of the emitters this section is masking, if any, is the light vanilla is about to fold
@@ -672,16 +857,21 @@ public static class VectorLightMask
     // `own * coverage` plus whatever lift the max has to add, in place of `own`. Everything else —
     // the order, the projection after each step, the zero-addend guard — is identical, so
     // subtracting one from the other leaves precisely the light our geometry says never arrived.
+    //
+    // `box` is the region being reconstructed — the section plus its margin, or under the gate the
+    // candidates' bounds — and `gated` says whether cellCandidate is populated and to be honoured.
+    // With the gate off this walks exactly the cells it walked before the gate existed, which is
+    // what makes the off arm a control rather than a different algorithm.
     private static void AccumulateFold(
-        Map map, CellRect rect, GlowLight light, UnsafeList<Color32> colors,
-        VectorLightField.LightEntry entry, bool lifting)
+        Map map, CellRect rect, CellRect box, GlowLight light, UnsafeList<Color32> colors,
+        VectorLightField.LightEntry entry, bool lifting, bool gated)
     {
         CellRect reach = light.AffectedRect;
 
-        int minX = Math.Max(reach.minX, rect.minX - 1);
-        int maxX = Math.Min(reach.maxX, rect.maxX + 1);
-        int minZ = Math.Max(reach.minZ, rect.minZ - 1);
-        int maxZ = Math.Min(reach.maxZ, rect.maxZ + 1);
+        int minX = Math.Max(reach.minX, box.minX);
+        int maxX = Math.Min(reach.maxX, box.maxX);
+        int minZ = Math.Max(reach.minZ, box.minZ);
+        int maxZ = Math.Min(reach.maxZ, box.maxZ);
 
         // Hoisted out of the inner loop for the same reason AccumulateEmitter hoists them: nothing
         // here depends on the cell, and the loop runs a few hundred times per emitter per section.
@@ -698,6 +888,14 @@ public static class VectorLightMask
         {
             for (int x = minX; x <= maxX; x++)
             {
+                int index = CellIndex(rect, x, z);
+
+                // THE CELL TEST BEFORE THE LIGHT'S OWN, because it is one array read and rejects
+                // most of what the square contains: a lamp's square is mostly cells its shadow
+                // never touched, and those are never candidates.
+                if (gated && !cellCandidate[index])
+                    continue;
+
                 IntVec3 cell = new IntVec3(x, 0, z);
 
                 if (!cell.InBounds(map))
@@ -716,7 +914,7 @@ public static class VectorLightMask
                 if (own.r == 0 && own.g == 0 && own.b == 0)
                     continue;
 
-                int index = CellIndex(rect, x, z);
+                FoldCells++;
 
                 cellRaw[index].r += own.r;
                 cellRaw[index].g += own.g;
@@ -780,17 +978,11 @@ public static class VectorLightMask
     private static void CorrectCell(Map map, CellRect rect, int x, int z)
     {
         int index = CellIndex(rect, x, z);
-        ColorInt shadow = cellShadow[index];
-        ColorInt lift = cellLift[index];
 
-        // A cell with no edit is left exactly as vanilla wrote it, whatever the raw sum says. The
-        // correction is a restatement of an edit, not an edit of its own.
-        bool edited = shadow.r != 0 || shadow.g != 0 || shadow.b != 0
-            || lift.r != 0 || lift.g != 0 || lift.b != 0;
-
-        if (!edited)
+        if (!Edited(index))
             return;
 
+        ColorInt shadow = cellShadow[index];
         ColorInt raw = cellRaw[index];
 
         // THE ONE GATE THAT MAKES THIS A CONFINED FIX. Under the ceiling no step of either fold
@@ -1264,5 +1456,11 @@ public static class VectorLightMask
     {
         if (buffer.Length < needed)
             buffer = new ColorInt[needed];
+    }
+
+    private static void Grow(ref bool[] buffer, int needed)
+    {
+        if (buffer.Length < needed)
+            buffer = new bool[needed];
     }
 }

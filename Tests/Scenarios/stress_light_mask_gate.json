@@ -1,10 +1,7 @@
 {
-  "name": "stress_light_mask",
+  "name": "stress_light_mask_gate",
   "saveFile": "minimal_colony.rws",
-  "requiredMods": {
-    "astryl.Circinus": "3773680130"
-  },
-  "description": "stress_light_colony's colony -- 500 lamps in 11 colours and 9 radii, 11,868 hidden conduits, 20 toxifier generators, 1,874 wall cells across 28 rooms and 120 stubs -- with VectorLightMask.Apply decomposed into its four population-scaled stages by Circinus. \n\nWHY IT EXISTS. stress_light_colony measured the subsystem's worst frame at 64 ms against a 0.77 ms average, all of it in Patch_VectorLightSuppress over 112 calls -- about 2.4 ms per section regenerate at this population -- and could say no more than that, because a Dubs row is one duration for the whole postfix. Every stage armed here costs a function of the EMITTER COUNT rather than of the section, which is the axis this colony moves and no other scenario in the repo does. \n\nRUN IT WITH --no-profiler. Circinus is instrumented from inside the game, and a Profile step under --no-profiler skips the whole scenario while still reporting PASS. This file carries no Profile step so it is indifferent to which analyzer is loaded. \n\nREAD THE CHILDREN TO FIND AND THE PARENT TO JUDGE. Circinus totals are exclusive of armed children, so these four arms change what circ_vlmask reports and inflate the smallest of them most. The split is the finding; a build-to-build comparison belongs on circ_vlmask and on the frame. \n\nEvery duration here is RECORDED, not pinned. What is pinned is the scene, the instrumentation and the one defect counter: 500 emitters, every arm patched, and vector_light_mask_stale_polys at zero.",
+  "description": "stress_light_colony's colony -- 500 lamps in 11 colours and 9 radii -- with the saturation pass's cell gate (vector_light_mask_saturation_gate) measured OFF and ON, alternately, four rounds in one boot. \n\nWHY IT EXISTS. stress_light_mask found CorrectSaturation at 47% of a whole-map rebake and its counters found 94.7% of the fold discarded on cells that could never be rewritten. The gate decides candidacy per cell before any light is resolved; this file reads what that is worth as the ratio of neighbouring arms' stage clocks, because this box's run-to-run timing noise is 2.4x and a build-to-build comparison cannot see a twofold saving through it. \n\nREAD IT AS PAIRS. Each SetFeature of the gate is one whole-map rebake, telemetry reset at the toggle, so every read holds one arm's rebake of the same 503 emitters. saturated_samples and saturation_skipped are the pass's OUTPUT and must read the same on every arm; fold_cells is its work and should collapse on the on arms; saturation_candidates reads zero on the off arms by construction. \n\nEvery duration here is RECORDED, not pinned. What is pinned is the scene and the one defect counter: 503 emitters, the mask available, stale polys at zero.",
   "steps": [
     {
       "type": "SetTile",
@@ -775,76 +772,12 @@
     {
       "type": "Probe",
       "args": {
-        "probeName": "circinus_available",
-        "expectedValue": "1",
-        "tolerance": "0"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
         "probeName": "vector_light_mask_available",
         "expectedValue": "1",
         "tolerance": "0"
       }
     },
     {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_bake_reset",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circinus_run_start_maskscale",
-        "expectedValue": "1",
-        "tolerance": "0"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circ_vlmask_patched",
-        "expectedValue": "1",
-        "tolerance": "0"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circ_vlmaskcollect_patched",
-        "expectedValue": "1",
-        "tolerance": "0"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circ_vlmaskshadow_patched",
-        "expectedValue": "1",
-        "tolerance": "0"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circ_vlmasksat_patched",
-        "expectedValue": "1",
-        "tolerance": "0"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circ_vlmaskfold_patched",
-        "expectedValue": "1",
-        "tolerance": "0"
-      }
-    },
-    {
       "type": "SetFeature",
       "args": {
         "featureName": "vector_light_door_dirty_suppress",
@@ -875,250 +808,20 @@
     {
       "type": "SetFeature",
       "args": {
-        "featureName": "vector_light_door_dirty_suppress",
+        "featureName": "vector_light_mask_saturation_gate",
         "enabled": "false"
       }
     },
     {
-      "type": "SetFeature",
+      "type": "AdvanceTicks",
       "args": {
-        "featureName": "vector_light_door_dirty_suppress",
-        "enabled": "false"
+        "ticks": "2"
       }
     },
     {
-      "type": "SetFeature",
+      "type": "Wait",
       "args": {
-        "featureName": "vector_light_door_dirty_suppress",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_door_dirty_suppress",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_door_dirty_suppress",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_door_dirty_suppress",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_door_dirty_suppress",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_door_dirty_suppress",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_door_dirty_suppress",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_door_dirty_suppress",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_door_dirty_suppress",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_door_dirty_suppress",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_door_dirty_suppress",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_door_dirty_suppress",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_door_dirty_suppress",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_door_dirty_suppress",
-        "enabled": "false"
-      }
-    },
-    {
-      "type": "TickLapse",
-      "args": {
-        "ticks": "20",
-        "steps": "20",
-        "fps": "20",
-        "fileNamePrefix": "maskscale_discard"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circ_vlmask_calls",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circ_vlmask_total_ms",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circ_vlmask_max_ms",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circ_vlmaskcollect_calls",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circ_vlmaskcollect_total_ms",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circ_vlmaskcollect_max_ms",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circ_vlmaskshadow_calls",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circ_vlmaskshadow_total_ms",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circ_vlmaskshadow_max_ms",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circ_vlmasksat_calls",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circ_vlmasksat_total_ms",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circ_vlmasksat_max_ms",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circ_vlmaskfold_calls",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circ_vlmaskfold_total_ms",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circ_vlmaskfold_max_ms",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_applies",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
+        "frames": "3"
       }
     },
     {
@@ -1132,31 +835,7 @@
     {
       "type": "Probe",
       "args": {
-        "probeName": "vector_light_mask_lights_scanned",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
         "probeName": "vector_light_mask_lights_folded",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_emitters_scanned",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_emitters_reaching",
         "expectedValue": "0",
         "tolerance": "1000000000"
       }
@@ -1196,15 +875,7 @@
     {
       "type": "Probe",
       "args": {
-        "probeName": "vector_light_mask_wall_ms",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_collect_ms",
+        "probeName": "vector_light_mask_saturation_ms",
         "expectedValue": "0",
         "tolerance": "1000000000"
       }
@@ -1220,6 +891,89 @@
     {
       "type": "Probe",
       "args": {
+        "probeName": "vector_light_mask_collect_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_wall_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_saturation_gate",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "2"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_applies_clocked",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_lights_folded",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_fold_cells",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturation_candidates",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturated_samples",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturation_skipped",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
         "probeName": "vector_light_mask_saturation_ms",
         "expectedValue": "0",
         "tolerance": "1000000000"
@@ -1228,7 +982,617 @@
     {
       "type": "Probe",
       "args": {
-        "probeName": "vector_light_emitters",
+        "probeName": "vector_light_mask_shadow_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_collect_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_wall_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_saturation_gate",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "2"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_applies_clocked",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_lights_folded",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_fold_cells",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturation_candidates",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturated_samples",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturation_skipped",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturation_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_shadow_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_collect_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_wall_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_saturation_gate",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "2"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_applies_clocked",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_lights_folded",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_fold_cells",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturation_candidates",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturated_samples",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturation_skipped",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturation_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_shadow_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_collect_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_wall_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_saturation_gate",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "2"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_applies_clocked",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_lights_folded",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_fold_cells",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturation_candidates",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturated_samples",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturation_skipped",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturation_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_shadow_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_collect_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_wall_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_saturation_gate",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "2"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_applies_clocked",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_lights_folded",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_fold_cells",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturation_candidates",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturated_samples",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturation_skipped",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturation_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_shadow_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_collect_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_wall_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_saturation_gate",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "2"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_applies_clocked",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_lights_folded",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_fold_cells",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturation_candidates",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturated_samples",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturation_skipped",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturation_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_shadow_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_collect_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_wall_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_saturation_gate",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "AdvanceTicks",
+      "args": {
+        "ticks": "2"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "3"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_applies_clocked",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_lights_folded",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_fold_cells",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturation_candidates",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturated_samples",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturation_skipped",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_saturation_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_shadow_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_collect_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_wall_ms",
         "expectedValue": "0",
         "tolerance": "1000000000"
       }
@@ -1238,14 +1602,6 @@
       "args": {
         "probeName": "vector_light_mask_stale_polys",
         "expectedValue": "0",
-        "tolerance": "0"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "circinus_run_stop",
-        "expectedValue": "1",
         "tolerance": "0"
       }
     }
