@@ -99,8 +99,34 @@ public static class Patch_SkyTargetComposite
     //   boundaries and the nudge is a lerp toward a rescaled hue, so running early made the effect
     //   WEAKER, never wrong or discontinuous. Moved anyway, because "weaker than designed everywhere
     //   it applies" is not a property worth keeping once the order is expressible.
-    static void Postfix(Map map, ref SkyTarget __result)
+    // HALF OF THESE PASSES ARE THROWN AWAY BY VANILLA, AND WE NOW SKIP THOSE. SkyManager's
+    // CurrentSkyTarget evaluates CurSkyTarget TWICE — once on the current weather's worker, once on
+    // the outgoing one — and blends them with SkyTarget.Lerp(last, cur, TransitionLerpFactor). That
+    // factor is curWeatherAge / 4000f clamped to 1, and SkyTarget.Lerp is per-field Mathf.Lerp,
+    // which at t = 1 returns its B argument exactly. So once 4000 ticks have passed since the last
+    // weather change — the steady state, since weather runs far longer than that — the outgoing
+    // worker's entire SkyTarget is computed and then discarded, and until now all fourteen stages
+    // below ran to decorate a value nobody would read.
+    //
+    // WHY THE TEST IS AN IDENTITY CHECK RATHER THAN JUST THE FACTOR. We may only skip a pass we can
+    // prove is the discarded one, and "not the current worker" is too loose a proof: another mod
+    // calling CurSkyTarget on a worker of its own would match it and silently receive a vanilla sky.
+    // Requiring the instance to be exactly lastWeather's worker, AND not curWeather's, AND the
+    // transition to be finished describes vanilla's own call pattern and nothing else. When a
+    // weather transitions to itself the two workers are one object, neither pass is distinguishable
+    // from the other, and we correctly skip neither.
+    //
+    // SKIPPING IS ONLY SAFE BECAUSE THE STAGES ARE PURE. Every Apply below reads live state and
+    // writes `target`; not one of them advances anything. The clock-shaped helpers they lean on are
+    // pure functions of the tick behind tick-keyed caches — CloudCoverClock.FractionForMap is
+    // literally FractionForTick(map, TicksAbs), AerosolDriftClock keys on (tileId, sampleIndex) —
+    // so nothing falls behind by not being called. Add a stage that accumulates state per call and
+    // this early-out becomes wrong: put that state on the tick, not on the pass.
+    static void Postfix(Map map, ref SkyTarget __result, WeatherWorker __instance)
     {
+        if (IsDiscardedTransitionPass(map, __instance))
+            return;
+
         // One scratchpad per pass, filled on demand. See SkyInputs for why it sits in front of
         // GeometryMemo rather than replacing it, and why every stage must take it by ref.
         SkyInputs inputs = new SkyInputs(map);
@@ -121,4 +147,21 @@ public static class Patch_SkyTargetComposite
         Patch_WeatherShadowColor.Apply(map, ref inputs, ref __result);      // §13a/§18c colors.shadow above the horizon
     }
 
+
+    // True when this pass is the outgoing weather's, and vanilla is about to discard it whole.
+    // Every clause is a field read or a reference compare, so the guard costs a small fraction of
+    // the one stage it protects, let alone fourteen. Null-tolerant because CurSkyTarget is reachable
+    // before a map's weatherManager is fully stood up, and answering "not discarded" there is the
+    // conservative direction: it does the work rather than skipping work that was needed.
+    private static bool IsDiscardedTransitionPass(Map map, WeatherWorker worker)
+    {
+        WeatherManager weather = map?.weatherManager;
+        if (weather == null || worker == null)
+            return false;
+
+        if (weather.TransitionLerpFactor < 1f)
+            return false;
+
+        return worker == weather.lastWeather?.Worker && worker != weather.curWeather?.Worker;
+    }
 }
