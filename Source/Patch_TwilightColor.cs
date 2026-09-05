@@ -24,13 +24,13 @@ public static class Patch_TwilightColor
 {
     private static readonly Color WarmTwilight = new Color(1f, 0.45f, 0.15f);
 
-    internal static void Apply(Map map, ref SkyTarget target)
+    internal static void Apply(Map map, ref SkyInputs inputs, ref SkyTarget target)
     {
         // Enclosed map (a Biomes! Caverns cavern, vanilla's undercave): there is no sky to
         // catch a sunset, so leave the def's palette exactly as its author wrote it. Sits before the
         // latitude lookup so it is a true no-op. See MapSkyMath for the rule, and for the two
         // neighbouring questions it deliberately refuses to answer.
-        if (MapSky.IsEnclosed(map))
+        if (inputs.IsEnclosed)
             return;
 
         // Sky blacked out right now (Glowforest's permanent sulfur overcast, a smoke vent's 3-days-in-7
@@ -45,7 +45,7 @@ public static class Patch_TwilightColor
         // it, because the two say different things: a vacuum map has no atmosphere to scatter a sunset
         // through, while this one has plenty of atmosphere and something opaque under it. They also
         // disagree on every map — orbit is never blacked out, Glowforest is never in vacuum.
-        if (MapSky.SkyBlackedOut(map))
+        if (inputs.SkyBlackedOut)
             return;
 
         // Every input to the factor — latitude, sun glow, sun elevation, and the §18 vacuum flag —

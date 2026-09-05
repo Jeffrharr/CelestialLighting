@@ -17,7 +17,7 @@ namespace CelestialLighting;
 // so the two postfixes don't fight over the sky.
 public static class Patch_BloodMoon
 {
-    internal static void Apply(Map map, ref SkyTarget target)
+    internal static void Apply(Map map, ref SkyInputs inputs, ref SkyTarget target)
     {
         // Feature gate (default on): when off, leave the sky exactly as vanilla/§2 composed it — the
         // faithful pre-feature baseline. Sits before the condition lookup so "off" is a true no-op.
@@ -27,7 +27,7 @@ public static class Patch_BloodMoon
         // Enclosed map (a Biomes! Caverns cavern, vanilla's undercave): the moon this recolours
         // the night around is not visible from inside a cave, and VRE-Sanguophage's condition is
         // map-wide rather than sky-aware. See MapSkyMath.
-        if (MapSky.IsEnclosed(map))
+        if (inputs.IsEnclosed)
             return;
 
         // Sky blacked out right now (issue #35 — Glowforest, a smoke vent, a sun blocker; never an
@@ -35,7 +35,7 @@ public static class Patch_BloodMoon
         // behind an opaque cloud deck, which hides it exactly as a rock ceiling does. Same LerpDarken
         // caveat as §2: a crimson tint lowers green and blue, so the per-channel min would have kept
         // most of it and only clipped the red.
-        if (MapSky.SkyBlackedOut(map))
+        if (inputs.SkyBlackedOut)
             return;
 
         float strength = BloodMoon.TintStrengthForMap(map);

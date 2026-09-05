@@ -30,12 +30,12 @@ namespace CelestialLighting;
 // adapter read instead of an ordering dependency, which is what makes that coupling robust.
 public static class Patch_WeatherDimming
 {
-    internal static void Apply(Map map, ref SkyTarget target)
+    internal static void Apply(Map map, ref SkyInputs inputs, ref SkyTarget target)
     {
         // The feature gate lives inside WeatherDimming.DimmingFor, so "off" returns 0 here and the
         // early-return below makes it a true no-op — each WeatherDef's palette is left exactly as
         // vanilla renders it, which is the faithful pre-feature baseline the harness A/Bs against.
-        float dimming = WeatherDimming.DimmingFor(map);
+        float dimming = inputs.WeatherDimming;
         if (dimming <= 0f)
             return;
 

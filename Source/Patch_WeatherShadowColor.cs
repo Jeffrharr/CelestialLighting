@@ -88,7 +88,7 @@ public static class Patch_WeatherShadowColor
     private static readonly Color ClearDayShadowFallback = new Color(
         ShadowFillMath.SeaLevelUmbraR, ShadowFillMath.SeaLevelUmbraG, ShadowFillMath.SeaLevelUmbraB);
 
-    internal static void Apply(Map map, ref SkyTarget target)
+    internal static void Apply(Map map, ref SkyInputs inputs, ref SkyTarget target)
     {
         // §18's shared gate, read exactly once and passed down as a bool (Source/Vacuum.cs's
         // convention). Two flags rather than one because the two halves of this patch are separate
@@ -124,7 +124,7 @@ public static class Patch_WeatherShadowColor
         // Gated for the same reason §6a is, not merely by symmetry: a WeatherEvent's OverrideShadowVector
         // makes SkyManager use colors.shadow directly, bypassing the CurShadowStrength lerp that
         // Patch_ShadowStrength's zero works through.
-        if (MapSky.SkyBlackedOut(map))
+        if (inputs.SkyBlackedOut)
             return;
 
         // Sun down: the moon is the caster and §6a's Patch_MoonShadowColor owns the colour. Split on
@@ -133,7 +133,7 @@ public static class Patch_WeatherShadowColor
         // vacuum NIGHT lights the shadow and the ground beside it from the same budget, making the
         // contrast between them a moonlight question rather than a skylight-fill one — §6a's, not
         // §18c's.
-        float sunElevation = SolarPosition.ElevationForMap(map);
+        float sunElevation = inputs.SunElevation;
         if (sunElevation <= Formulas.AtmosphericRefractionDegrees)
             return;
 
@@ -152,7 +152,7 @@ public static class Patch_WeatherShadowColor
         // memo collapses the two CALLS per frame to one EVALUATION; it cannot collapse that remaining
         // evaluation to none. Same distinction issue #64 drew for Patch_LimbRefraction, applied to the
         // last daylight caller left on this path.
-        float nightFloor = inVacuum ? NightRadiance.FloorGlowFor(map) : 0f;
+        float nightFloor = inVacuum ? inputs.NightFloorGlow : 0f;
 
         // target.glow is the lit ground this umbra is a multiply against, and it is vanilla's own
         // daylight here: the only patch of ours that writes .glow is §7's Patch_NightRadiance, which

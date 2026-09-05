@@ -44,7 +44,7 @@ public static class Patch_PolarNightBlue
     internal const float SkyBlend = 0.45f;
     internal const float OverlayBlend = 0.30f;
 
-    internal static void Apply(Map map, ref SkyTarget target)
+    internal static void Apply(Map map, ref SkyInputs inputs, ref SkyTarget target)
     {
         // One shared adapter call. Every gate — the feature toggle, the enclosed/blacked-out sky,
         // the reachability gate, the band envelope and §18's vacuum flag — lives behind this, so the
@@ -61,8 +61,8 @@ public static class Patch_PolarNightBlue
         // managed->native step, and a second independent read is exactly the sort of thing that
         // drifts from the elevation it is supposed to pair with. ElevationForMap is a second memo hit
         // on the same struct, not a second recompute.
-        SolarPosition.Inputs sun = SolarPosition.InputsForMap(map);
-        float elevation = SolarPosition.ElevationForMap(map);
+        SolarPosition.Inputs sun = inputs.SolarInputs;
+        float elevation = inputs.SunElevation;
 
         // Elevation sets the slant path, latitude sets the ozone column along it (issue #82). Both
         // are needed and neither is the "latitude term" DESIGN.md §19 rejected — that argument is

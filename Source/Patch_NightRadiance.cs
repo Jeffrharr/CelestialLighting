@@ -22,7 +22,7 @@ namespace CelestialLighting;
 // gameplay lighting stays vanilla under every weather.
 public static class Patch_NightRadiance
 {
-    internal static void Apply(Map map, ref SkyTarget target)
+    internal static void Apply(Map map, ref SkyInputs inputs, ref SkyTarget target)
     {
         // Feature gate (default on): when off, leave vanilla's night glow floor untouched — the
         // faithful pre-feature baseline. Sits before the elevation lookup so "off" is a true no-op.
@@ -47,7 +47,7 @@ public static class Patch_NightRadiance
         // CanApplyOnMap per match. Running them ahead of this paid for both, on both of the
         // CurSkyTarget calls SkyManager makes per map per frame, every daylight frame, only to
         // discover there was nothing to do.
-        float sunElevation = SolarPosition.ElevationForMap(map);
+        float sunElevation = inputs.SunElevation;
         if (sunElevation > NightRadianceMath.NightFloorStartElevation)
             return;
 
@@ -56,7 +56,7 @@ public static class Patch_NightRadiance
         // MOONLIGHT, none of which reach through a rock ceiling, and this is also the only patch in
         // the mod that writes SkyTarget.glow — so leaving it ungated did not merely tint a cave, it
         // lit one. See MapSkyMath.
-        if (MapSky.IsEnclosed(map))
+        if (inputs.IsEnclosed)
             return;
 
         // Sky blacked out right now (issue #35 — Glowforest, a smoke vent, a sun blocker; never an
@@ -69,7 +69,7 @@ public static class Patch_NightRadiance
         // so the lifted floor was being discarded a moment after we wrote it. What this fixes is the
         // mod asserting moonlight it cannot see, plus the partial lerp during a sun blocker's 200-tick
         // fade-in, where the floor was briefly real.
-        if (MapSky.SkyBlackedOut(map))
+        if (inputs.SkyBlackedOut)
             return;
 
         // §18d owns .glow outright on a vacuum map, so this patch stands down there. One owner per
@@ -103,7 +103,7 @@ public static class Patch_NightRadiance
         // The vacuum substitutions (airglow gone, starlight unextinguished, planetshine instead of
         // the moon as the dominant reflector) happen inside that read, so this patch needs no branch
         // of its own: it asks for the floor and blends toward it exactly as it always did.
-        float nightGlow = NightRadiance.FloorGlowFor(map);
+        float nightGlow = inputs.NightFloorGlow;
         target.glow = NightRadianceMath.ApplyNightFloor(target.glow, sunElevation, nightGlow);
     }
 }

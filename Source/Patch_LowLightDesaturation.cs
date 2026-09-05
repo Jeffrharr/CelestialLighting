@@ -41,7 +41,7 @@ public static class Patch_LowLightDesaturation
     private const float SkyBlendMax = 0.50f;
     private const float OverlayBlendMax = 0.35f;
 
-    internal static void Apply(Map map, ref SkyTarget target)
+    internal static void Apply(Map map, ref SkyInputs inputs, ref SkyTarget target)
     {
         // Feature gate (default on): when off, leave each WeatherDef's palette untouched — the
         // faithful pre-feature baseline. Sits before the glow read so "off" is a true no-op.
@@ -84,7 +84,7 @@ public static class Patch_LowLightDesaturation
         //
         // Note §13 deliberately never writes .glow, so this stays purely perceptual: the gameplay
         // brightness driving plant growth and solar output is still the unweathered value.
-        float glow = WeatherDimmingMath.ApparentGlow(target.glow, WeatherDimming.DimmingFor(map));
+        float glow = WeatherDimmingMath.ApparentGlow(target.glow, inputs.WeatherDimming);
 
         float factor = PurkinjeMath.PurkinjeFactor(glow);
         if (factor <= 0f)
