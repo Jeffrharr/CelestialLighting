@@ -477,6 +477,27 @@ public static class ProbeRegistration
             "vector_light_mask_shadow_ms", VectorLightBakeProbe.Metric.MaskShadowMs));
         ProbeRegistry.Register(new VectorLightBakeProbe(
             "vector_light_mask_saturation_ms", VectorLightBakeProbe.Metric.MaskSaturationMs));
+
+        // Scanned against used, which is what says whether indexing the light list is worth
+        // building. RECORDED, but unlike the durations beside them these are exact and repeatable:
+        // they count a property of the scene, so a change to them is a change to the scene rather
+        // than to the weather on this box.
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_mask_lights_scanned", VectorLightBakeProbe.Metric.MaskLightsScanned));
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_mask_lights_folded", VectorLightBakeProbe.Metric.MaskLightsFolded));
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_mask_emitters_scanned", VectorLightBakeProbe.Metric.MaskEmittersScanned));
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_mask_emitters_reaching", VectorLightBakeProbe.Metric.MaskEmittersReaching));
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_mask_applies_clocked", VectorLightBakeProbe.Metric.MaskAppliesClocked));
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_mask_fold_cells", VectorLightBakeProbe.Metric.MaskFoldCells));
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_mask_index_build_ms", VectorLightBakeProbe.Metric.MaskIndexBuildMs));
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_mask_index_builds", VectorLightBakeProbe.Metric.MaskIndexBuilds));
         // The one metric here that is a DEFECT COUNT rather than a workload figure: sections that
         // baked with an emitter reaching them dropped for want of a polygon, i.e. frames that
         // rendered with a shadow missing. Its partner says the fallback was exercised at all, which

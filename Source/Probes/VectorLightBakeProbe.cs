@@ -149,6 +149,31 @@ public sealed class VectorLightBakeProbe : IProbe
 
         MaskSaturationMs,
 
+        // The size of the prize for indexing, in counts. Scanned is every entry the full-list walk
+        // examined; the paired metric is the few it went on to work for. An index can remove at most
+        // the difference, and the ratio is a property of the SCENE rather than of the box, so two
+        // runs of one build agree on it exactly where two durations do not.
+        MaskLightsScanned,
+
+        MaskLightsFolded,
+
+        MaskEmittersScanned,
+
+        MaskEmittersReaching,
+
+        // Apply's own count, drained on VectorLightMask's schedule rather than VectorLightField's.
+        // Read beside vector_light_mask_applies, never instead of it: the pair is what localises the
+        // divisor that read 0 against 59 ms of measured Apply time.
+        MaskAppliesClocked,
+
+        MaskFoldCells,
+
+        // The index build's own cost and count -- the other half of the ledger the stage savings are
+        // read net of, since a Reader is built before Apply's stopwatch starts.
+        MaskIndexBuildMs,
+
+        MaskIndexBuilds,
+
         // ---- the dirty suppression ---------------------------------------------------------------
         //
         // MapMeshDirty calls declined inside a glow-blocker write, and the distinct sections those
@@ -316,6 +341,30 @@ public sealed class VectorLightBakeProbe : IProbe
 
         if (metric == Metric.SectionsPerPass)
             return Ratio(VectorLightField.SectionDirties, VectorLightField.SectionDirtyPasses);
+
+        if (metric == Metric.MaskLightsScanned)
+            return VectorLightMask.LightsScanned;
+
+        if (metric == Metric.MaskLightsFolded)
+            return VectorLightMask.LightsFolded;
+
+        if (metric == Metric.MaskEmittersScanned)
+            return VectorLightMask.EmittersScanned;
+
+        if (metric == Metric.MaskEmittersReaching)
+            return VectorLightMask.EmittersReaching;
+
+        if (metric == Metric.MaskIndexBuildMs)
+            return (float)GlowGridPerLight.IndexBuildWallMs;
+
+        if (metric == Metric.MaskIndexBuilds)
+            return GlowGridPerLight.IndexBuilds;
+
+        if (metric == Metric.MaskFoldCells)
+            return VectorLightMask.FoldCells;
+
+        if (metric == Metric.MaskAppliesClocked)
+            return VectorLightMask.Applies;
 
         if (metric == Metric.MaskWallMs)
             return (float)VectorLightMask.ApplyWallMs;

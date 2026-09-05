@@ -175,8 +175,58 @@ public static class VectorLightMask
 
     public static double SaturationWallMs;
 
+    // How much of each full-map scan was WORTH doing, in counts rather than milliseconds.
+    //
+    // WHY COUNTS ARE THE RIGHT INSTRUMENT FOR THIS PARTICULAR QUESTION. The three stages above each
+    // walk a whole list to find the few entries that touch one section, and the case for indexing
+    // them is exactly the ratio between "walked" and "used". A millisecond cannot separate a scan
+    // that is long from a scan that is short but expensive per step, and this repo has already
+    // spent one branch discovering that a per-call timer cannot see a call count. A ratio of two
+    // counts is also stable across a noisy box in a way a duration is not: it is a property of the
+    // scene, so two runs of one build agree on it exactly.
+    //
+    // Scanned counts every entry the loop examined; the second of each pair counts the ones it went
+    // on to do work for. An index over the light list can remove at most the difference, which
+    // makes these the SIZE OF THE PRIZE rather than a description of the current cost.
+    public static long LightsScanned;
+
+    public static long LightsFolded;
+
+    public static long EmittersScanned;
+
+    public static long EmittersReaching;
+
+    // Sections that really did rebake through the mask, drained on THIS class's schedule.
+    //
+    // WHY A SECOND COUNTER WHEN VectorLightField.MaskApplies ALREADY EXISTS. Because it drains on
+    // the other one. That field is zeroed by VectorLightField.ResetCounters, which the bake_reset
+    // probe calls; everything else here is zeroed by ResetTelemetry, which ForceRebuild calls on
+    // every SetFeature. The two therefore span DIFFERENT WINDOWS, and dividing a duration from one
+    // by a count from the other is the "two true numbers over two different windows" mistake this
+    // repo keeps a note about. MaskApplies' own header warns that a counter split across the two
+    // resets will drain at the wrong moment, and this is that warning coming true from the other
+    // side: the stage clocks were added to this class and the divisor was left on that one.
+    //
+    // Both are kept and both are read. If they disagree, the disagreement is the finding -- the
+    // first run of the stage clocks read MaskApplies at 0 against 59 ms of measured Apply time, and
+    // that is still unexplained. Two counters on two schedules is what will localise it.
+    public static long Applies;
+
+    // Cells the saturation reconstruction actually folded a light into -- the denominator its yield
+    // is read against. SaturatedSamples counts the cells it went on to REWRITE, and the ratio between
+    // the two is the question "is this pass earning the section it is charged to".
+    public static long FoldCells;
+
     public static void ResetTelemetry()
     {
+        LightsScanned = 0;
+        LightsFolded = 0;
+        EmittersScanned = 0;
+        EmittersReaching = 0;
+        Applies = 0;
+        FoldCells = 0;
+        GlowGridPerLight.IndexBuildWallMs = 0.0;
+        GlowGridPerLight.IndexBuilds = 0;
         LiftSamples = 0;
         LiftPeak = 0;
         SaturatedSamples = 0;
@@ -264,6 +314,8 @@ public static class VectorLightMask
         // that really did rebake through the mask rather than calls that turned round at the door.
         // Same boundary MaskApplies is counted at, which is what makes the two divide.
         System.Diagnostics.Stopwatch clock = System.Diagnostics.Stopwatch.StartNew();
+
+        Applies++;
 
         CollectReaching(map, rect, lifting);
 
@@ -362,6 +414,8 @@ public static class VectorLightMask
 
         foreach (VectorLightField.LightEntry entry in VectorLightField.LightsFor(map))
         {
+            EmittersScanned++;
+
             int reach = Mathf.CeilToInt(entry.Radius) + ReachMargin;
 
             bool overlaps = entry.Cell.x + reach >= rect.minX - 1
@@ -410,6 +464,8 @@ public static class VectorLightMask
 
             if (overlaps && worthVisiting && hasPrior)
             {
+                EmittersReaching++;
+
                 Reaching.Add(entry);
 
                 // Counted where it happens rather than inferred from the dirty flag afterwards: by
@@ -596,13 +652,56 @@ public static class VectorLightMask
         int foldMinZ = rect.minZ - 1;
         int foldMaxZ = rect.maxZ + 1;
 
-        for (int i = 0; i < reader.LightCount; i++)
-        {
-            if (!reader.OverlapsAt(i, foldMinX, foldMaxX, foldMinZ, foldMaxZ))
-                continue;
+        // INDEXED WHEN THE SECTION IS ONE, FULL SCAN WHEN IT IS NOT. The index is filed by section
+        // and the bucket is only the right answer for a section-aligned query, so alignment is
+        // CHECKED rather than assumed: Apply's caller builds this rect from Section.botLeft and so
+        // always is aligned, but a future caller that is not would otherwise read the bucket of
+        // whichever section its corner landed in and lose lights with no exception and no probe
+        // moving.
+        //
+        // The bucket is already in ascending index order, which is the whole reason it can be used
+        // here at all -- see FoldInto for why vanilla's fold is not commutative and SectionLight-
+        // IndexMath's header for why the order comes out free rather than sorted.
+        bool aligned = rect.minX % GlowGridPerLight.Reader.SectionSize == 0
+            && rect.minZ % GlowGridPerLight.Reader.SectionSize == 0;
 
-            if (reader.TryLightAt(i, out GlowLight light, out UnsafeList<Color32> colors))
-                AccumulateFold(map, rect, light, colors, ReachingEntryFor(light), lifting);
+        if (aligned && reader.TrySectionLights(rect.minX, rect.minZ, out int[] bucket,
+                out int bucketStart, out int bucketEnd))
+        {
+            LightsScanned += bucketEnd - bucketStart;
+
+            for (int b = bucketStart; b < bucketEnd; b++)
+            {
+                int i = bucket[b];
+
+                // STILL TESTED, and it is not redundant. The index files a light under every
+                // section its reach TOUCHES, which is a bound on the section rather than on this
+                // rect -- the rect is clipped to the map and a section at the edge is smaller than
+                // the square it was filed under. The bucket removes the lights that were never
+                // close; this removes the few that are close and still miss.
+                if (!reader.OverlapsAt(i, foldMinX, foldMaxX, foldMinZ, foldMaxZ))
+                    continue;
+
+                LightsFolded++;
+
+                if (reader.TryLightAt(i, out GlowLight light, out UnsafeList<Color32> colors))
+                    AccumulateFold(map, rect, light, colors, ReachingEntryFor(light), lifting);
+            }
+        }
+        else
+        {
+            LightsScanned += reader.LightCount;
+
+            for (int i = 0; i < reader.LightCount; i++)
+            {
+                if (!reader.OverlapsAt(i, foldMinX, foldMaxX, foldMinZ, foldMaxZ))
+                    continue;
+
+                LightsFolded++;
+
+                if (reader.TryLightAt(i, out GlowLight light, out UnsafeList<Color32> colors))
+                    AccumulateFold(map, rect, light, colors, ReachingEntryFor(light), lifting);
+            }
         }
 
         for (int z = rect.minZ - 1; z <= rect.maxZ + 1; z++)
@@ -628,6 +727,26 @@ public static class VectorLightMask
         // early, because proving there is no SECOND overlapping light means walking the whole map's
         // emitter list. Paying TryLightAt's pool indexer for every one of them was the cost of
         // establishing that nothing needed correcting.
+        bool aligned = rect.minX % GlowGridPerLight.Reader.SectionSize == 0
+            && rect.minZ % GlowGridPerLight.Reader.SectionSize == 0;
+
+        if (aligned && reader.TrySectionLights(rect.minX, rect.minZ, out int[] bucket,
+                out int bucketStart, out int bucketEnd))
+        {
+            for (int b = bucketStart; b < bucketEnd && found < 2; b++)
+            {
+                int i = bucket[b];
+
+                if (!reader.OverlapsAt(i, rect.minX - 1, rect.maxX + 1, rect.minZ - 1, rect.maxZ + 1))
+                    continue;
+
+                if (reader.TryLightAt(i, out GlowLight _, out UnsafeList<Color32> _))
+                    found++;
+            }
+
+            return found;
+        }
+
         for (int i = 0; i < reader.LightCount && found < 2; i++)
         {
             if (!reader.OverlapsAt(i, rect.minX - 1, rect.maxX + 1, rect.minZ - 1, rect.maxZ + 1))
@@ -715,6 +834,8 @@ public static class VectorLightMask
                 // so counting it would put a projection where vanilla performed none.
                 if (own.r == 0 && own.g == 0 && own.b == 0)
                     continue;
+
+                FoldCells++;
 
                 int index = CellIndex(rect, x, z);
 
