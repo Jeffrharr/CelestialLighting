@@ -1,0 +1,374 @@
+{
+  "name": "sky_composite_inertness",
+  "description": "Bit-identity oracle for the sky composite's per-pass input cache and its discarded-pass skip. Neither change is meant to move a pixel, so this reads the FINAL composed sky (sky_glow is SkyManager.CurSkyGlow; sky_overlay_warmth and overlay_brightness read the overlay material the player actually sees) at five sun elevations and across a weather transition, and the pins are the values the PREVIOUS build produced. The oracle is the old implementation, not the new one agreeing with itself. Two arms matter and they exercise opposite sides of the skip: with instant:true the transition factor is 1, the outgoing pass is discarded by vanilla and the skip fires; with instant:false the factor is 0, SkyTarget.Lerp returns the outgoing pass ENTIRELY, and the skip must not fire. A guard that misfired would strip the mod's whole sky decoration from that second arm, which is why it is here rather than only the easy steady state.",
+  "steps": [
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "realistic_preset",
+        "enabled": "false"
+      },
+      "description": "Shipped Cinematic preset, stated rather than assumed: the preset rescales dimming and night floors, so an arm that inherits a stale one is not comparable."
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_cover",
+        "enabled": "false"
+      },
+      "description": "Every cloud lane off. The sheet drifts on the tick counter, so leaving these on makes two runs of ONE build differ across the outdoor terrain this scenario measures."
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_sheet",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_presence",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_deck_varieties",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_shadow",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      },
+      "description": "instant:true sets curWeatherAge to TransitionTicks, so TransitionLerpFactor is 1 and the outgoing pass is the one vanilla discards. This is the arm where the discarded-pass skip FIRES."
+    },
+    {
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "paused"
+      },
+      "description": "Paused so curWeatherAge cannot creep between steps. The transition arm below depends on the factor holding at exactly 0, and an unpaused clock would drift it."
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12.0"
+      },
+      "description": "noon"
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "56.7199936",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_glow",
+        "expectedValue": "1.0",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_overlay_warmth",
+        "expectedValue": "0.00285",
+        "tolerance": "0.0016"
+      },
+      "description": "DRIFTS RUN TO RUN \u2014 tolerance is the measured same-build spread, not a target. AerosolDrift.SampleIndex keys on TicksAbs, which SetTime does not pin, and aerosol feeds the colour tint but not .glow. Two runs of ONE build differ here by 0.00109; a diff inside that window proves nothing either way."
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "overlay_brightness",
+        "expectedValue": "0.99886",
+        "tolerance": "0.0005"
+      },
+      "description": "DRIFTS RUN TO RUN \u2014 tolerance is the measured same-build spread, not a target. AerosolDrift.SampleIndex keys on TicksAbs, which SetTime does not pin, and aerosol feeds the colour tint but not .glow. Two runs of ONE build differ here by 0.00033; a diff inside that window proves nothing either way."
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "17.5"
+      },
+      "description": "late afternoon"
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "25.9995918",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_glow",
+        "expectedValue": "0.7693465",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_overlay_warmth",
+        "expectedValue": "0.31228",
+        "tolerance": "0.075"
+      },
+      "description": "DRIFTS RUN TO RUN \u2014 tolerance is the measured same-build spread, not a target. AerosolDrift.SampleIndex keys on TicksAbs, which SetTime does not pin, and aerosol feeds the colour tint but not .glow. Two runs of ONE build differ here by 0.05002; a diff inside that window proves nothing either way."
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "overlay_brightness",
+        "expectedValue": "0.80953",
+        "tolerance": "0.0236"
+      },
+      "description": "DRIFTS RUN TO RUN \u2014 tolerance is the measured same-build spread, not a target. AerosolDrift.SampleIndex keys on TicksAbs, which SetTime does not pin, and aerosol feeds the colour tint but not .glow. Two runs of ONE build differ here by 0.01572; a diff inside that window proves nothing either way."
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "19.5"
+      },
+      "description": "dusk"
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "9.3990288",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_glow",
+        "expectedValue": "0.2915912",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_overlay_warmth",
+        "expectedValue": "0.33589",
+        "tolerance": "0.0953"
+      },
+      "description": "DRIFTS RUN TO RUN \u2014 tolerance is the measured same-build spread, not a target. AerosolDrift.SampleIndex keys on TicksAbs, which SetTime does not pin, and aerosol feeds the colour tint but not .glow. Two runs of ONE build differ here by 0.06354; a diff inside that window proves nothing either way."
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "overlay_brightness",
+        "expectedValue": "0.62548",
+        "tolerance": "0.0276"
+      },
+      "description": "DRIFTS RUN TO RUN \u2014 tolerance is the measured same-build spread, not a target. AerosolDrift.SampleIndex keys on TicksAbs, which SetTime does not pin, and aerosol feeds the colour tint but not .glow. Two runs of ONE build differ here by 0.01837; a diff inside that window proves nothing either way."
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "22.0"
+      },
+      "description": "night"
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "-18.973814",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_glow",
+        "expectedValue": "0.04",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_overlay_warmth",
+        "expectedValue": "-0.097",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "overlay_brightness",
+        "expectedValue": "0.2902038",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "5.0"
+      },
+      "description": "pre-dawn"
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "13.5470352",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_glow",
+        "expectedValue": "0.4137165",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_overlay_warmth",
+        "expectedValue": "0.40431",
+        "tolerance": "0.0872"
+      },
+      "description": "DRIFTS RUN TO RUN \u2014 tolerance is the measured same-build spread, not a target. AerosolDrift.SampleIndex keys on TicksAbs, which SetTime does not pin, and aerosol feeds the colour tint but not .glow. Two runs of ONE build differ here by 0.05810; a diff inside that window proves nothing either way."
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "overlay_brightness",
+        "expectedValue": "0.64901",
+        "tolerance": "0.0256"
+      },
+      "description": "DRIFTS RUN TO RUN \u2014 tolerance is the measured same-build spread, not a target. AerosolDrift.SampleIndex keys on TicksAbs, which SetTime does not pin, and aerosol feeds the colour tint but not .glow. Two runs of ONE build differ here by 0.01710; a diff inside that window proves nothing either way."
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Rain",
+        "instant": "false"
+      },
+      "description": "THE DEMANDING ARM. instant:false leaves curWeatherAge at 0, so TransitionLerpFactor is 0 and SkyTarget.Lerp(last, cur, 0) returns the OUTGOING weather's pass in full. The skip must NOT fire here: if it did, the frame would be vanilla's undecorated sky."
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "13.5470352",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_glow",
+        "expectedValue": "0.4137165",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_overlay_warmth",
+        "expectedValue": "0.40431",
+        "tolerance": "0.0872"
+      },
+      "description": "DRIFTS RUN TO RUN \u2014 tolerance is the measured same-build spread, not a target. AerosolDrift.SampleIndex keys on TicksAbs, which SetTime does not pin, and aerosol feeds the colour tint but not .glow. Two runs of ONE build differ here by 0.05810; a diff inside that window proves nothing either way."
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "overlay_brightness",
+        "expectedValue": "0.64901",
+        "tolerance": "0.0256"
+      },
+      "description": "DRIFTS RUN TO RUN \u2014 tolerance is the measured same-build spread, not a target. AerosolDrift.SampleIndex keys on TicksAbs, which SetTime does not pin, and aerosol feeds the colour tint but not .glow. Two runs of ONE build differ here by 0.01710; a diff inside that window proves nothing either way."
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_glow",
+        "expectedValue": "1.0",
+        "tolerance": "0.0005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_overlay_warmth",
+        "expectedValue": "0.00285",
+        "tolerance": "0.0016"
+      },
+      "description": "DRIFTS RUN TO RUN \u2014 tolerance is the measured same-build spread, not a target. AerosolDrift.SampleIndex keys on TicksAbs, which SetTime does not pin, and aerosol feeds the colour tint but not .glow. Two runs of ONE build differ here by 0.00109; a diff inside that window proves nothing either way."
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "overlay_brightness",
+        "expectedValue": "0.99886",
+        "tolerance": "0.0005"
+      },
+      "description": "DRIFTS RUN TO RUN \u2014 tolerance is the measured same-build spread, not a target. AerosolDrift.SampleIndex keys on TicksAbs, which SetTime does not pin, and aerosol feeds the colour tint but not .glow. Two runs of ONE build differ here by 0.00033; a diff inside that window proves nothing either way."
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "sky_composite_inertness_discard.png"
+      },
+      "description": "Throwaway. hideUi is honoured from the SECOND capture onward, so this one absorbs the HUD (whose message log differs run to run) and the next is clean."
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "sky_composite_inertness_transition_noon.png"
+      }
+    }
+  ]
+}
