@@ -168,6 +168,11 @@ public sealed class VectorLightBakeProbe : IProbe
 
         MaskFoldCells,
 
+        // Cells the saturation pass admitted to its fold under the gate: edited, and displayed at
+        // the ceiling. Read against MaskFoldCells (yield) and vector_light_mask_saturated_samples
+        // (precision).
+        MaskSaturationCandidates,
+
         // ---- the dirty suppression ---------------------------------------------------------------
         //
         // MapMeshDirty calls declined inside a glow-blocker write, and the distinct sections those
@@ -350,6 +355,9 @@ public sealed class VectorLightBakeProbe : IProbe
 
         if (metric == Metric.MaskFoldCells)
             return VectorLightMask.FoldCells;
+
+        if (metric == Metric.MaskSaturationCandidates)
+            return VectorLightMask.SaturationCandidates;
 
         if (metric == Metric.MaskAppliesClocked)
             return VectorLightMask.Applies;

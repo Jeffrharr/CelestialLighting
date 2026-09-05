@@ -1278,6 +1278,30 @@ public static class CelestialLightingFeatures
     // Inert unless VectorLightMask is on.
     public static bool VectorLightMaskSaturation = true;
 
+    // Feature key for VectorLightMaskSaturationGate.
+    public const string VectorLightMaskSaturationGateKey = "vector_light_mask_saturation_gate";
+
+    // The saturation correction decides WHICH CELLS it could possibly rewrite before it resolves a
+    // single light, and folds only those.
+    //
+    // WHY. CorrectCell rewrites a cell only if the mask edited it AND its raw sum saturates. Both
+    // were being discovered by folding every light on the map through every cell of the section and
+    // then declining the answer: on the 500-lamp colony the counters read 91,708 cell-light pairs
+    // folded for 4,834 cells rewritten, 94.7% of the stage's work discarded, and the stage was 47%
+    // of a whole-map rebake. The edit is already known when the fold starts, and saturation has a
+    // necessary condition readable from vanilla's own grid without folding anything — a saturating
+    // sum always DISPLAYS a peak of 255 (VectorLightSaturationMath.DisplayedAtCeiling). Every cell
+    // failing either test is one the fold can skip without changing any cell it keeps, because each
+    // cell's fold is its own accumulation.
+    //
+    // ON, and the output is identical either way — VectorLightSaturationMath's sweep proves the
+    // gate admits every saturating cell, and the cells it rejects were rewritten by nothing. The
+    // off arm exists because the saving is a DURATION on a section regenerate, which neither
+    // frame-based analyzer can see and this box's run-to-run timing noise is 2.4x: measured
+    // build-against-build a twofold saving can vanish into the weather, measured A,B,A,B inside one
+    // boot it cannot. See stress_light_mask_gate.json. Inert unless VectorLightMaskSaturation is on.
+    public static bool VectorLightMaskSaturationGate = true;
+
     public const string VectorLightPawnShadowsKey = "vector_light_pawn_shadows";
 
     // §27 phase 4: a pawn throws a shadow away from each lamp that lights it.

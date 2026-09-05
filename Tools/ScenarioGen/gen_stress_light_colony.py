@@ -35,6 +35,7 @@ SCEN = os.path.abspath(os.path.join(HERE, "..", "..", "Tests", "Scenarios"))
 TARGET = os.path.join(SCEN, "stress_light_colony.json")
 HOLD_TARGET = os.path.join(SCEN, "stress_light_colony_hold.json")
 MASK_TARGET = os.path.join(SCEN, "stress_light_mask.json")
+MASK_GATE_TARGET = os.path.join(SCEN, "stress_light_mask_gate.json")
 
 # The mask's parent arm and its four population-scaled stages. Order is parent first, because that
 # is the one a build-to-build comparison is read on and the four below it are the finding.
@@ -451,6 +452,7 @@ def build_mask():
     steps.append(sc.record("vector_light_mask_emitters_scanned"))
     steps.append(sc.record("vector_light_mask_emitters_reaching"))
     steps.append(sc.record("vector_light_mask_fold_cells"))
+    steps.append(sc.record("vector_light_mask_saturation_candidates"))
     steps.append(sc.record("vector_light_mask_saturated_samples"))
     steps.append(sc.record("vector_light_mask_saturation_skipped"))
     steps.append(sc.record("vector_light_mask_wall_ms"))
@@ -502,10 +504,129 @@ def build_mask():
     }
 
 
+# The saturation pass's cell gate, and how many times each arm of it is measured. See
+# build_mask_gate for why the arms alternate rather than run in blocks.
+GATE_TOGGLE = "vector_light_mask_saturation_gate"
+GATE_ROUNDS = 4
+GATE_WARMUP = 4
+
+# What one arm of the gate scenario reads after its rebake, in the order the ratios are taken:
+# counts first, then the durations they divide.
+GATE_READS = (
+    "vector_light_mask_applies_clocked",
+    "vector_light_mask_lights_folded",
+    "vector_light_mask_fold_cells",
+    "vector_light_mask_saturation_candidates",
+    "vector_light_mask_saturated_samples",
+    "vector_light_mask_saturation_skipped",
+    "vector_light_mask_saturation_ms",
+    "vector_light_mask_shadow_ms",
+    "vector_light_mask_collect_ms",
+    "vector_light_mask_wall_ms",
+)
+
+
+def build_mask_gate():
+    """The same colony, with the saturation pass's cell gate measured off and on, alternately, in one boot.
+
+    WHAT THIS ASKS. stress_light_mask found CorrectSaturation at 47% of a whole-map rebake, and its
+    counters found 94.7% of what that stage folded discarded: cells the correction could never have
+    rewritten, because the mask had not edited them or vanilla displayed them under the ceiling. The
+    gate decides that per cell before any light is resolved. This file measures what that is worth,
+    as the ratio of the two arms' stage clocks on one build.
+
+    WHY BOTH ARMS ARE IN ONE FILE, ALTERNATING. The quantity is a duration on a section regenerate,
+    which is not a rendered frame, so neither frame-based analyzer can see it and the only
+    instrument is the calling-thread stopwatch inside Apply. That stopwatch is honest but the box is
+    not: two runs of ONE build have measured the same call count at 883 ms and 2151 ms. Measured
+    build-against-build a twofold saving can vanish into that; measured off, on, off, on inside one
+    boot, every pair of neighbours shares the weather, and a blocked design would still hand
+    whichever arm ran in the quiet half a win it did not earn. Four rounds, read as the median of
+    each arm and as the four neighbouring ratios.
+
+    WHY THE COUNTS ARE READ TOO. The durations say how much; the counts say why, and unlike the
+    durations they are exact and repeatable. fold_cells is the pairs the fold actually visited and
+    should collapse under the gate; saturation_candidates is the cells the gate admitted and reads
+    zero on the off arm by construction; saturated_samples and saturation_skipped are the OUTPUT of
+    the pass and must read identically on every arm, which is the live half of the claim that the
+    gate changes cost and nothing else. The offline half is VectorLightSaturationMathTests' sweep.
+
+    ONE REBAKE PER ARM, AND THE SAME ONE. Every SetFeature goes through ForceRebuild, which resets
+    the telemetry and dirties every section, so the reads after each toggle hold exactly that
+    toggle's whole-map rebake -- 91 sections in view on this colony -- and every arm rebakes the
+    same 503 emitters into the same scene. The warm-up toggles before the first measured pair are
+    what stress_light_mask's nineteen unmeasured rebakes were: a JIT and scratch-buffer warm so the
+    first measured arm is not also the cold one.
+    """
+    colony = sc.build()
+
+    steps = sc.setup_steps(colony)
+    steps += sc.palette_steps()
+    steps += sc.establish_steps()
+    steps += sc.settle_steps()
+    steps += sc.population_probes()
+
+    # Same configuration as stress_light_mask, for the same reason: with changed_dirty on, a rebake
+    # to the shape the emitters already had flags no section, and every arm reads zero applies
+    # against a perfectly lit colony.
+    steps += sc.feature_steps(vector_lights=True, changed_dirty=False)
+    steps.append(sc.step("Wait", frames=SETTLE_FRAMES))
+
+    steps.append(sc.step("Probe", probeName="vector_light_mask_available",
+                         expectedValue=1, tolerance=0))
+
+    for _ in range(GATE_WARMUP):
+        steps.append(sc.step("SetFeature", featureName=INERT_TOGGLE, enabled=INERT_VALUE))
+
+    for _ in range(GATE_ROUNDS):
+        for enabled in ("false", "true"):
+            steps.append(sc.step("SetFeature", featureName=GATE_TOGGLE, enabled=enabled))
+
+            # The rebake lands on the map's own update, which a frame that advances no tick does not
+            # run; the ticks are a jump rather than a simulation so nothing else in the scene moves
+            # between arms. Then a few frames for the regenerate to complete before the reads.
+            steps.append(sc.step("AdvanceTicks", ticks=2))
+            steps.append(sc.step("Wait", frames=3))
+
+            for probe in GATE_READS:
+                steps.append(sc.record(probe))
+
+    steps.append(sc.step("Probe", probeName="vector_light_mask_stale_polys",
+                         expectedValue=0, tolerance=0))
+
+    return {
+        "name": "stress_light_mask_gate",
+        "saveFile": "minimal_colony.rws",
+        "description": (
+            "stress_light_colony's colony -- 500 lamps in 11 colours and 9 radii -- with the "
+            "saturation pass's cell gate (vector_light_mask_saturation_gate) measured OFF and ON, "
+            "alternately, four rounds in one boot. "
+            "\n\n"
+            "WHY IT EXISTS. stress_light_mask found CorrectSaturation at 47% of a whole-map rebake "
+            "and its counters found 94.7% of the fold discarded on cells that could never be "
+            "rewritten. The gate decides candidacy per cell before any light is resolved; this "
+            "file reads what that is worth as the ratio of neighbouring arms' stage clocks, "
+            "because this box's run-to-run timing noise is 2.4x and a build-to-build comparison "
+            "cannot see a twofold saving through it. "
+            "\n\n"
+            "READ IT AS PAIRS. Each SetFeature of the gate is one whole-map rebake, telemetry reset "
+            "at the toggle, so every read holds one arm's rebake of the same 503 emitters. "
+            "saturated_samples and saturation_skipped are the pass's OUTPUT and must read the same "
+            "on every arm; fold_cells is its work and should collapse on the on arms; "
+            "saturation_candidates reads zero on the off arms by construction. "
+            "\n\n"
+            "Every duration here is RECORDED, not pinned. What is pinned is the scene and the one "
+            "defect counter: 503 emitters, the mask available, stale polys at zero."
+        ),
+        "steps": steps,
+    }
+
+
 def main():
     write(build(), TARGET)
     write(build_hold(), HOLD_TARGET)
     write(build_mask(), MASK_TARGET)
+    write(build_mask_gate(), MASK_GATE_TARGET)
 
 
 if __name__ == "__main__":
