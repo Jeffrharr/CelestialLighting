@@ -148,6 +148,27 @@ public class SkyTargetCompositeTests
     }
 
     [Test]
+    public void PostfixKeepsHarmonysMagicInstanceParameterName()
+    {
+        // Same string-matching trap as __result, guarding the discarded-pass skip. The Postfix needs
+        // the receiving WeatherWorker to tell the outgoing weather's pass from the current one, and
+        // Harmony only supplies it under the name `__instance`.
+        //
+        // This one fails differently from __result, which is why it gets its own test rather than an
+        // extra assertion. A rename here does not throw out of PatchAll — Harmony would simply try to
+        // bind a real CurSkyTarget parameter of that name, and CurSkyTarget(Map map) has exactly one
+        // to offer. Bind `map` where a WeatherWorker was meant and the skip either stops firing (the
+        // optimisation silently reverts) or fires on the wrong pass, which drops our whole sky
+        // pipeline from the frame that is actually rendered.
+        MethodDefinition postfix = Method(CompositeTypeName, "Postfix");
+        IEnumerable<string> names = postfix.Parameters.Select(p => p.Name);
+
+        Assert.That(names, Does.Contain("__instance"),
+            "the composite's Postfix no longer takes a parameter named __instance — the discarded-pass "
+            + "skip cannot identify which weather worker it is running for without it");
+    }
+
+    [Test]
     public void CompositeBuildsExactlyOneSkyInputsPerPass()
     {
         // The per-pass cache only pays for itself if the whole pass shares one. Constructing it inside
