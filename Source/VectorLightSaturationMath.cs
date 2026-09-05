@@ -134,6 +134,22 @@ public static class VectorLightSaturationMath
     // just as hard as one lit by two of ours, and over-subtracts just as hard.
     public static bool Saturates(int r, int g, int b) => Peak(r, g, b) > Ceiling;
 
+    // Whether a DISPLAYED colour could be the projection of a saturating sum — the question the mask
+    // asks of vanilla's accumulated grid before it spends a fold reconstructing that sum.
+    //
+    // NECESSARY, NOT SUFFICIENT, and the direction is the whole point. If the raw sum over a cell's
+    // emitters saturates, some step of vanilla's fold pushed the running peak over the ceiling —
+    // otherwise every step was a plain addition and the fold IS the raw sum, which does not
+    // saturate. That step's projection put the peak at exactly 255, and no later step can lower it:
+    // every addend is non-negative, and the projection either leaves a sum under the ceiling alone
+    // or scales its peak back to 255. So a saturating cell always displays a peak of 255, and a cell
+    // displaying less provably did not saturate, whatever its emitters were and whatever order they
+    // came in. The converse fails — a raw sum of exactly 255 displays 255 and is not over the
+    // ceiling — which is why Saturates is still asked of the raw sum afterwards, on the cells this
+    // admits. VectorLightSaturationMathTests sweeps the implication rather than trusting the
+    // argument, because the fold is lossy and arguments about it have been wrong in this file before.
+    public static bool DisplayedAtCeiling(int r, int g, int b) => Peak(r, g, b) >= Ceiling;
+
     // One channel of ColorInt.ProjectToColor32Fast, with the peak passed in so the three channels
     // share one divisor. Passing the peak rather than recomputing it per channel is not a
     // micro-optimisation: computing it per channel would clamp each channel independently, which is
