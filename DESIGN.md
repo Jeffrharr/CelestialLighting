@@ -15451,6 +15451,92 @@ defined stage is called exactly once, and that nothing else patches `CurSkyTarge
 
 
 
+### 29a. What the composite made measurable: a per-pass input cache and a discarded-pass skip
+
+**Problem.** Folding the fourteen registrations into one turned the mod from fourteen profiler rows
+into a single one, and the single row was larger than anyone had assumed — which is what the merge was
+for. Reading it exposed two costs that were invisible while the work was spread across fourteen
+patches, and neither is the arithmetic any stage does.
+
+The first is repetition. Counted across one pass, the stages ask for `SkyBlackedOut` seven times,
+`IsEnclosed` six, the sun's elevation six, the night floor glow three and weather dimming twice —
+roughly twenty-four calls to answer five questions. Memoising had already made each call cheap and
+nothing had made them stop happening, and a memo hit is not free: `MapSky.SkyBlackedOut` and
+`WeatherDimming.DimmingFor` both route through `FrameStamp.Current()`, which reads `Time.frameCount`,
+walks `Find.TickManager.TicksAbs`, builds a variant word from four statics, constructs a
+`GeometryStamp`, then does a dictionary lookup and a struct compare. `NightRadiance.FloorGlowFor` is
+not memoised at all and walks `MoonSeam.Provider` on each of its three calls.
+
+The second is that **half of every frame's sky work was thrown away by vanilla.**
+`SkyManager.CurrentSkyTarget` evaluates `CurSkyTarget` twice — once on the current weather's worker,
+once on the outgoing one — and blends them with `SkyTarget.Lerp(last, cur, TransitionLerpFactor)`.
+That factor is `curWeatherAge / 4000f` clamped to 1, and `Lerp` at t = 1 returns its `B` argument. So
+outside a weather transition, which is the steady state because weather runs far longer than 4000
+ticks, the outgoing worker's entire `SkyTarget` was computed and discarded, with all fourteen stages
+run to decorate it.
+
+**Approach.** `SkyInputs`, a mutable struct built once per pass and passed to every stage by `ref`,
+caching those five values on first touch. It sits *in front of* `GeometryMemo` rather than replacing
+it: the memo makes a lookup cheap, this makes most lookups not happen. Sound because a pass is
+straight-line code inside one postfix, so frame, tick and the settings variant cannot move between the
+first `Apply` and the last — a strictly shorter span than the one `GeometryMemo` already argues for
+itself, needing no invalidation hook. Lazy rather than eagerly filled, because every stage gates itself
+and returns early: an enclosed map or a blacked-out sky touches almost nothing today, and an up-front
+fill would compute a sun elevation and a night floor for it anyway, turning a win into a regression on
+exactly the cheapest maps.
+
+`Vacuum.InVacuumForMap` (asked five times) and `MapSky.DrawsShadows` (twice) are deliberately excluded:
+both are field reads, so a `HasValue` test costs about the same. `SiteAltitude`'s three values are three
+*different* methods called once each, not a repeat. Same dividing line this document already draws for
+`GeometryMemo` — the walk, not the call count.
+
+Alongside it, `IsDiscardedTransitionPass` returns early when the pass is the outgoing weather's and
+vanilla is about to discard it whole. The test is an identity check — the instance must be exactly
+`lastWeather.Worker`, and not `curWeather.Worker`, and the transition finished — rather than the looser
+"not the current worker", because another mod calling `CurSkyTarget` on a worker of its own would match
+that and silently receive a vanilla sky. When a weather transitions to itself both sides are one object,
+neither pass is distinguishable, and we correctly skip neither. It is sound only because every stage is
+pure: they read live state and write `target`, and the clock-shaped helpers behind them are pure
+functions of the tick with tick-keyed caches, so nothing falls behind by not being called. A stage that
+accumulated state per call would break this, which is why the header says to put such state on the tick.
+
+**Verification.** `sky_composite_inertness.json` reads the final composed sky at five sun elevations and
+across a weather transition. Its two arms exercise opposite sides of the skip: `instant:true` parks the
+factor at 1 so the skip fires, and `instant:false` leaves it at 0 so `Lerp` returns the outgoing pass
+*entirely* and the skip must not fire — a misfiring guard would strip the mod's whole sky decoration
+from the frame actually rendered. Every scenario written for this area before it tested only the steady
+state, where a broken guard and a working one look identical. **All 27 reads are bit-identical between
+baseline and branch**, and bit-identical across two runs of the baseline.
+
+`perf_sky_composite_inputs.json` arms the composite and the shared gates together so every number is a
+within-run ratio. Measured over 300 cycles, with both controls flat:
+
+| probe | baseline | branch | change |
+|---|---|---|---|
+| `circ_skytarget_calls` *(control)* | 600 | 600 | 0% |
+| `circ_pf_composite_calls` *(control)* | 598 | 598 | 0% |
+| `circ_pf_skycolortemperature_calls` | 596 | 298 | −50.0% |
+| `circ_pf_twilightcolor_calls` | 594 | 297 | −50.0% |
+| `circ_blackedout_calls` | 5624 | 2664 | −52.6% |
+| `circ_hassky_calls` | 4720 | 1475 | −68.8% |
+| `circ_dimming_calls` | 1470 | 588 | −60.0% |
+
+The postfix is entered exactly as often and the stages inside it run exactly half as often: the skip.
+The gates fall further than the 50% the skip alone could deliver, and that excess is the cache. The two
+cannot be split more precisely than that here, because the gate arms also count callers from outside the
+composite — a constant per frame that offsets both arms equally, so the delta is still the composite's
+own, but the ratio is not calls-per-pass.
+
+**Two traps this measurement walked into first**, both recorded because each produced a confident wrong
+answer. An earlier A/B moved `circ_skyupdate_calls` 604 → 294 and `circ_skytarget_calls` 2420 → 1190 —
+arms nothing in the change touches — purely because one run rendered half as many frames; cross-run
+absolute counts are void unless the controls are flat, which is why they are pinned as controls above.
+And the first inertness A/B reported twelve differing daylight colour reads that were entirely a noise
+floor: `AerosolDrift.SampleIndex` keys on `TicksAbs`, which `SetTime` does not pin, and aerosol feeds
+the colour tint but never `.glow`. Two runs of one build differed by up to 0.041 on
+`sky_overlay_warmth` while `sky_glow` stayed bit-exact. The `aerosol_drift` feature key exists to
+suppress that so the scenario can be an oracle at all.
+
 ## Update notice: one question, asked once (`UpdateNoticeMath` / `Dialog_UpdateNotice`)
 
 Two features ship in this release that a player would never find on their own, and they fail to be
