@@ -451,6 +451,8 @@ def build_mask():
     steps.append(sc.record("vector_light_mask_emitters_scanned"))
     steps.append(sc.record("vector_light_mask_emitters_reaching"))
     steps.append(sc.record("vector_light_mask_fold_cells"))
+    steps.append(sc.record("vector_light_mask_index_build_ms"))
+    steps.append(sc.record("vector_light_mask_index_builds"))
     steps.append(sc.record("vector_light_mask_saturated_samples"))
     steps.append(sc.record("vector_light_mask_saturation_skipped"))
     steps.append(sc.record("vector_light_mask_wall_ms"))

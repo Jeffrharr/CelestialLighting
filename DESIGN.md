@@ -12528,6 +12528,76 @@ list to fill `indexByKey` — would take the residual scans out entirely, and th
 that at roughly 4–6 ms of a 59 ms rebake rather than at another 16%. It is the next slice and it is a
 smaller one than this was.
 
+#### Filing the lights by section, and what a 10x scan cut is actually worth
+
+The section above ends by naming a bucket index as the next slice and pricing it, by arithmetic, at
+"roughly 4–6 ms of a 59 ms rebake". It was built. **The arithmetic was wrong by about four times, and
+the reason is worth more than the change.**
+
+**First, the counts, because the case for indexing anything is a ratio.** Per whole-map rebake at 503
+emitters — 91 section regenerates, and every one of these figures reproduced *exactly* across
+repeated runs where the stage clocks moved 0.4%:
+
+| scan | walked | used | useful |
+|---|---|---|---|
+| saturation fold's light scan | 28,671 | 2,826 | **9.9%** |
+| `CollectReaching`'s emitter scan | 45,773 | 3,143 | **6.9%** |
+
+**The index is filed by RimWorld's own section grid, because the query already is one.** `Apply`
+receives a `CellRect` built from `Section.botLeft`, so keying on anything else would mean rect
+arithmetic per query; keying on sections makes it one array read. Each light is filed under every
+section its reach touches **once expanded by `CellMargin`** — putting the margin on at insert time is
+what makes a query exactly one bucket, with no merging and no deduplication.
+
+**The ascending order is load-bearing and it comes out free.** Vanilla's fold projects after every
+addition, so it is not commutative, and reproducing what vanilla displayed means visiting lights in
+ascending index. The fill pass walks items in ascending order and appends, so every bucket is
+ascending with no sort. `SectionLightIndexMathTests` holds that as a separate assertion from
+membership, because a bucket can hold the right lights in the wrong order and every membership test
+would still pass.
+
+**It removed exactly the waste and nothing else.** `vector_light_mask_lights_scanned` went 28,671 →
+**2,826 — identical to `lights_folded`**, i.e. the bucket now returns precisely the lights that
+overlap and not one more. `fold_cells` (91,708) and `saturated_samples` (4,834) are **bit-identical**
+before and after, so the same lights folded into the same cells and the correction rewrote the same
+ones. That is the output identity claim, held by counters rather than argued.
+
+**And it is worth 1.2%.** Five indexed runs against two unindexed, on one binary configuration:
+
+| stage | prior | indexed | ratio |
+|---|---|---|---|
+| **`CorrectSaturation`** | **27.12** | **26.36** | **0.972** |
+| *control:* `BuildCellShadow` | 21.56 | 21.93 | *1.017* |
+| *control:* `CollectReaching` | 1.430 | 1.432 | *1.001* |
+| `Apply`, whole | 57.34 | 57.03 | 0.995 |
+
+Normalised by the control basket the subject reads **0.963**, and the subject's ranges do not overlap
+(27.02–27.23 against 26.11–26.57). The index build is clocked separately because it happens in
+`GlowGridPerLight.For`, **before `Apply`'s stopwatch starts** — a saving measured against a cost
+nobody timed is the oldest way to report a change as free. It costs **0.075 ms and is paid once**:
+all 91 sections of a rebake share one per-frame `Reader`. So the net is **0.69 ms of 57.3, or 1.2%.**
+
+**Why the prediction was four times high, stated because the mistake is reusable.** The estimate
+priced a scan step at 40–80 ns on the grounds that it touches a `NativeList` indexer. The `collect`
+clock had already measured a comparable step at **32 ns** and that number was the one to trust:
+1.43 ms over 45,773 steps, on the same box, in the same method. Removing 25,845 steps at 30 ns is
+0.78 ms, which is what it turned out to be to two figures. **The measurement needed to predict this
+was already in the table it was written under.**
+
+**It ships anyway, and the argument is scaling rather than the constant.** What was removed is a term
+proportional to *every light on the map, per section*; what remains is proportional to the lights
+that actually reach that section. At 503 emitters that swap is worth 1.2%, and the saving grows
+linearly with lamp count while the work it protects does not — a colony at 1,500 lamps pays the same
+2,826 useful visits and would otherwise have scanned 86,000. This is the difference between a cost
+that tracks colony size and one that tracks local light density, which is the property "lighting at
+scale" actually asks for. It is not a figure to quote as a speed-up.
+
+**The bigger target is still untaken and is named again here.** `CorrectSaturation` remains 46% of a
+rebake, and **94.7% of what it folds is cells that do not saturate and are never rewritten**
+(4,834 rewritten of 91,708 folded, with `SaturationSkipped` at 0, so none of that is the
+reconstruction bailing out). That is ten times this change's prize and it is a redesign of an
+order-sensitive pass rather than a reordering, so it wants its own oracle and its own branch.
+
 #### Two warts fixed in passing
 
 The terrain rect is shrunk clear of the four `SteamGeyser` cells at `z = 147..148`. Phase 5b records
