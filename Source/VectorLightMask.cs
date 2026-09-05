@@ -141,6 +141,40 @@ public static class VectorLightMask
     // the mask really removed a cell's vanilla contribution, so a zero under the flag is a finding.
     public static long BentSamples;
 
+    // What Apply cost, split by stage, on the thread that paid for it.
+    //
+    // WHY A STOPWATCH RATHER THAN A PROFILER ARM, and this is the second time in this repo the answer
+    // has been the same. Both instruments already here are blind to this method. Dubs reports one
+    // duration for the whole of Patch_VectorLightSuppress, which cannot say which stage inside it
+    // grew. Circinus reports ZERO CALLS on a build that just ran it a thousand times -- the same
+    // misreport NativeSkyFalloffGrid's rebuild hit, and for the same underlying reason: a section
+    // regenerate is not a rendered frame, and both analyzers are built around frames. An arm that
+    // reads zero is indistinguishable from a stage that never ran, so a scenario built on one
+    // reports a mask that costs nothing while photographing a perfectly lit colony.
+    //
+    // THE STAGES ARE THE ONES WHOSE COST IS A FUNCTION OF THE EMITTER POPULATION rather than of the
+    // section, because that is the axis a colony moves along and the axis nothing else here measures.
+    // CollectReaching walks the field's whole roster. BuildCellShadow walks the emitters that
+    // survived it, times the cells each one covers. CorrectSaturation walks every light the GLOW GRID
+    // holds, ours and every other mod's, and it is the only one of the three that does not shrink
+    // when our own roster does.
+    //
+    // ACCUMULATED, NOT AVERAGED, and read against MaskApplies for a per-call figure. A mean computed
+    // in here would divide by a count the caller cannot see, and the count is the more interesting
+    // half whenever a change makes a stage cheaper and provokes it more often.
+    //
+    // WALL TIME ON THE CALLING THREAD, deliberately, and unlike VectorLightField.BakeWallMs there is
+    // nothing here that could move to another one -- a section regenerate is main-thread work through
+    // and through. If that ever stops being true this measures a wait rather than a cost, and the
+    // comment is the warning.
+    public static double ApplyWallMs;
+
+    public static double CollectWallMs;
+
+    public static double ShadowWallMs;
+
+    public static double SaturationWallMs;
+
     public static void ResetTelemetry()
     {
         LiftSamples = 0;
@@ -149,6 +183,10 @@ public static class VectorLightMask
         SaturationSkipped = 0;
         SaturationRelief = 0;
         BentSamples = 0;
+        ApplyWallMs = 0.0;
+        CollectWallMs = 0.0;
+        ShadowWallMs = 0.0;
+        SaturationWallMs = 0.0;
     }
 
     // Whether phase 3 can run: the per-light arrays have to be readable, or there is nothing to
@@ -222,22 +260,43 @@ public static class VectorLightMask
         bool lifting = Lifting;
         bool correcting = Correcting;
 
+        // STARTED AFTER THE STAND-DOWN CHECKS AND THE APPLY COUNTER, so the clock measures sections
+        // that really did rebake through the mask rather than calls that turned round at the door.
+        // Same boundary MaskApplies is counted at, which is what makes the two divide.
+        System.Diagnostics.Stopwatch clock = System.Diagnostics.Stopwatch.StartNew();
+
         CollectReaching(map, rect, lifting);
 
+        CollectWallMs += clock.Elapsed.TotalMilliseconds;
+
         if (Reaching.Count == 0)
+        {
+            ApplyWallMs += clock.Elapsed.TotalMilliseconds;
             return true;
+        }
 
         // DECIDE BEFORE TOUCHING THE MESH. `mesh.colors32` copies 613 Color32 out of native memory
         // and the write-back copies them in again, and a section with no shadow anywhere in it
         // changes not one of them. Doing the shadow accumulation first — which needs no mesh at all
         // — means an unshadowed section pays the emitter scan and nothing else, where the crossfade
         // pays the round trip plus a write to every vertex unconditionally.
+        double beforeShadow = clock.Elapsed.TotalMilliseconds;
+
         bool anyEdit = BuildCellShadow(map, reader, rect, lifting, correcting);
+
+        // BuildCellShadow's own time NET OF the saturation pass it calls, so the three stage clocks
+        // partition Apply instead of double-counting the largest one inside the second largest.
+        // CorrectSaturation adds to SaturationWallMs from inside that call.
+        ShadowWallMs += clock.Elapsed.TotalMilliseconds - beforeShadow - lastSaturationMs;
+        lastSaturationMs = 0.0;
 
         Reaching.Clear();
 
         if (!anyEdit)
+        {
+            ApplyWallMs += clock.Elapsed.TotalMilliseconds;
             return true;
+        }
 
         int width = rect.Width;
         int height = rect.Height;
@@ -264,8 +323,16 @@ public static class VectorLightMask
         ApplyToCentres(colors, rect, corners, composing);
 
         mesh.colors32 = colors;
+
+        ApplyWallMs += clock.Elapsed.TotalMilliseconds;
         return true;
     }
+
+    // The saturation pass's contribution to the CURRENT Apply, so the shadow stage can subtract it
+    // and the three clocks partition rather than nest. Reset by its reader on the same call, and
+    // never read from anywhere else: it is a return value that could not be one, because
+    // BuildCellShadow's result already means something else.
+    private static double lastSaturationMs;
 
     // How far past its own radius an emitter still has a say, in cells. Named and public because
     // SectionDirtyMath.Reach has to agree with it exactly: this constant decides which emitters a
@@ -474,8 +541,18 @@ public static class VectorLightMask
         // byte. Counting first costs a rect test per emitter and skips both the cell walk and the
         // 361-cell fix-up pass below — which is the common case in a colony, where most sections that
         // carry a shadow at all carry it from a single lamp.
+        System.Diagnostics.Stopwatch clock = System.Diagnostics.Stopwatch.StartNew();
+
         if (OverlappingLights(rect, reader) < 2)
+        {
+            // THE EARLY RETURN IS TIMED TOO, and on a colony it is the interesting half. Proving
+            // there is no second overlapping light means walking the whole glow grid, so the cheap
+            // path is not free and its cost grows with the emitter population exactly as the
+            // expensive one does.
+            SaturationWallMs += clock.Elapsed.TotalMilliseconds;
+            lastSaturationMs += clock.Elapsed.TotalMilliseconds;
             return;
+        }
 
         Grow(ref cellRaw, cells);
         Grow(ref cellFold, cells);
@@ -511,6 +588,9 @@ public static class VectorLightMask
             for (int x = rect.minX - 1; x <= rect.maxX + 1; x++)
                 CorrectCell(map, rect, x, z);
         }
+
+        SaturationWallMs += clock.Elapsed.TotalMilliseconds;
+        lastSaturationMs += clock.Elapsed.TotalMilliseconds;
     }
 
     // How many emitters reach any cell this section's vertices average over — the same one-cell

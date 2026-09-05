@@ -132,6 +132,23 @@ public sealed class VectorLightBakeProbe : IProbe
         // leave this flat -- which would mean the saving was on sections nobody was looking at.
         MaskApplies,
 
+        // The mask's own stage clocks, in calling-thread milliseconds since the last reset. Read
+        // against MaskApplies for a per-section figure, never on their own -- a stage made cheaper
+        // and provoked more often reads as a straight loss on a total and as a win per call, and
+        // only the pair says which happened.
+        //
+        // WHY THESE EXIST WHEN circ_vlmask ALREADY POINTS AT THE SAME METHOD. It does not measure
+        // it. Circinus reported ZERO CALLS on a build that entered Apply on every section of a
+        // 500-lamp colony, which is the same misreport the sky-falloff rebuild hit and has the same
+        // cause: a section regenerate is not a rendered frame. See VectorLightMask.ApplyWallMs.
+        MaskWallMs,
+
+        MaskCollectMs,
+
+        MaskShadowMs,
+
+        MaskSaturationMs,
+
         // ---- the dirty suppression ---------------------------------------------------------------
         //
         // MapMeshDirty calls declined inside a glow-blocker write, and the distinct sections those
@@ -299,6 +316,18 @@ public sealed class VectorLightBakeProbe : IProbe
 
         if (metric == Metric.SectionsPerPass)
             return Ratio(VectorLightField.SectionDirties, VectorLightField.SectionDirtyPasses);
+
+        if (metric == Metric.MaskWallMs)
+            return (float)VectorLightMask.ApplyWallMs;
+
+        if (metric == Metric.MaskCollectMs)
+            return (float)VectorLightMask.CollectWallMs;
+
+        if (metric == Metric.MaskShadowMs)
+            return (float)VectorLightMask.ShadowWallMs;
+
+        if (metric == Metric.MaskSaturationMs)
+            return (float)VectorLightMask.SaturationWallMs;
 
         if (metric == Metric.MaskApplies)
             return VectorLightField.MaskApplies;
