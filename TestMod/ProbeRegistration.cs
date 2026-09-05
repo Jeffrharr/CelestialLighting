@@ -459,6 +459,24 @@ public static class ProbeRegistration
             "vector_light_sections_per_pass", VectorLightBakeProbe.Metric.SectionsPerPass));
         ProbeRegistry.Register(new VectorLightBakeProbe(
             "vector_light_mask_applies", VectorLightBakeProbe.Metric.MaskApplies));
+
+        // The mask's stage split, on the calling thread. RECORDED, NEVER PINNED TIGHTLY, for the
+        // reason every duration in this repo is: the box moves between runs by more than most
+        // changes do, so these are read as shares of each other and against
+        // vector_light_mask_applies, not as absolute milliseconds.
+        //
+        // These exist because neither analyzer can see this method. Dubs times the whole postfix and
+        // cannot say which stage grew; Circinus reads zero calls on a build that ran it a thousand
+        // times, because a section regenerate is not a rendered frame -- the misreport the
+        // sky-falloff rebuild already paid for once.
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_mask_wall_ms", VectorLightBakeProbe.Metric.MaskWallMs));
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_mask_collect_ms", VectorLightBakeProbe.Metric.MaskCollectMs));
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_mask_shadow_ms", VectorLightBakeProbe.Metric.MaskShadowMs));
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_mask_saturation_ms", VectorLightBakeProbe.Metric.MaskSaturationMs));
         // The one metric here that is a DEFECT COUNT rather than a workload figure: sections that
         // baked with an emitter reaching them dropped for want of a polygon, i.e. frames that
         // rendered with a shadow missing. Its partner says the fallback was exercised at all, which
@@ -912,7 +930,7 @@ public static class ProbeRegistration
         // another, so there is a start probe per arm rather than one taking an argument — the
         // scenario language has no way to pass a string, and an arm whose document is mislabelled is
         // worse than one that was never recorded.
-        foreach (string armName in new[] { "gated", "crossfade", "mask", "combo", "cull", "brute", "bounds" })
+        foreach (string armName in new[] { "gated", "crossfade", "mask", "combo", "cull", "brute", "bounds", "maskscale" })
         {
             ProbeRegistry.Register(new CircinusProbe(
                 "circinus_run_start_" + armName, CircinusProbe.Metric.RunStart,
@@ -1471,6 +1489,20 @@ public static class ProbeRegistration
         // neither the parent above nor any frame-cost table. `circ_lightoverlay` already measures the
         // vanilla bake it rides on; this separates our postfix from it.
         ArmBank("circ_vlmask", "CelestialLighting.VectorLightMask", "Apply");
+
+        // The mask's own stages, so "the suppress pass costs 2.4 ms a section at five hundred lamps"
+        // becomes a split rather than a total. Every one of these is a stage whose cost is a function
+        // of the EMITTER POPULATION rather than of the section, which is the axis stress_light_colony
+        // moves and the axis no other scenario in the repo does.
+        //
+        // READ THE PARENT, JUDGE ON THE PARENT. Circinus totals are exclusive of armed children, so
+        // arming these changes what circ_vlmask reports -- and the per-call overhead lands hardest on
+        // the smallest and most frequently entered of them, which is AccumulateFold. These exist to
+        // say WHERE the time is, in one build. An A/B between builds is read on circ_vlmask.
+        ArmBank("circ_vlmaskcollect", "CelestialLighting.VectorLightMask", "CollectReaching");
+        ArmBank("circ_vlmaskshadow", "CelestialLighting.VectorLightMask", "BuildCellShadow");
+        ArmBank("circ_vlmasksat", "CelestialLighting.VectorLightMask", "CorrectSaturation");
+        ArmBank("circ_vlmaskfold", "CelestialLighting.VectorLightMask", "AccumulateFold");
 
         // Inertness guard for the removed across-map shadow tilt (issues #11, #26). These three
         // originally asked "does §3's gradient actually render?"; now they assert it does NOT, at

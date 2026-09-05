@@ -34,6 +34,21 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SCEN = os.path.abspath(os.path.join(HERE, "..", "..", "Tests", "Scenarios"))
 TARGET = os.path.join(SCEN, "stress_light_colony.json")
 HOLD_TARGET = os.path.join(SCEN, "stress_light_colony_hold.json")
+MASK_TARGET = os.path.join(SCEN, "stress_light_mask.json")
+
+# The mask's parent arm and its four population-scaled stages. Order is parent first, because that
+# is the one a build-to-build comparison is read on and the four below it are the finding.
+ARMS = ("circ_vlmask", "circ_vlmaskcollect", "circ_vlmaskshadow",
+        "circ_vlmasksat", "circ_vlmaskfold")
+
+# Whole-map rebakes to provoke inside the measured window. See build_mask for why a static colony
+# needs any, and why this number is small.
+REBUILDS = 20
+
+# The flag re-set to provoke them. Chosen because feature_steps already states it FALSE and it ships
+# false, so writing it again changes nothing except that the write goes through ForceRebuild.
+INERT_TOGGLE = "vector_light_door_dirty_suppress"
+INERT_VALUE = "false"
 
 # Frames per profiling window. Long, and deliberately longer than vector_light_perf's 600: this box
 # has measured frame_max_ms spanning 37 to 85 across three consecutive runs of ONE build, and a
@@ -284,9 +299,205 @@ def write(spec, target):
     print(f"wrote {target} ({len(spec['steps'])} steps)")
 
 
+def build_mask():
+    """The same colony, with the lighting-overlay mask decomposed into its stages by Circinus.
+
+    WHAT THIS ASKS THAT NEITHER SIBLING DOES. stress_light_colony's own first run found the
+    subsystem's worst frame -- 64 ms against a 0.77 ms average, all of it in
+    Patch_VectorLightSuppress across 112 calls -- and left it recorded rather than explained,
+    because a Dubs row is one duration for the whole postfix. That is roughly 2.4 ms per section
+    regenerate at five hundred emitters, and the whole question here is which stage inside it that
+    is. VectorLightMask.Apply has four that scale with the emitter POPULATION rather than with the
+    section: the roster scan that decides which emitters reach it, the per-emitter shadow
+    accumulation, the saturation reconstruction, and the fold that reconstruction is made of.
+
+    WHY IT IS A THIRD FILE RATHER THAN A FLAG ON THE FIRST. Circinus is instrumented from inside the
+    game rather than by a scenario step, so reading it means --no-profiler, and a Profile step under
+    --no-profiler SKIPS THE WHOLE SCENARIO while reporting PASS. stress_light_colony has two of
+    them. This one has none, for the same reason the hold variant has none, and it inherits that
+    variant's second settle for the same reason too: frames are not ticks, and without the analyzer
+    the same frame count buys fewer of them than the rare-tick cycle needs to bring 500 lamps up.
+
+    READ THE CHILDREN TO FIND, THE PARENT TO JUDGE. Circinus totals are exclusive of armed children,
+    so the four stage arms change what circ_vlmask reports and the per-call overhead lands hardest
+    on the most frequently entered of them. The split is the finding; a comparison between two
+    builds is read on circ_vlmask and on the frame, not on a child.
+    """
+    colony = sc.build()
+
+    steps = sc.setup_steps(colony)
+    steps += sc.palette_steps()
+    steps += sc.establish_steps()
+    steps += sc.settle_steps()
+    steps += sc.population_probes()
+
+    # The shipped configuration but for ONE flag, and there is no gated arm. An arm with the
+    # subsystem off does not enter Apply at all, so its stage arms would read zero calls -- which is
+    # not a control, it is an empty document. The control for this run is the same file on another
+    # build.
+    #
+    # vector_light_changed_dirty IS OFF, AND THE FIRST RUN OF THIS FILE IS WHY. With it on, a
+    # section is flagged only where a rebake CHANGED an emitter's coverage -- and the storm below
+    # rebakes every emitter to the shape it already had, so nothing changes, nothing is flagged,
+    # nothing regenerates and every arm in this file reads zero calls against a perfectly correct
+    # 500-lamp frame. That is the "zeros are not a measurement" failure with the scene photographing
+    # as fine, and it cost one run to find.
+    #
+    # TURNING IT OFF IS SOUND FOR THIS QUESTION AND WOULD NOT BE FOR MOST. The flag decides HOW OFTEN
+    # Apply is asked, never what Apply does -- it is the one flag in feature_steps whose two settings
+    # render the identical frame. So the per-call stage split measured here is the shipped split; what
+    # is not shipped is the call RATE, and no number in this file is a rate. A comparison of totals
+    # between two builds stays valid for the same reason, provided both carry this flag the same way,
+    # which they do because it is stated here rather than inherited.
+    steps += sc.feature_steps(vector_lights=True, changed_dirty=False)
+    steps.append(sc.step("Wait", frames=SETTLE_FRAMES))
+
+    steps.append(sc.step("Probe", probeName="circinus_available", expectedValue=1, tolerance=0))
+
+    # PINNED, BECAUSE ITS FAILURE MODE IS SILENCE. VectorLightMask.Active is the feature flag AND
+    # GlowGridPerLight.Available, and that second half is reflection over two private fields on a
+    # Burst-adjacent vanilla type. When it fails the mask stands down to the crossfade, Apply is
+    # never entered, and every arm in this file reads zero calls -- indistinguishable from a window
+    # that regenerated no sections. Two different causes of the same zero is one too many.
+    steps.append(sc.step("Probe", probeName="vector_light_mask_available",
+                         expectedValue=1, tolerance=0))
+    steps.append(sc.record("vector_light_bake_reset"))
+
+    # Checked against what the steps ABOVE actually emitted rather than trusting the constant's
+    # comment. If somebody changes this flag's setting in stress_colony.feature_steps, the storm
+    # below would start flipping configuration between frames and its stage split would quietly stop
+    # describing the shipped composition. Failing the generator is the cheap place to find that.
+    stated = [(s.get("args") or {}).get("enabled") for s in steps
+              if s.get("type") == "SetFeature"
+              and (s.get("args") or {}).get("featureName") == INERT_TOGGLE]
+
+    if stated[-1:] != [INERT_VALUE]:
+        raise SystemExit(
+            f"{INERT_TOGGLE} is {stated[-1:]} in this scenario, expected [{INERT_VALUE!r}] -- "
+            "pick a different inert toggle or the mask storm changes the scene as it runs")
+
+    # THE WINDOW OPENS AND THE COUNTERS RESET AT ONE STEP. Opening the Circinus run several steps
+    # away from the counter reset is what once reported 161 bakes against 46 calls to the method
+    # that makes them -- two true numbers over two different windows, which is exactly the pair that
+    # gets quoted as a ratio by mistake.
+    steps.append(sc.step("Probe", probeName="circinus_run_start_maskscale",
+                         expectedValue=1, tolerance=0))
+
+    # ARMED IS PINNED, NOT RECORDED. Circinus sheds instrumentation on its own schedule and an arm
+    # that shed reads zero calls -- indistinguishable from a stage that never ran, which on this
+    # scenario would read as the mask having become free.
+    for armed in ARMS:
+        steps.append(sc.step("Probe", probeName=armed + "_patched",
+                             expectedValue=1, tolerance=0))
+
+    # THE PROVOCATION, AND WHY A STATIC COLONY NEEDS ONE. Five hundred lamps that are not moving
+    # dirty almost nothing: a settled colony regenerates the lighting overlay only where the glow
+    # grid changed, so a window that merely lets the clock run measures the mask on a handful of
+    # sections and reports the stage split of a scene nobody is looking at. That is the same shape
+    # of error as profiling a paused colony.
+    #
+    # Every SetFeature goes through VectorLightRedraw.ForceRebuild, which drops every emitter and
+    # rebakes it on the next draw -- and the draw then flags every section those reaches touch. So
+    # re-setting an already-stated flag to the value it already holds changes nothing about the
+    # scene and buys one whole-map rebake, which is exactly the 64 ms frame this file is here to
+    # decompose. vector_light_bake_storm establishes the technique on the twenty-two-lamp plate.
+    #
+    # The count is deliberately modest. Each pass rebakes all five hundred emitters and re-masks
+    # every visible section, so this is not a cheap step to repeat, and the quantity wanted is a
+    # per-call split rather than a total.
+    for _ in range(REBUILDS):
+        steps.append(sc.step("SetFeature", featureName=INERT_TOGGLE, enabled=INERT_VALUE))
+
+    # One tick-advancing window so the LAST toggle's rebake lands inside the measured run rather
+    # than after the probes have read. Ticks rather than frames, because a section is regenerated
+    # from the map's own update and a frame that advances no tick does not run one.
+    steps.append(sc.step("TickLapse", ticks=20, steps=20, fps=20,
+                         fileNamePrefix="maskscale_discard"))
+
+    # Counts first, then durations. Per-call cost is total/calls and never AvgMs -- AvgMs is per
+    # CYCLE, and a frame that regenerated eleven sections divides by the wrong thing.
+    #
+    # circ_vlmask_calls IS THE REGENERATE COUNT, and it is what the stage durations are read
+    # against. vector_light_mask_applies would be the natural probe for that and is deliberately
+    # not used: every SetFeature above resets our own telemetry through ForceRebuild, so it would
+    # report only the sections regenerated since the last toggle while the Circinus totals span the
+    # whole window -- two true numbers over two different windows, which is exactly the pair that
+    # gets quoted as a ratio by mistake.
+    for armed in ARMS:
+        steps.append(sc.record(armed + "_calls"))
+        steps.append(sc.record(armed + "_total_ms"))
+        steps.append(sc.record(armed + "_max_ms"))
+
+    # THE MEASUREMENT. Everything above this is the Circinus bank, kept because its ZEROS are the
+    # finding rather than a failure: it is armed on all five methods, patched reads 1 on every one,
+    # and calls reads 0 on a build that entered Apply on every section of the colony. A section
+    # regenerate is not a rendered frame and both frame-based analyzers are blind to it -- the same
+    # misreport the sky-falloff rebuild hit. Leaving the arms in place means the next reader finds
+    # that written down instead of spending the run rediscovering it.
+    #
+    # These four are calling-thread stopwatches inside Apply itself, and they are what the stage
+    # split is actually read from. The three children partition the parent: collect + shadow +
+    # saturation should sum to close to wall, and a gap is Apply's own mesh round trip.
+    #
+    # ONE WHOLE-MAP REBAKE, NOT TWENTY. Every SetFeature above goes through ForceRebuild, which calls
+    # VectorLightMask.ResetTelemetry -- so these clocks hold the LAST toggle's rebake only, and
+    # vector_light_mask_applies resets with them so the pair still divides. The other nineteen are
+    # not wasted: they are what warms the JIT and the scratch buffers, so the measured one is a
+    # steady-state rebake rather than a cold one.
+    steps.append(sc.record("vector_light_mask_applies"))
+    steps.append(sc.record("vector_light_mask_wall_ms"))
+    steps.append(sc.record("vector_light_mask_collect_ms"))
+    steps.append(sc.record("vector_light_mask_shadow_ms"))
+    steps.append(sc.record("vector_light_mask_saturation_ms"))
+
+    steps.append(sc.record("vector_light_emitters"))
+    steps.append(sc.step("Probe", probeName="vector_light_mask_stale_polys",
+                         expectedValue=0, tolerance=0))
+
+    steps.append(sc.step("Probe", probeName="circinus_run_stop", expectedValue=1, tolerance=0))
+
+    return {
+        "name": "stress_light_mask",
+        "saveFile": "minimal_colony.rws",
+        # Circinus is the instrument, not a convenience: every duration in this file comes from it,
+        # so a run without it reads zero calls on every arm and fails the patched pins rather than
+        # reporting a mask that costs nothing. The value is a STRING -- a bare workshop id as a
+        # number boots the game and then silently writes no report at all.
+        "requiredMods": {"astryl.Circinus": "3773680130"},
+        "description": (
+            "stress_light_colony's colony -- 500 lamps in 11 colours and 9 radii, 11,868 hidden "
+            "conduits, 20 toxifier generators, 1,874 wall cells across 28 rooms and 120 stubs -- "
+            "with VectorLightMask.Apply decomposed into its four population-scaled stages by "
+            "Circinus. "
+            "\n\n"
+            "WHY IT EXISTS. stress_light_colony measured the subsystem's worst frame at 64 ms "
+            "against a 0.77 ms average, all of it in Patch_VectorLightSuppress over 112 calls -- "
+            "about 2.4 ms per section regenerate at this population -- and could say no more than "
+            "that, because a Dubs row is one duration for the whole postfix. Every stage armed here "
+            "costs a function of the EMITTER COUNT rather than of the section, which is the axis "
+            "this colony moves and no other scenario in the repo does. "
+            "\n\n"
+            "RUN IT WITH --no-profiler. Circinus is instrumented from inside the game, and a Profile "
+            "step under --no-profiler skips the whole scenario while still reporting PASS. This file "
+            "carries no Profile step so it is indifferent to which analyzer is loaded. "
+            "\n\n"
+            "READ THE CHILDREN TO FIND AND THE PARENT TO JUDGE. Circinus totals are exclusive of "
+            "armed children, so these four arms change what circ_vlmask reports and inflate the "
+            "smallest of them most. The split is the finding; a build-to-build comparison belongs on "
+            "circ_vlmask and on the frame. "
+            "\n\n"
+            "Every duration here is RECORDED, not pinned. What is pinned is the scene, the "
+            "instrumentation and the one defect counter: 500 emitters, every arm patched, and "
+            "vector_light_mask_stale_polys at zero."
+        ),
+        "steps": steps,
+    }
+
+
 def main():
     write(build(), TARGET)
     write(build_hold(), HOLD_TARGET)
+    write(build_mask(), MASK_TARGET)
 
 
 if __name__ == "__main__":
