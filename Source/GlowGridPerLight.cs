@@ -109,6 +109,36 @@ public static class GlowGridPerLight
             return true;
         }
 
+        // Does the emitter at this index reach anywhere inside this box? Asked WITHOUT resolving the
+        // emitter, which is the whole reason it exists as a separate method.
+        //
+        // WHY A REJECT NEEDS ITS OWN ENTRY POINT. Both callers of this walk EVERY light on the map
+        // once per section regenerate, and at a colony's worth of lamps the overwhelming majority of
+        // them are nowhere near the section being rebaked. TryLightAt costs two native-container
+        // indexers -- `lights[index]` and then `pool[light.localGlowPoolIndex]` -- to hand back a
+        // colour array that a non-overlapping light's caller then never reads. This is the first of
+        // those two reads and four integer compares, so the reject path stops paying for the accept
+        // path's work.
+        //
+        // THE BOX IS FOUR INTS RATHER THAN A CellRect because both callers have already expanded
+        // their section by the one-cell margin the accumulators read over, and rebuilding a CellRect
+        // here to intersect against would put a struct construction back into the loop this exists
+        // to make cheap.
+        //
+        // OUT OF RANGE IS "DOES NOT OVERLAP", matching TryLightAt's own bounds guard rather than
+        // throwing. The callers loop to LightCount so an index outside it is a caller bug, but the
+        // failure mode of one must not be an exception in the middle of a section regenerate.
+        public bool OverlapsAt(int index, int minX, int maxX, int minZ, int maxZ)
+        {
+            if (index < 0 || index >= lights.Length)
+                return false;
+
+            CellRect reach = lights[index].AffectedRect;
+
+            return reach.maxX >= minX && reach.minX <= maxX
+                && reach.maxZ >= minZ && reach.minZ <= maxZ;
+        }
+
         // One emitter resolved ONCE, so the caller can then walk its cells with plain array
         // arithmetic.
         //

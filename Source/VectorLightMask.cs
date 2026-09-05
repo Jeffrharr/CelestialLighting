@@ -577,8 +577,30 @@ public static class VectorLightMask
         // `lights` front to back, which is the order CombineColorsJob.Execute adds them in, and each
         // cell accumulates independently — so folding emitter-outer over cells gives every cell its
         // own emitters in vanilla's order, which is the only order that reproduces vanilla's answer.
+        // THE REJECT COMES BEFORE THE RESOLVE, and at a colony's worth of lamps that reordering is
+        // most of what this loop costs. A light whose square misses this section writes nothing --
+        // AccumulateFold intersects its reach with the section and the resulting loop is empty -- so
+        // the two native-container indexers TryLightAt pays to hand back its colour array, and the
+        // linear scan ReachingEntryFor pays to look for it, were both being spent to arrive at "no
+        // change" for the great majority of the map's emitters. Reader.OverlapsAt answers the same
+        // question from `lights[i].AffectedRect` alone.
+        //
+        // IDENTICAL BY CONSTRUCTION RATHER THAN BY TOLERANCE, which is the property that lets this
+        // sit under a lossy fold at all. The skipped lights are exactly the ones whose contribution
+        // to both accumulators is empty, so removing them removes no STEP of vanilla's accumulation
+        // -- and the surviving lights are still visited in ascending index order, which is the order
+        // CombineColorsJob.Execute added them in and the only order that reproduces vanilla's answer.
+        // See FoldInto for why that order is load-bearing rather than tidy.
+        int foldMinX = rect.minX - 1;
+        int foldMaxX = rect.maxX + 1;
+        int foldMinZ = rect.minZ - 1;
+        int foldMaxZ = rect.maxZ + 1;
+
         for (int i = 0; i < reader.LightCount; i++)
         {
+            if (!reader.OverlapsAt(i, foldMinX, foldMaxX, foldMinZ, foldMaxZ))
+                continue;
+
             if (reader.TryLightAt(i, out GlowLight light, out UnsafeList<Color32> colors))
                 AccumulateFold(map, rect, light, colors, ReachingEntryFor(light), lifting);
         }
@@ -599,17 +621,19 @@ public static class VectorLightMask
     {
         int found = 0;
 
+        // THE CHEAP TEST FIRST, and the two conditions have simply swapped places: a light counts
+        // here only if it both resolves AND overlaps, so which one is asked first cannot change the
+        // count. It changes who pays. This loop runs on the path the caller's header calls the
+        // common case -- a section carrying one lamp's shadow -- and on that path it does not stop
+        // early, because proving there is no SECOND overlapping light means walking the whole map's
+        // emitter list. Paying TryLightAt's pool indexer for every one of them was the cost of
+        // establishing that nothing needed correcting.
         for (int i = 0; i < reader.LightCount && found < 2; i++)
         {
-            if (!reader.TryLightAt(i, out GlowLight light, out UnsafeList<Color32> _))
+            if (!reader.OverlapsAt(i, rect.minX - 1, rect.maxX + 1, rect.minZ - 1, rect.maxZ + 1))
                 continue;
 
-            CellRect reach = light.AffectedRect;
-
-            bool overlaps = reach.maxX >= rect.minX - 1 && reach.minX <= rect.maxX + 1
-                && reach.maxZ >= rect.minZ - 1 && reach.minZ <= rect.maxZ + 1;
-
-            if (overlaps)
+            if (reader.TryLightAt(i, out GlowLight _, out UnsafeList<Color32> _))
                 found++;
         }
 

@@ -12450,6 +12450,84 @@ The children were checked to sum to the parent rather than assumed to: 100.7% on
 have been unequal scopes, and comparing those is how an earlier slice mistook lazy polygon building
 inside a timed bake for a slow algorithm.
 
+#### The mask at five hundred lamps: reject before you resolve
+
+Everything above measures a BAKE. This measures the other half of the subsystem — the edit the
+lighting overlay's own regenerate goes through — and it is the half that scales with the emitter
+POPULATION rather than with the wall count, which is the axis nothing else in this file moves.
+
+**The finding was already on record and unattributed.** `stress_light_colony` put 500 lamps in 11
+colours and 9 radii on one screen and measured the subsystem at 0.30 ms/frame — full 0.773 against
+gated 0.474 — with a **worst frame of 64 ms, all of it in `Patch_VectorLightSuppress`** over 112
+calls in 901 frames. That is roughly 2.4 ms per section regenerate, and the scenario's own comment
+recorded it as a defect that was not its to fix. A Dubs row is one duration for a whole postfix, so
+nothing said which stage inside it that was.
+
+**Neither analyzer in this repo can time this method, and finding that out is the durable half.**
+Dubs cannot decompose it. Circinus, armed on `Apply` and on its three stages, reports `patched = 1`
+and **`calls = 0`** on a build where the mask is demonstrably editing every section of the colony —
+the same misreport `NativeSkyFalloffGrid`'s rebuild hit, with the same cause: a section regenerate is
+not a rendered frame, and both analyzers are built around frames. An arm reading zero is
+indistinguishable from a stage that never ran, so a scenario built on one reports a mask that costs
+nothing while photographing a perfectly lit colony. The arms are kept in `stress_light_mask.json`
+precisely so their zeros are written down. The instrument that works is a stopwatch on the calling
+thread, which is what `vector_light_bake_wall_ms` already is for the bake.
+
+**Where the time goes, on one whole-map rebake at 503 emitters.** The three stage clocks partition
+`Apply`; the residue is its own `mesh.colors32` round trip.
+
+| stage | ms | share |
+|---|---|---|
+| `CollectReaching` — walk our roster | 1.64 | 2.5% |
+| `BuildCellShadow` — per emitter, per cell it covers | 22.51 | 34.7% |
+| **`CorrectSaturation` — reconstruct vanilla's fold** | **33.22** | **51.3%** |
+| residue (mesh round trip, corner and centre application) | 7.42 | 11.5% |
+
+**The saturation pass walks every light the GLOW GRID holds, not every light we do**, and that is the
+one stage that does not shrink when our own roster does — a mod's lamp, a glowing plant and a fire
+are all in it. For each of them it paid `TryLightAt`, which is two native-container indexers, and
+then `ReachingEntryFor`, which is a linear scan of the section's reaching list. `AccumulateFold` then
+intersected the light's square with the section, found the intersection empty, and wrote nothing. At
+a colony's worth of lamps the overwhelming majority of that list is nowhere near the section being
+rebaked, so the two most expensive operations per light were being spent to arrive at "no change".
+`OverlappingLights` had the same shape and worse luck: it stops early at two overlapping lights, so
+on the path its own header calls the common case — a section carrying one lamp's shadow — it does not
+stop at all, and proving the negative cost a pool indexer per light on the map.
+
+**The fix is a reordering, and it is identical by construction rather than within a tolerance.**
+`Reader.OverlapsAt` answers "does this light reach this box" from `lights[i].AffectedRect` alone, and
+both loops ask it first. The lights it skips are exactly the ones whose contribution to both
+accumulators is empty, so removing them removes no STEP of vanilla's accumulation — which is the
+property that lets this sit under a lossy fold at all. The survivors are still visited in ascending
+index order, which is the order `CombineColorsJob.Execute` added them in and the only order that
+reproduces vanilla's answer. In `OverlappingLights` the two conditions have merely swapped places: a
+light counts only if it both resolves and overlaps, so which is asked first cannot change the count.
+
+**Measured as two alternating pairs on one scenario, one factor, with two untouched stages as
+controls.**
+
+| stage | prior | new | new ÷ prior |
+|---|---|---|---|
+| **`Apply`, whole** | **64.79** | **59.04** | **0.911** |
+| **`CorrectSaturation`** | **33.22** | **27.69** | **0.833** |
+| *control:* `BuildCellShadow` | 22.51 | 22.33 | *0.992* |
+| *control:* `CollectReaching` | 1.64 | 1.64 | *1.000* |
+
+Normalised by the shadow control the saturation stage reads **0.840** and the whole mask **0.919**.
+The subject's ranges do not overlap — saturation 32.86–33.59 against 27.65–27.73, `Apply` 64.11–65.47
+against 58.38–59.71 — while both controls' ranges do, which is what a control is for and is the
+reason this is a measurement rather than a quiet afternoon. A subject that moved less than its
+controls has not moved at all; this one moved while they did not.
+
+**What it does NOT do, stated because the next reader will want to know.** It does not remove the
+O(N) walk, it makes each step of it four integer compares and one native read instead of two native
+reads and a linear scan. After the change the saturation pass is still 47% of a rebake, and the bulk
+of what remains is genuine per-cell fold work over the lights that really do overlap. A bucket index
+over the glow grid's lights — built once per frame inside `Reader`, which already walks the whole
+list to fill `indexByKey` — would take the residual scans out entirely, and the arithmetic above puts
+that at roughly 4–6 ms of a 59 ms rebake rather than at another 16%. It is the next slice and it is a
+smaller one than this was.
+
 #### Two warts fixed in passing
 
 The terrain rect is shrunk clear of the four `SteamGeyser` cells at `z = 147..148`. Phase 5b records
