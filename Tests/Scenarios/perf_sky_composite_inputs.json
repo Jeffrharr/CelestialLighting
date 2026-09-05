@@ -1,0 +1,235 @@
+{
+  "name": "perf_sky_composite_inputs",
+  "saveFile": "minimal_colony.rws",
+  "requiredMods": {
+    "astryl.Circinus": "3773680130"
+  },
+  "description": "Arms the sky composite AND the shared inputs its stages ask for, in ONE scenario, so every number here can be read as a within-run RATIO. That is the whole point of the file: a cross-run comparison of these counts is void, because the frame count is not controlled \u2014 a previous A/B of this area moved circ_skyupdate_calls 604->294 and circ_skytarget_calls 2420->1190, arms nothing in the change touches, purely because one run rendered half as many frames. Read instead: stage calls per composite ENTRY (does the discarded-pass skip fire?) and gate calls per composite entry (does the per-pass input cache remove the repeats?). Both denominators come from the same run as their numerator, so the frame count cancels. The gate arms also count callers outside the composite, which is a constant per frame and so shifts both arms equally; the DELTA between arms is still the composite's own. Wide tolerances throughout \u2014 these pins assert the arms resolved and produced a plausible count, not a target. The _patched probes are the real gate: an unresolved Circinus arm reads zero and is indistinguishable from a method that never ran, which is how a perf scenario passes while verifying nothing.",
+  "steps": [
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "realistic_preset",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_cover",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_sheet",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_presence",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_deck_varieties",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_shadow",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "15.0"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "anchor": "125,125",
+        "zoom": "38"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circinus_available",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_skytarget_patched",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_pf_composite_patched",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_pf_skycolortemperature_patched",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_pf_twilightcolor_patched",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_blackedout_patched",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_hassky_patched",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_dimming_patched",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "TickLapse",
+      "args": {
+        "ticks": "10",
+        "steps": "120",
+        "fileNamePrefix": "perfinputs",
+        "fps": "20"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circinus_cycles",
+        "expectedValue": "300",
+        "tolerance": "120"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_skytarget_calls",
+        "expectedValue": "600",
+        "tolerance": "200"
+      },
+      "description": "CONTROL. Vanilla still calls CurSkyTarget twice per SkyManagerUpdate; the skip returns early INSIDE the postfix and must not change this. If it moves with the stage counts below, the run measured frame rate rather than the change."
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_pf_composite_calls",
+        "expectedValue": "598",
+        "tolerance": "200"
+      },
+      "description": "CONTROL. The postfix is still ENTERED every time. Entries unchanged while executions halve is the whole signature of the discarded-pass skip."
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_pf_skycolortemperature_calls",
+        "expectedValue": "298",
+        "tolerance": "90"
+      },
+      "description": "THE SKIP. Half of circ_pf_composite_calls: the outgoing weather's pass is discarded by vanilla and we no longer decorate it. Back at ~598 means the skip stopped firing."
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_pf_twilightcolor_calls",
+        "expectedValue": "297",
+        "tolerance": "90"
+      },
+      "description": "THE SKIP, second stage as corroboration."
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_blackedout_calls",
+        "expectedValue": "2664",
+        "tolerance": "900"
+      },
+      "description": "Skip AND per-pass cache together. Falls further than the skip alone could (-53% against -50%); the excess is the cache. Includes callers outside the composite, so this is not calls-per-pass."
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_hassky_calls",
+        "expectedValue": "1475",
+        "tolerance": "500"
+      },
+      "description": "Largest combined win (-69%): IsEnclosed asks it six times a pass on main, once here."
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_dimming_calls",
+        "expectedValue": "588",
+        "tolerance": "200"
+      },
+      "description": "-60%: asked twice a pass on main, once here."
+    }
+  ]
+}
