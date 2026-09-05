@@ -305,6 +305,15 @@
          drift and still pass, and the failure that produces is silent: a section never told to
          rebake, holding a shadow that has already moved. -->
     <Compile Include="../../Source/SectionDirtyMath.cs" Link="SectionDirtyMath.cs" />
+    <!-- Which lights touch which section, as a counting sort. AFTER SectionDirtyMath above, whose
+         SectionRange and SectionCount it is built on and must agree with exactly — the index files
+         an item under the sections that function names, and the query reads back the section that
+         function's arithmetic implies, so a copy of either would let the two halves of one identity
+         drift apart. The property under test is that a bucket holds what a full scan would have
+         held AND holds it in the same order, and the order half is the load-bearing one: vanilla's
+         glow fold projects after every addition, so it is not commutative and a correctly-populated
+         bucket in the wrong order changes the colour of every saturated cell. -->
+    <Compile Include="../../Source/SectionLightIndexMath.cs" Link="SectionLightIndexMath.cs" />
     <!-- How one light's occluder set is assembled, and when the static half of it can be held across
          a bake instead of rescanned (issue #188 item C). AFTER VectorLightMath and DoorApertureMath
          above, which it builds segments with and measures door leaves through. Linked rather than

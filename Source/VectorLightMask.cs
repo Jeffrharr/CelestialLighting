@@ -225,6 +225,8 @@ public static class VectorLightMask
         EmittersReaching = 0;
         Applies = 0;
         FoldCells = 0;
+        GlowGridPerLight.IndexBuildWallMs = 0.0;
+        GlowGridPerLight.IndexBuilds = 0;
         LiftSamples = 0;
         LiftPeak = 0;
         SaturatedSamples = 0;
@@ -650,17 +652,56 @@ public static class VectorLightMask
         int foldMinZ = rect.minZ - 1;
         int foldMaxZ = rect.maxZ + 1;
 
-        LightsScanned += reader.LightCount;
+        // INDEXED WHEN THE SECTION IS ONE, FULL SCAN WHEN IT IS NOT. The index is filed by section
+        // and the bucket is only the right answer for a section-aligned query, so alignment is
+        // CHECKED rather than assumed: Apply's caller builds this rect from Section.botLeft and so
+        // always is aligned, but a future caller that is not would otherwise read the bucket of
+        // whichever section its corner landed in and lose lights with no exception and no probe
+        // moving.
+        //
+        // The bucket is already in ascending index order, which is the whole reason it can be used
+        // here at all -- see FoldInto for why vanilla's fold is not commutative and SectionLight-
+        // IndexMath's header for why the order comes out free rather than sorted.
+        bool aligned = rect.minX % GlowGridPerLight.Reader.SectionSize == 0
+            && rect.minZ % GlowGridPerLight.Reader.SectionSize == 0;
 
-        for (int i = 0; i < reader.LightCount; i++)
+        if (aligned && reader.TrySectionLights(rect.minX, rect.minZ, out int[] bucket,
+                out int bucketStart, out int bucketEnd))
         {
-            if (!reader.OverlapsAt(i, foldMinX, foldMaxX, foldMinZ, foldMaxZ))
-                continue;
+            LightsScanned += bucketEnd - bucketStart;
 
-            LightsFolded++;
+            for (int b = bucketStart; b < bucketEnd; b++)
+            {
+                int i = bucket[b];
 
-            if (reader.TryLightAt(i, out GlowLight light, out UnsafeList<Color32> colors))
-                AccumulateFold(map, rect, light, colors, ReachingEntryFor(light), lifting);
+                // STILL TESTED, and it is not redundant. The index files a light under every
+                // section its reach TOUCHES, which is a bound on the section rather than on this
+                // rect -- the rect is clipped to the map and a section at the edge is smaller than
+                // the square it was filed under. The bucket removes the lights that were never
+                // close; this removes the few that are close and still miss.
+                if (!reader.OverlapsAt(i, foldMinX, foldMaxX, foldMinZ, foldMaxZ))
+                    continue;
+
+                LightsFolded++;
+
+                if (reader.TryLightAt(i, out GlowLight light, out UnsafeList<Color32> colors))
+                    AccumulateFold(map, rect, light, colors, ReachingEntryFor(light), lifting);
+            }
+        }
+        else
+        {
+            LightsScanned += reader.LightCount;
+
+            for (int i = 0; i < reader.LightCount; i++)
+            {
+                if (!reader.OverlapsAt(i, foldMinX, foldMaxX, foldMinZ, foldMaxZ))
+                    continue;
+
+                LightsFolded++;
+
+                if (reader.TryLightAt(i, out GlowLight light, out UnsafeList<Color32> colors))
+                    AccumulateFold(map, rect, light, colors, ReachingEntryFor(light), lifting);
+            }
         }
 
         for (int z = rect.minZ - 1; z <= rect.maxZ + 1; z++)
@@ -686,6 +727,26 @@ public static class VectorLightMask
         // early, because proving there is no SECOND overlapping light means walking the whole map's
         // emitter list. Paying TryLightAt's pool indexer for every one of them was the cost of
         // establishing that nothing needed correcting.
+        bool aligned = rect.minX % GlowGridPerLight.Reader.SectionSize == 0
+            && rect.minZ % GlowGridPerLight.Reader.SectionSize == 0;
+
+        if (aligned && reader.TrySectionLights(rect.minX, rect.minZ, out int[] bucket,
+                out int bucketStart, out int bucketEnd))
+        {
+            for (int b = bucketStart; b < bucketEnd && found < 2; b++)
+            {
+                int i = bucket[b];
+
+                if (!reader.OverlapsAt(i, rect.minX - 1, rect.maxX + 1, rect.minZ - 1, rect.maxZ + 1))
+                    continue;
+
+                if (reader.TryLightAt(i, out GlowLight _, out UnsafeList<Color32> _))
+                    found++;
+            }
+
+            return found;
+        }
+
         for (int i = 0; i < reader.LightCount && found < 2; i++)
         {
             if (!reader.OverlapsAt(i, rect.minX - 1, rect.maxX + 1, rect.minZ - 1, rect.maxZ + 1))

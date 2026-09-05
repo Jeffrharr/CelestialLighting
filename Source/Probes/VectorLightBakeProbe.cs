@@ -168,6 +168,12 @@ public sealed class VectorLightBakeProbe : IProbe
 
         MaskFoldCells,
 
+        // The index build's own cost and count -- the other half of the ledger the stage savings are
+        // read net of, since a Reader is built before Apply's stopwatch starts.
+        MaskIndexBuildMs,
+
+        MaskIndexBuilds,
+
         // ---- the dirty suppression ---------------------------------------------------------------
         //
         // MapMeshDirty calls declined inside a glow-blocker write, and the distinct sections those
@@ -347,6 +353,12 @@ public sealed class VectorLightBakeProbe : IProbe
 
         if (metric == Metric.MaskEmittersReaching)
             return VectorLightMask.EmittersReaching;
+
+        if (metric == Metric.MaskIndexBuildMs)
+            return (float)GlowGridPerLight.IndexBuildWallMs;
+
+        if (metric == Metric.MaskIndexBuilds)
+            return GlowGridPerLight.IndexBuilds;
 
         if (metric == Metric.MaskFoldCells)
             return VectorLightMask.FoldCells;

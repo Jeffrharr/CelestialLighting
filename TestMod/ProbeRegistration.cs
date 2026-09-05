@@ -494,6 +494,10 @@ public static class ProbeRegistration
             "vector_light_mask_applies_clocked", VectorLightBakeProbe.Metric.MaskAppliesClocked));
         ProbeRegistry.Register(new VectorLightBakeProbe(
             "vector_light_mask_fold_cells", VectorLightBakeProbe.Metric.MaskFoldCells));
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_mask_index_build_ms", VectorLightBakeProbe.Metric.MaskIndexBuildMs));
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_mask_index_builds", VectorLightBakeProbe.Metric.MaskIndexBuilds));
         // The one metric here that is a DEFECT COUNT rather than a workload figure: sections that
         // baked with an emitter reaching them dropped for want of a polygon, i.e. frames that
         // rendered with a shadow missing. Its partner says the fallback was exercised at all, which

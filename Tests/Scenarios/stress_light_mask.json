@@ -1172,6 +1172,22 @@
     {
       "type": "Probe",
       "args": {
+        "probeName": "vector_light_mask_index_build_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_index_builds",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
         "probeName": "vector_light_mask_saturated_samples",
         "expectedValue": "0",
         "tolerance": "1000000000"
