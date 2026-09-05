@@ -68,6 +68,17 @@ public static class AerosolDriftClock
     // one it just returned.
     public static float MultiplierForMap(Map map)
     {
+        // Gated here rather than at the call site, mirroring CloudCoverClock.FractionForTick and
+        // WeatherDimming.CloudOpacityFor: this is the one place every consumer actually goes through,
+        // so gating here is the only way the patch and any future probe cannot drift apart about
+        // whether the feature is on.
+        //
+        // 1 is the pre-feature value, not a disabled sentinel: AerosolDrift.ApplyMultiplier scales the
+        // site's static column by this, so 1 leaves the undrifted baseline exactly as it was before
+        // the drift existed. Returning 0 here would read as "no aerosol", which is a different sky.
+        if (!CelestialLightingFeatures.AerosolDrift)
+            return 1f;
+
         int tileId = map.Tile.tileId;
         int sampleIndex = AerosolDrift.SampleIndex(Find.TickManager.TicksAbs);
 
