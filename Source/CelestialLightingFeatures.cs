@@ -231,6 +231,26 @@ public static class CelestialLightingFeatures
     // WeatherDimmingSettings.MaxDimming slider, which at 0 is independently a full no-op.
     public static bool WeatherDimming = true;
 
+    // Feature key for AerosolDrift (see CivilTwilightPersistenceKey for why it lives here).
+    public const string AerosolDriftKey = "aerosol_drift";
+
+    // The slow wander of a site's aerosol column (AerosolDriftClock), scaling the static background
+    // load by roughly [0.65, 1.35] on a two-octave noise resampled once per in-game hour. When off,
+    // AerosolDriftClock.MultiplierForMap returns exactly 1 and the column is the undrifted site
+    // baseline — the faithful pre-feature behaviour, not "no aerosol", which would be a different and
+    // much larger change to the sky's colour.
+    //
+    // THIS FLAG EXISTS FOR MEASUREMENT AS MUCH AS FOR PLAYERS. The drift is a pure function of
+    // Find.TickManager.TicksAbs, and no harness step pins that: SetTime forces the HOUR, which is why
+    // sun_elevation comes back bit-exact across runs, while the absolute tick still depends on how
+    // many ticks elapsed during load. Aerosol feeds the colour-temperature tint and never .glow, so
+    // any cross-run comparison of daylight sky COLOUR carried a noise floor of its own — two runs of
+    // ONE build measured up to 0.041 apart on sky_overlay_warmth while sky_glow stayed bit-identical.
+    // That reads exactly like a regression, and was taken for one until an A-vs-A control reproduced
+    // it. Turning this off is what lets a scenario be a colour oracle at all; see
+    // Tests/Scenarios/sky_composite_inertness.json.
+    public static bool AerosolDrift = true;
+
     // Feature key for CloudCover (see CivilTwilightPersistenceKey for why it lives here).
     public const string CloudCoverKey = "cloud_cover";
 

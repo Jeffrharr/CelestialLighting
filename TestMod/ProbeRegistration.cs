@@ -2015,6 +2015,11 @@ public static class ProbeRegistration
         FeatureRegistry.Register(
             CelestialLightingFeatures.WeatherDimmingKey,
             enabled => CelestialLightingFeatures.WeatherDimming = enabled);
+        // Turning this OFF is what makes a daylight sky-colour reading comparable across runs at all:
+        // the drift keys on TicksAbs, which no step pins, and it feeds the colour tint but not .glow.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.AerosolDriftKey,
+            enabled => CelestialLightingFeatures.AerosolDrift = enabled);
         FeatureRegistry.Register(
             CelestialLightingFeatures.CloudCoverKey,
             enabled => CelestialLightingFeatures.CloudCover = enabled);
