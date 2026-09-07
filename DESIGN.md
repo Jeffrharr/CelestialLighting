@@ -12644,9 +12644,10 @@ light they saw before, in vanilla's order, and the correction is byte-identical.
 property the light-level reject stands on: what is dropped contributed nothing to what is kept.
 
 **Measured off, on, off, on inside one boot** — `stress_light_mask_gate.json`, four rounds, each arm
-one whole-map rebake of the same 503 emitters over the same 91 sections. Alternated rather than
-blocked because this box's run-to-run timing noise is 2.4x, and a blocked design hands whichever arm
-ran in the quiet half a win it did not earn.
+one whole-map rebake of the same 503 emitters over the same 91 sections, on the build that also
+carries the section index above. Alternated rather than blocked because this box's run-to-run
+timing noise is 2.4x, and a blocked design hands whichever arm ran in the quiet half a win it did
+not earn.
 
 | | off | on | on ÷ off |
 |---|---|---|---|
@@ -12655,15 +12656,16 @@ ran in the quiet half a win it did not earn.
 | cells admitted (`saturation_candidates`) | — | 4,849 | — |
 | cell-light pairs folded (`fold_cells`) | 91,708 | 45,188 | 0.493 |
 | lights folded (`lights_folded`) | 2,826 | 2,661 | 0.942 |
-| **`CorrectSaturation`, median ms** | **30.06** | **16.59** | **0.552** |
-| *control:* `BuildCellShadow` | 22.27 | 21.90 | *0.983* |
-| *control:* `CollectReaching` | 1.69 | 1.43 | *0.843* |
-| **`Apply`, whole, median ms** | **61.45** | **47.11** | **0.767** |
+| **`CorrectSaturation`, median ms** | **31.15** | **17.32** | **0.556** |
+| *control:* `BuildCellShadow` | 23.85 | 24.20 | *1.015* |
+| *control:* `CollectReaching` | 2.63 | 2.31 | *0.878* |
+| **`Apply`, whole, median ms** | **66.38** | **52.39** | **0.789** |
 
-The four neighbouring-pair ratios on the subject are 0.454, 0.602, 0.557 and 0.548; its ranges do
-not overlap (29.50–36.69 against 16.17–18.32) while both controls' do. The output rows are the live
-half of the identity claim — the same 4,834 cells rewritten on every arm, none declined — and the
-offline sweep is the other half.
+The four neighbouring-pair ratios on the subject are 0.531, 0.566, 0.546 and 0.536; its ranges do
+not overlap (29.22–33.08 against 15.67–17.57) while both controls' do. A run of the same file
+before the index merged read 0.552 on the subject and 0.767 on the whole, so the two changes
+compose rather than compete. The output rows are the live half of the identity claim — the same
+4,834 cells rewritten on every arm, none declined — and the offline sweep is the other half.
 
 **Why the pairs only halved when the cells fell twenty-fold.** The gate's precision is 99.7% —
 4,849 admitted for 4,834 rewritten — so what remains is genuine: the cells that saturate are the
@@ -12681,7 +12683,7 @@ boot alternate arms; the off arm walks exactly the cells it walked before the ga
 **What it leaves, stated for the next reader.** The light-level scan is untouched: a per-section
 light index is being built on another branch and the two compose — this shrinks what each admitted
 light does, that shrinks how many are asked. After this, `BuildCellShadow` is the mask's largest
-stage at 21.9 ms of 47, per reaching emitter per cell of its square. It does not have this gate's
+stage at 24 ms of 52, per reaching emitter per cell of its square. It does not have this gate's
 shape: it is the pass that DECIDES the edit rather than one that restates it, so there is no
 already-known answer to read a candidate set from.
 
