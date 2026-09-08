@@ -133,6 +133,10 @@
          answer either question. -->
     <Compile Include="../Source/Probes/AsAboveSoBelowBandStep.cs" Link="AsAboveSoBelowBandStep.cs" />
     <Compile Include="../Source/Probes/AsAboveSoBelowProbe.cs" Link="AsAboveSoBelowProbe.cs" />
+    <!-- Generates a real player-colony map, which is the only way to reach any mod that hooks map
+         GENERATION rather than reading a map: a fixture save's map predates every mod under test.
+         Not AASB2-specific, though it is what a genuinely banded map needs. -->
+    <Compile Include="../Source/Probes/SettleColonyStep.cs" Link="SettleColonyStep.cs" />
     <!-- The stress suite's palette step. A scene built from lamp defs alone can only show the four
          glow colours vanilla ships, while a real colony's colour-picker lamps hold arbitrary
          per-instance ColorInts — this is what builds the second population. Also carries the

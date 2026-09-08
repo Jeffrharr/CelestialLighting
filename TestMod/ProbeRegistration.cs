@@ -302,6 +302,9 @@ public static class ProbeRegistration
         ProbeRegistry.Register(new AsAboveSoBelowBandedProbe());
         ProbeRegistry.Register(new AsAboveSoBelowRenderingGuardProbe());
         ProbeRegistry.Register(new AsAboveSoBelowOverlayOwnedProbe());
+        ProbeRegistry.Register(new AsAboveSoBelowBandCountProbe());
+        ProbeRegistry.Register(new MapHeightProbe());
+        ProbeRegistry.Register(new MapWidthProbe());
 
         // Two cells, both on the surface band of the banded fixture: one under the roofed room the
         // scenario builds, one on open ground outside it. The roofed one is what indoor sky

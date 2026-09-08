@@ -34,6 +34,7 @@ internal static class AsAboveSoBelowProbeBinding
 
     private static bool tried;
     private static Func<Map, bool> banded;
+    private static Func<Map, int> bandCount;
     private static Func<bool> renderingOn;
     private static AccessTools.FieldRef<object, LayerSubMesh> layerMesh;
     private static AccessTools.FieldRef<Section, List<SectionLayer>> sectionLayers;
@@ -43,6 +44,9 @@ internal static class AsAboveSoBelowProbeBinding
     internal static bool Banded(Map map) => Bind() && banded != null && map != null && banded(map);
 
     internal static bool RenderingOn() => Bind() && renderingOn != null && renderingOn();
+
+    internal static int BandCount(Map map) =>
+        Bind() && bandCount != null && map != null ? bandCount(map) : 0;
 
     // Their layer instance for the section containing a cell, or null. Walked through the Section's
     // own layer list rather than kept from a patch, so the probe reads whatever is really installed.
@@ -94,6 +98,9 @@ internal static class AsAboveSoBelowProbeBinding
                 typeof(Func<bool>), rendering,
                 AccessTools.Method(guard, "On", new[] { rendering.GetType() }));
 
+            bandCount = (Func<Map, int>)Delegate.CreateDelegate(
+                typeof(Func<Map, int>), AccessTools.Method(bands, "BandCount", new[] { typeof(Map) }));
+
             layerMesh = AccessTools.FieldRefAccess<LayerSubMesh>(layer, "mesh");
             sectionLayers = AccessTools.FieldRefAccess<Section, List<SectionLayer>>("layers");
         }
@@ -126,6 +133,36 @@ public sealed class AsAboveSoBelowRenderingGuardProbe : IProbe
     public string Name => "aasb2_rendering_guard";
 
     public float Read(Map map) => AsAboveSoBelowProbeBinding.RenderingOn() ? 1f : 0f;
+}
+
+// How many bands the map has, straight off their public ABBands.BandCount.
+//
+// This is what separates a map their GENERATION banded from one banded after the fact. Only
+// ABBandMap.Setup can move it off 1, and on a colony the scenario just settled, their
+// Patch_MapGenerator_GenerateMap is the only thing that calls Setup — so a reading of 3 (their
+// default level plan: one below, one above) is their generation and nothing else.
+public sealed class AsAboveSoBelowBandCountProbe : IProbe
+{
+    public string Name => "aasb2_band_count";
+
+    public float Read(Map map) => AsAboveSoBelowProbeBinding.BandCount(map);
+}
+
+// The map's own z, so the band layout is visible as a shape rather than only as a count: a banded
+// colony is bandCount * SlotFor(width) tall while its width is untouched, which is a signature no
+// ordinary map has.
+public sealed class MapHeightProbe : IProbe
+{
+    public string Name => "map_height";
+
+    public float Read(Map map) => map?.Size.z ?? 0;
+}
+
+public sealed class MapWidthProbe : IProbe
+{
+    public string Name => "map_width";
+
+    public float Read(Map map) => map?.Size.x ?? 0;
 }
 
 public sealed class AsAboveSoBelowOverlayOwnedProbe : IProbe
