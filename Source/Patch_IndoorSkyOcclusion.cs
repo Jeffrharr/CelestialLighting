@@ -82,24 +82,71 @@ public static class Patch_IndoorSkyOcclusion
         if (map == null)
             return;
 
-        // Biomes that declare disableSkyLighting already have no sky
-        // contribution at all — vanilla zeroes the whole overlay for them — so there is nothing here
-        // to occlude, and touching it would only fight that explicit vanilla contract.
-        if (map.Biome != null && map.Biome.disableSkyLighting)
-            return;
-
-        LayerSubMesh subMesh = __instance.GetSubMesh(MatBases.LightOverlay);
-        Mesh mesh = subMesh?.mesh;
-        if (mesh == null)
+        // Somebody else is drawing the lighting overlay for this map, so vanilla's mesh — the one we
+        // are standing in the postfix of — is baked and then never drawn. Writing our alphas into it
+        // would be invisible work, and worse, it is exactly what made this subsystem look broken to a
+        // player: see AsAboveSoBelowCompat's header. That file postfixes the layer they DO draw and
+        // calls ApplyToMesh below on its mesh, so the work still happens; it happens somewhere else.
+        if (AsAboveSoBelowCompat.OwnsOverlay(map))
             return;
 
         CellRect rect = new CellRect(section.botLeft.x, section.botLeft.z, Section.Size, Section.Size);
         rect.ClipInsideMap(map);
 
+        ApplyToMesh(map, __instance.GetSubMesh(MatBases.LightOverlay), rect, section);
+    }
+
+    // The pass, over whichever lighting-overlay mesh is the one actually being drawn.
+    //
+    // TWO CALLERS, ONE DEFINITION OF WHAT WE WRITE: the postfix above for vanilla's mesh, and
+    // AsAboveSoBelowCompat for the mesh As above, So below II draws in its place on a banded map.
+    // Their mesh is baked by vanilla's own SectionLayer_LightingOverlay.Bake, so it carries the same
+    // vertex layout and the indices ApplyOcclusion computes are the indices it has.
+    //
+    // The biome gate lives HERE rather than with each caller, so the two cannot come to disagree
+    // about what "off" means the moment one of them grows a condition the other does not. The feature
+    // flag stays with the callers, and only because it is the cheapest possible early-out: it guards
+    // resolving a Section at all.
+    //
+    // Returns whether it wrote, which is what tells a caller holding a mesh whether the array needs
+    // uploading again. False is ordinary rather than an error: a vertex count that does not match the
+    // layout means something upstream reshaped the mesh, and the safe answer is to leave it alone.
+    internal static bool ApplyToMesh(Map map, LayerSubMesh subMesh, CellRect rect, Section section)
+    {
+        // Biomes that declare disableSkyLighting already have no sky
+        // contribution at all — vanilla zeroes the whole overlay for them — so there is nothing here
+        // to occlude, and touching it would only fight that explicit vanilla contract.
+        if (map.Biome != null && map.Biome.disableSkyLighting)
+            return false;
+
+        Mesh mesh = subMesh?.mesh;
+        if (mesh == null)
+            return false;
+
         Color32[] colors = mesh.colors32;
+        if (!ApplyOcclusion(map, rect, colors, section))
+            return false;
+
+        mesh.colors32 = colors;
+        return true;
+    }
+
+    // The colour-array half of the pass, split out of ApplyToMesh so the arithmetic can be read and
+    // tested without a Mesh in hand.
+    //
+    // Returns whether it wrote. False is ordinary, not an error: a vertex count that does not match
+    // the layout means something upstream changed the mesh and the safe answer is to leave it alone
+    // rather than to scribble on the wrong vertices.
+    //
+    // `section` is the batch key for the gather phase. It is a required parameter rather than a
+    // defaulted one so that omitting it is a compile error and not a silent 3x slowdown — the gather
+    // phase is worth 729.6 -> 238.9 us/call, and a caller that passed null would simply miss the
+    // batch and rebuild its window inline with nothing to say so.
+    internal static bool ApplyOcclusion(Map map, CellRect rect, Color32[] colors, Section section)
+    {
         int firstCenterInd = (rect.Width + 1) * (rect.Height + 1);
         if (colors == null || colors.Length != firstCenterInd + rect.Width * rect.Height)
-            return;
+            return false;
 
         float indoorFloor = ResolveIndoorFloor(map);
 
@@ -119,7 +166,7 @@ public static class Patch_IndoorSkyOcclusion
         float[] corners = BuildCornerOcclusion(window, rect, indoorFloor);
         WriteCorners(colors, corners);
         WriteCentres(rect, colors, firstCenterInd, corners);
-        mesh.colors32 = colors;
+        return true;
     }
 
     // The floor CapOcclusion should actually cap at, resolved ONCE per section rather than at each of the
