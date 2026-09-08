@@ -12717,6 +12717,35 @@ The four neighbouring-pair ratios on the subject read 0.700, 0.704, 0.706, 0.707
 
 **Behind `vector_light_mask_shadow_bounds`, on**, for the reason the gate's flag exists: the saving is a duration on a section regenerate, and the off arm is the only control a calling-thread stopwatch can be read against on this box.
 
+#### The shadow stage: walk the wedge's rows, not its box (`VectorLightMath.CoverageShadowRuns`, `VectorLightField.LightEntry.Runs`)
+
+The slice the box left named. The box took the shadow stage from 22 ms to 15.6 ms of a 39 ms whole-map rebake and left its walk 9% useful, for a reason the box's shape carries: the shadow behind a wall is a wedge, a wedge's bounding box is mostly the two corners the wedge does not fill, and a lamp between two walls has a fully lit floor between its two wedges that one box spans end to end.
+
+**The table.** The same predicate the box is built from — coverage under 255 AND inside vanilla's flood's reach at `BaseRadius` — read out row by row in the pass that already walks the grid to find the box: for each row of the box, the maximal runs of cells the predicate admits, as `(minDx, maxDx)` pairs behind a row-start index. The box is the runs' extent and is read out of the same pass, so `LightEntry.Shadow` still exists for the emitter-level reject the mask does before resolving a light, and the two cannot disagree. On the offline fixtures the runs hold **0.64** of the box's cells for one wall, **0.65** for the room block and **0.60** for free-standing pillars (`RunsVisitFewerCellsThanTheBox`, ceiling pinned at 0.70).
+
+**Exact for the reason the box is, and tested the same way.** A cell in no run either has coverage 255, and the stage skips it, or is unreachable, so `own` is zero and the stage subtracts nothing; walking the runs drops exactly that set. `VectorLightShadowBoundsTests` now asserts, for every grid it already bounded — random, walled, pillared, every bearing — that the runs hold exactly the cells the predicate admits and nothing else, ascending, disjoint and maximal, with `Bounds` equal to the reference box; and its section-by-section replay of the subtraction walks the runs the way `AccumulateEmitter` does and requires the whole square's sum.
+
+**The walk.** `AccumulateEmitter`'s cell body is untouched; the two loops above it became three — rows, runs within the row, cells within the run — and with the flag off a row is one synthetic run `minX..maxX`, so the box arm and the run arm drive the identical body through the identical loops and differ by two branches. Trusted under the same radius check as the box, which the `bounded` local already carries.
+
+**Measured off, on, off, on inside one boot** — `stress_light_mask_spans.json`, the bounds scenario's shape with the box on in both arms, so the ratio is runs against box and not runs against square. Same 503 emitters over the same 91 sections:
+
+| | box | runs | runs ÷ box |
+|---|---|---|---|
+| pairs subtracted (`shadow_cells_edited`) | 21,875 | 21,875 | 1.000 |
+| pairs visited (`shadow_cells_scanned`) | 242,088 | 117,467 | **0.485** |
+| emitters reaching | 3,143 | 3,143 | 1.000 |
+| saturation output (`saturated_samples` / `skipped`) | 4,834 / 0 | 4,834 / 0 | 1.000 |
+| **`BuildCellShadow`, median ms** | **15.83** | **11.11** | **0.702** |
+| *control:* `CorrectSaturation` | 15.62 | 15.69 | *1.004* |
+| *control:* `CollectReaching` | 1.20 | 1.47 | *1.224* |
+| **`Apply`, whole, median ms** | **39.58** | **35.61** | **0.899** |
+
+The four neighbouring-pair ratios on the subject read 0.696, 0.684, 0.707, 0.758, and the ranges do not overlap (15.61–16.35 against 10.68–12.39). The fourth round ran hot in every column — the collect control's 1.224 is that round's 2.76 ms against three readings at 1.21–1.66, and the saturation control, the quiet one, reads 1.004 — so the honest statement is the pair ratios, not the medians alone. The box arm's 15.83 ms sits on the previous pass's 15.57 within its own noise, which is what says the extra loop level and the two branches cost the off arm nothing measurable. Every output counter is identical on every arm.
+
+**What it leaves, and a finding.** The walk halved (0.485) while the stage fell only 30% (0.702): the stage's cost is no longer its length. A two-point fit of duration against pairs visited — the only two points there are — puts the length-independent share at roughly **6.7 ms of the runs arm's 11.1 ms**, with the walk itself at 4.4 ms; that share is per-emitter work — `TryResolveEmitter`'s dictionary read, the two clips, the row loop — paid 3,143 times per rebake, and per-row work paid for rows whose runs the section clips to nothing. **The walk is 117,467 visits for 21,875 subtractions, 19% useful**, and the 81% left is cells inside the wedge that vanilla's flood never reached, which no bake-time predicate on our own geometry can name — vanilla's flood is exactly what we do not compute. The next slice is therefore not another walk shape; it is the per-emitter cost, which the count-versus-duration split above says is now the larger half.
+
+**Behind `vector_light_mask_shadow_spans`, on**, for the reason the box's flag exists. Inert unless the box is.
+
 
 ### Vector lighting, phase 7: the coverage grid was mostly outside the light (`VectorLightMath.BuildCoverage`, `VectorLightCoverageOracle`, epic #174 phase 7)
 
