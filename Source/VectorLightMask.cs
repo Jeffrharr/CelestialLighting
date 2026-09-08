@@ -243,6 +243,7 @@ public static class VectorLightMask
     public static void ResetTelemetry()
     {
         SaturationCandidates = 0;
+        ShadowSetupTicks = 0;
         ShadowCellsScanned = 0;
         ShadowCellsEdited = 0;
         LightsScanned = 0;
@@ -574,8 +575,22 @@ public static class VectorLightMask
         {
             VectorLightField.LightEntry entry = Reaching[i];
 
+            // The per-emitter share of the stage, clocked from here to the first cell walked
+            // (AccumulateEmitter closes it), so the resolve, the radius check, the box reject and
+            // the walk's setup can be read apart from the walk itself. Two timestamps per reaching
+            // emitter, about six thousand per whole-map rebake: under 0.2 ms, and paid on every arm.
+            shadowSetupStart = System.Diagnostics.Stopwatch.GetTimestamp();
+
+            // RESOLVED ONCE PER SECTION, NOT ONCE PER FRAME, and that was measured rather than
+            // assumed: a per-frame memo of this call on the entry, keyed on the Reader, read 1.06
+            // -> 0.96 ms on the setup clock over a whole-map rebake, against an 11.4 ms stage —
+            // the dictionary read and two native indexers are a tenth of a millisecond across
+            // three thousand resolves, and the memo was retired for four fields it did not earn.
             if (!reader.TryResolveEmitter(entry.VanillaKey, out GlowLight light, out UnsafeList<Color32> colors))
+            {
+                ShadowSetupTicks += System.Diagnostics.Stopwatch.GetTimestamp() - shadowSetupStart;
                 continue;
+            }
 
             // THE BOX IS ONLY TRUSTED AT THE RADIUS IT WAS BAKED FOR. It bounds where vanilla's
             // flood can reach at the entry's BaseRadius, and the light resolved just now carries
@@ -596,6 +611,8 @@ public static class VectorLightMask
             // against the section plus the one cell of margin the accumulation grid carries.
             if (!boundedHere || ShadowReaches(entry, rect))
                 any |= AccumulateEmitter(map, rect, entry, light, colors, lifting, boundedHere);
+            else
+                ShadowSetupTicks += System.Diagnostics.Stopwatch.GetTimestamp() - shadowSetupStart;
         }
 
         // AFTER THE ACCUMULATION AND ONLY IF THERE IS SOMETHING TO CORRECT. The correction is a
@@ -1154,6 +1171,17 @@ public static class VectorLightMask
     // whatever the two positions are doing this frame. (The reach half of the box is read against
     // the vanilla light's radius in BuildCellShadow, and on the frame the two positions differ the
     // grid itself is already one bake stale — the existing, accepted, one-frame case.)
+    // Ticks of System.Diagnostics.Stopwatch spent between a reaching emitter's loop iteration
+    // starting and its first cell being walked — the resolve, the radius check, the box reject
+    // and AccumulateEmitter's setup — summed over the run, and the timestamp the open interval
+    // began at. Read by the shadow_setup_ms probe alongside ShadowWallMs, so the per-emitter and
+    // per-cell halves of the stage can be told apart on the same arm. Reset with the rest.
+    public static long ShadowSetupTicks;
+    private static long shadowSetupStart;
+
+    public static double ShadowSetupMs =>
+        ShadowSetupTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+
     private static bool ShadowReaches(VectorLightField.LightEntry entry, CellRect rect)
     {
         VectorLightMath.ShadowBounds shadow = entry.Shadow;
@@ -1232,6 +1260,10 @@ public static class VectorLightMask
         int[] spans = entry.Runs.Spans;
         int originX = entry.Cell.x;
         int firstRow = entry.Cell.z + entry.Runs.Bounds.MinDz;
+
+        // Closes the per-emitter interval BuildCellShadow opened: everything above this line is
+        // setup, everything below is the walk.
+        ShadowSetupTicks += System.Diagnostics.Stopwatch.GetTimestamp() - shadowSetupStart;
 
         for (int z = minZ; z <= maxZ; z++)
         {

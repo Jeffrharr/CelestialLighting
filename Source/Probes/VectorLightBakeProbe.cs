@@ -147,6 +147,10 @@ public sealed class VectorLightBakeProbe : IProbe
 
         MaskShadowMs,
 
+        // The per-emitter share of MaskShadowMs: resolve, radius check, box reject and walk setup,
+        // clocked per reaching emitter. Subtract it from MaskShadowMs for the walk alone.
+        MaskShadowSetupMs,
+
         MaskSaturationMs,
 
         // The size of the prize for indexing, in counts. Scanned is every entry the full-list walk
@@ -394,6 +398,9 @@ public sealed class VectorLightBakeProbe : IProbe
 
         if (metric == Metric.MaskShadowMs)
             return (float)VectorLightMask.ShadowWallMs;
+
+        if (metric == Metric.MaskShadowSetupMs)
+            return (float)VectorLightMask.ShadowSetupMs;
 
         if (metric == Metric.MaskSaturationMs)
             return (float)VectorLightMask.SaturationWallMs;

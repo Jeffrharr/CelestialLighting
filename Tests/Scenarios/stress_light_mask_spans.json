@@ -912,6 +912,14 @@
       }
     },
     {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_shadow_setup_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
       "type": "SetFeature",
       "args": {
         "featureName": "vector_light_mask_shadow_spans",
@@ -1006,6 +1014,14 @@
       "type": "Probe",
       "args": {
         "probeName": "vector_light_mask_wall_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_shadow_setup_ms",
         "expectedValue": "0",
         "tolerance": "1000000000"
       }
@@ -1110,6 +1126,14 @@
       }
     },
     {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_shadow_setup_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
       "type": "SetFeature",
       "args": {
         "featureName": "vector_light_mask_shadow_spans",
@@ -1204,6 +1228,14 @@
       "type": "Probe",
       "args": {
         "probeName": "vector_light_mask_wall_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_shadow_setup_ms",
         "expectedValue": "0",
         "tolerance": "1000000000"
       }
@@ -1308,6 +1340,14 @@
       }
     },
     {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_shadow_setup_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
       "type": "SetFeature",
       "args": {
         "featureName": "vector_light_mask_shadow_spans",
@@ -1402,6 +1442,14 @@
       "type": "Probe",
       "args": {
         "probeName": "vector_light_mask_wall_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_shadow_setup_ms",
         "expectedValue": "0",
         "tolerance": "1000000000"
       }
@@ -1506,6 +1554,14 @@
       }
     },
     {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_shadow_setup_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
       "type": "SetFeature",
       "args": {
         "featureName": "vector_light_mask_shadow_spans",
@@ -1600,6 +1656,14 @@
       "type": "Probe",
       "args": {
         "probeName": "vector_light_mask_wall_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_shadow_setup_ms",
         "expectedValue": "0",
         "tolerance": "1000000000"
       }
