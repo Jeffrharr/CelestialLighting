@@ -2046,6 +2046,15 @@ public static class ProbeRegistration
                 VectorLightRedraw.ForceRebuild();
             });
 
+        // And again for the advancing-index walk, measured the same way against the run walk.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightMaskRunIndicesKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.VectorLightMaskRunIndices = enabled;
+                VectorLightRedraw.ForceRebuild();
+            });
+
         // Two-arg, matching its shipped default of true: the control arm is only reachable by a
         // scenario asking for it, and a suite reset correctly puts the lift back on.
         FeatureRegistry.Register(

@@ -1344,6 +1344,25 @@ public static class CelestialLightingFeatures
     // alternates arms inside one boot for the reason the bounds scenario does.
     public static bool VectorLightMaskShadowSpans = true;
 
+    // Feature key for VectorLightMaskRunIndices.
+    public const string VectorLightMaskRunIndicesKey = "vector_light_mask_run_indices";
+
+    // The mask's shadow stage, on the shipped subtract-only path, advances its per-cell indices
+    // along a run instead of recomputing them: the coverage index, vanilla's local index and the
+    // accumulation index are each a base per row plus x, and the map-bounds test is one clip per
+    // emitter rather than one test per cell.
+    //
+    // WHY. Clocked, the stage is the length of its dear path — 88 ns a cell over 117,467 cells on
+    // the 500-lamp colony — and the per-emitter share is 9%. On that path every cell pays four
+    // index computations and two guards before the one native read that can say anything, and 81%
+    // of them then read black. The reads, the arithmetic and the counters are unchanged; only the
+    // addressing is. See VectorLightMask.WalkRunsAdvancing for the exactness argument per index.
+    //
+    // OFF walks the runs with the general body, exactly as before. Inert unless the box and the
+    // runs are on, and inert under the max, the aperture beam and the bent path by the same
+    // construction. See stress_light_mask_indices.json, which alternates arms inside one boot.
+    public static bool VectorLightMaskRunIndices = true;
+
     public const string VectorLightPawnShadowsKey = "vector_light_pawn_shadows";
 
     // §27 phase 4: a pawn throws a shadow away from each lamp that lights it.
