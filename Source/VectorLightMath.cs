@@ -2334,6 +2334,138 @@ public static class VectorLightMath
             minXi - radiusCells, maxXi - radiusCells, minZi - radiusCells, maxZi - radiusCells);
     }
 
+    // The cells the mask's shadow stage can subtract anything at, listed as horizontal RUNS per row
+    // rather than bounded by one box: the same predicate CoverageShadowBounds uses — coverage under
+    // 255 AND inside vanilla's flood's reach at glowRadius — read out row by row, so the walk
+    // follows the wedge behind a wall instead of the rectangle the wedge fits in.
+    //
+    // WHY A SECOND SHAPE. The box halved the stage, and on the same colony the walk it left was
+    // still only 9% useful: a wedge is a triangle and its bounding box is mostly the two corners
+    // the wedge does not fill. A lamp between two walls has two wedges on opposite sides, and one
+    // box then spans the fully lit floor between them. Runs per row skip both — a row holds only
+    // the cells that satisfy the predicate, in as many runs as the row breaks into.
+    //
+    // EXACT FOR THE SAME REASON THE BOX IS. A cell in no run either has coverage 255, and the stage
+    // skips it on the spot, or is one vanilla's flood cannot reach, so `own` is zero and the stage
+    // finds nothing to subtract. Either way it is visited and left alone; walking runs drops
+    // exactly that set. VectorLightShadowBoundsTests replays the stage's subtraction run-by-run
+    // against the whole square with VanillaGlowFlood standing in for the glow grid.
+    //
+    // LAYOUT. Rows are the box's rows, MinDz through MaxDz inclusive; RowStart[r] .. RowStart[r+1]
+    // index Spans in PAIRS (minDx, maxDx), ascending and disjoint within a row. A row the wedge
+    // misses has RowStart[r] == RowStart[r+1]. The box is the runs' extent and is handed back
+    // alongside, so the emitter-level reject the mask does before resolving a light keeps reading
+    // four ints. Built in one pass over the grid, the same pass the box took, so the bake's cost
+    // does not grow with the table.
+    public sealed class ShadowRuns
+    {
+        public readonly ShadowBounds Bounds;
+        public readonly int[] RowStart;
+        public readonly int[] Spans;
+
+        public ShadowRuns(ShadowBounds bounds, int[] rowStart, int[] spans)
+        {
+            Bounds = bounds;
+            RowStart = rowStart;
+            Spans = spans;
+        }
+
+        public bool Empty => Bounds.Empty;
+
+        // Cells in the table: what the walk visits, summed over rows. Offline diagnostics only.
+        public int CellCount()
+        {
+            int count = 0;
+
+            for (int i = 0; i + 1 < Spans.Length; i += 2)
+                count += Spans[i + 1] - Spans[i] + 1;
+
+            return count;
+        }
+
+        public static readonly ShadowRuns None =
+            new ShadowRuns(ShadowBounds.None, new int[1], new int[0]);
+    }
+
+    // Runs per row of the cells CoverageAt would answer under 255 for AND vanilla's flood at
+    // glowRadius can reach, in the offset frame CoverageAt indexes by. Same null/empty rule as
+    // CoverageShadowBounds; ShadowRuns.None when there is no shadow anywhere.
+    //
+    // ONE PASS, LEFT TO RIGHT PER ROW: a run opens at the first shadowed cell after a lit one and
+    // closes at the next lit one, so the table's spans are the maximal runs and never adjacent.
+    // The row table is trimmed to the rows that hold anything, which is what makes Bounds tight.
+    public static ShadowRuns CoverageShadowRuns(byte[] grid, int radiusCells, float glowRadius)
+    {
+        if (grid == null || grid.Length == 0 || radiusCells < 0)
+            return ShadowRuns.None;
+
+        int span = radiusCells * 2 + 1;
+
+        // Row starts for every row of the square, then trimmed to the box's rows below.
+        int[] rowStart = new int[span + 1];
+        List<int> spans = new List<int>();
+        int minXi = span;
+        int maxXi = -1;
+        int minZi = span;
+        int maxZi = -1;
+
+        for (int zi = 0; zi < span; zi++)
+        {
+            rowStart[zi] = spans.Count;
+            int open = -1;
+
+            for (int xi = 0; xi < span; xi++)
+            {
+                bool shadowed = grid[zi * span + xi] < 255
+                    && VectorLightLiftMath.VanillaCanDeliver(xi - radiusCells, zi - radiusCells, glowRadius);
+
+                if (shadowed && open < 0)
+                    open = xi;
+
+                if (!shadowed && open >= 0)
+                {
+                    spans.Add(open - radiusCells);
+                    spans.Add(xi - 1 - radiusCells);
+                    open = -1;
+                }
+
+                if (shadowed)
+                {
+                    if (xi < minXi) minXi = xi;
+                    if (xi > maxXi) maxXi = xi;
+                    if (zi < minZi) minZi = zi;
+                    if (zi > maxZi) maxZi = zi;
+                }
+            }
+
+            if (open >= 0)
+            {
+                spans.Add(open - radiusCells);
+                spans.Add(span - 1 - radiusCells);
+            }
+        }
+
+        rowStart[span] = spans.Count;
+
+        if (maxXi < 0)
+            return ShadowRuns.None;
+
+        ShadowBounds bounds = new ShadowBounds(
+            minXi - radiusCells, maxXi - radiusCells, minZi - radiusCells, maxZi - radiusCells);
+
+        int rows = maxZi - minZi + 1;
+        int[] trimmed = new int[rows + 1];
+        int base_ = rowStart[minZi];
+
+        for (int r = 0; r <= rows; r++)
+            trimmed[r] = rowStart[minZi + r] - base_;
+
+        int[] packed = new int[rowStart[maxZi + 1] - base_];
+        spans.CopyTo(base_, packed, 0, packed.Length);
+
+        return new ShadowRuns(bounds, trimmed, packed);
+    }
+
     public static byte CoverageAt(
         byte[] grid, int lightCellX, int lightCellZ, int radiusCells, int cellX, int cellZ)
     {
