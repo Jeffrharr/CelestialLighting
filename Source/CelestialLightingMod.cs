@@ -17,7 +17,15 @@ public static class CelestialLightingMod
     // classes and applies them.
     static CelestialLightingMod()
     {
-        new Harmony(HarmonyId).PatchAll();
+        Harmony harmony = new Harmony(HarmonyId);
+        harmony.PatchAll();
+
+        // Compose our lighting-overlay passes onto As above, So below II's own overlay layer, which
+        // replaces vanilla's on their banded maps. Done here, after PatchAll, because the target type
+        // only exists when their assembly is loaded and so the patch has to be applied by hand rather
+        // than through an annotated class — an annotation naming an absent type throws out of
+        // PatchAll, which does not fail one patch but every patch in this mod. No-op without them.
+        AsAboveSoBelowCompat.Install(harmony);
 
         // Tell Realistic Axial Tilt, if present, to stand its own lighting patches down — we render
         // the sky, it owns the planet's solar geometry. Done here rather than lazily because it must
