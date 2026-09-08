@@ -37,6 +37,7 @@ HOLD_TARGET = os.path.join(SCEN, "stress_light_colony_hold.json")
 MASK_TARGET = os.path.join(SCEN, "stress_light_mask.json")
 MASK_GATE_TARGET = os.path.join(SCEN, "stress_light_mask_gate.json")
 MASK_BOUNDS_TARGET = os.path.join(SCEN, "stress_light_mask_bounds.json")
+MASK_SPANS_TARGET = os.path.join(SCEN, "stress_light_mask_spans.json")
 
 # The mask's parent arm and its four population-scaled stages. Order is parent first, because that
 # is the one a build-to-build comparison is read on and the four below it are the finding.
@@ -720,12 +721,86 @@ def build_mask_bounds():
     }
 
 
+SPANS_TOGGLE = "vector_light_mask_shadow_spans"
+
+
+def build_mask_spans():
+    """The same colony, with the shadow stage walking runs per row measured against walking the box.
+
+    WHAT THIS ASKS. The box (stress_light_mask_bounds) took the shadow stage from 22 ms to 15.6 ms
+    and left its walk 9% useful: a wedge is a triangle, its bounding box is mostly the two corners
+    the wedge does not fill, and a lamp between two walls has a fully lit floor between its two
+    wedges that one box spans. The run table baked beside the box lists the same cells row by row;
+    this file reads what walking them instead of the box is worth, as the ratio of neighbouring
+    arms' stage clocks on one build, with the box ON in both arms so the ratio is runs against box
+    and not runs against square.
+
+    READ IT AS PAIRS, like the bounds scenario: shadow_cells_edited, saturated_samples and
+    saturation_skipped are OUTPUT and must read identically on every arm; shadow_cells_scanned is
+    the walk and should fall on the on arms by the offline fixtures' 0.60-0.65.
+    """
+    colony = sc.build()
+
+    steps = sc.setup_steps(colony)
+    steps += sc.palette_steps()
+    steps += sc.establish_steps()
+    steps += sc.settle_steps()
+    steps += sc.population_probes()
+
+    steps += sc.feature_steps(vector_lights=True, changed_dirty=False)
+    steps.append(sc.step("SetFeature", featureName=BOUNDS_TOGGLE, enabled="true"))
+    steps.append(sc.step("Wait", frames=SETTLE_FRAMES))
+
+    steps.append(sc.step("Probe", probeName="vector_light_mask_available",
+                         expectedValue=1, tolerance=0))
+
+    for _ in range(GATE_WARMUP):
+        steps.append(sc.step("SetFeature", featureName=INERT_TOGGLE, enabled=INERT_VALUE))
+
+    for _ in range(GATE_ROUNDS):
+        for enabled in ("false", "true"):
+            steps.append(sc.step("SetFeature", featureName=SPANS_TOGGLE, enabled=enabled))
+            steps.append(sc.step("AdvanceTicks", ticks=2))
+            steps.append(sc.step("Wait", frames=3))
+
+            for probe in BOUNDS_READS:
+                steps.append(sc.record(probe))
+
+    steps.append(sc.step("Probe", probeName="vector_light_mask_stale_polys",
+                         expectedValue=0, tolerance=0))
+
+    return {
+        "name": "stress_light_mask_spans",
+        "saveFile": "minimal_colony.rws",
+        "description": (
+            "stress_light_colony's colony -- 500 lamps in 11 colours and 9 radii -- with the "
+            "shadow stage's per-row runs (vector_light_mask_shadow_spans) measured OFF and ON, "
+            "alternately, four rounds in one boot, with the shadow box on in both arms. "
+            "\n\n"
+            "WHY IT EXISTS. The box halved the shadow stage and left its walk 9% useful, because "
+            "a wedge's bounding box is mostly the corners the wedge does not fill. The run table "
+            "baked beside the box lists the same cells row by row, and the walk follows it. This "
+            "file reads what that is worth as the ratio of neighbouring arms' stage clocks, for "
+            "the reason the bounds scenario does: the effect is smaller than the run-to-run noise. "
+            "\n\n"
+            "READ IT AS PAIRS. shadow_cells_edited, saturated_samples and saturation_skipped are "
+            "OUTPUT and must read the same on every arm; shadow_cells_scanned is the walk and "
+            "should fall on the on arms. "
+            "\n\n"
+            "Every duration here is RECORDED, not pinned. What is pinned is the scene and the one "
+            "defect counter: 503 emitters, the mask available, stale polys at zero."
+        ),
+        "steps": steps,
+    }
+
+
 def main():
     write(build(), TARGET)
     write(build_hold(), HOLD_TARGET)
     write(build_mask(), MASK_TARGET)
     write(build_mask_gate(), MASK_GATE_TARGET)
     write(build_mask_bounds(), MASK_BOUNDS_TARGET)
+    write(build_mask_spans(), MASK_SPANS_TARGET)
 
 
 if __name__ == "__main__":
