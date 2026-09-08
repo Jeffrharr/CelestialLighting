@@ -39,6 +39,10 @@ internal sealed class VectorLightLayout
             blocked[z * Size + x] = false;
     }
 
+    // For VanillaGlowFlood, which wants the same edifices the silhouette was cut from. Outside
+    // the layout is open ground, matching Segments().
+    public bool Blocked(int x, int z) => Inside(x, z) && blocked[z * Size + x];
+
     public VectorLightMath.Segment[] Segments() =>
         VectorLightMath.SilhouetteSegments(blocked, Size, Size, 0, 0);
 

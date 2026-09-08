@@ -2256,6 +2256,84 @@ public static class VectorLightMath
     // "wholly shadowed", and a caller that reached here with a non-zero glow would darken a cell the
     // emitter never lit. Erring towards subtracting nothing keeps a bug in this lookup from removing
     // somebody else's light.
+    // The smallest box, in cell offsets from the light, holding every cell the mask's shadow stage
+    // can subtract anything at: coverage under 255 AND inside the region vanilla's flood can
+    // deliver to. Empty when there is none, said as Min > Max rather than as a flag somebody could
+    // forget to read.
+    //
+    // WHY BOTH CONDITIONS, AND WHY THE SECOND IS THE ONE THAT MATTERS. The stage subtracts
+    // `own * (255 - coverage) / 255` per cell, where `own` is what vanilla delivered; a cell with
+    // coverage 255 or `own` zero contributes nothing. Coverage alone bounds nothing useful: the
+    // grid marks every corner of the square outside the disc as fully dark, and an inscribed 48-gon
+    // reads its rim as partly lit, so the box of cells under 255 is the whole square for every
+    // emitter, walls or not — the first cut of this measured exactly that. What vanilla never lit
+    // it never lit for any wall layout, and VectorLightLiftMath.VanillaCanDeliver says where that
+    // is from the flood's own integers. The wedge behind a wall is what is left.
+    //
+    // EXACT BY DEFINITION, NOT BY ARGUMENT. A cell outside the box either has coverage 255, which
+    // the stage skips on the spot, or is one vanilla's flood cannot reach, so `own` is zero and the
+    // stage finds nothing to subtract. Either way the cell was visited and left alone; clipping the
+    // walk to the box drops exactly that set. Cells outside the grid answer 255 too (CoverageAt's
+    // rule), so the box bounds the grid's shadow and the square's alike. VectorLightShadowBoundsTests
+    // walks the box against the whole square with VanillaGlowFlood standing in for the glow grid.
+    public readonly struct ShadowBounds
+    {
+        public readonly int MinDx;
+        public readonly int MaxDx;
+        public readonly int MinDz;
+        public readonly int MaxDz;
+
+        public ShadowBounds(int minDx, int maxDx, int minDz, int maxDz)
+        {
+            MinDx = minDx;
+            MaxDx = maxDx;
+            MinDz = minDz;
+            MaxDz = maxDz;
+        }
+
+        public bool Empty => MinDx > MaxDx || MinDz > MaxDz;
+
+        public static ShadowBounds None => new ShadowBounds(1, 0, 1, 0);
+    }
+
+    // Bounds of the cells CoverageAt would answer under 255 for that vanilla's flood at glowRadius
+    // can reach, in the offset frame CoverageAt indexes by. Same null/empty rule as CoverageAt: a
+    // grid it would answer 255 everywhere for has no shadow anywhere.
+    public static ShadowBounds CoverageShadowBounds(byte[] grid, int radiusCells, float glowRadius)
+    {
+        if (grid == null || grid.Length == 0 || radiusCells < 0)
+            return ShadowBounds.None;
+
+        int span = radiusCells * 2 + 1;
+        int minXi = span;
+        int maxXi = -1;
+        int minZi = span;
+        int maxZi = -1;
+
+        for (int zi = 0; zi < span; zi++)
+        {
+            for (int xi = 0; xi < span; xi++)
+            {
+                bool shadowed = grid[zi * span + xi] < 255
+                    && VectorLightLiftMath.VanillaCanDeliver(xi - radiusCells, zi - radiusCells, glowRadius);
+
+                if (shadowed)
+                {
+                    if (xi < minXi) minXi = xi;
+                    if (xi > maxXi) maxXi = xi;
+                    if (zi < minZi) minZi = zi;
+                    if (zi > maxZi) maxZi = zi;
+                }
+            }
+        }
+
+        if (maxXi < 0)
+            return ShadowBounds.None;
+
+        return new ShadowBounds(
+            minXi - radiusCells, maxXi - radiusCells, minZi - radiusCells, maxZi - radiusCells);
+    }
+
     public static byte CoverageAt(
         byte[] grid, int lightCellX, int lightCellZ, int radiusCells, int cellX, int cellZ)
     {

@@ -95,6 +95,37 @@ public static class VectorLightLiftMath
     // the closed form the offline tests check the lift against, and writing it down here is what
     // makes "the two models agree on a clear sightline" a statement with a residue attached rather
     // than an assurance.
+    // Whether vanilla's flood can put ANY light at this offset, from the job's own integers.
+    //
+    // THE RULE, FROM ComputeGlowGridsJob.Flood. A neighbour is pushed only if the popped cell's
+    // intDist plus the step (100 cardinal, 141 diagonal) is at most RoundToInt(glowRadius * 100),
+    // and the light's own cell starts at 100. So every lit cell has a flood path whose cost fits
+    // that budget — and the cheapest path to (dx, dz) on an eight-connected grid with 141 < 200 is
+    // the octile one: shorter diagonals then the remaining cardinals. A blocker can only lengthen a
+    // path, never shorten it, so a cell the octile cost already overruns is one no flood, blocked
+    // or open, ever writes.
+    //
+    // WHY THIS IS WORTH STATING EXACTLY. The mask's shadow stage walks each emitter's square and
+    // subtracts vanilla's colour where our coverage is under 255, and the coverage grid marks the
+    // square's corners fully dark — they are outside our polygon. Vanilla never lit them, so the
+    // subtraction finds zero there after paying for the lookup; on the 500-lamp colony that was
+    // most of the stage. This predicate is what lets a bake say where vanilla could have delivered,
+    // so the walk can be clipped to it, and VectorLightShadowBoundsTests holds it against
+    // VanillaGlowFlood rather than against the paragraph above.
+    //
+    // Integers throughout and the rounding is Mathf.RoundToInt's — Math.Round on the float
+    // product, banker's — so this reads the same budget the job does.
+    public static bool VanillaCanDeliver(int dx, int dz, float glowRadius)
+    {
+        int ax = Math.Abs(dx);
+        int az = Math.Abs(dz);
+        int longer = Math.Max(ax, az);
+        int shorter = Math.Min(ax, az);
+        int least = SeedStepCost + CardinalStepCost * (longer - shorter) + DiagonalStepCost * shorter;
+
+        return least <= (int)Math.Round(glowRadius * 100f);
+    }
+
     public static float OctileFloodDistance(float dx, float dz)
     {
         float ax = Math.Abs(dx);
