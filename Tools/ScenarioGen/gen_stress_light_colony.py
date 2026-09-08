@@ -36,6 +36,7 @@ TARGET = os.path.join(SCEN, "stress_light_colony.json")
 HOLD_TARGET = os.path.join(SCEN, "stress_light_colony_hold.json")
 MASK_TARGET = os.path.join(SCEN, "stress_light_mask.json")
 MASK_GATE_TARGET = os.path.join(SCEN, "stress_light_mask_gate.json")
+MASK_BOUNDS_TARGET = os.path.join(SCEN, "stress_light_mask_bounds.json")
 
 # The mask's parent arm and its four population-scaled stages. Order is parent first, because that
 # is the one a build-to-build comparison is read on and the four below it are the finding.
@@ -624,11 +625,107 @@ def build_mask_gate():
     }
 
 
+# The shadow stage's per-emitter box, measured the same way as the gate: alternating arms in one
+# boot, one whole-map rebake each.
+BOUNDS_TOGGLE = "vector_light_mask_shadow_bounds"
+
+# What one arm of the bounds scenario reads. shadow_cells_scanned is the stage's work and should
+# collapse on the on arms; shadow_cells_edited is its OUTPUT and must read identically on every arm.
+# The saturation pass's output counters ride along as a second identity check, since the box
+# changes which emitters the reaching list resolves and the fold reads that list.
+BOUNDS_READS = (
+    "vector_light_mask_applies_clocked",
+    "vector_light_mask_emitters_reaching",
+    "vector_light_mask_shadow_cells_scanned",
+    "vector_light_mask_shadow_cells_edited",
+    "vector_light_mask_saturated_samples",
+    "vector_light_mask_saturation_skipped",
+    "vector_light_mask_shadow_ms",
+    "vector_light_mask_saturation_ms",
+    "vector_light_mask_collect_ms",
+    "vector_light_mask_wall_ms",
+)
+
+
+def build_mask_bounds():
+    """The same colony, with the shadow stage's per-emitter box measured off and on, alternately.
+
+    WHAT THIS ASKS. After the saturation gate, BuildCellShadow was the mask's largest stage at 24 ms
+    of a 52 ms whole-map rebake, walking every reaching emitter's whole square per section and
+    doing nothing at most of it: the corners of a square are outside vanilla's disc and the wedge
+    behind a wall is a small part of the rest. The box baked with each coverage grid says where the
+    stage could subtract anything; this file reads what clipping the walk to it is worth, as the
+    ratio of neighbouring arms' stage clocks on one build, for the same reason stress_light_mask_gate
+    alternates rather than blocks.
+
+    WHY THE COUNTS ARE READ TOO. shadow_cells_scanned is the pairs the walk visited and is what the
+    box is measured by; shadow_cells_edited is the pairs it subtracted at, the stage's OUTPUT, and
+    must read identically on every arm -- that is the live half of the box's identity claim, the
+    offline half being VectorLightShadowBoundsTests. saturated_samples and saturation_skipped are
+    the pass downstream of it and must not move either.
+    """
+    colony = sc.build()
+
+    steps = sc.setup_steps(colony)
+    steps += sc.palette_steps()
+    steps += sc.establish_steps()
+    steps += sc.settle_steps()
+    steps += sc.population_probes()
+
+    steps += sc.feature_steps(vector_lights=True, changed_dirty=False)
+    steps.append(sc.step("Wait", frames=SETTLE_FRAMES))
+
+    steps.append(sc.step("Probe", probeName="vector_light_mask_available",
+                         expectedValue=1, tolerance=0))
+
+    for _ in range(GATE_WARMUP):
+        steps.append(sc.step("SetFeature", featureName=INERT_TOGGLE, enabled=INERT_VALUE))
+
+    for _ in range(GATE_ROUNDS):
+        for enabled in ("false", "true"):
+            steps.append(sc.step("SetFeature", featureName=BOUNDS_TOGGLE, enabled=enabled))
+            steps.append(sc.step("AdvanceTicks", ticks=2))
+            steps.append(sc.step("Wait", frames=3))
+
+            for probe in BOUNDS_READS:
+                steps.append(sc.record(probe))
+
+    steps.append(sc.step("Probe", probeName="vector_light_mask_stale_polys",
+                         expectedValue=0, tolerance=0))
+
+    return {
+        "name": "stress_light_mask_bounds",
+        "saveFile": "minimal_colony.rws",
+        "description": (
+            "stress_light_colony's colony -- 500 lamps in 11 colours and 9 radii -- with the "
+            "shadow stage's per-emitter box (vector_light_mask_shadow_bounds) measured OFF and ON, "
+            "alternately, four rounds in one boot. "
+            "\n\n"
+            "WHY IT EXISTS. After the saturation gate, BuildCellShadow was the mask's largest stage "
+            "at 24 ms of a 52 ms whole-map rebake, walking each reaching emitter's whole square to "
+            "find the few cells it subtracts at. The box baked with each coverage grid bounds those "
+            "cells -- coverage under 255 and inside vanilla's own reach -- and the walk is clipped "
+            "to it. This file reads what that is worth as the ratio of neighbouring arms' stage "
+            "clocks, because this box's run-to-run timing noise is larger than the effect measured "
+            "build-against-build. "
+            "\n\n"
+            "READ IT AS PAIRS. shadow_cells_edited, saturated_samples and saturation_skipped are "
+            "OUTPUT and must read the same on every arm; shadow_cells_scanned is the stage's work "
+            "and should collapse on the on arms. "
+            "\n\n"
+            "Every duration here is RECORDED, not pinned. What is pinned is the scene and the one "
+            "defect counter: 503 emitters, the mask available, stale polys at zero."
+        ),
+        "steps": steps,
+    }
+
+
 def main():
     write(build(), TARGET)
     write(build_hold(), HOLD_TARGET)
     write(build_mask(), MASK_TARGET)
     write(build_mask_gate(), MASK_GATE_TARGET)
+    write(build_mask_bounds(), MASK_BOUNDS_TARGET)
 
 
 if __name__ == "__main__":
