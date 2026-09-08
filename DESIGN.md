@@ -12688,6 +12688,36 @@ shape: it is the pass that DECIDES the edit rather than one that restates it, so
 already-known answer to read a candidate set from.
 
 
+#### The shadow stage: walk the wedge, not the square (`VectorLightMath.CoverageShadowBounds`, `VectorLightLiftMath.VanillaCanDeliver`)
+
+The gate above left `BuildCellShadow` the mask's largest stage — 22 ms of a 45 ms whole-map rebake on the 500-lamp colony — and said it did not have the gate's shape, because this pass decides the edit rather than restating one. That is true of the *edit* and false of the *walk*. The stage visits every cell of each reaching emitter's square that lies in the section and subtracts `own × (255 − coverage) / 255`, where `own` is what vanilla delivered; with the max off — the shipped configuration, since the shader carries it — a cell with coverage 255 is skipped after one lookup and a cell vanilla never lit is read from the glow grid and found black. Counters added for this read **346,056 (emitter, cell) pairs visited for 21,875 subtracted: 6.3% of the walk did anything.**
+
+**The first cut of the box was worthless, and the reason is the finding.** The obvious box is "cells with coverage under 255", baked with the grid. It is the whole square for every emitter, walls or not: the coverage grid marks the corners of the square outside the disc as fully dark, and an inscribed 48-gon reads its rim as partly lit. On the open-ground fixture 248 of 841 cells are under 255 and every one of them is outside vanilla's reach. So coverage bounds nothing useful; what vanilla never lit it never lit for any wall layout, and that is the bound that matters.
+
+**Vanilla's reach is an integer, from the job's own code.** `ComputeGlowGridsJob.Flood` pushes a neighbour only if the popped cell's `intDist` plus the step (100 cardinal, 141 diagonal) is at most `RoundToInt(glowRadius × 100)`, and the light's own cell starts at 100. The cheapest path to `(dx, dz)` on that grid is the octile one, and a blocker can only lengthen a path, so a cell whose octile cost already overruns the budget is one no flood, blocked or open, ever writes. `VectorLightLiftMath.VanillaCanDeliver` is that inequality; `VectorLightShadowBoundsTests` holds it against `VanillaGlowFlood` — the transcribed oracle, sharing no code with the predicate — over random walls and radii, and at the rounding edge by hand (5.995 admits a five-cell run, 5.994 does not). The box is then **cells with coverage under 255 AND inside vanilla's reach at `BaseRadius`**, and the open-ground lamp's box is empty: the mask does not walk it at all.
+
+**Exact by definition.** A cell outside the box is fully lit, which the loop skips on the spot, or unreachable, so `own` is zero and the subtraction finds nothing. Either way it was visited and left alone, and clipping the walk drops exactly that set. The replay test walks each section tile twice on the polygon fixture's scenes, over the square and over the box, with the flood's colour as `own`, and the accumulations agree with every cell's position folded in. Two honesty points the code carries: the box is trusted only when the resolved light's `glowRadius` equals the entry's `BaseRadius` — the frame a lamp is resized they can differ, and that emitter walks its whole square for one frame — and the clip is on the shipped subtract-only path only, since the max, the aperture beam and the bent path all do work on fully lit cells.
+
+**Measured off, on, off, on inside one boot** — `stress_light_mask_bounds.json`, the gate scenario's shape and the same 503 emitters over the same 91 sections:
+
+| | off | on | on ÷ off |
+|---|---|---|---|
+| pairs subtracted (`shadow_cells_edited`) | 21,875 | 21,875 | 1.000 |
+| pairs visited (`shadow_cells_scanned`) | 346,056 | 242,088 | 0.700 |
+| emitters reaching | 3,143 | 3,143 | 1.000 |
+| saturation output (`saturated_samples` / `skipped`) | 4,834 / 0 | 4,834 / 0 | 1.000 |
+| **`BuildCellShadow`, median ms** | **22.09** | **15.57** | **0.705** |
+| *control:* `CorrectSaturation` | 15.38 | 15.56 | *1.012* |
+| *control:* `CollectReaching` | 1.18 | 1.20 | *1.011* |
+| **`Apply`, whole, median ms** | **45.46** | **39.28** | **0.864** |
+
+The four neighbouring-pair ratios on the subject read 0.700, 0.704, 0.706, 0.707, and the ranges do not overlap (21.98–22.22 against 15.48–15.65); the duration ratio matches the count ratio to half a percent, which is what a walk whose cost is its length should read. Every output counter is identical on every arm — that is the live half of the identity claim, the offline replay the other.
+
+**What it leaves, stated for the next reader.** The walk fell 30% while only 6.3% of it was ever useful, so **the box is a loose superset: 242,088 visited for 21,875 subtracted, still 9% useful.** An axis-aligned box around the wedge behind a wall is mostly not the wedge, and the wall's own cells and the far side of the lamp are inside vanilla's octile disc whether or not its flood got round to them. The next slice has a known shape: per-row spans of the same predicate, baked in the same pass, so the walk follows the wedge's rows rather than its bounding box. It was not taken here because the box already halves the stage's share and the span table wants its own arm to show it earns the extra bake.
+
+**Behind `vector_light_mask_shadow_bounds`, on**, for the reason the gate's flag exists: the saving is a duration on a section regenerate, and the off arm is the only control a calling-thread stopwatch can be read against on this box.
+
+
 ### Vector lighting, phase 7: the coverage grid was mostly outside the light (`VectorLightMath.BuildCoverage`, `VectorLightCoverageOracle`, epic #174 phase 7)
 
 Phase 6 left the coverage grid as the largest term inside a bake — **50.7% culled, against `Build`'s
