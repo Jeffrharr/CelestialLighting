@@ -38,6 +38,7 @@ MASK_TARGET = os.path.join(SCEN, "stress_light_mask.json")
 MASK_GATE_TARGET = os.path.join(SCEN, "stress_light_mask_gate.json")
 MASK_BOUNDS_TARGET = os.path.join(SCEN, "stress_light_mask_bounds.json")
 MASK_SPANS_TARGET = os.path.join(SCEN, "stress_light_mask_spans.json")
+MASK_INDICES_TARGET = os.path.join(SCEN, "stress_light_mask_indices.json")
 
 # The mask's parent arm and its four population-scaled stages. Order is parent first, because that
 # is the one a build-to-build comparison is read on and the four below it are the finding.
@@ -798,6 +799,80 @@ def build_mask_spans():
     }
 
 
+INDICES_TOGGLE = "vector_light_mask_run_indices"
+
+
+def build_mask_indices():
+    """The same colony, with the shadow stage's advancing-index walk measured against the run walk.
+
+    WHAT THIS ASKS. Clocked apart from its setup (shadow_setup_ms), the shadow stage is the length
+    of its dear path: 88 ns a cell over 117,467 cells, with the per-emitter share at 9%. On the
+    shipped subtract-only path every cell in a run pays four index computations and two guards
+    before the one native read that can say anything. The advancing walk turns each index into a
+    base per row plus x and each guard into a clip per row or per emitter. This file reads what
+    that is worth, as the ratio of neighbouring arms' stage clocks, with the box and the runs on
+    in both arms so the ratio is addressing against addressing and nothing else.
+
+    READ IT AS PAIRS. Every counter must read identically on every arm: the walk visits the same
+    cells and subtracts at the same ones, and shadow_cells_scanned moving would mean a run left
+    the map (see WalkRunsAdvancing's header). shadow_setup_ms is a control here -- the walk starts
+    after it closes.
+    """
+    colony = sc.build()
+
+    steps = sc.setup_steps(colony)
+    steps += sc.palette_steps()
+    steps += sc.establish_steps()
+    steps += sc.settle_steps()
+    steps += sc.population_probes()
+
+    steps += sc.feature_steps(vector_lights=True, changed_dirty=False)
+    steps.append(sc.step("SetFeature", featureName=BOUNDS_TOGGLE, enabled="true"))
+    steps.append(sc.step("SetFeature", featureName=SPANS_TOGGLE, enabled="true"))
+    steps.append(sc.step("Wait", frames=SETTLE_FRAMES))
+
+    steps.append(sc.step("Probe", probeName="vector_light_mask_available",
+                         expectedValue=1, tolerance=0))
+
+    for _ in range(GATE_WARMUP):
+        steps.append(sc.step("SetFeature", featureName=INERT_TOGGLE, enabled=INERT_VALUE))
+
+    for _ in range(GATE_ROUNDS):
+        for enabled in ("false", "true"):
+            steps.append(sc.step("SetFeature", featureName=INDICES_TOGGLE, enabled=enabled))
+            steps.append(sc.step("AdvanceTicks", ticks=2))
+            steps.append(sc.step("Wait", frames=3))
+
+            for probe in BOUNDS_READS:
+                steps.append(sc.record(probe))
+
+    steps.append(sc.step("Probe", probeName="vector_light_mask_stale_polys",
+                         expectedValue=0, tolerance=0))
+
+    return {
+        "name": "stress_light_mask_indices",
+        "saveFile": "minimal_colony.rws",
+        "description": (
+            "stress_light_colony's colony -- 500 lamps in 11 colours and 9 radii -- with the "
+            "shadow stage's advancing-index walk (vector_light_mask_run_indices) measured OFF and "
+            "ON, alternately, four rounds in one boot, with the box and the runs on in both arms. "
+            "\n\n"
+            "WHY IT EXISTS. Clocked apart from its per-emitter setup, the shadow stage is the "
+            "length of its dear path -- 88 ns a cell -- and every cell in a run pays four index "
+            "computations and two guards before the one read that can say anything. The advancing "
+            "walk makes each index a base per row plus x. This file reads what that is worth as "
+            "the ratio of neighbouring arms' stage clocks, for the reason the bounds scenario does. "
+            "\n\n"
+            "READ IT AS PAIRS. Every counter must read the same on every arm; shadow_setup_ms is a "
+            "control, since the walk starts after it closes. "
+            "\n\n"
+            "Every duration here is RECORDED, not pinned. What is pinned is the scene and the one "
+            "defect counter: 503 emitters, the mask available, stale polys at zero."
+        ),
+        "steps": steps,
+    }
+
+
 def main():
     write(build(), TARGET)
     write(build_hold(), HOLD_TARGET)
@@ -805,6 +880,7 @@ def main():
     write(build_mask_gate(), MASK_GATE_TARGET)
     write(build_mask_bounds(), MASK_BOUNDS_TARGET)
     write(build_mask_spans(), MASK_SPANS_TARGET)
+    write(build_mask_indices(), MASK_INDICES_TARGET)
 
 
 if __name__ == "__main__":
