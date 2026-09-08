@@ -2033,6 +2033,17 @@ public static class ProbeRegistration
                 VectorLightRedraw.ForceRebuild();
             });
 
+        // Same shape as the box's toggle above, and for the same reason: the runs save a duration on
+        // section regenerate that only the calling-thread stopwatch can see, so the scenario
+        // alternates the two walks inside one boot and reads the stage clock's ratio.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightMaskShadowSpansKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.VectorLightMaskShadowSpans = enabled;
+                VectorLightRedraw.ForceRebuild();
+            });
+
         // Two-arg, matching its shipped default of true: the control arm is only reachable by a
         // scenario asking for it, and a suite reset correctly puts the lift back on.
         FeatureRegistry.Register(
