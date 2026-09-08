@@ -476,6 +476,8 @@ public static class ProbeRegistration
         ProbeRegistry.Register(new VectorLightBakeProbe(
             "vector_light_mask_shadow_ms", VectorLightBakeProbe.Metric.MaskShadowMs));
         ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_mask_shadow_setup_ms", VectorLightBakeProbe.Metric.MaskShadowSetupMs));
+        ProbeRegistry.Register(new VectorLightBakeProbe(
             "vector_light_mask_saturation_ms", VectorLightBakeProbe.Metric.MaskSaturationMs));
 
         // Scanned against used, which is what says whether indexing the light list is worth

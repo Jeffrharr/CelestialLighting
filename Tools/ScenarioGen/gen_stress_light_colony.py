@@ -645,6 +645,10 @@ BOUNDS_READS = (
     "vector_light_mask_saturation_ms",
     "vector_light_mask_collect_ms",
     "vector_light_mask_wall_ms",
+    # The shadow stage's per-emitter share -- resolve, radius check, box reject, walk setup --
+    # so the stage's clock can be read as setup plus walk. Measured 1.06 ms of an 11.45 ms stage
+    # on this colony (9%), which is what retired the per-emitter memo; see DESIGN.md.
+    "vector_light_mask_shadow_setup_ms",
 )
 
 
