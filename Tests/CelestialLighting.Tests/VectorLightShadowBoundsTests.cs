@@ -197,6 +197,39 @@ public class VectorLightShadowBoundsTests
         AssertScene(VectorLightLayout.RoomBlock, 20.5f, 20.5f, 14f);
     }
 
+    // What the runs buy over the box, on the fixtures, as a number rather than a claim: the cells
+    // the run walk visits against the cells the box walk visits for the same emitter. The live
+    // scenario reads the same ratio as shadow_cells_scanned; this pins the offline shape so a bake
+    // change that quietly widened the runs into the box again fails here first.
+    // Measured 0.643, 0.652 and 0.603 when written; the ceiling is set a few points above each so
+    // a sampler change that nudges a run by a cell does not fail the fixture, while widening back
+    // to the box (1.0) or anywhere near it does.
+    [TestCase("single wall", 0.7f)]
+    [TestCase("room block", 0.7f)]
+    [TestCase("pillars", 0.7f)]
+    public void RunsVisitFewerCellsThanTheBox(string scene, float atMost)
+    {
+        VectorLightLayout layout = new VectorLightLayout();
+
+        if (scene == "single wall") layout.Wall(20, 12, 20, 28);
+        if (scene == "room block") VectorLightLayout.RoomBlock(layout);
+        if (scene == "pillars") layout.Pillars(3);
+
+        const float radius = 14f;
+        VectorLightMath.LightPolygon polygon = VectorLightMath.Build(14.5f, 20.5f, radius, layout.Segments(), Rays);
+        int radiusCells = (int)Math.Ceiling(radius);
+        byte[] grid = VectorLightMath.BuildCoverage(polygon, 14, 20, radiusCells, Samples);
+        VectorLightMath.ShadowRuns runs = VectorLightMath.CoverageShadowRuns(grid, radiusCells, radius);
+
+        Assert.That(runs.Empty, Is.False, "the scene has shadow");
+
+        int boxCells = (runs.Bounds.MaxDx - runs.Bounds.MinDx + 1) * (runs.Bounds.MaxDz - runs.Bounds.MinDz + 1);
+        int runCells = runs.CellCount();
+
+        TestContext.WriteLine($"{scene}: box {boxCells} cells, runs {runCells} cells, ratio {(double)runCells / boxCells:F3}");
+        Assert.That((double)runCells / boxCells, Is.LessThanOrEqualTo(atMost), $"{scene}: runs {runCells} of box {boxCells}");
+    }
+
     [Test]
     public void FreeStandingPillarsAreBoundedExactly()
     {
@@ -304,6 +337,60 @@ public class VectorLightShadowBoundsTests
 
         if (anyShadow)
             Assert.That(minDx && maxDx && minDz && maxDz, Is.True, $"box not tight, {what}");
+
+        AssertRunsExact(grid, radiusCells, glowRadius, box, what);
+    }
+
+    // The run table holds EXACTLY the cells the predicate admits — every shadowed cell is inside
+    // some run of its row, every cell inside a run is shadowed — with the runs ascending, disjoint
+    // and maximal, and its Bounds equal to the box the reference function computes. This is the
+    // whole of the runs' identity claim: the mask walks the runs and nothing else, so a cell the
+    // table dropped is a subtraction the mask never makes.
+    private static void AssertRunsExact(
+        byte[] grid, int radiusCells, float glowRadius, VectorLightMath.ShadowBounds box, string what)
+    {
+        VectorLightMath.ShadowRuns runs = VectorLightMath.CoverageShadowRuns(grid, radiusCells, glowRadius);
+
+        Assert.That(runs.Empty, Is.EqualTo(box.Empty), $"runs emptiness, {what}");
+        Assert.That(runs.Bounds.MinDx, Is.EqualTo(box.MinDx), $"runs MinDx, {what}");
+        Assert.That(runs.Bounds.MaxDx, Is.EqualTo(box.MaxDx), $"runs MaxDx, {what}");
+        Assert.That(runs.Bounds.MinDz, Is.EqualTo(box.MinDz), $"runs MinDz, {what}");
+        Assert.That(runs.Bounds.MaxDz, Is.EqualTo(box.MaxDz), $"runs MaxDz, {what}");
+
+        if (runs.Empty)
+            return;
+
+        int rows = box.MaxDz - box.MinDz + 1;
+
+        Assert.That(runs.RowStart.Length, Is.EqualTo(rows + 1), $"row table length, {what}");
+        Assert.That(runs.RowStart[rows], Is.EqualTo(runs.Spans.Length), $"row table end, {what}");
+
+        int span = radiusCells * 2 + 1;
+
+        for (int row = 0; row < rows; row++)
+        {
+            int dz = box.MinDz + row;
+            int previousEnd = int.MinValue / 2;
+
+            for (int k = runs.RowStart[row]; k < runs.RowStart[row + 1]; k += 2)
+            {
+                Assert.That(runs.Spans[k], Is.LessThanOrEqualTo(runs.Spans[k + 1]), $"run order, {what}");
+                Assert.That(runs.Spans[k], Is.GreaterThan(previousEnd + 1), $"runs adjacent or overlapping, {what}");
+                previousEnd = runs.Spans[k + 1];
+            }
+
+            for (int dx = -radiusCells; dx <= radiusCells; dx++)
+            {
+                bool dark = grid[(dz + radiusCells) * span + dx + radiusCells] < 255
+                    && VectorLightLiftMath.VanillaCanDeliver(dx, dz, glowRadius);
+                bool inRun = false;
+
+                for (int k = runs.RowStart[row]; k < runs.RowStart[row + 1]; k += 2)
+                    inRun |= dx >= runs.Spans[k] && dx <= runs.Spans[k + 1];
+
+                Assert.That(inRun, Is.EqualTo(dark), $"cell ({dx}, {dz}) in run, {what}");
+            }
+        }
     }
 
     // The shadow stage's arithmetic, over every 17x17 section tile of a 3x3 block around the lamp
@@ -356,6 +443,35 @@ public class VectorLightShadowBoundsTests
                 }
 
                 Assert.That(clipped, Is.EqualTo(full), $"section ({sx}, {sz})");
+
+                // The runs walk, driven exactly as VectorLightMask.AccumulateEmitter drives it: rows
+                // from the box clip, each run clipped to the section's x range.
+                long byRuns = 0;
+
+                if (reaches)
+                {
+                    VectorLightMath.ShadowRuns runs = VectorLightMath.CoverageShadowRuns(grid, radiusCells, glowRadius);
+                    int runMinX = Math.Max(minX, cellX + box.MinDx);
+                    int runMaxX = Math.Min(maxX, cellX + box.MaxDx);
+                    int runMinZ = Math.Max(minZ, cellZ + box.MinDz);
+                    int runMaxZ = Math.Min(maxZ, cellZ + box.MaxDz);
+                    int firstRow = cellZ + runs.Bounds.MinDz;
+
+                    for (int z = runMinZ; z <= runMaxZ; z++)
+                    {
+                        int row = z - firstRow;
+
+                        for (int k = runs.RowStart[row]; k < runs.RowStart[row + 1]; k += 2)
+                        {
+                            byRuns += Walk(
+                                grid, cellX, cellZ, radiusCells, flood,
+                                Math.Max(runMinX, cellX + runs.Spans[k]), Math.Min(runMaxX, cellX + runs.Spans[k + 1]),
+                                z, z, ref ignored);
+                        }
+                    }
+                }
+
+                Assert.That(byRuns, Is.EqualTo(full), $"runs, section ({sx}, {sz})");
             }
         }
 
