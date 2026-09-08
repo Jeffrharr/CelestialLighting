@@ -12754,7 +12754,31 @@ The runs subsection above ended by naming the per-emitter cost as the larger hal
 
 **The memo that measurement retired.** The slice as planned was a per-frame memo of `TryResolveEmitter` on the light entry, keyed on the Reader object so it could not outlive the native arrays it pointed into: an emitter reaches about six sections and was resolved once per section. Built, flagged, and measured off, on, off, on inside one boot with the box and the runs on in both arms: setup 1.06 → 0.96 ms, stage 11.45 → 11.29 with pair ratios 1.004, 0.973, 0.966, 1.006 — straddling one — and every counter identical. A tenth of a millisecond for four fields on every entry and a flag, so it was taken out again and the clock kept; the comment at the resolve in `BuildCellShadow` records the number so nobody rebuilds it.
 
-**What is next, from the number rather than the fit.** 81% of the dear cells read black from vanilla's array, and the read is the only thing that can say so. What can move is the cost of arriving at the read: `InBounds` per cell where one clip of the emitter's range to the map would do, `WorldToLocalIndex` and `CoverageAt` per cell where both indices advance by one along a run, and `CellIndex` likewise. That is the next slice — the same body with its three per-cell index computations turned into a base per row and an increment per cell, off arm the body as it stands.
+**What is next, from the number rather than the fit.** 81% of the dear cells read black from vanilla's array, and the read is the only thing that can say so. What can move is the cost of arriving at the read: `InBounds` per cell where one clip of the emitter's range to the map would do, `WorldToLocalIndex` and `CoverageAt` per cell where both indices advance by one along a run, and `CellIndex` likewise. That is the slice below.
+
+#### The shadow stage: advance the indices, don't recompute them (`VectorLightMask.WalkRunsAdvancing`)
+
+On the shipped subtract-only path, the cell body does four index computations and two guards before the one read that can say anything: `CoverageAt` (a bounds test and a 2-D index), `InBounds`, `WorldToLocalIndex` (an `IntVec3` subtraction and a 2-D index), a range guard on the local index, and `CellIndex`. Along a run `z` is fixed and `x` advances by one, so every index is affine in `x` and every guard is a range test on `x`: each becomes a base per row plus `x`, and each guard a clip per row or per emitter. `WalkRunsAdvancing` is that restatement, taken only when the box and the runs are on and none of the max, the aperture beam or the bent path is — the three paths that do more per cell than it knows how to. The reads, the integer arithmetic and the counters are the general body's; only the addressing moved. The exactness argument per index is in the method's header; the one it cannot make by construction is `InBounds`, because the old body counted a cell before finding it off the map and this walk never reaches it, so `shadow_cells_scanned` reads lower by exactly the run cells that hang off the map edge.
+
+**Measured off, on, off, on inside one boot** — `stress_light_mask_indices.json`, box and runs on in both arms, so the ratio is addressing against addressing:
+
+| | general body | advancing | on ÷ off |
+|---|---|---|---|
+| pairs subtracted (`shadow_cells_edited`) | 21,875 | 21,875 | 1.000 |
+| pairs visited (`shadow_cells_scanned`) | 117,467 | 117,458 | 1.000 (−9 cells, off the map edge) |
+| emitters reaching | 3,143 | 3,143 | 1.000 |
+| saturation output (`saturated_samples` / `skipped`) | 4,834 / 0 | 4,834 / 0 | 1.000 |
+| **`BuildCellShadow`, median ms** | **11.69** | **4.14** | **0.354** |
+| *control:* `shadow_setup_ms` | 0.99 | 1.00 | *1.012* |
+| *control:* `CorrectSaturation` | 15.75 | 15.98 | *1.014* |
+| *control:* `CollectReaching` | 1.53 | 1.64 | *1.075* |
+| **`Apply`, whole, median ms** | **36.12** | **29.02** | **0.804** |
+
+Pair ratios on the subject 0.365, 0.367, 0.327, 0.354; ranges 11.36–12.33 against 4.03–4.30. The walk went from 10.7 ms to 3.1 ms over the same 117 thousand cells — **from 88 ns a cell to 27** — and the setup control did not move, which is the clock saying the saving is in the walk and nowhere else. The nine-cell difference in the scanned counter is the predicted one: nine run cells of the colony's edge lamps lie off the map, counted by the old body and never reached by this one, and `shadow_cells_edited` — the output — is identical.
+
+**Where the stage stands.** Across the four slices the shadow stage went 22.1 → 15.6 → 11.1 → 4.1 ms on this colony, and it is no longer the mask's largest stage: `CorrectSaturation` at 16 ms is, at 55% of the 29 ms rebake, and the mesh round trip and corner application residue at about 7 ms is second. A whole-map rebake of 91 sections on a 500-lamp colony is 29 ms; on a colony without one lamp per fifteen cells it is a fraction of that.
+
+**Behind `vector_light_mask_run_indices`, on**, for the reason the box's flag exists. Inert unless the box and the runs are.
 
 
 ### Vector lighting, phase 7: the coverage grid was mostly outside the light (`VectorLightMath.BuildCoverage`, `VectorLightCoverageOracle`, epic #174 phase 7)
