@@ -148,6 +148,7 @@ public class NightDesaturationGateTests
         MethodDefinition sync = Method("CelestialLighting.NightDesaturationRedraw", "SyncTo");
         MethodDefinition force = Method("CelestialLighting.NightDesaturationRedraw", "ForceRebuild");
         MethodDefinition rebuild = Method("CelestialLighting.NightDesaturationRedraw", "RebuildWashMeshes");
+        MethodDefinition forceMap = Method("CelestialLighting.NightDesaturationRedraw", "ForceRebuildMap");
 
         Assert.Multiple(() =>
         {
@@ -157,7 +158,13 @@ public class NightDesaturationGateTests
                 "SyncTo no longer rebuilds anything");
             Assert.That(Calls(force).Any(c => c.Name == "RebuildWashMeshes"), Is.True,
                 "ForceRebuild no longer rebuilds anything — the harness's SetFeature step would A/B one bake twice");
-            Assert.That(Calls(rebuild).Any(c => c.Name == "WholeMapChanged"), Is.True,
+            // One hop now, because GameComponent_SkyFalloffRedraw drives §9's dawn/dusk staleness one
+            // map at a time and shares the per-map call with the whole-session sweep — the same split
+            // IndoorOcclusionRedraw already has. Both ends are asserted so neither can quietly stop
+            // dirtying anything.
+            Assert.That(Calls(rebuild).Any(c => c.Name == "ForceRebuildMap"), Is.True,
+                "the whole-session rebuild no longer reaches the per-map one");
+            Assert.That(Calls(forceMap).Any(c => c.Name == "WholeMapChanged"), Is.True,
                 "the rebuild no longer dirties the map's sections");
         });
     }

@@ -95,6 +95,39 @@ public static class ProbeRegistration
             "wash_room_floor_corners", new IntVec3(-40, 0, 51), NightWashVertexProbe.Metric.CornerMeanAlpha));
         ProbeRegistry.Register(new NightWashVertexProbe(
             "wash_room_floor_diamond", new IntVec3(-40, 0, 51), NightWashVertexProbe.Metric.CentreExcess));
+        // The UNLIT sealed room, at map centre + (40, 45), for dark_room_desaturation.json. Distinct
+        // from wash_room_* above, which has a TorchLamp at its centre: the case a player reported is a
+        // room with no light in it at all, at noon.
+        //
+        // THE THREE CELLS ARE ONE ARGUMENT, and only the pair of arms tells it. The vertex alphas
+        // below are the MESH half of §9; night_desaturation_wash is the material half; what reaches a
+        // pixel is their product. So each cell is read in both arms and multiplied out:
+        //
+        //   floor   255 -> 255, material 0 -> 0.22   the fix: a dark room drains at noon
+        //   outdoor 255 ->   0, material 0 -> 0.22   unchanged: open ground keeps its colour
+        //   wall    255 ->   0, material 0 -> 0.22   unchanged: no dark ring around the building
+        //
+        // The floor probe not moving is the point rather than a disappointment — the per-cell half was
+        // always computing the right answer and was being multiplied by a map-wide zero. The outdoor
+        // and wall probes are where the sky term lands now that it is per cell, and the wall one is the
+        // ring trap: classing a roof-holding wall as interior would leave it at 255 while the ground
+        // beside it went to 0, which draws a dark grey ring around every building at midday.
+        ProbeRegistry.Register(new NightWashVertexProbe(
+            "wash_darkroom_floor", new IntVec3(40, 0, 45), NightWashVertexProbe.Metric.CentreAlpha));
+        ProbeRegistry.Register(new NightWashVertexProbe(
+            "wash_darkroom_wall", new IntVec3(40, 0, 38), NightWashVertexProbe.Metric.CentreAlpha));
+        ProbeRegistry.Register(new NightWashVertexProbe(
+            "wash_darkroom_outdoor", new IntVec3(40, 0, 60), NightWashVertexProbe.Metric.CentreAlpha));
+        // Diagnostics for dark_room_desaturation.json: is the wall actually standing where the wash
+        // probe reads, and does the north wall behave like the south one?
+        ProbeRegistry.Register(new NightWashVertexProbe(
+            "wash_darkroom_nwall", new IntVec3(40, 0, 52), NightWashVertexProbe.Metric.CentreAlpha));
+        ProbeRegistry.Register(new CellBlockerProbe(
+            "dr_swall_buildings", CellBlockerProbe.Metric.BuildingCount, new IntVec3(40, 0, 38)));
+        ProbeRegistry.Register(new CellBlockerProbe(
+            "dr_swall_edifice", CellBlockerProbe.Metric.EdificeBlocksLight, new IntVec3(40, 0, 38)));
+        ProbeRegistry.Register(new CellBlockerProbe(
+            "dr_nwall_buildings", CellBlockerProbe.Metric.BuildingCount, new IntVec3(40, 0, 52)));
         ProbeRegistry.Register(new NightWashVertexProbe(
             "wash_lit_ground_diamond", new IntVec3(3, 0, 52), NightWashVertexProbe.Metric.CentreExcess));
         ProbeRegistry.Register(new NightWashVertexProbe(
@@ -2304,6 +2337,21 @@ public static class ProbeRegistration
             enabled =>
             {
                 CelestialLightingFeatures.LowLightDesaturation = enabled;
+                NightDesaturationRedraw.ForceRebuild();
+            });
+        // §9's per-cell sky regime. Same reason as the LowLightDesaturation bridge above needs a
+        // ForceRebuild — the factor now lives in the baked mesh, so flipping the flag with a bare
+        // field write would leave both arms of an A/B showing whichever bake happened first.
+        //
+        // Left at the default enabled state, which matches the shipped default. "Off" is a faithful
+        // pre-feature baseline by construction (both mesh factors become 1 and the material carries
+        // PurkinjeFactor again, which is the old formula exactly), so ResetAll() between scenarios in
+        // a suite restores shipped behaviour rather than a mode nothing ships.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.DarkAreaDesaturationKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.DarkAreaDesaturation = enabled;
                 NightDesaturationRedraw.ForceRebuild();
             });
         FeatureRegistry.Register(

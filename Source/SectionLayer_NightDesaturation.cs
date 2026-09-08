@@ -97,15 +97,30 @@ public class SectionLayer_NightDesaturation : SectionLayer
         // it. See NightWashWindow's header for the geometry and the measurement behind it.
         NightWashWindow wash = ResolveWash(rect);
 
+        byte peak = 0;
         for (int x = rect.minX; x <= rect.maxX; x++)
         {
             for (int z = rect.minZ; z <= rect.maxZ; z++)
             {
-                AddCellColors(subMesh, in wash, x, z);
+                byte cellPeak = AddCellColors(subMesh, in wash, x, z);
+                if (cellPeak > peak)
+                    peak = cellPeak;
             }
         }
 
-        subMesh.disabled = false;
+        // A section whose every vertex came out fully transparent is not drawn at all. This replaces,
+        // per section, most of what NightDesaturationOverlay.Drawing used to skip for the whole map:
+        // that test asked whether the MATERIAL alpha was zero, which was true for all of daylight
+        // while the rod-vision factor lived there, and is no longer true once the factor moves into
+        // the mesh (see NightDesaturationMath.CellWashWithSky) — with the feature on the material is a
+        // constant and stays non-zero at noon so that enclosed rooms can draw.
+        //
+        // Without this a fully outdoor map would submit one viewport-sized transparent pass per
+        // visible section all day, writing no pixels — exactly the cost the map-wide skip existed to
+        // avoid, and on a fill-rate-bound machine the larger half of it. With it, an outdoor section
+        // at noon bakes alphas of 0, disables itself, and costs the same nothing it used to; only
+        // sections that actually contain enclosed cells draw.
+        subMesh.disabled = peak == 0;
         subMesh.FinalizeMesh(MeshParts.Colors);
     }
 
@@ -145,6 +160,7 @@ public class SectionLayer_NightDesaturation : SectionLayer
 
         GlowGrid glowGrid = map.glowGrid;
         EdificeGrid edificeGrid = map.edificeGrid;
+        RoofGrid roofGrid = map.roofGrid;
         for (int z = wash.FillMinZ; z <= wash.FillMaxZ; z++)
         {
             for (int x = wash.FillMinX; x <= wash.FillMaxX; x++)
@@ -154,12 +170,38 @@ public class SectionLayer_NightDesaturation : SectionLayer
                     x,
                     z,
                     glowGrid.GroundGlowAt(cell, ignoreCavePlants: false, ignoreSky: true),
-                    BlocksLight(edificeGrid, cell));
+                    BlocksLight(edificeGrid, cell),
+                    BlocksSky(map, roofGrid, edificeGrid, cell));
             }
         }
 
-        wash.Seal();
+        // The two rod-vision factors come from the overlay rather than being recomputed here, for the
+        // same reason Patch_NightDesaturationStrength re-reads CurSkyGlow instead of having a sibling
+        // patch stash it: the mesh and the material must agree about how deep the night is, and the
+        // only way to guarantee that is for both to read one value. The overlay owns it because it is
+        // the thing the per-frame patch already writes to.
+        wash.Seal(NightDesaturationOverlay.ExposedFactor, NightDesaturationOverlay.OccludedFactor);
         return wash;
+    }
+
+    // §7b's own interior test, reached through the same three reads Patch_IndoorSkyOcclusion makes,
+    // so "indoors" cannot come to mean two different things in two subsystems that a player sees as
+    // one. See NightDesaturationMath.CellWashWithSky for why this rather than a bare RoofGrid.Roofed
+    // — the short version is that a wall holds up its own roof, and treating it as interior draws a
+    // dark ring around every building at noon.
+    private static bool BlocksSky(Map map, RoofGrid roofGrid, EdificeGrid edificeGrid, IntVec3 cell)
+    {
+        RoofDef roof = roofGrid.RoofAt(cell);
+        Building edifice = edificeGrid[cell];
+        bool isDoor = edifice != null && edifice.def.altitudeLayer == AltitudeLayer.DoorMoveable;
+        bool holdsRoof = edifice != null && edifice.def.holdsRoof;
+        bool naturalRock = edifice != null
+            && edifice.def.building != null
+            && edifice.def.building.isNaturalRock;
+
+        return IndoorOcclusionMath.BlocksSky(
+            EaveCells.Encloses(map, cell, roof), roof != null && roof.isThickRoof, holdsRoof, isDoor,
+            naturalRock);
     }
 
     // Vanilla's own test, character for character — SectionLayer_Darkness.LightBlockingEdificeAt asks
@@ -189,7 +231,9 @@ public class SectionLayer_NightDesaturation : SectionLayer
     //
     // `in` rather than by value: this runs 289 times per regenerate and NightWashWindow is a readonly
     // struct, so passing by reference costs nothing and skips 289 copies of its header.
-    private static void AddCellColors(LayerSubMesh subMesh, in NightWashWindow wash, int x, int z)
+    // Returns the largest alpha it wrote, so Regenerate can tell a section that bakes to nothing from
+    // one that bakes to something and disable the former's submesh.
+    private static byte AddCellColors(LayerSubMesh subMesh, in NightWashWindow wash, int x, int z)
     {
         float here = wash.At(x, z);
         float west = wash.At(x - 1, z);
@@ -207,6 +251,8 @@ public class SectionLayer_NightDesaturation : SectionLayer
         byte right = ToAlpha((here + east) * 0.5f);
         byte bottom = ToAlpha((here + south) * 0.5f);
 
+        byte centre = ToAlpha(here);
+
         subMesh.colors.Add(WashColor(bottomLeft));
         subMesh.colors.Add(WashColor(left));
         subMesh.colors.Add(WashColor(topLeft));
@@ -215,8 +261,14 @@ public class SectionLayer_NightDesaturation : SectionLayer
         subMesh.colors.Add(WashColor(right));
         subMesh.colors.Add(WashColor(bottomRight));
         subMesh.colors.Add(WashColor(bottom));
-        subMesh.colors.Add(WashColor(ToAlpha(here)));
+        subMesh.colors.Add(WashColor(centre));
+
+        return Max(
+            Max(Max(bottomLeft, left), Max(topLeft, top)),
+            Max(Max(topRight, right), Max(Max(bottomRight, bottom), centre)));
     }
+
+    private static byte Max(byte a, byte b) => a > b ? a : b;
 
     // White RGB: the wash's colour comes from the material (a dark grey), so the vertex carries only
     // "how much of it applies here". The shader multiplies the two.

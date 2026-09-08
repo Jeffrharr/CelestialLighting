@@ -2217,6 +2217,96 @@ Perspective family).
   constraint, the multiplier endpoints, and — for the wash — the lit exemption, the linear ramp, and
   the clamping of both inputs.
 
+### Dark areas at noon: the rod-vision factor moves into the mesh (`DarkAreaDesaturation`)
+
+A player reported that the shift "should apply to ALL dark areas always, not just when it's night",
+and that an enclosed dark room keeps full daytime colour. They were right, and the interesting part
+is that the per-cell half of this subsystem had been computing the correct answer all along.
+
+The wash renders as `vertex alpha × material alpha`, and the two halves used to be:
+
+| half | value | lives in |
+|---|---|---|
+| per cell | `CellWash(local glow)` | the baked section mesh |
+| map-wide | `PurkinjeFactor(sky glow)` | one material-colour write per frame |
+
+`CellWash` reads local glow through `GroundGlowAt`'s `ignoreSky`, so a sealed unlit room already read
+a **full** wash at every hour. `PurkinjeFactor` is an `InverseLerpClamped` that reaches exactly 0 at
+`OnsetGlow` (0.5) — not merely small — and it multiplied *every* cell. So the right per-cell answer
+was multiplied by zero for the whole of daylight.
+
+**The sky term could not simply be deleted**, which is the obvious fix and is wrong. It is not a gate
+that got in the way; it is the sky's own contribution to a cell's light, and `CellWash` excludes it
+precisely so that this term can carry it. Drop it and an *outdoor* cell at noon — local glow 0,
+because sunlight is not artificial light — washes at full strength and the whole map greys out at
+midday. What was wrong is that it reached cells the sky does not.
+
+So the factor becomes per-cell, taking one of two values:
+
+    sky-exposed cell   ->  exposedFactor   == PurkinjeFactor(sky glow), as before
+    sky-occluded cell  ->  occludedFactor  == 1, there being no sky here to keep it lit
+
+which is the same statement `GlowGrid.GroundGlowAt` already makes when it consults `CurSkyGlow` only
+`if (!map.roofGrid.Roofed(c))`. A roofed cell has never taken sky glow as gameplay light; it now stops
+taking sky glow as a reason to keep its colour either.
+
+**Which cells count as occluded is §7b's question, asked once** — `IndoorOcclusionMath.BlocksSky`,
+never a bare `Roofed`. Both of that predicate's carve-outs matter here for the same reasons they
+matter there. A **wall** holds up the roof over it and is not interior: classing it as interior gives
+every exterior wall tile a full wash while the ground beside it takes none, which at noon draws a dark
+grey ring around every building on the map — the identical failure §7b's own header records from the
+other direction. A **door** is the boundary, so a doorway keeps daylight colour. Sharing the predicate
+also means the room §7b darkens is the room §9 drains, which is what the player is actually asking
+for.
+
+The blocked-cell reduction moved with it. `NightWashWindow` used to give a light-blocking cell the
+**brightest glow** of itself and its eight non-blocking neighbours (vanilla's
+`SectionLayer_Darkness.LightAt` rule, because the flood never enters a wall and its own reading means
+"nobody asked"); it now takes the **faintest wash** over the same set. These are the same rule —
+`CellWash` is monotone non-increasing, so `min CellWash(gᵢ)` *is* `CellWash(max gᵢ)`, bit-identical —
+but reducing over the finished wash is what lets the sky factor take part, which it must: a wall
+between a lit outdoors and a dark room has to read as the brighter environment. Reducing over glow
+alone re-creates the ring one tile further in.
+
+**Staleness.** The mesh now depends on the sky, so it inherits exactly the drift
+`GameComponent_SkyFalloffRedraw` was written for and is driven by it (a second baseline and a second
+drift test, on the composed factor rather than raw `CurSkyGlow` — see §16). The type keeps its name
+despite the widened job: `Game.ExposeSmallComponents` scribes a node per component, so a rename would
+strand it. The factor is flat 0 through daylight and flat 1 through night, so redraws fire only across
+the two twilight ramps.
+
+**Cost.** `NightDesaturationOverlay.Drawing` used to skip the whole layer for all of daylight, because
+the material alpha *was* the rod-vision factor. With the factor in the mesh the material is a constant
+and that skip cannot stand. It is replaced by a per-section one: `Regenerate` tracks the largest alpha
+it bakes and sets `subMesh.disabled` when every vertex came out transparent, so an outdoor-only map at
+noon still submits nothing and only sections containing enclosed cells draw.
+
+**Off reproduces the pre-feature formula exactly** — both mesh factors become 1 and the material
+carries `PurkinjeFactor` again. That is a property of the arithmetic rather than a second code path,
+which is what makes the harness A/B a real baseline.
+
+#### Measured (`Tests/Scenarios/dark_room_desaturation.json`)
+
+Sealed unlit soil-floored room, Cinematic (shipped) preset, clouds off, latitude 20.
+
+| pair | masked median ΔE | frame touched | verdict |
+|---|---|---|---|
+| **room at noon**, off → on | **3.44** (p90 4.06, peak 5.45) | 16.50% | the fix — visible at a glance |
+| outdoor at noon, off → on | 0.00 | **0.00%** | inert: open ground holds still |
+| room at night, off → on | 0.00 | **0.00%** | inert: the shipped night look does not move |
+
+The two zeroes are the load-bearing half of that table. They are bit-identical, not merely small, and
+they are what says this change is confined to daylight and to cells the sky does not reach.
+
+The probes pin each *factor* of the product separately, since neither alone can show the change:
+`wash_darkroom_floor` 255 → 255 with `night_desaturation_wash` 0 → 0.22 (the fix; the mesh half never
+needed changing), `wash_darkroom_outdoor` 255 → 0 (the sky term, now per cell), and both wall probes
+255 → 0 (the ring trap).
+
+Re-flooring the room from concrete to soil barely moved the number (3.44 against 3.73, peak 4.17 →
+5.45), which was not the expected result: indoor sky occlusion has already taken the room close to
+black by noon, so there is little light left to carry colour whatever the terrain is.
+
 ## 10. Eclipse: natural and unnatural
 
 RimWorld's `Eclipse` `GameCondition` fires on a random timer, lasts far longer than a real solar

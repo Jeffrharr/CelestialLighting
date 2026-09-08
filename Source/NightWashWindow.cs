@@ -78,6 +78,14 @@ public readonly struct NightWashWindow
     // The raw readings Seal reduces, over the two-cell skirt.
     private readonly float[] glow;
     private readonly bool[] blocked;
+
+    // §7b's interior verdict for each gathered cell (IndoorOcclusionMath.BlocksSky), which decides
+    // whether the sky's rod-vision factor reaches it at all. Stored alongside the glow rather than
+    // folded into it because the two answer different questions and the reduction below needs both
+    // separately: `blocked` says this cell's GLOW READING is meaningless, `blocksSky` says the SKY
+    // does not reach it. A wall is the case that makes them different — it blocks light and is not
+    // interior — and conflating them is what would paint a dark ring around every building.
+    private readonly bool[] blocksSky;
     private readonly int fillMinX;
     private readonly int fillMinZ;
     private readonly int fillMaxX;
@@ -86,8 +94,8 @@ public readonly struct NightWashWindow
 
     private NightWashWindow(
         float[] wash, int minX, int minZ, int maxX, int maxZ, int width,
-        float[] glow, bool[] blocked, int fillMinX, int fillMinZ, int fillMaxX, int fillMaxZ,
-        int fillWidth)
+        float[] glow, bool[] blocked, bool[] blocksSky, int fillMinX, int fillMinZ, int fillMaxX,
+        int fillMaxZ, int fillWidth)
     {
         this.wash = wash;
         this.minX = minX;
@@ -97,6 +105,7 @@ public readonly struct NightWashWindow
         this.width = width;
         this.glow = glow;
         this.blocked = blocked;
+        this.blocksSky = blocksSky;
         this.fillMinX = fillMinX;
         this.fillMinZ = fillMinZ;
         this.fillMaxX = fillMaxX;
@@ -127,8 +136,8 @@ public readonly struct NightWashWindow
 
         return new NightWashWindow(
             new float[width * (maxZ - minZ + 1)], minX, minZ, maxX, maxZ, width,
-            new float[fillCells], new bool[fillCells], fillMinX, fillMinZ, fillMaxX, fillMaxZ,
-            fillWidth);
+            new float[fillCells], new bool[fillCells], new bool[fillCells], fillMinX, fillMinZ,
+            fillMaxX, fillMaxZ, fillWidth);
     }
 
     // The gathered bounds, so the adapter's fill loop walks exactly the cells this window stores and
@@ -161,11 +170,15 @@ public readonly struct NightWashWindow
     //
     // `blocksLight` is the cell's edifice verdict, vanilla's own `edificeGrid[c]?.def.blockLight`. It
     // is the flag that says the glow reading beside it is meaningless rather than dark.
-    public void Resolve(int x, int z, float localGlow, bool blocksLight)
+    //
+    // `cellBlocksSky` is §7b's interior verdict for the same cell (IndoorOcclusionMath.BlocksSky) —
+    // see the field's own comment for why it is not the same question as `blocksLight`.
+    public void Resolve(int x, int z, float localGlow, bool blocksLight, bool cellBlocksSky)
     {
         int i = (z - fillMinZ) * fillWidth + (x - fillMinX);
         glow[i] = localGlow;
         blocked[i] = blocksLight;
+        blocksSky[i] = cellBlocksSky;
     }
 
     // Reduces the gathered readings to the washes the vertex loop reads. Must run once, after the
@@ -175,12 +188,15 @@ public readonly struct NightWashWindow
     // neighbours, and at the moment the fill loop reaches it half of them have not been read yet.
     // Every cell resolved here sees the same neighbourhood it would see in any other section's
     // window, which is what keeps two sections' shared boundary vertices in exact agreement.
-    public void Seal()
+    // The two rod-vision factors are the caller's, one per sky regime, and are applied here rather
+    // than by the vertex loop because a blocked cell's reduction has to compare finished washes — see
+    // WashFor. Both are 1 when DarkAreaDesaturation is off, which makes this the pre-feature formula.
+    public void Seal(float exposedFactor, float occludedFactor)
     {
         for (int z = minZ; z <= maxZ; z++)
         {
             for (int x = minX; x <= maxX; x++)
-                wash[(z - minZ) * width + (x - minX)] = NightDesaturationMath.CellWash(GlowFor(x, z));
+                wash[(z - minZ) * width + (x - minX)] = WashFor(x, z, exposedFactor, occludedFactor);
         }
     }
 
@@ -190,36 +206,55 @@ public readonly struct NightWashWindow
     public float At(int x, int z) =>
         Contains(x, z) ? wash[(z - minZ) * width + (x - minX)] : OffMapWash;
 
-    // The glow a cell should be judged by. An ordinary cell is judged by its own reading; a cell
-    // holding a light-blocking edifice is judged by the brightest of itself and its eight non-blocking
-    // neighbours, because the flood never entered it and its own reading means "nobody asked" rather
-    // than "dark". Mirrors Verse.SectionLayer_Darkness.LightAt, including taking the max over the
-    // diagonals and skipping neighbours that are themselves blockers — so the middle of a thick wall,
-    // whose every neighbour is also wall, still reads unlit, which is correct.
-    private float GlowFor(int x, int z)
+    // The wash a cell should be judged by. An ordinary cell takes its own; a cell holding a
+    // light-blocking edifice takes the FAINTEST wash of itself and its eight non-blocking neighbours,
+    // because the flood never entered it and its own reading means "nobody asked" rather than "dark".
+    // Mirrors Verse.SectionLayer_Darkness.LightAt, including reducing over the diagonals and skipping
+    // neighbours that are themselves blockers — so the middle of a thick wall, whose every neighbour
+    // is also wall, still reads unlit, which is correct.
+    //
+    // FAINTEST WASH, WHERE THIS USED TO SAY BRIGHTEST GLOW, and the two are the same rule. CellWash
+    // is monotone non-increasing in glow, so `min CellWash(g_i)` IS `CellWash(max g_i)` — the same
+    // value, from the same readings, and bit-identical because a deterministic function of the same
+    // max is the min. Reducing over the finished wash instead of over the raw glow is what lets the
+    // sky factor take part in the reduction, which it must: a wall between a lit outdoors and a dark
+    // room has to read as the brighter of the two environments, exactly as it already does for glow.
+    //
+    // WHY THAT MATTERS, concretely, and it is the second dark-ring trap after BlocksSky itself. At
+    // noon an exterior wall's own verdict is "not interior" (it holds its roof up), so it takes the
+    // exposed factor — 0 — and washes not at all, while the room inside it washes fully. Reducing
+    // over glow alone would have left the wall's *wash* untouched by that difference and re-created a
+    // ring one tile further in. Here the wall reduces against its own neighbours and lands on the
+    // faintest of them, so the ramp falls across the wall tile where §7b already puts it.
+    private float WashFor(int x, int z, float exposedFactor, float occludedFactor)
     {
         int here = (z - fillMinZ) * fillWidth + (x - fillMinX);
+        float own = NightDesaturationMath.CellWashWithSky(
+            glow[here], blocksSky[here], exposedFactor, occludedFactor);
         if (!blocked[here])
-            return glow[here];
+            return own;
 
-        float brightest = glow[here];
+        float faintest = own;
         for (int dz = -1; dz <= 1; dz++)
         {
             for (int dx = -1; dx <= 1; dx++)
             {
-                if (Lit(x + dx, z + dz, out float neighbour) && neighbour > brightest)
-                    brightest = neighbour;
+                if (Lit(x + dx, z + dz, exposedFactor, occludedFactor, out float neighbour)
+                    && neighbour < faintest)
+                {
+                    faintest = neighbour;
+                }
             }
         }
 
-        return brightest;
+        return faintest;
     }
 
-    // A neighbour's reading, and whether it is one worth taking. Off-map neighbours are skipped the
+    // A neighbour's wash, and whether it is one worth taking. Off-map neighbours are skipped the
     // same way vanilla's LightAt skips them — the map edge contributes nothing rather than
     // contributing darkness — and so is the cell's own index, harmlessly, since the caller seeded the
-    // max with it already.
-    private bool Lit(int x, int z, out float value)
+    // reduction with it already.
+    private bool Lit(int x, int z, float exposedFactor, float occludedFactor, out float value)
     {
         value = 0f;
         if (x < fillMinX || x > fillMaxX || z < fillMinZ || z > fillMaxZ)
@@ -229,7 +264,8 @@ public readonly struct NightWashWindow
         if (blocked[i])
             return false;
 
-        value = glow[i];
+        value = NightDesaturationMath.CellWashWithSky(
+            glow[i], blocksSky[i], exposedFactor, occludedFactor);
         return true;
     }
 

@@ -83,9 +83,71 @@ public static class NightDesaturationMath
         return 1f - localGlow / LitExemptGlow;
     }
 
+    // --- Where the sky's rod-vision factor is allowed to reach: the "dark rooms at noon" fix ---
+    //
+    // THE BUG, in one line: a windowless room at noon kept its full daytime colour however dark it
+    // was, because the rod-vision factor was applied MAP-WIDE.
+    //
+    // §9 renders as `vertex alpha x material alpha`, and the two halves used to be
+    //
+    //     vertex   = CellWash(local glow)        per cell, baked into the section mesh
+    //     material = PurkinjeFactor(sky glow)    map-wide, one colour write per frame
+    //
+    // PurkinjeFactor is an InverseLerpClamped reaching exactly 0 at OnsetGlow, so above sky glow 0.5
+    // that second term is not merely small — it is zero, and it multiplies EVERY cell. The per-cell
+    // half was already asking the right question (CellWash reads local glow through GroundGlowAt's
+    // `ignoreSky`, so a sealed room reads unlit at every hour) and already producing the right
+    // answer; it was being multiplied by nothing. Reported by a player as "the desaturation should
+    // apply to all dark areas always, not just when it's night", which is exactly the diagnosis.
+    //
+    // WHY THE SKY TERM CANNOT SIMPLY BE DELETED, which is the obvious fix and is wrong. It is not a
+    // gate that got in the way, it is the sky's own contribution to a cell's light, and CellWash
+    // deliberately excludes it so that this term can carry it. Drop it and an OUTDOOR cell at noon —
+    // local glow 0, because sunlight is not artificial light — washes at full strength and the whole
+    // map greys out at midday. The term is load-bearing. What was wrong is that it was applied to
+    // cells the sky does not reach.
+    //
+    // So the factor becomes per-cell, taking one of exactly two values:
+    //
+    //     sky-exposed cell   ->  exposedFactor   == PurkinjeFactor(sky glow), as before
+    //     sky-occluded cell  ->  occludedFactor  == 1, there being no sky here to keep it lit
+    //
+    // which is the same statement vanilla's own GlowGrid.GroundGlowAt makes when it consults
+    // CurSkyGlow only `if (!map.roofGrid.Roofed(c))`. A roofed cell has never taken sky glow as
+    // gameplay light; this stops it taking sky glow as a reason to keep its colour either.
+    //
+    // WHICH CELLS COUNT AS OCCLUDED IS §7b's QUESTION, ASKED ONCE — IndoorOcclusionMath.BlocksSky,
+    // never a bare `Roofed`. That predicate is narrower on purpose and both carve-outs matter here
+    // for the same reasons they matter there:
+    //
+    //   - A WALL holds up the roof over it and is NOT interior. Bare `Roofed` instead gives every
+    //     exterior wall tile a full wash while the open ground beside it takes none, which at noon
+    //     draws a dark grey ring around every building on the map. That is the identical failure
+    //     §7b's own header records from the other direction ("printed blackness onto exterior
+    //     walls"), so it gets the identical predicate rather than a second one that can drift.
+    //   - A DOOR is the boundary itself, so a doorway reads as open ground and keeps daylight colour.
+    //
+    // Sharing BlocksSky also means the two subsystems agree on what "indoors" is, which is what the
+    // player is really asking for: the room §7b darkens is the room §9 drains the colour from.
+    //
+    // OFF (CelestialLightingFeatures.DarkAreaDesaturation) both factors are 1, the material carries
+    // PurkinjeFactor again, and this is the pre-feature formula exactly — an equivalence in the
+    // arithmetic rather than a second code path, which is what the harness A/B arm rests on.
+    public static float CellWashWithSky(
+        float localGlow, bool blocksSky, float exposedFactor, float occludedFactor) =>
+        CellWash(localGlow) * Clamp01(blocksSky ? occludedFactor : exposedFactor);
+
     // The map-wide strength the per-cell wash is multiplied by, in [0, 1]: how far into rod vision
     // the sky is (PurkinjeMath.PurkinjeFactor), scaled by the "Night desaturation" slider and the
-    // peak. Split from CellWash because the two live in different places at different rates — this
+    // peak.
+    //
+    // WITH DarkAreaDesaturation ON THE CALLER PASSES purkinjeFactor: 1 and this reduces to
+    // `strength x MaxWash` — a constant. The rod-vision term has not been dropped, it has moved into
+    // the mesh as CellWashWithSky's per-cell exposedFactor, because it needed to reach some cells and
+    // not others and a material colour is one value for the whole map. See that method for why. With
+    // the flag off the factor still arrives here and this is unchanged.
+    //
+    // Split from CellWash because the two live in different places at different rates — this
     // one is a material colour updated every frame, that one is baked into a mesh and only rebuilt
     // when the glow grid changes.
     public static float MapWash(float purkinjeFactor, float strength) =>

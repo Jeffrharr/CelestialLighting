@@ -1,0 +1,510 @@
+{
+  "name": "dark_room_desaturation",
+  "saveFile": "minimal_colony.rws",
+  "description": "A player reported that the Purkinje/desaturation shift only applies at night, and that an enclosed dark room keeps full daytime colour. They were right. Sec9 renders as vertex alpha x material alpha: the vertex half (CellWash) reads local glow with GroundGlowAt's ignoreSky, so a sealed unlit room already read a full wash at every hour, and the material half was PurkinjeFactor of the SKY glow, which is exactly 0 above sky glow 0.5. The per-cell answer was right and was being multiplied by zero for the whole of daylight. DarkAreaDesaturation moves the rod-vision factor out of the material and into the mesh, where it can reach sky-exposed cells only. THE FOUR CELLS ARE ONE ARGUMENT and only the two arms together tell it, because each probe reads one FACTOR of a product. floor 255->255 with material 0->0.22 is the fix, and the floor probe NOT moving is the point rather than a disappointment: the per-cell half never needed changing. outdoor 255->0 against material 0->0.22 is open ground holding still, which is why the sky term could not simply be deleted -- an outdoor cell also reads local glow 0, since sunlight is not artificial light, so with no sky term the whole map would grey out at midday. Both walls 255->0 are the ring trap: a wall holds up its own roof, so IndoorOcclusionMath.BlocksSky says it is NOT interior and it takes the exposed factor. Classing it as interior instead would leave it at 255 while the ground beside it went to 0, drawing a dark grey ring around every building on the map -- the same failure Sec7b's own header records from the other direction. Sharing BlocksSky is also what makes 'indoors' mean one thing across the two subsystems a player sees as one. THE HOUR 23 BLOCK IS THE REGRESSION CHECK, not decoration: at night the exposed factor is 1, both regimes agree, and every probe reads identically in both arms. That is what pins the change to daylight and says the shipped night look does not move. TWO TIMING TRAPS, both of which failed this scenario's first run and neither of which was a formula error -- the bake was correct in both. FIRST, a whole-map dirty regenerates only a few sections per frame, so a 10-frame settle left the room's own section holding the previous arm's bake while a section 15 cells away had already updated: the wall read stale 255 while the outdoor cell had correctly reached 0, which reads exactly like a classification bug. Every arm now settles for 60. SECOND, the clock is PAUSED here, so GameComponent_SkyFalloffRedraw never gets a tick and cannot notice the factor moved; a bare SetTime to hour 23 therefore left the noon mesh in place. The arms are re-flipped after the clock change so the rebuild is explicit. That means this scenario does NOT exercise the redraw driver -- sky_falloff_redraw.json owns that, for the same driver -- and it is stated here so nobody reads a pass as covering it. AUTHORING NOTES. The room is UNLIT and sealed with an explicit SetRoof; a one-cell gap would make the interior an OUTDOOR room, and PlaceThings Wall never roofs by itself. Distinct fixture from wall_wash_diamond.json's room, which has a TorchLamp in it. The dr_*wall_* probes pin that the wall is actually standing, so a later failure cannot be blamed on a fixture that was never built. Clouds are stated off explicitly rather than left to SetWeather Clear, since partial cover during Clear is our own feature and the sheet drifts on the tick counter -- this mod's largest source of run-to-run pixel noise. The preset is stated because run_test.sh does not reset persisted mod settings and Realistic rescales the material alpha the captures are judged on (0.22 Cinematic against 0.4675 Realistic); Cinematic is the shipped default and so the arm the report was made against. The first Screenshot is a throwaway: hideUi is not honoured on a run's first capture. Run standalone -- PlaceThings leaves map residue. A THIRD TIMING TRAP, and the one that survived the first two fixes. RimWorld regenerates only the sections currently ON SCREEN, so a whole-map dirty does nothing for a section the camera is not looking at. The arms here end on a LookAt for their screenshots, which left the camera on the outdoor view while the next arm settled: the north wall and the outdoor cell rebuilt and the SOUTH wall, fifteen cells further away, kept the previous arm's bake. It read as a wall classified wrongly in one arm and correctly in the other, fifteen cells apart, on one build. Every arm now parks the camera wide enough to hold all four probed cells BEFORE it settles, and the screenshot LookAts happen after the probes. THE FLOOR IS SOIL, NOT CONCRETE, and the reason is worth recording because the expected result did NOT arrive. The subsystem desaturates, so measuring it on a near-neutral surface should understate it by construction, and the first run of this scenario floored the room in concrete. Re-flooring it in soil barely moved the number: masked dE 3.44 against concrete's 3.73, with the peak rising 4.17 -> 5.45. The floor material hardly matters here because indoor sky occlusion has already taken the room close to black by noon, so there is very little light left to carry colour whatever the terrain is -- the wash is acting on the small amount that remains. Soil is kept anyway as the representative case, since the report that prompted this was about caves and ordinary rooms, whose floors are soil and stone rather than concrete.",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "20"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "realistic_preset",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "low_light_desaturation",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_cover",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_sheet",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_presence",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_deck_varieties",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Soil",
+        "width": "19",
+        "height": "19",
+        "offset": "40,45",
+        "clear": "true"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "WoodLog",
+        "offset": "40,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "-7,-7; -7,7; -6,-7; -6,7; -5,-7; -5,7; -4,-7; -4,7; -3,-7; -3,7; -2,-7; -2,7; -1,-7; -1,7; 0,-7; 0,7; 1,-7; 1,7; 2,-7; 2,7; 3,-7; 3,7; 4,-7; 4,7; 5,-7; 5,7; 6,-7; 6,7; 7,-7; 7,7; -7,-6; 7,-6; -7,-5; 7,-5; -7,-4; 7,-4; -7,-3; 7,-3; -7,-2; 7,-2; -7,-1; 7,-1; -7,0; 7,0; -7,1; 7,1; -7,2; 7,2; -7,3; 7,3; -7,4; 7,4; -7,5; 7,5; -7,6; 7,6"
+      }
+    },
+    {
+      "type": "SetRoof",
+      "args": {
+        "def": "RoofConstructed",
+        "width": "15",
+        "height": "15",
+        "offset": "40,45"
+      }
+    },
+    {
+      "type": "FastForward",
+      "args": {
+        "ticks": "120"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "paused"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "30"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "dr_swall_buildings",
+        "expectedValue": "1",
+        "tolerance": "1.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "dr_swall_edifice",
+        "expectedValue": "1",
+        "tolerance": "1.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "dr_nwall_buildings",
+        "expectedValue": "1",
+        "tolerance": "1.0"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "40,49",
+        "zoom": "26"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "dark_area_desaturation",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "60"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "purkinje",
+        "expectedValue": "0.0",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "night_desaturation_wash",
+        "expectedValue": "0.0",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wash_darkroom_floor",
+        "expectedValue": "255",
+        "tolerance": "1.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wash_darkroom_wall",
+        "expectedValue": "255",
+        "tolerance": "1.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wash_darkroom_nwall",
+        "expectedValue": "255",
+        "tolerance": "1.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wash_darkroom_outdoor",
+        "expectedValue": "255",
+        "tolerance": "1.0"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "40,45",
+        "zoom": "12"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "darkroom_discard.png",
+        "hideUi": "true"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "darkroom_noon_off.png",
+        "hideUi": "true"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "40,68",
+        "zoom": "12"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "darkroom_outdoor_noon_off.png",
+        "hideUi": "true"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "40,49",
+        "zoom": "26"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "dark_area_desaturation",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "60"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "night_desaturation_wash",
+        "expectedValue": "0.22",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wash_darkroom_floor",
+        "expectedValue": "255",
+        "tolerance": "1.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wash_darkroom_wall",
+        "expectedValue": "0",
+        "tolerance": "1.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wash_darkroom_nwall",
+        "expectedValue": "0",
+        "tolerance": "1.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wash_darkroom_outdoor",
+        "expectedValue": "0",
+        "tolerance": "1.0"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "40,45",
+        "zoom": "12"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "darkroom_noon_on.png",
+        "hideUi": "true"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "40,68",
+        "zoom": "12"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "darkroom_outdoor_noon_on.png",
+        "hideUi": "true"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "23"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "40,49",
+        "zoom": "26"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "dark_area_desaturation",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "60"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "purkinje",
+        "expectedValue": "1.0",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "night_desaturation_wash",
+        "expectedValue": "0.22",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wash_darkroom_floor",
+        "expectedValue": "255",
+        "tolerance": "1.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wash_darkroom_wall",
+        "expectedValue": "255",
+        "tolerance": "1.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wash_darkroom_outdoor",
+        "expectedValue": "255",
+        "tolerance": "1.0"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "40,45",
+        "zoom": "12"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "darkroom_night_on.png",
+        "hideUi": "true"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "40,49",
+        "zoom": "26"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "dark_area_desaturation",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "60"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "night_desaturation_wash",
+        "expectedValue": "0.22",
+        "tolerance": "0.005"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wash_darkroom_floor",
+        "expectedValue": "255",
+        "tolerance": "1.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wash_darkroom_wall",
+        "expectedValue": "255",
+        "tolerance": "1.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "wash_darkroom_outdoor",
+        "expectedValue": "255",
+        "tolerance": "1.0"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "40,45",
+        "zoom": "12"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "darkroom_night_off.png",
+        "hideUi": "true"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "40,49",
+        "zoom": "26"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "dark_area_desaturation",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "60"
+      }
+    }
+  ]
+}

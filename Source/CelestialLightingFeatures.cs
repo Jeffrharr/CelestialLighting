@@ -183,6 +183,31 @@ public static class CelestialLightingFeatures
     // baseline for the harness A/B.
     public static bool LowLightDesaturation = true;
 
+    // Feature key for DarkAreaDesaturation (see CivilTwilightPersistenceKey for why it lives here).
+    public const string DarkAreaDesaturationKey = "dark_area_desaturation";
+
+    // §9's rod-vision factor, per cell instead of map-wide: a dark room desaturates at noon.
+    //
+    // Reported by a player — "the purkinje shift/desaturation should apply to ALL dark areas always,
+    // not just when it's night". They were right, and the per-cell half of §9 was already computing
+    // the correct answer: CellWash reads local glow with GroundGlowAt's `ignoreSky`, so a windowless
+    // room reads unlit at every hour. It was then multiplied by a MAP-WIDE PurkinjeFactor that is
+    // exactly 0 above sky glow 0.5, so every cell's wash was zeroed for the whole of daylight.
+    //
+    // On, the factor moves into the section mesh and applies only to cells the sky actually reaches
+    // (IndoorOcclusionMath.BlocksSky decides, so §7b and §9 share one notion of "indoors"), while the
+    // material carries a constant. See NightDesaturationMath.CellWashWithSky for the model and for
+    // why the sky term cannot simply be deleted instead.
+    //
+    // Off, both mesh factors are 1 and the material carries PurkinjeFactor again — the pre-feature
+    // formula exactly, which is what makes this a faithful A/B arm rather than "no wash at all".
+    //
+    // ON BY DEFAULT: this is a bug fix to a shipped effect, not a new taste dial. The "Night
+    // desaturation" slider still scales it, and setting that to 0 remains the way to switch the whole
+    // wash off. Note the mesh now depends on the sky, so GameComponent_SkyFalloffRedraw rebuilds it
+    // across dawn and dusk; that driver is gated on this flag, so off costs nothing extra either.
+    public static bool DarkAreaDesaturation = true;
+
     // Feature key for PitchBlackNights (see CivilTwilightPersistenceKey for why it lives here).
     public const string PitchBlackNightsKey = "pitch_black_nights";
 

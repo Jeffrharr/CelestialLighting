@@ -133,4 +133,88 @@ public class NightDesaturationMathTests
     [TestCase(1.5f, ExpectedResult = (byte)255)]
     [TestCase(-0.5f, ExpectedResult = (byte)0)]
     public byte WashAlpha_ClampsRatherThanWrapping(float wash) => NightDesaturationMath.WashAlpha(wash);
+
+    // --- CellWashWithSky: where the sky's rod-vision factor is allowed to reach (§9, dark rooms) ---
+
+    // The bug this replaced, stated as a test. A sealed unlit room reads local glow 0 at every hour,
+    // so CellWash already returned a full 1 — and the map-wide PurkinjeFactor it was multiplied by is
+    // exactly 0 above sky glow 0.5, which zeroed it for the whole of daylight. The occluded factor is
+    // 1 regardless of the sky, so the room now washes at noon exactly as it does at midnight.
+    [TestCase(0.0f)]    // noon: the sky is at full rod-vision exemption
+    [TestCase(0.5f)]    // dusk
+    [TestCase(1.0f)]    // deep night
+    public void CellWashWithSky_AnEnclosedUnlitCellWashesFullyAtEveryHour(float exposedFactor)
+    {
+        float wash = NightDesaturationMath.CellWashWithSky(
+            localGlow: 0f, blocksSky: true, exposedFactor: exposedFactor, occludedFactor: 1f);
+
+        Assert.That(wash, Is.EqualTo(1f).Within(1e-6f));
+    }
+
+    // The half that must NOT change, and the reason the sky term cannot simply be deleted. An outdoor
+    // cell also reads local glow 0 — sunlight is not artificial light — so with no sky term at all it
+    // would wash at full strength at midday and grey out the entire map. It takes the exposed factor,
+    // so it still tracks the sky exactly as it always did.
+    [TestCase(0.0f, ExpectedResult = 0f)]
+    [TestCase(0.5f, ExpectedResult = 0.5f)]
+    [TestCase(1.0f, ExpectedResult = 1f)]
+    public float CellWashWithSky_AnOutdoorUnlitCellStillTracksTheSky(float exposedFactor) =>
+        NightDesaturationMath.CellWashWithSky(
+            localGlow: 0f, blocksSky: false, exposedFactor: exposedFactor, occludedFactor: 1f);
+
+    // A lamp-lit room keeps its colour at every hour, indoors included: LitExemptGlow is the brightest
+    // an ordinary lamp-lit cell ever reads (GroundGlowAt caps artificial light at 0.5), so CellWash is
+    // 0 there and no factor can revive it. This is what stops the change greying out lit interiors,
+    // which is the obvious way for "desaturate all dark areas" to go wrong.
+    [TestCase(true)]
+    [TestCase(false)]
+    public void CellWashWithSky_ALitCellIsExemptWhicheverSideOfTheRoofItIsOn(bool blocksSky)
+    {
+        float wash = NightDesaturationMath.CellWashWithSky(
+            NightDesaturationMath.LitExemptGlow, blocksSky, exposedFactor: 1f, occludedFactor: 1f);
+
+        Assert.That(wash, Is.EqualTo(0f));
+    }
+
+    // Both factors at 1 is the feature switched OFF: the mesh carries no sky term and the material
+    // carries PurkinjeFactor again, so every cell reduces to plain CellWash. Pinned because "off
+    // reproduces the pre-feature formula exactly" is the property the harness A/B arm rests on, and it
+    // is a property of this arithmetic rather than of a second code path.
+    [TestCase(0f, true)]
+    [TestCase(0f, false)]
+    [TestCase(0.25f, true)]
+    [TestCase(0.25f, false)]
+    [TestCase(0.5f, true)]
+    [TestCase(0.5f, false)]
+    public void CellWashWithSky_WithBothFactorsAtOneIsPlainCellWash(float localGlow, bool blocksSky)
+    {
+        float wash = NightDesaturationMath.CellWashWithSky(
+            localGlow, blocksSky, exposedFactor: 1f, occludedFactor: 1f);
+
+        Assert.That(wash, Is.EqualTo(NightDesaturationMath.CellWash(localGlow)));
+    }
+
+    // Defensive, and the reason the clamp is on the factor rather than on the product: a factor above
+    // 1 would push a cell past a full wash and a negative one would invert it.
+    [TestCase(2f, ExpectedResult = 1f)]
+    [TestCase(-1f, ExpectedResult = 0f)]
+    public float CellWashWithSky_ClampsTheFactor(float exposedFactor) =>
+        NightDesaturationMath.CellWashWithSky(
+            localGlow: 0f, blocksSky: false, exposedFactor: exposedFactor, occludedFactor: 1f);
+
+    // The exposed and occluded factors are not interchangeable — a test that passed the same value for
+    // both could not tell which one a cell read. This pins the selection itself.
+    [Test]
+    public void CellWashWithSky_ReadsTheFactorForItsOwnSkyRegime()
+    {
+        Assert.Multiple(() =>
+        {
+            Assert.That(
+                NightDesaturationMath.CellWashWithSky(0f, blocksSky: true, 0.25f, 0.75f),
+                Is.EqualTo(0.75f).Within(1e-6f), "an occluded cell read the exposed factor");
+            Assert.That(
+                NightDesaturationMath.CellWashWithSky(0f, blocksSky: false, 0.25f, 0.75f),
+                Is.EqualTo(0.25f).Within(1e-6f), "an exposed cell read the occluded factor");
+        });
+    }
 }
