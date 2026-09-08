@@ -26,6 +26,26 @@ namespace CelestialLighting;
 // PER-MAP, NOT WHOLE-SESSION. Two maps can sit at different local times (different longitude) or under
 // different weather, so each map tracks its own last-baked glow and only its own meshes get rebuilt
 // when it drifts — a redraw on one map's dusk never pays for every other map's unrelated daytime.
+//
+// IT NOW DRIVES §9's WASH MESHES TOO, DESPITE THE NAME. §9's DarkAreaDesaturation moves the
+// rod-vision factor out of the material and into the baked section mesh, which gives that mesh the
+// identical staleness this class was written for: a room baked at noon would keep its noon wash into
+// the night unless something happened to dirty it. Both subsystems need the same question asked at
+// the same cadence about the same maps, so they share one tick rather than growing a second
+// GameComponent — a new component type is not free to add and, more to the point, not free to REMOVE
+// later, since Game.ExposeSmallComponents scribes a node per component (the same trap
+// MapComponent_SunShadowAxis.cs is a tombstone for).
+//
+// THE TYPE NAME IS DELIBERATELY NOT UPDATED to match its widened job, for that same reason: the
+// scribe writes this class's name into every save that has run it, so renaming it would strand those
+// nodes and log errors on load. The name records where it came from; this comment records what it
+// does.
+//
+// The two subsystems keep SEPARATE baselines and separate drift tests. They are not the same
+// quantity: §7b's is CurSkyGlow itself, while §9's is PurkinjeFactor of the composed, weather-
+// attenuated glow, which is flat 0 above sky glow 0.5 and flat 1 below 0.05. Sharing one baseline
+// would make each fire on the other's transitions — §9 rebuilding all through a daylight glow change
+// that cannot move its factor off zero, which is most of a day.
 public class GameComponent_SkyFalloffRedraw : GameComponent
 {
     // Coarse enough that the per-check cost (one skyManager read plus a float compare, per map) is
@@ -54,6 +74,10 @@ public class GameComponent_SkyFalloffRedraw : GameComponent
     // bounded by how many maps existed this process's lifetime, never by anything that grows per tick.
     private static readonly Dictionary<int, float> lastBakedGlow = new Dictionary<int, float>();
 
+    // §9's baseline: the rod-vision factor its wash meshes were last baked against, keyed the same way
+    // and for the same reasons as lastBakedGlow above.
+    private static readonly Dictionary<int, float> lastBakedWashFactor = new Dictionary<int, float>();
+
     public GameComponent_SkyFalloffRedraw(Game game)
     {
     }
@@ -69,19 +93,29 @@ public class GameComponent_SkyFalloffRedraw : GameComponent
         if (!CelestialLightingFeatures.SkyFalloffRedraw)
             return;
 
-        // Neither source varies with CurSkyGlow when both are off (or the whole subsystem is off) —
-        // SkyFalloffSource.FractionAt then returns a flat 0 for every cell regardless of the sky
-        // overhead, so there is nothing here that can be stale and this should not even read the maps.
-        if (!CelestialLightingFeatures.IndoorSkyOcclusion)
-            return;
-
-        if (!AnyBakedTermVariesWithGlow())
+        bool falloff = FalloffMeshesVaryWithGlow();
+        bool wash = WashMeshesVaryWithGlow();
+        if (!falloff && !wash)
             return;
 
         List<Map> maps = Find.Maps;
         for (int i = 0; i < maps.Count; i++)
-            CheckMap(maps[i]);
+            CheckMap(maps[i], falloff, wash);
     }
+
+    // §7b's arm of the gate. Neither sky-falloff source varies with CurSkyGlow when both are off (or
+    // the whole subsystem is off) — SkyFalloffSource.FractionAt then returns a flat 0 for every cell
+    // regardless of the sky overhead, so there is nothing there that can be stale.
+    private static bool FalloffMeshesVaryWithGlow() =>
+        CelestialLightingFeatures.IndoorSkyOcclusion && AnyBakedTermVariesWithGlow();
+
+    // §9's arm. The wash mesh only carries a sky term at all when DarkAreaDesaturation is on — with
+    // it off the factor is back on the material, which is rewritten every frame and cannot go stale —
+    // and a wash scaled to nothing by the slider has no visible mesh to rebuild.
+    private static bool WashMeshesVaryWithGlow() =>
+        CelestialLightingFeatures.LowLightDesaturation
+        && CelestialLightingFeatures.DarkAreaDesaturation
+        && PurkinjeSettings.TintStrength > 0f;
 
     // Is there anything in the baked alphas that a change in CurSkyGlow would move? Two independent
     // reasons there might be, and the second is new — the decoupled indoor floor divides
@@ -102,7 +136,16 @@ public class GameComponent_SkyFalloffRedraw : GameComponent
             && IndoorOcclusionSettings.Current.MinIndoorBrightness > 0f;
     }
 
-    private static void CheckMap(Map map)
+    private static void CheckMap(Map map, bool falloff, bool wash)
+    {
+        if (falloff)
+            CheckFalloff(map);
+
+        if (wash)
+            CheckWash(map);
+    }
+
+    private static void CheckFalloff(Map map)
     {
         int mapId = map.uniqueID;
         float curGlow = map.skyManager.CurSkyGlow;
@@ -113,5 +156,32 @@ public class GameComponent_SkyFalloffRedraw : GameComponent
 
         lastBakedGlow[mapId] = curGlow;
         IndoorOcclusionRedraw.ForceRebuildMap(map);
+    }
+
+    // §9's wash meshes, against the SAME factor the bake will read — composed through
+    // NightRadiance.VisualGlowFor and WeatherDimming exactly as Patch_NightDesaturationStrength does,
+    // rather than against raw CurSkyGlow. Reading the raw glow here would put the trigger and the
+    // thing triggered on two different quantities: an eclipse drives glow to 0 without moving the
+    // composed factor at night, and weather attenuates the composed factor without moving the glow at
+    // all, so each would fire redraws the bake does not need and miss ones it does.
+    //
+    // This is why the drift test is on the FACTOR and not the glow: the factor is flat 0 through the
+    // whole of daylight and flat 1 through the whole of night, so a threshold on it fires only across
+    // the two twilight ramps — the bounded-transition property the header argues makes this safe,
+    // stated in the quantity that actually reaches the mesh.
+    private static void CheckWash(Map map)
+    {
+        int mapId = map.uniqueID;
+        float curFactor = PurkinjeMath.PurkinjeFactor(
+            WeatherDimmingMath.ApparentGlow(
+                NightRadiance.VisualGlowFor(map, map.skyManager.CurSkyGlow),
+                WeatherDimming.DimmingFor(map)));
+
+        bool hasBaseline = lastBakedWashFactor.TryGetValue(mapId, out float bakedFactor);
+        if (hasBaseline && !SkyFalloffRedrawMath.ShouldRedraw(bakedFactor, curFactor, SkyFalloffRedrawMath.DefaultThreshold))
+            return;
+
+        lastBakedWashFactor[mapId] = curFactor;
+        NightDesaturationRedraw.ForceRebuildMap(map);
     }
 }

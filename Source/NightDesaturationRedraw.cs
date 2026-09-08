@@ -42,6 +42,14 @@ public static class NightDesaturationRedraw
     // and without this a scenario's A/B screenshots would both show whatever was baked before.
     public static void ForceRebuild() => RebuildWashMeshes();
 
+    // Same rebuild, one map — GameComponent_SkyFalloffRedraw calls this per map whose composed
+    // rod-vision factor has actually drifted, rather than paying for every loaded map on the tick just
+    // one of them needs. Mirrors IndoorOcclusionRedraw.ForceRebuildMap, deliberately: two subsystems
+    // whose meshes go stale for the same reason, invalidated by the same driver through the same
+    // shape of call.
+    public static void ForceRebuildMap(Map map) =>
+        map.mapDrawer?.WholeMapChanged((ulong)MapMeshFlagDefOf.GroundGlow);
+
     // Find.Maps is empty during startup and on the main menu, which also keeps the MapMeshFlagDefOf
     // lookup from running before defs are loaded.
     private static void RebuildWashMeshes()
@@ -51,6 +59,6 @@ public static class NightDesaturationRedraw
             return;
 
         for (int i = 0; i < maps.Count; i++)
-            maps[i].mapDrawer?.WholeMapChanged((ulong)MapMeshFlagDefOf.GroundGlow);
+            ForceRebuildMap(maps[i]);
     }
 }

@@ -117,6 +117,92 @@ public class NightWashWindowTests
         });
     }
 
+
+    // --- Dark rooms at noon, and the two ways that goes wrong (§9 DarkAreaDesaturation) ---
+
+    // The fixture the next three tests share: a 5x5 sealed room at the middle of the section, walls on
+    // its border, open ground outside it. The FLOOR is the only thing marked sky-occluded — the walls
+    // hold their own roof up and so are not interior, which is §7b's rule and the thing the ring traps
+    // turn on.
+    private static FakeGlowGrid Room(int minX, int minZ, int maxX, int maxZ)
+    {
+        FakeGlowGrid map = new FakeGlowGrid(MapSize);
+        map.Wall(minX, minZ, maxX, minZ);
+        map.Wall(minX, maxZ, maxX, maxZ);
+        map.Wall(minX, minZ, minX, maxZ);
+        map.Wall(maxX, minZ, maxX, maxZ);
+        map.Enclose(minX + 1, minZ + 1, maxX - 1, maxZ - 1);
+        return map;
+    }
+
+    [Test]
+    public void Wash_AtNoon_DrainsTheRoomAndLeavesTheGroundOutsideIt()
+    {
+        // The whole point of the change, at the window level: at noon the exposed factor is 0, so open
+        // ground keeps its full colour while the unlit room inside the walls takes the full wash.
+        // Before this, the map-wide factor multiplied BOTH to zero and the room stayed daylit.
+        FakeGlowGrid map = Room(40, 40, 44, 44);
+        NightWashWindow window = Bake(map, InnerMin, InnerMin, InnerMax, InnerMax, 0f, 1f);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(window.At(42, 42), Is.EqualTo(1f), "the sealed room did not desaturate at noon");
+            Assert.That(window.At(38, 42), Is.EqualTo(0f), "open ground desaturated at noon");
+        });
+    }
+
+    // TRAP ONE, and the reason this uses IndoorOcclusionMath.BlocksSky rather than a bare Roofed. A
+    // wall holds up the roof over it, so it is NOT interior and takes the exposed factor. Had it been
+    // classed as interior it would wash fully at noon while the ground beside it washed not at all,
+    // which draws a dark grey ring around every building on the map.
+    //
+    // TRAP TWO is what this same assertion catches from the other side. The wall is a light blocker,
+    // so its own glow reading is meaningless and it reduces against its neighbours — and that
+    // reduction has to happen in WASH space, not glow space. Reducing over glow alone leaves the
+    // wall's sky regime out of the comparison, and the ring reappears one tile further in.
+    [Test]
+    public void Wash_AtNoon_LeavesTheWallRingUndrained()
+    {
+        FakeGlowGrid map = Room(40, 40, 44, 44);
+        NightWashWindow window = Bake(map, InnerMin, InnerMin, InnerMax, InnerMax, 0f, 1f);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(window.At(42, 40), Is.EqualTo(0f), "the south wall drew a dark ring at noon");
+            Assert.That(window.At(40, 42), Is.EqualTo(0f), "the west wall drew a dark ring at noon");
+            Assert.That(window.At(40, 40), Is.EqualTo(0f), "the corner drew a dark ring at noon");
+        });
+    }
+
+    [Test]
+    public void Wash_AtNight_IsUnchangedByTheSkyRegimeSplit()
+    {
+        // At night the exposed factor is 1, both regimes agree, and every unlit cell — room, wall and
+        // open ground alike — takes the full wash exactly as it did before the split. This is what
+        // pins the change to daylight: the shipped night look does not move.
+        FakeGlowGrid map = Room(40, 40, 44, 44);
+        NightWashWindow window = Bake(map, InnerMin, InnerMin, InnerMax, InnerMax, 1f, 1f);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(window.At(42, 42), Is.EqualTo(1f), "the room");
+            Assert.That(window.At(42, 40), Is.EqualTo(1f), "the wall");
+            Assert.That(window.At(38, 42), Is.EqualTo(1f), "open ground");
+        });
+    }
+
+    [Test]
+    public void Wash_ALitRoomKeepsItsColourAtNoon()
+    {
+        // The other way "desaturate all dark areas" goes wrong: greying out lit interiors. A lamp-lit
+        // floor reads LitExemptGlow, CellWash is 0 there, and no factor can revive it.
+        FakeGlowGrid map = Room(40, 40, 44, 44);
+        map.Fill(41, 41, 43, 43, NightDesaturationMath.LitExemptGlow);
+        NightWashWindow window = Bake(map, InnerMin, InnerMin, InnerMax, InnerMax, 0f, 1f);
+
+        Assert.That(window.At(42, 42), Is.EqualTo(0f));
+    }
+
     // --- Reads: inside the border, on it, and past it ---
 
     [Test]
@@ -124,9 +210,9 @@ public class NightWashWindowTests
     {
         NightWashWindow window = Fill(
             Window(InnerMin, InnerMin, InnerMax, InnerMax), glow: NightDesaturationMath.LitExemptGlow);
-        window.Resolve(40, 41, localGlow: 0f, blocksLight: false);
-        window.Resolve(41, 41, localGlow: NightDesaturationMath.LitExemptGlow, blocksLight: false);
-        window.Seal();
+        window.Resolve(40, 41, localGlow: 0f, blocksLight: false, cellBlocksSky: false);
+        window.Resolve(41, 41, localGlow: NightDesaturationMath.LitExemptGlow, blocksLight: false, cellBlocksSky: false);
+        window.Seal(1f, 1f);
 
         Assert.Multiple(() =>
         {
@@ -145,9 +231,9 @@ public class NightWashWindowTests
         // even though the section never emits a vertex for them.
         NightWashWindow window = Fill(
             Window(InnerMin, InnerMin, InnerMax, InnerMax), glow: NightDesaturationMath.LitExemptGlow);
-        window.Resolve(window.MinX, window.MinZ, localGlow: 0.25f, blocksLight: false);
-        window.Resolve(window.MaxX, window.MaxZ, localGlow: 0f, blocksLight: false);
-        window.Seal();
+        window.Resolve(window.MinX, window.MinZ, localGlow: 0.25f, blocksLight: false, cellBlocksSky: false);
+        window.Resolve(window.MaxX, window.MaxZ, localGlow: 0f, blocksLight: false, cellBlocksSky: false);
+        window.Seal(1f, 1f);
 
         Assert.Multiple(() =>
         {
@@ -372,6 +458,24 @@ public class NightWashWindowTests
     private static NightWashWindow Window(int minX, int minZ, int maxX, int maxZ) =>
         NightWashWindow.ForSection(minX, minZ, maxX, maxZ, MapSize, MapSize);
 
+    // One section's window, gathered off the fake grid and sealed under an explicit pair of sky
+    // factors — what ResolveWash does live once DarkAreaDesaturation moves the rod-vision factor into
+    // the mesh. `exposedFactor: 0` is noon, `1` is deep night.
+    private static NightWashWindow Bake(
+        FakeGlowGrid map, int minX, int minZ, int maxX, int maxZ, float exposedFactor,
+        float occludedFactor)
+    {
+        NightWashWindow window = NightWashWindow.ForSection(minX, minZ, maxX, maxZ, map.Size, map.Size);
+        for (int z = window.FillMinZ; z <= window.FillMaxZ; z++)
+        {
+            for (int x = window.FillMinX; x <= window.FillMaxX; x++)
+                window.Resolve(x, z, map.GroundGlowAt(x, z), map.BlocksLight(x, z), map.BlocksSky(x, z));
+        }
+
+        window.Seal(exposedFactor, occludedFactor);
+        return window;
+    }
+
     // One section's window, gathered off the fake grid and sealed — what ResolveWash does live.
     private static NightWashWindow Bake(FakeGlowGrid map, int minX, int minZ, int maxX, int maxZ)
     {
@@ -379,10 +483,10 @@ public class NightWashWindowTests
         for (int z = window.FillMinZ; z <= window.FillMaxZ; z++)
         {
             for (int x = window.FillMinX; x <= window.FillMaxX; x++)
-                window.Resolve(x, z, map.GroundGlowAt(x, z), map.BlocksLight(x, z));
+                window.Resolve(x, z, map.GroundGlowAt(x, z), map.BlocksLight(x, z), map.BlocksSky(x, z));
         }
 
-        window.Seal();
+        window.Seal(1f, 1f);
         return window;
     }
 
@@ -399,7 +503,7 @@ public class NightWashWindowTests
         for (int z = window.FillMinZ; z <= window.FillMaxZ; z++)
         {
             for (int x = window.FillMinX; x <= window.FillMaxX; x++)
-                window.Resolve(x, z, glow, blocksLight: false);
+                window.Resolve(x, z, glow, blocksLight: false, cellBlocksSky: false);
         }
 
         return window;
@@ -470,12 +574,14 @@ public class NightWashWindowTests
         private readonly int size;
         private readonly float[] glow;
         private readonly bool[] wall;
+        private readonly bool[] enclosed;
 
         public FakeGlowGrid(int size)
         {
             this.size = size;
             glow = new float[size * size];
             wall = new bool[size * size];
+            enclosed = new bool[size * size];
         }
 
         public int Size => size;
@@ -531,6 +637,24 @@ public class NightWashWindowTests
 
         // Stands in for `edificeGrid[c]?.def.blockLight`.
         public bool BlocksLight(int x, int z) => InBounds(x, z) && wall[z * size + x];
+
+        // Stands in for §7b's IndoorOcclusionMath.BlocksSky. Every cell in this fixture is outdoors
+        // unless a test says otherwise, which keeps the existing cases at the pre-feature formula:
+        // with no occluded cells the exposed factor reaches everything, and the fixture's own oracle
+        // (WashAt above) stays a function of glow alone.
+        public bool BlocksSky(int x, int z) => InBounds(x, z) && enclosed[z * size + x];
+
+        public void Enclose(int minX, int minZ, int maxX, int maxZ)
+        {
+            for (int z = minZ; z <= maxZ; z++)
+            {
+                for (int x = minX; x <= maxX; x++)
+                {
+                    if (InBounds(x, z))
+                        enclosed[z * size + x] = true;
+                }
+            }
+        }
 
         // Raises a wall AND clears the glow under it, which is the fact this whole fixture is about:
         // vanilla's flood never enters a light-blocking edifice, so the reading in one is ~0 no matter
@@ -619,10 +743,10 @@ public class NightWashWindowTests
             for (int z = window.FillMinZ; z <= window.FillMaxZ; z++)
             {
                 for (int x = window.FillMinX; x <= window.FillMaxX; x++)
-                    window.Resolve(x, z, map.GroundGlowAt(x, z), map.BlocksLight(x, z));
+                    window.Resolve(x, z, map.GroundGlowAt(x, z), map.BlocksLight(x, z), map.BlocksSky(x, z));
             }
 
-            window.Seal();
+            window.Seal(1f, 1f);
 
             return Run(map, minX, minZ, maxX, maxZ, window.At);
         }

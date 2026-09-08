@@ -31,13 +31,38 @@ public static class NightDesaturationOverlay
 
     public static Material Material => WashMaterial;
 
-    // Whether the wash would put anything on screen right now. False for the whole of daylight, where
-    // PurkinjeMath.PurkinjeFactor is an InverseLerpClamped that reaches exactly 0 at OnsetGlow — not
-    // merely small, so this is a real "nothing to draw" and not a threshold anyone has to tune.
+    // Whether the wash would put anything on screen right now. Read by
+    // SectionLayer_NightDesaturation.DrawLayer to skip the submission entirely; see there for why the
+    // skip lives at the draw and not in Visible.
     //
-    // Read by SectionLayer_NightDesaturation.DrawLayer to skip the submission entirely; see there for
-    // why the skip lives at the draw and not in Visible.
+    // WITH DarkAreaDesaturation OFF this is false for the whole of daylight, because the material
+    // carries PurkinjeMath.PurkinjeFactor, an InverseLerpClamped reaching exactly 0 at OnsetGlow —
+    // not merely small, so it is a real "nothing to draw" rather than a threshold anyone tuned.
+    //
+    // WITH IT ON the material is a constant (strength x MaxWash) and this stays true at noon, because
+    // an enclosed room genuinely has something to draw at noon — that is the whole feature. The
+    // daylight skip does not disappear, it moves down a level to where it can still be made per
+    // section: SectionLayer_NightDesaturation disables the submesh of any section whose vertices all
+    // baked to zero, so an outdoor map at midday still submits nothing.
     public static bool Drawing => WashMaterial.color.a > 0f;
+
+    // The rod-vision factor each sky regime's cells are washed by, read by the section layer at bake
+    // time. See NightDesaturationMath.CellWashWithSky for the model.
+    //
+    // Live on the overlay rather than being recomputed by the layer so that the mesh and the material
+    // cannot disagree about how deep the night is — the same single-read discipline
+    // Patch_NightDesaturationStrength's header argues for, applied across the two halves of §9
+    // instead of across two patches.
+    //
+    // ONE VALUE FOR EVERY LOADED MAP, exactly as the material already is. SetMapWash is called for
+    // the current map only (see the patch's guard), so a section baked on a second colony while the
+    // player is looking at the first uses the visible map's sky. That was already true of the
+    // material half and is the reason the material is a single static object; the mesh half now
+    // inherits it. In practice the off-screen map is re-baked when it is next dirtied, and the
+    // redraw driver in GameComponent_SkyFalloffRedraw sweeps every map on its own clock.
+    public static float ExposedFactor { get; private set; } = 1f;
+
+    public static float OccludedFactor { get; private set; } = 1f;
 
     private static Material BuildWashMaterial()
     {
@@ -62,7 +87,15 @@ public static class NightDesaturationOverlay
     // how deep the night is.
     public static void SetMapWash(float purkinjeFactor, float strength)
     {
-        float alpha = NightDesaturationMath.MapWash(purkinjeFactor, strength);
+        // The one branch that decides where the rod-vision factor lives. On, it goes to the mesh
+        // per cell and the material holds a constant; off, it stays on the material and both mesh
+        // factors are 1, which reproduces the pre-feature formula exactly. Nothing else in §9 needs
+        // to know which mode it is in — the arithmetic downstream is the same either way.
+        bool perCell = CelestialLightingFeatures.DarkAreaDesaturation;
+        ExposedFactor = perCell ? purkinjeFactor : 1f;
+        OccludedFactor = 1f;
+
+        float alpha = NightDesaturationMath.MapWash(perCell ? 1f : purkinjeFactor, strength);
 
         // Colour assignment is a shader property write; skipping the no-op case keeps a daytime map
         // (alpha 0 every frame) from touching the material at all.
