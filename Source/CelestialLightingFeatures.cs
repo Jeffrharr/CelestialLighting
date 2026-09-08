@@ -1302,6 +1302,33 @@ public static class CelestialLightingFeatures
     // boot it cannot. See stress_light_mask_gate.json. Inert unless VectorLightMaskSaturation is on.
     public static bool VectorLightMaskSaturationGate = true;
 
+    // Feature key for VectorLightMaskShadowBounds.
+    public const string VectorLightMaskShadowBoundsKey = "vector_light_mask_shadow_bounds";
+
+    // The mask's shadow stage walks only the box of each emitter's square where it could subtract
+    // anything — coverage under 255 and inside vanilla's own reach — instead of the whole square.
+    //
+    // WHY. With the max off — the shipped configuration, since the shader carries the max — the
+    // stage's inner loop does nothing at a fully lit cell and nothing at a cell vanilla never lit,
+    // and on the 500-lamp colony finding that out was the whole stage: 24 ms of a 52 ms rebake.
+    // The corners of every square are outside vanilla's disc, and the wedge behind a wall is a
+    // small part of what is left; the box the wedge fits in is known when the grid is baked, and
+    // the walk can start there. The box is exact — every cell outside it is one the loop would
+    // have left alone — so the output is byte-identical (VectorLightShadowBoundsTests, and the
+    // shadow_cells_edited counter on both arms of the scenario); an emitter whose box misses the
+    // section is not walked at all.
+    //
+    // INERT UNDER THE MAX, THE APERTURE BEAM AND THE BENT PATH, by construction rather than by
+    // flag: all three do work on fully lit cells, so under any of them the loop keeps its whole
+    // square. The flag gates the shipped path only.
+    //
+    // ON. The off arm exists for the same reason the saturation gate's does: the saving is a
+    // duration on a section regenerate, invisible to both frame-based analyzers, and this box's
+    // run-to-run timing noise is larger than the effect measured build-against-build. See
+    // stress_light_mask_bounds.json, which alternates the arms inside one boot. Inert unless
+    // VectorLightMask is on.
+    public static bool VectorLightMaskShadowBounds = true;
+
     public const string VectorLightPawnShadowsKey = "vector_light_pawn_shadows";
 
     // §27 phase 4: a pawn throws a shadow away from each lamp that lights it.

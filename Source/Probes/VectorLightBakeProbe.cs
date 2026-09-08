@@ -179,6 +179,12 @@ public sealed class VectorLightBakeProbe : IProbe
         // (precision).
         MaskSaturationCandidates,
 
+        // The shadow stage's walk against the part of it that subtracted anything. Scanned should
+        // fall towards Edited under the per-emitter shadow box; Edited must not move at all.
+        MaskShadowCellsScanned,
+
+        MaskShadowCellsEdited,
+
         // ---- the dirty suppression ---------------------------------------------------------------
         //
         // MapMeshDirty calls declined inside a glow-blocker write, and the distinct sections those
@@ -370,6 +376,12 @@ public sealed class VectorLightBakeProbe : IProbe
 
         if (metric == Metric.MaskSaturationCandidates)
             return VectorLightMask.SaturationCandidates;
+
+        if (metric == Metric.MaskShadowCellsScanned)
+            return VectorLightMask.ShadowCellsScanned;
+
+        if (metric == Metric.MaskShadowCellsEdited)
+            return VectorLightMask.ShadowCellsEdited;
 
         if (metric == Metric.MaskAppliesClocked)
             return VectorLightMask.Applies;

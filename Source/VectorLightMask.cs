@@ -232,9 +232,19 @@ public static class VectorLightMask
     // gate that is wrong, and VectorLightSaturationMath's sweep is the offline half of that check.
     public static long SaturationCandidates;
 
+    // The shadow stage's own scanned-against-used pair: (emitter, cell) pairs its loop visited, and
+    // the ones it subtracted anything at. The difference is the size of the prize the per-emitter
+    // shadow box can claim. Edited must read identically with the box on and off — that is the
+    // live half of the box's identity claim, the offline half being VectorLightShadowBoundsTests —
+    // and Scanned is what the box is measured by.
+    public static long ShadowCellsScanned;
+    public static long ShadowCellsEdited;
+
     public static void ResetTelemetry()
     {
         SaturationCandidates = 0;
+        ShadowCellsScanned = 0;
+        ShadowCellsEdited = 0;
         LightsScanned = 0;
         LightsFolded = 0;
         EmittersScanned = 0;
@@ -543,6 +553,14 @@ public static class VectorLightMask
 
         bool any = false;
 
+        // WHETHER THE SHADOW BOX CAN STAND IN FOR THE SQUARE, decided once per section. Under the
+        // max, the aperture beam or the bent path the loop below does work on fully lit cells —
+        // the lift lands there, the replacement takes them — so only the shipped subtract-only
+        // path may clip to where the coverage is under 255. See VectorLightMath.CoverageShadowBounds
+        // for why that clip is exact.
+        bool bounded = !lifting && !Replacing && !BentPath
+            && CelestialLightingFeatures.VectorLightMaskShadowBounds;
+
         // EMITTERS OUTER, CELLS INNER, and that ordering is the whole performance story. The first
         // version walked every cell of the section and asked every reaching emitter about it: a
         // dictionary lookup on a long key, a CellRect.Contains and two native-container indexers,
@@ -559,7 +577,25 @@ public static class VectorLightMask
             if (!reader.TryResolveEmitter(entry.VanillaKey, out GlowLight light, out UnsafeList<Color32> colors))
                 continue;
 
-            any |= AccumulateEmitter(map, rect, entry, light, colors, lifting);
+            // THE BOX IS ONLY TRUSTED AT THE RADIUS IT WAS BAKED FOR. It bounds where vanilla's
+            // flood can reach at the entry's BaseRadius, and the light resolved just now carries
+            // the radius vanilla actually flooded at. The two come from the same CompGlower and
+            // agree on every settled frame; on the frame a lamp is resized they can differ, and a
+            // box for the smaller radius would clip cells the larger flood lit. Falling back to
+            // the whole square for that emitter costs one frame of the old walk and nothing else.
+            //
+            // AFTER THE RESOLVE, NOT BEFORE, for that reason: the check needs the light. The
+            // lookup it would have saved is one dictionary read per reaching emitter, three
+            // thousand per whole-map rebake against six hundred thousand cell visits — not worth
+            // a frame of doubt.
+            bool boundedHere = bounded && light.glowRadius == entry.BaseRadius;
+
+            // An emitter reaches the section by its radius, but its shadow may not: the wedge
+            // behind one wall lies on one side of the lamp, and the sections on the other side
+            // would walk the intersection and add nothing. Four compares against the box, read
+            // against the section plus the one cell of margin the accumulation grid carries.
+            if (!boundedHere || ShadowReaches(entry, rect))
+                any |= AccumulateEmitter(map, rect, entry, light, colors, lifting, boundedHere);
         }
 
         // AFTER THE ACCUMULATION AND ONLY IF THERE IS SOMETHING TO CORRECT. The correction is a
@@ -1111,9 +1147,27 @@ public static class VectorLightMask
                 Math.Max(shadow.g - corrected.g, shadow.b - corrected.b)));
     }
 
+    // Whether the emitter's shadow box touches the section's accumulation grid — the section plus
+    // CellMargin on every side, which is exactly the range AccumulateEmitter's loop clamps to. In
+    // the same frame CoverageAt indexes by: offsets from entry.Cell, not from the vanilla light's
+    // position, so a cell the box excludes on coverage grounds is one CoverageAt answers 255 for
+    // whatever the two positions are doing this frame. (The reach half of the box is read against
+    // the vanilla light's radius in BuildCellShadow, and on the frame the two positions differ the
+    // grid itself is already one bake stale — the existing, accepted, one-frame case.)
+    private static bool ShadowReaches(VectorLightField.LightEntry entry, CellRect rect)
+    {
+        VectorLightMath.ShadowBounds shadow = entry.Shadow;
+
+        return !shadow.Empty
+            && entry.Cell.x + shadow.MaxDx >= rect.minX - CellMargin
+            && entry.Cell.x + shadow.MinDx <= rect.maxX + CellMargin
+            && entry.Cell.z + shadow.MaxDz >= rect.minZ - CellMargin
+            && entry.Cell.z + shadow.MinDz <= rect.maxZ + CellMargin;
+    }
+
     private static bool AccumulateEmitter(
         Map map, CellRect rect, VectorLightField.LightEntry entry, GlowLight light,
-        UnsafeList<Color32> colors, bool lifting)
+        UnsafeList<Color32> colors, bool lifting, bool bounded)
     {
         bool any = false;
 
@@ -1145,12 +1199,34 @@ public static class VectorLightMask
         int minZ = Math.Max(reach.minZ, rect.minZ - 1);
         int maxZ = Math.Min(reach.maxZ, rect.maxZ + 1);
 
+        // THEN CLIPPED TO THE SHADOW BOX, on the shipped path. Every cell this drops is one the
+        // loop below would have left alone — skipped as fully lit, or read from vanilla's array and
+        // found black — so the sums are the same to the byte; what changes is that a lamp with one
+        // wall in range walks the wedge behind the wall rather than its whole square to find it.
+        // BuildCellShadow has already rejected the emitters whose box misses the section outright,
+        // so an empty range here is the box clipping to nothing on this side of the light, and the
+        // loops simply do not run.
+        if (bounded)
+        {
+            VectorLightMath.ShadowBounds shadow = entry.Shadow;
+
+            minX = Math.Max(minX, entry.Cell.x + shadow.MinDx);
+            maxX = Math.Min(maxX, entry.Cell.x + shadow.MaxDx);
+            minZ = Math.Max(minZ, entry.Cell.z + shadow.MinDz);
+            maxZ = Math.Min(maxZ, entry.Cell.z + shadow.MaxDz);
+        }
+
         for (int z = minZ; z <= maxZ; z++)
         {
             for (int x = minX; x <= maxX; x++)
             {
                 int coverage = VectorLightMath.CoverageAt(
                     entry.Coverage, entry.Cell.x, entry.Cell.z, entry.CoverageRadius, x, z);
+
+                // Counted before the skip, so the pair with ShadowCellsEdited reads how much of the
+                // walk the shipped path had any use for. On both arms of the bounds scenario,
+                // deliberately: the increment is part of what the off arm's loop costs too.
+                ShadowCellsScanned++;
 
                 // Fully lit is the common case for the SUBTRACTION and costs one compare. Checked
                 // before the glow read because the array index is the dearer of the two. Under the
@@ -1232,6 +1308,7 @@ public static class VectorLightMask
                     cellShadow[index].g += own.g * shadowed / 255;
                     cellShadow[index].b += own.b * shadowed / 255;
                     any = true;
+                    ShadowCellsEdited++;
 
                     // Counted HERE and not beside the predicate, so it means "the rule took light
                     // off this cell" rather than "the rule matched". Those differ at every cell

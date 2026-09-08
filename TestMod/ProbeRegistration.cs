@@ -501,6 +501,12 @@ public static class ProbeRegistration
         ProbeRegistry.Register(new VectorLightBakeProbe(
             "vector_light_mask_saturation_candidates",
             VectorLightBakeProbe.Metric.MaskSaturationCandidates));
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_mask_shadow_cells_scanned",
+            VectorLightBakeProbe.Metric.MaskShadowCellsScanned));
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_mask_shadow_cells_edited",
+            VectorLightBakeProbe.Metric.MaskShadowCellsEdited));
         // The one metric here that is a DEFECT COUNT rather than a workload figure: sections that
         // baked with an emitter reaching them dropped for want of a polygon, i.e. frames that
         // rendered with a shadow missing. Its partner says the fallback was exercised at all, which
@@ -2011,6 +2017,19 @@ public static class ProbeRegistration
             enabled =>
             {
                 CelestialLightingFeatures.VectorLightMaskSaturationGate = enabled;
+                VectorLightRedraw.ForceRebuild();
+            });
+
+        // The shadow stage's per-emitter box. ForceRebuild for the same reason the gate above
+        // needs it: this changes what a section regenerate costs and nothing about what it draws,
+        // so flipping it does nothing until something rebakes, and the rebake is what the timing
+        // scenario reads. Output identical on both arms by construction; the off arm is a control
+        // for a duration only the calling-thread stopwatch can see.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightMaskShadowBoundsKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.VectorLightMaskShadowBounds = enabled;
                 VectorLightRedraw.ForceRebuild();
             });
 

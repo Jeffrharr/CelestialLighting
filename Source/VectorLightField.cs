@@ -108,6 +108,15 @@ public static class VectorLightField
         // bake skips such an emitter outright rather than looking its grid up cell by cell.
         public bool Unobstructed;
 
+        // Where in the grid above the shadow stage can subtract anything, as a box of offsets from
+        // Cell: coverage under 255 and inside vanilla's own reach at BaseRadius. Baked with the
+        // grid, for the mask to intersect its cell walk with rather than walk the whole square. See
+        // VectorLightMath.CoverageShadowBounds for why the box is exact rather than approximate,
+        // and VectorLightMask.AccumulateEmitter for the radius check that keeps it honest when the
+        // vanilla light and this entry disagree for a frame. None until the first bake, which is
+        // also what an emitter with no reachable shadow reads.
+        public VectorLightMath.ShadowBounds Shadow = VectorLightMath.ShadowBounds.None;
+
         // The cell the coverage grid above was baked around. Held rather than assumed equal to Cell,
         // because the two come apart for exactly one frame: Resync re-reads a moved emitter's
         // position onto Cell while Coverage still holds the grid built at the old one, and a
@@ -865,6 +874,14 @@ public static class VectorLightField
             VectorLightMath.DefaultCoverageSamples, Scratch);
         entry.CoverageCell = entry.Cell;
         entry.Unobstructed = VectorLightMath.IsUnobstructed(entry.Polygon, entry.Radius);
+
+            // One more pass over the grid just built, so the mask can skip the part of the square
+            // that holds no shadow vanilla could have lit. AT VANILLA'S RADIUS, the same one the
+            // grid is capped at, because the box is a statement about where vanilla's flood
+            // reaches. Inside the bake's clock on purpose: it is part of what a bake costs, and the
+            // mask's saving is read net of it.
+            entry.Shadow = VectorLightMath.CoverageShadowBounds(
+                entry.Coverage, entry.CoverageRadius, entry.BaseRadius);
 
         entry.Dirtied = DirtiedBy(
             entry, previousCoverage, previousRadius, previousCell, previousUnobstructed, hadPolygon);
