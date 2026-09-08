@@ -294,6 +294,23 @@ public static class ProbeRegistration
         // BOTH the §17 blackout gate and §7a's MinNightBrightness floor. Anomaly's UnnaturalDarkness
         // scenario reads this under different presets to prove the floor no longer washes the event out.
         ProbeRegistry.Register(new SkyOverlayLuminanceProbe());
+
+        // The As above, So below II interop. Four state probes plus the payload, because each
+        // failure here presents as a plausible number rather than an error — see
+        // AsAboveSoBelowProbe.cs's header for what each one rules out.
+        ProbeRegistry.Register(new AsAboveSoBelowPresentProbe());
+        ProbeRegistry.Register(new AsAboveSoBelowBandedProbe());
+        ProbeRegistry.Register(new AsAboveSoBelowRenderingGuardProbe());
+        ProbeRegistry.Register(new AsAboveSoBelowOverlayOwnedProbe());
+
+        // Two cells, both on the surface band of the banded fixture: one under the roofed room the
+        // scenario builds, one on open ground outside it. The roofed one is what indoor sky
+        // occlusion moves; the outdoor one is the control that must not move, and without it a
+        // change that darkened the WHOLE overlay would read as a working occlusion.
+        ProbeRegistry.Register(
+            new AsAboveSoBelowOverlayAlphaProbe("aasb2_room_overlay_alpha", new IntVec3(0, 0, 45)));
+        ProbeRegistry.Register(
+            new AsAboveSoBelowOverlayAlphaProbe("aasb2_outdoor_overlay_alpha", new IntVec3(12, 0, 45)));
         // §14: one number that says whether vanilla's sky and our sun agree about day/night.
         ProbeRegistry.Register(new SunClockDisagreementProbe());
         ProbeRegistry.Register(new SunElevationProbe());
