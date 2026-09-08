@@ -1182,6 +1182,122 @@ public static class VectorLightMask
     public static double ShadowSetupMs =>
         ShadowSetupTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
 
+    // The subtract-only run walk with every per-cell index turned into a base per row plus x.
+    //
+    // EXACTLY THE BODY IN AccumulateEmitter'S LOOP, restated. That body, on this path, does per
+    // cell: CoverageAt (bounds test and a 2-D index), the scanned counter, the fully-lit skip,
+    // InBounds, WorldToLocalIndex (an IntVec3 subtraction and a 2-D index), a range guard on the
+    // local index, the native read, CellIndex, the black test and the subtraction. Along a run z
+    // is fixed and x advances by one, so every index is base + x; and every guard is a range
+    // test on x, so it is one clip per row instead of one test per cell:
+    //
+    //   - InBounds: the walk's x and z ranges are clipped to the map once, at the top. A cell the
+    //     old body `continue`d past on InBounds is a cell this walk never reaches — before the
+    //     counter in both cases? NO: the old body counted it first. ShadowCellsScanned therefore
+    //     reads the same on both arms only when no run leaves the map, which on a colony clear of
+    //     the edge is every run; the scenario pins the counter identical and would say otherwise.
+    //   - CoverageAt: a run lies inside the grid by construction (the table was read out of it),
+    //     so the grid index is (zi * span + xi) with xi = x - Cell.x + R, and the row's zi is
+    //     checked once. Outside the grid CoverageAt answers 255 and the body skips; a row outside
+    //     the grid is skipped whole here, the same outcome.
+    //   - WorldToLocalIndex: linear in x within a row — CellIndicesUtility.CellToIndex is
+    //     z * width + x — so the row's base is the light's own answer for the run's first cell
+    //     minus that cell's x, and the old guard `0 <= local < Length` is a range test on x
+    //     applied to the run's two ends, since the index is monotonic along it.
+    //   - CellIndex: (z - rect.minZ + 1) * wide + (x - rect.minX + 1), likewise base + x.
+    //
+    // The reads, the integer arithmetic and the counters are the old body's; only the addressing
+    // moved. VectorLightShadowBoundsTests' replay does not exercise this walk — it is live-state
+    // addressing, not geometry — so the identity claim rests on the counters and on the gate.
+    private static bool WalkRunsAdvancing(
+        Map map, CellRect rect, VectorLightField.LightEntry entry, GlowLight light,
+        UnsafeList<Color32> colors, int minX, int maxX, int minZ, int maxZ)
+    {
+        bool any = false;
+
+        // The map clip, once. Cells off the map are cells the old body left after counting them;
+        // see the header for what that does to the scanned counter.
+        IntVec3 size = map.Size;
+        minX = Math.Max(minX, 0);
+        maxX = Math.Min(maxX, size.x - 1);
+        minZ = Math.Max(minZ, 0);
+        maxZ = Math.Min(maxZ, size.z - 1);
+
+        byte[] grid = entry.Coverage;
+        int coverageRadius = entry.CoverageRadius;
+        int span = coverageRadius * 2 + 1;
+        int gridOriginX = entry.Cell.x;
+        int gridOriginZ = entry.Cell.z;
+
+        int[] rowStart = entry.Runs.RowStart;
+        int[] spans = entry.Runs.Spans;
+        int firstRow = entry.Cell.z + entry.Runs.Bounds.MinDz;
+
+        int wide = CellsWide(rect);
+        int localLength = colors.Length;
+
+        for (int z = minZ; z <= maxZ; z++)
+        {
+            int zi = z - gridOriginZ + coverageRadius;
+
+            // A row outside the grid reads 255 everywhere under CoverageAt's rule, and the old
+            // body skipped every such cell after counting it. No run can lie on such a row — the
+            // table came from the grid — so this is a guard, not a path, and the counter agrees.
+            if (zi < 0 || zi >= span)
+                continue;
+
+            int coverageBase = zi * span - gridOriginX + coverageRadius;
+            int cellBase = (z - rect.minZ + 1) * wide - rect.minX + 1;
+            int row = z - firstRow;
+            int endRun = rowStart[row + 1];
+
+            for (int k = rowStart[row]; k < endRun; k += 2)
+            {
+                int from = Math.Max(minX, gridOriginX + spans[k]);
+                int to = Math.Min(maxX, gridOriginX + spans[k + 1]);
+
+                if (from > to)
+                    continue;
+
+                // The light's own answer for the run's first cell, then + x. The old guard on the
+                // local index becomes a clip on x, valid because the index is monotonic in x.
+                int localBase = light.WorldToLocalIndex(new IntVec3(from, 0, z)) - from;
+
+                if (localBase + from < 0)
+                    from = -localBase;
+
+                if (localBase + to >= localLength)
+                    to = localLength - 1 - localBase;
+
+                for (int x = from; x <= to; x++)
+                {
+                    int coverage = grid[coverageBase + x];
+
+                    ShadowCellsScanned++;
+
+                    if (coverage >= 255)
+                        continue;
+
+                    Color32 own = colors[localBase + x];
+
+                    if (own.r == 0 && own.g == 0 && own.b == 0)
+                        continue;
+
+                    int shadowed = 255 - coverage;
+                    int index = cellBase + x;
+
+                    cellShadow[index].r += own.r * shadowed / 255;
+                    cellShadow[index].g += own.g * shadowed / 255;
+                    cellShadow[index].b += own.b * shadowed / 255;
+                    any = true;
+                    ShadowCellsEdited++;
+                }
+            }
+        }
+
+        return any;
+    }
+
     private static bool ShadowReaches(VectorLightField.LightEntry entry, CellRect rect)
     {
         VectorLightMath.ShadowBounds shadow = entry.Shadow;
@@ -1264,6 +1380,17 @@ public static class VectorLightMask
         // Closes the per-emitter interval BuildCellShadow opened: everything above this line is
         // setup, everything below is the walk.
         ShadowSetupTicks += System.Diagnostics.Stopwatch.GetTimestamp() - shadowSetupStart;
+
+        // THE SHIPPED PATH, WITH ITS INDICES ADVANCED RATHER THAN RECOMPUTED. Clocked, the stage
+        // is the length of the dear path — 88 ns a cell — and on the subtract-only path every cell
+        // in a run pays InBounds, WorldToLocalIndex, CoverageAt and CellIndex before the one read
+        // that can say anything. All four are affine in x along a run, so they become a base per
+        // row and an increment per cell; the map clip is done once per emitter instead. Same
+        // reads, same arithmetic, same counters. Only the subtract-only path takes it: under the
+        // max, the aperture beam or the bent path the body below does more per cell than this
+        // walk knows how to, and `bounded` has already said none of those is on.
+        if (runs && CelestialLightingFeatures.VectorLightMaskRunIndices)
+            return WalkRunsAdvancing(map, rect, entry, light, colors, minX, maxX, minZ, maxZ);
 
         for (int z = minZ; z <= maxZ; z++)
         {
