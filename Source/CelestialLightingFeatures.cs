@@ -1329,6 +1329,21 @@ public static class CelestialLightingFeatures
     // VectorLightMask is on.
     public static bool VectorLightMaskShadowBounds = true;
 
+    // Feature key for VectorLightMaskShadowSpans.
+    public const string VectorLightMaskShadowSpansKey = "vector_light_mask_shadow_spans";
+
+    // The mask's shadow stage walks each emitter's shadow as runs per row rather than as the box
+    // those runs fit in. Same predicate as the box — coverage under 255 and inside vanilla's own
+    // reach — so the output is byte-identical by the same argument; what changes is that a wedge's
+    // bounding box is mostly the two corners the wedge does not fill, and a lamp between two walls
+    // has a fully lit floor between its two wedges that one box spans and the runs skip.
+    //
+    // OFF reproduces the box walk exactly (the runs' extent IS the box). Inert unless
+    // VectorLightMaskShadowBounds is on, and inert under the max, the aperture beam and the bent
+    // path for the reason that flag's header gives. See stress_light_mask_spans.json, which
+    // alternates arms inside one boot for the reason the bounds scenario does.
+    public static bool VectorLightMaskShadowSpans = true;
+
     public const string VectorLightPawnShadowsKey = "vector_light_pawn_shadows";
 
     // §27 phase 4: a pawn throws a shadow away from each lamp that lights it.

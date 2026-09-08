@@ -117,6 +117,12 @@ public static class VectorLightField
         // also what an emitter with no reachable shadow reads.
         public VectorLightMath.ShadowBounds Shadow = VectorLightMath.ShadowBounds.None;
 
+        // The same cells as Shadow, as runs per row, for the mask to walk the wedge itself rather
+        // than the box it fits in. Baked in the same pass as the box, which is read out of it; see
+        // VectorLightMath.CoverageShadowRuns for the layout and why the two agree by construction.
+        // None until the first bake.
+        public VectorLightMath.ShadowRuns Runs = VectorLightMath.ShadowRuns.None;
+
         // The cell the coverage grid above was baked around. Held rather than assumed equal to Cell,
         // because the two come apart for exactly one frame: Resync re-reads a moved emitter's
         // position onto Cell while Coverage still holds the grid built at the old one, and a
@@ -880,8 +886,9 @@ public static class VectorLightField
             // grid is capped at, because the box is a statement about where vanilla's flood
             // reaches. Inside the bake's clock on purpose: it is part of what a bake costs, and the
             // mask's saving is read net of it.
-            entry.Shadow = VectorLightMath.CoverageShadowBounds(
+            entry.Runs = VectorLightMath.CoverageShadowRuns(
                 entry.Coverage, entry.CoverageRadius, entry.BaseRadius);
+            entry.Shadow = entry.Runs.Bounds;
 
         entry.Dirtied = DirtiedBy(
             entry, previousCoverage, previousRadius, previousCell, previousUnobstructed, hadPolygon);

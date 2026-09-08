@@ -1216,113 +1216,152 @@ public static class VectorLightMask
             maxZ = Math.Min(maxZ, entry.Cell.z + shadow.MaxDz);
         }
 
+        // AND THEN, INSIDE THE BOX, ONLY THE RUNS. The box is the runs' extent, so every row the
+        // clip above left is a row of the table, and each run is clipped to the section's x range
+        // the same way the box was. A cell between runs is one the body below would skip as fully
+        // lit or read from vanilla's array and find black, exactly as for a cell outside the box —
+        // see VectorLightMath.CoverageShadowRuns. Trusted under the same radius check as the box,
+        // which `bounded` already carries; an entry that has never baked holds ShadowRuns.None,
+        // whose Bounds are empty, so it cannot arrive here with bounded set.
+        //
+        // WITHOUT THE RUNS THE ROW IS ONE SYNTHETIC RUN, minX..maxX, so the box walk and the run
+        // walk drive the identical body through the identical three loops and the off arm of the
+        // spans scenario differs from the on arm by the two branches below and nothing else.
+        bool runs = bounded && CelestialLightingFeatures.VectorLightMaskShadowSpans;
+        int[] rowStart = entry.Runs.RowStart;
+        int[] spans = entry.Runs.Spans;
+        int originX = entry.Cell.x;
+        int firstRow = entry.Cell.z + entry.Runs.Bounds.MinDz;
+
         for (int z = minZ; z <= maxZ; z++)
         {
-            for (int x = minX; x <= maxX; x++)
+            int firstRun = 0;
+            int endRun = 2;
+
+            if (runs)
             {
-                int coverage = VectorLightMath.CoverageAt(
-                    entry.Coverage, entry.Cell.x, entry.Cell.z, entry.CoverageRadius, x, z);
+                int row = z - firstRow;
+                firstRun = rowStart[row];
+                endRun = rowStart[row + 1];
+            }
 
-                // Counted before the skip, so the pair with ShadowCellsEdited reads how much of the
-                // walk the shipped path had any use for. On both arms of the bounds scenario,
-                // deliberately: the increment is part of what the off arm's loop costs too.
-                ShadowCellsScanned++;
+            for (int k = firstRun; k < endRun; k += 2)
+            {
+                int from = minX;
+                int to = maxX;
 
-                // Fully lit is the common case for the SUBTRACTION and costs one compare. Checked
-                // before the glow read because the array index is the dearer of the two. Under the
-                // max a fully lit cell is exactly where the lift lands, so the skip is conditional
-                // on there being no lift to compute rather than unconditional.
-                //
-                // AND UNDER THE PER-CELL REPLACEMENT THE SKIP CANNOT FIRE AT ALL, because a fully lit cell
-                // is exactly where a replacement has the most to take away. Removing this emitter's
-                // whole contribution is the point there, not an edge case. The per-cell rule has to
-                // read vanilla's own delivered distance before it can decide, and that read is what
-                // this skip exists to avoid — so with it on the skip goes, and the shipped path
-                // keeps its shape only because the flag is off there.
-                if (coverage >= 255 && !lifting && !replacing && !bentPath)
-                    continue;
-
-                IntVec3 cell = new IntVec3(x, 0, z);
-
-                if (!cell.InBounds(map))
-                    continue;
-
-                int local = light.WorldToLocalIndex(cell);
-
-                if (local < 0 || local >= colors.Length)
-                    continue;
-
-                Color32 own = colors[local];
-                int index = CellIndex(rect, x, z);
-
-                // THE BLACK TEST GUARDS THE SUBTRACTION ONLY, and moving it was the whole point.
-                // A cell vanilla never lit has nothing to take away — and under the max it is the
-                // single most interesting cell on the map, because "vanilla delivered none of it"
-                // is precisely what the far side of an open door looks like from in here. Leaving
-                // the old skip in place would have dropped every cell phase 5 exists to light,
-                // and would have done it silently: the frame comes back looking like the mask
-                // alone, which is a passing arm rather than an obvious failure.
-                bool anyOwn = own.r != 0 || own.g != 0 || own.b != 0;
-
-                // THE APERTURE BEAM REPLACES RATHER THAN TRIMS. Normally the mask removes only the
-                // SHADOWED share of this emitter's light and leaves the rest of vanilla's flood
-                // standing, and the fan then adds the excess of our model over it. That composition
-                // is degenerate wherever vanilla already delivers what our model claims — which is
-                // precisely an open aperture, where vanilla's flood takes a short path through the
-                // hole and arrives at close to our own straight-line value. The beam is composed
-                // away rather than culled away: the polygon is built, the coverage is 255 along it,
-                // and there is simply no excess left to draw.
-                //
-                // With this on, every cell in the emitter's reach gives up ALL of that emitter's
-                // vanilla light, and VectorLightOverlay drops _VanillaWeight to zero so the fan
-                // delivers the whole model instead of the difference. Inside the polygon that is a
-                // replacement rather than a sum — which is what keeps it clear of epic #145's
-                // rejected option, where drawing over an UNsuppressed flood landed a room 6 L* high.
-                //
-                // NOT AN APERTURE-SPECIFIC RULE, and that is deliberate. Nothing here asks how the
-                // light left the room. A doorway already looks like this because vanilla delivers
-                // nothing beyond a door and the max degenerates to our whole model on its own; this
-                // makes an aperture reach the same place by the same arithmetic rather than by a
-                // second code path that has to agree with the first.
-                //
-                // THE PER-CELL RULE IS THE SAME REPLACEMENT WITH A PREDICATE IN FRONT OF IT. Where
-                // vanilla reached the cell by the route our polygon sees along, it delivered our
-                // model's own value and there is nothing to gain by taking the cell off it — that is
-                // the near field, and it is what the global version spent to buy the aperture. Where
-                // vanilla DETOURED, our model is the better description and takes the cell whole.
-                // VectorLightOverlay.SurvivingShare asks the identical question of the identical
-                // pure predicate, so the field the fragment program subtracts describes what this
-                // loop left behind.
-                bool claimed = bentPath
-                    && VectorLightLiftMath.VanillaBentToArrive(
-                        x - lightX, z - lightZ, own.a, anyOwn);
-
-                int shadowed = replacing || claimed ? 255 : 255 - coverage;
-
-                if (shadowed > 0 && anyOwn)
+                if (runs)
                 {
-
-                    // Integer throughout: these are bytes scaled by a byte, so the float round-trip
-                    // the first version did per channel bought nothing but conversions.
-                    cellShadow[index].r += own.r * shadowed / 255;
-                    cellShadow[index].g += own.g * shadowed / 255;
-                    cellShadow[index].b += own.b * shadowed / 255;
-                    any = true;
-                    ShadowCellsEdited++;
-
-                    // Counted HERE and not beside the predicate, so it means "the rule took light
-                    // off this cell" rather than "the rule matched". Those differ at every cell
-                    // vanilla never lit — the far side of an open door — which the rule claims and
-                    // where claiming it changes nothing.
-                    if (claimed)
-                        BentSamples++;
+                    from = Math.Max(minX, originX + spans[k]);
+                    to = Math.Min(maxX, originX + spans[k + 1]);
                 }
 
-                if (lifting && coverage > 0)
+                for (int x = from; x <= to; x++)
                 {
-                    any |= AccumulateLift(
-                        index, coverage, own, colour, x - lightX, z - lightZ, radius, radiusSquared,
-                        matchSeed);
+                    int coverage = VectorLightMath.CoverageAt(
+                        entry.Coverage, entry.Cell.x, entry.Cell.z, entry.CoverageRadius, x, z);
+
+                    // Counted before the skip, so the pair with ShadowCellsEdited reads how much of the
+                    // walk the shipped path had any use for. On both arms of the bounds scenario,
+                    // deliberately: the increment is part of what the off arm's loop costs too.
+                    ShadowCellsScanned++;
+
+                    // Fully lit is the common case for the SUBTRACTION and costs one compare. Checked
+                    // before the glow read because the array index is the dearer of the two. Under the
+                    // max a fully lit cell is exactly where the lift lands, so the skip is conditional
+                    // on there being no lift to compute rather than unconditional.
+                    //
+                    // AND UNDER THE PER-CELL REPLACEMENT THE SKIP CANNOT FIRE AT ALL, because a fully lit cell
+                    // is exactly where a replacement has the most to take away. Removing this emitter's
+                    // whole contribution is the point there, not an edge case. The per-cell rule has to
+                    // read vanilla's own delivered distance before it can decide, and that read is what
+                    // this skip exists to avoid — so with it on the skip goes, and the shipped path
+                    // keeps its shape only because the flag is off there.
+                    if (coverage >= 255 && !lifting && !replacing && !bentPath)
+                        continue;
+
+                    IntVec3 cell = new IntVec3(x, 0, z);
+
+                    if (!cell.InBounds(map))
+                        continue;
+
+                    int local = light.WorldToLocalIndex(cell);
+
+                    if (local < 0 || local >= colors.Length)
+                        continue;
+
+                    Color32 own = colors[local];
+                    int index = CellIndex(rect, x, z);
+
+                    // THE BLACK TEST GUARDS THE SUBTRACTION ONLY, and moving it was the whole point.
+                    // A cell vanilla never lit has nothing to take away — and under the max it is the
+                    // single most interesting cell on the map, because "vanilla delivered none of it"
+                    // is precisely what the far side of an open door looks like from in here. Leaving
+                    // the old skip in place would have dropped every cell phase 5 exists to light,
+                    // and would have done it silently: the frame comes back looking like the mask
+                    // alone, which is a passing arm rather than an obvious failure.
+                    bool anyOwn = own.r != 0 || own.g != 0 || own.b != 0;
+
+                    // THE APERTURE BEAM REPLACES RATHER THAN TRIMS. Normally the mask removes only the
+                    // SHADOWED share of this emitter's light and leaves the rest of vanilla's flood
+                    // standing, and the fan then adds the excess of our model over it. That composition
+                    // is degenerate wherever vanilla already delivers what our model claims — which is
+                    // precisely an open aperture, where vanilla's flood takes a short path through the
+                    // hole and arrives at close to our own straight-line value. The beam is composed
+                    // away rather than culled away: the polygon is built, the coverage is 255 along it,
+                    // and there is simply no excess left to draw.
+                    //
+                    // With this on, every cell in the emitter's reach gives up ALL of that emitter's
+                    // vanilla light, and VectorLightOverlay drops _VanillaWeight to zero so the fan
+                    // delivers the whole model instead of the difference. Inside the polygon that is a
+                    // replacement rather than a sum — which is what keeps it clear of epic #145's
+                    // rejected option, where drawing over an UNsuppressed flood landed a room 6 L* high.
+                    //
+                    // NOT AN APERTURE-SPECIFIC RULE, and that is deliberate. Nothing here asks how the
+                    // light left the room. A doorway already looks like this because vanilla delivers
+                    // nothing beyond a door and the max degenerates to our whole model on its own; this
+                    // makes an aperture reach the same place by the same arithmetic rather than by a
+                    // second code path that has to agree with the first.
+                    //
+                    // THE PER-CELL RULE IS THE SAME REPLACEMENT WITH A PREDICATE IN FRONT OF IT. Where
+                    // vanilla reached the cell by the route our polygon sees along, it delivered our
+                    // model's own value and there is nothing to gain by taking the cell off it — that is
+                    // the near field, and it is what the global version spent to buy the aperture. Where
+                    // vanilla DETOURED, our model is the better description and takes the cell whole.
+                    // VectorLightOverlay.SurvivingShare asks the identical question of the identical
+                    // pure predicate, so the field the fragment program subtracts describes what this
+                    // loop left behind.
+                    bool claimed = bentPath
+                        && VectorLightLiftMath.VanillaBentToArrive(
+                            x - lightX, z - lightZ, own.a, anyOwn);
+
+                    int shadowed = replacing || claimed ? 255 : 255 - coverage;
+
+                    if (shadowed > 0 && anyOwn)
+                    {
+
+                        // Integer throughout: these are bytes scaled by a byte, so the float round-trip
+                        // the first version did per channel bought nothing but conversions.
+                        cellShadow[index].r += own.r * shadowed / 255;
+                        cellShadow[index].g += own.g * shadowed / 255;
+                        cellShadow[index].b += own.b * shadowed / 255;
+                        any = true;
+                        ShadowCellsEdited++;
+
+                        // Counted HERE and not beside the predicate, so it means "the rule took light
+                        // off this cell" rather than "the rule matched". Those differ at every cell
+                        // vanilla never lit — the far side of an open door — which the rule claims and
+                        // where claiming it changes nothing.
+                        if (claimed)
+                            BentSamples++;
+                    }
+
+                    if (lifting && coverage > 0)
+                    {
+                        any |= AccumulateLift(
+                            index, coverage, own, colour, x - lightX, z - lightZ, radius, radiusSquared,
+                            matchSeed);
+                    }
                 }
             }
         }
