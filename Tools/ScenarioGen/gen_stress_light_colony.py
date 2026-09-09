@@ -40,6 +40,7 @@ MASK_BOUNDS_TARGET = os.path.join(SCEN, "stress_light_mask_bounds.json")
 MASK_SPANS_TARGET = os.path.join(SCEN, "stress_light_mask_spans.json")
 MASK_INDICES_TARGET = os.path.join(SCEN, "stress_light_mask_indices.json")
 MASK_FOLD_TARGET = os.path.join(SCEN, "stress_light_mask_fold.json")
+MASK_RESIDUE_TARGET = os.path.join(SCEN, "stress_light_mask_residue.json")
 
 # The mask's parent arm and its four population-scaled stages. Order is parent first, because that
 # is the one a build-to-build comparison is read on and the four below it are the finding.
@@ -367,6 +368,97 @@ def build_mask_fold():
             "\n\n"
             "Every duration here is RECORDED, not pinned. What is pinned is the scene and one "
             "defect counter: 503 emitters, mask available, stale polys at zero."
+        ),
+        "steps": steps,
+    }
+
+
+RESIDUE_TOGGLE = "vector_light_overlay_in_place"
+
+# What one arm of the residue scenario reads after its rebake: the hook's own two counters first
+# (misses must be zero on every on arm), then the pass's outputs, then the residue's four clocks in
+# the order they are paid, then the three stage clocks as controls and the whole.
+RESIDUE_READS = (
+    "vector_light_mask_applies_clocked",
+    "vector_light_overlay_hook_stores",
+    "vector_light_overlay_hook_misses",
+    "vector_light_mask_shadow_cells_edited",
+    "vector_light_mask_saturated_samples",
+    "vector_light_mask_saturation_skipped",
+    "vector_light_mask_mesh_read_ms",
+    "vector_light_mask_corners_ms",
+    "vector_light_mask_centres_ms",
+    "vector_light_mask_mesh_write_ms",
+    "vector_light_mask_collect_ms",
+    "vector_light_mask_shadow_ms",
+    "vector_light_mask_saturation_ms",
+    "vector_light_mask_wall_ms",
+)
+
+
+def build_mask_residue():
+    """The same colony, the mask's edit made in place on vanilla's array against the postfix's
+    mesh round trip.
+
+    WHAT THIS ASKS. With the shadow stage at 4 ms and the saturation pass at 6 ms, the largest
+    term left in a whole-map rebake was the ~7 ms outside the three stage clocks: the mesh read
+    back, the corner pass, the centre pass and the mesh write. This file clocks those four apart
+    for the first time, and alternates the in-place edit (vector_light_overlay_in_place) OFF and
+    ON so the two mesh clocks can be read against the two vertex passes -- which the flag does
+    not touch and which are therefore the controls, alongside the three stage clocks.
+
+    READ IT AS PAIRS. shadow_cells_edited, saturated_samples and saturation_skipped are the
+    edit's INPUT and read identically on every arm; the hook edits the same accumulators into
+    the same 613 vertices. hook_misses must be zero on every ON arm, or that arm is the postfix
+    path wearing the flag's name. mesh_read_ms and mesh_write_ms are what the flag removes and
+    read zero on ON arms by construction; corners_ms, centres_ms and the three stage clocks are
+    controls and must not move.
+    """
+    colony = sc.build()
+    steps = sc.setup_steps(colony)
+    steps += sc.palette_steps()
+    steps += sc.establish_steps()
+    steps += sc.settle_steps()
+    steps += sc.population_probes()
+    steps += sc.feature_steps(vector_lights=True, changed_dirty=False)
+    steps.append(sc.step("SetFeature", featureName=GATE_TOGGLE, enabled="true"))
+    steps.append(sc.step("Wait", frames=SETTLE_FRAMES))
+    steps.append(sc.step("Probe", probeName="vector_light_mask_available", expectedValue=1, tolerance=0))
+
+    for _ in range(GATE_WARMUP):
+        steps.append(sc.step("SetFeature", featureName=INERT_TOGGLE, enabled=INERT_VALUE))
+
+    for _ in range(GATE_ROUNDS):
+        for enabled in ("false", "true"):
+            steps.append(sc.step("SetFeature", featureName=RESIDUE_TOGGLE, enabled=enabled))
+            steps.append(sc.step("AdvanceTicks", ticks=2))
+            steps.append(sc.step("Wait", frames=3))
+            for probe in RESIDUE_READS:
+                steps.append(sc.record(probe))
+
+    steps.append(sc.step("Probe", probeName="vector_light_mask_stale_polys", expectedValue=0, tolerance=0))
+
+    return {
+        "name": "stress_light_mask_residue",
+        "saveFile": "minimal_colony.rws",
+        "description": (
+            "stress_light_colony's colony -- 500 lamps in 11 colours and 9 radii -- with the "
+            "lighting overlay edit made in place on vanilla's array (vector_light_overlay_in_place) "
+            "measured OFF and ON, alternately, four rounds in one boot. "
+            "\n\n"
+            "WHY IT EXISTS. With the shadow stage at 4 ms and the saturation pass at 6 ms, the "
+            "largest term left in a whole-map rebake was the ~7 ms outside the three stage "
+            "clocks. This file clocks that residue in four parts for the first time -- mesh read, "
+            "corner pass, centre pass, mesh write -- and the flag removes the first and last by "
+            "editing the array vanilla is about to store instead of reading it back afterwards. "
+            "\n\n"
+            "READ IT AS PAIRS. shadow_cells_edited, saturated_samples and saturation_skipped are the "
+            "edit's input and read the same on every arm. hook_misses must be zero on every ON arm. "
+            "mesh_read_ms and mesh_write_ms read zero on ON arms by construction; corners_ms, "
+            "centres_ms and the three stage clocks are controls and must not move. "
+            "\n\n"
+            "Every duration is RECORDED, not pinned. What is pinned is the scene and one defect "
+            "counter: 503 emitters, the mask available, stale polys at zero."
         ),
         "steps": steps,
     }
@@ -965,6 +1057,7 @@ def main():
     write(build_mask_spans(), MASK_SPANS_TARGET)
     write(build_mask_indices(), MASK_INDICES_TARGET)
     write(build_mask_fold(), MASK_FOLD_TARGET)
+    write(build_mask_residue(), MASK_RESIDUE_TARGET)
 
 
 if __name__ == "__main__":

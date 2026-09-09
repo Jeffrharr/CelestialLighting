@@ -1410,6 +1410,26 @@ public static class CelestialLightingFeatures
     // on both arms. See stress_light_mask_fold.json, which alternates arms inside one boot.
     public static bool VectorLightMaskFoldRows = true;
 
+    // Feature key for VectorLightOverlayInPlace.
+    public const string VectorLightOverlayInPlaceKey = "vector_light_overlay_in_place";
+
+    // The lighting overlay edit -- the mask, or the crossfade when the mask stands down -- is made
+    // on the colour array vanilla built, from inside GenerateLightingOverlay before its store,
+    // rather than on a copy read back out of the mesh by a postfix afterwards.
+    //
+    // WHY. With the shadow stage at 4 ms and the saturation pass at 6 ms, the largest term left in
+    // a whole-map rebake on the 500-lamp colony was the ~7 ms outside the three stage clocks, and
+    // half of that residue by construction is a mesh read (native copy out plus a fresh managed
+    // array) and a second mesh write (native copy in) per section -- paid to reach an array that
+    // vanilla had in hand one instruction earlier. Patch_LightingOverlayStore's transpiler turns
+    // vanilla's store into "edit, then store"; nothing about the edit changes.
+    //
+    // OFF is the postfix path exactly as before: vanilla stores, the postfix reads back, edits the
+    // copy and writes it. Inert on the bytes either way -- the postfix edited a copy of the array
+    // the hook now edits directly. See stress_light_mask_residue.json, which alternates arms
+    // inside one boot and reads the round trip's two clocks against the two vertex passes.
+    public static bool VectorLightOverlayInPlace = true;
+
     public const string VectorLightPawnShadowsKey = "vector_light_pawn_shadows";
 
     // §27 phase 4: a pawn throws a shadow away from each lamp that lights it.

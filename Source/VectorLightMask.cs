@@ -261,6 +261,32 @@ public static class VectorLightMask
     public static double SaturationSetupMs =>
         SaturationSetupTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
 
+    // Where Apply's RESIDUE goes -- the time outside the three stage clocks -- in Stopwatch ticks,
+    // in the order it is paid: the mesh read (`mesh.colors32`, one native copy out and a managed
+    // array per section), the corner pass, the centre pass, and the mesh write (one native copy
+    // back in, on top of the one vanilla already paid). Apply minus the three stages minus these
+    // four is the reaching list's Clear and the clocks themselves. Read by the mesh_read_ms,
+    // corners_ms, centres_ms and mesh_write_ms probes.
+    //
+    // Under Patch_LightingOverlayStore's in-place edit the first and last read zero BY
+    // CONSTRUCTION rather than by being fast: there is no read, and the one write is vanilla's own.
+    public static long MeshReadTicks;
+    public static long CornerTicks;
+    public static long CentreTicks;
+    public static long MeshWriteTicks;
+
+    public static double MeshReadMs =>
+        MeshReadTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+
+    public static double CornerMs =>
+        CornerTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+
+    public static double CentreMs =>
+        CentreTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+
+    public static double MeshWriteMs =>
+        MeshWriteTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+
     // Cells the saturation pass admitted to its fold: edited, and displayed at the ceiling. Read
     // against FoldCells for how much of the fold the gate left standing, and against
     // SaturatedSamples for how many admitted cells the fold then rewrote — the second ratio is the
@@ -283,6 +309,11 @@ public static class VectorLightMask
         SaturationPrefoldTicks = 0;
         SaturationFoldTicks = 0;
         SaturationSetupTicks = 0;
+        MeshReadTicks = 0;
+        CornerTicks = 0;
+        CentreTicks = 0;
+        MeshWriteTicks = 0;
+        Patch_LightingOverlayStore.ResetTelemetry();
         ShadowSetupTicks = 0;
         ShadowCellsScanned = 0;
         ShadowCellsEdited = 0;
@@ -352,12 +383,92 @@ public static class VectorLightMask
 
     // Rewrites one section's lighting overlay in place. Returns false when it declined to, so the
     // caller can fall through to the crossfade rather than leaving the section unlit or unmasked.
+    //
+    // THE POSTFIX PATH: read the mesh back, edit the copy, write it again. Two native transitions
+    // and a managed array per section that the edit itself never needed, because the array
+    // vanilla just built is exactly the one to edit -- it is simply gone by the time a postfix
+    // runs. Patch_LightingOverlayStore reaches it before the store and calls ApplyTo instead;
+    // the two entry points share Decide and Edit and differ only in the round trip.
     public static bool Apply(Map map, Mesh mesh, List<Vector3> verts, CellRect rect)
     {
+        if (mesh == null)
+            return false;
+
+        Outcome outcome = Decide(map, rect, out int expected, out bool composing);
+
+        if (outcome != Outcome.Edit)
+            return outcome == Outcome.Untouched;
+
+        long readStart = System.Diagnostics.Stopwatch.GetTimestamp();
+
+        Color32[] colors = mesh.colors32;
+
+        MeshReadTicks += System.Diagnostics.Stopwatch.GetTimestamp() - readStart;
+
+        // A mesh that is not the shape vanilla builds is somebody else's mesh — another mod
+        // transpiling the overlay, or a version change. Bailing keeps us from writing colours into
+        // vertices whose meaning we are guessing at.
+        if (colors == null || colors.Length != expected || verts == null || verts.Count != expected)
+            return false;
+
+        Edit(map, colors, rect, composing);
+
+        long writeStart = System.Diagnostics.Stopwatch.GetTimestamp();
+
+        mesh.colors32 = colors;
+
+        MeshWriteTicks += System.Diagnostics.Stopwatch.GetTimestamp() - writeStart;
+
+        ApplyWallMs += applyClock.Elapsed.TotalMilliseconds;
+        return true;
+    }
+
+    // THE IN-PLACE PATH: the same decision and the same edit, on the array vanilla built and is
+    // about to store, so the section pays no read and no second write. `colors` is vanilla's own
+    // `new Color32[subMesh.verts.Count]`, which is why its length alone stands in for the verts
+    // check the postfix path makes. Same return contract as Apply.
+    public static bool ApplyTo(Map map, Color32[] colors, CellRect rect)
+    {
+        Outcome outcome = Decide(map, rect, out int expected, out bool composing);
+
+        if (outcome != Outcome.Edit)
+            return outcome == Outcome.Untouched;
+
+        if (colors == null || colors.Length != expected)
+            return false;
+
+        Edit(map, colors, rect, composing);
+
+        ApplyWallMs += applyClock.Elapsed.TotalMilliseconds;
+        return true;
+    }
+
+    // What Decide concluded about a section: nothing to do here (Declined -- the caller falls
+    // through to the crossfade), nothing to edit (Untouched -- the section is handled and no
+    // vertex changes), or an edit is pending and the accumulators hold it.
+    private enum Outcome
+    {
+        Declined,
+        Untouched,
+        Edit,
+    }
+
+    // One clock, restarted per section rather than allocated per section. Section regenerate is
+    // main-thread work through and through, so a single static is safe; see ApplyWallMs.
+    private static readonly System.Diagnostics.Stopwatch applyClock = new System.Diagnostics.Stopwatch();
+
+    // Everything up to the moment the mesh would be touched: the stand-down checks, the emitter
+    // collect, the shadow accumulation and the saturation pass. Both entry points run exactly
+    // this, so the decision an unshadowed section turns round on costs the same on either path.
+    private static Outcome Decide(Map map, CellRect rect, out int expected, out bool composing)
+    {
+        expected = 0;
+        composing = false;
+
         GlowGridPerLight.Reader reader = GlowGridPerLight.For(map);
 
-        if (reader == null || mesh == null)
-            return false;
+        if (reader == null)
+            return Outcome.Declined;
 
         // Issue #188 item 0's outcome measure: a lighting-overlay section regenerate that actually
         // reached us. Counted AFTER the stand-down check above and before any work, so it means
@@ -380,55 +491,48 @@ public static class VectorLightMask
         // STARTED AFTER THE STAND-DOWN CHECKS AND THE APPLY COUNTER, so the clock measures sections
         // that really did rebake through the mask rather than calls that turned round at the door.
         // Same boundary MaskApplies is counted at, which is what makes the two divide.
-        System.Diagnostics.Stopwatch clock = System.Diagnostics.Stopwatch.StartNew();
+        applyClock.Restart();
 
         Applies++;
 
         CollectReaching(map, rect, lifting);
 
-        CollectWallMs += clock.Elapsed.TotalMilliseconds;
+        CollectWallMs += applyClock.Elapsed.TotalMilliseconds;
 
         if (Reaching.Count == 0)
         {
-            ApplyWallMs += clock.Elapsed.TotalMilliseconds;
-            return true;
+            ApplyWallMs += applyClock.Elapsed.TotalMilliseconds;
+            return Outcome.Untouched;
         }
 
-        // DECIDE BEFORE TOUCHING THE MESH. `mesh.colors32` copies 613 Color32 out of native memory
-        // and the write-back copies them in again, and a section with no shadow anywhere in it
-        // changes not one of them. Doing the shadow accumulation first — which needs no mesh at all
-        // — means an unshadowed section pays the emitter scan and nothing else, where the crossfade
-        // pays the round trip plus a write to every vertex unconditionally.
-        double beforeShadow = clock.Elapsed.TotalMilliseconds;
+        // DECIDE BEFORE TOUCHING THE MESH. On the postfix path `mesh.colors32` copies 613 Color32
+        // out of native memory and the write-back copies them in again, and a section with no
+        // shadow anywhere in it changes not one of them. Doing the shadow accumulation first —
+        // which needs no mesh at all — means an unshadowed section pays the emitter scan and
+        // nothing else, where the crossfade pays the round trip plus a write to every vertex
+        // unconditionally. The in-place path has no round trip to skip, but the corner and centre
+        // passes it does skip are the same walk over the same 613 vertices.
+        double beforeShadow = applyClock.Elapsed.TotalMilliseconds;
 
         bool anyEdit = BuildCellShadow(map, reader, rect, lifting, correcting);
 
         // BuildCellShadow's own time NET OF the saturation pass it calls, so the three stage clocks
         // partition Apply instead of double-counting the largest one inside the second largest.
         // CorrectSaturation adds to SaturationWallMs from inside that call.
-        ShadowWallMs += clock.Elapsed.TotalMilliseconds - beforeShadow - lastSaturationMs;
+        ShadowWallMs += applyClock.Elapsed.TotalMilliseconds - beforeShadow - lastSaturationMs;
         lastSaturationMs = 0.0;
 
         Reaching.Clear();
 
         if (!anyEdit)
         {
-            ApplyWallMs += clock.Elapsed.TotalMilliseconds;
-            return true;
+            ApplyWallMs += applyClock.Elapsed.TotalMilliseconds;
+            return Outcome.Untouched;
         }
 
         int width = rect.Width;
         int height = rect.Height;
-        int corners = (width + 1) * (height + 1);
-        int expected = corners + width * height;
-
-        Color32[] colors = mesh.colors32;
-
-        // A mesh that is not the shape vanilla builds is somebody else's mesh — another mod
-        // transpiling the overlay, or a version change. Bailing keeps us from writing colours into
-        // vertices whose meaning we are guessing at.
-        if (colors == null || colors.Length != expected || verts == null || verts.Count != expected)
-            return false;
+        expected = (width + 1) * (height + 1) + width * height;
 
         // THE LIFT ARRAYS ARE LIVE UNDER THE CORRECTION TOO, even with the max off, and it is not an
         // over-allocation. Vanilla's projection normalises the three channels against their shared
@@ -436,15 +540,28 @@ public static class VectorLightMask
         // being scaled down by the one we removed — a red lamp's shadow makes the surviving green
         // brighter, in vanilla's own arithmetic. That is a genuine lift with no max involved, and
         // dropping it would leave the corrected colour hue-shifted against vanilla's.
-        bool composing = lifting || correcting;
+        composing = lifting || correcting;
+
+        return Outcome.Edit;
+    }
+
+    // The two vertex passes, clocked apart. Corners first, then centres, because a centre is the
+    // average of the four corner SUBTRACTIONS around it (see ApplyToCentres) and those have to
+    // exist before it can be resolved.
+    private static void Edit(Map map, Color32[] colors, CellRect rect, bool composing)
+    {
+        int corners = (rect.Width + 1) * (rect.Height + 1);
+
+        long cornerStart = System.Diagnostics.Stopwatch.GetTimestamp();
 
         ApplyToCorners(map, colors, rect, corners, composing);
+
+        long centreStart = System.Diagnostics.Stopwatch.GetTimestamp();
+        CornerTicks += centreStart - cornerStart;
+
         ApplyToCentres(colors, rect, corners, composing);
 
-        mesh.colors32 = colors;
-
-        ApplyWallMs += clock.Elapsed.TotalMilliseconds;
-        return true;
+        CentreTicks += System.Diagnostics.Stopwatch.GetTimestamp() - centreStart;
     }
 
     // The saturation pass's contribution to the CURRENT Apply, so the shadow stage can subtract it
