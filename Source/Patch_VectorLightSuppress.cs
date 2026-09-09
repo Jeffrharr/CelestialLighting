@@ -25,12 +25,6 @@ namespace CelestialLighting;
 // mood, StatPart_Glow, DarklightUtility, unnatural darkness and every mod reading them see no change
 // at all. §27 is a render, which is the whole reason it is allowed to be this opinionated.
 //
-// WHERE THE EDIT HAPPENS. Two places, one at a time. Patch_LightingOverlayStore reaches vanilla's
-// colour array from inside GenerateLightingOverlay, before the store, and calls EditInPlace on it;
-// the postfix below then finds its mesh already handled and returns. With that flag off, or on a
-// build where the transpiler did not apply, the postfix reads the mesh back and makes the same edit
-// on the copy, as it always did. The edit itself is shared; only the round trip differs.
-//
 // ORDERING. Patch_IndoorSkyOcclusion postfixes this same method at Priority.First and touches only
 // alpha, so the two do not contend — but running last means we are also after Dub's Skylights and
 // Biomes! Caverns, both of which bracket or transpile this method and both of which are already in
@@ -44,31 +38,27 @@ public static class Patch_VectorLightSuppress
         if (!CelestialLightingFeatures.VectorLights)
             return;
 
-        LayerSubMesh subMesh = __instance.GetSubMesh(MatBases.LightOverlay);
-        Mesh mesh = subMesh?.mesh;
-
-        if (mesh == null)
-            return;
-
-        // The in-place hook already made this edit on the array vanilla stored. Nothing to read
-        // back, nothing to write.
-        if (Patch_LightingOverlayStore.TakeHandled(mesh))
-            return;
-
-        // The flag asked for the hook and the hook did not run for this mesh: the transpiler did
-        // not apply, or something else stored the colours. Counted so an arm can see it, then the
-        // postfix path exactly as before.
-        if (CelestialLightingFeatures.VectorLightOverlayInPlace)
-            Patch_LightingOverlayStore.Misses++;
-
         // §27 phase 3 takes over this method entirely when it is on: it edits the same vertex colours
         // rather than zeroing them, and the two must not both run. Handing over here rather than in a
         // separate patch keeps a single writer for this mesh, which is what stops the ordering
         // between them from being a live concern.
-        if (VectorLightMask.Active && ApplyMask(__instance, subMesh))
+        if (VectorLightMask.Active && ApplyMask(__instance))
             return;
 
         if (!CelestialLightingFeatures.VectorLightSuppress)
+            return;
+
+        // The crossfade keeps a fraction of vanilla's flood underneath instead of removing it. Zero
+        // is the original behaviour and is what the arithmetic below reduces to when the flag is off,
+        // so there is one code path rather than two.
+        float floor = CelestialLightingFeatures.VectorLightBlend
+            ? VectorLightMath.DefaultVanillaFloor
+            : 0f;
+
+        LayerSubMesh subMesh = __instance.GetSubMesh(MatBases.LightOverlay);
+        Mesh mesh = subMesh?.mesh;
+
+        if (mesh == null)
             return;
 
         Color32[] colors = mesh.colors32;
@@ -76,51 +66,30 @@ public static class Patch_VectorLightSuppress
         if (colors == null)
             return;
 
-        Crossfade(colors);
-
-        mesh.colors32 = colors;
-    }
-
-    // The same edit as the postfix, on vanilla's own array before it is stored. Called by
-    // Patch_LightingOverlayStore with the map and clipped rect GenerateLightingOverlay was given,
-    // which are the section's own -- the postfix rebuilds exactly these from the Section.
-    internal static void EditInPlace(Map map, Color32[] colors, CellRect rect)
-    {
-        if (VectorLightMask.Active && VectorLightMask.ApplyTo(map, colors, rect))
-            return;
-
-        if (!CelestialLightingFeatures.VectorLightSuppress)
-            return;
-
-        Crossfade(colors);
-    }
-
-    // The crossfade keeps a fraction of vanilla's flood underneath instead of removing it. Zero
-    // is the original behaviour and is what the arithmetic below reduces to when the flag is off,
-    // so there is one code path rather than two.
-    private static void Crossfade(Color32[] colors)
-    {
-        float floor = CelestialLightingFeatures.VectorLightBlend
-            ? VectorLightMath.DefaultVanillaFloor
-            : 0f;
-
         for (int i = 0; i < colors.Length; i++)
         {
             colors[i].r = VectorLightMath.FlooredChannel(colors[i].r, floor);
             colors[i].g = VectorLightMath.FlooredChannel(colors[i].g, floor);
             colors[i].b = VectorLightMath.FlooredChannel(colors[i].b, floor);
         }
+
+        mesh.colors32 = colors;
     }
 
     // The section's own cell rect, rebuilt the way vanilla builds it rather than reflected out of
     // the private field that holds it: SectionLayer_LightingOverlay.Regenerate computes exactly this
     // on the first regenerate and caches it, so recomputing costs nothing and reads without a
     // FieldRef that a version change could quietly break.
-    private static bool ApplyMask(SectionLayer_LightingOverlay layer, LayerSubMesh subMesh)
+    private static bool ApplyMask(SectionLayer_LightingOverlay layer)
     {
         Section section = SectionLayerAccess.GetSection(layer);
 
         if (section == null)
+            return false;
+
+        LayerSubMesh subMesh = layer.GetSubMesh(MatBases.LightOverlay);
+
+        if (subMesh?.mesh == null)
             return false;
 
         CellRect rect = new CellRect(section.botLeft.x, section.botLeft.z, 17, 17);

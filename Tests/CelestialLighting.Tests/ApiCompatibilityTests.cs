@@ -1206,35 +1206,6 @@ public class ApiCompatibilityTests
             "SectionLayer_SunShadows.Regenerate() no longer exists — Patch_ShadowMeshPerimeter's TargetMethod will fail");
     }
 
-    // Patch_LightingOverlayStore's seam: the transpiler replaces the one `mesh.colors32 = array`
-    // store in GenerateLightingOverlay, and pushes arguments 0, 2, 4 and 5 of that method (map,
-    // rect, centered, filter) in front of it. Both the seam and the argument order are pinned, since
-    // either moving would not throw: the transpiler would find no seam and log, or push the wrong
-    // locals and hand Store a rect that is not the section's.
-    [Test]
-    public void SectionLayer_LightingOverlay_GenerateLightingOverlay_StoresColors32Once()
-    {
-        var type = GetType("Verse.SectionLayer_LightingOverlay");
-        Assert.That(type, Is.Not.Null, "Verse.SectionLayer_LightingOverlay no longer exists");
-        var method = type!.Methods.SingleOrDefault(m => m.Name == "GenerateLightingOverlay");
-        Assert.That(method, Is.Not.Null,
-            "SectionLayer_LightingOverlay.GenerateLightingOverlay no longer exists — Patch_LightingOverlayStore's target will fail");
-
-        var parameters = method!.Parameters;
-        Assert.That(parameters.Count, Is.EqualTo(6), "GenerateLightingOverlay's arity changed — Patch_LightingOverlayStore pushes arguments by index");
-        Assert.That(parameters[0].ParameterType.FullName, Is.EqualTo("Verse.Map"), "argument 0 is no longer the Map");
-        Assert.That(parameters[2].ParameterType.FullName, Is.EqualTo("Verse.CellRect"), "argument 2 is no longer the CellRect");
-        Assert.That(parameters[4].ParameterType.FullName, Is.EqualTo("System.Boolean"), "argument 4 is no longer `centered`");
-        Assert.That(parameters[5].ParameterType.FullName, Is.EqualTo("System.Predicate`1<System.Int32>"), "argument 5 is no longer the filter");
-
-        int stores = method.Body.Instructions.Count(i =>
-            i.Operand is MethodReference called
-            && called.Name == "set_colors32"
-            && called.DeclaringType.FullName == "UnityEngine.Mesh");
-        Assert.That(stores, Is.EqualTo(1),
-            "GenerateLightingOverlay no longer stores mesh.colors32 exactly once — Patch_LightingOverlayStore's transpiler would find no seam, or the wrong one");
-    }
-
     [Test]
     public void SectionLayer_HasProtectedSectionField()
     {

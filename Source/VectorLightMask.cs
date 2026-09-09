@@ -268,8 +268,13 @@ public static class VectorLightMask
     // four is the reaching list's Clear and the clocks themselves. Read by the mesh_read_ms,
     // corners_ms, centres_ms and mesh_write_ms probes.
     //
-    // Under Patch_LightingOverlayStore's in-place edit the first and last read zero BY
-    // CONSTRUCTION rather than by being fast: there is no read, and the one write is vanilla's own.
+    // THE ROUND TRIP WAS MEASURED AND IS NOT THE RESIDUE. A transpiler that edited vanilla's array
+    // before its store, so the section paid no read and no second write, took 0.2 ms off an
+    // 18 ms whole-map rebake on the 500-lamp colony: read 0.15 ms, write 0.06 ms, over 84
+    // sections. The two vertex passes were 6.7 ms of the 7. The hook was removed rather than
+    // shipped off -- a transpiler on a method Biomes! Caverns also transpiles is surface this mod
+    // should not carry for one percent -- and the clocks stay, because they are the finding. See
+    // DESIGN.md, "the residue, clocked four ways".
     public static long MeshReadTicks;
     public static long CornerTicks;
     public static long CentreTicks;
@@ -313,7 +318,6 @@ public static class VectorLightMask
         CornerTicks = 0;
         CentreTicks = 0;
         MeshWriteTicks = 0;
-        Patch_LightingOverlayStore.ResetTelemetry();
         ShadowSetupTicks = 0;
         ShadowCellsScanned = 0;
         ShadowCellsEdited = 0;
@@ -384,11 +388,12 @@ public static class VectorLightMask
     // Rewrites one section's lighting overlay in place. Returns false when it declined to, so the
     // caller can fall through to the crossfade rather than leaving the section unlit or unmasked.
     //
-    // THE POSTFIX PATH: read the mesh back, edit the copy, write it again. Two native transitions
-    // and a managed array per section that the edit itself never needed, because the array
-    // vanilla just built is exactly the one to edit -- it is simply gone by the time a postfix
-    // runs. Patch_LightingOverlayStore reaches it before the store and calls ApplyTo instead;
-    // the two entry points share Decide and Edit and differ only in the round trip.
+    // Reads the mesh back, edits the copy, writes it again. Two native transitions and a managed
+    // array per section that the edit itself never needs, because the array vanilla just built is
+    // exactly the one to edit -- but it is gone by the time a postfix runs, and reaching it from
+    // inside GenerateLightingOverlay was measured at 0.2 ms per whole-map rebake and not kept
+    // (see MeshReadTicks). Decide is everything before the mesh is touched; Edit is the two
+    // vertex passes.
     public static bool Apply(Map map, Mesh mesh, List<Vector3> verts, CellRect rect)
     {
         if (mesh == null)
@@ -423,26 +428,6 @@ public static class VectorLightMask
         return true;
     }
 
-    // THE IN-PLACE PATH: the same decision and the same edit, on the array vanilla built and is
-    // about to store, so the section pays no read and no second write. `colors` is vanilla's own
-    // `new Color32[subMesh.verts.Count]`, which is why its length alone stands in for the verts
-    // check the postfix path makes. Same return contract as Apply.
-    public static bool ApplyTo(Map map, Color32[] colors, CellRect rect)
-    {
-        Outcome outcome = Decide(map, rect, out int expected, out bool composing);
-
-        if (outcome != Outcome.Edit)
-            return outcome == Outcome.Untouched;
-
-        if (colors == null || colors.Length != expected)
-            return false;
-
-        Edit(map, colors, rect, composing);
-
-        ApplyWallMs += applyClock.Elapsed.TotalMilliseconds;
-        return true;
-    }
-
     // What Decide concluded about a section: nothing to do here (Declined -- the caller falls
     // through to the crossfade), nothing to edit (Untouched -- the section is handled and no
     // vertex changes), or an edit is pending and the accumulators hold it.
@@ -458,8 +443,7 @@ public static class VectorLightMask
     private static readonly System.Diagnostics.Stopwatch applyClock = new System.Diagnostics.Stopwatch();
 
     // Everything up to the moment the mesh would be touched: the stand-down checks, the emitter
-    // collect, the shadow accumulation and the saturation pass. Both entry points run exactly
-    // this, so the decision an unshadowed section turns round on costs the same on either path.
+    // collect, the shadow accumulation and the saturation pass.
     private static Outcome Decide(Map map, CellRect rect, out int expected, out bool composing)
     {
         expected = 0;
@@ -505,13 +489,12 @@ public static class VectorLightMask
             return Outcome.Untouched;
         }
 
-        // DECIDE BEFORE TOUCHING THE MESH. On the postfix path `mesh.colors32` copies 613 Color32
-        // out of native memory and the write-back copies them in again, and a section with no
-        // shadow anywhere in it changes not one of them. Doing the shadow accumulation first —
-        // which needs no mesh at all — means an unshadowed section pays the emitter scan and
-        // nothing else, where the crossfade pays the round trip plus a write to every vertex
-        // unconditionally. The in-place path has no round trip to skip, but the corner and centre
-        // passes it does skip are the same walk over the same 613 vertices.
+        // DECIDE BEFORE TOUCHING THE MESH. `mesh.colors32` copies 613 Color32 out of native memory
+        // and the write-back copies them in again, and a section with no shadow anywhere in it
+        // changes not one of them. Doing the shadow accumulation first — which needs no mesh at all
+        // — means an unshadowed section pays the emitter scan and nothing else, where the crossfade
+        // pays the round trip plus a write to every vertex unconditionally. (The round trip itself
+        // is cheap, 2 us a section; the two vertex passes an unshadowed section also skips are not.)
         double beforeShadow = applyClock.Elapsed.TotalMilliseconds;
 
         bool anyEdit = BuildCellShadow(map, reader, rect, lifting, correcting);

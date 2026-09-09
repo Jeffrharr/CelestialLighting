@@ -12943,6 +12943,30 @@ committed captures the gap-vs-door frame reads whole-frame median ΔE 0.00 on bo
 every beam-row cell within 0.01 L\*, and the same-build control is byte-identical
 (`Tests/Screenshots/vl_fold_rows/`).
 
+#### The residue, clocked four ways: the round trip is 0.2 ms of it (`VectorLightMask.MeshReadTicks`, `stress_light_mask_residue.json`)
+
+The advancing fold left the whole-map rebake on the 500-lamp colony at 19 ms, with the ~7 ms outside the three stage clocks as its largest term. Every section above had been calling that term "the mesh round trip and corner application" — a description of what the code between the clocks *does*, not a measurement of what any part of it costs. So the residue was **clocked in four parts before anything was cut**: `mesh_read_ms` (`mesh.colors32`, a native copy out and a fresh managed array per section), `corners_ms` (the corner pass), `centres_ms` (the centre pass) and `mesh_write_ms` (the copy back in, on top of the store vanilla already made).
+
+**The round trip was removed to price it, then put back.** A transpiler on `GenerateLightingOverlay` replaced vanilla's one `mesh.colors32 = array` store with a call that handed the array to the same edit the postfix makes and then performed vanilla's store, so a section paid no read and no second write; the postfix found its mesh already handled and returned. `Apply` was split into `Decide` (everything before the mesh is touched) and `Edit` (the two vertex passes) so both entry points shared all but the round trip, and that split stays. Measured off, on, off, on inside one boot, 84 sections a rebake:
+
+| | postfix round trip | in-place | ratio |
+|---|---|---|---|
+| hook stores / misses | 0 / 0 | 84 / 0 | |
+| `shadow_cells_edited` / `saturated_samples` | 21,875 / 4,834 | 21,875 / 4,834 | 1.000 |
+| **`mesh_read_ms`** | **0.150** | **0.000** | |
+| **`mesh_write_ms`** | **0.055** | **0.000** | |
+| *control:* `corners_ms` | 4.227 | 4.177 | *0.988* |
+| *control:* `centres_ms` | 2.513 | 2.494 | *0.992* |
+| *control:* `CorrectSaturation` | 6.09 | 5.91 | *0.969* |
+| *control:* `BuildCellShadow` | 3.86 | 3.66 | *0.947* |
+| **`Apply`, whole, median ms** | **18.30** | **17.60** | **0.962** |
+
+**The round trip is 0.2 ms.** Two native transitions and 2.4 KB of garbage per section cost about 2.5 µs a section, and the whole Apply moved by less than its controls' own spread (the shadow stage's off-arm range was 3.49–4.53). The hook worked exactly as designed — 84 stores, 0 misses, identical outputs — and was **removed rather than shipped off**: a transpiler on a method Biomes! Caverns also transpiles is mod-compat surface this repo should not carry for one percent, and a flag that measured nothing rots. The commit that added it is in the history if the number ever changes.
+
+**The two vertex passes are 6.7 ms of the 7.** 84 sections × 613 vertices is 51,500 lattice points a rebake; the corner pass costs about 155 ns each and the centre pass about 105 ns, and neither shrinks with the emitter population — a section with one lamp's wedge in it walks the same 613 points as a section with fifty. Per corner the shipped body pays four `CellIndex` calls and four 16-byte struct reads to learn the common case is "nothing here", then for the edited ones four `IntVec3` constructions, four `InBounds` tests and four `edificeGrid` lookups; per centre four `ColorInt` operator calls, each a struct copy. That is the next slice, in two parts with two flags: the passes' addressing restated as the shadow and fold walks' were (a base per row plus x, the sums written out in place), and the passes clipped to the box the emitters actually wrote into, which is where the real-map per-frame cost lives — on a map that is not a stress colony most rebaked sections carry one small wedge, and the fixed 613-point walk is most of what they pay.
+
+The scenario stays as a four-round clock on the shipped flags (`stress_light_mask_residue.json`), so a reader can see each clock's run-to-run spread before believing a split.
+
 ### Vector lighting, phase 7: the coverage grid was mostly outside the light (`VectorLightMath.BuildCoverage`, `VectorLightCoverageOracle`, epic #174 phase 7)
 
 Phase 6 left the coverage grid as the largest term inside a bake — **50.7% culled, against `Build`'s

@@ -166,8 +166,7 @@ public sealed class VectorLightBakeProbe : IProbe
         MaskFoldCellsVisited,
 
         // Apply's residue outside the three stage clocks, in the order paid: the mesh read, the
-        // corner pass, the centre pass, the mesh write. Under the in-place edit the first and last
-        // are zero by construction.
+        // corner pass, the centre pass, the mesh write.
         MaskMeshReadMs,
 
         MaskCornerMs,
@@ -175,11 +174,6 @@ public sealed class VectorLightBakeProbe : IProbe
         MaskCentreMs,
 
         MaskMeshWriteMs,
-
-        // Sections the in-place hook edited, and sections its postfix found it had not.
-        OverlayHookStores,
-
-        OverlayHookMisses,
 
         // The size of the prize for indexing, in counts. Scanned is every entry the full-list walk
         // examined; the paired metric is the few it went on to work for. An index can remove at most
@@ -456,12 +450,6 @@ public sealed class VectorLightBakeProbe : IProbe
 
         if (metric == Metric.MaskMeshWriteMs)
             return (float)VectorLightMask.MeshWriteMs;
-
-        if (metric == Metric.OverlayHookStores)
-            return Patch_LightingOverlayStore.Stores;
-
-        if (metric == Metric.OverlayHookMisses)
-            return Patch_LightingOverlayStore.Misses;
 
         if (metric == Metric.MaskApplies)
             return VectorLightField.MaskApplies;

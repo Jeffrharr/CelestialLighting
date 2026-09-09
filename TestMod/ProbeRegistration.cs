@@ -532,14 +532,6 @@ public static class ProbeRegistration
         ProbeRegistry.Register(new VectorLightBakeProbe(
             "vector_light_mask_mesh_write_ms", VectorLightBakeProbe.Metric.MaskMeshWriteMs));
 
-        // Whether the in-place edit is really the path taken: stores the hook edited through, and
-        // sections the postfix found it had NOT -- which must read zero on every arm with the flag
-        // on, or the arm is silently measuring the round trip it claims to have removed.
-        ProbeRegistry.Register(new VectorLightBakeProbe(
-            "vector_light_overlay_hook_stores", VectorLightBakeProbe.Metric.OverlayHookStores));
-        ProbeRegistry.Register(new VectorLightBakeProbe(
-            "vector_light_overlay_hook_misses", VectorLightBakeProbe.Metric.OverlayHookMisses));
-
         // Scanned against used, which is what says whether indexing the light list is worth
         // building. RECORDED, but unlike the durations beside them these are exact and repeatable:
         // they count a property of the scene, so a change to them is a change to the scene rather
@@ -2122,15 +2114,6 @@ public static class ProbeRegistration
             enabled =>
             {
                 CelestialLightingFeatures.VectorLightMaskFoldRows = enabled;
-                VectorLightRedraw.ForceRebuild();
-            });
-
-        // And for the in-place overlay edit, measured against the postfix's mesh round trip.
-        FeatureRegistry.Register(
-            CelestialLightingFeatures.VectorLightOverlayInPlaceKey,
-            enabled =>
-            {
-                CelestialLightingFeatures.VectorLightOverlayInPlace = enabled;
                 VectorLightRedraw.ForceRebuild();
             });
 

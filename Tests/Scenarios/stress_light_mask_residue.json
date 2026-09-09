@@ -1,7 +1,7 @@
 {
   "name": "stress_light_mask_residue",
   "saveFile": "minimal_colony.rws",
-  "description": "stress_light_colony's colony -- 500 lamps in 11 colours and 9 radii -- with the lighting overlay edit made in place on vanilla's array (vector_light_overlay_in_place) measured OFF and ON, alternately, four rounds in one boot. \n\nWHY IT EXISTS. With the shadow stage at 4 ms and the saturation pass at 6 ms, the largest term left in a whole-map rebake was the ~7 ms outside the three stage clocks. This file clocks that residue in four parts for the first time -- mesh read, corner pass, centre pass, mesh write -- and the flag removes the first and last by editing the array vanilla is about to store instead of reading it back afterwards. \n\nREAD IT AS PAIRS. shadow_cells_edited, saturated_samples and saturation_skipped are the edit's input and read the same on every arm. hook_misses must be zero on every ON arm. mesh_read_ms and mesh_write_ms read zero on ON arms by construction; corners_ms, centres_ms and the three stage clocks are controls and must not move. \n\nEvery duration is RECORDED, not pinned. What is pinned is the scene and one defect counter: 503 emitters, the mask available, stale polys at zero.",
+  "description": "stress_light_colony's colony -- 500 lamps in 11 colours and 9 radii -- with the mask's residue outside its three stage clocks read in four parts over four whole-map rebakes on the shipped flags: mesh read, corner pass, centre pass, mesh write. \n\nWHY IT EXISTS. With the shadow stage at 4 ms and the saturation pass at 6 ms, the largest term left in a rebake was the ~7 ms outside the three stage clocks, named in DESIGN.md as the mesh round trip and corner application without having been clocked apart. The first run of this file, alternating an in-place edit that removed the round trip, read it at 0.2 ms of the 7 and the two vertex passes at 6.7; the hook was not kept, and this file stays as the clock. \n\nNO TOGGLE: every round is the shipped configuration, so the spread between rounds is the noise floor each clock has to clear. Every duration is RECORDED, not pinned. What is pinned is the scene and one defect counter: 503 emitters, the mask available, stale polys at zero.",
   "steps": [
     {
       "type": "SetTile",
@@ -815,7 +815,7 @@
     {
       "type": "SetFeature",
       "args": {
-        "featureName": "vector_light_overlay_in_place",
+        "featureName": "vector_light_door_dirty_suppress",
         "enabled": "false"
       }
     },
@@ -842,22 +842,6 @@
     {
       "type": "Probe",
       "args": {
-        "probeName": "vector_light_overlay_hook_stores",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_overlay_hook_misses",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
         "probeName": "vector_light_mask_shadow_cells_edited",
         "expectedValue": "0",
         "tolerance": "1000000000"
@@ -946,138 +930,7 @@
     {
       "type": "SetFeature",
       "args": {
-        "featureName": "vector_light_overlay_in_place",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "AdvanceTicks",
-      "args": {
-        "ticks": "2"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "3"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_applies_clocked",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_overlay_hook_stores",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_overlay_hook_misses",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_shadow_cells_edited",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_saturated_samples",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_saturation_skipped",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_mesh_read_ms",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_corners_ms",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_centres_ms",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_mesh_write_ms",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_collect_ms",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_shadow_ms",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_saturation_ms",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_wall_ms",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_overlay_in_place",
+        "featureName": "vector_light_door_dirty_suppress",
         "enabled": "false"
       }
     },
@@ -1104,22 +957,6 @@
     {
       "type": "Probe",
       "args": {
-        "probeName": "vector_light_overlay_hook_stores",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_overlay_hook_misses",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
         "probeName": "vector_light_mask_shadow_cells_edited",
         "expectedValue": "0",
         "tolerance": "1000000000"
@@ -1208,138 +1045,7 @@
     {
       "type": "SetFeature",
       "args": {
-        "featureName": "vector_light_overlay_in_place",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "AdvanceTicks",
-      "args": {
-        "ticks": "2"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "3"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_applies_clocked",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_overlay_hook_stores",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_overlay_hook_misses",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_shadow_cells_edited",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_saturated_samples",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_saturation_skipped",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_mesh_read_ms",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_corners_ms",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_centres_ms",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_mesh_write_ms",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_collect_ms",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_shadow_ms",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_saturation_ms",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_wall_ms",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_overlay_in_place",
+        "featureName": "vector_light_door_dirty_suppress",
         "enabled": "false"
       }
     },
@@ -1366,22 +1072,6 @@
     {
       "type": "Probe",
       "args": {
-        "probeName": "vector_light_overlay_hook_stores",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_overlay_hook_misses",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
         "probeName": "vector_light_mask_shadow_cells_edited",
         "expectedValue": "0",
         "tolerance": "1000000000"
@@ -1470,138 +1160,7 @@
     {
       "type": "SetFeature",
       "args": {
-        "featureName": "vector_light_overlay_in_place",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "AdvanceTicks",
-      "args": {
-        "ticks": "2"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "3"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_applies_clocked",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_overlay_hook_stores",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_overlay_hook_misses",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_shadow_cells_edited",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_saturated_samples",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_saturation_skipped",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_mesh_read_ms",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_corners_ms",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_centres_ms",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_mesh_write_ms",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_collect_ms",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_shadow_ms",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_saturation_ms",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_wall_ms",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_overlay_in_place",
+        "featureName": "vector_light_door_dirty_suppress",
         "enabled": "false"
       }
     },
@@ -1621,153 +1180,6 @@
       "type": "Probe",
       "args": {
         "probeName": "vector_light_mask_applies_clocked",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_overlay_hook_stores",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_overlay_hook_misses",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_shadow_cells_edited",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_saturated_samples",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_saturation_skipped",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_mesh_read_ms",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_corners_ms",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_centres_ms",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_mesh_write_ms",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_collect_ms",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_shadow_ms",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_saturation_ms",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_wall_ms",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "SetFeature",
-      "args": {
-        "featureName": "vector_light_overlay_in_place",
-        "enabled": "true"
-      }
-    },
-    {
-      "type": "AdvanceTicks",
-      "args": {
-        "ticks": "2"
-      }
-    },
-    {
-      "type": "Wait",
-      "args": {
-        "frames": "3"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_mask_applies_clocked",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_overlay_hook_stores",
-        "expectedValue": "0",
-        "tolerance": "1000000000"
-      }
-    },
-    {
-      "type": "Probe",
-      "args": {
-        "probeName": "vector_light_overlay_hook_misses",
         "expectedValue": "0",
         "tolerance": "1000000000"
       }
