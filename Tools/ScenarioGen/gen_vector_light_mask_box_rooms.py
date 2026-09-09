@@ -26,6 +26,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SCEN = os.path.abspath(os.path.join(HERE, "..", "..", "Tests", "Scenarios"))
 SOURCE = os.path.join(SCEN, "vector_light_perf.json")
 TARGET = os.path.join(SCEN, "vector_light_mask_box_rooms.json")
+FIXTURE_OFFSET = "0,45"
+ROOMS_OFFSET = "5,50"
 
 
 def fixture_steps():
@@ -35,6 +37,17 @@ def fixture_steps():
 
     steps = []
     for step in perf["steps"]:
+        # MOVED OFF THE PERF FIXTURE'S GEYSER. At vector_light_perf's own offset the terrain rect
+        # covers the steam geyser at (139,147) on minimal_colony.rws, which SetTerrain's clear
+        # cannot remove (the def is not destroyable), and the harness reports the run failed
+        # however the probes read. The save has five geysers -- (91,202), (192,160), (139,147),
+        # (114,71), (226,198) -- and (5,50) is the nearest offset whose 70x49 rect clears all of
+        # them by three cells; (0,60) was tried first and landed on (91,202). The perf file keeps
+        # its offset because its Profile windows are baselines; this file has none, so the whole
+        # fixture shifts as one -- every step shares the offset -- and the rooms are the same
+        # rooms on plain ground.
+        if step["args"].get("offset") == FIXTURE_OFFSET:
+            step = {"type": step["type"], "args": dict(step["args"], offset=ROOMS_OFFSET)}
         steps.append(step)
         if step["type"] == "Probe" and step["args"]["probeName"] == "vector_light_count":
             return steps
