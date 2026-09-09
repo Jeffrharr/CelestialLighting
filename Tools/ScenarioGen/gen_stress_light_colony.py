@@ -373,15 +373,10 @@ def build_mask_fold():
     }
 
 
-RESIDUE_TOGGLE = "vector_light_overlay_in_place"
-
-# What one arm of the residue scenario reads after its rebake: the hook's own two counters first
-# (misses must be zero on every on arm), then the pass's outputs, then the residue's four clocks in
-# the order they are paid, then the three stage clocks as controls and the whole.
+# What one round of the residue scenario reads after its rebake: the pass's outputs, then the
+# residue's four clocks in the order they are paid, then the three stage clocks and the whole.
 RESIDUE_READS = (
     "vector_light_mask_applies_clocked",
-    "vector_light_overlay_hook_stores",
-    "vector_light_overlay_hook_misses",
     "vector_light_mask_shadow_cells_edited",
     "vector_light_mask_saturated_samples",
     "vector_light_mask_saturation_skipped",
@@ -397,22 +392,19 @@ RESIDUE_READS = (
 
 
 def build_mask_residue():
-    """The same colony, the mask's edit made in place on vanilla's array against the postfix's
-    mesh round trip.
+    """The same colony, Apply's residue outside the three stage clocks read in four parts.
 
     WHAT THIS ASKS. With the shadow stage at 4 ms and the saturation pass at 6 ms, the largest
-    term left in a whole-map rebake was the ~7 ms outside the three stage clocks: the mesh read
-    back, the corner pass, the centre pass and the mesh write. This file clocks those four apart
-    for the first time, and alternates the in-place edit (vector_light_overlay_in_place) OFF and
-    ON so the two mesh clocks can be read against the two vertex passes -- which the flag does
-    not touch and which are therefore the controls, alongside the three stage clocks.
+    term left in a whole-map rebake was the ~7 ms outside the three stage clocks, which DESIGN.md
+    had been calling "the mesh round trip and corner application" without anyone having clocked
+    those apart. This file does: mesh read, corner pass, centre pass, mesh write, in the order
+    Apply pays them, over four whole-map rebakes on the shipped flags.
 
-    READ IT AS PAIRS. shadow_cells_edited, saturated_samples and saturation_skipped are the
-    edit's INPUT and read identically on every arm; the hook edits the same accumulators into
-    the same 613 vertices. hook_misses must be zero on every ON arm, or that arm is the postfix
-    path wearing the flag's name. mesh_read_ms and mesh_write_ms are what the flag removes and
-    read zero on ON arms by construction; corners_ms, centres_ms and the three stage clocks are
-    controls and must not move.
+    NO TOGGLE. This is a clocking scenario, not an A/B: every round is the shipped
+    configuration, and the four rounds are there so a reader can see the run-to-run spread of
+    each clock before believing a split. The round trip was measured against an in-place edit
+    and found to be 0.2 ms of the 7 (DESIGN.md); the vertex passes' own slices have their own
+    files.
     """
     colony = sc.build()
     steps = sc.setup_steps(colony)
@@ -429,12 +421,11 @@ def build_mask_residue():
         steps.append(sc.step("SetFeature", featureName=INERT_TOGGLE, enabled=INERT_VALUE))
 
     for _ in range(GATE_ROUNDS):
-        for enabled in ("false", "true"):
-            steps.append(sc.step("SetFeature", featureName=RESIDUE_TOGGLE, enabled=enabled))
-            steps.append(sc.step("AdvanceTicks", ticks=2))
-            steps.append(sc.step("Wait", frames=3))
-            for probe in RESIDUE_READS:
-                steps.append(sc.record(probe))
+        steps.append(sc.step("SetFeature", featureName=INERT_TOGGLE, enabled=INERT_VALUE))
+        steps.append(sc.step("AdvanceTicks", ticks=2))
+        steps.append(sc.step("Wait", frames=3))
+        for probe in RESIDUE_READS:
+            steps.append(sc.record(probe))
 
     steps.append(sc.step("Probe", probeName="vector_light_mask_stale_polys", expectedValue=0, tolerance=0))
 
@@ -443,22 +434,20 @@ def build_mask_residue():
         "saveFile": "minimal_colony.rws",
         "description": (
             "stress_light_colony's colony -- 500 lamps in 11 colours and 9 radii -- with the "
-            "lighting overlay edit made in place on vanilla's array (vector_light_overlay_in_place) "
-            "measured OFF and ON, alternately, four rounds in one boot. "
+            "mask's residue outside its three stage clocks read in four parts over four whole-map "
+            "rebakes on the shipped flags: mesh read, corner pass, centre pass, mesh write. "
             "\n\n"
             "WHY IT EXISTS. With the shadow stage at 4 ms and the saturation pass at 6 ms, the "
-            "largest term left in a whole-map rebake was the ~7 ms outside the three stage "
-            "clocks. This file clocks that residue in four parts for the first time -- mesh read, "
-            "corner pass, centre pass, mesh write -- and the flag removes the first and last by "
-            "editing the array vanilla is about to store instead of reading it back afterwards. "
+            "largest term left in a rebake was the ~7 ms outside the three stage clocks, named in "
+            "DESIGN.md as the mesh round trip and corner application without having been clocked "
+            "apart. The first run of this file, alternating an in-place edit that removed the "
+            "round trip, read it at 0.2 ms of the 7 and the two vertex passes at 6.7; the hook "
+            "was not kept, and this file stays as the clock. "
             "\n\n"
-            "READ IT AS PAIRS. shadow_cells_edited, saturated_samples and saturation_skipped are the "
-            "edit's input and read the same on every arm. hook_misses must be zero on every ON arm. "
-            "mesh_read_ms and mesh_write_ms read zero on ON arms by construction; corners_ms, "
-            "centres_ms and the three stage clocks are controls and must not move. "
-            "\n\n"
-            "Every duration is RECORDED, not pinned. What is pinned is the scene and one defect "
-            "counter: 503 emitters, the mask available, stale polys at zero."
+            "NO TOGGLE: every round is the shipped configuration, so the spread between rounds is "
+            "the noise floor each clock has to clear. Every duration is RECORDED, not pinned. What "
+            "is pinned is the scene and one defect counter: 503 emitters, the mask available, stale "
+            "polys at zero."
         ),
         "steps": steps,
     }
