@@ -108,6 +108,14 @@ public static class VectorLightMask
     // each cell's fold is its own. See CollectCandidates.
     private static bool[] cellCandidate = new bool[0];
 
+    // Per row of the accumulation grid, the leftmost and rightmost candidate x, in map cells --
+    // int.MaxValue / int.MinValue on a row with none. Filled beside cellCandidate by
+    // CollectCandidates and read by AccumulateFoldAdvancing, which clips each light's row to it
+    // before testing cells: the candidates are the saturated cells of a wedge, a handful per row,
+    // and a lamp's square row is mostly the cells either side of them.
+    private static int[] candidateRowMin = new int[0];
+    private static int[] candidateRowMax = new int[0];
+
     // What the last whole-map rebake's lift actually came to, for the probes.
     //
     // TWO NUMBERS, READ TOGETHER, because a zero in either has an entirely different cause. Samples
@@ -225,6 +233,34 @@ public static class VectorLightMask
     // the two is the question "is this pass earning the section it is charged to".
     public static long FoldCells;
 
+    // Cells the fold's square walk ENTERED, against FoldCells for the ones it folded at. The
+    // saturation pass walks each folded light's square clipped to the candidates' box, and under
+    // the gate rejects most of those cells on one array read; this is the length of that walk,
+    // which the fold_cells counter cannot see because it counts only the survivors. Same shape as
+    // ShadowCellsScanned against ShadowCellsEdited, and for the same reason: a stage whose walk is
+    // mostly rejections is priced by the walk, not by the work.
+    public static long FoldCellsVisited;
+
+    // Where the saturation stage's clock goes, in ticks of System.Diagnostics.Stopwatch, so it
+    // can be read as three parts rather than one: everything before the first light is folded
+    // (the candidate collect and the two-light count), the light loop, and inside the light loop
+    // the per-light share -- the overlap test, the resolve, the reaching scan and AccumulateFold's
+    // hoists, closed at the first cell walked. The correction loop is the stage minus the first
+    // two. Read by the saturation_prefold_ms, saturation_fold_ms and saturation_setup_ms probes.
+    public static long SaturationPrefoldTicks;
+    public static long SaturationFoldTicks;
+    public static long SaturationSetupTicks;
+    private static long saturationSetupStart;
+
+    public static double SaturationPrefoldMs =>
+        SaturationPrefoldTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+
+    public static double SaturationFoldMs =>
+        SaturationFoldTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+
+    public static double SaturationSetupMs =>
+        SaturationSetupTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+
     // Cells the saturation pass admitted to its fold: edited, and displayed at the ceiling. Read
     // against FoldCells for how much of the fold the gate left standing, and against
     // SaturatedSamples for how many admitted cells the fold then rewrote — the second ratio is the
@@ -243,6 +279,10 @@ public static class VectorLightMask
     public static void ResetTelemetry()
     {
         SaturationCandidates = 0;
+        FoldCellsVisited = 0;
+        SaturationPrefoldTicks = 0;
+        SaturationFoldTicks = 0;
+        SaturationSetupTicks = 0;
         ShadowSetupTicks = 0;
         ShadowCellsScanned = 0;
         ShadowCellsEdited = 0;
@@ -679,6 +719,7 @@ public static class VectorLightMask
 
         if (gated && !CollectCandidates(map, rect, box, out box))
         {
+            SaturationPrefoldTicks += clock.ElapsedTicks;
             SaturationWallMs += clock.Elapsed.TotalMilliseconds;
             lastSaturationMs += clock.Elapsed.TotalMilliseconds;
             return;
@@ -693,10 +734,14 @@ public static class VectorLightMask
             // there is no second overlapping light means walking the whole glow grid, so the cheap
             // path is not free and its cost grows with the emitter population exactly as the
             // expensive one does.
+            SaturationPrefoldTicks += clock.ElapsedTicks;
             SaturationWallMs += clock.Elapsed.TotalMilliseconds;
             lastSaturationMs += clock.Elapsed.TotalMilliseconds;
             return;
         }
+
+        SaturationPrefoldTicks += clock.ElapsedTicks;
+        long foldStart = System.Diagnostics.Stopwatch.GetTimestamp();
 
         Grow(ref cellRaw, cells);
         Grow(ref cellFold, cells);
@@ -769,6 +814,7 @@ public static class VectorLightMask
 
             for (int b = bucketStart; b < bucketEnd; b++)
             {
+                saturationSetupStart = System.Diagnostics.Stopwatch.GetTimestamp();
                 int i = bucket[b];
 
                 // STILL TESTED, and it is not redundant. The index files a light under every
@@ -781,7 +827,7 @@ public static class VectorLightMask
                 LightsFolded++;
 
                 if (reader.TryLightAt(i, out GlowLight light, out UnsafeList<Color32> colors))
-                    AccumulateFold(map, rect, box, light, colors, ReachingEntryFor(light), lifting, gated);
+                    Fold(map, rect, box, light, colors, ReachingEntryFor(light), lifting, gated);
             }
         }
         else
@@ -790,15 +836,19 @@ public static class VectorLightMask
 
             for (int i = 0; i < reader.LightCount; i++)
             {
+                saturationSetupStart = System.Diagnostics.Stopwatch.GetTimestamp();
+
                 if (!reader.OverlapsAt(i, box.minX, box.maxX, box.minZ, box.maxZ))
                     continue;
 
                 LightsFolded++;
 
                 if (reader.TryLightAt(i, out GlowLight light, out UnsafeList<Color32> colors))
-                    AccumulateFold(map, rect, box, light, colors, ReachingEntryFor(light), lifting, gated);
+                    Fold(map, rect, box, light, colors, ReachingEntryFor(light), lifting, gated);
             }
         }
+
+        SaturationFoldTicks += System.Diagnostics.Stopwatch.GetTimestamp() - foldStart;
 
         for (int z = box.minZ; z <= box.maxZ; z++)
         {
@@ -887,7 +937,16 @@ public static class VectorLightMask
     // only the lights reaching that corner, and folds only the corner's cells of them.
     private static bool CollectCandidates(Map map, CellRect rect, CellRect box, out CellRect candidates)
     {
-        Grow(ref cellCandidate, CellsWide(rect) * CellsHigh(rect));
+        int high = CellsHigh(rect);
+        Grow(ref cellCandidate, CellsWide(rect) * high);
+        Grow(ref candidateRowMin, high);
+        Grow(ref candidateRowMax, high);
+
+        for (int row = 0; row < high; row++)
+        {
+            candidateRowMin[row] = int.MaxValue;
+            candidateRowMax[row] = int.MinValue;
+        }
 
         int minX = int.MaxValue;
         int maxX = int.MinValue;
@@ -910,6 +969,10 @@ public static class VectorLightMask
                     maxX = Math.Max(maxX, x);
                     minZ = Math.Min(minZ, z);
                     maxZ = Math.Max(maxZ, z);
+
+                    int row = z - rect.minZ + CellMargin;
+                    candidateRowMin[row] = Math.Min(candidateRowMin[row], x);
+                    candidateRowMax[row] = Math.Max(candidateRowMax[row], x);
                 }
             }
         }
@@ -968,6 +1031,229 @@ public static class VectorLightMask
         return null;
     }
 
+    // One light into both accumulators, by whichever body the flag names. Both walk the same cells
+    // in the same order and perform the same fold steps; see AccumulateFoldAdvancing for what the
+    // advancing one changes and why the output cannot move.
+    private static void Fold(
+        Map map, CellRect rect, CellRect box, GlowLight light, UnsafeList<Color32> colors,
+        VectorLightField.LightEntry entry, bool lifting, bool gated)
+    {
+        if (CelestialLightingFeatures.VectorLightMaskFoldRows)
+            AccumulateFoldAdvancing(map, rect, box, light, colors, entry, lifting, gated);
+        else
+            AccumulateFold(map, rect, box, light, colors, entry, lifting, gated);
+    }
+
+    // AccumulateFold with every per-cell index turned into a base per row plus x, and the fold step
+    // written out in place. The shadow stage's WalkRunsAdvancing, restated for the fold.
+    //
+    // EXACTLY THE BODY IN AccumulateFold, restated. That body, per cell of the light's square
+    // clipped to the box, does: CellIndex, the candidate test, InBounds, WorldToLocalIndex, a
+    // range guard on the local index, the native read, the black test, three adds into the raw
+    // sum, and two fold steps -- each a call into VectorLightSaturationMath that calls Peak and
+    // ProjectChannel three times, with an integer division per channel whether or not the sum had
+    // crossed the ceiling -- plus CoverageAt for one of ours. Along a row z is fixed and x
+    // advances by one, so:
+    //
+    //   - InBounds: the walk's x and z ranges are clipped to the map once, at the top. The old
+    //     body visited an off-map cell, counted it, and skipped it (under the gate the candidate
+    //     test had already rejected it, since IsCandidate asks InBounds too); this walk never
+    //     reaches it. FoldCellsVisited therefore reads lower on this arm by the off-map cells,
+    //     and FoldCells reads the same, because no off-map cell was ever folded.
+    //   - The candidates' span per row: a cell outside [candidateRowMin, candidateRowMax] is not a
+    //     candidate, so the old body's per-cell test rejected it; clipping the row to the span
+    //     first skips the same cells whole. Cells inside the span are still tested one by one.
+    //     Off the gate the spans are not consulted, and the walk is the old one minus the map clip.
+    //   - WorldToLocalIndex: linear in x within a row -- CellIndicesUtility.CellToIndex is
+    //     z * width + x -- so the row's base is the light's own answer for the row's first cell
+    //     minus that cell's x, and the old guard `0 <= local < Length` is a range test on x
+    //     applied to the row's two ends, since the index is monotonic along it.
+    //   - CellIndex: (z - rect.minZ + 1) * wide + (x - rect.minX + 1), likewise base + x.
+    //   - CoverageAt: outside the grid it answers 255, inside it reads (zi * span + xi). The row's
+    //     zi is tested once; xi is tested per cell, because a cell outside the grid is still a
+    //     step of the fold (at coverage 255) and must not be skipped.
+    //
+    // THE FOLD STEP IS VectorLightSaturationMath.Accumulate WRITTEN OUT, and it is the same
+    // integer arithmetic: a zero addend leaves the accumulator alone; otherwise the sum's peak is
+    // taken and, only when it is over the ceiling, each channel becomes channel * 255 / peak.
+    // ProjectChannel's under-ceiling branch returns the channel itself for a non-negative sum,
+    // and every sum here is non-negative -- the accumulators start at zero and every addend is a
+    // byte, a byte less a scaled byte, or a lift the max computed -- so "no projection" IS the
+    // under-ceiling branch, and the division moves from every step to the steps that need it.
+    // VectorLightSaturationMathTests sweeps Accumulate; this is a transcription of it, and the
+    // scenario's identical output counters plus the gate suite's byte-identical frames are the
+    // live half of the claim that the transcription is faithful.
+    //
+    // The reads, the arithmetic, the order and the counters are the old body's; only the
+    // addressing and the call structure moved.
+    private static void AccumulateFoldAdvancing(
+        Map map, CellRect rect, CellRect box, GlowLight light, UnsafeList<Color32> colors,
+        VectorLightField.LightEntry entry, bool lifting, bool gated)
+    {
+        CellRect reach = light.AffectedRect;
+        IntVec3 size = map.Size;
+
+        int minX = Math.Max(Math.Max(reach.minX, box.minX), 0);
+        int maxX = Math.Min(Math.Min(reach.maxX, box.maxX), size.x - 1);
+        int minZ = Math.Max(Math.Max(reach.minZ, box.minZ), 0);
+        int maxZ = Math.Min(Math.Min(reach.maxZ, box.maxZ), size.z - 1);
+
+        bool ours = entry != null;
+        bool liftHere = ours && lifting;
+        bool matchSeed = CelestialLightingFeatures.VectorLightMaskMaxSeed;
+        float radius = light.glowRadius;
+        float radiusSquared = radius * radius;
+        ColorInt colour = light.glowColor;
+        int lightX = light.position.x;
+        int lightZ = light.position.z;
+
+        byte[] grid = ours ? entry.Coverage : null;
+        bool gridded = grid != null && grid.Length != 0;
+        int coverageRadius = ours ? entry.CoverageRadius : 0;
+        int span = coverageRadius * 2 + 1;
+        int gridOriginX = ours ? entry.Cell.x : 0;
+        int gridOriginZ = ours ? entry.Cell.z : 0;
+
+        int wide = CellsWide(rect);
+        int localLength = colors.Length;
+
+        SaturationSetupTicks += System.Diagnostics.Stopwatch.GetTimestamp() - saturationSetupStart;
+
+        for (int z = minZ; z <= maxZ; z++)
+        {
+            int row = z - rect.minZ + CellMargin;
+            int from = minX;
+            int to = maxX;
+
+            if (gated)
+            {
+                from = Math.Max(from, candidateRowMin[row]);
+                to = Math.Min(to, candidateRowMax[row]);
+            }
+
+            if (from > to)
+                continue;
+
+            int localBase = light.WorldToLocalIndex(new IntVec3(from, 0, z)) - from;
+
+            if (localBase + from < 0)
+                from = -localBase;
+
+            if (localBase + to >= localLength)
+                to = localLength - 1 - localBase;
+
+            int cellBase = row * wide - rect.minX + CellMargin;
+
+            int zi = z - gridOriginZ + coverageRadius;
+            bool rowInGrid = gridded && zi >= 0 && zi < span;
+            int coverageBase = zi * span - gridOriginX + coverageRadius;
+
+            for (int x = from; x <= to; x++)
+            {
+                FoldCellsVisited++;
+                int index = cellBase + x;
+
+                if (gated && !cellCandidate[index])
+                    continue;
+
+                Color32 own = colors[localBase + x];
+
+                if (own.r == 0 && own.g == 0 && own.b == 0)
+                    continue;
+
+                FoldCells++;
+
+                cellRaw[index].r += own.r;
+                cellRaw[index].g += own.g;
+                cellRaw[index].b += own.b;
+
+                // Vanilla's fold of this light: Accumulate, written out. The addend is a byte that
+                // is not all-zero, so the zero-addend guard has already passed.
+                {
+                    ref ColorInt fold = ref cellFold[index];
+                    int sumR = fold.r + own.r;
+                    int sumG = fold.g + own.g;
+                    int sumB = fold.b + own.b;
+                    int peak = sumR > sumG ? sumR : sumG;
+
+                    if (sumB > peak)
+                        peak = sumB;
+
+                    if (peak > VectorLightSaturationMath.Ceiling)
+                    {
+                        sumR = sumR * VectorLightSaturationMath.Ceiling / peak;
+                        sumG = sumG * VectorLightSaturationMath.Ceiling / peak;
+                        sumB = sumB * VectorLightSaturationMath.Ceiling / peak;
+                    }
+
+                    fold.r = sumR;
+                    fold.g = sumG;
+                    fold.b = sumB;
+                }
+
+                int keptR = own.r;
+                int keptG = own.g;
+                int keptB = own.b;
+
+                if (ours)
+                {
+                    int xi = x - gridOriginX + coverageRadius;
+                    int coverage = rowInGrid && xi >= 0 && xi < span ? grid[coverageBase + x] : 255;
+
+                    if (coverage < 255)
+                    {
+                        int shadowed = 255 - coverage;
+
+                        keptR -= own.r * shadowed / 255;
+                        keptG -= own.g * shadowed / 255;
+                        keptB -= own.b * shadowed / 255;
+                    }
+
+                    if (liftHere && coverage > 0
+                        && ComputeLift(
+                            coverage, own, colour, x - lightX, z - lightZ, radius, radiusSquared,
+                            matchSeed, out int liftR, out int liftG, out int liftB))
+                    {
+                        keptR += liftR;
+                        keptG += liftG;
+                        keptB += liftB;
+                    }
+                }
+
+                // Our fold of the same light, the same step; here the addend CAN be all-zero (an
+                // emitter fully shadowed at this cell), which is vanilla's guard: no step at all.
+                if (keptR > 0 || keptG > 0 || keptB > 0)
+                {
+                    ref ColorInt fold = ref cellFoldOurs[index];
+                    int sumR = fold.r + keptR;
+                    int sumG = fold.g + keptG;
+                    int sumB = fold.b + keptB;
+                    int peak = sumR > sumG ? sumR : sumG;
+
+                    if (sumB > peak)
+                        peak = sumB;
+
+                    if (peak > VectorLightSaturationMath.Ceiling)
+                    {
+                        sumR = sumR <= 0 ? 0 : sumR * VectorLightSaturationMath.Ceiling / peak;
+                        sumG = sumG <= 0 ? 0 : sumG * VectorLightSaturationMath.Ceiling / peak;
+                        sumB = sumB <= 0 ? 0 : sumB * VectorLightSaturationMath.Ceiling / peak;
+                    }
+                    else
+                    {
+                        sumR = sumR < 0 ? 0 : sumR;
+                        sumG = sumG < 0 ? 0 : sumG;
+                        sumB = sumB < 0 ? 0 : sumB;
+                    }
+
+                    fold.r = sumR;
+                    fold.g = sumG;
+                    fold.b = sumB;
+                }
+            }
+        }
+    }
+
     // One emitter folded into both reconstructions: vanilla's own accumulation of this cell, and the
     // same accumulation with our polygons deciding how much of this emitter arrived.
     //
@@ -1007,10 +1293,15 @@ public static class VectorLightMask
         int lightX = light.position.x;
         int lightZ = light.position.z;
 
+        // The per-light share closes here: everything from the loop iteration that chose this
+        // light up to its first cell is setup, and everything after is the walk.
+        SaturationSetupTicks += System.Diagnostics.Stopwatch.GetTimestamp() - saturationSetupStart;
+
         for (int z = minZ; z <= maxZ; z++)
         {
             for (int x = minX; x <= maxX; x++)
             {
+                FoldCellsVisited++;
                 int index = CellIndex(rect, x, z);
 
                 // THE CELL TEST BEFORE THE LIGHT'S OWN, because it is one array read and rejects
@@ -1801,6 +2092,12 @@ public static class VectorLightMask
     {
         if (buffer.Length < needed)
             buffer = new ColorInt[needed];
+    }
+
+    private static void Grow(ref int[] buffer, int needed)
+    {
+        if (buffer.Length < needed)
+            buffer = new int[needed];
     }
 
     private static void Grow(ref bool[] buffer, int needed)

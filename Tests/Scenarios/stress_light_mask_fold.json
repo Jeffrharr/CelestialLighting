@@ -1,7 +1,7 @@
 {
-  "name": "stress_light_mask_gate",
+  "name": "stress_light_mask_fold",
   "saveFile": "minimal_colony.rws",
-  "description": "stress_light_colony's colony -- 500 lamps in 11 colours and 9 radii -- with the saturation pass's cell gate (vector_light_mask_saturation_gate) measured OFF and ON, alternately, four rounds in one boot. \n\nWHY IT EXISTS. stress_light_mask found CorrectSaturation at 47% of a whole-map rebake and its counters found 94.7% of the fold discarded on cells that could never be rewritten. The gate decides candidacy per cell before any light is resolved; this file reads what that is worth as the ratio of neighbouring arms' stage clocks, because this box's run-to-run timing noise is 2.4x and a build-to-build comparison cannot see a twofold saving through it. \n\nREAD IT AS PAIRS. Each SetFeature of the gate is one whole-map rebake, telemetry reset at the toggle, so every read holds one arm's rebake of the same 503 emitters. saturated_samples and saturation_skipped are the pass's OUTPUT and must read the same on every arm; fold_cells is its work and should collapse on the on arms; saturation_candidates reads zero on the off arms by construction. \n\nEvery duration here is RECORDED, not pinned. What is pinned is the scene and the one defect counter: 503 emitters, the mask available, stale polys at zero.",
+  "description": "stress_light_colony's colony -- 500 lamps in 11 colours and 9 radii -- with the saturation pass's advancing fold (vector_light_mask_fold_rows) measured OFF and ON, alternately, four rounds in one boot, with the cell gate on in both arms. \n\nWHY IT EXISTS. Clocked three ways, the saturation stage's 16 ms on this colony is 13.7 ms of walk -- 282,263 visits for 45,188 folds, each fold paying three index computations before the read and two five-call fold steps with six integer divisions after it. The advancing fold turns each index into a base per row plus x, clips each row to its candidates, and writes the fold step out with the division only where the sum crossed the ceiling. This file reads that as the ratio of neighbouring arms' stage clocks, for the reason the gate scenario does: the effect is smaller than the run-to-run noise. \n\nREAD IT AS PAIRS. fold_cells, saturated_samples and saturation_skipped are OUTPUT and must read the same on every arm; fold_cells_visited is the walk and should fall on the on arms; saturation_fold_ms is the clock to read and every other stage is a control. \n\nEvery duration here is RECORDED, not pinned. What is pinned is the scene and one defect counter: 503 emitters, mask available, stale polys at zero.",
   "steps": [
     {
       "type": "SetTile",
@@ -764,6 +764,13 @@
       }
     },
     {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_saturation_gate",
+        "enabled": "true"
+      }
+    },
+    {
       "type": "Wait",
       "args": {
         "frames": "30"
@@ -808,7 +815,7 @@
     {
       "type": "SetFeature",
       "args": {
-        "featureName": "vector_light_mask_saturation_gate",
+        "featureName": "vector_light_mask_fold_rows",
         "enabled": "false"
       }
     },
@@ -939,7 +946,7 @@
     {
       "type": "SetFeature",
       "args": {
-        "featureName": "vector_light_mask_saturation_gate",
+        "featureName": "vector_light_mask_fold_rows",
         "enabled": "true"
       }
     },
@@ -1070,7 +1077,7 @@
     {
       "type": "SetFeature",
       "args": {
-        "featureName": "vector_light_mask_saturation_gate",
+        "featureName": "vector_light_mask_fold_rows",
         "enabled": "false"
       }
     },
@@ -1201,7 +1208,7 @@
     {
       "type": "SetFeature",
       "args": {
-        "featureName": "vector_light_mask_saturation_gate",
+        "featureName": "vector_light_mask_fold_rows",
         "enabled": "true"
       }
     },
@@ -1332,7 +1339,7 @@
     {
       "type": "SetFeature",
       "args": {
-        "featureName": "vector_light_mask_saturation_gate",
+        "featureName": "vector_light_mask_fold_rows",
         "enabled": "false"
       }
     },
@@ -1463,7 +1470,7 @@
     {
       "type": "SetFeature",
       "args": {
-        "featureName": "vector_light_mask_saturation_gate",
+        "featureName": "vector_light_mask_fold_rows",
         "enabled": "true"
       }
     },
@@ -1594,7 +1601,7 @@
     {
       "type": "SetFeature",
       "args": {
-        "featureName": "vector_light_mask_saturation_gate",
+        "featureName": "vector_light_mask_fold_rows",
         "enabled": "false"
       }
     },
@@ -1725,7 +1732,7 @@
     {
       "type": "SetFeature",
       "args": {
-        "featureName": "vector_light_mask_saturation_gate",
+        "featureName": "vector_light_mask_fold_rows",
         "enabled": "true"
       }
     },

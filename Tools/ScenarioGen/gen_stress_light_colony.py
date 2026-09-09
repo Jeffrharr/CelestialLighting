@@ -39,6 +39,7 @@ MASK_GATE_TARGET = os.path.join(SCEN, "stress_light_mask_gate.json")
 MASK_BOUNDS_TARGET = os.path.join(SCEN, "stress_light_mask_bounds.json")
 MASK_SPANS_TARGET = os.path.join(SCEN, "stress_light_mask_spans.json")
 MASK_INDICES_TARGET = os.path.join(SCEN, "stress_light_mask_indices.json")
+MASK_FOLD_TARGET = os.path.join(SCEN, "stress_light_mask_fold.json")
 
 # The mask's parent arm and its four population-scaled stages. Order is parent first, because that
 # is the one a build-to-build comparison is read on and the four below it are the finding.
@@ -296,6 +297,81 @@ def build_hold():
     }
 
 
+FOLD_TOGGLE = "vector_light_mask_fold_rows"
+
+
+def build_mask_fold():
+    """The same colony, the saturation pass's advancing fold measured against its general body.
+
+    WHAT THIS ASKS. Clocked three ways (saturation_prefold_ms, saturation_fold_ms,
+    saturation_setup_ms), the saturation stage's 16 ms on this colony is 0.8 ms before the first
+    light folds, 0.8 ms of per-light setup, 0.7 ms of correction, and 13.7 ms of walk: 282,263
+    visits for 45,188 folds, with every fold paying three index computations before the read and
+    two five-call fold steps with six integer divisions after it. The advancing fold turns each
+    index into a base per row plus x, clips each row to the candidates it holds, and writes the
+    fold step out in place with the division only where the sum crossed the ceiling. This file
+    reads what that is worth, as the ratio of neighbouring arms' stage clocks, with the cell gate
+    on in both arms so the ratio is addressing against addressing and nothing else.
+
+    READ IT AS PAIRS. fold_cells, saturated_samples and saturation_skipped are the pass's OUTPUT
+    and must read identically on every arm: the walk folds the same pairs and rewrites the same
+    cells. fold_cells_visited is the walk and should fall on the on arms, by the row clip and the
+    map clip; saturation_fold_ms is the clock to read, with prefold, setup and the other stages as
+    controls that must not move.
+    """
+    colony = sc.build()
+    steps = sc.setup_steps(colony)
+    steps += sc.palette_steps()
+    steps += sc.establish_steps()
+    steps += sc.settle_steps()
+    steps += sc.population_probes()
+    steps += sc.feature_steps(vector_lights=True, changed_dirty=False)
+    steps.append(sc.step("SetFeature", featureName=GATE_TOGGLE, enabled="true"))
+    steps.append(sc.step("Wait", frames=SETTLE_FRAMES))
+    steps.append(sc.step("Probe", probeName="vector_light_mask_available", expectedValue=1, tolerance=0))
+
+    for _ in range(GATE_WARMUP):
+        steps.append(sc.step("SetFeature", featureName=INERT_TOGGLE, enabled=INERT_VALUE))
+
+    for _ in range(GATE_ROUNDS):
+        for enabled in ("false", "true"):
+            steps.append(sc.step("SetFeature", featureName=FOLD_TOGGLE, enabled=enabled))
+            steps.append(sc.step("AdvanceTicks", ticks=2))
+            steps.append(sc.step("Wait", frames=3))
+            for probe in GATE_READS:
+                steps.append(sc.record(probe))
+
+    steps.append(sc.step("Probe", probeName="vector_light_mask_stale_polys", expectedValue=0, tolerance=0))
+
+    return {
+        "name": "stress_light_mask_fold",
+        "saveFile": "minimal_colony.rws",
+        "description": (
+            "stress_light_colony's colony -- 500 lamps in 11 colours and 9 radii -- with the "
+            "saturation pass's advancing fold (vector_light_mask_fold_rows) measured OFF and ON, "
+            "alternately, four rounds in one boot, with the cell gate on in both arms. "
+            "\n\n"
+            "WHY IT EXISTS. Clocked three ways, the saturation stage's 16 ms on this colony is "
+            "13.7 ms of walk -- 282,263 visits for 45,188 folds, each fold paying three index "
+            "computations before the read and two five-call fold steps with six integer "
+            "divisions after it. The advancing fold turns each index into a base per row plus x, "
+            "clips each row to its candidates, and writes the fold step out with the division "
+            "only where the sum crossed the ceiling. This file reads that as the ratio of "
+            "neighbouring arms' stage clocks, for the reason the gate scenario does: the "
+            "effect is smaller than the run-to-run noise. "
+            "\n\n"
+            "READ IT AS PAIRS. fold_cells, saturated_samples and saturation_skipped are OUTPUT "
+            "and must read the same on every arm; fold_cells_visited is the walk and should "
+            "fall on the on arms; saturation_fold_ms is the clock to read and every other "
+            "stage is a control. "
+            "\n\n"
+            "Every duration here is RECORDED, not pinned. What is pinned is the scene and one "
+            "defect counter: 503 emitters, mask available, stale polys at zero."
+        ),
+        "steps": steps,
+    }
+
+
 def write(spec, target):
     with open(target, "w") as handle:
         json.dump(spec, handle, indent=2)
@@ -525,6 +601,13 @@ GATE_READS = (
     "vector_light_mask_saturated_samples",
     "vector_light_mask_saturation_skipped",
     "vector_light_mask_saturation_ms",
+    # The stage split three ways -- before the first light folds, the light loop, and the
+    # per-light share inside it -- plus the fold's walk length against fold_cells. Added to read
+    # where the stage's remaining 16 ms sits before cutting any of it; see DESIGN.md.
+    "vector_light_mask_saturation_prefold_ms",
+    "vector_light_mask_saturation_fold_ms",
+    "vector_light_mask_saturation_setup_ms",
+    "vector_light_mask_fold_cells_visited",
     "vector_light_mask_shadow_ms",
     "vector_light_mask_collect_ms",
     "vector_light_mask_wall_ms",
@@ -881,6 +964,7 @@ def main():
     write(build_mask_bounds(), MASK_BOUNDS_TARGET)
     write(build_mask_spans(), MASK_SPANS_TARGET)
     write(build_mask_indices(), MASK_INDICES_TARGET)
+    write(build_mask_fold(), MASK_FOLD_TARGET)
 
 
 if __name__ == "__main__":
