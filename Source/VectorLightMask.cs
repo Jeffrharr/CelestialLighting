@@ -2119,7 +2119,7 @@ public static class VectorLightMask
 
         for (int z = rect.minZ; z <= rect.maxZ + 1; z++)
         {
-            CornerVisits += rect.Width + 2;
+            CornerVisits += rect.Width + 1;
 
             for (int x = rect.minX; x <= rect.maxX + 1; x++)
             {
@@ -2217,7 +2217,7 @@ public static class VectorLightMask
 
         for (int z = rect.minZ; z <= rect.maxZ; z++)
         {
-            CentreVisits += rect.Width + 1;
+            CentreVisits += rect.Width;
 
             for (int x = rect.minX; x <= rect.maxX; x++)
             {
