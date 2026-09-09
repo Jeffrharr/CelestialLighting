@@ -1410,6 +1410,49 @@ public static class CelestialLightingFeatures
     // on both arms. See stress_light_mask_fold.json, which alternates arms inside one boot.
     public static bool VectorLightMaskFoldRows = true;
 
+    // Feature key for VectorLightMaskVertexRows.
+    public const string VectorLightMaskVertexRowsKey = "vector_light_mask_vertex_rows";
+
+    // The mask's two vertex passes -- corner averages, then centre averages -- with every index a
+    // base per row plus x, the four-cell "nothing here" test made on the accumulators in place,
+    // the map-edge test reduced to four integer compares per vertex, the edifice read taken from
+    // the grid's own array, and the sums written out as ints rather than through ColorInt's
+    // operators.
+    //
+    // WHY. Clocked apart (stress_light_mask_residue.json), the corner pass was 4.2 ms and the
+    // centre pass 2.5 ms of an 18 ms whole-map rebake on the 500-lamp colony: 155 ns and 105 ns
+    // per lattice point over 51,500 of them, for a body whose common case is "nothing here". Per
+    // corner the shipped body pays four CellIndex calls and four struct reads to find that out;
+    // per centre four ColorInt operator calls. The reads, the tests, the arithmetic and the
+    // averaging set are the old bodies'; only the addressing moved.
+    //
+    // OFF walks the old bodies exactly. Inert on the bytes: the passes write the same vertices
+    // from the same accumulators. See stress_light_mask_vertices.json, which alternates arms
+    // inside one boot with the edit box off in both.
+    public static bool VectorLightMaskVertexRows = true;
+
+    // Feature key for VectorLightMaskEditBox.
+    public const string VectorLightMaskEditBoxKey = "vector_light_mask_edit_box";
+
+    // The vertex passes clipped to the box the emitters wrote into, rather than walking the
+    // section's whole lattice. Needs VectorLightMaskVertexRows, whose bodies are the ones that
+    // take a range; the shipped bodies keep the shape they were profiled in.
+    //
+    // WHY. The 613-point walk is fixed per section whatever the shadow in it: a section with one
+    // lamp's wedge pays what a section with fifty does. On the stress colony that is invisible --
+    // 21,875 edited cells over 84 sections is nearly every section edited edge to edge -- but on a
+    // real map most rebaked sections carry one small wedge, and the fixed walk is most of what
+    // they pay. That is the per-frame cost on a real map, and this is the flag for it.
+    //
+    // The box is expanded per reaching emitter by the range its walk was clipped to, four
+    // compares per emitter and none per cell, so it is a superset of the edited cells and the
+    // passes it clips still visit every vertex that could have changed. Lattice points outside it
+    // are cleared rather than skipped, since the centre pass reads them.
+    //
+    // OFF walks the full lattice. Inert on the bytes. Measured by corner_visits and centre_visits
+    // where the clock cannot see it; see stress_light_mask_box.json.
+    public static bool VectorLightMaskEditBox = true;
+
     public const string VectorLightPawnShadowsKey = "vector_light_pawn_shadows";
 
     // §27 phase 4: a pawn throws a shadow away from each lamp that lights it.

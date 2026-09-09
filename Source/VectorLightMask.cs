@@ -79,6 +79,24 @@ public static class VectorLightMask
     private static ColorInt[] cellLift = new ColorInt[0];
     private static ColorInt[] cornerLift = new ColorInt[0];
 
+    // The box the emitters wrote into this section's accumulators, in world cells: expanded per
+    // reaching emitter by the range its walk was clipped to, which is a superset of the cells it
+    // went on to edit, and never touched per cell. Empty (min > max) when nothing walked. Read by
+    // Edit to clip the vertex passes under VectorLightMaskEditBox; see that flag for why the box
+    // is the real-map number where the stress colony's is not.
+    private static int editMinX;
+    private static int editMaxX;
+    private static int editMinZ;
+    private static int editMaxZ;
+
+    // Lattice points the corner pass visited and cells the centre pass visited, since the last
+    // reset. The edit box is measured by these where the clock cannot see it: on the stress
+    // colony nearly every section is edited edge to edge and the box saves almost nothing, and on
+    // a real map the same counters against Applies say how much of the 613-point walk a typical
+    // section still pays. Same instrument as ShadowCellsScanned, for the same reason.
+    public static long CornerVisits;
+    public static long CentreVisits;
+
     // Phase 5b's reconstruction of the sum vanilla PROJECTED, per cell — every emitter on the map
     // that reaches the cell, ours and everybody else's, added up unprojected. See CorrectSaturation.
     //
@@ -318,6 +336,8 @@ public static class VectorLightMask
         CornerTicks = 0;
         CentreTicks = 0;
         MeshWriteTicks = 0;
+        CornerVisits = 0;
+        CentreVisits = 0;
         ShadowSetupTicks = 0;
         ShadowCellsScanned = 0;
         ShadowCellsEdited = 0;
@@ -535,14 +555,60 @@ public static class VectorLightMask
     {
         int corners = (rect.Width + 1) * (rect.Height + 1);
 
+        // Read once and threaded down, for the reason Lifting's header gives. The box needs the
+        // restated bodies, because those are the ones that take a range; the shipped bodies stay
+        // exactly the shape they were profiled in.
+        bool advancing = CelestialLightingFeatures.VectorLightMaskVertexRows;
+        bool boxed = advancing
+            && CelestialLightingFeatures.VectorLightMaskEditBox
+            && editMinX <= editMaxX
+            && editMinZ <= editMaxZ;
+
+        // The corner pass walks lattice points, rect.min .. rect.max + 1 on each axis; the centre
+        // pass walks cells. Under the box each is clipped to what could have changed: a corner
+        // touches the cells on both sides of it, so the lattice range is the box's cell range plus
+        // one at the top; a centre averages the four corners around it, so its range is the
+        // lattice range less one at the bottom. Outside those every read is zero by construction
+        // -- the corner pass clears what it does not visit -- and every write would be a no-op.
+        int cornerFromX = rect.minX;
+        int cornerToX = rect.maxX + 1;
+        int cornerFromZ = rect.minZ;
+        int cornerToZ = rect.maxZ + 1;
+        int centreFromX = rect.minX;
+        int centreToX = rect.maxX;
+        int centreFromZ = rect.minZ;
+        int centreToZ = rect.maxZ;
+
+        if (boxed)
+        {
+            cornerFromX = Math.Max(cornerFromX, editMinX);
+            cornerToX = Math.Min(cornerToX, editMaxX + 1);
+            cornerFromZ = Math.Max(cornerFromZ, editMinZ);
+            cornerToZ = Math.Min(cornerToZ, editMaxZ + 1);
+            centreFromX = Math.Max(centreFromX, editMinX - 1);
+            centreToX = Math.Min(centreToX, editMaxX + 1);
+            centreFromZ = Math.Max(centreFromZ, editMinZ - 1);
+            centreToZ = Math.Min(centreToZ, editMaxZ + 1);
+        }
+
         long cornerStart = System.Diagnostics.Stopwatch.GetTimestamp();
 
-        ApplyToCorners(map, colors, rect, corners, composing);
+        if (advancing)
+            ApplyToCornersAdvancing(
+                map, colors, rect, corners, composing,
+                cornerFromX, cornerToX, cornerFromZ, cornerToZ);
+        else
+            ApplyToCorners(map, colors, rect, corners, composing);
 
         long centreStart = System.Diagnostics.Stopwatch.GetTimestamp();
         CornerTicks += centreStart - cornerStart;
 
-        ApplyToCentres(colors, rect, corners, composing);
+        if (advancing)
+            ApplyToCentresAdvancing(
+                colors, rect, corners, composing,
+                centreFromX, centreToX, centreFromZ, centreToZ);
+        else
+            ApplyToCentres(colors, rect, corners, composing);
 
         CentreTicks += System.Diagnostics.Stopwatch.GetTimestamp() - centreStart;
     }
@@ -693,6 +759,12 @@ public static class VectorLightMask
         }
 
         bool any = false;
+
+        // Empty until an emitter walks; AccumulateEmitter expands it.
+        editMinX = int.MaxValue;
+        editMaxX = int.MinValue;
+        editMinZ = int.MaxValue;
+        editMaxZ = int.MinValue;
 
         // WHETHER THE SHADOW BOX CAN STAND IN FOR THE SQUARE, decided once per section. Under the
         // max, the aperture beam or the bent path the loop below does work on fully lit cells —
@@ -1751,6 +1823,27 @@ public static class VectorLightMask
             maxZ = Math.Min(maxZ, entry.Cell.z + shadow.MaxDz);
         }
 
+        // THE EDIT BOX, expanded by this emitter's clipped range before it is walked: a superset of
+        // the cells the walk below can write, at four compares per reaching emitter rather than
+        // four per cell, and inside the setup clock rather than the walk's. Every write into the
+        // accumulators -- the subtraction, the lift, the per-cell replacement, and the saturation
+        // pass's correction, which only rewrites edited cells -- lands inside a range expanded
+        // here. An empty range expands nothing, since the loops below would not run either.
+        if (minX <= maxX && minZ <= maxZ)
+        {
+            if (minX < editMinX)
+                editMinX = minX;
+
+            if (maxX > editMaxX)
+                editMaxX = maxX;
+
+            if (minZ < editMinZ)
+                editMinZ = minZ;
+
+            if (maxZ > editMaxZ)
+                editMaxZ = maxZ;
+        }
+
         // AND THEN, INSIDE THE BOX, ONLY THE RUNS. The box is the runs' extent, so every row the
         // clip above left is a row of the table, and each run is clipped to the section's x range
         // the same way the box was. A cell between runs is one the body below would skip as fully
@@ -2026,6 +2119,8 @@ public static class VectorLightMask
 
         for (int z = rect.minZ; z <= rect.maxZ + 1; z++)
         {
+            CornerVisits += rect.Width + 2;
+
             for (int x = rect.minX; x <= rect.maxX + 1; x++)
             {
                 int index = (z - rect.minZ) * (rect.Width + 1) + (x - rect.minX);
@@ -2122,6 +2217,8 @@ public static class VectorLightMask
 
         for (int z = rect.minZ; z <= rect.maxZ; z++)
         {
+            CentreVisits += rect.Width + 1;
+
             for (int x = rect.minX; x <= rect.maxX; x++)
             {
                 int botLeft = (z - rect.minZ) * stride + (x - rect.minX);
@@ -2150,6 +2247,237 @@ public static class VectorLightMask
 
                 int index = corners + (z - rect.minZ) * rect.Width + (x - rect.minX);
                 colors[index] = Compose(colors[index], sum / 4, lift / 4);
+            }
+        }
+    }
+
+    // ApplyToCorners with every index a base per row plus x, over a lattice range rather than the
+    // whole section.
+    //
+    // EXACTLY THE BODY ABOVE, RESTATED. Per lattice point the shipped body pays four CellIndex
+    // calls and four struct reads (NoEditAround) to learn the common case is "nothing here", and
+    // for an edited point four IntVec3 constructions, four InBounds tests, four edificeGrid
+    // indexer calls and ColorInt's operators for the sum and the divide. Along a row z is fixed
+    // and x advances by one, so:
+    //
+    // - CellIndex(rect, x - 1, z - 1) is (z - rect.minZ) * wide + (x - rect.minX): a base per row
+    //   plus x, and the other three cells are that plus 1, plus wide, plus wide + 1.
+    // - InBounds is four range tests on x and z; the row's two are decided once per row and the
+    //   column's two are one compare each. The map's y is never tested, as vanilla never tests it.
+    // - edificeGrid[cell] is InnerArray[z * sizeX + x]: the indexer's own arithmetic, with the
+    //   row's base hoisted.
+    // - The sum is written out as ints; ColorInt's + and / are per-channel integer ops and the
+    //   accumulators' alpha is always zero, so (r / counted, g / counted, b / counted, 0) is the
+    //   struct the operators would have built.
+    //
+    // The reads, the tests, the arithmetic and the averaging set are the shipped body's; only the
+    // addressing moved. Points outside the range are cleared rather than skipped, because the
+    // centre pass reads them.
+    private static void ApplyToCornersAdvancing(
+        Map map, Color32[] colors, CellRect rect, int corners, bool lifting,
+        int fromX, int toX, int fromZ, int toZ)
+    {
+        Grow(ref cornerShadow, corners);
+
+        if (lifting)
+            Grow(ref cornerLift, corners);
+
+        // With the full range every entry is written below and the clear would be paid for
+        // nothing; under the box it is what makes the clip legal.
+        bool clipped = fromX > rect.minX || toX < rect.maxX + 1
+            || fromZ > rect.minZ || toZ < rect.maxZ + 1;
+
+        if (clipped)
+        {
+            Array.Clear(cornerShadow, 0, corners);
+
+            if (lifting)
+                Array.Clear(cornerLift, 0, corners);
+        }
+
+        int stride = rect.Width + 1;
+        int wide = CellsWide(rect);
+        IntVec3 size = map.Size;
+        int mapWidth = size.x;
+        Building[] edifices = map.edificeGrid.InnerArray;
+
+        for (int z = fromZ; z <= toZ; z++)
+        {
+            CornerVisits += toX - fromX + 1;
+
+            int vertexRow = (z - rect.minZ) * stride - rect.minX;
+            int below = (z - rect.minZ) * wide - rect.minX;
+            int above = below + wide;
+            bool rowBelow = z >= 1;
+            bool rowAbove = z < size.z;
+            int mapBelow = (z - 1) * mapWidth;
+            int mapAbove = z * mapWidth;
+
+            for (int x = fromX; x <= toX; x++)
+            {
+                int bottomLeft = below + x;
+                int topLeft = above + x;
+                int vertex = vertexRow + x;
+
+                ref ColorInt s0 = ref cellShadow[bottomLeft];
+                ref ColorInt s1 = ref cellShadow[bottomLeft + 1];
+                ref ColorInt s2 = ref cellShadow[topLeft];
+                ref ColorInt s3 = ref cellShadow[topLeft + 1];
+
+                bool none = (s0.r | s0.g | s0.b | s1.r | s1.g | s1.b
+                    | s2.r | s2.g | s2.b | s3.r | s3.g | s3.b) == 0;
+
+                if (none && lifting)
+                {
+                    ref ColorInt l0 = ref cellLift[bottomLeft];
+                    ref ColorInt l1 = ref cellLift[bottomLeft + 1];
+                    ref ColorInt l2 = ref cellLift[topLeft];
+                    ref ColorInt l3 = ref cellLift[topLeft + 1];
+
+                    none = (l0.r | l0.g | l0.b | l1.r | l1.g | l1.b
+                        | l2.r | l2.g | l2.b | l3.r | l3.g | l3.b) == 0;
+                }
+
+                if (none)
+                {
+                    cornerShadow[vertex] = default;
+
+                    if (lifting)
+                        cornerLift[vertex] = default;
+                }
+                else
+                {
+                    int r = 0;
+                    int g = 0;
+                    int b = 0;
+                    int liftR = 0;
+                    int liftG = 0;
+                    int liftB = 0;
+                    int counted = 0;
+                    bool columnLeft = x >= 1;
+                    bool columnRight = x < mapWidth;
+
+                    if (rowBelow && columnLeft && !Blocks(edifices, mapBelow + x - 1))
+                        Gather(bottomLeft, lifting, ref r, ref g, ref b,
+                            ref liftR, ref liftG, ref liftB, ref counted);
+
+                    if (rowBelow && columnRight && !Blocks(edifices, mapBelow + x))
+                        Gather(bottomLeft + 1, lifting, ref r, ref g, ref b,
+                            ref liftR, ref liftG, ref liftB, ref counted);
+
+                    if (rowAbove && columnLeft && !Blocks(edifices, mapAbove + x - 1))
+                        Gather(topLeft, lifting, ref r, ref g, ref b,
+                            ref liftR, ref liftG, ref liftB, ref counted);
+
+                    if (rowAbove && columnRight && !Blocks(edifices, mapAbove + x))
+                        Gather(topLeft + 1, lifting, ref r, ref g, ref b,
+                            ref liftR, ref liftG, ref liftB, ref counted);
+
+                    ColorInt shadow = counted > 0
+                        ? new ColorInt(r / counted, g / counted, b / counted, 0)
+                        : default;
+                    ColorInt lifted = counted > 0 && lifting
+                        ? new ColorInt(liftR / counted, liftG / counted, liftB / counted, 0)
+                        : default;
+
+                    cornerShadow[vertex] = shadow;
+
+                    if (lifting)
+                        cornerLift[vertex] = lifted;
+
+                    colors[vertex] = Compose(colors[vertex], shadow, lifted);
+                }
+            }
+        }
+    }
+
+    // One cell's contribution to a corner's sums: the shipped body's `sum += cellShadow[at]`,
+    // `lift += cellLift[at]`, `counted++`, on ints.
+    private static void Gather(
+        int at, bool lifting, ref int r, ref int g, ref int b,
+        ref int liftR, ref int liftG, ref int liftB, ref int counted)
+    {
+        ref ColorInt shadow = ref cellShadow[at];
+        r += shadow.r;
+        g += shadow.g;
+        b += shadow.b;
+
+        if (lifting)
+        {
+            ref ColorInt lift = ref cellLift[at];
+            liftR += lift.r;
+            liftG += lift.g;
+            liftB += lift.b;
+        }
+
+        counted++;
+    }
+
+    // BlocksLight on the grid's own array: edificeGrid[cell] is InnerArray[cellIndex].
+    private static bool Blocks(Building[] edifices, int cellIndex)
+    {
+        Building edifice = edifices[cellIndex];
+        return edifice != null && edifice.def.blockLight;
+    }
+
+    // ApplyToCentres with every index a base per row plus x, the four-corner sum written out as
+    // ints, over a cell range rather than the whole section. Compose(colour, sum / 4, lift / 4)
+    // is colour.r - sum.r / 4 + lift.r / 4 per channel, integer division on non-negative sums,
+    // and the alpha untouched -- exactly what is written below.
+    private static void ApplyToCentresAdvancing(
+        Color32[] colors, CellRect rect, int corners, bool lifting,
+        int fromX, int toX, int fromZ, int toZ)
+    {
+        int stride = rect.Width + 1;
+
+        for (int z = fromZ; z <= toZ; z++)
+        {
+            CentreVisits += toX - fromX + 1;
+
+            int cornerRow = (z - rect.minZ) * stride - rect.minX;
+            int centreRow = corners + (z - rect.minZ) * rect.Width - rect.minX;
+
+            for (int x = fromX; x <= toX; x++)
+            {
+                int bottomLeft = cornerRow + x;
+
+                ref ColorInt c0 = ref cornerShadow[bottomLeft];
+                ref ColorInt c1 = ref cornerShadow[bottomLeft + 1];
+                ref ColorInt c2 = ref cornerShadow[bottomLeft + stride];
+                ref ColorInt c3 = ref cornerShadow[bottomLeft + stride + 1];
+
+                int r = c0.r + c1.r + c2.r + c3.r;
+                int g = c0.g + c1.g + c2.g + c3.g;
+                int b = c0.b + c1.b + c2.b + c3.b;
+                int liftR = 0;
+                int liftG = 0;
+                int liftB = 0;
+
+                if (lifting)
+                {
+                    ref ColorInt l0 = ref cornerLift[bottomLeft];
+                    ref ColorInt l1 = ref cornerLift[bottomLeft + 1];
+                    ref ColorInt l2 = ref cornerLift[bottomLeft + stride];
+                    ref ColorInt l3 = ref cornerLift[bottomLeft + stride + 1];
+
+                    liftR = l0.r + l1.r + l2.r + l3.r;
+                    liftG = l0.g + l1.g + l2.g + l3.g;
+                    liftB = l0.b + l1.b + l2.b + l3.b;
+                }
+
+                // Four unedited corners average to nothing, and adding nothing to nothing is a
+                // write that changes no pixel; see ApplyToCentres.
+                if ((r | g | b | liftR | liftG | liftB) != 0)
+                {
+                    int index = centreRow + x;
+                    Color32 colour = colors[index];
+
+                    colors[index] = new Color32(
+                        ClampByte(colour.r - r / 4 + liftR / 4),
+                        ClampByte(colour.g - g / 4 + liftG / 4),
+                        ClampByte(colour.b - b / 4 + liftB / 4),
+                        colour.a);
+                }
             }
         }
     }

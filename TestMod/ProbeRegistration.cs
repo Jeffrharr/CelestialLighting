@@ -532,6 +532,13 @@ public static class ProbeRegistration
         ProbeRegistry.Register(new VectorLightBakeProbe(
             "vector_light_mask_mesh_write_ms", VectorLightBakeProbe.Metric.MaskMeshWriteMs));
 
+        // How long the two vertex passes' walks are, in lattice points and cells: the edit box's
+        // measure where the clock cannot see it.
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_mask_corner_visits", VectorLightBakeProbe.Metric.MaskCornerVisits));
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_mask_centre_visits", VectorLightBakeProbe.Metric.MaskCentreVisits));
+
         // Scanned against used, which is what says whether indexing the light list is worth
         // building. RECORDED, but unlike the durations beside them these are exact and repeatable:
         // they count a property of the scene, so a change to them is a change to the scene rather
@@ -2114,6 +2121,24 @@ public static class ProbeRegistration
             enabled =>
             {
                 CelestialLightingFeatures.VectorLightMaskFoldRows = enabled;
+                VectorLightRedraw.ForceRebuild();
+            });
+
+        // And the two vertex passes: their advancing restatement, and the edit box that clips
+        // them, each measured against the other held fixed.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightMaskVertexRowsKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.VectorLightMaskVertexRows = enabled;
+                VectorLightRedraw.ForceRebuild();
+            });
+
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightMaskEditBoxKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.VectorLightMaskEditBox = enabled;
                 VectorLightRedraw.ForceRebuild();
             });
 
