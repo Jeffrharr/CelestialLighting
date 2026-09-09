@@ -1388,6 +1388,28 @@ public static class CelestialLightingFeatures
     // construction. See stress_light_mask_indices.json, which alternates arms inside one boot.
     public static bool VectorLightMaskRunIndices = true;
 
+    // Feature key for VectorLightMaskFoldRows.
+    public const string VectorLightMaskFoldRowsKey = "vector_light_mask_fold_rows";
+
+    // The mask's saturation pass folds each light's square into the accumulators with the same
+    // advancing walk the shadow stage uses: every per-cell index a base per row plus x, the map
+    // clip once per light, the row clipped to the candidates it holds, and vanilla's fold step
+    // written out in place with the under-ceiling case taking no division.
+    //
+    // WHY. Clocked three ways, the stage's 16 ms on the 500-lamp colony is 0.8 ms before the first
+    // light folds, 0.8 ms of per-light setup and 0.7 ms of correction; the remaining 13.7 ms is
+    // the walk, 282,263 visits for 45,188 folds. Each fold was paying InBounds, WorldToLocalIndex
+    // and CellIndex before the read, and after it two fold steps of five calls each -- with three
+    // integer divisions apiece whether or not the running sum had crossed the ceiling, which most
+    // have not. The reads, the arithmetic and the order are the old body's; the addressing and the
+    // call structure are what change. See VectorLightMask.AccumulateFoldAdvancing for the
+    // exactness argument per index and per fold step.
+    //
+    // OFF folds with the general body, exactly as before. Inert unless the saturation pass runs,
+    // and the pass's output counters -- cells rewritten, cells declined -- must read identically
+    // on both arms. See stress_light_mask_fold.json, which alternates arms inside one boot.
+    public static bool VectorLightMaskFoldRows = true;
+
     public const string VectorLightPawnShadowsKey = "vector_light_pawn_shadows";
 
     // §27 phase 4: a pawn throws a shadow away from each lamp that lights it.

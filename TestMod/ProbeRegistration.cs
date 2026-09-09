@@ -512,6 +512,14 @@ public static class ProbeRegistration
             "vector_light_mask_shadow_setup_ms", VectorLightBakeProbe.Metric.MaskShadowSetupMs));
         ProbeRegistry.Register(new VectorLightBakeProbe(
             "vector_light_mask_saturation_ms", VectorLightBakeProbe.Metric.MaskSaturationMs));
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_mask_saturation_prefold_ms", VectorLightBakeProbe.Metric.MaskSaturationPrefoldMs));
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_mask_saturation_fold_ms", VectorLightBakeProbe.Metric.MaskSaturationFoldMs));
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_mask_saturation_setup_ms", VectorLightBakeProbe.Metric.MaskSaturationSetupMs));
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_mask_fold_cells_visited", VectorLightBakeProbe.Metric.MaskFoldCellsVisited));
 
         // Scanned against used, which is what says whether indexing the light list is worth
         // building. RECORDED, but unlike the durations beside them these are exact and repeatable:
@@ -2085,6 +2093,16 @@ public static class ProbeRegistration
             enabled =>
             {
                 CelestialLightingFeatures.VectorLightMaskRunIndices = enabled;
+                VectorLightRedraw.ForceRebuild();
+            });
+
+        // And for the saturation pass's advancing fold, measured the same way against its
+        // general body.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightMaskFoldRowsKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.VectorLightMaskFoldRows = enabled;
                 VectorLightRedraw.ForceRebuild();
             });
 

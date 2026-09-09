@@ -153,6 +153,18 @@ public sealed class VectorLightBakeProbe : IProbe
 
         MaskSaturationMs,
 
+        // The saturation stage split three ways: before the first light is folded, the light loop,
+        // and the per-light share inside that loop. Correction is the stage minus the first two;
+        // the fold's walk is the loop minus the per-light share.
+        MaskSaturationPrefoldMs,
+
+        MaskSaturationFoldMs,
+
+        MaskSaturationSetupMs,
+
+        // The fold's walk against MaskFoldCells, the cells it folded at.
+        MaskFoldCellsVisited,
+
         // The size of the prize for indexing, in counts. Scanned is every entry the full-list walk
         // examined; the paired metric is the few it went on to work for. An index can remove at most
         // the difference, and the ratio is a property of the SCENE rather than of the box, so two
@@ -404,6 +416,18 @@ public sealed class VectorLightBakeProbe : IProbe
 
         if (metric == Metric.MaskSaturationMs)
             return (float)VectorLightMask.SaturationWallMs;
+
+        if (metric == Metric.MaskSaturationPrefoldMs)
+            return (float)VectorLightMask.SaturationPrefoldMs;
+
+        if (metric == Metric.MaskSaturationFoldMs)
+            return (float)VectorLightMask.SaturationFoldMs;
+
+        if (metric == Metric.MaskSaturationSetupMs)
+            return (float)VectorLightMask.SaturationSetupMs;
+
+        if (metric == Metric.MaskFoldCellsVisited)
+            return VectorLightMask.FoldCellsVisited;
 
         if (metric == Metric.MaskApplies)
             return VectorLightField.MaskApplies;
