@@ -1,0 +1,253 @@
+{
+  "name": "aasb2_banded_overlay",
+  "saveFile": "minimal_colony.rws",
+  "description": "The As above, So below II interop, live. Their mod hides vanilla's lighting overlay map-wide on a banded map and draws SectionLayer_ABBelowLighting instead, so our indoor sky occlusion used to bake alphas into a mesh nobody drew -- the player report that the indoor darkness slider does nothing, for surface rooms as well as underground. AsAboveSoBelowCompat now postfixes their layer; this is the only thing in the repo that exercises it on a real banded map.\n\nWHAT THIS PROVES: ENGAGEMENT. The four state probes are the payload. aasb2_present says their assembly is loaded; aasb2_banded says AsAboveSoBelowBand took; aasb2_rendering_guard says their renderer is still live (their Regenerate disables that guard permanently on any throw, and when it goes off their layer stops drawing, vanilla's overlay returns, our compat correctly stands aside, and the frame looks entirely plausible while the interop under test is simply not running); aasb2_overlay_owned says our own two-term stand-down agrees. All four at 1 is the state in which our passes are running on the mesh THEY draw, which is the thing that was broken.\n\nWHAT THIS DOES NOT PROVE: DIFFERENTIATION, and the arms below are the evidence of why rather than a check that passes. aasb2_room_overlay_alpha reads 1.000 -- fully saturated -- in all three arms, so flipping indoor_sky_occlusion cannot move it and the ON/OFF frames are visually identical. That is correct behaviour, not a bug: a SEALED, UNLIT room at noon is already maximally dark from vanilla's own roofed-area minimum, so an occlusion whose job is to attenuate sky light entering a room has nothing left to remove. The persisted minIndoorBrightness is 0, which is exactly the setting that lets a room go fully dark.\n\nTO CLOSE THAT GAP the scenario needs to drive the indoor-brightness SLIDER, not the feature flag -- that is the control the player's report is actually about -- and no SetSetting step exists yet. Until one does, do not read the room pin as evidence the occlusion landed; read the four state probes. The outdoor control pin at 0.000 is what rules out a change that darkened the whole overlay rather than the room.\n\nHOW THE MAP IS BANDED. AsAboveSoBelowBand calls their public ABBandMap.Setup. bandHeight is deliberately larger than any fixture map, so every cell is in band 0 and none in a gutter whatever initialMapSize the world has. That makes this a test of the interop WIRING and not of their band resolution: with one occupied band nothing is ever seen through a floor. A see-through-cell scenario would need their real level generation.\n\nThe band step is re-issued before each arm because a feature flag change dirties nothing and their layer only rebuilds when the section does; its RegenerateEverythingNow also sidesteps the off-screen-section trap by rebuilding every section rather than those in view. Clouds are off: they drift on the tick counter and nothing here is testing them.",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_cover",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_sheet",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_presence",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_deck_varieties",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "width": "34",
+        "height": "24",
+        "offset": "0,45",
+        "clear": "true",
+        "def": "Concrete"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "stuff": "BlocksGranite",
+        "offset": "0,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "-7,-7; -7,-6; -7,-5; -7,-4; -7,-3; -7,-2; -7,-1; -7,0; -7,1; -7,2; -7,3; -7,4; -7,5; -7,6; -7,7; -6,-7; -6,7; -5,-7; -5,7; -4,-7; -4,7; -3,-7; -3,7; -2,-7; -2,7; -1,-7; -1,7; 0,-7; 0,7; 1,-7; 1,7; 2,-7; 2,7; 3,-7; 3,7; 4,-7; 4,7; 5,-7; 5,7; 6,-7; 6,7; 7,-7; 7,-6; 7,-5; 7,-4; 7,-3; 7,-2; 7,-1; 7,0; 7,1; 7,2; 7,3; 7,4; 7,5; 7,6; 7,7",
+        "def": "Wall"
+      }
+    },
+    {
+      "type": "SetRoof",
+      "args": {
+        "width": "15",
+        "height": "15",
+        "offset": "0,45",
+        "def": "RoofConstructed"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "0,45",
+        "zoom": "18"
+      }
+    },
+    {
+      "type": "AsAboveSoBelowBand",
+      "args": {
+        "bandCount": "2",
+        "bandHeight": "1000",
+        "surfaceBand": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aasb2_present",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aasb2_banded",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aasb2_rendering_guard",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aasb2_overlay_owned",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "aasb2_warmup_discard.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "indoor_sky_occlusion",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "AsAboveSoBelowBand",
+      "args": {
+        "bandCount": "2",
+        "bandHeight": "1000",
+        "surfaceBand": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aasb2_room_overlay_alpha",
+        "expectedValue": "1",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aasb2_outdoor_overlay_alpha",
+        "expectedValue": "0",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "aasb2_occlusion_on.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "indoor_sky_occlusion",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "AsAboveSoBelowBand",
+      "args": {
+        "bandCount": "2",
+        "bandHeight": "1000",
+        "surfaceBand": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aasb2_room_overlay_alpha",
+        "expectedValue": "1",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aasb2_outdoor_overlay_alpha",
+        "expectedValue": "0",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "aasb2_occlusion_off.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "indoor_sky_occlusion",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "AsAboveSoBelowBand",
+      "args": {
+        "bandCount": "2",
+        "bandHeight": "1000",
+        "surfaceBand": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aasb2_room_overlay_alpha",
+        "expectedValue": "1",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "aasb2_occlusion_on_control.png"
+      }
+    }
+  ]
+}

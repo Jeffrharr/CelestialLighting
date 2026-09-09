@@ -38,33 +38,76 @@ public static class Patch_VectorLightSuppress
         if (!CelestialLightingFeatures.VectorLights)
             return;
 
+        Section section = SectionLayerAccess.GetSection(__instance);
+        Map map = section?.map;
+
+        if (map == null)
+            return;
+
+        // Somebody else draws this map's lighting overlay, so vanilla's mesh is baked and discarded
+        // and suppressing light in it would be invisible work. AsAboveSoBelowCompat postfixes the
+        // layer they do draw and calls ApplyToMesh below on it. See that file's header.
+        if (AsAboveSoBelowCompat.OwnsOverlay(map))
+            return;
+
+        CellRect rect = new CellRect(section.botLeft.x, section.botLeft.z, Section.Size, Section.Size);
+        rect.ClipInsideMap(map);
+
+        ApplyToMesh(map, __instance.GetSubMesh(MatBases.LightOverlay), rect);
+    }
+
+    // The suppression, over whichever lighting-overlay mesh is the one actually being drawn.
+    //
+    // TWO CALLERS, ONE DEFINITION, for the same reason Patch_IndoorSkyOcclusion.ApplyToMesh has two:
+    // the postfix above owns vanilla's mesh, and AsAboveSoBelowCompat owns the one As above, So below
+    // II draws in its place on a banded map.
+    //
+    // TAKING A LayerSubMesh RATHER THAN A COLOUR ARRAY IS WHAT MAKES THE MASK REACHABLE HERE. Vector
+    // lighting has two suppression paths: the flooring below is per-vertex and needs no geometry, but
+    // the mask — which EDITS vertex colours per emitter instead of zeroing them, and is the shipped
+    // default — needs the vertex list. Handing over a bare Color32[] would deliver banded maps the
+    // pre-mask behaviour and quietly call it done. Their layer caches the LayerSubMesh vanilla's own
+    // Bake built for it, so there is no reason to settle for that.
+    //
+    // Returns whether it wrote.
+    internal static bool ApplyToMesh(Map map, LayerSubMesh subMesh, CellRect rect)
+    {
+        Mesh mesh = subMesh?.mesh;
+
+        if (mesh == null)
+            return false;
+
         // §27 phase 3 takes over this method entirely when it is on: it edits the same vertex colours
         // rather than zeroing them, and the two must not both run. Handing over here rather than in a
         // separate patch keeps a single writer for this mesh, which is what stops the ordering
         // between them from being a live concern.
-        if (VectorLightMask.Active && ApplyMask(__instance))
-            return;
+        if (VectorLightMask.Active && VectorLightMask.Apply(map, mesh, subMesh.verts, rect))
+            return true;
 
         if (!CelestialLightingFeatures.VectorLightSuppress)
-            return;
+            return false;
 
         // The crossfade keeps a fraction of vanilla's flood underneath instead of removing it. Zero
         // is the original behaviour and is what the arithmetic below reduces to when the flag is off,
         // so there is one code path rather than two.
-        float floor = CelestialLightingFeatures.VectorLightBlend
-            ? VectorLightMath.DefaultVanillaFloor
-            : 0f;
-
-        LayerSubMesh subMesh = __instance.GetSubMesh(MatBases.LightOverlay);
-        Mesh mesh = subMesh?.mesh;
-
-        if (mesh == null)
-            return;
-
         Color32[] colors = mesh.colors32;
 
+        if (!FloorChannels(colors, CurrentFloor()))
+            return false;
+
+        mesh.colors32 = colors;
+        return true;
+    }
+
+    // The flooring itself, over a colour array rather than a mesh: the pass is purely per-vertex, so
+    // it floors each of the three artificial-light channels and reads no geometry at all. Split out
+    // so an offline test can reach it without a Mesh.
+    //
+    // Returns whether it wrote. False only for a null array.
+    internal static bool FloorChannels(Color32[] colors, float floor)
+    {
         if (colors == null)
-            return;
+            return false;
 
         for (int i = 0; i < colors.Length; i++)
         {
@@ -73,28 +116,12 @@ public static class Patch_VectorLightSuppress
             colors[i].b = VectorLightMath.FlooredChannel(colors[i].b, floor);
         }
 
-        mesh.colors32 = colors;
+        return true;
     }
 
-    // The section's own cell rect, rebuilt the way vanilla builds it rather than reflected out of
-    // the private field that holds it: SectionLayer_LightingOverlay.Regenerate computes exactly this
-    // on the first regenerate and caches it, so recomputing costs nothing and reads without a
-    // FieldRef that a version change could quietly break.
-    private static bool ApplyMask(SectionLayer_LightingOverlay layer)
-    {
-        Section section = SectionLayerAccess.GetSection(layer);
+    // The crossfade floor the suppression uses right now — one reader, so no caller can drift from
+    // another.
+    internal static float CurrentFloor() =>
+        CelestialLightingFeatures.VectorLightBlend ? VectorLightMath.DefaultVanillaFloor : 0f;
 
-        if (section == null)
-            return false;
-
-        LayerSubMesh subMesh = layer.GetSubMesh(MatBases.LightOverlay);
-
-        if (subMesh?.mesh == null)
-            return false;
-
-        CellRect rect = new CellRect(section.botLeft.x, section.botLeft.z, 17, 17);
-        rect.ClipInsideMap(section.map);
-
-        return VectorLightMask.Apply(section.map, subMesh.mesh, subMesh.verts, rect);
-    }
 }

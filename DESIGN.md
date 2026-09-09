@@ -15747,6 +15747,111 @@ sheets when it clears — and a player who installed Clouds asked for its clouds
 time. One predicate in `CloudsCompatMath.LaneIsPositional` is where that gets revisited if the frames
 ever argue otherwise.
 
+## Interop: As above, So below II (`Source/AsAboveSoBelowCompat.cs`)
+
+"As above, So below II" (`astryl.AsAboveSoBelow2`) stacks up to seven playable levels as **bands of
+one map** rather than as separate maps, joined through the engine's own region system so pathfinding
+and reachability never learn the levels exist. That architectural choice reaches straight into this
+mod, and not in a way any of our map-kind machinery could have caught.
+
+### The symptom, and why it was not a formula bug
+
+A player reported that the "Minimum indoor brightness" slider "does nothing for me", for **ordinary
+enclosed rooms as well as underground levels**, and that a sealed cave was bright by day and pitch
+black by night.
+
+`AsAboveSoBelow.Patch_LightingOverlay_ABSuppressOnBanded` postfixes
+`SectionLayer_LightingOverlay.Visible` to `false` on every banded map and draws its own
+`SectionLayer_ABBelowLighting` in its place. Both of our writers to that mesh — the indoor sky
+occlusion (§7b) and the vector-light suppression (§27) — are Harmony postfixes on
+`SectionLayer_LightingOverlay.Regenerate`. `Section.TryUpdate` **does not consult `Visible`**, so
+vanilla's mesh is still baked and we still write our alphas into it, and then nothing ever draws it.
+
+One cause covers both halves of the report, because the suppression is map-wide rather than
+band-wide: the surface band is drawn by their layer too.
+
+The cave's day/night tracking is a **second, independent** cause. `MapSky.IsEnclosed` is a question
+about a `BiomeDef`, and an underground band is the same `Map` carrying the surface biome, so the
+enclosed-ambient correction (§17b) — the thing whose entire job is stopping a cave following the sun
+— never fires. Their `AB_Underground` biome exists but its own XML comment records
+`disableSkyLighting` as trialed on 2026-07-24 and reverted by user directive. Fixing that properly
+needs a per-band notion of enclosure and is **not** in this change; what is here restores the slider.
+
+### The interop lives in this repo, and composes onto the layer they draw
+
+AASB2 ships a `CelestialLightingCompat` that binds `CelestialLighting.CellResolver` and
+`CelestialLighting.OverlayPasses` by reflection and calls our passes for us. **We deliberately do not
+implement that contract.** Two reasons, and the second is the concrete one:
+
+- **Ownership.** The affected feature is ours, the failure mode is ours to reproduce, and the harness
+  that can prove it fixed is in this repo. A contract whose two halves are maintained by different
+  people, in different repos, on different release cadences is one that drifts silently — and the
+  drift lands on our subsystem looking like our bug, which is exactly how this started.
+- **Capability.** Their hook hands over `(Map, CellRect, Color32[])`. That is enough for the flooring
+  pass and not enough for the mask; see below.
+
+So `AsAboveSoBelowCompat` postfixes `SectionLayer_ABBelowLighting.Regenerate` itself and composes both
+passes onto the `LayerSubMesh` that layer caches, in the same order the vanilla postfix chain runs
+them (occlusion first, alpha only; vector light last, RGB only). Our own postfixes on vanilla's
+`Regenerate` stand down while they own the overlay.
+
+**Their build needs no change for this to work, and there is no double application in the meantime.**
+Their `Bind()` requires all five of the members named above; with none of them present it logs "their
+build predates the integration hook", sets `active = false`, and `ApplyOverlayPasses` returns at its
+first line. Their compat is simply inert against us, whether or not they ever remove it.
+
+### What we bind, and the one assumption underneath it
+
+Everything is resolved by name at runtime — no assembly reference, so a player without AASB2 loads a
+CelestialLighting that has never heard of it. Four members, of which only one is private:
+
+| member | why |
+|---|---|
+| `ABBands.Banded(Map)` | public. Half of "do they own this map's overlay" |
+| `ABGuard.Rendering` + `ABGuard.On(...)` | public. The other half — when their renderer has stood itself down after an exception, vanilla's overlay is visible again and we must **not** stand down with it |
+| `SectionLayer_ABBelowLighting.Regenerate` | public. The method we postfix |
+| `SectionLayer_ABBelowLighting.mesh` | **private.** The `LayerSubMesh` they draw |
+
+The stand-down reproduces exactly the condition their own suppression patch uses, both terms
+included, because getting it wrong in the safe-looking direction — assuming they own the overlay when
+they have stood down — would silently delete our contribution from a map that still wants it.
+
+**The assumption every index rests on is that their mesh is vanilla's lattice**:
+`(Width+1)*(Height+1)` corners followed by `Width*Height` centres. That holds because their
+`Regenerate` builds it with vanilla's own `SectionLayer_LightingOverlay.Bake` and only recolours it
+afterwards. If they ever hand-roll that geometry, the count guards in `ApplyOcclusion` and
+`VectorLightMask.Apply` would catch a different *size* but nothing at runtime would catch a different
+*order* — it would write plausible colours into the wrong vertices. So
+`AsAboveSoBelowContractTests` pins the `Bake` call in their IL alongside the four members, and
+`AsAboveSoBelowStandDownTests` pins our half: that both postfixes still ask `OwnsOverlay`, that the
+compat still runs both passes, and that the vector-light path can still reach the mask. Their reds
+were proved by simulating a rename of each bound member (4 of 5 fail) and by deleting the stand-down
+and the mask branch (exactly those 2 fail).
+
+### The mask is delivered, which the hook could not have done
+
+Vector lighting has two suppression paths. The flooring pass is per-vertex and needs no geometry. The
+other — `VectorLightMask`, which *edits* vertex colours per emitter rather than zeroing them, and is
+the **shipped default** — takes the vertex list, so a bare `Color32[]` cannot carry it. Through their
+hook, banded maps would have got vector lighting with none of its shadows: the pre-mask behaviour,
+shipped for months and not broken, but not what anyone on the current build sees.
+
+Reaching for the `LayerSubMesh` is what avoids that, and it is the reason
+`Patch_VectorLightSuppress.ApplyToMesh` takes one rather than a colour array. (`VectorLightMask.Apply`
+reads `verts` only as a shape guard — it never dereferences a position — so their mesh being baked
+`centered: true`, and therefore carrying *local* coordinates, does not matter. That is worth stating
+because it looks like it should.)
+
+### A naming mismatch worth knowing before reading their compat code
+
+Their compat also probes `CelestialLighting.Patch_VectorLightFill` and
+`CelestialLighting.VectorShadowRedraw`, and calls the subsystem "§20 fill". Neither type has ever
+existed on `main` — we have `Patch_VectorLightDraw` / `VectorLightRedraw`, and vector lighting is §27
+here. Those names come from **astryl's own fork** (`Astryls/CelestialLighting`, which adds
+`VectorShadowRedraw`, `VectorShadowMath` and `MapComponent_VectorShadowWarmup`), so that half of their
+contract was written against a version of this mod that only exists there. It is a further reason not
+to implement their hook: half of it was never satisfiable from here.
+
 ## 29. One postfix on `CurSkyTarget` (`Patch_SkyTargetComposite`)
 
 **Problem.** Fourteen subsystems write to the `SkyTarget` that `WeatherWorker.CurSkyTarget` returns,
