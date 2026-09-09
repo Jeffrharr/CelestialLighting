@@ -12967,6 +12967,39 @@ The advancing fold left the whole-map rebake on the 500-lamp colony at 19 ms, wi
 
 The scenario stays as a four-round clock on the shipped flags (`stress_light_mask_residue.json`), so a reader can see each clock's run-to-run spread before believing a split.
 
+#### The vertex passes, restated with advancing addressing (`VectorLightMask.ApplyToCornersAdvancing`, `ApplyToCentresAdvancing`)
+
+The residue's clocks put the two vertex passes at 6.7 ms of the 18 ms whole-map rebake: 155 ns per lattice point in the corner pass and 105 ns per cell in the centre pass, over 51,500 of them, for bodies whose common case is "nothing here". Per corner the shipped body paid four `CellIndex` calls and four 16-byte struct copies to find that out, and for an edited corner four `IntVec3` constructions, four `InBounds` tests, four `edificeGrid` indexer calls and `ColorInt`'s operators for the sum and the divide; per centre four `ColorInt` operator calls. Mono inlines none of it.
+
+**What landed: the shadow and fold walks' restatement, applied to the vertex passes.** Along a lattice row z is fixed and x advances by one, so `CellIndex(rect, x − 1, z − 1)` is a base per row plus x and the other three cells are that plus 1, plus `wide`, plus `wide + 1`; the four-cell "nothing here" test is one OR over twelve channels read through `ref` locals; `InBounds` is four range tests on x and z, two of them decided per row; `edificeGrid[cell]` is `InnerArray[z * sizeX + x]` with the row's base hoisted; and the sum is written out as ints, which is the struct `ColorInt`'s per-channel integer operators would have built, since the accumulators' alpha is always zero. The centre pass is the same treatment: `Compose(colour, sum / 4, lift / 4)` is `colour.r − r / 4 + lift.r / 4` per channel on non-negative sums. The reads, the tests, the arithmetic and the averaging set are the shipped bodies'; only the addressing moved.
+
+**Measured off, on, off, on inside one boot** — `stress_light_mask_vertices.json`, the edit box off in both arms, 91 sections a rebake:
+
+| | shipped bodies | advancing | ratio |
+|---|---|---|---|
+| `shadow_cells_edited` / `saturated_samples` / `skipped` | 21,875 / 4,834 / 0 | 21,875 / 4,834 / 0 | 1.000 |
+| `corner_visits` / `centre_visits` | 17,658 / 15,708 | 17,658 / 15,708 | 1.000 |
+| **`corners_ms`, median** | **4.258** | **1.024** | **0.241** |
+| **`centres_ms`, median** | **2.597** | **0.323** | **0.124** |
+| *control:* `CorrectSaturation` | 5.84 | 5.86 | *1.003* |
+| *control:* `BuildCellShadow` | 3.54 | 3.61 | *1.022* |
+| *control:* `CollectReaching` | 1.22 | 1.35 | *1.105* |
+| **`Apply`, whole, median ms** | **17.80** | **12.74** | **0.715** |
+
+Corner pairs 4.96/1.00, 4.15/1.01, 4.49/1.04, 4.21/1.12 on the first run and 4.14–5.02 against 1.00–1.09 on the second; centre ranges 2.47–2.79 against 0.31–0.34. Disjoint, while every control's ranges overlap. The first run's visit counters read 18/19 and 17/18 between arms with the box off in both — the counters I had put on the shipped bodies charged one lattice point too many per row, fixed before the second run; the walks were never different.
+
+**Where the stage stands.** Corner pass 4.3 → 1.0 ms, centre pass 2.6 → 0.3 ms. The whole-map rebake on the 500-lamp colony is **12.7 ms**, from 64.8 ms when the stage clocks were first added: saturation 5.9, shadow 3.6, corners 1.0, collect 1.2, centres 0.3, round trip 0.2, and about 0.5 ms of clocks and the reaching list's clear. No stage is now over half.
+
+**Behind `vector_light_mask_vertex_rows`, on.** Off walks the shipped bodies exactly. Gate suite 9/9 on the branch build; the gap-vs-door beam-row probes read `beyond_ours` 0.135772705 and `beyond_vanilla` 0.0901960805 on every arm, the fold slice's values to the last digit, and the same-build control is byte-identical (`Tests/Screenshots/vl_vertex_rows/`). Against `main`'s own build run on the same scenario the same afternoon, the vanilla arm and the shader-max arm both read **median ΔE 0.00, p90 0.00**, 0.4% of pixels touched (the message log). One trap on the way to that number: the suite run's frames read ΔE 1.37 against the fold slice's committed captures on *both* arms, the vanilla arm included, and against the branch's own standalone run — a suite's first scenario renders differently from the same scenario run alone, on either build. The committed captures are the standalone run's, compared like for like.
+
+#### The edit box: a third of the walk, and nothing on the clock (`VectorLightMaskEditBox`, off)
+
+The 613-point walk is fixed per section whatever the shadow in it, so the slice above was paired with a second flag: the passes clipped to the box the emitters wrote into. `AccumulateEmitter` expands the box by each emitter's clipped range before it walks — four compares per reaching emitter, none per cell, inside the setup clock — so the box is a superset of every write, the saturation correction's included, since that only rewrites edited cells. Corners take the box's cell range plus one at the top, centres the lattice range less one at the bottom, and lattice points outside are cleared rather than skipped because the centre pass reads them.
+
+**It measured nothing the clock can see, in either scene.** On the colony (`stress_light_mask_box.json`, advancing bodies on in both arms) the box removes 7.6% of corner visits and 6.6% of centre visits — nearly every section is edited edge to edge — and reads `corners_ms` 1.007 → 1.002, `centres_ms` 0.318 → 0.312, `Apply` 11.94 → 12.22, all inside their controls' spread. On the twenty-room scene the flag was built for (`vector_light_mask_box_rooms.json`, `vector_light_perf`'s fixture) it removes 28% of corner visits and 26% of centre visits (5,508 → 3,959 and 4,913 → 3,645 over 112 sections), and the clocks still do not move by anything that matters: `corners_ms` 0.267 → 0.246, `centres_ms` 0.121 → 0.097, `Apply` 1.10 → 1.05 ms — 0.05 ms on a whole-map rebake, with the collect, shadow and saturation controls at 1.04, 1.01 and 1.04. The reason is the slice above. Once a lattice point costs tens of nanoseconds, an edited section's two passes cost about 3 µs and a sparse map's whole-map rebake about 0.3 ms, and a third of that is under the noise of a single frame's clock.
+
+**Ships off, kept.** The repo's rule for a change measuring nothing is to ship it off and say why, not to ship it on because the arithmetic is sound. It stays in the tree because it is provably inert, its cost is four compares per emitter, and a real-map profile that finds the vertex passes again has it ready with its scenario. The visit counters stay on both bodies: they are what will say so.
+
 ### Vector lighting, phase 7: the coverage grid was mostly outside the light (`VectorLightMath.BuildCoverage`, `VectorLightCoverageOracle`, epic #174 phase 7)
 
 Phase 6 left the coverage grid as the largest term inside a bake — **50.7% culled, against `Build`'s

@@ -1449,9 +1449,16 @@ public static class CelestialLightingFeatures
     // passes it clips still visit every vertex that could have changed. Lattice points outside it
     // are cleared rather than skipped, since the centre pass reads them.
     //
-    // OFF walks the full lattice. Inert on the bytes. Measured by corner_visits and centre_visits
-    // where the clock cannot see it; see stress_light_mask_box.json.
-    public static bool VectorLightMaskEditBox = true;
+    // SHIPS OFF, and the measurement is why. On the colony the box removes 8% of the visits and
+    // moves neither pass's clock (corners 0.994, centres 0.980, both inside their controls'
+    // spread). On the twenty-room scene it removes 30% of the visits and still moves nothing the
+    // clock can see, because after the restatement above an edited section's two passes cost
+    // about 3 us and a whole-map rebake's about 0.3 ms -- there is not enough left in the walk
+    // for a third of it to show. A flag that measured nothing does not ship on; it stays because
+    // it is provably inert, costs four compares per emitter, and a real-map profile that finds the
+    // vertex passes again has it ready. See stress_light_mask_box.json and
+    // vector_light_mask_box_rooms.json.
+    public static bool VectorLightMaskEditBox = false;
 
     public const string VectorLightPawnShadowsKey = "vector_light_pawn_shadows";
 
