@@ -41,6 +41,8 @@ MASK_SPANS_TARGET = os.path.join(SCEN, "stress_light_mask_spans.json")
 MASK_INDICES_TARGET = os.path.join(SCEN, "stress_light_mask_indices.json")
 MASK_FOLD_TARGET = os.path.join(SCEN, "stress_light_mask_fold.json")
 MASK_RESIDUE_TARGET = os.path.join(SCEN, "stress_light_mask_residue.json")
+MASK_VERTICES_TARGET = os.path.join(SCEN, "stress_light_mask_vertices.json")
+MASK_BOX_TARGET = os.path.join(SCEN, "stress_light_mask_box.json")
 
 # The mask's parent arm and its four population-scaled stages. Order is parent first, because that
 # is the one a build-to-build comparison is read on and the four below it are the finding.
@@ -451,6 +453,139 @@ def build_mask_residue():
         ),
         "steps": steps,
     }
+
+
+VERTEX_TOGGLE = "vector_light_mask_vertex_rows"
+BOX_TOGGLE = "vector_light_mask_edit_box"
+
+# What one arm of the two vertex-pass scenarios reads after its rebake: the pass's outputs, the
+# two walks' lengths, the two passes' clocks, then every other clock as a control and the whole.
+VERTEX_READS = (
+    "vector_light_mask_applies_clocked",
+    "vector_light_mask_shadow_cells_edited",
+    "vector_light_mask_saturated_samples",
+    "vector_light_mask_saturation_skipped",
+    "vector_light_mask_corner_visits",
+    "vector_light_mask_centre_visits",
+    "vector_light_mask_corners_ms",
+    "vector_light_mask_centres_ms",
+    "vector_light_mask_mesh_read_ms",
+    "vector_light_mask_mesh_write_ms",
+    "vector_light_mask_collect_ms",
+    "vector_light_mask_shadow_ms",
+    "vector_light_mask_saturation_ms",
+    "vector_light_mask_wall_ms",
+)
+
+
+def _vertex_pass_scenario(name, toggle, held, held_value, description):
+    """One factor alternated off/on over the colony with the other vertex-pass flag held."""
+    colony = sc.build()
+    steps = sc.setup_steps(colony)
+    steps += sc.palette_steps()
+    steps += sc.establish_steps()
+    steps += sc.settle_steps()
+    steps += sc.population_probes()
+    steps += sc.feature_steps(vector_lights=True, changed_dirty=False)
+    steps.append(sc.step("SetFeature", featureName=GATE_TOGGLE, enabled="true"))
+    steps.append(sc.step("SetFeature", featureName=held, enabled=held_value))
+    steps.append(sc.step("Wait", frames=SETTLE_FRAMES))
+    steps.append(sc.step("Probe", probeName="vector_light_mask_available", expectedValue=1, tolerance=0))
+
+    for _ in range(GATE_WARMUP):
+        steps.append(sc.step("SetFeature", featureName=INERT_TOGGLE, enabled=INERT_VALUE))
+
+    for _ in range(GATE_ROUNDS):
+        for enabled in ("false", "true"):
+            steps.append(sc.step("SetFeature", featureName=toggle, enabled=enabled))
+            steps.append(sc.step("AdvanceTicks", ticks=2))
+            steps.append(sc.step("Wait", frames=3))
+            for probe in VERTEX_READS:
+                steps.append(sc.record(probe))
+
+    steps.append(sc.step("Probe", probeName="vector_light_mask_stale_polys", expectedValue=0, tolerance=0))
+
+    return {
+        "name": name,
+        "saveFile": "minimal_colony.rws",
+        "description": description,
+        "steps": steps,
+    }
+
+
+def build_mask_vertices():
+    """The same colony, the vertex passes' advancing restatement against the shipped bodies.
+
+    WHAT THIS ASKS. Clocked apart, the corner pass was 4.2 ms and the centre pass 2.5 ms of an
+    18 ms whole-map rebake -- 155 ns and 105 ns per lattice point over 51,500 -- for bodies whose
+    common case is "nothing here". The restatement makes every index a base per row plus x, tests
+    the four cells on the accumulators in place, decides the map edge with integer compares and
+    reads the edifice off the grid's own array. The edit box is OFF in both arms, so the ratio is
+    addressing against addressing over the same 613 points a section.
+
+    READ IT AS PAIRS. shadow_cells_edited, saturated_samples and saturation_skipped are the
+    passes' INPUT and read identically on every arm; corner_visits and centre_visits are the
+    walks' lengths and read identically too, since the box is off. corners_ms and centres_ms are
+    the clocks to read; every other clock is a control.
+    """
+    return _vertex_pass_scenario(
+        "stress_light_mask_vertices", VERTEX_TOGGLE, BOX_TOGGLE, "false",
+        (
+            "stress_light_colony's colony -- 500 lamps in 11 colours and 9 radii -- with the "
+            "mask's two vertex passes restated with advancing addressing "
+            "(vector_light_mask_vertex_rows) measured OFF and ON, alternately, four rounds in "
+            "one boot, the edit box off in both arms. "
+            "\n\n"
+            "WHY IT EXISTS. Clocked apart, the corner pass was 4.2 ms and the centre pass 2.5 ms "
+            "of an 18 ms whole-map rebake: 155 ns and 105 ns per lattice point over 51,500 of "
+            "them, for bodies whose common case is nothing here. Per corner the shipped body "
+            "pays four CellIndex calls and four struct reads to find that out. "
+            "\n\n"
+            "READ IT AS PAIRS. shadow_cells_edited, saturated_samples, saturation_skipped, "
+            "corner_visits and centre_visits read the same on every arm; corners_ms and "
+            "centres_ms are the clocks; every other clock is a control. "
+            "\n\n"
+            "Every duration is RECORDED, not pinned. What is pinned is the scene and one defect "
+            "counter: 503 emitters, the mask available, stale polys at zero."
+        ))
+
+
+def build_mask_box():
+    """The same colony, the vertex passes clipped to the emitters' edit box against the full
+    lattice, with the advancing bodies on in both arms.
+
+    WHAT THIS ASKS. Whether the box is a superset that costs nothing here, and how much of the
+    walk it removes -- on THIS colony, where 21,875 edited cells over 84 sections means nearly
+    every section is edited edge to edge, the honest expectation is a small cut in visits and no
+    move on the clock. The flag exists for real maps, where a rebaked section usually carries
+    one wedge; this file establishes it is inert on the outputs and cheap where it cannot win.
+
+    READ IT AS PAIRS. shadow_cells_edited, saturated_samples and saturation_skipped read
+    identically on every arm. corner_visits and centre_visits should fall on the on arms and
+    are the measure; the clocks are read, with the three stage clocks as controls.
+    """
+    return _vertex_pass_scenario(
+        "stress_light_mask_box", BOX_TOGGLE, VERTEX_TOGGLE, "true",
+        (
+            "stress_light_colony's colony -- 500 lamps in 11 colours and 9 radii -- with the "
+            "mask's vertex passes clipped to the box the emitters wrote into "
+            "(vector_light_mask_edit_box) measured OFF and ON, alternately, four rounds in one "
+            "boot, the advancing bodies on in both arms. "
+            "\n\n"
+            "WHY IT EXISTS. The 613-point walk is fixed per section whatever the shadow in it. On "
+            "this colony nearly every section is edited edge to edge, so the honest expectation "
+            "is a small cut in visits and no move on the clock: the flag is for real maps, where "
+            "a rebaked section usually carries one wedge. This file establishes the box is inert "
+            "on the outputs and cheap where it cannot win; corner_visits and centre_visits are "
+            "its measure. "
+            "\n\n"
+            "READ IT AS PAIRS. shadow_cells_edited, saturated_samples and saturation_skipped read "
+            "the same on every arm; the visit counters should fall on the on arms; the stage "
+            "clocks are controls. "
+            "\n\n"
+            "Every duration is RECORDED, not pinned. What is pinned is the scene and one defect "
+            "counter: 503 emitters, the mask available, stale polys at zero."
+        ))
 
 
 def write(spec, target):
@@ -1047,6 +1182,8 @@ def main():
     write(build_mask_indices(), MASK_INDICES_TARGET)
     write(build_mask_fold(), MASK_FOLD_TARGET)
     write(build_mask_residue(), MASK_RESIDUE_TARGET)
+    write(build_mask_vertices(), MASK_VERTICES_TARGET)
+    write(build_mask_box(), MASK_BOX_TARGET)
 
 
 if __name__ == "__main__":

@@ -175,6 +175,13 @@ public sealed class VectorLightBakeProbe : IProbe
 
         MaskMeshWriteMs,
 
+        // Lattice points the corner pass visited and cells the centre pass visited: the length of
+        // the two walks, which the edit box shortens and the clock cannot see on a colony where
+        // every section is edited edge to edge.
+        MaskCornerVisits,
+
+        MaskCentreVisits,
+
         // The size of the prize for indexing, in counts. Scanned is every entry the full-list walk
         // examined; the paired metric is the few it went on to work for. An index can remove at most
         // the difference, and the ratio is a property of the SCENE rather than of the box, so two
@@ -450,6 +457,12 @@ public sealed class VectorLightBakeProbe : IProbe
 
         if (metric == Metric.MaskMeshWriteMs)
             return (float)VectorLightMask.MeshWriteMs;
+
+        if (metric == Metric.MaskCornerVisits)
+            return VectorLightMask.CornerVisits;
+
+        if (metric == Metric.MaskCentreVisits)
+            return VectorLightMask.CentreVisits;
 
         if (metric == Metric.MaskApplies)
             return VectorLightField.MaskApplies;
