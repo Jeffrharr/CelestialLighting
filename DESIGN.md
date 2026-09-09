@@ -12871,6 +12871,78 @@ Pair ratios on the subject 0.365, 0.367, 0.327, 0.354; ranges 11.36–12.33 agai
 **Behind `vector_light_mask_run_indices`, on**, for the reason the box's flag exists. Inert unless the box and the runs are.
 
 
+#### The saturation pass, clocked three ways, then folded with the advancing walk (`VectorLightMask.AccumulateFoldAdvancing`)
+
+The advancing walk left the saturation pass as the mask's largest stage, 16 ms of a 29 ms
+whole-map rebake, and the section on its cell gate had named "the per-pair cost" as the next
+slice without saying where in the pass it sat. So the stage was **clocked in three parts before
+anything was cut** -- `saturation_prefold_ms` (the candidate collect and the two-light count),
+`saturation_fold_ms` (the light loop) and, inside the loop, `saturation_setup_ms` (the overlap
+test, the resolve, the reaching scan and the hoists, closed at the first cell walked); and the
+walk's length was counted, `fold_cells_visited`, beside the pairs it folded. On the shipped arms
+of `stress_light_mask_gate.json`:
+
+| part | ms |
+|---|---|
+| before the first light folds | 0.8 |
+| per-light setup | 0.8 |
+| **the walk** (282,263 visits, 45,188 folds) | **13.7** |
+| correction loop | 0.7 |
+
+The two-point fit across the gate's off and on arms puts the walk at about 1 ns a visit and
+**300 ns a fold** -- with the caveat the shadow stage's fit earned, that dropped and kept cells
+do not cost the same, so the split is indicative. It does not need to be exact to say where the
+money is: the fold body. Per fold it paid `CellIndex`, `InBounds`, `WorldToLocalIndex` and a
+range guard before the read, and after it two fold steps of five calls each (`FoldInto` →
+`Accumulate` → `Peak` + 3 × `ProjectChannel`), with an integer division per channel whether or
+not the running sum had crossed the ceiling -- which, for most steps of most cells, it had not.
+Mono does not inline any of that.
+
+**What landed: `AccumulateFoldAdvancing`, the shadow walk's restatement applied to the fold.**
+Every per-cell index is a base per row plus x; the map clip is once per light; under the gate
+each row is clipped to the span of candidates it holds (`candidateRowMin`/`Max`, filled beside
+`cellCandidate`) before cells are tested one by one; and the fold step is `Accumulate` written
+out in place, taking the peak and dividing only when it is over the ceiling. The exactness
+argument per index is the shadow walk's; the argument for the fold step is that `ProjectChannel`'s
+under-ceiling branch returns a non-negative channel unchanged, every sum here is non-negative,
+so "no projection" *is* that branch and the division has simply moved from every step to the
+steps that need it. `CoverageAt`'s outside-the-grid rule (255) is kept per cell rather than
+clipped, because a cell outside our grid is still a step of vanilla's fold.
+
+**Measured off, on, off, on in one boot** -- `stress_light_mask_fold.json`, cell gate on in both
+arms so the ratio is addressing against addressing:
+
+| | general body | advancing | ratio |
+|---|---|---|---|
+| pairs folded (`fold_cells`) | 45,188 | 45,188 | 1.000 |
+| cells visited (`fold_cells_visited`) | 282,263 | 154,000 | 0.546 |
+| lights folded | 2,661 | 2,661 | 1.000 |
+| output (`saturated_samples` / `skipped`) | 4,834 / 0 | 4,834 / 0 | 1.000 |
+| **light loop, median ms** | **14.51** | **4.51** | **0.311** |
+| **saturation stage, median ms** | **16.26** | **6.19** | **0.381** |
+| *control:* prefold | 0.95 | 0.94 | *0.984* |
+| *control:* per-light setup | 0.81 | 0.93 | *1.141* |
+| *control:* `BuildCellShadow` | 4.06 | 4.07 | *1.001* |
+| *control:* `CollectReaching` | 1.53 | 1.54 | *1.008* |
+| **`Apply`, whole, median ms** | **29.38** | **19.17** | **0.652** |
+
+Pair ratios on the light loop 0.301, 0.298, 0.330, 0.309; ranges 14.16–15.35 against
+4.38–4.69, disjoint, while every control's ranges overlap. The setup control reads 1.14 on the
+median but its off-arm range (0.75–1.46) straddles the on arm, so it did not move. Visits fell
+by the row clip, folds did not move, and the correction rewrote the same 4,834 cells on every
+arm -- which is the live half of the claim that the transcription is faithful; the offline half
+is `VectorLightSaturationMathTests`' sweep of the `Accumulate` this body transcribes.
+
+**Where the stage stands.** 33 → 28 → 17 → 16 → 6 ms across four slices. The whole-map rebake
+on the 500-lamp colony is 19 ms, of which the mesh round trip and corner application residue
+(~7 ms) is now the largest term, the saturation stage 6 ms second and the shadow stage 4 ms third.
+
+**Behind `vector_light_mask_fold_rows`, on.** Off folds with the general body, exactly as before.
+Inert unless the saturation pass runs. Gate suite 9/9 on the branch build; against `main`'s
+committed captures the gap-vs-door frame reads whole-frame median ΔE 0.00 on both arms with
+every beam-row cell within 0.01 L\*, and the same-build control is byte-identical
+(`Tests/Screenshots/vl_fold_rows/`).
+
 ### Vector lighting, phase 7: the coverage grid was mostly outside the light (`VectorLightMath.BuildCoverage`, `VectorLightCoverageOracle`, epic #174 phase 7)
 
 Phase 6 left the coverage grid as the largest term inside a bake — **50.7% culled, against `Build`'s
