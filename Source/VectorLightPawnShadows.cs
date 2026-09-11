@@ -123,6 +123,15 @@ public static class VectorLightPawnShadows
         float skyGlow = map.skyManager.CurSkyGlow;
         float altitude = AltitudeLayer.Shadows.AltitudeFor();
 
+        // The roster every pawn below will walk, culled against the camera ONCE rather than paid
+        // for by each pawn — see CelestialLightingFeatures.VectorLightShadowLampCull. A pawn is
+        // only considered inside `view`, so a lamp whose reach misses `view` cannot light one, and
+        // the culled list draws exactly what the whole roster would.
+        CollectLamps(lights, view, CelestialLightingFeatures.VectorLightShadowLampCull);
+
+        if (Lamps.Count == 0)
+            return;
+
         for (int i = 0; i < pawns.Count; i++)
         {
             Pawn pawn = pawns[i];
@@ -139,7 +148,37 @@ public static class VectorLightPawnShadows
             if (!CastsShadow(pawn))
                 continue;
 
-            DrawFor(map, pawn, lights, skyGlow, altitude);
+            DrawFor(map, pawn, skyGlow, altitude);
+        }
+    }
+
+    // The lamps the pawn-shadow pass may draw from this frame. Static and reused for the reason
+    // Contributions is: filled once per Draw on the main thread, read by every pawn in that Draw,
+    // and nothing in it outlives the call.
+    private static readonly List<VectorLightField.LightEntry> Lamps =
+        new List<VectorLightField.LightEntry>();
+
+    // Fill Lamps from the roster, dropping lamps whose reach misses `view` when `cull` is set.
+    //
+    // THE OFF ARM COPIES THE WHOLE ROSTER rather than handing Gather the dictionary's own
+    // collection, so the two arms run the same Gather over the same list type and differ only in
+    // how long that list is. A copy of a few hundred references costs a fraction of one pawn's
+    // walk over them; making the off arm avoid it would mean two Gather bodies, and then the A/B
+    // would be comparing two loops rather than two rosters.
+    private static void CollectLamps(
+        Dictionary<object, VectorLightField.LightEntry>.ValueCollection lights, CellRect view,
+        bool cull)
+    {
+        Lamps.Clear();
+
+        foreach (VectorLightField.LightEntry entry in lights)
+        {
+            if (!cull || VectorLightMath.ReachTouchesRect(
+                    entry.Cell.x, entry.Cell.z, entry.Radius,
+                    view.minX, view.minZ, view.maxX, view.maxZ))
+            {
+                Lamps.Add(entry);
+            }
         }
     }
 
@@ -166,16 +205,17 @@ public static class VectorLightPawnShadows
 
     private static readonly List<DrawnShadow> Shadows = new List<DrawnShadow>();
 
-    private static void DrawFor(
-        Map map, Pawn pawn, Dictionary<object, VectorLightField.LightEntry>.ValueCollection lights,
-        float skyGlow, float altitude)
+    private static void DrawFor(Map map, Pawn pawn, float skyGlow, float altitude)
     {
         Vector3 centre = pawn.DrawPos;
+
+        // Resolved here and handed to Build rather than looked up again inside it: ShadowDataOf
+        // walks def, race and render tree, and this frame already asked it once in CastsShadow.
         ShadowData shadow = ShadowDataOf(pawn);
 
         Vector3 anchor = AnchorOf(centre, shadow);
 
-        Build(pawn, lights, skyGlow, RoofedAt(map, pawn), Shadows);
+        Build(pawn, shadow, Lamps, skyGlow, RoofedAt(map, pawn), Shadows);
 
         for (int i = 0; i < Shadows.Count; i++)
         {
@@ -208,13 +248,12 @@ public static class VectorLightPawnShadows
     // is the repo's probe convention and has earned its keep twice in this file already: phase 4b's
     // share and #166's clip are both quantities a screenshot reports only indirectly.
     private static void Build(
-        Pawn pawn, Dictionary<object, VectorLightField.LightEntry>.ValueCollection lights,
+        Pawn pawn, ShadowData shadow, List<VectorLightField.LightEntry> lights,
         float skyGlow, bool roofed, List<DrawnShadow> into)
     {
         into.Clear();
 
         Vector3 centre = pawn.DrawPos;
-        ShadowData shadow = ShadowDataOf(pawn);
 
         // Needed HERE as well as at the draw, and for the first time: the ground a shadow falls on
         // is measured from the footprint's anchor, not from the pawn's middle, so the denominator
@@ -236,7 +275,7 @@ public static class VectorLightPawnShadows
         // frame rather than approximating it.
         bool shaped = CelestialLightingFeatures.VectorLightShadowShape;
 
-        float casterHeight = !shaped ? VectorLightMath.LegacyPawnHeight : CasterHeightOf(pawn);
+        float casterHeight = !shaped ? VectorLightMath.LegacyPawnHeight : CasterHeightOf(shadow);
 
         float lampHeight = shaped
             ? VectorLightMath.DefaultLampHeight : VectorLightMath.LegacyLampHeight;
@@ -328,8 +367,7 @@ public static class VectorLightPawnShadows
     // matters more than usual here: the quantity under test is an alpha, which no screenshot can
     // report directly, and a probe that recomputed the share from its own copy of the arithmetic
     // could agree with the intended physics while the renderer drew something else.
-    private static float Gather(
-        Pawn pawn, Dictionary<object, VectorLightField.LightEntry>.ValueCollection lights)
+    private static float Gather(Pawn pawn, List<VectorLightField.LightEntry> lights)
     {
         Vector3 centre = pawn.DrawPos;
 
@@ -345,8 +383,9 @@ public static class VectorLightPawnShadows
 
         float totalIlluminance = 0f;
 
-        foreach (VectorLightField.LightEntry entry in lights)
+        for (int lamp = 0; lamp < lights.Count; lamp++)
         {
+            VectorLightField.LightEntry entry = lights[lamp];
             float lightX = entry.Cell.x + 0.5f;
             float lightZ = entry.Cell.z + 0.5f;
             float dx = centre.x - lightX;
@@ -549,7 +588,12 @@ public static class VectorLightPawnShadows
         if (lights.Count == 0)
             return;
 
-        Build(pawn, lights, map.skyManager.CurSkyGlow, RoofedAt(map, pawn), into);
+        // The WHOLE roster, uncalled: the probe is asked about pawns the camera may not be on, and
+        // the cull is only sound for pawns inside the view rect. It changes nothing for a pawn in
+        // view, because the culled list is a superset of every lamp Gather accepts.
+        CollectLamps(lights, default, cull: false);
+
+        Build(pawn, ShadowDataOf(pawn), Lamps, map.skyManager.CurSkyGlow, RoofedAt(map, pawn), into);
     }
 
     // Which of the two draw paths this shadow takes. The flag is read here rather than at the call
@@ -798,12 +842,13 @@ public static class VectorLightPawnShadows
     // — and the bug they exist to pin was precisely a fallback firing where real data existed. A
     // probe with its own copy of the fallback would have agreed with the renderer while both were
     // wrong, which is the failure mode the repo's ask-the-renderer's-function rule is for.
-    public static float CasterHeightOf(Pawn pawn)
-    {
-        ShadowData shadow = ShadowDataOf(pawn);
+    public static float CasterHeightOf(Pawn pawn) => CasterHeightOf(ShadowDataOf(pawn));
 
-        return shadow == null ? VectorLightMath.DefaultPawnHeight : shadow.BaseY;
-    }
+    // The same answer from shadow data already in hand, which is how Build asks it: the draw
+    // resolves a pawn's ShadowData once per frame and passes it down rather than re-walking the
+    // render tree for each question about it.
+    private static float CasterHeightOf(ShadowData shadow) =>
+        shadow == null ? VectorLightMath.DefaultPawnHeight : shadow.BaseY;
 
     public static float CasterHalfWidthOf(Pawn pawn)
     {

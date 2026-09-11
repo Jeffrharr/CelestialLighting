@@ -188,6 +188,21 @@ public static class VectorLightField
         // and not otherwise. A door sliding moves our vertices nine times and vanilla's glow not at
         // all, because RimWorld's glow grid never learns a door opened.
         public bool FieldUvsDirty = true;
+
+        // What VectorLightOverlay.WriteProps last put in `Props`, so DrawLight can skip the writes
+        // on a frame where none of it moved (CelestialLightingFeatures.VectorLightPropsHold). The
+        // colour is held as three floats rather than a Color so the comparison is exact by
+        // construction — Unity's Color == is approximate. `HeldProps` is the block those values
+        // were written to; a replaced block is never trusted to hold anything.
+        public MaterialPropertyBlock HeldProps;
+        public bool HeldMaxDrawing;
+        public float HeldStrength;
+        public float HeldColorR;
+        public float HeldColorG;
+        public float HeldColorB;
+        public float HeldVanillaWeight;
+        public Texture2D HeldVanillaField;
+        public float HeldSkyAmbient;
     }
 
     private sealed class MapLights
@@ -341,6 +356,7 @@ public static class VectorLightField
         UploadFieldWallMs = 0.0;
         FieldTextureUploads = 0;
         FieldUvOnlyUploads = 0;
+        PropsWrites = 0;
 
         // Lives on VectorLightBlockers because that is what increments it, and is drained from here
         // because there is one reset path per arm and a counter that drains on a different schedule
@@ -669,6 +685,12 @@ public static class VectorLightField
     // A RATIO, LIKE THE SILHOUETTE COUNTERS, and for the same reason: the duration above cannot say
     // whether it fell because the work got cheaper or because a scene happened to ask for less of
     // it. Their sum is how many field refreshes happened at all.
+    // How many times the overlay pass wrote an emitter's property block. Read against the number
+    // of per-emitter draws: with the hold on, a steady frame should add draws and no writes, and a
+    // frame where the sky glow stepped should add exactly one write per visible emitter. The
+    // probe is what proves the hold is holding rather than merely present.
+    public static long PropsWrites;
+
     public static int FieldTextureUploads;
     public static int FieldUvOnlyUploads;
 

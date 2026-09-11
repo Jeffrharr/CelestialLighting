@@ -159,34 +159,38 @@ public static class VectorLightOverlay
         if (maxDrawing && (entry.SampleDirty || entry.FieldUvsDirty))
             UploadVanillaField(map, entry);
 
-        // Per-draw colour goes through a MaterialPropertyBlock and not Material.color. Graphics.DrawMesh
-        // is DEFERRED — the draws are queued and resolved later — so writing the material's colour
-        // between calls gives every light in the frame whichever colour was written last. §17's branch
-        // paid for learning this.
         Color color = entry.Color;
-        entry.Props.SetColor(ShaderPropertyIDs.Color, new Color(color.r, color.g, color.b, strength));
 
-        // Set on the same property block and for the same deferred-draw reason as the colour. Zero
-        // is the control arm rather than a disabled state: the shader still runs, and still has to
-        // produce MoteGlow's output when it subtracts nothing.
-        // A light whose field could not be built has nothing to compose against, so it draws the
-        // stock additive pass rather than a max against black — which would be our whole model over
-        // an unsuppressed vanilla, i.e. two lighting models summed.
+        // The four values the block will carry this frame, decided before any of them is written so
+        // the hold below can compare the whole set against what the block already holds. See
+        // WriteProps for what each one means.
         bool composed = maxDrawing && entry.VanillaField != null;
 
-        if (maxDrawing)
-        {
-            VectorLightShader.SetVanillaWeight(entry.Props, VanillaWeightFor(maxComposing, composed));
-            VectorLightShader.SetVanillaTexture(entry.Props, entry.VanillaField);
+        float vanillaWeight = maxDrawing ? VanillaWeightFor(maxComposing, composed) : 0f;
 
-            // Set on every max draw and not only on the lift ones, because the property block is
-            // per emitter and reused frame to frame: an emitter that drew under the lift and then
-            // under the additive pass would otherwise keep dividing by a stale ambient. Zero is the
-            // additive pass, so writing it unconditionally is what makes the two arms exclusive.
-            VectorLightShader.SetSkyAmbient(
-                entry.Props,
-                surfaceLift ? VectorLightMath.SurfaceAmbient(skyGlow, map.roofGrid.Roofed(entry.Cell)) : 0f);
-        }
+        float skyAmbient = maxDrawing && surfaceLift
+            ? VectorLightMath.SurfaceAmbient(skyGlow, map.roofGrid.Roofed(entry.Cell))
+            : 0f;
+
+        // THE HOLD. Skip every write when the block already carries exactly these values — see
+        // CelestialLightingFeatures.VectorLightPropsHold for the measurement and the soundness
+        // argument. `Props` is compared by reference as well, so a block Upsert has since replaced
+        // is never trusted to hold anything. Exact float compares throughout, never Unity's
+        // approximate Color ==. With the flag off nothing is ever held and the body is the shipped
+        // one.
+        bool held = CelestialLightingFeatures.VectorLightPropsHold
+            && entry.HeldProps == entry.Props
+            && entry.HeldMaxDrawing == maxDrawing
+            && entry.HeldStrength == strength
+            && entry.HeldColorR == color.r
+            && entry.HeldColorG == color.g
+            && entry.HeldColorB == color.b
+            && entry.HeldVanillaWeight == vanillaWeight
+            && entry.HeldVanillaField == entry.VanillaField
+            && entry.HeldSkyAmbient == skyAmbient;
+
+        if (!held)
+            WriteProps(entry, color, strength, maxDrawing, vanillaWeight, skyAmbient);
 
         Graphics.DrawMesh(
             entry.Mesh, Vector3.zero, Quaternion.identity,
@@ -194,6 +198,54 @@ public static class VectorLightOverlay
             0, null, 0, entry.Props);
 
         DrawIndoorMultiply(map, entry, skyGlow, maxComposing, composed);
+    }
+
+    // The per-draw property writes, and the record of what they wrote.
+    //
+    // Per-draw colour goes through a MaterialPropertyBlock and not Material.color. Graphics.DrawMesh
+    // is DEFERRED — the draws are queued and resolved later — so writing the material's colour
+    // between calls gives every light in the frame whichever colour was written last. §17's branch
+    // paid for learning this.
+    //
+    // The vanilla weight is set on the same block for the same deferred-draw reason. Zero is the
+    // control arm rather than a disabled state: the shader still runs, and still has to produce
+    // MoteGlow's output when it subtracts nothing. A light whose field could not be built has
+    // nothing to compose against, so it draws the stock additive pass rather than a max against
+    // black — which would be our whole model over an unsuppressed vanilla, i.e. two lighting models
+    // summed.
+    //
+    // The sky ambient is set on every max draw and not only on the lift ones, because the property
+    // block is per emitter and reused frame to frame: an emitter that drew under the lift and then
+    // under the additive pass would otherwise keep dividing by a stale ambient. Zero is the
+    // additive pass, so writing it unconditionally is what makes the two arms exclusive.
+    //
+    // ALL FOUR OR NONE. The hold in DrawLight compares the whole tuple and calls this when any part
+    // of it moved, so the block never holds a mix of two frames' values — the failure the "set it
+    // on every draw" rules above exist to prevent, now guaranteed by construction rather than by
+    // each write being unconditional.
+    private static void WriteProps(
+        VectorLightField.LightEntry entry, Color color, float strength, bool maxDrawing,
+        float vanillaWeight, float skyAmbient)
+    {
+        entry.Props.SetColor(ShaderPropertyIDs.Color, new Color(color.r, color.g, color.b, strength));
+
+        if (maxDrawing)
+        {
+            VectorLightShader.SetVanillaWeight(entry.Props, vanillaWeight);
+            VectorLightShader.SetVanillaTexture(entry.Props, entry.VanillaField);
+            VectorLightShader.SetSkyAmbient(entry.Props, skyAmbient);
+        }
+
+        entry.HeldProps = entry.Props;
+        entry.HeldMaxDrawing = maxDrawing;
+        entry.HeldStrength = strength;
+        entry.HeldColorR = color.r;
+        entry.HeldColorG = color.g;
+        entry.HeldColorB = color.b;
+        entry.HeldVanillaWeight = vanillaWeight;
+        entry.HeldVanillaField = entry.VanillaField;
+        entry.HeldSkyAmbient = skyAmbient;
+        VectorLightField.PropsWrites++;
     }
 
     // How much of vanilla's own delivered glow the fragment program subtracts before it draws:
@@ -360,11 +412,9 @@ public static class VectorLightOverlay
     // to how built-up the base is.
     private static bool Overlaps(CellRect view, VectorLightField.LightEntry entry)
     {
-        int reach = (int)entry.Radius + 1;
-        return entry.Cell.x + reach >= view.minX
-            && entry.Cell.x - reach <= view.maxX
-            && entry.Cell.z + reach >= view.minZ
-            && entry.Cell.z - reach <= view.maxZ;
+        return VectorLightMath.ReachTouchesRect(
+            entry.Cell.x, entry.Cell.z, entry.Radius,
+            view.minX, view.minZ, view.maxX, view.maxZ);
     }
 
     private static void Rebuild(Map map, VectorLightField.LightEntry entry, float altitude)

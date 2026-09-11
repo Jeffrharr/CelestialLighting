@@ -109,6 +109,11 @@ public sealed class VectorLightBakeProbe : IProbe
         FieldTextureUploads,
         FieldUvOnlyUploads,
 
+        // How many property-block writes the overlay pass made. Read against the per-emitter draw
+        // count (circ_vldrawlight): with vector_light_props_hold on and the scene still, the
+        // draws climb while this stands still; off, the two climb together.
+        PropsWrites,
+
         // ---- sections (issue #188 item 0) -----------------------------------------------------
         //
         // Every metric above is about POLYGONS. #191 used them to establish that a blocker write
@@ -367,6 +372,9 @@ public sealed class VectorLightBakeProbe : IProbe
 
         if (metric == Metric.FieldUvOnlyUploads)
             return VectorLightField.FieldUvOnlyUploads;
+
+        if (metric == Metric.PropsWrites)
+            return VectorLightField.PropsWrites;
 
         if (metric == Metric.ParallelBakePasses)
             return VectorLightField.ParallelBakePasses;

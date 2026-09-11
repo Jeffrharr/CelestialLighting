@@ -1357,6 +1357,28 @@ public static class VectorLightMath
     // what every lamp together puts on that cell, and once per lamp to take that lamp's share of the
     // total. Naming it is what makes the two passes provably ask the same question rather than two
     // subtly different ones.
+    // Whether an emitter at (cellX, cellZ) with the given drawn radius can put light on any cell of
+    // the inclusive rect [minX..maxX] × [minZ..maxZ]. The one camera-cull predicate both draw
+    // passes share: the overlay pass asks it per lamp per frame, and the pawn-shadow pass asks it
+    // once per frame to shrink the roster every visible pawn then walks.
+    //
+    // REACH IS THE INTEGER RADIUS PLUS ONE, not the float radius. The mesh is built on a fan whose
+    // rim sits at the radius and whose penumbra wedges lie a hair beyond it, and the shadow pass
+    // accepts a lamp whose float distance to a pawn's DrawPos (anywhere inside the pawn's cell) is
+    // within the radius. Rounding the radius down and adding one covers both by at least half a
+    // cell on every side, so a lamp this rejects can neither draw into the rect nor light a pawn
+    // standing in it — which is what lets the shadow pass use it as a filter and still draw
+    // exactly what the unfiltered roster would.
+    public static bool ReachTouchesRect(
+        int cellX, int cellZ, float radius, int minX, int minZ, int maxX, int maxZ)
+    {
+        int reach = (int)radius + 1;
+        return cellX + reach >= minX
+            && cellX - reach <= maxX
+            && cellZ + reach >= minZ
+            && cellZ - reach <= maxZ;
+    }
+
     public static float PawnIlluminance(float distance, float radius, float coverage)
     {
         return Falloff(distance, radius) * Clamp01(coverage);
