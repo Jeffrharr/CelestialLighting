@@ -13086,7 +13086,40 @@ passes it down. Small, and free.
 **Measured, off/on/off/on in one boot** (`vector_light_draw_hold_ab.json`, clock paused, both flags
 flipped together, 200-frame windows, cumulative Circinus totals read as consecutive differences):
 
-A/B_TABLE_PLACEHOLDER
+Per sampled frame (Circinus samples on a duty cycle, so the 200-frame windows hold 60–74
+sampled frames each; arm 1 also holds setup and is not compared), two runs:
+
+| arm | flags | `DrawLight` µs/call | overlay ms/frame | pawn shadows ms/frame | `Gather` µs/call | props writes ÷ draws |
+|---|---|---|---|---|---|---|
+| 2 | on | 2.6, 2.7 | 0.081, 0.080 | 0.065, 0.066 | 1.3, 1.1 | **19 ÷ 1628** |
+| 3 | off | 3.0, 2.9 | 0.090, 0.086 | 0.068, 0.063 | 1.2, 1.1 | 4294 ÷ 1320 |
+| 4 | on | 2.4, 3.0 | 0.076, 0.089 | 0.061, 0.076 | 1.1, 1.1 | **19 ÷ 1320** |
+
+**The hold holds, and the idle frame barely notices.** The write count is the unambiguous half:
+off, every draw writes (4,294 writes for 1,320 draws — the block plus the three max-pass
+properties); on, nineteen writes for the whole window, all in its first frame when the flag flip
+rebuilt the tuple, and then none while 1,300 more draws went through. That is reproduced to the
+write in both runs. The timing half is not: `DrawLight` reads 2.4–2.7 µs held against 2.9–3.0
+unheld in run 1, and 2.7–3.0 against 2.9 in run 2 — a saving at or under 0.5 µs per lamp inside a
+run-to-run spread of the same size. Read against the attribution above, that is the answer rather
+than a failure of it: the four writes were a sixth of `DrawLight`'s body at most, and what is left
+is `Graphics.DrawMesh` itself, one per visible emitter, which no hold can remove. `Gather` is
+unchanged on this plate at 1.1–1.3 µs, as the flag's own note predicts for twenty lamps; its case
+is the colony, where the walk it removes is the roster's length times the pawns in view.
+
+**What this bounds.** With the writes gone, a still frame costs one `DrawMesh` per visible lamp
+(~2.5 µs) plus one `DrawFor` per visible pawn (~7 µs, of which one `DrawMesh` per shadow). The
+next lever on the overlay pass is not a hold but a batch — fewer `DrawMesh` calls — and that is
+blocked by the composition: each emitter samples its own vanilla-field texture through the
+property block, so emitters cannot share a draw without an atlas or a texture array. The pawn
+pass is already one draw per drawn shadow. Neither is worth a phase on a frame that reads 0.15 ms
+for twenty lamps and six pawns; the door frame's `BuildCoverage`, at up to 8 ms, is where the next
+millisecond is.
+
+`vector_light_draw_hold_ab` needs Circinus in `requiredMods`; its first run without it read
+`circinus_available` 0 and every `_patched` probe red, which is the arm-unresolved shape and not a
+free hook.
+
 
 ### Vector lighting, phase 7: the coverage grid was mostly outside the light (`VectorLightMath.BuildCoverage`, `VectorLightCoverageOracle`, epic #174 phase 7)
 

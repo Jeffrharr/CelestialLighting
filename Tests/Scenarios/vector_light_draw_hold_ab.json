@@ -1,6 +1,9 @@
 {
   "name": "vector_light_draw_hold_ab",
   "saveFile": "minimal_colony.rws",
+  "requiredMods": {
+    "astryl.Circinus": "3773680130"
+  },
   "hideUi": true,
   "description": "A/B for the two idle-frame holds in the draw hook, off/on/off/on inside one boot on the same 20-lamp, six-colonist plate vector_light_draw_steady attributes the frame on. Both flags flip together: vector_light_props_hold skips DrawLight's four MaterialPropertyBlock writes when the tuple they carry has not moved, and vector_light_shadow_lamp_cull culls the roster against the camera once per frame before the pawn-shadow pass walks it. The clock is PAUSED so nothing moves between arms - the sky glow is fixed, no door swings, no pawn walks - which is the frame the holds exist for. Circinus banks have no reset, so every arm's probes read CUMULATIVE totals; read them as consecutive differences (arm N minus arm N-1) and divide by the difference in circinus_cycles for per-frame cost. circinus_cycles is read once before each arm's window and once after, so the window's own frame count is the second minus the first. vector_light_props_writes is the hold's own evidence: off, it climbs with circ_vldrawlight_calls; on, it should stand still across the window while the draws keep climbing. Every timing probe is RECORDED, tolerance wide; the pins that bite are the plate's own (vector_light_count, *_patched) inherited from the steady scenario. Inherits that scenario's three known setup errors (SteamGeyser cells, two refused SpawnPawn cells), so Pass=false with every probe green is the expected shape here too.",
   "steps": [
