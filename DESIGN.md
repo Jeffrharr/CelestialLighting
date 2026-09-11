@@ -13000,6 +13000,94 @@ The 613-point walk is fixed per section whatever the shadow in it, so the slice 
 
 **Ships off, kept.** The repo's rule for a change measuring nothing is to ship it off and say why, not to ship it on because the arithmetic is sound. It stays in the tree because it is provably inert, its cost is four compares per emitter, and a real-map profile that finds the vertex passes again has it ready with its scenario. The visit counters stay on both bodies: they are what will say so.
 
+#### The idle frame, attributed and held (`vector_light_draw_steady.json`, `vector_light_draw_hold_ab.json`, `CelestialLightingFeatures.VectorLightPropsHold`, `VectorLightShadowLampCull`)
+
+Everything above in this section is about the frame where something moved — a wall, a door, the
+whole map. `Patch_VectorLightDraw:Postfix` also runs on every frame where nothing did, and after
+the bake work it was the mod's hungriest row per call on a live colony. Dubs cannot say where
+inside it the time goes, and its per-call figure is **halved** by the second, identity-rejected
+call the hook takes per frame (the manager recurses into its world parent), so the first job was
+attribution rather than optimisation.
+
+**How it was attributed.** Thirteen more Circinus arms under the hook — `DrawLight`, `StrengthFor`,
+`Rebuild`, `UploadVanillaField`, `CopyField`, `UploadFieldUvs` on the overlay pass; `DrawFor`,
+`Gather`, `Build`, `CastsShadow`, `MeshFor`, `FeatheredMaterialFor` on the pawn-shadow pass;
+`VectorLightField.EnsurePolygons` — all armed together in one bank. That is sound here for the
+reason `vector_light_frame_cost` gives: distinct methods read at one instant break one frame's
+budget down, they are not one method compared across two states, and Circinus's per-arm overhead
+inflates every row alike. Two scenarios on the 20-lamp, five-room, six-colonist plate every other
+cost figure for this subsystem was measured on: `vector_light_draw_steady` (clock paused, 120
+sampled frames) and `vector_light_draw_door` (a door swung three times over 161 sampled frames, no
+pawns so nothing could block the door). Each run twice; the two steady runs agree within 6% on
+every arm, the two valid door runs within 15% except where noted.
+
+Steady state, per real drawing frame (calls per frame × µs per call, Circinus-inflated):
+
+| stage | calls/frame | µs/call | ms per frame | share of hook |
+|---|---|---|---|---|
+| `Patch_VectorLightDraw:Postfix`, halved | 1 | 206–218 | 0.21 | 100% |
+| `VectorLightOverlay.Draw` | 1 | 130–140 | 0.13 | 63% |
+| `VectorLightOverlay.DrawLight` | 20.8 | 4.9–5.4 | 0.10 | 49% |
+| `VectorLightOverlay.StrengthFor` | 17.8 | 0.16–0.18 | 0.003 | 1% |
+| `VectorLightPawnShadows.Draw` | 1 | 67–71 | 0.07 | 32% |
+| `VectorLightPawnShadows.DrawFor` | 5.4 | 7.7–8.0 | 0.04 | 20% |
+| `VectorLightPawnShadows.Build` | 5.3 | 3.8–3.9 | 0.02 | 10% |
+| `VectorLightPawnShadows.Gather` | 5.3 | 1.6–1.7 | 0.009 | 4% |
+| `CastsShadow`, `MeshFor`, `FeatheredMaterialFor` | 6.1, 1.7, 1.7 | 1.0–1.3, 0.6, 0.9 | 0.009 | 4% |
+| `Rebuild` + `UploadVanillaField` (the 38 one-time builds) | 0.33 | 72–95, 29–32 | 0.03 | 15%, first frames only |
+
+So the idle frame is **one `DrawLight` body per visible lamp at ~3.3 µs once the one-time builds
+are taken out, and one `DrawFor` per visible pawn at ~8 µs**, and nothing else is material.
+`StrengthFor`, the roof lookup, the mesh and material caches and the per-pawn eligibility test
+together are under a tenth of it. `DrawLight`'s body is four `MaterialPropertyBlock` writes —
+colour, vanilla weight, vanilla texture, sky ambient — and one `Graphics.DrawMesh`. `DrawFor`'s
+is `Build` (half of it `Gather`'s walk over the roster) and one `DrawMesh` per shadow.
+
+The door frame is a different picture and the reason the two scenarios are separate files: the
+hook itself falls to 57–63 µs per real call (five lamps in view rather than twenty-one) while the
+rebuild lands in `BuildAndDirty` — the prefix on `MapMeshDrawerUpdate_First` since issue #218, not
+the draw postfix — at 99–175 µs per frame averaged over the window, with `VectorLightMath.Build`
+at 157–165 µs per polygon, `BuildCoverage` at **215–559 µs per grid, max 8 ms**, `Rebuild` at 64–79
+µs per mesh and the mask's `Apply` at 88–95 µs per section. The incremental rebuild's cost is the
+coverage bake, and it is not in this hook. `CopyField` ran 4 times for 36 rebuilds there against 38
+for 38 in steady state: door swings reach `UploadVanillaField` with only `FieldUvsDirty` set, so the
+texture is not recopied — the glow-texture hold working as designed, recorded because a reader
+comparing the two tables would otherwise take the 4 for an arm that failed to resolve.
+
+**One arm did fail to resolve.** `VectorLightMask.AccumulateFold` read zero calls in all four
+valid runs. Its `_patched` probe is pinned in the steady scenario and will say which; until it is
+re-pointed the row is not evidence of anything (`circinus-arm-unresolved-reads-zero`).
+
+**What was done with it.** Two holds, each behind a flag whose off arm is the shipped body:
+
+- **`vector_light_props_hold`.** `DrawLight` now decides the four values first, compares them —
+  exact float equality, never Unity's approximate `Color ==` — against what `WriteProps` last put
+  in this entry's block, and skips all four writes when nothing moved. Any one input differing
+  rewrites all four, so the block never holds a mix of two frames. The block is compared by
+  reference too, so an Upsert that replaced it is never trusted. `vector_light_props_writes` counts
+  the writes; on a still scene it must stand while `circ_vldrawlight_calls` climbs, which is the
+  evidence the timing arms alone cannot give (a hold that is present but never holding reads
+  writes == draws).
+- **`vector_light_shadow_lamp_cull`.** `Gather` walked every lamp on the map for every pawn in
+  view, every frame. On the plate that is 1.7 µs per pawn and invisible; on a colony it scales as
+  lamps-on-map × pawns-in-view and does not shrink when the player zooms in, which is the one cost
+  in this pass a small scene cannot show. The pass now culls the roster once per frame with the
+  overlay's own predicate, hoisted into the pure core as `VectorLightMath.ReachTouchesRect`, and
+  every pawn walks the culled list. Soundness is the predicate's integer reach: a pawn is only
+  considered inside the view rect, and `VectorLightReachTouchesRectTests` sweeps every lamp cell
+  whose disc can reach any DrawPos inside a cell of that rect and pins that none is culled, so the
+  drawn shadows are identical by construction. The probe path (`ShadowsFor`) hands `Build` the whole
+  roster through the same list, because it is asked about pawns the camera may not be on.
+
+Also folded in: `ShadowDataOf` — a walk of def, race and render tree — was asked four times per
+pawn per frame (eligibility, anchor, builder, caster height); the draw now resolves it once and
+passes it down. Small, and free.
+
+**Measured, off/on/off/on in one boot** (`vector_light_draw_hold_ab.json`, clock paused, both flags
+flipped together, 200-frame windows, cumulative Circinus totals read as consecutive differences):
+
+A/B_TABLE_PLACEHOLDER
+
 ### Vector lighting, phase 7: the coverage grid was mostly outside the light (`VectorLightMath.BuildCoverage`, `VectorLightCoverageOracle`, epic #174 phase 7)
 
 Phase 6 left the coverage grid as the largest term inside a bake — **50.7% culled, against `Build`'s

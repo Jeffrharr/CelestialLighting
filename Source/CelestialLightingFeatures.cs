@@ -1783,6 +1783,44 @@ public static class CelestialLightingFeatures
     // so the arm is a baseline rather than a picture of the feature missing.
     public static bool VectorLightChangedDirty = true;
 
+    // Feature key for VectorLightPropsHold.
+    public const string VectorLightPropsHoldKey = "vector_light_props_hold";
+
+    // Skip an emitter's four per-frame MaterialPropertyBlock writes when nothing they carry changed.
+    //
+    // WHERE THE IDLE FRAME GOES. With the polygon and mask work done, a frame where nothing moves
+    // costs the overlay pass about 3.3 µs per visible lamp (Circinus, 20-lamp plate, two runs within
+    // 6%), and nearly all of that is DrawLight's body: four property-block writes — colour, vanilla
+    // weight, vanilla texture, sky ambient — and one Graphics.DrawMesh. Each write is a managed-to-
+    // native call whose inputs change only when the mesh is rebuilt, the field texture is
+    // reallocated, or the sky glow steps; on every other frame they rewrite the value already in
+    // the block. The DrawMesh is the floor while each lamp carries its own texture, so the writes
+    // are the only lever the idle frame has.
+    //
+    // WHY IT IS SOUND. The block is ours alone — nothing else writes it — and it persists between
+    // frames, so a value written last frame is still the value the deferred draw reads this frame.
+    // The comparison is exact float equality on the inputs, never Unity's approximate Color ==
+    // (a 1e-5 epsilon would let a sky-glow step below it hold a stale alpha for a frame). Any one
+    // input differing rewrites all four, so the on arm never holds a partial block, and the off arm
+    // is the shipped body byte for byte rather than a different write order.
+    public static bool VectorLightPropsHold = true;
+
+    // Feature key for VectorLightShadowLampCull.
+    public const string VectorLightShadowLampCullKey = "vector_light_shadow_lamp_cull";
+
+    // Cull the lamp roster against the camera once per frame before the pawn-shadow pass, rather
+    // than letting every pawn in view walk every lamp on the map.
+    //
+    // Gather's first pass is a distance reject over the whole roster, per visible pawn, per frame.
+    // On the 20-lamp plate that reads 1.7 µs per pawn and does not matter; on a colony it scales as
+    // lamps-on-map × pawns-in-view and does not shrink when the player zooms in, which is the one
+    // cost in this pass that a small scene cannot show. The cull is the overlay pass's own
+    // predicate (VectorLightMath.ReachTouchesRect): a pawn inside the view rect can only be lit by
+    // a lamp whose reach touches that rect, so the culled list is a strict superset of every lamp
+    // Gather would accept, and the drawn shadows are identical. The off arm hands Gather the whole
+    // roster through the same list, so the two arms differ in the walk and in nothing else.
+    public static bool VectorLightShadowLampCull = true;
+
     // Feature key for VectorLightViewCull.
     public const string VectorLightViewCullKey = "vector_light_view_cull";
 

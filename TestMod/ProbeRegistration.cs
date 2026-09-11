@@ -479,6 +479,12 @@ public static class ProbeRegistration
             "vector_light_field_texture_uploads", VectorLightBakeProbe.Metric.FieldTextureUploads));
         ProbeRegistry.Register(new VectorLightBakeProbe(
             "vector_light_field_uv_only_uploads", VectorLightBakeProbe.Metric.FieldUvOnlyUploads));
+
+        // The property-block hold's own evidence: writes against draws. A hold that is present but
+        // not holding reads writes == draws, which the timing arms alone could not separate from a
+        // hold that works on a scene where every frame really does move something.
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_props_writes", VectorLightBakeProbe.Metric.PropsWrites));
         // Issue #188 item 0. vector_light_sections_per_pass is the headline -- the map's whole
         // section count before item A, a handful after -- but pin vector_light_mask_applies beside
         // it or the reduction is unfalsifiable. Dirty flags are work REQUESTED and vanilla
@@ -1897,6 +1903,18 @@ public static class ProbeRegistration
                 CelestialLightingFeatures.VectorLightChangedDirty = enabled;
                 VectorLightRedraw.ForceRebuild();
             });
+        // Both draw-side holds are pure skips: flipping one changes no state a frame depends on, so
+        // neither needs a ForceRebuild. The props hold's record is on the entry and is compared
+        // against the live block each frame, so an arm switching it on mid-boot simply starts
+        // holding from the next frame that matches.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightPropsHoldKey,
+            enabled => CelestialLightingFeatures.VectorLightPropsHold = enabled);
+
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightShadowLampCullKey,
+            enabled => CelestialLightingFeatures.VectorLightShadowLampCull = enabled);
+
         FeatureRegistry.Register(
             CelestialLightingFeatures.VectorLightViewCullKey,
             enabled =>
