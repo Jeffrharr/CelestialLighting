@@ -1,0 +1,1169 @@
+{
+ "name": "wall_x_saturated",
+ "saveFile": "minimal_colony.rws",
+ "hideUi": true,
+ "description": "wall_x_night's room with nine torches packed against the west wall so vanilla's glow saturates there, hour 0. Reads the lighting overlay's centre-vs-corner disagreement on wall tiles per arm: shipped, saturation pass off, max lift off, mask off, then noon.",
+ "steps": [
+  {
+   "type": "SetTile",
+   "args": {
+    "latitude": "45"
+   }
+  },
+  {
+   "type": "SetSeason",
+   "args": {
+    "dayOfYear": "40"
+   }
+  },
+  {
+   "type": "SetWeather",
+   "args": {
+    "weatherDef": "Clear",
+    "instant": "true"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "cloud_cover",
+    "enabled": "false"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "cloud_sheet",
+    "enabled": "false"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "cloud_presence",
+    "enabled": "false"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "cloud_deck_varieties",
+    "enabled": "false"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "cloud_volume",
+    "enabled": "false"
+   }
+  },
+  {
+   "type": "SetTerrain",
+   "args": {
+    "def": "Concrete",
+    "width": "19",
+    "height": "19",
+    "offset": "40,45",
+    "clear": "true"
+   }
+  },
+  {
+   "type": "PlaceThings",
+   "args": {
+    "def": "Wall",
+    "stuff": "WoodLog",
+    "offset": "40,45",
+    "layout": "cells",
+    "clear": "true",
+    "cells": "-7,-7; 7,-7; -7,-6; 7,-6; -7,-5; 7,-5; -7,-4; 7,-4; -7,-3; 7,-3; -7,-2; 7,-2; -7,-1; 7,-1; -7,0; 7,0; -7,1; 7,1; -7,2; 7,2; -7,3; 7,3; -7,4; 7,4; -7,5; 7,5; -7,6; 7,6; -7,7; 7,7; -6,-7; -6,7; -5,-7; -5,7; -4,-7; -4,7; -3,-7; -3,7; -2,-7; -2,7; -1,-7; -1,7; 0,-7; 0,7; 1,-7; 1,7; 2,-7; 2,7; 3,-7; 3,7; 4,-7; 4,7; 5,-7; 5,7; 6,-7; 6,7"
+   }
+  },
+  {
+   "type": "PlaceThings",
+   "args": {
+    "def": "TorchLamp",
+    "offset": "40,45",
+    "layout": "cells",
+    "cells": "-6,-3; -6,-2; -6,-1; -6,0; -6,1; -6,2; -5,-3; -5,0; -5,2; 0,4"
+   }
+  },
+  {
+   "type": "SetRoof",
+   "args": {
+    "def": "RoofConstructed",
+    "width": "15",
+    "height": "15",
+    "offset": "40,45"
+   }
+  },
+  {
+   "type": "FastForward",
+   "args": {
+    "ticks": "120"
+   }
+  },
+  {
+   "type": "SetTime",
+   "args": {
+    "hour": "0"
+   }
+  },
+  {
+   "type": "SetTimeSpeed",
+   "args": {
+    "speed": "paused"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "30"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "vector_light_mask_available",
+    "expectedValue": "1",
+    "tolerance": "0"
+   }
+  },
+  {
+   "type": "LookAt",
+   "args": {
+    "offset": "33,45",
+    "zoom": "11"
+   }
+  },
+  {
+   "type": "Screenshot",
+   "args": {
+    "fileName": "wallxsat_discard.png"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "60"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wwall_torch_hub",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wwall_torch_alphahub",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wwall_torch_cornermeanluma",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wwall_torch_centreluma",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wwall_far_hub",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wwall_far_alphahub",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wwall_far_cornermeanluma",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wwall_far_centreluma",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_nwall_hub",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_nwall_alphahub",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_nwall_cornermeanluma",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_nwall_centreluma",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wcorner_hub",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wcorner_alphahub",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wcorner_cornermeanluma",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wcorner_centreluma",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_floor_ctrl_hub",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_floor_ctrl_alphahub",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_floor_ctrl_cornermeanluma",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_floor_ctrl_centreluma",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_glow_torchside",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_glow_floor_ctrl",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "LookAt",
+   "args": {
+    "offset": "33,45",
+    "zoom": "11"
+   }
+  },
+  {
+   "type": "Screenshot",
+   "args": {
+    "fileName": "wallxsat_default.png"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "vector_light_mask_saturation",
+    "enabled": "false"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "60"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wwall_torch_hub",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wwall_torch_alphahub",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wwall_torch_cornermeanluma",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wwall_torch_centreluma",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wwall_far_hub",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wwall_far_alphahub",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wwall_far_cornermeanluma",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wwall_far_centreluma",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_nwall_hub",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_nwall_alphahub",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_nwall_cornermeanluma",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_nwall_centreluma",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wcorner_hub",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wcorner_alphahub",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wcorner_cornermeanluma",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wcorner_centreluma",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_floor_ctrl_hub",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_floor_ctrl_alphahub",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_floor_ctrl_cornermeanluma",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_floor_ctrl_centreluma",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_glow_torchside",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_glow_floor_ctrl",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "LookAt",
+   "args": {
+    "offset": "33,45",
+    "zoom": "11"
+   }
+  },
+  {
+   "type": "Screenshot",
+   "args": {
+    "fileName": "wallxsat_vector_light_mask_saturation_off.png"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "vector_light_mask_saturation",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "vector_light_mask_max_lift",
+    "enabled": "false"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "60"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wwall_torch_hub",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wwall_torch_alphahub",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wwall_torch_cornermeanluma",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wwall_torch_centreluma",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wwall_far_hub",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wwall_far_alphahub",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wwall_far_cornermeanluma",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wwall_far_centreluma",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_nwall_hub",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_nwall_alphahub",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_nwall_cornermeanluma",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_nwall_centreluma",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wcorner_hub",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wcorner_alphahub",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wcorner_cornermeanluma",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wcorner_centreluma",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_floor_ctrl_hub",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_floor_ctrl_alphahub",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_floor_ctrl_cornermeanluma",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_floor_ctrl_centreluma",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_glow_torchside",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_glow_floor_ctrl",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "LookAt",
+   "args": {
+    "offset": "33,45",
+    "zoom": "11"
+   }
+  },
+  {
+   "type": "Screenshot",
+   "args": {
+    "fileName": "wallxsat_vector_light_mask_max_lift_off.png"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "vector_light_mask_max_lift",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "vector_light_mask",
+    "enabled": "false"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "60"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wwall_torch_hub",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wwall_torch_alphahub",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wwall_torch_cornermeanluma",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wwall_torch_centreluma",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wwall_far_hub",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wwall_far_alphahub",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wwall_far_cornermeanluma",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wwall_far_centreluma",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_nwall_hub",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_nwall_alphahub",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_nwall_cornermeanluma",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_nwall_centreluma",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wcorner_hub",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wcorner_alphahub",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wcorner_cornermeanluma",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wcorner_centreluma",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_floor_ctrl_hub",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_floor_ctrl_alphahub",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_floor_ctrl_cornermeanluma",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_floor_ctrl_centreluma",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_glow_torchside",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_glow_floor_ctrl",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "LookAt",
+   "args": {
+    "offset": "33,45",
+    "zoom": "11"
+   }
+  },
+  {
+   "type": "Screenshot",
+   "args": {
+    "fileName": "wallxsat_vector_light_mask_off.png"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "vector_light_mask",
+    "enabled": "true"
+   }
+  },
+  {
+   "type": "SetTime",
+   "args": {
+    "hour": "12"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "60"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wwall_torch_hub",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wwall_torch_alphahub",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wwall_torch_cornermeanluma",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wwall_torch_centreluma",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wwall_far_hub",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wwall_far_alphahub",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wwall_far_cornermeanluma",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wwall_far_centreluma",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_nwall_hub",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_nwall_alphahub",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_nwall_cornermeanluma",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_nwall_centreluma",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wcorner_hub",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wcorner_alphahub",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wcorner_cornermeanluma",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_wcorner_centreluma",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_floor_ctrl_hub",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_floor_ctrl_alphahub",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_floor_ctrl_cornermeanluma",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_floor_ctrl_centreluma",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_glow_torchside",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "hub_glow_floor_ctrl",
+    "expectedValue": "0",
+    "tolerance": "1000"
+   }
+  },
+  {
+   "type": "LookAt",
+   "args": {
+    "offset": "33,45",
+    "zoom": "11"
+   }
+  },
+  {
+   "type": "Screenshot",
+   "args": {
+    "fileName": "wallxsat_noon.png"
+   }
+  }
+ ]
+}

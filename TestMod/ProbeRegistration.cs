@@ -122,6 +122,51 @@ public static class ProbeRegistration
         // probe reads, and does the north wall behave like the south one?
         ProbeRegistry.Register(new NightWashVertexProbe(
             "wash_darkroom_nwall", new IntVec3(40, 0, 52), NightWashVertexProbe.Metric.CentreAlpha));
+        // wall_x_night.json: lighting-overlay centre-vs-corner disagreement on wall tiles of the
+        // 15x15 room at (40,45), walls at x=33/47 and z=38/52, torch at (34,45).
+        ProbeRegistry.Register(new OverlayHubProbe(
+            "hub_wwall_torch_hub", new IntVec3(33, 0, 45), OverlayHubProbe.Metric.Hub));
+        ProbeRegistry.Register(new OverlayHubProbe(
+            "hub_wwall_torch_alphahub", new IntVec3(33, 0, 45), OverlayHubProbe.Metric.AlphaHub));
+        ProbeRegistry.Register(new OverlayHubProbe(
+            "hub_wwall_torch_cornermeanluma", new IntVec3(33, 0, 45), OverlayHubProbe.Metric.CornerMeanLuma));
+        ProbeRegistry.Register(new OverlayHubProbe(
+            "hub_wwall_torch_centreluma", new IntVec3(33, 0, 45), OverlayHubProbe.Metric.CentreLuma));
+        ProbeRegistry.Register(new OverlayHubProbe(
+            "hub_wwall_far_hub", new IntVec3(33, 0, 48), OverlayHubProbe.Metric.Hub));
+        ProbeRegistry.Register(new OverlayHubProbe(
+            "hub_wwall_far_alphahub", new IntVec3(33, 0, 48), OverlayHubProbe.Metric.AlphaHub));
+        ProbeRegistry.Register(new OverlayHubProbe(
+            "hub_wwall_far_cornermeanluma", new IntVec3(33, 0, 48), OverlayHubProbe.Metric.CornerMeanLuma));
+        ProbeRegistry.Register(new OverlayHubProbe(
+            "hub_wwall_far_centreluma", new IntVec3(33, 0, 48), OverlayHubProbe.Metric.CentreLuma));
+        ProbeRegistry.Register(new OverlayHubProbe(
+            "hub_nwall_hub", new IntVec3(40, 0, 52), OverlayHubProbe.Metric.Hub));
+        ProbeRegistry.Register(new OverlayHubProbe(
+            "hub_nwall_alphahub", new IntVec3(40, 0, 52), OverlayHubProbe.Metric.AlphaHub));
+        ProbeRegistry.Register(new OverlayHubProbe(
+            "hub_nwall_cornermeanluma", new IntVec3(40, 0, 52), OverlayHubProbe.Metric.CornerMeanLuma));
+        ProbeRegistry.Register(new OverlayHubProbe(
+            "hub_nwall_centreluma", new IntVec3(40, 0, 52), OverlayHubProbe.Metric.CentreLuma));
+        ProbeRegistry.Register(new OverlayHubProbe(
+            "hub_wcorner_hub", new IntVec3(33, 0, 52), OverlayHubProbe.Metric.Hub));
+        ProbeRegistry.Register(new OverlayHubProbe(
+            "hub_wcorner_alphahub", new IntVec3(33, 0, 52), OverlayHubProbe.Metric.AlphaHub));
+        ProbeRegistry.Register(new OverlayHubProbe(
+            "hub_wcorner_cornermeanluma", new IntVec3(33, 0, 52), OverlayHubProbe.Metric.CornerMeanLuma));
+        ProbeRegistry.Register(new OverlayHubProbe(
+            "hub_wcorner_centreluma", new IntVec3(33, 0, 52), OverlayHubProbe.Metric.CentreLuma));
+        ProbeRegistry.Register(new OverlayHubProbe(
+            "hub_floor_ctrl_hub", new IntVec3(36, 0, 45), OverlayHubProbe.Metric.Hub));
+        ProbeRegistry.Register(new OverlayHubProbe(
+            "hub_floor_ctrl_alphahub", new IntVec3(36, 0, 45), OverlayHubProbe.Metric.AlphaHub));
+        ProbeRegistry.Register(new OverlayHubProbe(
+            "hub_floor_ctrl_cornermeanluma", new IntVec3(36, 0, 45), OverlayHubProbe.Metric.CornerMeanLuma));
+        ProbeRegistry.Register(new OverlayHubProbe(
+            "hub_floor_ctrl_centreluma", new IntVec3(36, 0, 45), OverlayHubProbe.Metric.CentreLuma));
+        ProbeRegistry.Register(new GlowGridCellProbe("hub_glow_torchside", new IntVec3(34, 0, 45)));
+        ProbeRegistry.Register(new GlowGridCellProbe("hub_glow_floor_ctrl", new IntVec3(36, 0, 45)));
+
         ProbeRegistry.Register(new CellBlockerProbe(
             "dr_swall_buildings", CellBlockerProbe.Metric.BuildingCount, new IntVec3(40, 0, 38)));
         ProbeRegistry.Register(new CellBlockerProbe(

@@ -41,6 +41,7 @@
          RimWorld's own Dialog_ModSettings cannot be constructed for by type name. -->
     <Compile Include="../Source/Probes/Dialog_SettingsShot.cs" Link="Dialog_SettingsShot.cs" />
     <Compile Include="../Source/Probes/ShadowLeanProbe.cs" Link="ShadowLeanProbe.cs" />
+    <Compile Include="../Source/Probes/OverlayHubProbe.cs" Link="OverlayHubProbe.cs" />
     <Compile Include="../Source/Probes/AxialTiltDeclinationProbe.cs" Link="AxialTiltDeclinationProbe.cs" />
     <Compile Include="../Source/Probes/AxialTiltActiveProbe.cs" Link="AxialTiltActiveProbe.cs" />
     <Compile Include="../Source/Probes/AxialTiltLunarProbe.cs" Link="AxialTiltLunarProbe.cs" />

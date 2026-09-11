@@ -1,0 +1,578 @@
+{
+ "name": "wall_x_survey",
+ "saveFile": "minimal_colony.rws",
+ "hideUi": true,
+ "description": "Hourly survey of the west wall of the wall_x_night room at closest zoom, paused, to find any hour at which wall tiles draw per-tile structure.",
+ "steps": [
+  {
+   "type": "SetTile",
+   "args": {
+    "latitude": "45"
+   }
+  },
+  {
+   "type": "SetSeason",
+   "args": {
+    "dayOfYear": "40"
+   }
+  },
+  {
+   "type": "SetWeather",
+   "args": {
+    "weatherDef": "Clear",
+    "instant": "true"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "cloud_cover",
+    "enabled": "false"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "cloud_sheet",
+    "enabled": "false"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "cloud_presence",
+    "enabled": "false"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "cloud_deck_varieties",
+    "enabled": "false"
+   }
+  },
+  {
+   "type": "SetFeature",
+   "args": {
+    "featureName": "cloud_volume",
+    "enabled": "false"
+   }
+  },
+  {
+   "type": "SetTerrain",
+   "args": {
+    "def": "Concrete",
+    "width": "19",
+    "height": "19",
+    "offset": "40,45",
+    "clear": "true"
+   }
+  },
+  {
+   "type": "PlaceThings",
+   "args": {
+    "def": "Wall",
+    "stuff": "WoodLog",
+    "offset": "40,45",
+    "layout": "cells",
+    "clear": "true",
+    "cells": "-7,-7; 7,-7; -7,-6; 7,-6; -7,-5; 7,-5; -7,-4; 7,-4; -7,-3; 7,-3; -7,-2; 7,-2; -7,-1; 7,-1; -7,0; 7,0; -7,1; 7,1; -7,2; 7,2; -7,3; 7,3; -7,4; 7,4; -7,5; 7,5; -7,6; 7,6; -7,7; 7,7; -6,-7; -6,7; -5,-7; -5,7; -4,-7; -4,7; -3,-7; -3,7; -2,-7; -2,7; -1,-7; -1,7; 0,-7; 0,7; 1,-7; 1,7; 2,-7; 2,7; 3,-7; 3,7; 4,-7; 4,7; 5,-7; 5,7; 6,-7; 6,7"
+   }
+  },
+  {
+   "type": "PlaceThings",
+   "args": {
+    "def": "TorchLamp",
+    "offset": "40,45",
+    "layout": "cells",
+    "cells": "-6,0; 0,4"
+   }
+  },
+  {
+   "type": "SetRoof",
+   "args": {
+    "def": "RoofConstructed",
+    "width": "15",
+    "height": "15",
+    "offset": "40,45"
+   }
+  },
+  {
+   "type": "FastForward",
+   "args": {
+    "ticks": "120"
+   }
+  },
+  {
+   "type": "SetTime",
+   "args": {
+    "hour": "0"
+   }
+  },
+  {
+   "type": "SetTimeSpeed",
+   "args": {
+    "speed": "paused"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "30"
+   }
+  },
+  {
+   "type": "Probe",
+   "args": {
+    "probeName": "vector_light_mask_available",
+    "expectedValue": "1",
+    "tolerance": "0"
+   }
+  },
+  {
+   "type": "LookAt",
+   "args": {
+    "offset": "33,45",
+    "zoom": "11"
+   }
+  },
+  {
+   "type": "Screenshot",
+   "args": {
+    "fileName": "wallxs_discard.png"
+   }
+  },
+  {
+   "type": "SetTime",
+   "args": {
+    "hour": "0"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "20"
+   }
+  },
+  {
+   "type": "Screenshot",
+   "args": {
+    "fileName": "wallxs_h00.png"
+   }
+  },
+  {
+   "type": "SetTime",
+   "args": {
+    "hour": "1"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "20"
+   }
+  },
+  {
+   "type": "Screenshot",
+   "args": {
+    "fileName": "wallxs_h01.png"
+   }
+  },
+  {
+   "type": "SetTime",
+   "args": {
+    "hour": "2"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "20"
+   }
+  },
+  {
+   "type": "Screenshot",
+   "args": {
+    "fileName": "wallxs_h02.png"
+   }
+  },
+  {
+   "type": "SetTime",
+   "args": {
+    "hour": "3"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "20"
+   }
+  },
+  {
+   "type": "Screenshot",
+   "args": {
+    "fileName": "wallxs_h03.png"
+   }
+  },
+  {
+   "type": "SetTime",
+   "args": {
+    "hour": "4"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "20"
+   }
+  },
+  {
+   "type": "Screenshot",
+   "args": {
+    "fileName": "wallxs_h04.png"
+   }
+  },
+  {
+   "type": "SetTime",
+   "args": {
+    "hour": "5"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "20"
+   }
+  },
+  {
+   "type": "Screenshot",
+   "args": {
+    "fileName": "wallxs_h05.png"
+   }
+  },
+  {
+   "type": "SetTime",
+   "args": {
+    "hour": "6"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "20"
+   }
+  },
+  {
+   "type": "Screenshot",
+   "args": {
+    "fileName": "wallxs_h06.png"
+   }
+  },
+  {
+   "type": "SetTime",
+   "args": {
+    "hour": "7"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "20"
+   }
+  },
+  {
+   "type": "Screenshot",
+   "args": {
+    "fileName": "wallxs_h07.png"
+   }
+  },
+  {
+   "type": "SetTime",
+   "args": {
+    "hour": "8"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "20"
+   }
+  },
+  {
+   "type": "Screenshot",
+   "args": {
+    "fileName": "wallxs_h08.png"
+   }
+  },
+  {
+   "type": "SetTime",
+   "args": {
+    "hour": "9"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "20"
+   }
+  },
+  {
+   "type": "Screenshot",
+   "args": {
+    "fileName": "wallxs_h09.png"
+   }
+  },
+  {
+   "type": "SetTime",
+   "args": {
+    "hour": "10"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "20"
+   }
+  },
+  {
+   "type": "Screenshot",
+   "args": {
+    "fileName": "wallxs_h10.png"
+   }
+  },
+  {
+   "type": "SetTime",
+   "args": {
+    "hour": "11"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "20"
+   }
+  },
+  {
+   "type": "Screenshot",
+   "args": {
+    "fileName": "wallxs_h11.png"
+   }
+  },
+  {
+   "type": "SetTime",
+   "args": {
+    "hour": "12"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "20"
+   }
+  },
+  {
+   "type": "Screenshot",
+   "args": {
+    "fileName": "wallxs_h12.png"
+   }
+  },
+  {
+   "type": "SetTime",
+   "args": {
+    "hour": "13"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "20"
+   }
+  },
+  {
+   "type": "Screenshot",
+   "args": {
+    "fileName": "wallxs_h13.png"
+   }
+  },
+  {
+   "type": "SetTime",
+   "args": {
+    "hour": "14"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "20"
+   }
+  },
+  {
+   "type": "Screenshot",
+   "args": {
+    "fileName": "wallxs_h14.png"
+   }
+  },
+  {
+   "type": "SetTime",
+   "args": {
+    "hour": "15"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "20"
+   }
+  },
+  {
+   "type": "Screenshot",
+   "args": {
+    "fileName": "wallxs_h15.png"
+   }
+  },
+  {
+   "type": "SetTime",
+   "args": {
+    "hour": "16"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "20"
+   }
+  },
+  {
+   "type": "Screenshot",
+   "args": {
+    "fileName": "wallxs_h16.png"
+   }
+  },
+  {
+   "type": "SetTime",
+   "args": {
+    "hour": "17"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "20"
+   }
+  },
+  {
+   "type": "Screenshot",
+   "args": {
+    "fileName": "wallxs_h17.png"
+   }
+  },
+  {
+   "type": "SetTime",
+   "args": {
+    "hour": "18"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "20"
+   }
+  },
+  {
+   "type": "Screenshot",
+   "args": {
+    "fileName": "wallxs_h18.png"
+   }
+  },
+  {
+   "type": "SetTime",
+   "args": {
+    "hour": "19"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "20"
+   }
+  },
+  {
+   "type": "Screenshot",
+   "args": {
+    "fileName": "wallxs_h19.png"
+   }
+  },
+  {
+   "type": "SetTime",
+   "args": {
+    "hour": "20"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "20"
+   }
+  },
+  {
+   "type": "Screenshot",
+   "args": {
+    "fileName": "wallxs_h20.png"
+   }
+  },
+  {
+   "type": "SetTime",
+   "args": {
+    "hour": "21"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "20"
+   }
+  },
+  {
+   "type": "Screenshot",
+   "args": {
+    "fileName": "wallxs_h21.png"
+   }
+  },
+  {
+   "type": "SetTime",
+   "args": {
+    "hour": "22"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "20"
+   }
+  },
+  {
+   "type": "Screenshot",
+   "args": {
+    "fileName": "wallxs_h22.png"
+   }
+  },
+  {
+   "type": "SetTime",
+   "args": {
+    "hour": "23"
+   }
+  },
+  {
+   "type": "Wait",
+   "args": {
+    "frames": "20"
+   }
+  },
+  {
+   "type": "Screenshot",
+   "args": {
+    "fileName": "wallxs_h23.png"
+   }
+  }
+ ]
+}

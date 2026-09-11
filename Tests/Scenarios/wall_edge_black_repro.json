@@ -1,0 +1,153 @@
+{
+  "name": "wall_edge_black_repro",
+  "saveFile": "minimal_colony.rws",
+  "hideUi": true,
+  "description": "Repro attempt for a user-reported live-game artifact: 'black radiating middle or edges of a wall block' on the walls of an enclosed, regularly-roofed room -- described as a regression from something fixed before. Six TorchLamps are clustered tight against one corner of a sealed 21x21 roofed room (RoofConstructed, not thick) so their coverage overlaps as heavily as possible right where two wall runs meet, stressing both the indoor-occlusion vertex passes and the vector-light mask's saturation-correction fold at the same cells. A lone seventh lamp sits in the opposite corner as an unstressed control. Every SetFeature is left at its shipped default -- no manual overrides -- because the bug report is about the mod as subscribers actually run it.",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "width": "27",
+        "height": "27",
+        "offset": "0,45",
+        "clear": "true",
+        "def": "Concrete"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "stuff": "BlocksGranite",
+        "offset": "0,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "-11,-11; 11,-11; -11,-10; 11,-10; -11,-9; 11,-9; -11,-8; 11,-8; -11,-7; 11,-7; -11,-6; 11,-6; -11,-5; 11,-5; -11,-4; 11,-4; -11,-3; 11,-3; -11,-2; 11,-2; -11,-1; 11,-1; -11,0; 11,0; -11,1; 11,1; -11,2; 11,2; -11,3; 11,3; -11,4; 11,4; -11,5; 11,5; -11,6; 11,6; -11,7; 11,7; -11,8; 11,8; -11,9; 11,9; -11,10; 11,10; -11,11; 11,11; -10,-11; -10,11; -9,-11; -9,11; -8,-11; -8,11; -7,-11; -7,11; -6,-11; -6,11; -5,-11; -5,11; -4,-11; -4,11; -3,-11; -3,11; -2,-11; -2,11; -1,-11; -1,11; 0,-11; 0,11; 1,-11; 1,11; 2,-11; 2,11; 3,-11; 3,11; 4,-11; 4,11; 5,-11; 5,11; 6,-11; 6,11; 7,-11; 7,11; 8,-11; 8,11; 9,-11; 9,11; 10,-11; 10,11",
+        "def": "Wall"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "offset": "0,45",
+        "layout": "cells",
+        "cells": "-10,-10; -8,-10; -10,-8; -8,-8; -6,-10; -10,-6",
+        "def": "TorchLamp"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "offset": "0,45",
+        "layout": "cells",
+        "cells": "9,9",
+        "def": "TorchLamp"
+      }
+    },
+    {
+      "type": "SetRoof",
+      "args": {
+        "width": "23",
+        "height": "23",
+        "offset": "0,45",
+        "def": "RoofConstructed"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_available",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "-9,36",
+        "zoom": "12"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "wall_edge_black_warmup_discard.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "wall_edge_black_corner_night.png"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "0,45",
+        "zoom": "24"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "wall_edge_black_overview_night.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "-9,36",
+        "zoom": "12"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "wall_edge_black_corner_noon.png"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "0,45",
+        "zoom": "24"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "wall_edge_black_overview_noon.png"
+      }
+    }
+  ]
+}
