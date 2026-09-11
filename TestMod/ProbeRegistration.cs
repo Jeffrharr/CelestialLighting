@@ -1595,6 +1595,41 @@ public static class ProbeRegistration
         ArmBank("circ_vlmasksat", "CelestialLighting.VectorLightMask", "CorrectSaturation");
         ArmBank("circ_vlmaskfold", "CelestialLighting.VectorLightMask", "AccumulateFold");
 
+        // Splitting circ_vloverlay's own children, for the steady-state-vs-door-rebuild attribution
+        // task: DrawLight is the per-emitter draw call (the loop body circ_vloverlay sums), StrengthFor
+        // is its falloff lookup, and Rebuild is the mesh path's own polygon-consuming stage (the sibling
+        // of VectorLightField.EnsurePolygons below, not a duplicate of circ_vlpolygon). The three upload
+        // stages exist because Rebuild's own cost is not "build a mesh" but "decide whether to and then
+        // maybe copy/upload one" — UploadVanillaField gates the crossfade against the vanilla glow grid,
+        // CopyField and UploadFieldUvs are the two writes a genuine rebuild performs. A door-swing frame
+        // should show these away from zero where a steady frame does not; that contrast is the point of
+        // arming them rather than trusting circ_vloverlay's total alone.
+        ArmBank("circ_vldrawlight", "CelestialLighting.VectorLightOverlay", "DrawLight");
+        ArmBank("circ_vlstrength", "CelestialLighting.VectorLightOverlay", "StrengthFor");
+        ArmBank("circ_vlrebuild", "CelestialLighting.VectorLightOverlay", "Rebuild");
+        ArmBank("circ_vluploadvanilla", "CelestialLighting.VectorLightOverlay", "UploadVanillaField");
+        ArmBank("circ_vlcopyfield", "CelestialLighting.VectorLightOverlay", "CopyField");
+        ArmBank("circ_vluploaduvs", "CelestialLighting.VectorLightOverlay", "UploadFieldUvs");
+
+        // circ_vlpawnshadows' own children, same reason: Draw's total is one number for a loop over
+        // every visible emitter, and DrawFor/Gather/Build/MeshFor/FeatheredMaterialFor/CastsShadow are
+        // the stages that loop actually spends its time in. CastsShadow is armed on its own because it
+        // is the eligibility gate walked once per candidate pawn per emitter — an O(lamps * pawns) scan
+        // that a duration-only view would never separate from the shadow geometry it gates.
+        ArmBank("circ_vlshadowdrawfor", "CelestialLighting.VectorLightPawnShadows", "DrawFor");
+        ArmBank("circ_vlshadowgather", "CelestialLighting.VectorLightPawnShadows", "Gather");
+        ArmBank("circ_vlshadowbuild", "CelestialLighting.VectorLightPawnShadows", "Build");
+        ArmBank("circ_vlcastsshadow", "CelestialLighting.VectorLightPawnShadows", "CastsShadow");
+        ArmBank("circ_vlshadowmesh", "CelestialLighting.VectorLightPawnShadows", "MeshFor");
+        ArmBank("circ_vlshadowmat", "CelestialLighting.VectorLightPawnShadows", "FeatheredMaterialFor");
+
+        // The batch entry point circ_vlbuilddirty's postfix actually calls, one per frame rather than
+        // one per emitter. Read this against circ_vlpolygon (VectorLightMath.Build, the per-polygon
+        // work EnsurePolygons dispatches to): on a steady frame EnsurePolygons should still be entered
+        // (it decides nothing is dirty) while VectorLightMath.Build should not be, and a door swing is
+        // exactly the frame that flips the second one on.
+        ArmBank("circ_vlensurepolygons", "CelestialLighting.VectorLightField", "EnsurePolygons");
+
         // Inertness guard for the removed across-map shadow tilt (issues #11, #26). These three
         // originally asked "does §3's gradient actually render?"; now they assert it does NOT, at
         // both ends of the shadow axis. Still three probes because a ratio alone cannot say whether
