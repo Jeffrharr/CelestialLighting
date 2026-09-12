@@ -1,7 +1,10 @@
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using RimWorld;
 using UnityEngine;
 using Verse;
+using Contribution = CelestialLighting.PawnShadowMath.ContributionData;
+using DrawnShadow = CelestialLighting.PawnShadowMath.DrawnShadow;
 
 namespace CelestialLighting;
 
@@ -75,28 +78,45 @@ public static class VectorLightPawnShadows
 
     // One lamp's contribution to the pawn currently being drawn, carried from the first pass to the
     // second so the second does not recompute a distance and a coverage lookup it already paid for.
-    private struct Contribution
-    {
-        public VectorLightField.LightEntry Entry;
-        public float Illuminance;
-        public float Distance;
-        public float LightX;
-        public float LightZ;
-        public float UnitX;
-        public float UnitZ;
+    // Now an alias for PawnShadowMath.ContributionData -- see that file's header for why the
+    // arithmetic that fills and reads this moved there.
+    //
+    // ONE PER THREAD, NOT ONE SHARED LIST. Build (and the Gather/ShareFor/OtherIlluminanceAt calls
+    // it makes) writes and reads this while the parallel build phase below may be running several
+    // pawns' Builds concurrently across the pool — a single shared list would interleave two
+    // threads' contributions into one pawn's shadow, which is not a crash, just a wrong shadow. The
+    // property lazily creates one list per worker, on the same reasoning as
+    // VectorLightField.Scratch: a few hundred bytes per thread the pool reuses, against a bug a
+    // CIELAB comparison would never catch.
+    [System.ThreadStatic]
+    private static List<Contribution> ThreadContributions;
 
-        // The shadow's bearing FROM THE LAMP, in radians, in the visibility polygon's own
-        // convention. Kept beside the unit vector rather than derived from it at the point of use
-        // because the two have opposite sign conventions — the transform wants Unity's clockwise
-        // degrees, the polygon wants atan2's anticlockwise radians — and deriving one from the other
-        // at each site is how a shadow ends up clipped against the wall behind the lamp.
-        public float Bearing;
+    private static List<Contribution> Contributions =>
+        ThreadContributions ??= new List<Contribution>();
+
+    // Everything Build needs about one pawn, resolved from live game state BEFORE any fan-out. The
+    // parallel build phase below only ever touches primitives and plain structs — never a Pawn, a
+    // Map, or anything else `Verse`/`UnityEngine` could mutate out from under a worker thread — and
+    // this struct is the boundary that makes that true. Mirrors the split
+    // VectorLightField.BakeSelected draws between its serial gather and its parallel bake.
+    private struct PawnShadowInput
+    {
+        public Vector3 DrawPos;
+        public int PositionX;
+        public int PositionZ;
+        public ShadowData Shadow;
+        public bool Roofed;
     }
 
-    // Reused rather than allocated per pawn: this runs for every on-screen pawn every frame, and a
-    // fresh list each time is the kind of per-frame garbage §27's profiling budget has no room for.
-    // Safe to share because DrawFor neither recurses nor outlives its own call.
-    private static readonly List<Contribution> Contributions = new List<Contribution>();
+    // One gathered pawn per slot, and one persistent, INDEX-OWNED results list per slot. The results
+    // list is what makes the parallel phase safe: each worker writes only PendingShadows[i], for the
+    // i it was handed, so two pawns building concurrently never touch the same list — and because
+    // the list is a slot rather than a per-call return value, it survives past the Parallel.For join
+    // for the serial draw pass to read. Reused frame to frame rather than reallocated, same as every
+    // other scratch collection in this file.
+    private static readonly List<PawnShadowInput> PendingInputs = new List<PawnShadowInput>();
+    private static readonly List<Vector3> PendingAnchors = new List<Vector3>();
+    private static readonly List<List<DrawnShadow>> PendingShadows = new List<List<DrawnShadow>>();
 
     public static void Draw(Map map)
     {
@@ -132,6 +152,41 @@ public static class VectorLightPawnShadows
         if (Lamps.Count == 0)
             return;
 
+        // SERIAL GATHER: every live-state read a pawn's shadow depends on, resolved here on the
+        // calling thread, before either the parallel or the serial build phase below can start. See
+        // VectorLightField.BakeSelected's header for why this split is what makes the phase after it
+        // safe rather than merely convenient.
+        GatherInputs(map, pawns, view);
+
+        if (PendingInputs.Count == 0)
+            return;
+
+        // PURE ARITHMETIC PHASE: parallel when the flag and the batch size justify it, serial
+        // otherwise, but ALWAYS in the same index order either way — nothing here may skip a pawn or
+        // reorder the roster, on the same reasoning ShouldFanOut's own header gives.
+        BuildAll(skyGlow);
+
+        DrawAll(altitude);
+    }
+
+    // Below this many gathered pawns the batch is built on the calling thread. Mirrors
+    // VectorLightField.ParallelBakeMinimum: a fan-out has to wake pool threads, hand out ranges and
+    // join, which is not free against one pawn's Build, and a threshold nobody can measure the
+    // effect of is a knob that only generates support questions. Not a setting for the same reason.
+    private const int ParallelBuildMinimum = 4;
+
+    private static bool ShouldFanOutBuild(int count) =>
+        CelestialLightingFeatures.VectorLightShadowParallelBuild
+        && count >= ParallelBuildMinimum
+        && System.Environment.ProcessorCount > 1;
+
+    // Reads live pawn/map state onto plain primitives, on the calling thread — the SERIAL half of
+    // the split. Nothing past this method may touch `pawn`, `map` or `view` again this frame.
+    private static void GatherInputs(Map map, IReadOnlyList<Pawn> pawns, CellRect view)
+    {
+        PendingInputs.Clear();
+        PendingAnchors.Clear();
+
         for (int i = 0; i < pawns.Count; i++)
         {
             Pawn pawn = pawns[i];
@@ -148,8 +203,61 @@ public static class VectorLightPawnShadows
             if (!CastsShadow(pawn))
                 continue;
 
-            DrawFor(map, pawn, skyGlow, altitude);
+            ShadowData shadow = ShadowDataOf(pawn);
+            Vector3 centre = pawn.DrawPos;
+
+            PendingInputs.Add(new PawnShadowInput
+            {
+                DrawPos = centre,
+                PositionX = pawn.Position.x,
+                PositionZ = pawn.Position.z,
+                Shadow = shadow,
+                Roofed = RoofedAt(map, pawn),
+            });
+
+            // Resolved here rather than inside Build, even though Build resolves its own copy too
+            // (see AnchorOf's own header for why that duplication is deliberate): the DRAW needs the
+            // anchor and Build does not hand one back, so this is the gather's own copy for the same
+            // reason DrawFor used to keep one before this split existed.
+            PendingAnchors.Add(AnchorOf(centre, shadow));
         }
+
+        while (PendingShadows.Count < PendingInputs.Count)
+            PendingShadows.Add(new List<DrawnShadow>());
+    }
+
+    // The PURE ARITHMETIC PHASE, run either across the pool or on the calling thread — see
+    // ShouldFanOutBuild. Every call writes only PendingShadows[i] for the i it was given, which is
+    // what makes the fan-out safe: two workers never share a results list, and Contributions is
+    // thread-local so two workers never share scratch either.
+    private static void BuildAll(float skyGlow)
+    {
+        int count = PendingInputs.Count;
+
+        if (LargestBuildBatch < count)
+            LargestBuildBatch = count;
+
+        System.Diagnostics.Stopwatch clock = System.Diagnostics.Stopwatch.StartNew();
+
+        // Projected onto the pure core's primitive LightEntryData ONCE here, serially, rather than
+        // once per pawn inside the fan-out below -- see RefreshLampsData's own header for why this
+        // is what actually makes the Build call safe to hand to Parallel.For.
+        RefreshLampsData();
+
+        if (ShouldFanOutBuild(count))
+        {
+            ParallelBuildPasses++;
+            Parallel.For(0, count, i => Build(PendingInputs[i], LampsData, skyGlow, PendingShadows[i]));
+        }
+        else
+        {
+            SerialBuildPasses++;
+
+            for (int i = 0; i < count; i++)
+                Build(PendingInputs[i], LampsData, skyGlow, PendingShadows[i]);
+        }
+
+        BuildWallMs += clock.Elapsed.TotalMilliseconds;
     }
 
     // The lamps the pawn-shadow pass may draw from this frame. Static and reused for the reason
@@ -182,64 +290,332 @@ public static class VectorLightPawnShadows
         }
     }
 
+    // Lamps' own primitive projection, rebuilt from it every Draw -- see PawnShadowMath.
+    // LightEntryData's header for exactly which fields survive the trip. Reused rather than
+    // reallocated like every other scratch list in this file.
+    private static readonly List<PawnShadowMath.LightEntryData> LampsData =
+        new List<PawnShadowMath.LightEntryData>();
+
+    // WHY THIS CONVERSION HAS TO HAPPEN HERE, ONCE, RATHER THAN INSIDE Build ON THE POOL. Coverage
+    // is a `byte[]` and Polygon a VectorLightMath.LightPolygon -- both copied by reference or by
+    // value with nothing left mutable behind them, so sharing one LampsData list across every
+    // worker's Build call this frame is exactly as safe as the pre-split code already was, which
+    // read `entry.Coverage` straight off the shared Lamps list inside the very same Parallel.For.
+    // Doing it once here rather than once per pawn is the only thing that changes: a colony's lamp
+    // count is far smaller than its pawn count, so re-deriving the same handful of LightEntryData
+    // values on every worker would be strictly wasted work, not a safety question.
+    private static void RefreshLampsData()
+    {
+        LampsData.Clear();
+
+        for (int i = 0; i < Lamps.Count; i++)
+        {
+            VectorLightField.LightEntry entry = Lamps[i];
+
+            LampsData.Add(new PawnShadowMath.LightEntryData
+            {
+                CellX = entry.Cell.x,
+                CellZ = entry.Cell.z,
+                Radius = entry.Radius,
+                CoverageRadius = entry.CoverageRadius,
+                Coverage = entry.Coverage,
+                Polygon = entry.Polygon,
+            });
+        }
+    }
+
     // Everything about one shadow a pawn casts from one lamp, resolved once.
     //
     // A struct carried between two consumers rather than a draw that computes as it goes, because
     // the PROBE has to see these numbers. The quantity issue #166 is about is a LENGTH, and a length
     // is no more visible to a screenshot than an alpha was: a shadow that stops at a wall and one
     // that crosses it differ only in pixels on the far side of the wall.
-    public struct DrawnShadow
-    {
-        // How wide the tip is as a fraction of the base: 1 for the blocky shape vanilla's own
-        // shadows use, and phase 4b's 0.32 when the shape flag is down.
-        public float Taper;
+    //
+    // Now an alias for PawnShadowMath.DrawnShadow (see this file's `using DrawnShadow = ...` line):
+    // the struct itself has no UnityEngine/Verse dependency, so it moved to the pure file alongside
+    // the arithmetic that fills it, for the offline test's sake.
 
-        public float Opacity;
-        public float Length;
-        public float Half;
-        public float TrailingEdge;
-        public float AngleDegrees;
-        public float UnitX;
-        public float UnitZ;
+    // ---- counters, read by VectorLightPawnShadowBuildProbe -----------------------------------
+    //
+    // Mirrors VectorLightField's own counter block: raw increments the build/draw passes make,
+    // never derived here, so a probe reading them is reading what actually ran rather than a
+    // recomputation that would agree with a formula the frame is not using.
+    public static int ParallelBuildPasses;
+    public static int SerialBuildPasses;
+    public static int LargestBuildBatch;
+    public static double BuildWallMs;
+    public static int DrawCalls;
+    public static int ShadowsDrawn;
+
+    public static void ResetCounters()
+    {
+        ParallelBuildPasses = 0;
+        SerialBuildPasses = 0;
+        LargestBuildBatch = 0;
+        BuildWallMs = 0.0;
+        DrawCalls = 0;
+        ShadowsDrawn = 0;
     }
 
-    private static readonly List<DrawnShadow> Shadows = new List<DrawnShadow>();
-
-    private static void DrawFor(Map map, Pawn pawn, float skyGlow, float altitude)
+    private static void DrawAll(float altitude)
     {
-        Vector3 centre = pawn.DrawPos;
+        if (CelestialLightingFeatures.VectorLightShadowBatch)
+            DrawAllBatched(altitude);
+        else
+            DrawAllUnbatched(altitude);
+    }
 
-        // Resolved here and handed to Build rather than looked up again inside it: ShadowDataOf
-        // walks def, race and render tree, and this frame already asked it once in CastsShadow.
-        ShadowData shadow = ShadowDataOf(pawn);
-
-        Vector3 anchor = AnchorOf(centre, shadow);
-
-        Build(pawn, shadow, Lamps, skyGlow, RoofedAt(map, pawn), Shadows);
-
-        for (int i = 0; i < Shadows.Count; i++)
+    // THE OFF ARM: one Graphics.DrawMesh call per shadow, through the cached small mesh and the
+    // per-opacity-bucket material — byte-identical to the pre-batching draw, because it is the same
+    // draw, only reached through PendingAnchors/PendingShadows instead of one pawn at a time.
+    private static void DrawAllUnbatched(float altitude)
+    {
+        for (int p = 0; p < PendingInputs.Count; p++)
         {
-            DrawnShadow drawn = Shadows[i];
-            Mesh mesh = MeshFor(drawn.Half, drawn.Length, drawn.Taper);
+            Vector3 anchor = PendingAnchors[p];
+            List<DrawnShadow> shadows = PendingShadows[p];
 
-            if (mesh == null)
-                continue;
+            for (int i = 0; i < shadows.Count; i++)
+            {
+                DrawnShadow drawn = shadows[i];
+                Mesh mesh = MeshFor(drawn.Half, drawn.Length, drawn.Taper);
 
-            // A material per opacity step rather than a property block. Graphics.DrawMesh is
-            // deferred, so writing one shared material's colour between calls gives every shadow in
-            // the frame whichever opacity was written last — the trap VectorLightOverlay's header
-            // records §17 paying for. Distinct materials sidestep it without a property block.
-            // Started at the silhouette's trailing edge rather than at its centre, so the length
-            // computed above is length BEYOND the caster — the same thing it means for a sun shadow,
-            // whose skirt is extruded from that edge too. Pushing the transform rather than baking
-            // the offset into the mesh keeps the cache keyed on two numbers instead of three.
-            Graphics.DrawMesh(
-                mesh,
-                new Vector3(
-                    anchor.x + drawn.UnitX * drawn.TrailingEdge, altitude,
-                    anchor.z + drawn.UnitZ * drawn.TrailingEdge),
-                Quaternion.Euler(0f, drawn.AngleDegrees, 0f), MaterialForShadow(drawn.Opacity), 0);
+                if (mesh == null)
+                    continue;
+
+                // A material per opacity step rather than a property block. Graphics.DrawMesh is
+                // deferred, so writing one shared material's colour between calls gives every
+                // shadow in the frame whichever opacity was written last — the trap
+                // VectorLightOverlay's header records §17 paying for. Distinct materials sidestep
+                // it without a property block. Started at the silhouette's trailing edge rather
+                // than at its centre, so the length computed above is length BEYOND the caster —
+                // the same thing it means for a sun shadow, whose skirt is extruded from that edge
+                // too. Pushing the transform rather than baking the offset into the mesh keeps the
+                // cache keyed on two numbers instead of three.
+                Graphics.DrawMesh(
+                    mesh,
+                    new Vector3(
+                        anchor.x + drawn.UnitX * drawn.TrailingEdge, altitude,
+                        anchor.z + drawn.UnitZ * drawn.TrailingEdge),
+                    Quaternion.Euler(0f, drawn.AngleDegrees, 0f), MaterialForShadow(drawn.Opacity),
+                    0);
+
+                DrawCalls++;
+                ShadowsDrawn++;
+            }
         }
+    }
+
+    // THE ON ARM: every shadow this frame folded into ONE combined mesh and ONE Graphics.DrawMesh
+    // call — see the class header addendum below MeshFor for why this needs no new shader, no
+    // texture array and no asset bundle. Feathered and flat shadows are never mixed in one frame,
+    // because CelestialLightingFeatures.VectorLightShadowFeather is a global flag rather than a
+    // per-pawn one, so one combined mesh and one material always covers the whole frame's shadows.
+    private static void DrawAllBatched(float altitude)
+    {
+        BatchVerts.Clear();
+        BatchColors.Clear();
+        BatchUvs.Clear();
+        BatchTris.Clear();
+
+        bool feathered = CelestialLightingFeatures.VectorLightShadowFeather;
+        int shadowCount = 0;
+
+        for (int p = 0; p < PendingInputs.Count; p++)
+        {
+            Vector3 anchor = PendingAnchors[p];
+            List<DrawnShadow> shadows = PendingShadows[p];
+
+            for (int i = 0; i < shadows.Count; i++)
+            {
+                DrawnShadow drawn = shadows[i];
+
+                Vector3 origin = new Vector3(
+                    anchor.x + drawn.UnitX * drawn.TrailingEdge, altitude,
+                    anchor.z + drawn.UnitZ * drawn.TrailingEdge);
+
+                AppendShadowQuad(origin, Quaternion.Euler(0f, drawn.AngleDegrees, 0f), drawn,
+                    feathered);
+
+                shadowCount++;
+            }
+        }
+
+        ShadowsDrawn += shadowCount;
+
+        if (shadowCount == 0)
+            return;
+
+        Mesh mesh = BatchMesh();
+        mesh.Clear();
+        mesh.SetVertices(BatchVerts);
+        mesh.SetColors(BatchColors);
+        mesh.SetUVs(0, BatchUvs);
+        mesh.SetTriangles(BatchTris, 0);
+
+        Material material = feathered ? FeatheredBatchMaterial() : FlatBatchMaterial();
+
+        Graphics.DrawMesh(mesh, Vector3.zero, Quaternion.identity, material, 0);
+
+        DrawCalls++;
+    }
+
+    // Reused across frames like every other scratch collection here: a combined mesh is rebuilt
+    // every frame regardless (the shadows move), so there is nothing to gain by pooling the buffers
+    // themselves beyond not re-allocating their backing arrays.
+    private static readonly List<Vector3> BatchVerts = new List<Vector3>();
+    private static readonly List<Color32> BatchColors = new List<Color32>();
+    private static readonly List<Vector2> BatchUvs = new List<Vector2>();
+    private static readonly List<int> BatchTris = new List<int>();
+
+    private static Mesh BatchMeshInstance;
+
+    private static Mesh BatchMesh()
+    {
+        if (BatchMeshInstance == null)
+        {
+            BatchMeshInstance = new Mesh { name = "CelestialLighting_PawnShadowBatch" };
+
+            // UInt32 rather than the default 16-bit index buffer: four verts per shadow means the
+            // default format runs out at ~16,383 shadows in one frame, which stress_pawn_colony.json
+            // exists specifically to approach. Paying for wider indices unconditionally is cheaper
+            // than reasoning about when a sixteen-bit mesh silently drops triangles.
+            BatchMeshInstance.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
+        }
+
+        return BatchMeshInstance;
+    }
+
+    // Appends one shadow's quad to the frame's batch buffers, in WORLD SPACE — the batched draw call
+    // carries no per-instance transform, so each shadow's local silhouette (the same four corners
+    // MeshFor lays out, unrotated) is rotated and translated here instead of at draw time. The
+    // rotation is the SAME Quaternion.Euler(0f, angleDegrees, 0f) the unbatched draw hands to
+    // Graphics.DrawMesh, applied to the vertex directly rather than left for the GPU to apply via a
+    // transform — real Unity math rather than a hand-rolled trig formula this repo's offline test
+    // project (no UnityEngine reference) could not have verified against Unity's own convention
+    // anyway.
+    private static void AppendShadowQuad(
+        Vector3 origin, Quaternion rotation, DrawnShadow drawn, bool feathered)
+    {
+        float tipHalf = drawn.Half * drawn.Taper;
+
+        int baseIndex = BatchVerts.Count;
+
+        BatchVerts.Add(origin + rotation * new Vector3(0f, 0f, -drawn.Half));
+        BatchVerts.Add(origin + rotation * new Vector3(0f, 0f, drawn.Half));
+        BatchVerts.Add(origin + rotation * new Vector3(drawn.Length, 0f, tipHalf));
+        BatchVerts.Add(origin + rotation * new Vector3(drawn.Length, 0f, -tipHalf));
+
+        // Opacity rides in vertex alpha instead of a per-material colour, quantised to the SAME 16
+        // steps MaterialFor/FeatheredMaterialFor use — so a batched frame lands on the same visible
+        // opacity as the unbatched one, off by at most one 255th from the float-step-over-16 versus
+        // byte-round-trip-through-255 rounding. That delta is what the batch equivalence measurement
+        // has to characterise, not assume away.
+        int step = Mathf.Clamp(Mathf.RoundToInt(drawn.Opacity * OpacitySteps), 1, OpacitySteps);
+        byte alpha = (byte)Mathf.RoundToInt((float)step / OpacitySteps * 255f);
+        Color32 color = new Color32(255, 255, 255, alpha);
+
+        BatchColors.Add(color);
+        BatchColors.Add(color);
+        BatchColors.Add(color);
+        BatchColors.Add(color);
+
+        if (feathered)
+        {
+            // Same UV layout MeshFor bakes for the unbatched feathered mesh: U is the fraction along
+            // the shadow, which is what the shared ramp texture is a function of.
+            BatchUvs.Add(new Vector2(0f, 0f));
+            BatchUvs.Add(new Vector2(0f, 1f));
+            BatchUvs.Add(new Vector2(1f, 1f));
+            BatchUvs.Add(new Vector2(1f, 0f));
+        }
+        else
+        {
+            // The flat batch's texture is one opaque white texel, so every UV samples the same
+            // colour — but it still needs one, because Map/Transparent (unlike Map/SolidColor, the
+            // unbatched flat path's shader) samples _MainTex.
+            BatchUvs.Add(Vector2.zero);
+            BatchUvs.Add(Vector2.zero);
+            BatchUvs.Add(Vector2.zero);
+            BatchUvs.Add(Vector2.zero);
+        }
+
+        BatchTris.Add(baseIndex + 0);
+        BatchTris.Add(baseIndex + 1);
+        BatchTris.Add(baseIndex + 2);
+        BatchTris.Add(baseIndex + 0);
+        BatchTris.Add(baseIndex + 2);
+        BatchTris.Add(baseIndex + 3);
+    }
+
+    private static Texture2D FlatBatchTextureCache;
+    private static Material FlatBatchMaterialCache;
+
+    // One opaque-white texel and one material for every flat shadow in the frame, together. The flat
+    // path's unbatched shader (Map/SolidColor) ignores vertex colour outright — see MeshFor's own
+    // header on that — so batching the flat path means switching IT to Map/Transparent too, the same
+    // shader the feathered path already uses, with a texture that contributes nothing but a sample
+    // Map/Transparent needs to have. The render queue is copied from the flat material for the exact
+    // reason FeatheredMaterialFor's own copy is: a shader swap at a different queue composites
+    // against the lighting overlay at a different moment, which reads as a wrong formula rather than
+    // an ordering bug.
+    private static Material FlatBatchMaterial()
+    {
+        if (FlatBatchMaterialCache != null)
+            return FlatBatchMaterialCache;
+
+        if (FlatBatchTextureCache == null)
+        {
+            FlatBatchTextureCache = new Texture2D(1, 1, TextureFormat.ARGB32, false)
+            {
+                name = "CelestialLighting_PawnShadowFlatBatchTex",
+                wrapMode = TextureWrapMode.Clamp,
+            };
+            FlatBatchTextureCache.SetPixel(0, 0, Color.white);
+            FlatBatchTextureCache.Apply();
+        }
+
+        FlatBatchMaterialCache = MaterialPool.MatFrom(new MaterialRequest
+        {
+            shader = ShaderDatabase.Transparent,
+            mainTex = FlatBatchTextureCache,
+            color = Color.white,
+            renderQueue = MaterialFor(1f).renderQueue,
+            needsMainTex = true,
+        });
+
+        return FlatBatchMaterialCache;
+    }
+
+    private static Material FeatheredBatchMaterialCache;
+    private static Texture2D FeatheredBatchMaterialRamp;
+
+    // The feathered path's own batch material: the SAME ramp texture FeatheredMaterialFor already
+    // shares across every unbatched feathered shadow, with the per-shadow opacity moved out of the
+    // material colour (white here) and into vertex alpha instead. This is why the feathered path
+    // was already most of the way to batchable before this change — one texture per frame, not one
+    // per shadow, was the design from the start.
+    private static Material FeatheredBatchMaterial()
+    {
+        // ASKED FIRST, same reasoning as FeatheredMaterialFor's own call: the ramp can be rebuilt
+        // out from under a stale cache, and RampTexture() is what tells this apart from that.
+        Texture2D ramp = RampTexture();
+
+        if (FeatheredBatchMaterialCache != null && FeatheredBatchMaterialRamp == ramp)
+            return FeatheredBatchMaterialCache;
+
+        FeatheredBatchMaterialCache = MaterialPool.MatFrom(new MaterialRequest
+        {
+            shader = ShaderDatabase.Transparent,
+            mainTex = ramp,
+            color = Color.white,
+            colorTwo = Color.white,
+            renderQueue = MaterialFor(1f).renderQueue,
+            needsMainTex = true,
+        });
+        FeatheredBatchMaterialRamp = ramp;
+
+        return FeatheredBatchMaterialCache;
     }
 
     // Every shadow this pawn casts, geometry and opacity both. The one place either is decided.
@@ -247,117 +623,52 @@ public static class VectorLightPawnShadows
     // The draw and the probe call this same builder rather than each deriving its own answer, which
     // is the repo's probe convention and has earned its keep twice in this file already: phase 4b's
     // share and #166's clip are both quantities a screenshot reports only indirectly.
+    //
+    // A THIN ADAPTER over PawnShadowMath, and deliberately calling Gather and BuildFrom as TWO
+    // separate calls rather than the pure core's own one-shot Build combinator — see
+    // PawnShadowMath.Build's header for why collapsing them here would silently stop
+    // circ_vlshadowgather and circ_vlshadowbuild from measuring two independent call sites.
     private static void Build(
-        Pawn pawn, ShadowData shadow, List<VectorLightField.LightEntry> lights,
-        float skyGlow, bool roofed, List<DrawnShadow> into)
+        PawnShadowInput input, List<PawnShadowMath.LightEntryData> lights,
+        float skyGlow, List<DrawnShadow> into)
     {
-        into.Clear();
+        PawnShadowMath.PawnShadowInputData data = ToInputData(input);
 
-        Vector3 centre = pawn.DrawPos;
+        float totalForShare = Gather(input, lights);
 
-        // Needed HERE as well as at the draw, and for the first time: the ground a shadow falls on
-        // is measured from the footprint's anchor, not from the pawn's middle, so the denominator
-        // below would be sampled 0.3 cells off a colonist's true shadow if it used `centre`.
+        PawnShadowMath.BuildFrom(
+            data,
+            skyGlow,
+            CelestialLightingFeatures.VectorLightShadowShape,
+            CelestialLightingFeatures.VectorLightShadowShares,
+            CelestialLightingFeatures.VectorLightShadowGroundShares,
+            CelestialLightingFeatures.VectorLightShadowClip,
+            totalForShare,
+            Contributions,
+            into);
+    }
+
+    // The primitive projection Build and Gather both hand to PawnShadowMath — see
+    // PawnShadowMath.PawnShadowInputData's own header for why anchor and centre travel separately.
+    private static PawnShadowMath.PawnShadowInputData ToInputData(PawnShadowInput input)
+    {
+        ShadowData shadow = input.Shadow;
+        Vector3 centre = input.DrawPos;
         Vector3 anchor = AnchorOf(centre, shadow);
 
-        float halfX = HalfExtent(shadow?.BaseX, shadow);
-        float halfZ = HalfExtent(shadow?.BaseZ, shadow);
-
-        // How TALL the caster is, taken from the same struct the two half-extents above come from.
-        // `ShadowData.BaseY` is vanilla's own tallness for this def — the number its own shader
-        // multiplies the sun-shadow extrusion by — and §27 was inventing 1.2 while reading BaseX and
-        // BaseZ out of the very same object. A human declares 0.8, so this alone takes a third off a
-        // colonist's lamp shadow, and an animal that declares a squatter shadow now gets a squatter
-        // one instead of a human's.
-        // With the shape flag down, the heights phase 4b shipped — an invented 1.2-cell caster and
-        // a 2.4-cell lamp, whose ratio is exactly 1. Not a separate code path, just the other pair
-        // of numbers through the same similar-triangles function, so the off arm reproduces the old
-        // frame rather than approximating it.
-        bool shaped = CelestialLightingFeatures.VectorLightShadowShape;
-
-        float casterHeight = !shaped ? VectorLightMath.LegacyPawnHeight : CasterHeightOf(shadow);
-
-        float lampHeight = shaped
-            ? VectorLightMath.DefaultLampHeight : VectorLightMath.LegacyLampHeight;
-
-        // The first pass: which lamps light this pawn, and how much in total — see Gather.
-        float totalForShare = Gather(pawn, lights);
-
-        for (int i = 0; i < Contributions.Count; i++)
+        return new PawnShadowMath.PawnShadowInputData
         {
-            Contribution light = Contributions[i];
-
-            // THE BRIGHTEST this shadow could possibly come out, asked before any geometry is built.
-            // The ground question further down can only ever ADD to the denominator, so a lamp
-            // already under the visibility threshold with nothing else lighting its shadow is under
-            // it for good, and everything below is wasted on it. It has to be the best case rather
-            // than the real one now: the real one is not knowable until the shadow has a length, and
-            // the length is the expensive part this gate exists to skip.
-            float brightest = VectorLightMath.PawnShadowOpacity(
-                light.Illuminance, light.Illuminance, skyGlow, roofed);
-
-            if (brightest * 255f < 1f)
-                continue;
-
-            float length = VectorLightMath.PawnShadowLength(
-                light.Distance, casterHeight, lampHeight,
-                shaped ? VectorLightMath.MaxPawnShadowLength : VectorLightMath.LegacyMaxShadowLength);
-
-            // The caster's silhouette as this lamp sees it: how wide across, and how far out its
-            // trailing edge is. Vanilla's shadow is the footprint rectangle PLUS a skirt extruded
-            // from the edge facing away from the light, so both numbers come from the same rectangle
-            // and both are direction-dependent — a human presents 0.15 half-cells to a lamp due east
-            // and 0.20 to one due south.
-            float half = Mathf.Max(
-                VectorLightMath.FootprintExtent(halfX, halfZ, -light.UnitZ, light.UnitX),
-                VectorLightMath.MinPawnShadowHalfWidth);
-
-            float trailingEdge = VectorLightMath.FootprintExtent(
-                halfX, halfZ, light.UnitX, light.UnitZ);
-
-            // Stopped at the first thing that blocks the lamp (issue #166). The shadow runs directly
-            // away from the lamp, so it lies along a radial of that lamp's visibility polygon and one
-            // boundary query answers it — see VectorLightMath.ClipShadowLength. Asked in the
-            // polygon's own angle convention, atan2(dz, dx) from the light, which is what the ray
-            // builder fills the array with and what IsLit queries it with.
-            if (CelestialLightingFeatures.VectorLightShadowClip)
-                length = VectorLightMath.ClipShadowLength(
-                    length, BoundaryFor(light), light.Distance, trailingEdge);
-
-            // A shadow with no room left to fall into is not drawn at all: the pawn is standing flat
-            // against the thing the lamp's light dies on.
-            if (length <= 0f)
-                continue;
-
-            // NOW the denominator, because it needs the shadow's own geometry: what the OTHER lamps
-            // put on the cells this quad covers, sampled at its midpoint. Asked AFTER the clip and
-            // not before it, so a shadow stopped by a wall asks about the ground it actually reaches
-            // rather than the ground it would have reached — the same wall issue #166 was about, now
-            // deciding the alpha as well as the length.
-            float opacity = VectorLightMath.PawnShadowOpacityOf(
-                ShareFor(i, light, totalForShare, anchor, trailingEdge, length),
-                skyGlow, roofed);
-
-            // Below a level of 255 the shadow is a rounding artefact rather than a shadow, and
-            // drawing it costs the same as drawing a visible one. It rejects considerably more than
-            // it used to: dilution is exactly what pushes the fifth and sixth lamp's arms under the
-            // threshold, so the busiest scenes are the ones that get cheaper.
-            if (opacity * 255f < 1f)
-                continue;
-
-            into.Add(new DrawnShadow
-            {
-                Taper = shaped ? 1f : VectorLightMath.LegacyTipTaper,
-                Opacity = opacity,
-                Length = length,
-                Half = half,
-                TrailingEdge = trailingEdge,
-                UnitX = light.UnitX,
-                UnitZ = light.UnitZ,
-                AngleDegrees = VectorLightMath.PawnShadowAngleDegrees(
-                    light.LightX, light.LightZ, centre.x, centre.z),
-            });
-        }
+            CentreX = centre.x,
+            CentreZ = centre.z,
+            AnchorX = anchor.x,
+            AnchorZ = anchor.z,
+            PositionX = input.PositionX,
+            PositionZ = input.PositionZ,
+            HalfX = HalfExtent(shadow?.BaseX, shadow),
+            HalfZ = HalfExtent(shadow?.BaseZ, shadow),
+            CasterHeightShaped = CasterHeightOf(shadow),
+            Roofed = input.Roofed,
+        };
     }
 
     // Which lamps light this pawn and how much each contributes, left in Contributions, with the
@@ -367,90 +678,13 @@ public static class VectorLightPawnShadows
     // matters more than usual here: the quantity under test is an alpha, which no screenshot can
     // report directly, and a probe that recomputed the share from its own copy of the arithmetic
     // could agree with the intended physics while the renderer drew something else.
-    private static float Gather(Pawn pawn, List<VectorLightField.LightEntry> lights)
-    {
-        Vector3 centre = pawn.DrawPos;
-
-        // FIRST PASS: which lamps light this pawn, and how much light is on its cell in total.
-        //
-        // The total has to be in hand before ANY shadow is drawn, because each lamp's shadow is that
-        // lamp's SHARE of it — see VectorLightMath.PawnShadowShare for why that is what a shadow is.
-        // The requirement is the whole reason this is two passes rather than one: a single pass
-        // cannot know how much light the lamps it has not reached yet are putting back into the
-        // ground it is busy darkening, so it can only assume none, which is what left a pawn under
-        // eight lamps standing in an opaque asterisk.
-        Contributions.Clear();
-
-        float totalIlluminance = 0f;
-
-        for (int lamp = 0; lamp < lights.Count; lamp++)
-        {
-            VectorLightField.LightEntry entry = lights[lamp];
-            float lightX = entry.Cell.x + 0.5f;
-            float lightZ = entry.Cell.z + 0.5f;
-            float dx = centre.x - lightX;
-            float dz = centre.z - lightZ;
-
-            // SQUARED AGAINST SQUARED, so a lamp on the far side of the colony costs one multiply
-            // rather than a square root. This loop is over EVERY emitter on the map and it runs once
-            // per pawn in view per frame, so the reject is the hot line here, not the accept —
-            // VectorLightField.MarkGeometryDirtyAround already spells the same test the same way for
-            // the same reason. The root survives for the lamps that pass, which need the real
-            // distance for the falloff and the bearing.
-            float distanceSquared = dx * dx + dz * dz;
-
-            if (distanceSquared > entry.Radius * entry.Radius)
-                continue;
-
-            float distance = Mathf.Sqrt(distanceSquared);
-
-            // The occlusion question, answered by phase 3's baked grid in one lookup. Asked before
-            // any geometry is built, because a pawn the lamp cannot see is the common case in a
-            // built-up colony and everything below it is wasted on one.
-            float coverage = VectorLightMath.CoverageAt(
-                entry.Coverage, entry.Cell.x, entry.Cell.z, entry.CoverageRadius,
-                pawn.Position.x, pawn.Position.z) / 255f;
-
-            float illuminance = VectorLightMath.PawnIlluminance(distance, entry.Radius, coverage);
-
-            // A lamp delivering nothing here casts nothing here, and it must not reach the total
-            // either — a lamp the pawn cannot see diluting the shadows of the lamps it can would be
-            // the mirror of the bug being fixed.
-            if (illuminance <= 0f)
-                continue;
-
-            totalIlluminance += illuminance;
-
-            Contributions.Add(new Contribution
-            {
-                Entry = entry,
-                Bearing = (float)System.Math.Atan2(dz, dx),
-                Illuminance = illuminance,
-                Distance = distance,
-                LightX = lightX,
-                LightZ = lightZ,
-
-                // The shadow's bearing as a unit vector, resolved once so the two footprint
-                // questions below and the push-out that follows all agree about which way "away from
-                // the lamp" points. A pawn standing on the lamp's own cell has no bearing at all,
-                // and +X is what PawnShadowAngleDegrees resolves that to — agreeing with it matters
-                // more than the choice does.
-                UnitX = distance > 0f ? dx / distance : 1f,
-                UnitZ = distance > 0f ? dz / distance : 0f,
-            });
-        }
-
-        // With the share model switched off the denominator stays at one — which is not a second
-        // code path but literally the arithmetic that shipped: PawnShadowShare floors its divisor at
-        // FullIlluminance and an illuminance never exceeds it, so the share collapses back to
-        // falloff × coverage exactly. That is what makes the off arm a true pre-feature baseline
-        // rather than a picture of the shadows being absent.
-        float totalForShare = CelestialLightingFeatures.VectorLightShadowShares
-            ? totalIlluminance
-            : VectorLightMath.FullIlluminance;
-
-        return totalForShare;
-    }
+    //
+    // A thin adapter over PawnShadowMath.Gather — see that function's own header for the two-pass
+    // reason this returns a denominator rather than drawing anything itself.
+    private static float Gather(PawnShadowInput input, List<PawnShadowMath.LightEntryData> lights) =>
+        PawnShadowMath.Gather(
+            ToInputData(input), lights, CelestialLightingFeatures.VectorLightShadowShares,
+            Contributions);
 
     // Where the caster's footprint actually sits, which is NOT where the pawn is drawn. Vanilla
     // offsets it by ShadowData.offset — (0, 0, -0.3) for a human, i.e. at the feet — and both
@@ -466,109 +700,6 @@ public static class VectorLightPawnShadows
     // place.
     private static Vector3 AnchorOf(Vector3 centre, ShadowData shadow) =>
         shadow == null ? centre : centre + shadow.offset;
-
-    // This lamp's share of the light being blocked, by whichever of the three arms is live.
-    //
-    // The arms are ordered by what they can answer, not by preference. With shares off there is no
-    // denominator to place and `totalAtPawn` is already pinned to FullIlluminance by Gather, so the
-    // first branch is phase 4's arithmetic untouched; with shares on and the ground flag down it is
-    // phase 4b's, sampled at the caster. Both are one divide and go through PawnShadowShare.
-    //
-    // Only the third arm asks about the ground, and it returns a PRODUCT rather than a divide — which
-    // is why this hands back a share instead of a denominator, as it did when both forms were a
-    // single fraction. It is skipped when this pawn has ONE lamp, which is not an optimisation but an
-    // identity: with nothing else lighting the shadow the ground fraction is exactly one and the
-    // result is the beam strength, which is what the other branches would already have produced.
-    private static float ShareFor(
-        int index, Contribution light, float totalAtPawn, Vector3 anchor, float trailingEdge,
-        float length)
-    {
-        bool grounded = CelestialLightingFeatures.VectorLightShadowShares
-            && CelestialLightingFeatures.VectorLightShadowGroundShares
-            && Contributions.Count > 1;
-
-        if (!grounded)
-            return VectorLightMath.PawnShadowShare(light.Illuminance, totalAtPawn);
-
-        float sample = VectorLightMath.ShadowSampleDistance(trailingEdge, length);
-
-        float other = OtherIlluminanceAt(
-            index, anchor.x + light.UnitX * sample, anchor.z + light.UnitZ * sample);
-
-        return VectorLightMath.PawnShadowGroundShare(light.Illuminance, other);
-    }
-
-    // What every lamp OTHER than this one is putting on one point of ground.
-    //
-    // Asks the same two things the first pass asks about the pawn's cell — falloff from the lamp,
-    // times the share of that cell the lamp can see — through the same PawnIlluminance, which is the
-    // whole reason that function was split out of the opacity. Two passes asking a subtly different
-    // question is exactly how a denominator stops matching its numerator.
-    //
-    // O(N²) IN THE LAMPS REACHING ONE PAWN, and affordable for the same reason the feature is: N is
-    // the lamps whose radius covers this pawn, which is one or two in a normal colony — where the
-    // caller skips this entirely — and eight in the pathological ring the share model was written
-    // against, for 56 array lookups. It is bounded by the light field, not by the map.
-    //
-    // WHAT IT KNOWINGLY MISSES, because the cheap fix is the wrong trade. It sums over Contributions,
-    // i.e. the lamps that light the PAWN, so a lamp that lights the ground the shadow falls on while
-    // failing to reach the pawn itself contributes nothing and the shadow stays a little too dark.
-    // The case is real but narrow: the shadow is already clipped inside the casting lamp's own
-    // visibility polygon, so the missing lamp has to be one whose pool overlaps that polygon near its
-    // rim without covering the caster. Catching it means a spatial query over every emitter on the
-    // map, per shadow, per frame — which is the map-wide scan the light field exists to avoid, paid
-    // in the hot path to correct a second-order term. Recorded rather than attempted, the way
-    // PawnShadowStrength records the soft edge it cannot draw.
-    private static float OtherIlluminanceAt(int excluded, float x, float z)
-    {
-        int cellX = Mathf.FloorToInt(x);
-        int cellZ = Mathf.FloorToInt(z);
-        float total = 0f;
-
-        for (int i = 0; i < Contributions.Count; i++)
-        {
-            if (i != excluded)
-            {
-                Contribution other = Contributions[i];
-                float dx = x - other.LightX;
-                float dz = z - other.LightZ;
-                float distance = Mathf.Sqrt(dx * dx + dz * dz);
-
-                // CoverageAt answers 255 for a cell outside the emitter's square, which is the right
-                // answer here for the reason its own header gives — and harmless either way, because
-                // Falloff has already returned 0 for anything past the radius.
-                float coverage = VectorLightMath.CoverageAt(
-                    other.Entry.Coverage, other.Entry.Cell.x, other.Entry.Cell.z,
-                    other.Entry.CoverageRadius, cellX, cellZ) / 255f;
-
-                total += VectorLightMath.PawnIlluminance(distance, other.Entry.Radius, coverage);
-            }
-        }
-
-        return total;
-    }
-
-    // How far this lamp's light reaches along the shadow's own bearing, in cells from the lamp.
-    //
-    // AN UNBUILT POLYGON MEANS "NO WALL KNOWN", NOT "A WALL AT ZERO", and the difference is the
-    // whole feature working versus every shadow in the colony vanishing. `BoundaryDistanceAt`
-    // answers 0 for an empty polygon, which through ClipShadowLength is a boundary closer than the
-    // pawn and therefore no shadow at all — so a light whose polygon has not been rebaked yet (a
-    // frame after a wall changed, or any path that reaches the draw before the mask has run) would
-    // silently delete its shadows rather than draw them unclipped. Falling back to the light's own
-    // radius degrades to phase 4b's behaviour for that one frame, which is the safe direction.
-    //
-    // Capped at the radius in the normal case too: the ray distances are stored unclamped, and a
-    // boundary beyond the lamp's reach would let a shadow run out past the light that casts it.
-    private static float BoundaryFor(Contribution light)
-    {
-        if (light.Entry.Polygon.Count == 0)
-            return light.Entry.Radius;
-
-        return Mathf.Min(
-            VectorLightMath.BoundaryDistanceAt(light.Entry.Polygon, light.Bearing),
-            light.Entry.Radius);
-    }
 
     // Every shadow this pawn is about to have drawn, for the probe alone.
     //
@@ -592,8 +723,18 @@ public static class VectorLightPawnShadows
         // the cull is only sound for pawns inside the view rect. It changes nothing for a pawn in
         // view, because the culled list is a superset of every lamp Gather accepts.
         CollectLamps(lights, default, cull: false);
+        RefreshLampsData();
 
-        Build(pawn, ShadowDataOf(pawn), Lamps, map.skyManager.CurSkyGlow, RoofedAt(map, pawn), into);
+        PawnShadowInput input = new PawnShadowInput
+        {
+            DrawPos = pawn.DrawPos,
+            PositionX = pawn.Position.x,
+            PositionZ = pawn.Position.z,
+            Shadow = ShadowDataOf(pawn),
+            Roofed = RoofedAt(map, pawn),
+        };
+
+        Build(input, LampsData, map.skyManager.CurSkyGlow, into);
     }
 
     // Which of the two draw paths this shadow takes. The flag is read here rather than at the call

@@ -469,7 +469,7 @@ public sealed class VectorLightProbe : IProbe
 
         for (int i = 0; i < DrawnShadows.Count; i++)
         {
-            VectorLightPawnShadows.DrawnShadow drawn = DrawnShadows[i];
+            PawnShadowMath.DrawnShadow drawn = DrawnShadows[i];
 
             if (drawn.Opacity > peak)
                 peak = drawn.Opacity;
@@ -491,8 +491,8 @@ public sealed class VectorLightProbe : IProbe
 
     // Reused rather than allocated per read, matching the draw path's own list: a probe runs on the
     // main thread beside the renderer and there is no reason for it to be the one making garbage.
-    private static readonly List<VectorLightPawnShadows.DrawnShadow> DrawnShadows =
-        new List<VectorLightPawnShadows.DrawnShadow>();
+    private static readonly List<PawnShadowMath.DrawnShadow> DrawnShadows =
+        new List<PawnShadowMath.DrawnShadow>();
 
     // The footprint of ONE colonist, chosen by lowest thing ID so a scenario with two of them pins a
     // stable one across runs rather than whichever the spawn order happened to yield.

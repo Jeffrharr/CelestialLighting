@@ -2062,6 +2062,53 @@ public static class CelestialLightingFeatures
     // as a pair for the usual reason, and by vector_light_upload_field_ms which is the half of the
     // upload clock this moves. Off refills on every refresh, which is what the previous shape did.
     public static bool VectorLightGlowTextureHold = true;
+
+    // Feature key for VectorLightShadowBatch.
+    public const string VectorLightShadowBatchKey = "vector_light_shadow_batch";
+
+    // Combine every pawn shadow the frame draws into ONE mesh and ONE Graphics.DrawMesh call,
+    // mirroring what CelestialLightingFeatures.VectorLightDrawBatch did for the light overlay
+    // (PR #249) — but through a different mechanism, because the thing that blocked a batched
+    // overlay draw does not apply here.
+    //
+    // THE OVERLAY NEEDED A SHADER AND A TEXTURE ARRAY BECAUSE ITS PER-EMITTER STATE WAS FOUR
+    // VALUES ON A MaterialPropertyBlock — colour, strength, a subtraction weight and vanilla's own
+    // square as a texture — none of which two draws sharing one call can disagree about. A pawn
+    // shadow's only per-shadow render state is a single opacity scalar, already a material colour
+    // for exactly the reason the overlay's colour is: Graphics.DrawMesh is deferred, so a shared
+    // material written between calls applies to whichever call resolves last (this file's own
+    // header). A scalar fits in a vertex channel with no shader at all: `Map/Transparent` already
+    // multiplies texel by vertex colour (see the mesh cache's WHITE, WHICH REVERSES note), so this
+    // rides the opacity in vertex ALPHA instead of in the material, leaving one shared material —
+    // white, opaque, at the same texture and render queue the per-shadow path already used — for
+    // every shadow the frame draws. Quantised to the same sixteen steps `MaterialFor` already
+    // rounds to, so a batched frame picks from the same sixteen alphas the unbatched one does and
+    // the two can only differ by the sub-LSB gap between a float multiply and a Color32 byte.
+    //
+    // OFF DRAWS ONE Graphics.DrawMesh PER SHADOW, which is the shipped body untouched, so a scene
+    // with the same number of shadows scores an equal draw-call count in both arms — the batch's
+    // only lever is calls per shadow, not shadows per frame.
+    public static bool VectorLightShadowBatch;
+
+    // Feature key for VectorLightShadowParallelBuild.
+    public const string VectorLightShadowParallelBuildKey = "vector_light_shadow_parallel_build";
+
+    // Fan the per-pawn Build arithmetic — which lamps light a pawn, how long and how dark each
+    // shadow is — across threads, mirroring VectorLightField.BakeSelected's split between live
+    // state and arithmetic.
+    //
+    // THE SAME SPLIT, APPLIED TO A DIFFERENT LOOP. Gathering a pawn's DrawPos, cell and roofed
+    // state reads the map and happens here, serially, on the calling thread, before any pool
+    // thread exists. Build itself touches nothing but the PawnShadowInput it was handed and the
+    // shared, read-only lamp roster — so two pawns building at once cannot observe each other.
+    // Each pawn's result lives in a slot it owns for the length of the frame, not in a
+    // [ThreadStatic] buffer, because — unlike the coverage bake's scratch, which is consumed
+    // before BakeGathered returns — a pawn's shadow list has to survive until the serial draw
+    // pass after the join reads it.
+    //
+    // OFF BUILDS IN PAWN ORDER ON THE CALLING THREAD, which is the shipped loop untouched, so an
+    // off run is a baseline rather than a picture of the pass running with no pawns in view.
+    public static bool VectorLightShadowParallelBuild;
 }
 
 public enum SunClockMode

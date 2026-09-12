@@ -453,7 +453,23 @@
     {
       "type": "Probe",
       "args": {
-        "probeName": "circ_vlshadowdrawfor_patched",
+        "probeName": "circ_vlshadowgatherinputs_patched",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlshadowbuildall_patched",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlshadowdrawall_patched",
         "expectedValue": "1",
         "tolerance": "0.001"
       }
@@ -643,7 +659,7 @@
     {
       "type": "Probe",
       "args": {
-        "probeName": "circ_vlshadowdrawfor_calls",
+        "probeName": "circ_vlshadowgatherinputs_calls",
         "expectedValue": "0",
         "tolerance": "1000000000"
       }
@@ -651,7 +667,39 @@
     {
       "type": "Probe",
       "args": {
-        "probeName": "circ_vlshadowdrawfor_total_ms",
+        "probeName": "circ_vlshadowbuildall_calls",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlshadowdrawall_calls",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlshadowgatherinputs_total_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlshadowbuildall_total_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlshadowdrawall_total_ms",
         "expectedValue": "0",
         "tolerance": "1000000000"
       }
@@ -805,7 +853,7 @@
     {
       "type": "Probe",
       "args": {
-        "probeName": "circ_vlshadowdrawfor_calls",
+        "probeName": "circ_vlshadowgatherinputs_calls",
         "expectedValue": "0",
         "tolerance": "1000000000"
       }
@@ -813,7 +861,39 @@
     {
       "type": "Probe",
       "args": {
-        "probeName": "circ_vlshadowdrawfor_total_ms",
+        "probeName": "circ_vlshadowbuildall_calls",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlshadowdrawall_calls",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlshadowgatherinputs_total_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlshadowbuildall_total_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlshadowdrawall_total_ms",
         "expectedValue": "0",
         "tolerance": "1000000000"
       }
@@ -967,7 +1047,7 @@
     {
       "type": "Probe",
       "args": {
-        "probeName": "circ_vlshadowdrawfor_calls",
+        "probeName": "circ_vlshadowgatherinputs_calls",
         "expectedValue": "0",
         "tolerance": "1000000000"
       }
@@ -975,7 +1055,39 @@
     {
       "type": "Probe",
       "args": {
-        "probeName": "circ_vlshadowdrawfor_total_ms",
+        "probeName": "circ_vlshadowbuildall_calls",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlshadowdrawall_calls",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlshadowgatherinputs_total_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlshadowbuildall_total_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlshadowdrawall_total_ms",
         "expectedValue": "0",
         "tolerance": "1000000000"
       }
@@ -1129,7 +1241,7 @@
     {
       "type": "Probe",
       "args": {
-        "probeName": "circ_vlshadowdrawfor_calls",
+        "probeName": "circ_vlshadowgatherinputs_calls",
         "expectedValue": "0",
         "tolerance": "1000000000"
       }
@@ -1137,7 +1249,39 @@
     {
       "type": "Probe",
       "args": {
-        "probeName": "circ_vlshadowdrawfor_total_ms",
+        "probeName": "circ_vlshadowbuildall_calls",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlshadowdrawall_calls",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlshadowgatherinputs_total_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlshadowbuildall_total_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlshadowdrawall_total_ms",
         "expectedValue": "0",
         "tolerance": "1000000000"
       }

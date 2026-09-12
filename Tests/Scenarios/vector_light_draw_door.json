@@ -1,7 +1,7 @@
 {
   "name": "vector_light_draw_door",
   "saveFile": "minimal_colony.rws",
-  "description": "Per-method call-count and duration attribution for Patch_VectorLightDraw:Postfix's INCREMENTAL-REBUILD frame -- a door swinging with lamps in reach dirtying and rebaking -- as the counterpart to vector_light_draw_steady.json's paused, nothing-moves frame. Same plate and door mechanics as door_swing_order.json (single roofed room, one door, two flanking TorchLamps, SetTimeSpeed(normal) + Wait real ticks rather than TickLapse's AdvanceTicks jump, because a door's OpenPct is driven by Building_Door.Tick and TickLapse never calls it) but swung three times back to back rather than once, specifically so the measurement window clears Circinus's own ~300-frame on/off instrumentation duty cycle (memory: circinus-for-call-count-profiling.md) instead of gambling one swing's few dirty frames land inside an 'on' phase. Arms the same 25-probe bank as the steady scenario -- the pre-existing entry points (including the four VectorLightMask children, circ_vlmaskcollect/_vlmaskshadow/_vlmasksat/_vlmaskfold, that no prior scenario had read) plus the 13 new children (VectorLightOverlay.DrawLight/StrengthFor/Rebuild/UploadVanillaField/CopyField/UploadFieldUvs, VectorLightPawnShadows.DrawFor/Gather/Build/CastsShadow/MeshFor/FeatheredMaterialFor, VectorLightField.EnsurePolygons) -- so the two scenarios' reports can be diffed method-for-method. The three upload-stage arms (UploadVanillaField/CopyField/UploadFieldUvs) are the ones expected to move here and read near zero in the steady scenario -- that contrast is the point of arming them rather than trusting circ_vloverlay's total alone. No pawns on this plate, deliberately: an idling colonist wandering into the doorway during one of the three swings would make SetDoorOpen's close call fail the whole scenario rather than just read a zero, and door_swing_order.json's own proven layout has none either. Patch_VectorLightDraw:Postfix fires TWICE per rendered frame with the second call rejected immediately by an identity check -- halve circ_vldraw_calls before deriving a per-real-call cost. Final probes are RECORDED at a wide (1e9) tolerance, not pinned: this is the first time these 25 arms have been split by frame kind, so there is no prior baseline to pin against, and per 'never replace a measured pin with a computed one' the number to trust is this run's own report. Clouds off for the same reason as every non-cloud scenario here: the sheet drifts on the tick counter and would add unrelated moving cost to a window measuring this subsystem alone.",
+  "description": "Per-method call-count and duration attribution for Patch_VectorLightDraw:Postfix's INCREMENTAL-REBUILD frame -- a door swinging with lamps in reach dirtying and rebaking -- as the counterpart to vector_light_draw_steady.json's paused, nothing-moves frame. Same plate and door mechanics as door_swing_order.json (single roofed room, one door, two flanking TorchLamps, SetTimeSpeed(normal) + Wait real ticks rather than TickLapse's AdvanceTicks jump, because a door's OpenPct is driven by Building_Door.Tick and TickLapse never calls it) but swung three times back to back rather than once, specifically so the measurement window clears Circinus's own ~300-frame on/off instrumentation duty cycle (memory: circinus-for-call-count-profiling.md) instead of gambling one swing's few dirty frames land inside an 'on' phase. Arms the same 27-probe bank as the steady scenario -- the pre-existing entry points (including the four VectorLightMask children, circ_vlmaskcollect/_vlmaskshadow/_vlmasksat/_vlmaskfold, that no prior scenario had read) plus the 15 new children (VectorLightOverlay.DrawLight/StrengthFor/Rebuild/UploadVanillaField/CopyField/UploadFieldUvs, VectorLightPawnShadows.GatherInputs/BuildAll/DrawAll/Gather/Build/CastsShadow/MeshFor/FeatheredMaterialFor, VectorLightField.EnsurePolygons) -- so the two scenarios' reports can be diffed method-for-method. GatherInputs/BuildAll/DrawAll replaced the old single per-pawn DrawFor when the batch-and-parallelise split broke it into three per-frame stages. The three upload-stage arms (UploadVanillaField/CopyField/UploadFieldUvs) are the ones expected to move here and read near zero in the steady scenario -- that contrast is the point of arming them rather than trusting circ_vloverlay's total alone. No pawns on this plate, deliberately: an idling colonist wandering into the doorway during one of the three swings would make SetDoorOpen's close call fail the whole scenario rather than just read a zero, and door_swing_order.json's own proven layout has none either. Patch_VectorLightDraw:Postfix fires TWICE per rendered frame with the second call rejected immediately by an identity check -- halve circ_vldraw_calls before deriving a per-real-call cost. Final probes are RECORDED at a wide (1e9) tolerance, not pinned: this is the first time these 27 arms have been split by frame kind, so there is no prior baseline to pin against, and per 'never replace a measured pin with a computed one' the number to trust is this run's own report. Clouds off for the same reason as every non-cloud scenario here: the sheet drifts on the tick counter and would add unrelated moving cost to a window measuring this subsystem alone.",
   "requiredMods": {
     "astryl.Circinus": "3773680130"
   },
@@ -482,7 +482,23 @@
     {
       "type": "Probe",
       "args": {
-        "probeName": "circ_vlshadowdrawfor_patched",
+        "probeName": "circ_vlshadowgatherinputs_patched",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlshadowbuildall_patched",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlshadowdrawall_patched",
         "expectedValue": "1",
         "tolerance": "0.001"
       }
@@ -1098,7 +1114,7 @@
     {
       "type": "Probe",
       "args": {
-        "probeName": "circ_vlshadowdrawfor_calls",
+        "probeName": "circ_vlshadowgatherinputs_calls",
         "expectedValue": "0",
         "tolerance": "1000000000"
       }
@@ -1106,7 +1122,7 @@
     {
       "type": "Probe",
       "args": {
-        "probeName": "circ_vlshadowdrawfor_total_ms",
+        "probeName": "circ_vlshadowbuildall_calls",
         "expectedValue": "0",
         "tolerance": "1000000000"
       }
@@ -1114,7 +1130,55 @@
     {
       "type": "Probe",
       "args": {
-        "probeName": "circ_vlshadowdrawfor_max_ms",
+        "probeName": "circ_vlshadowdrawall_calls",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlshadowgatherinputs_total_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlshadowbuildall_total_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlshadowdrawall_total_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlshadowgatherinputs_max_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlshadowbuildall_max_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlshadowdrawall_max_ms",
         "expectedValue": "0",
         "tolerance": "1000000000"
       }

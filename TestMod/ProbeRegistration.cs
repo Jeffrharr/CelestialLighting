@@ -859,6 +859,41 @@ public static class ProbeRegistration
         ProbeRegistry.Register(
             new VectorLightProbe("vector_light_cat_caster_half_width",
                 VectorLightProbe.Metric.AnimalCasterHalfWidth, "Cat"));
+        // The batch-and-parallelise pair's own counters, on the reasoning VectorLightPawnShadowBuildProbe's
+        // header gives: these read the raw static counters the draw and build phases incremented
+        // themselves, not a recomputation from the pure core, so a flag that failed to reach either
+        // phase reads as a flat counter rather than as an unrelated shape metric holding still.
+        //
+        // READ AS A RATIO, never DrawCalls alone: a batch of one shadow and a batch of nineteen both
+        // report one call, and only ShadowsPerDrawCall says whether the batching flag earned its keep
+        // on a given frame.
+        ProbeRegistry.Register(new VectorLightPawnShadowBuildProbe(
+            "vector_light_shadow_draw_calls", VectorLightPawnShadowBuildProbe.Metric.DrawCalls));
+        ProbeRegistry.Register(new VectorLightPawnShadowBuildProbe(
+            "vector_light_shadows_drawn", VectorLightPawnShadowBuildProbe.Metric.ShadowsDrawn));
+        ProbeRegistry.Register(new VectorLightPawnShadowBuildProbe(
+            "vector_light_shadows_per_draw_call", VectorLightPawnShadowBuildProbe.Metric.ShadowsPerDrawCall));
+        // PIN ALL THREE OR NONE, same rule as vector_light_parallel_bakes/_serial_bakes/_bake_batch_max:
+        // a zero parallel count on its own cannot separate "the flag is off" from "no frame in this
+        // scenario ever gathered enough pawns to cross the threshold", which is the normal state of a
+        // small colony; the serial count says the build phase ran at all, and the batch maximum says
+        // whether the threaded path was handed enough work for its cost to be a measurement.
+        ProbeRegistry.Register(new VectorLightPawnShadowBuildProbe(
+            "vector_light_parallel_shadow_builds", VectorLightPawnShadowBuildProbe.Metric.ParallelBuildPasses));
+        ProbeRegistry.Register(new VectorLightPawnShadowBuildProbe(
+            "vector_light_serial_shadow_builds", VectorLightPawnShadowBuildProbe.Metric.SerialBuildPasses));
+        ProbeRegistry.Register(new VectorLightPawnShadowBuildProbe(
+            "vector_light_shadow_build_batch_max", VectorLightPawnShadowBuildProbe.Metric.LargestBuildBatch));
+        // RECORDED, NEVER PINNED TIGHTLY, for the same reason as vector_light_bake_wall_ms: it is the
+        // only metric here that can score the threaded path, because threading moves time off the
+        // calling thread rather than removing it, and that duration moves with box contention that has
+        // nothing to do with this change.
+        ProbeRegistry.Register(new VectorLightPawnShadowBuildProbe(
+            "vector_light_shadow_build_wall_ms", VectorLightPawnShadowBuildProbe.Metric.BuildWallMs));
+        // Reads 0 and zeroes the counters above, so the counting window can be opened at the same step
+        // as the profiling window rather than at whichever earlier step happened to flip a feature flag.
+        ProbeRegistry.Register(new VectorLightPawnShadowBuildProbe(
+            "vector_light_shadow_build_reset", VectorLightPawnShadowBuildProbe.Metric.Reset));
         // Performance, measured through Circinus rather than Dubs, because Circinus reports CALL
         // COUNTS. §27 phase 3 does all its work inside a section regenerate, and the Dubs window that
         // appeared to show it running three times cheaper than the feature-off baseline had simply
@@ -1661,12 +1696,16 @@ public static class ProbeRegistration
         ArmBank("circ_vlcopyfield", "CelestialLighting.VectorLightOverlay", "CopyField");
         ArmBank("circ_vluploaduvs", "CelestialLighting.VectorLightOverlay", "UploadFieldUvs");
 
-        // circ_vlpawnshadows' own children, same reason: Draw's total is one number for a loop over
-        // every visible emitter, and DrawFor/Gather/Build/MeshFor/FeatheredMaterialFor/CastsShadow are
-        // the stages that loop actually spends its time in. CastsShadow is armed on its own because it
-        // is the eligibility gate walked once per candidate pawn per emitter — an O(lamps * pawns) scan
-        // that a duration-only view would never separate from the shadow geometry it gates.
-        ArmBank("circ_vlshadowdrawfor", "CelestialLighting.VectorLightPawnShadows", "DrawFor");
+        // circ_vlpawnshadows' own children. The batch-and-parallelise split replaced the old single
+        // per-pawn DrawFor with three per-frame stages: GatherInputs (the camera cull and the
+        // CastsShadow gate, always serial), BuildAll (the per-pawn illuminance arithmetic, serial or
+        // fanned out across Parallel.For behind VectorLightShadowParallelBuild), and DrawAll (the draw
+        // calls themselves, one per shadow or one per frame behind VectorLightShadowBatch). Gather,
+        // Build, CastsShadow, MeshFor and FeatheredMaterialFor are still the per-pawn or per-shadow work
+        // those three stages spend their time in, unchanged by the split itself.
+        ArmBank("circ_vlshadowgatherinputs", "CelestialLighting.VectorLightPawnShadows", "GatherInputs");
+        ArmBank("circ_vlshadowbuildall", "CelestialLighting.VectorLightPawnShadows", "BuildAll");
+        ArmBank("circ_vlshadowdrawall", "CelestialLighting.VectorLightPawnShadows", "DrawAll");
         ArmBank("circ_vlshadowgather", "CelestialLighting.VectorLightPawnShadows", "Gather");
         ArmBank("circ_vlshadowbuild", "CelestialLighting.VectorLightPawnShadows", "Build");
         ArmBank("circ_vlcastsshadow", "CelestialLighting.VectorLightPawnShadows", "CastsShadow");
@@ -1958,6 +1997,21 @@ public static class ProbeRegistration
         FeatureRegistry.Register(
             CelestialLightingFeatures.VectorLightShadowLampCullKey,
             enabled => CelestialLightingFeatures.VectorLightShadowLampCull = enabled);
+
+        // THREE-ARG for both: unmeasured, so they ship off, and the registry default has to agree
+        // or a suite's ResetAll would turn either on for every scenario after the one that measures
+        // it. Neither needs a ForceRebuild — both are pure execution-strategy choices over state the
+        // pass already reads fresh every frame (the polygon, the mask, the roster), not a cache
+        // either one could leave stale.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightShadowBatchKey,
+            enabled => CelestialLightingFeatures.VectorLightShadowBatch = enabled,
+            defaultEnabled: false);
+
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightShadowParallelBuildKey,
+            enabled => CelestialLightingFeatures.VectorLightShadowParallelBuild = enabled,
+            defaultEnabled: false);
 
         FeatureRegistry.Register(
             CelestialLightingFeatures.VectorLightViewCullKey,
