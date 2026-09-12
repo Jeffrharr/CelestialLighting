@@ -123,6 +123,30 @@ public sealed class VectorLightBakeProbe : IProbe
         // draws climb while this stands still; off, the two climb together.
         PropsWrites,
 
+        // How many emitters the overlay pass submitted, and how many Graphics.DrawMesh calls that
+        // actually cost. THE CLAIM IS THE RATIO: with vector_light_draw_batch off the two are equal
+        // by construction, since every emitter is its own call, and that equality is the off arm's
+        // assertion about itself. On, the second number is the first divided by however many
+        // emitters shared a (radius bucket, composition, field size) key.
+        //
+        // Both count the indoor multiply layer's pass as its own emitter, because it is its own
+        // draw. Read them with vector_light_indoor_multiply's state in hand or an arm that turns it
+        // on reads as the batch getting worse.
+        EmitterDraws,
+        DrawCalls,
+
+        // THE COST SIDE OF THE SAME CHANGE, and the reason the two above are not the whole story. A
+        // combined mesh is rebuilt whenever its membership or a member's geometry moves, which is
+        // more vertex writing than one emitter's fan. A still frame should report zero of these; a
+        // frame where a door swings should report one per affected key, not one per emitter.
+        BatchMeshBuilds,
+
+        // The largest batch any key reached, as a high-water mark rather than a per-frame number.
+        // Says whether a scene ever came near VectorLightShader.BatchCapacity, past which emitters
+        // fall back to drawing themselves — a silent ceiling that would otherwise present as the
+        // draw-call ratio quietly worsening in exactly the scenes that need it most.
+        LargestDrawBatch,
+
         // ---- sections (issue #188 item 0) -----------------------------------------------------
         //
         // Every metric above is about POLYGONS. #191 used them to establish that a blocker write
@@ -384,6 +408,18 @@ public sealed class VectorLightBakeProbe : IProbe
 
         if (metric == Metric.PropsWrites)
             return VectorLightField.PropsWrites;
+
+        if (metric == Metric.EmitterDraws)
+            return VectorLightField.EmitterDraws;
+
+        if (metric == Metric.DrawCalls)
+            return VectorLightField.DrawCalls;
+
+        if (metric == Metric.BatchMeshBuilds)
+            return VectorLightField.BatchMeshBuilds;
+
+        if (metric == Metric.LargestDrawBatch)
+            return VectorLightField.LargestDrawBatch;
 
         if (metric == Metric.ParallelBakePasses)
             return VectorLightField.ParallelBakePasses;

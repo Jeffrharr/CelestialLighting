@@ -1950,6 +1950,47 @@ public static class CelestialLightingFeatures
     // so the arm is the shipped path rather than a picture of the feature missing.
     public static bool VectorLightParallelCoverage = true;
 
+    // Feature key for VectorLightDrawBatch.
+    public const string VectorLightDrawBatchKey = "vector_light_draw_batch";
+
+    // Draw every visible emitter of one radius bucket and composition in ONE Graphics.DrawMesh
+    // instead of one each.
+    //
+    // WHAT IS LEFT OF THE IDLE FRAME. The props hold took the four per-emitter property writes off
+    // a steady frame and the measurement that followed it said what remained: one DrawMesh per
+    // visible lamp, and essentially nothing else. That call is per emitter for one reason — four
+    // values are RENDER STATE carried on a per-emitter MaterialPropertyBlock, and render state is
+    // what a draw call is. Batching is the only way past it, and it means moving those four off the
+    // block: the colour, the strength and the two composition scalars into uniform arrays the vertex
+    // program indexes, and vanilla's own square into a slice of a texture array. The mesh carries
+    // the slot in UV1.z, which was already there and already zero.
+    //
+    // PER (RADIUS BUCKET, COMPOSITION, FIELD SIZE), not per map. The falloff gradient is a material
+    // texture and depends on the radius, the blend and the queue depend on the composition, and a
+    // texture array's slices must all be one size — so those three are what a single draw call can
+    // hold constant. A colony with one lamp radius and the shipped composition is one draw call for
+    // the whole screen; a mixed one is a handful.
+    //
+    // WHAT IT DOES NOT BATCH, and each exclusion is a case where batching would change the frame
+    // rather than only its cost: the fallback additive pass, which draws through MoteGlow and has no
+    // array to read a per-emitter colour out of; an emitter with no vanilla field, which stands down
+    // to the plain additive composition and has no slice to point at; and anything past
+    // VectorLightShader.BatchCapacity in one key, which starts a second draw rather than overflowing
+    // a uniform array.
+    //
+    // OFF IS THE PER-EMITTER DRAW, unchanged — the same hold, the same property writes, the same one
+    // call each. Nothing in the batched path is reachable with the flag off, which is what makes the
+    // A/B a baseline rather than a picture of the pass being absent, and it is what a ΔE of 0.00
+    // against a same-build per-emitter arm is asserting.
+    //
+    // THE HONEST CAVEAT, recorded here because it is the reason this is a flag rather than a
+    // rewrite: the idle frame this targets already reads about 0.15 ms for twenty lamps and six
+    // pawns, and a frame that rebuilds geometry has to rebuild the COMBINED mesh, which is more
+    // vertex writing than rebuilding one emitter's. The batch is a steady-frame win paid for on the
+    // frames that move. Whether that trade is worth taking is a measurement, and the arms exist to
+    // make it one.
+    public static bool VectorLightDrawBatch = true;
+
     // Feature key for VectorLightSilhouetteCache.
     public const string VectorLightSilhouetteCacheKey = "vector_light_silhouette_cache";
 

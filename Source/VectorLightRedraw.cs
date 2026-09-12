@@ -122,6 +122,11 @@ public static class VectorLightRedraw
         // bakes against the map as it is now rather than as it was whenever the feature last ran.
         VectorLightField.ClearAll();
 
+        // The batched draw's combined meshes and slice arrays go with them, and for the same two
+        // reasons: an off run holds no GPU memory of the feature, and neither run can draw geometry
+        // built against a roster that no longer exists.
+        VectorLightDrawBatch.Discard();
+
         // Phase 5's lift telemetry counts one rebake, not everything since load. Cleared here rather
         // than per frame because sections regenerate lazily — only the dirty ones, only as they are
         // drawn — so a per-frame counter reads zero on every frame that happened not to rebake and

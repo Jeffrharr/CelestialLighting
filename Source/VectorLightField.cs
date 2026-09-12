@@ -203,6 +203,35 @@ public static class VectorLightField
         public float HeldVanillaWeight;
         public Texture2D HeldVanillaField;
         public float HeldSkyAmbient;
+
+        // Where this emitter's vanilla-glow square sits in the world, and how big it is.
+        //
+        // RECORDED BY THE UPLOAD RATHER THAN DERIVED, because it is vanilla's number and not ours:
+        // the diameter comes off GlowLight, and the origin off its localGlowGridStartPos. Our own
+        // radius is a near miss for both — a bucket spans an eighth of a cell and CeilToInt does not
+        // — and a near miss here maps every vertex to the wrong texel. The batched draw needs them
+        // because it rewrites UV1 for a combined mesh long after the upload that knew them; the
+        // per-emitter path writes UV1 inside that upload and never reads these.
+        public int FieldStartX;
+        public int FieldStartZ;
+        public int FieldDiameter;
+
+        // Bumped whenever the geometry or the field this emitter contributes to a batch changed, so
+        // the batch can tell a frame where it may reuse its combined mesh and its slices from one
+        // where it may not.
+        //
+        // TWO COUNTERS, BECAUSE THE TWO THINGS MOVE APART. A door sliding rebuilds the mesh nine
+        // times without touching a byte of vanilla's glow, and a lamp switching on somewhere else
+        // refills the texture without moving one of our vertices. One counter would rebuild both
+        // halves for either, which would hand the batched arm the cost of the thing it is supposed
+        // to be saving.
+        //
+        // int RATHER THAN bool, so the batch compares what it last SAW against what is true now. A
+        // dirty flag would have to be cleared by whoever consumed it, and there can be several
+        // batches in a frame — the emitter belongs to a primary pass and possibly to the indoor
+        // multiply layer as well, and the first to look would clear the flag for the second.
+        public int MeshVersion;
+        public int FieldVersion;
     }
 
     private sealed class MapLights
@@ -359,6 +388,10 @@ public static class VectorLightField
         FieldTextureUploads = 0;
         FieldUvOnlyUploads = 0;
         PropsWrites = 0;
+        EmitterDraws = 0;
+        DrawCalls = 0;
+        BatchMeshBuilds = 0;
+        LargestDrawBatch = 0;
 
         // Lives on VectorLightBlockers because that is what increments it, and is drained from here
         // because there is one reset path per arm and a counter that drains on a different schedule
@@ -692,6 +725,29 @@ public static class VectorLightField
     // frame where the sky glow stepped should add exactly one write per visible emitter. The
     // probe is what proves the hold is holding rather than merely present.
     public static long PropsWrites;
+
+    // The draw call ledger, and the whole of what the batched draw claims.
+    //
+    // THREE NUMBERS, AND THE CLAIM IS A RATIO BETWEEN TWO OF THEM. `EmitterDraws` counts emitters
+    // submitted — the number that says how much work the frame had — and `DrawCalls` counts
+    // Graphics.DrawMesh calls actually made. Batching leaves the first alone and divides the second;
+    // measuring either alone would confuse "the batch worked" with "the camera was pointing
+    // somewhere emptier", which is the failure a per-call timer walks into every time.
+    //
+    // `BatchMeshBuilds` is the cost side, and it belongs beside them rather than in its own bank
+    // because it is what the saving is paid for with. A combined mesh has to be rebuilt whenever the
+    // membership or any member's geometry moves, and that is more vertex writing than rebuilding one
+    // emitter's. A frame that saves nineteen draw calls and rebuilds the combined mesh has not
+    // obviously won, and this is the number that says so.
+    public static long EmitterDraws;
+    public static long DrawCalls;
+    public static long BatchMeshBuilds;
+
+    // The largest number of emitters one draw call carried. PINNED, for the reason
+    // LargestBakeBatch is: a scenario where every batch held one emitter has taken the branch
+    // without testing the design, and an arm quietly degrading into that looks exactly like an arm
+    // that ran.
+    public static int LargestDrawBatch;
 
     public static int FieldTextureUploads;
     public static int FieldUvOnlyUploads;

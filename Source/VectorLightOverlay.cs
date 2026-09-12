@@ -61,6 +61,11 @@ public static class VectorLightOverlay
 
     // Vanilla's delivered glow per vertex, in UV1. Vector4 rather than Vector3 because Unity's mesh
     // API takes UV channels as float4 and a float3 overload would silently pad anyway.
+    // The batched variant of each (radius bucket, composition) pair, keyed on both at once: the
+    // bucket shifted up two bits with the composition in the low two. One dictionary rather than
+    // four, because unlike the per-emitter caches these are never looked up by composition alone.
+    private static readonly Dictionary<int, Material> BatchMaterials = new Dictionary<int, Material>();
+
     private static readonly List<Vector4> VanillaUvs = new List<Vector4>();
 
     private static readonly List<Vector3> Verts = new List<Vector3>();
@@ -105,8 +110,16 @@ public static class VectorLightOverlay
         float skyGlow = map.skyManager.CurSkyGlow;
         float altitude = AltitudeLayer.VisEffects.AltitudeFor();
 
+        VectorLightDrawBatch.Begin(altitude);
+
         foreach (VectorLightField.LightEntry entry in lights)
             DrawLight(map, entry, view, skyGlow, altitude);
+
+        // AFTER EVERY EMITTER, because a batch cannot be submitted until it knows who is in it —
+        // that is what a batch is. Nothing between Begin and here may return early out of Draw, or a
+        // frame's emitters are collected and never drawn; the two early returns above both sit
+        // before Begin for that reason.
+        VectorLightDrawBatch.Flush();
     }
 
     private static void DrawLight(
@@ -178,6 +191,23 @@ public static class VectorLightOverlay
         // is never trusted to hold anything. Exact float compares throughout, never Unity's
         // approximate Color ==. With the flag off nothing is ever held and the body is the shipped
         // one.
+        Composition composition = PrimaryComposition(maxDrawing, surfaceLift);
+
+        VectorLightField.EmitterDraws++;
+
+        // THE BATCH IS ASKED FIRST AND ANSWERS FOR ITSELF. It takes the emitter or it does not —
+        // the flag being off, the composition being the MoteGlow fallback, this emitter having no
+        // vanilla field to point a slice at — and everything below is the shipped per-emitter draw
+        // reached whenever it declines. Written as an early return rather than a branch around the
+        // whole tail so the off path is textually unchanged, which is what the ΔE 0.00 arm asserts
+        // about the frame and this asserts about the code.
+        if (VectorLightDrawBatch.Enqueue(
+                entry, composition, color, strength, vanillaWeight, skyAmbient, composed))
+        {
+            DrawIndoorMultiply(map, entry, skyGlow, maxComposing, composed);
+            return;
+        }
+
         bool held = CelestialLightingFeatures.VectorLightPropsHold
             && entry.HeldProps == entry.Props
             && entry.HeldMaxDrawing == maxDrawing
@@ -194,8 +224,10 @@ public static class VectorLightOverlay
 
         Graphics.DrawMesh(
             entry.Mesh, Vector3.zero, Quaternion.identity,
-            MaterialFor(entry.Radius, PrimaryComposition(maxDrawing, surfaceLift)),
+            MaterialFor(entry.Radius, composition),
             0, null, 0, entry.Props);
+
+        VectorLightField.DrawCalls++;
 
         DrawIndoorMultiply(map, entry, skyGlow, maxComposing, composed);
     }
@@ -274,7 +306,8 @@ public static class VectorLightOverlay
     // returns on its first line and the frame is the shipped one byte for byte, which is what makes
     // the A/B a baseline rather than a picture of the feature being absent.
     private static void DrawIndoorMultiply(
-        Map map, VectorLightField.LightEntry entry, float skyGlow, bool maxComposing, bool composed)
+        Map map, VectorLightField.LightEntry entry, float skyGlow, bool maxComposing,
+        bool composed)
     {
         if (!VectorLightShader.IndoorMultiplyActive)
             return;
@@ -303,6 +336,21 @@ public static class VectorLightOverlay
         if (strength <= 0f)
             return;
 
+        VectorLightField.EmitterDraws++;
+
+        // The layer's own batch, keyed on its own composition, so it stays one queue above the
+        // additive pass exactly as the per-emitter version does — see VectorLightShader.NewMaterial
+        // for why that cannot be left to submission order. The ambient is worked out here rather
+        // than reused from the primary pass because this layer's roof answer is already known to be
+        // true, which is the whole reason it got this far.
+        if (VectorLightDrawBatch.Enqueue(
+                entry, Composition.IndoorMultiply, entry.Color, strength,
+                VanillaWeightFor(maxComposing, composed),
+                VectorLightMath.SurfaceAmbient(skyGlow, roofed: true), composed))
+        {
+            return;
+        }
+
         entry.MultiplyProps ??= new MaterialPropertyBlock();
 
         // Every property the primary pass set, set again on this block. Not because any of them
@@ -325,6 +373,8 @@ public static class VectorLightOverlay
             entry.Mesh, Vector3.zero, Quaternion.identity,
             MaterialFor(entry.Radius, Composition.IndoorMultiply),
             0, null, 0, entry.MultiplyProps);
+
+        VectorLightField.DrawCalls++;
     }
 
     // How brightly this light competes with the sky above it.
@@ -521,21 +571,52 @@ public static class VectorLightOverlay
         Uvs.Clear();
         Tris.Clear();
 
-        for (int i = 0; i < built.VertexCount; i++)
-        {
-            Verts.Add(new Vector3(built.X[i], altitude, built.Z[i]));
-
-            // Both axes carry meaning now the gradient is 2-D: U is distance from the light, V is
-            // how far across a soft shadow edge the vertex sits. Every vertex of the fan itself
-            // carries V = 0, which is the gradient's first row — the falloff curve unmodified.
-            Uvs.Add(new Vector2(built.U[i], built.V[i]));
-        }
-
-        Tris.AddRange(built.Triangles);
+        AppendGeometry(built, altitude, Verts, Uvs, Tris);
 
         entry.Mesh.SetVertices(Verts);
         entry.Mesh.SetUVs(0, Uvs);
         entry.Mesh.SetTriangles(Tris, 0);
+
+        // The batched draw's cue to rebuild its combined mesh. Bumped here rather than in Rebuild
+        // because this is where the vertices actually change — Rebuild can return early with no mesh
+        // at all, and a batch rebuilt for that would copy the previous geometry a second time.
+        entry.MeshVersion++;
+    }
+
+    // One emitter's fan appended to whatever lists it is handed.
+    //
+    // SHARED WITH THE BATCH ON PURPOSE, and it is the only reason this is a method. The combined
+    // mesh has to hold literally the same vertices, uvs and winding the per-emitter mesh holds, or
+    // the batched arm draws a subtly different frame and the ΔE that is supposed to be 0.00 measures
+    // the difference between two copies of one loop. Written once, called twice — the batch passes a
+    // non-zero triangle offset and its own lists, and nothing else differs.
+    internal static void AppendGeometry(
+        VectorLightMath.LightMesh built, float altitude,
+        List<Vector3> verts, List<Vector2> uvs, List<int> tris)
+    {
+        int vertexOffset = verts.Count;
+
+        for (int i = 0; i < built.VertexCount; i++)
+        {
+            verts.Add(new Vector3(built.X[i], altitude, built.Z[i]));
+
+            // Both axes carry meaning now the gradient is 2-D: U is distance from the light, V is
+            // how far across a soft shadow edge the vertex sits. Every vertex of the fan itself
+            // carries V = 0, which is the gradient's first row — the falloff curve unmodified.
+            uvs.Add(new Vector2(built.U[i], built.V[i]));
+        }
+
+        // AddRange when the offset is zero, which is the per-emitter path, so that path keeps the
+        // one bulk copy it has always had rather than paying a per-index loop for a feature it is
+        // not using.
+        if (vertexOffset == 0)
+        {
+            tris.AddRange(built.Triangles);
+            return;
+        }
+
+        for (int i = 0; i < built.Triangles.Length; i++)
+            tris.Add(built.Triangles[i] + vertexOffset);
     }
 
     private static float PolygonArea(VectorLightMath.LightPolygon polygon)
@@ -561,7 +642,7 @@ public static class VectorLightOverlay
     // because "max?" and "surface lift?" stopped spanning the space the moment a fourth cache
     // arrived: (max: false, surfaceLift: true) has never meant anything, and a third bool would add
     // four more combinations of which one is real. One value, four cases, no unreachable states.
-    private enum Composition
+    internal enum Composition
     {
         // MoteGlow, no subtraction. What a machine without the shader draws.
         Additive,
@@ -590,9 +671,42 @@ public static class VectorLightOverlay
         return surfaceLift ? Composition.SurfaceLift : Composition.Max;
     }
 
+    // The radius bucket a material is cached under, which is also the bucket a batch is keyed on —
+    // two emitters may share one draw call only if they share one material, and the material is
+    // shared exactly when this number is.
+    internal static int RadiusKey(float radius)
+    {
+        return Mathf.RoundToInt(radius * 4f);
+    }
+
+    // The same material, with the batched variant selected. Its own cache rather than a fifth
+    // Composition, because the keyword is orthogonal to the four compositions: every one of them
+    // that goes through our own program can be batched, and adding a case per pair would be eight
+    // enum members describing two independent choices.
+    //
+    // THE GRADIENT IS SHARED WITH THE PER-EMITTER MATERIAL, which is what makes the two arms
+    // comparable at all. GradientFor memoises per (radius, seed), so the batched material and the
+    // unbatched one of the same composition hold the identical texture object — a second copy built
+    // by a second expression is exactly how two arms of one A/B come to differ by a quantisation
+    // step that looks like the feature.
+    internal static Material BatchMaterialFor(float radius, Composition composition)
+    {
+        int key = (RadiusKey(radius) << 2) | (int)composition;
+
+        if (!BatchMaterials.TryGetValue(key, out Material material))
+        {
+            material = VectorLightShader.NewBatchMaterial(
+                GradientFor(RadiusKey(radius), matchSeed: true),
+                MultiplyBlend(composition), QueueOffset(composition));
+            BatchMaterials[key] = material;
+        }
+
+        return material;
+    }
+
     private static Material MaterialFor(float radius, Composition composition)
     {
-        int key = Mathf.RoundToInt(radius * 4f);
+        int key = RadiusKey(radius);
         Dictionary<int, Material> cache = CacheFor(composition);
 
         if (!cache.TryGetValue(key, out Material material))
@@ -760,6 +874,14 @@ public static class VectorLightOverlay
         // texels, which renders as one emitter subtracting garbage and looks like a shader bug.
         bool fresh = EnsureField(entry, diameter);
 
+        // Recorded on every pass through here, not only when the copy runs. The batched draw maps
+        // vertices into this square long after this method returned, and an emitter that skipped the
+        // copy because vanilla's glow had not moved still has a square — leaving these stale would
+        // be a batch sampling last frame's origin.
+        entry.FieldStartX = light.localGlowGridStartPos.x;
+        entry.FieldStartZ = light.localGlowGridStartPos.z;
+        entry.FieldDiameter = diameter;
+
         if (glowMoved || fresh || (geometryMoved && CoverageWeighted))
         {
             // light.position rather than entry.Cell, because the mask's own loop measures its offsets
@@ -768,6 +890,12 @@ public static class VectorLightOverlay
                 entry, entry.VanillaField, colors, diameter, light.localGlowGridStartPos,
                 light.position);
             VectorLightField.FieldTextureUploads++;
+
+            // Bumped inside the same branch as the copy, so a batch re-copies a slice exactly when
+            // the texture behind it changed. `fresh` is in the condition for the reason the comment
+            // above it gives — a reallocated texture is a different object holding different memory,
+            // and a slice copied from the old one describes an emitter that no longer exists.
+            entry.FieldVersion++;
         }
         else
         {
@@ -934,18 +1062,33 @@ public static class VectorLightOverlay
     {
         VanillaUvs.Clear();
 
+        // Slot zero, which on the per-emitter path is not a slot at all: the unbatched variant never
+        // reads z, so this writes the zero the channel has always carried. See AppendFieldUvs.
+        AppendFieldUvs(built, start.x, start.z, diameter, slot: 0f, VanillaUvs);
+
+        entry.Mesh.SetUVs(1, VanillaUvs);
+    }
+
+    // Where each vertex sits in the emitter's square, and which slot the emitter occupies.
+    //
+    // SHARED WITH THE BATCH for the same reason AppendGeometry is: the coordinate has to be the same
+    // number on both paths, and the one thing that differs — the slot in z — is the one thing passed
+    // in. The per-emitter path passes zero and the unbatched shader variant never reads it, so that
+    // path's channel is byte for byte what it was before batching existed.
+    internal static void AppendFieldUvs(
+        VectorLightMath.LightMesh built, int startX, int startZ, int diameter, float slot,
+        List<Vector4> uvs)
+    {
         float scale = 1f / diameter;
 
         for (int i = 0; i < built.VertexCount; i++)
         {
-            VanillaUvs.Add(new Vector4(
-                (built.X[i] - start.x) * scale,
-                (built.Z[i] - start.z) * scale,
-                0f,
+            uvs.Add(new Vector4(
+                (built.X[i] - startX) * scale,
+                (built.Z[i] - startZ) * scale,
+                slot,
                 0f));
         }
-
-        entry.Mesh.SetUVs(1, VanillaUvs);
     }
 
 
