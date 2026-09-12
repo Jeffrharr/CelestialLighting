@@ -113,6 +113,15 @@ public sealed class VectorLightProbe : IProbe
         // metric for the same reason.
         ShaderMaxAvailable,
 
+        // Whether the batched draw's own preconditions hold on THIS machine, which is a strictly
+        // narrower question than ShaderMaxAvailable and is the one that goes wrong silently. The
+        // bundle can load, the shader can be the right shader, and the batched VARIANT can still be
+        // missing -- an --mod-overlay run swaps assemblies only, so a rebuilt shader sits in the
+        // worktree while the game reads the main checkout's bundle. That state reads exactly like a
+        // working batch that happens to save nothing: every emitter quietly declines and draws
+        // itself. Pin this beside the draw-call ratio or the ratio is unfalsifiable.
+        ShaderBatchAvailable,
+
         MaskLiftSamples,
 
         MaskLiftPeak,
@@ -275,6 +284,9 @@ public sealed class VectorLightProbe : IProbe
         // happened by the time a probe reads.
         if (metric == Metric.ShaderMaxAvailable)
             return VectorLightShader.Available ? 1f : 0f;
+
+        if (metric == Metric.ShaderBatchAvailable)
+            return VectorLightShader.BatchAvailable ? 1f : 0f;
 
         if (metric == Metric.MaskLiftSamples)
             return VectorLightMask.LiftSamples;

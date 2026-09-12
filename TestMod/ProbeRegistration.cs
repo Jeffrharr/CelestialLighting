@@ -518,6 +518,11 @@ public static class ProbeRegistration
         // being off if only the two counters above are pinned.
         ProbeRegistry.Register(new VectorLightBakeProbe(
             "vector_light_largest_draw_batch", VectorLightBakeProbe.Metric.LargestDrawBatch));
+        // The pinnable form of the pair above. Pin THIS rather than asserting the two counters
+        // against each other across two steps: a Probe step costs a frame, so the counters move
+        // between the two readings and the off arm's equality never quite holds.
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_emitters_per_draw_call", VectorLightBakeProbe.Metric.EmittersPerDrawCall));
         // Issue #188 item 0. vector_light_sections_per_pass is the headline -- the map's whole
         // section count before item A, a handful after -- but pin vector_light_mask_applies beside
         // it or the reduction is unfalsifiable. Dirty flags are work REQUESTED and vanilla
@@ -663,6 +668,12 @@ public static class ProbeRegistration
         // whether the per-cell path stood down for it as it is supposed to.
         ProbeRegistry.Register(new VectorLightProbe(
             "vector_light_shader_max_available", VectorLightProbe.Metric.ShaderMaxAvailable));
+
+        // The batched draw's machine test, and it is NOT implied by the line above. See
+        // VectorLightProbe.Metric.ShaderBatchAvailable: a stale bundle passes that check and fails
+        // this one, and the failure presents as a batch that works and saves nothing.
+        ProbeRegistry.Register(new VectorLightProbe(
+            "vector_light_batch_available", VectorLightProbe.Metric.ShaderBatchAvailable));
         // §27 phase 5's max. Registered as a pair and pinned as a pair — see the Metric comments:
         // samples at 0 means the composition never ran, peak at 0 with samples healthy means it ran
         // and correctly found nothing, and those are the two results this arm is trying to tell

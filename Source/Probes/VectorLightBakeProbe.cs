@@ -147,6 +147,15 @@ public sealed class VectorLightBakeProbe : IProbe
         // draw-call ratio quietly worsening in exactly the scenes that need it most.
         LargestDrawBatch,
 
+        // THE RATIO THE TWO COUNTERS ABOVE CANNOT BE READ AS, and the only form of it a scenario can
+        // trust. The harness runs one step per frame, so two counters read in consecutive Probe
+        // steps are a frame apart, and a frame apart is twenty emitters and twenty calls on a plate
+        // this size — the off arm's equality would read as a small surplus and look like a leak
+        // rather than like the clock. Divided inside one call there is no window to skew: off this
+        // is exactly 1, because every emitter is its own call, and on it is how many emitters the
+        // average call carried.
+        EmittersPerDrawCall,
+
         // ---- sections (issue #188 item 0) -----------------------------------------------------
         //
         // Every metric above is about POLYGONS. #191 used them to establish that a blocker write
@@ -420,6 +429,13 @@ public sealed class VectorLightBakeProbe : IProbe
 
         if (metric == Metric.LargestDrawBatch)
             return VectorLightField.LargestDrawBatch;
+
+        // Zero rather than NaN on an empty denominator, per Ratio() below — written out here rather
+        // than through it because these two counters are longs.
+        if (metric == Metric.EmittersPerDrawCall)
+            return VectorLightField.DrawCalls == 0L
+                ? 0f
+                : (float)VectorLightField.EmitterDraws / VectorLightField.DrawCalls;
 
         if (metric == Metric.ParallelBakePasses)
             return VectorLightField.ParallelBakePasses;
