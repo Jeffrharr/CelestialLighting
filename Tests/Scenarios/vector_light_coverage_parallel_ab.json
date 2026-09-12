@@ -1,0 +1,2323 @@
+{
+  "name": "vector_light_coverage_parallel_ab",
+  "saveFile": "minimal_colony.rws",
+  "requiredMods": {
+    "astryl.Circinus": "3773680130"
+  },
+  "hideUi": true,
+  "description": "A/B for vector_light_parallel_coverage -- splitting ONE emitter's coverage grid into row bands across threads -- on the frame the whole-emitter fan-out cannot help with. Same plate and door mechanics as vector_light_draw_door.json: a sealed room, one door, two flanking TorchLamps, the clock RUNNING (a door's OpenPct comes off Building_Door.Tick, so a TickLapse jump never swings it), swung six times per arm. Two emitters is deliberately BELOW VectorLightField's four-emitter fan-out threshold, so the batch never spreads across threads and every bake arrives with rowThreads true -- which is exactly the frame the row split exists for and the one the emitter split leaves untouched. Four arms, off/on/off/on, so the second pair says whether the first pair's difference survives the machine: this box has moved an unchanged binary by a factor of two between runs, and a single pair cannot tell that from a result. vector_light_bake_wall_ms is the metric that scores it -- the Circinus arms report time exclusive of their armed children and a thread split MOVES time rather than removing it, so only a clock on the calling thread sees the saving. The two pass counters say the path was taken at all, read as a pair because a zero on the fan-out count alone cannot separate a refused threshold from a scene of emitters too small to qualify. The gather and upload clocks are the two thirds of the frame this change does not touch and stand as controls on the run. Captures are taken at each arm's end for the record and CANNOT judge inertness here, which is the cost of a scenario whose clock has to run: the scene animates between arms, and the same-build control (off_a against off_b) measures a LARGER median CIELAB difference than the A/B pair does, on ~99% of pixels in both. What holds the grid identical is offline instead -- VectorLightCoverageBandTests compares every banding of a grid against VectorLightCoverageOracle, an independent implementation -- plus the vector_light_suite.txt gate, whose gap-and-door L* table is a measurement of the same coverage grid this splits.",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Concrete",
+        "width": "25",
+        "height": "21",
+        "offset": "0,45",
+        "clear": "true"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "0,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "-11,-9; -11,9; -10,-9; -10,9; -9,-9; -9,9; -8,-9; -8,9; -7,-9; -7,9; -6,-9; -6,9; -5,-9; -5,9; -4,-9; -4,9; -3,-9; -3,9; -2,-9; -2,9; -1,-9; -1,9; 0,-9; 0,9; 1,-9; 1,9; 2,-9; 2,9; 3,-9; 3,9; 4,-9; 4,9; 5,-9; 5,9; 6,-9; 6,9; 7,-9; 7,9; 8,-9; 8,9; 9,-9; 9,9; 10,-9; 10,9; 11,-9; 11,9; -11,-8; 11,-8; 0,-8; -11,-7; 11,-7; 0,-7; -11,-6; 11,-6; 0,-6; -11,-5; 11,-5; 0,-5; -11,-4; 11,-4; 0,-4; -11,-3; 11,-3; 0,-3; -11,-2; 11,-2; 0,-2; -11,-1; 11,-1; 0,-1; -11,0; 11,0; -11,1; 11,1; 0,1; -11,2; 11,2; 0,2; -11,3; 11,3; 0,3; -11,4; 11,4; 0,4; -11,5; 11,5; 0,5; -11,6; 11,6; 0,6; -11,7; 11,7; 0,7; -11,8; 11,8; 0,8"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Door",
+        "stuff": "WoodLog",
+        "offset": "0,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "0,0"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "TorchLamp",
+        "offset": "0,45",
+        "layout": "cells",
+        "cells": "-2,0; 2,0"
+      }
+    },
+    {
+      "type": "SetRoof",
+      "args": {
+        "def": "RoofConstructed",
+        "width": "23",
+        "height": "19",
+        "offset": "0,45"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "0"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "0,45",
+        "zoom": "17"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_cover",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_sheet",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_presence",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_deck_varieties",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_suppress",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_beam",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_saturation",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max_subtract",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_pawn_shadows",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shadow_shares",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shadow_ground_shares",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shadow_shape",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shadow_clip",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shadow_feather",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_parallel_bake",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_changed_dirty",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_stale_polygon",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_view_cull",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_section_dirty",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_open_doors",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_aperture",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_glow_blocker",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_dirty_suppress",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_build_first",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "6"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_count",
+        "expectedValue": "2",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circinus_available",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_available",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlmask_patched",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlmaskcollect_patched",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlmaskshadow_patched",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlmasksat_patched",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlmaskfold_patched",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vldraw_patched",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vloverlay_patched",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlpawnshadows_patched",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlbuilddirty_patched",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlpolygon_patched",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlsegments_patched",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlcoverage_patched",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vldrawlight_patched",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlstrength_patched",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlrebuild_patched",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vluploadvanilla_patched",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlcopyfield_patched",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vluploaduvs_patched",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlshadowdrawfor_patched",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlshadowgather_patched",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlshadowbuild_patched",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlcastsshadow_patched",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlshadowmesh_patched",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlshadowmat_patched",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlensurepolygons_patched",
+        "expectedValue": "1",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "vl_cov_ab_warmup",
+        "hideUi": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_parallel_coverage",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "6"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_bake_reset",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circinus_cycles",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlcoverage_calls",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlcoverage_total_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlcoverage_max_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlbuilddirty_calls",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlbuilddirty_total_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlbuilddirty_max_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlpolygon_calls",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlpolygon_total_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlpolygon_max_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlsegments_calls",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlsegments_total_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlsegments_max_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vldraw_calls",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vldraw_total_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vldraw_max_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "normal"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "90"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "90"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "90"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "90"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "90"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "90"
+      }
+    },
+    {
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "paused"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "6"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circinus_cycles",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlcoverage_calls",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlcoverage_total_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlcoverage_max_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlbuilddirty_calls",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlbuilddirty_total_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlbuilddirty_max_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlpolygon_calls",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlpolygon_total_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlpolygon_max_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlsegments_calls",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlsegments_total_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlsegments_max_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vldraw_calls",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vldraw_total_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vldraw_max_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_parallel_coverage",
+        "expectedValue": "0",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_serial_coverage",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_bakes",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_bake_wall_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_gather_wall_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_upload_wall_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_silhouette_hits",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_silhouette_rebuilds",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "vl_cov_ab_off_a",
+        "hideUi": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_parallel_coverage",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "6"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_bake_reset",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circinus_cycles",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlcoverage_calls",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlcoverage_total_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlcoverage_max_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlbuilddirty_calls",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlbuilddirty_total_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlbuilddirty_max_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlpolygon_calls",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlpolygon_total_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlpolygon_max_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlsegments_calls",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlsegments_total_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlsegments_max_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vldraw_calls",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vldraw_total_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vldraw_max_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "normal"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "90"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "90"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "90"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "90"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "90"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "90"
+      }
+    },
+    {
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "paused"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "6"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circinus_cycles",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlcoverage_calls",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlcoverage_total_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlcoverage_max_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlbuilddirty_calls",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlbuilddirty_total_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlbuilddirty_max_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlpolygon_calls",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlpolygon_total_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlpolygon_max_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlsegments_calls",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlsegments_total_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlsegments_max_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vldraw_calls",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vldraw_total_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vldraw_max_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_parallel_coverage",
+        "expectedValue": "0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_serial_coverage",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_bakes",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_bake_wall_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_gather_wall_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_upload_wall_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_silhouette_hits",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_silhouette_rebuilds",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "vl_cov_ab_on_a",
+        "hideUi": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_parallel_coverage",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "6"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_bake_reset",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circinus_cycles",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlcoverage_calls",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlcoverage_total_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlcoverage_max_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlbuilddirty_calls",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlbuilddirty_total_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlbuilddirty_max_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlpolygon_calls",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlpolygon_total_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlpolygon_max_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlsegments_calls",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlsegments_total_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlsegments_max_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vldraw_calls",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vldraw_total_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vldraw_max_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "normal"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "90"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "90"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "90"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "90"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "90"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "90"
+      }
+    },
+    {
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "paused"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "6"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circinus_cycles",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlcoverage_calls",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlcoverage_total_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlcoverage_max_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlbuilddirty_calls",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlbuilddirty_total_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlbuilddirty_max_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlpolygon_calls",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlpolygon_total_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlpolygon_max_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlsegments_calls",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlsegments_total_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlsegments_max_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vldraw_calls",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vldraw_total_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vldraw_max_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_parallel_coverage",
+        "expectedValue": "0",
+        "tolerance": "0.001"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_serial_coverage",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_bakes",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_bake_wall_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_gather_wall_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_upload_wall_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_silhouette_hits",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_silhouette_rebuilds",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "vl_cov_ab_off_b",
+        "hideUi": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_parallel_coverage",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "6"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_bake_reset",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circinus_cycles",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlcoverage_calls",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlcoverage_total_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlcoverage_max_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlbuilddirty_calls",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlbuilddirty_total_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlbuilddirty_max_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlpolygon_calls",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlpolygon_total_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlpolygon_max_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlsegments_calls",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlsegments_total_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlsegments_max_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vldraw_calls",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vldraw_total_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vldraw_max_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "normal"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "90"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "90"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "90"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "90"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "90"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "0,45",
+        "open": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "90"
+      }
+    },
+    {
+      "type": "SetTimeSpeed",
+      "args": {
+        "speed": "paused"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "6"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circinus_cycles",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlcoverage_calls",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlcoverage_total_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlcoverage_max_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlbuilddirty_calls",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlbuilddirty_total_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlbuilddirty_max_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlpolygon_calls",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlpolygon_total_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlpolygon_max_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlsegments_calls",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlsegments_total_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vlsegments_max_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vldraw_calls",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vldraw_total_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "circ_vldraw_max_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_parallel_coverage",
+        "expectedValue": "0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_serial_coverage",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_bakes",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_bake_wall_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_gather_wall_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_upload_wall_ms",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_silhouette_hits",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_silhouette_rebuilds",
+        "expectedValue": "0.0",
+        "tolerance": "1000000000.0"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "vl_cov_ab_on_b",
+        "hideUi": "true"
+      }
+    }
+  ]
+}

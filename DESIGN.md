@@ -13198,6 +13198,124 @@ The differing pixels are mote crescents inside the lamp rooms, i.e. the scene's 
 and the off arm reproduces the per-emitter draw exactly.
 
 
+**The frame the fan-out cannot help: one grid across threads** (`CelestialLightingFeatures.VectorLightParallelCoverage`,
+`VectorLightMath.CoverageRows`, `vector_light_coverage_parallel_ab.json`,
+`vector_light_coverage_storm_ab.json`). Phase 6 closed by naming the door frame's `BuildCoverage` —
+up to 8 ms — as where the next millisecond is, and the threaded bake cannot reach it. That fan-out
+spreads whole emitters and only from four upwards, because waking pool threads and joining them
+costs tens of microseconds against a bake's fraction of a millisecond. A door swinging beside one
+lamp dirties one emitter. The batch is one, nothing spreads, and the frame pays the grid in full.
+Below four emitters the only decomposition left is inside one grid.
+
+**A row of the coverage grid depends on nothing but the polygon, the cell and the bounds** — never
+on the row before it — so the pure core gained `CoverageRows`, which fills rows `[rowStart, rowEnd)`
+of a grid the caller owns and writes nothing outside them, and `BuildCoverage` became the whole-span
+call of it. The field allocates the grid before any band runs and sizes it with the core's own
+`CoverageSpan`, which is the point: two bands that each sized a grid by their own expression are two
+bands that can disagree about where row `zi` starts. Each band resolves the `[ThreadStatic]` scratch
+*inside* the lambda, so every worker gets its own buffers; hoisting that read out of the lambda is
+exactly the interleaved-writes defect the buffers were made a parameter to prevent.
+
+**The split is not free, and the two thresholds are what that costs.** Every band redoes the
+per-column pass and builds its own ray fan rather than sharing one, so bands are not slices of a
+flat loop: one row per band on a 32-thread machine would pay a hundred sines and cosines thirty-two
+times over to fill a grid with twenty-nine rows in it. Hence a floor of four rows to a band
+(`ParallelCoverageMinimumRows`), a floor of 225 cells on the grid at all
+(`ParallelCoverageMinimumCells` — span 15, about 70 µs of work, the point where the split clears a
+fan-out's own cost rather than merely paying it), and `BandsFor` = `min(span / 4, ProcessorCount)`.
+The gate is on the square rather than on the sampled cells, because nothing knows the second number
+before the bake runs; it errs towards fanning out a grid that turns out cheap, which is the right
+way round, since the frames this exists for are the expensive ones.
+
+**It is never nested inside the emitter fan-out.** A batch that already spread across threads has
+all the parallelism the machine can use, and splitting each of those emitters again would
+oversubscribe the pool to hand every worker a smaller piece of the same total. `BakeSelected`
+decides once per batch and passes `rowThreads` down, so the two flags compose as "whichever axis has
+work" rather than as a product.
+
+**The equivalence is tested against an oracle rather than against itself.** Both arms of this flag
+run the same row loop — off is `CoverageRows` over the whole span — so comparing them asserts
+x − x == 0 and would stay green if the loop itself broke.
+`VectorLightCoverageBandTests` therefore compares banded output against `VectorLightCoverageOracle`,
+which shares none of that code: every band count from one to a row apiece, more bands than rows
+(where the surplus bands must be no-ops rather than out-of-range writes), an unobstructed emitter, a
+sealed room, a single wall, free-standing pillars, a partly-open door and the radii the field
+actually asks for. Bit-for-bit, with no tolerance, because a tolerance would accept a defect exactly
+at a band seam and a seam is the one place this decomposition can go wrong.
+
+**Measured twice, because the first instrument could not answer the question.**
+`vector_light_coverage_parallel_ab.json` is the honest scene: the door plate, two flanking torches,
+a door swung six times an arm, four arms off/on/off/on. Its counters are exact and they are the half
+that settles. Every arm bakes 108 grids, and the silhouette memo does identical work in all four —
+96 hits and 12 rebuilds, every arm, every run — so the arms are the same work with one difference.
+The off arms fan out **0 of 108** grids and the on arms **108 of 108**: the threshold fires on
+precisely the frame it was written for, a one-emitter batch a door swing dirtied, which is the frame
+the emitter fan-out declines by design.
+
+Its clock is the half that does not settle. Six boots, four arms apiece, `vector_light_bake_wall_ms`
+around each arm's 108 bakes:
+
+| `vector_light_bake_wall_ms` | n | min | median | mean | max |
+|---|---|---|---|---|---|
+| off — one serial grid | 12 | 48.69 | 59.26 | 65.06 | 95.96 |
+| on — row bands | 12 | 42.83 | **48.86** | **70.08** | 177.90 |
+
+The median favours the split by 10 ms and the mean contradicts it by 5, which is what a bimodal
+sample looks like rather than a noisy one: seven on arms land between 42.8 and 49.0 ms, below every
+off arm but two, and the other five sit in a tail from 71.7 to 177.9 ms that nothing in the off
+column approaches. The cause is in the scenario's own design. A door swing needs the clock, a
+running clock is a colony pathfinding and working jobs, and it competes for the same four cores the
+bands are handed to — so the arm that asks for seven threads is the arm that can lose one.
+
+**A second instrument, paused, to answer what the door frame could not.**
+`vector_light_coverage_storm_ab.json` inherits `vector_light_bake_storm`'s plate — 20 torches in 20
+small rooms, 22 emitters — stops the clock, and provokes its bakes with 40 inert
+`vector_light_mask_max` toggles an arm, each of which calls `ForceRebuild`. That is 880 coverage
+grids an arm across 40 consecutive frames with the pool warm and nothing else running. The emitter
+fan-out is forced **off** in every arm and `vector_light_parallel_bakes` is pinned at zero to hold
+it there, which is what turns a 22-emitter plate into 880 copies of the one-emitter frame this
+feature exists for, rather than a scene it would never touch once. 760 of the 880 grids band — three
+of the 22 emitters sit under the 225-cell gate — and eight arms alternate off/on four times, because
+this box has moved an unchanged binary by a factor of two between runs.
+
+| per 880 grids, 22 arms each | min | median | mean | max |
+|---|---|---|---|---|
+| bake, off | 296.01 | 303.15 | 320.73 | 578.89 |
+| bake, on | 251.74 | **268.33** | 286.96 | 520.71 |
+| gather, off / on (control) | 27.45 / 27.12 | 28.56 / 28.63 | 30.93 / 30.44 | 67.47 / 43.53 |
+| upload, off / on (control) | 31.45 / 31.58 | 34.16 / 33.18 | 36.09 / 35.20 | 65.45 / 57.43 |
+
+Here it separates cleanly: about **12%** off the bake, the two thirds of the frame this change does
+not touch unmoved, and in three of the four eight-arm boots every on arm beat every off arm in the
+same boot — in the fourth, all but its first. The outliers in both columns are first-use effects and
+one contaminated run, and each of them moved that arm's gather and upload too, which is what the
+controls are for.
+
+**The reading, and why the flag ships off.** The two instruments do not disagree; they answer
+different questions. The row split works — the path is taken on precisely the frame it was written
+for, the grids it produces are bit-identical, and on a quiet machine it takes about 12% off a bake.
+But the frame it was written for only occurs in a colony that is running, and on the running colony
+the honest summary is a better median, a worse mean, and a tail to nearly twice the serial grid's
+worst arm. A win demonstrable only where the cost does not occur is not a default, so
+`VectorLightParallelCoverage` ships **false** — with the core, the tests and both scenarios kept, so
+the next attempt starts from the measurement rather than from scratch.
+
+What is untuned, and is the first thing to try, is the band count. `BandsFor` asks for
+`min(span / 4, ProcessorCount)` — seven bands for a span-29 grid on this eight-thread box — and it
+asks regardless of what else the pool is already doing. An oversubscribed pool contending with the
+tick is exactly the shape of that tail. Fewer bands, or a count that reads the pool's current load,
+is where this becomes shippable; more of the same split is not.
+
+**The captures in the door scenario cannot judge inertness, and the scenario says so.** Its four
+arms animate between captures, and the numbers say so: the same-build control (off a against off b,
+one build, one run) measures median ΔE **1.4817** over 99.73% of the frame, while the A/B pair (off
+b against on b) measures **0.6362** over 98.42%. A control louder than the effect means those
+captures are measuring the scene's clock rather than the flag. The storm's captures can judge it,
+because its clock is stopped: off a against on a, off a against off b, off c against off d, off d
+against on d and on c against on d each differ on **0 of 2,073,600 pixels** — byte-identical frames.
+The grid-level guarantee is still the oracle tests and the `vector_light_suite.txt` gate; the storm
+captures are what says that guarantee reached the screen.
+
 ### Vector lighting, phase 7: the coverage grid was mostly outside the light (`VectorLightMath.BuildCoverage`, `VectorLightCoverageOracle`, epic #174 phase 7)
 
 Phase 6 left the coverage grid as the largest term inside a bake — **50.7% culled, against `Build`'s
