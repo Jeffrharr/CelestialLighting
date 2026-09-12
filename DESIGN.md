@@ -13120,6 +13120,83 @@ millisecond is.
 `circinus_available` 0 and every `_patched` probe red, which is the arm-unresolved shape and not a
 free hook.
 
+**The next lever, taken: nineteen lamps in one draw call** (`CelestialLightingFeatures.VectorLightDrawBatch`,
+`VectorLightDrawBatch.cs`, `vector_light_draw_batch_ab.json`). The paragraph above says a batch is
+blocked by the composition, and names exactly what blocks it: four values that are render state on a
+per-emitter `MaterialPropertyBlock` — the light's colour, its strength this frame, how much of
+vanilla's glow to subtract, and vanilla's own square as a texture. Render state is what a draw call
+*is*, so two draws that disagree about it cannot merge. The way through is to stop them being render
+state. The three scalars move into uniform arrays the shader indexes (`_BatchColor`, `_BatchParams`),
+the texture becomes a slice of a `Texture2DArray` filled with `Graphics.CopyTexture`, and the
+combined mesh carries which slot each emitter occupies in `UV1.z` — a channel that was already a
+`float4` with `z` already written as zero. The slot is resolved in the **vertex** program, because a
+per-vertex value interpolates across a triangle, which is how the first attempt at a per-fragment max
+died.
+
+Batched per (radius bucket, composition, field diameter), which is what one draw call has to hold
+constant: the falloff gradient is a material texture keyed on the bucket, the blend mode and queue are
+the composition, and every slice of a texture array must be the same size. Five refusals fall back to
+the shipped per-emitter draw rather than to nothing — the flag off or the machine lacking the keyword,
+texture arrays or `CopyTextureSupport.DifferentTypes`; the MoteGlow fallback composition, which has no
+uniform array to read a colour from; an emitter with no vanilla field, whose correctness would rest on
+a multiplication by zero; and anything past the 64-slot capacity, because a uniform array is a fixed
+allocation.
+
+**The measurement's own defect, and the metric that fixes it.** The first cut of the A/B read 4,940
+emitter draws against 4,562 draw calls in its *off* arms, where the two are equal by construction. Two
+causes, both about windows rather than about the feature. The Circinus banks have no reset, so each
+arm's trailing probe steps were landing inside the next arm's cumulative diff; that is fixed by
+draining our own counters with `vector_light_bake_reset` at each window's open and bracketing the
+resetless banks with two identically-ordered snapshots, `circinus_cycles` read first at both ends so
+every bank sees the same number of frames. What remained after that was a clean **+19**: the harness
+runs one scenario step per rendered frame, so two counters read in consecutive `Probe` steps are a
+frame apart, and a frame apart on this plate is nineteen emitters. No ordering fixes that. The
+pinnable form is `vector_light_emitters_per_draw_call`, which divides the two inside one probe call
+where there is no window to skew — exactly 1 off, because every emitter is its own call, and on it is
+how many emitters the average call carried.
+
+**Measured, off/on/off/on** (`vector_light_draw_batch_ab.json`, 600-frame windows, 120–140 Circinus
+sampled frames each, on the same 20-lamp, five-room, six-colonist plate; two runs, quoted `run 1, run
+2`; run 1 carried a persisted Realistic preset and run 2 the shipped defaults, which is why the
+absolute microseconds differ between them and the counters do not):
+
+| per drawing frame | OFF a | ON a | OFF b | ON b |
+|---|---|---|---|---|
+| `VectorLightOverlay.DrawLight` µs | 77.7, 78.1 | **44.7, 41.7** | 71.4, 56.5 | **48.6, 50.4** |
+| `VectorLightOverlay.DrawLight` µs **per call** | 3.48, 3.50 | **2.03, 1.90** | 3.25, 2.57 | **2.06, 2.12** |
+| `VectorLightOverlay.Draw` µs | 111.5, 109.3 | 90.7, 84.8 | 101.2, 86.4 | 95.2, 98.5 |
+| `Patch_VectorLightDraw:Postfix` µs | 219.3, 245.5 | 183.2, 165.2 | 189.2, 179.4 | 181.2, 180.5 |
+| `VectorLightPawnShadows.Draw` µs (control) | 90.1, 119.7 | 84.5, 73.3 | 80.1, 85.7 | 86.9, 83.1 |
+| emitters ÷ draw call | **1.0000** | **19.0000** | **1.0000** | **19.0000** |
+| largest draw batch | 0 | 19 | 0 | 19 |
+| combined-mesh rebuilds in window | 0 | 0 | 0 | 0 |
+
+**The counters are exact and the clock is not, and the two say different halves of it.** Both runs
+report the same window totals to the unit: 11,970 emitter draws leave in **631** draw calls with the
+flag on and **11,989** with it off, so the ratio pins at exactly 19 and exactly 1. The combined mesh
+is rebuilt **zero** times in a steady window, which is the cost side reading as designed — membership,
+geometry and the vanilla squares the UVs point into all hold still, so the draw-call saving is not
+being bought back in mesh uploads. The timing is weaker evidence and is quoted as such: `DrawLight`'s
+body falls in all four pairs, from ~3.2–3.5 µs per call to ~1.9–2.1, which is the per-emitter
+`Graphics.DrawMesh` becoming an enqueue plus one flush for the whole bucket; but in run 2 the
+pawn-shadow control moves 119.7 → 73.3 µs between its first two arms, as far as the subject does, so
+that run's *magnitudes* measure the box as much as the change. What survives both runs is the
+per-call body and the counters.
+
+`largest_draw_batch` reads 0 in the off arms because the high-water mark is only written on the
+batched path; its job is the other direction, saying whether a scene ever came near the 64-slot
+ceiling. **This plate is the best case and says so**: twenty identical lamps means every emitter
+shares one key, so 19:1 is the ceiling rather than a typical figure, and a scene of mixed radii splits
+into a call per bucket. A mixed scene reading 1 there has a key that splits too finely, which is
+otherwise indistinguishable from the feature being off.
+
+**Visually inert, against a same-build control.** Off b vs on b: median ΔE **0.0000**, p90 0.0000, max
+1.71, 295 of 2,073,600 pixels differing (0.0142%), masked median over those pixels 0.8986, all inside
+one bounding box. The same-build control — off a vs off b, one build, one run — differs on 233 pixels
+in the *same* box with the *same* masked median 0.8986, and on a vs on b differs on **zero** pixels.
+The differing pixels are mote crescents inside the lamp rooms, i.e. the scene's own animation floor,
+and the off arm reproduces the per-emitter draw exactly.
+
 
 ### Vector lighting, phase 7: the coverage grid was mostly outside the light (`VectorLightMath.BuildCoverage`, `VectorLightCoverageOracle`, epic #174 phase 7)
 
