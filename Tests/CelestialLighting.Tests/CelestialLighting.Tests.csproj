@@ -281,6 +281,12 @@
          nothing else here, since a visibility polygon is answered entirely from a blocker grid and a
          light position. Tools/VectorLightPreview links the same file for offline look-dev. -->
     <Compile Include="../../Source/VectorLightMath.cs" Link="VectorLightMath.cs" />
+    <!-- Pawn-shadow fan-out arithmetic (Gather/BuildFrom), pulled out of VectorLightPawnShadows.cs
+         so the batch-and-parallelise task's concurrency oracle test can drive a REAL Parallel.For
+         against it. AFTER VectorLightMath above, whose CoverageAt/PawnIlluminance/PawnShadowOpacity
+         and sibling functions it calls straight through to and whose LightPolygon struct its own
+         LightEntryData embeds. -->
+    <Compile Include="../../Source/PawnShadowMath.cs" Link="PawnShadowMath.cs" />
     <Compile Include="../../Source/VectorLightLiftMath.cs" Link="VectorLightLiftMath.cs" />
     <!-- Lamp glow reach: how far past its own glowRadius a lamp is drawn. Verse-free and depends on
          nothing else here — it is a clamp and a multiply — but linking rather than copying is what
