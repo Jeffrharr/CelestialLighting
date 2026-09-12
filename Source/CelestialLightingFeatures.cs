@@ -1948,7 +1948,27 @@ public static class CelestialLightingFeatures
     // working threshold from a scene whose emitters were all too small to qualify. Off calls
     // BuildCoverage exactly as the previous shape did — the same one expression, the same scratch —
     // so the arm is the shipped path rather than a picture of the feature missing.
-    public static bool VectorLightParallelCoverage = true;
+    //
+    // OFF BY DEFAULT, and both measurements behind that belong here rather than only in DESIGN.md.
+    // The frame this was written for is the door swing, and vector_light_coverage_parallel_ab shows
+    // the threshold firing on exactly that frame — 0 of 108 grids banded in every off arm, 108 of 108
+    // in every on arm, with the silhouette memo doing identical work in all four (96 hits, 12
+    // rebuilds) so the arms are the same work with one difference. Its clock refuses to settle:
+    // bake wall median 59.26 ms off against 48.86 ms on over twelve arms each, but on is bimodal —
+    // seven arms at 42.8-49.0 ms and five in a 71.7-177.9 ms tail — and its MEAN is worse, 70.1
+    // against 65.1. That scenario has to run the clock to swing a door, so a ticking colony competes
+    // for the same four cores the bands are handed to. On the paused storm plate
+    // (vector_light_coverage_storm_ab, 880 grids an arm with the emitter fan-out forced off) the win
+    // is real and repeatable — 303.15 ms off against 268.33 ms on, about 12%, with the gather and
+    // upload controls unmoved — but that is a synthetic scene nobody plays. A win demonstrable only
+    // where the cost does not occur, set against a worse tail where it does, is not a default.
+    //
+    // The open question, recorded so the next attempt starts from it rather than from scratch: the
+    // band count is untuned. BandsFor is min(span / 4, ProcessorCount), which is seven bands for a
+    // span-29 grid on this eight-thread box, and an oversubscribed pool contending with the tick is
+    // the shape that tail has. Fewer bands, or a band count that reads how loaded the pool already
+    // is, is where this becomes shippable — not more of the same split.
+    public static bool VectorLightParallelCoverage = false;
 
     // Feature key for VectorLightDrawBatch.
     public const string VectorLightDrawBatchKey = "vector_light_draw_batch";
