@@ -1908,6 +1908,48 @@ public static class CelestialLightingFeatures
     // picture of the feature missing.
     public static bool VectorLightParallelBake = true;
 
+    // Feature key for VectorLightParallelCoverage.
+    public const string VectorLightParallelCoverageKey = "vector_light_parallel_coverage";
+
+    // Split ONE emitter's coverage grid into row bands and fill them across threads, on the frames
+    // where VectorLightParallelBake had nothing to spread.
+    //
+    // THE GAP IT FILLS, AND WHY THE TWO FLAGS ARE NOT THE SAME LEVER. VectorLightParallelBake
+    // spreads whole emitters, and only from four of them upwards, because a fan-out costs tens of
+    // microseconds against a bake's fraction of a millisecond. That is the right threshold and it
+    // leaves a hole exactly where the cost is: a door swinging beside one lamp dirties one emitter,
+    // the batch is one, nothing fans out, and the frame pays VectorLightMath.BuildCoverage in full —
+    // measured on the door scenario at 215-559 microseconds per grid with a worst case of 8 ms, the
+    // largest single term left in that frame. Below four emitters the only decomposition left is
+    // inside one grid.
+    //
+    // WHY IT IS SAFE, which is the pure core's property rather than this file's. A coverage row
+    // depends on nothing but the polygon, the cell coordinates and the bounds — never on the row
+    // before it — so VectorLightMath.CoverageRows fills a band of a grid the caller owns and writes
+    // nothing outside it. Each band gets its own CoverageScratch off the same [ThreadStatic] the
+    // emitter fan-out uses, so no two concurrent bands share a buffer. The map is not touched at
+    // all: the gather already ran on the calling thread before any of this, exactly as it does for
+    // the emitter fan-out. VectorLightCoverageBandTests pins banded output against
+    // VectorLightCoverageOracle rather than only against the unbanded call, because the two arms of
+    // this flag run the same row loop and comparing them alone would assert x - x == 0.
+    //
+    // NEVER NESTED INSIDE THE EMITTER FAN-OUT. A batch that already spread across threads has all
+    // the parallelism the machine can use, and splitting each of those emitters again would
+    // oversubscribe the pool to hand every worker a smaller piece of the same total. BakeSelected
+    // decides once, per batch, and passes the answer down — so the two flags compose as "whichever
+    // axis has work" rather than as a product.
+    //
+    // THE SIZE GATE IS THE SAME ARGUMENT AS ParallelBakeMinimum, one level down: see
+    // VectorLightField.ParallelCoverageMinimumCells. A radius-3 torch's grid is 49 cells and a
+    // fan-out over it is pure loss.
+    //
+    // Measured by vector_light_parallel_coverage_passes against vector_light_serial_coverage_passes,
+    // read as a pair for the reason the bake's own counters are: a fan-out count alone cannot tell a
+    // working threshold from a scene whose emitters were all too small to qualify. Off calls
+    // BuildCoverage exactly as the previous shape did — the same one expression, the same scratch —
+    // so the arm is the shipped path rather than a picture of the feature missing.
+    public static bool VectorLightParallelCoverage = true;
+
     // Feature key for VectorLightSilhouetteCache.
     public const string VectorLightSilhouetteCacheKey = "vector_light_silhouette_cache";
 

@@ -439,6 +439,16 @@ public static class ProbeRegistration
             "vector_light_serial_bakes", VectorLightBakeProbe.Metric.SerialBakePasses));
         ProbeRegistry.Register(new VectorLightBakeProbe(
             "vector_light_bake_batch_max", VectorLightBakeProbe.Metric.LargestBakeBatch));
+        // The row fan-out inside ONE grid, which is the half of the threaded bake that the three
+        // above cannot see: it fires on the frames they are silent for, a door swing dirtying one
+        // emitter. PIN BOTH, and read them against vector_light_serial_bakes rather than alone --
+        // the split is refused on a pool thread, so a scenario whose batches all clear the emitter
+        // threshold correctly reads zero here, and only the serial bake count says which of "the
+        // emitters were fanned out instead" and "the flag is off" produced it.
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_parallel_coverage", VectorLightBakeProbe.Metric.ParallelCoveragePasses));
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_serial_coverage", VectorLightBakeProbe.Metric.SerialCoveragePasses));
         // RECORDED, NEVER PINNED TIGHTLY. It is a duration on a contended box, which this repo has
         // measured moving by a factor of two across one unchanged binary; it earns its place because
         // it is the one number in the bank that a threaded bake can move at all.
@@ -1951,6 +1961,16 @@ public static class ProbeRegistration
             enabled =>
             {
                 CelestialLightingFeatures.VectorLightParallelBake = enabled;
+                VectorLightRedraw.ForceRebuild();
+            });
+        // ForceRebuild for the same reason as the flag above -- it decides HOW a grid is filled,
+        // never what it holds, so an arm that inherits a clean roster measures nothing and reads as
+        // a dead feature. The rebuild is what gives the arm its own bakes to split.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightParallelCoverageKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.VectorLightParallelCoverage = enabled;
                 VectorLightRedraw.ForceRebuild();
             });
         // ForceRebuild for the same reason again, and the rebuild is doing something slightly

@@ -1790,17 +1790,90 @@ public static class VectorLightMath
         LightPolygon polygon, int lightCellX, int lightCellZ, int radiusCells, int samplesPerAxis,
         CoverageScratch scratch = null)
     {
-        int span = radiusCells * 2 + 1;
-        byte[] grid = new byte[span * span];
+        byte[] grid = new byte[CoverageCellCount(radiusCells)];
 
+        CoverageRows(
+            polygon, lightCellX, lightCellZ, radiusCells, samplesPerAxis, grid,
+            0, CoverageSpan(radiusCells), scratch);
+
+        return grid;
+    }
+
+    // How many cells across one emitter's coverage grid is, and how many bytes it holds.
+    //
+    // EXPOSED SO A CALLER CAN OWN THE GRID, which is the whole of what the row split below is for: a
+    // caller that means to fill several row bands at once has to allocate the array before any of
+    // them runs, and it must size it by the same expression BuildCoverage does or the bands write
+    // outside each other. One place to be wrong rather than three.
+    public static int CoverageSpan(int radiusCells)
+    {
+        return radiusCells * 2 + 1;
+    }
+
+    public static int CoverageCellCount(int radiusCells)
+    {
+        int span = CoverageSpan(radiusCells);
+
+        return span * span;
+    }
+
+    // One horizontal BAND of a coverage grid the caller owns — rows [rowStart, rowEnd) of it.
+    //
+    // WHY THE ROWS COME APART AT ALL. A bake is (2r+1)² cells sampled four times each, and the door
+    // frame measures it at 215-559 microseconds per grid with a worst case of 8 ms — the largest
+    // single term left in that frame. VectorLightField.BakeSelected already spreads WHOLE EMITTERS
+    // across threads, but only from four of them upwards, because below that the fan-out costs more
+    // than it saves. A door swinging beside one lamp dirties one emitter, so the frame that pays
+    // most for coverage is exactly the frame that cannot use that path. Splitting a single grid's
+    // rows is the decomposition that is left, and it is available at any batch size.
+    //
+    // EACH BAND IS SELF-CONTAINED, which is what makes it safe to run several at once. A band reads
+    // the polygon and writes only `grid[zi * span + xi]` for its own rows, so two bands cannot
+    // observe each other; everything else it needs — the per-column spans, the ray fan — it derives
+    // into the scratch IT WAS HANDED. Give each concurrent band its own CoverageScratch and there is
+    // no shared mutable state left. Give two bands one scratch and the result is not a crash but a
+    // few wrong bytes in one shadow, which is the class of defect that ships; see
+    // VectorLightField.ThreadScratch for the same argument one level up.
+    //
+    // THE PER-COLUMN PASS AND THE RAY FAN ARE REDONE PER BAND, deliberately, rather than computed
+    // once and shared. Both are O(span) and O(polygon.Count) against the band's own O(span² ×
+    // samples²), so the duplication is lost in the noise — and sharing them would put a read-only
+    // buffer back across the threads and re-open exactly the question the paragraph above closes.
+    // A single band over the whole grid therefore does bit-identical work to the old shape, which is
+    // what makes the unthreaded arm the shipped path rather than a reimplementation of it.
+    //
+    // BIT-IDENTICAL ACROSS ANY SPLIT, not merely close. Nothing in a row's arithmetic depends on
+    // which rows ran before it: the column spans come from the cell's own coordinate, the bounds
+    // from the polygon's extreme rays, and the sampler from the fan. VectorLightCoverageBandTests
+    // pins banded output against the whole-grid call AND against VectorLightCoverageOracle, because
+    // comparing the split to the unsplit alone would be the same code asserting x - x == 0.
+    public static void CoverageRows(
+        LightPolygon polygon, int lightCellX, int lightCellZ, int radiusCells, int samplesPerAxis,
+        byte[] grid, int rowStart, int rowEnd, CoverageScratch scratch = null)
+    {
         if (polygon.Count == 0 || radiusCells < 0)
-            return grid;
+            return;
 
         // A zero grid is what the loop below produces when there is nothing to sample with, because
         // LitFraction answers 0 for every cell. Returned here instead so the bounds work — which
         // divides by this — never sees it.
         if (samplesPerAxis < 1)
-            return grid;
+            return;
+
+        int span = CoverageSpan(radiusCells);
+
+        // Clamped rather than trusted, because the caller working out a band range is the caller
+        // most likely to be off by one at the last band, and a row index past the end is an
+        // IndexOutOfRange raised inside a pool thread — which surfaces as an AggregateException in a
+        // draw postfix and takes the rest of the frame's overlays down with it.
+        if (rowStart < 0)
+            rowStart = 0;
+
+        if (rowEnd > span)
+            rowEnd = span;
+
+        if (rowStart >= rowEnd)
+            return;
 
         float lightX = lightCellX + 0.5f;
         float lightZ = lightCellZ + 0.5f;
@@ -1823,6 +1896,10 @@ public static class VectorLightMath
         // span depends only on which column it sits in, and the previous shape asked for it once per
         // CELL — span times per column rather than once. Nothing about the answer moves; the loop
         // simply stops asking the same question span times over.
+        //
+        // EVERY COLUMN, EVEN FOR A ONE-ROW BAND. The x spans do not depend on the row, so a band
+        // could in principle be handed them; see this method's header for why each band derives its
+        // own instead.
         float[] nearX = working.NearX;
         float[] farX = working.FarX;
 
@@ -1851,7 +1928,7 @@ public static class VectorLightMath
         bool[] sampled = working.Sampled;
         int perCell = samplesPerAxis * samplesPerAxis;
 
-        for (int zi = 0; zi < span; zi++)
+        for (int zi = rowStart; zi < rowEnd; zi++)
         {
             int cellZ = lightCellZ - radiusCells + zi;
 
@@ -1906,8 +1983,6 @@ public static class VectorLightMath
                 }
             }
         }
-
-        return grid;
     }
 
     // One polygon's ray directions, plus the index range over which its stored order is also its

@@ -67,6 +67,15 @@ public sealed class VectorLightBakeProbe : IProbe
         ParallelBakePasses,
         SerialBakePasses,
 
+        // Coverage grids filled a row band at a time, and grids filled in one piece. MEANINGLESS
+        // APART for the same reason the pair above is, with one extra wrinkle worth knowing before
+        // pinning either: these two count grids, not frames, and the SERIAL one also counts every
+        // grid baked on a pool thread, because an emitter fan-out refuses the row split rather than
+        // nesting inside it. A scenario whose batches all clear ParallelBakeMinimum therefore reads
+        // zero parallel coverage passes and is working exactly as designed.
+        ParallelCoveragePasses,
+        SerialCoveragePasses,
+
         // The largest batch either path was handed. The one number that says whether a scenario
         // exercised the threaded path with enough work to mean anything: a fan-out over a batch of
         // four has taken the branch without testing the design, and pinning this is what stops an
@@ -381,6 +390,12 @@ public sealed class VectorLightBakeProbe : IProbe
 
         if (metric == Metric.SerialBakePasses)
             return VectorLightField.SerialBakePasses;
+
+        if (metric == Metric.ParallelCoveragePasses)
+            return VectorLightField.ParallelCoveragePasses;
+
+        if (metric == Metric.SerialCoveragePasses)
+            return VectorLightField.SerialCoveragePasses;
 
         if (metric == Metric.LargestBakeBatch)
             return VectorLightField.LargestBakeBatch;

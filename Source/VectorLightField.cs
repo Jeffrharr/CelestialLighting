@@ -349,6 +349,8 @@ public static class VectorLightField
         PolygonDeferrals = 0;
         ParallelBakePasses = 0;
         SerialBakePasses = 0;
+        ParallelCoveragePasses = 0;
+        SerialCoveragePasses = 0;
         LargestBakeBatch = 0;
         BakeWallMs = 0.0;
         GatherWallMs = 0.0;
@@ -784,17 +786,22 @@ public static class VectorLightField
         // would dilute the ratio with a constant.
         System.Diagnostics.Stopwatch clock = System.Diagnostics.Stopwatch.StartNew();
 
+        // DECIDED ONCE, HERE, AND PASSED DOWN. A batch that spreads across threads already has all
+        // the parallelism the machine can use, so its emitters must not each split their coverage
+        // grid as well — that would oversubscribe the pool to hand every worker a smaller slice of
+        // the same total. The two axes are alternatives rather than a product, and this is the one
+        // place that knows which of them has work. See CelestialLightingFeatures.VectorLightParallelCoverage.
         if (ShouldFanOut(batch.Count))
         {
             ParallelBakePasses++;
-            Parallel.For(0, batch.Count, i => BakeGathered(batch[i], BatchSegments[i]));
+            Parallel.For(0, batch.Count, i => BakeGathered(batch[i], BatchSegments[i], rowThreads: false));
         }
         else
         {
             SerialBakePasses++;
 
             for (int i = 0; i < batch.Count; i++)
-                BakeGathered(batch[i], BatchSegments[i]);
+                BakeGathered(batch[i], BatchSegments[i], rowThreads: true);
         }
 
         BakeWallMs += clock.Elapsed.TotalMilliseconds;
@@ -814,6 +821,128 @@ public static class VectorLightField
         return CelestialLightingFeatures.VectorLightParallelBake
             && count >= ParallelBakeMinimum
             && System.Environment.ProcessorCount > 1;
+    }
+
+    // Below this many cells an emitter's coverage grid is baked in one piece whatever the flag says.
+    //
+    // 225 IS SPAN 15, i.e. a radius-7 emitter. The door scenario puts a grid at 215-559 microseconds
+    // over at most 841 cells, so roughly a third of a microsecond a cell; 225 cells is therefore
+    // about 70 microseconds of work, which is the point at which splitting it clears a fan-out's own
+    // cost of tens of microseconds rather than merely paying it. Below that the join is most of what
+    // the frame would buy — a radius-3 torch's grid is 49 cells and threading it is pure loss.
+    //
+    // THE PROXY IS THE SQUARE, NOT THE WORK. What a bake actually costs is its SAMPLED cells, and
+    // the ray-extreme bounds mean that can be almost none of the square: an unobstructed emitter
+    // answers nearly every cell without a transcendental. Nothing knows that number before the bake
+    // runs, so the gate is on the only size available up front, and it errs towards fanning out a
+    // grid that turns out cheap rather than towards refusing one that turns out dear. That is the
+    // right way round — the frames this exists for are the expensive ones.
+    private const int ParallelCoverageMinimumCells = 225;
+
+    // And no band shorter than this, which is what stops the band COUNT being the processor count on
+    // a machine with a lot of cores. Every band redoes the per-column pass and builds its own ray
+    // fan (see VectorLightMath.CoverageRows for why it derives them rather than sharing), so bands
+    // are not free the way slices of a flat loop would be: one row per band on a 32-thread machine
+    // would pay a hundred sines and cosines thirty-two times over to save a grid that has only
+    // twenty-nine rows in it.
+    private const int ParallelCoverageMinimumRows = 4;
+
+    // How many coverage grids were filled a band at a time, and how many in one piece.
+    //
+    // READ AS A PAIR, like ParallelBakePasses and SerialBakePasses and for the same reason: a
+    // fan-out count on its own cannot tell a working threshold from a scene whose emitters were all
+    // below it. The serial count is what says which of those two a zero is.
+    //
+    // INTERLOCKED, unlike the bake's own counters, which are deliberately plain increments kept on
+    // the calling thread. These cannot be: the serial arm of this decision is exactly what a bake
+    // running on a POOL thread takes, because an emitter fan-out passes rowThreads false. Plain
+    // increments there would lose updates under the one arrangement the counters exist to describe,
+    // and a probe that undercounts reads as a threshold that did not fire.
+    public static int ParallelCoveragePasses;
+    public static int SerialCoveragePasses;
+
+    // One emitter's coverage grid, filled in row bands across threads when this bake is allowed to
+    // and the grid is big enough to be worth it.
+    //
+    // THE REFUSED PATH IS THE OLD EXPRESSION, unchanged and unwrapped — the same call, the same
+    // arguments, the same [ThreadStatic] scratch. That is what makes the flag's off arm the shipped
+    // path rather than a reimplementation of it, and it is why the fan-out lives in a method of its
+    // own below instead of as a branch inside one loop.
+    private static byte[] BakeCoverage(LightEntry entry, bool rowThreads)
+    {
+        if (!ShouldFanOutRows(rowThreads, entry.CoverageRadius))
+        {
+            System.Threading.Interlocked.Increment(ref SerialCoveragePasses);
+
+            return VectorLightMath.BuildCoverage(
+                entry.Polygon, entry.Cell.x, entry.Cell.z, entry.CoverageRadius,
+                VectorLightMath.DefaultCoverageSamples, Scratch);
+        }
+
+        System.Threading.Interlocked.Increment(ref ParallelCoveragePasses);
+
+        return CoverageAcrossThreads(entry);
+    }
+
+    private static bool ShouldFanOutRows(bool rowThreads, int coverageRadius)
+    {
+        return rowThreads
+            && CelestialLightingFeatures.VectorLightParallelCoverage
+            && System.Environment.ProcessorCount > 1
+            && coverageRadius >= 0
+            && VectorLightMath.CoverageCellCount(coverageRadius) >= ParallelCoverageMinimumCells
+            && BandsFor(VectorLightMath.CoverageSpan(coverageRadius)) > 1;
+    }
+
+    // How many bands one grid's rows are cut into: one per processor, but never so many that a band
+    // falls under ParallelCoverageMinimumRows.
+    //
+    // Named rather than inlined because ShouldFanOutRows has to ask the same question — a grid that
+    // would come out as a single band must take the serial path, or the frame pays for a fan-out
+    // that hands one worker the whole job.
+    private static int BandsFor(int span)
+    {
+        int bands = span / ParallelCoverageMinimumRows;
+
+        return bands < System.Environment.ProcessorCount ? bands : System.Environment.ProcessorCount;
+    }
+
+    // THE GRID IS ALLOCATED HERE, BEFORE ANY BAND RUNS, which is the whole reason the pure core
+    // exposes its own sizing. Every band writes into this one array and none of them may resize it;
+    // sizing it by a second expression is how the bands would come to disagree about where row `zi`
+    // starts.
+    //
+    // NOTHING IN THE LAMBDA TOUCHES THE MAP, on exactly BakeGathered's rule and for exactly its
+    // reason. The polygon was built a few lines above on this thread, the cell and radius are values
+    // on the entry, and the only write is into `grid` at rows the band owns. `Scratch` resolves
+    // inside the lambda on purpose: it is [ThreadStatic], so reading it there is what gives each
+    // worker its own buffers — hoisting it out would hand every band the calling thread's one, which
+    // is the interleaved-writes defect VectorLightMath.CoverageRows' header describes.
+    private static byte[] CoverageAcrossThreads(LightEntry entry)
+    {
+        int radiusCells = entry.CoverageRadius;
+        int span = VectorLightMath.CoverageSpan(radiusCells);
+        byte[] grid = new byte[span * span];
+
+        VectorLightMath.LightPolygon polygon = entry.Polygon;
+        int cellX = entry.Cell.x;
+        int cellZ = entry.Cell.z;
+
+        int bands = BandsFor(span);
+
+        // A ceiling divide, so the last band is the short one. CoverageRows clamps a range that runs
+        // past the end, so the arithmetic here does not need a Math.Min it would be easy to forget —
+        // and VectorLightCoverageBandTests pins that clamp rather than assuming it.
+        int chunk = (span + bands - 1) / bands;
+
+        Parallel.For(0, bands, band =>
+        {
+            VectorLightMath.CoverageRows(
+                polygon, cellX, cellZ, radiusCells, VectorLightMath.DefaultCoverageSamples,
+                grid, band * chunk, (band + 1) * chunk, Scratch);
+        });
+
+        return grid;
     }
 
     // The visibility polygon for one emitter, built if the world has changed under it since the last
@@ -838,7 +967,11 @@ public static class VectorLightField
         PolygonBakes++;
         BakeSegments += segments.Length;
 
-        BakeGathered(entry, segments);
+        // ROW THREADS ALLOWED, because this spelling is by definition one emitter — there is no
+        // emitter fan-out here to compete with, which is the only thing the flag has to stand down
+        // for. It reaches the same gate BakeSelected's serial arm does and is refused on the same
+        // grounds when the grid is too small to pay for a join.
+        BakeGathered(entry, segments, rowThreads: true);
     }
 
     // One emitter's occluder set, read off the live map.
@@ -869,7 +1002,13 @@ public static class VectorLightField
     // two are the same arithmetic and Mathf is pure managed code, so the swap changes no answer —
     // but "no UnityEngine calls on this path" is a rule that has to be checkable by reading, and a
     // Mathf call sitting here invites the next person to reach for a Mathf member that is not pure.
-    private static void BakeGathered(LightEntry entry, VectorLightMath.Segment[] segments)
+    //
+    // `rowThreads` says whether THIS bake is allowed to split its own coverage grid across threads.
+    // False on the emitter fan-out's path, because that batch is already using the pool; true on the
+    // serial arm and on the one-at-a-time spelling, where nothing else is. The caller decides
+    // because the caller is the only one that knows what else is in flight — see BakeSelected.
+    private static void BakeGathered(
+        LightEntry entry, VectorLightMath.Segment[] segments, bool rowThreads)
     {
         // Snapshotted BEFORE the writes below overwrite them. These four are what the comparison at
         // the end of the method has to hold the new grid against, and there is nowhere else to keep
@@ -897,9 +1036,7 @@ public static class VectorLightField
         // vanilla's own square. See VectorLightReachMath.CoverageRadius.
         entry.CoverageRadius = (int)System.Math.Ceiling(
             VectorLightReachMath.CoverageRadius(entry.BaseRadius, entry.Radius));
-        entry.Coverage = VectorLightMath.BuildCoverage(
-            entry.Polygon, entry.Cell.x, entry.Cell.z, entry.CoverageRadius,
-            VectorLightMath.DefaultCoverageSamples, Scratch);
+        entry.Coverage = BakeCoverage(entry, rowThreads);
         entry.CoverageCell = entry.Cell;
         entry.Unobstructed = VectorLightMath.IsUnobstructed(entry.Polygon, entry.Radius);
 
