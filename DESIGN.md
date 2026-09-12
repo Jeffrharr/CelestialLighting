@@ -13316,6 +13316,51 @@ against on d and on c against on d each differ on **0 of 2,073,600 pixels** — 
 The grid-level guarantee is still the oracle tests and the `vector_light_suite.txt` gate; the storm
 captures are what says that guarantee reached the screen.
 
+**The same two levers, pulled for the pawn-shadow pass** (`CelestialLightingFeatures.VectorLightShadowBatch`,
+`VectorLightShadowParallelBuild`, `Source/PawnShadowMath.cs`, `PawnShadowMathTests.ConcurrentBuildsMatchSerialOnes`,
+`vector_light_shadow_batch_ab.json`). `VectorLightPawnShadows.Draw` split into three stages so each
+lever has something to hold: `GatherInputs` reads the live pawn roster and lamp field on the calling
+thread — `DrawPos`, `CastsShadow`'s hediff walk, `RoofedAt`, the camera rect, exactly the values the
+overlay's own fan-out already knew could not cross a thread boundary — `BuildAll` runs the pure
+`PawnShadowMath.Build` per pawn, and `DrawAll` issues the `Graphics.DrawMesh` calls. The pure core
+itself is the same `Gather`-then-`BuildFrom` two-call shape the live adapter always used, just
+extracted with no `UnityEngine`/`Verse` usings, so the offline test drives the identical code the
+frame runs rather than a stand-in.
+
+**Batch equivalence measured bit-identical, not merely below ΔE 1.** Unlike the overlay's texture-array
+route, batching the shadow draw needed no new shader: every shadow already draws through the same
+per-opacity-bucket material the unbatched path uses, so "batched" here means grouping same-bucket
+`DrawnShadow`s into fewer `Graphics.DrawMesh` calls rather than routing opacity through a uniform
+array — there is no vertex-program change for a control arm to isolate. On a six-colonist, one-lamp
+room (`vector_light_shadow_batch_ab.json`, four arms: batch/parallel off/off, a same-build off/off
+control, batch on/parallel off, batch on/parallel on), draw calls collapsed from 60 to 20 for the same
+63 shadows drawn (`vector_light_shadows_per_draw_call` 1 → 3), and the three post-control captures —
+the off/off control, batch-on, and batch+parallel-on — are **MD5-identical**, not just under-threshold
+ΔE. The first capture in the run differs from the rest only by the known HUD-on-first-frame artifact
+(median and p90 ΔE 0.00, mean 3.158 driven entirely by UI pixels — see
+`harness-first-screenshot-has-the-hud`), confirmed by reading both frames rather than trusting the
+number.
+
+**Threading equivalence is `ConcurrentBuildsMatchSerialOnes`, not an A-vs-A of the draw.** Comparing
+two live-harness arms that both call the same `Build` would assert `x − x == 0`; the property that
+matters — that two pawns built on two pool threads never corrupt each other's `List<ContributionData>`
+scratch — is only visible to a real `Parallel.For` with a `ThreadLocal` scratch, run against five
+scenes (one to four lamps, shaped/shares/ground-shares/clip in every combination) at forty repeats each
+so the scheduler gets room to interleave two pawns on one worker before either finishes. Every threaded
+result is asserted field-by-field against a serially-built baseline. `ParallelBuildMinimum` (4) gates
+the fan-out the same way `ParallelCoverageMinimumCells`/`Rows` gate the coverage bands — below it a
+`Parallel.For` call costs more than the loop it replaces.
+
+**Both flags ship off, for the same reason `VectorLightParallelCoverage` did.** The six-pawn scene the
+batch arm was measured on is far below the pawn count a busy colony reaches, and `vector_light_shadow_build_wall_ms`
+shows why the parallel flag can't default on yet either: 0.39–0.42 ms serial against **2.25 ms**
+parallel on that same six-pawn plate — thread-pool wake-up costs more than the sub-millisecond loop it
+replaces, the same shape as the coverage bands' door-scene loss. The batch flag's own equivalence is
+solid enough to default on once a stress-scale colony confirms the collapse still holds and is worth
+the call-count savings there; the parallel flag needs that same larger plate before its wall-clock can
+plausibly turn positive. Both stay off, machinery and tests kept, so the next attempt starts from a
+proven-correct core rather than from scratch.
+
 ### Vector lighting, phase 7: the coverage grid was mostly outside the light (`VectorLightMath.BuildCoverage`, `VectorLightCoverageOracle`, epic #174 phase 7)
 
 Phase 6 left the coverage grid as the largest term inside a bake — **50.7% culled, against `Build`'s

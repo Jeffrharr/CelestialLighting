@@ -1,0 +1,165 @@
+{
+  "name": "vector_light_shadow_batch_ab",
+  "saveFile": "minimal_colony.rws",
+  "description": "Batch-and-parallelise pair's own A/B, purpose-built rather than borrowed from #249's draw_batch_ab or the hold pair's measurement, neither of which ever touches vector_light_shadow_batch/vector_light_shadow_parallel_build. Same roofed room as vector_light_pawn_shadows.json (roofed ON PURPOSE so every shadow in frame is ours, not vanilla's) but with six colonists clustered around one torch instead of two, so a single BuildAll call always sees at least ParallelBuildMinimum (4) pawns and the parallel path actually has work to fan out. Four arms: OFF, a same-build OFF control (inert-change-needs-a-same-build-control convention, since two runs of one build already differ on 7-13% of pixels), batch ON alone, then batch+parallel-build both ON. Each arm resets VectorLightPawnShadowBuildProbe's counters immediately before its own screenshot so DrawCalls/ShadowsDrawn/ParallelBuildPasses/SerialBuildPasses/LargestBuildBatch/BuildWallMs describe only that arm's frames, never a mix of two flag states.",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": { "latitude": "45" }
+    },
+    {
+      "type": "SetSeason",
+      "args": { "dayOfYear": "40" }
+    },
+    {
+      "type": "SetWeather",
+      "args": { "weatherDef": "Clear", "instant": "true" }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Concrete",
+        "width": "30",
+        "height": "24",
+        "offset": "0,45",
+        "clear": "true"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "0,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "-9,-7; -9,7; -8,-7; -8,7; -7,-7; -7,7; -6,-7; -6,7; -5,-7; -5,7; -4,-7; -4,7; -3,-7; -3,7; -2,-7; -2,7; -1,-7; -1,7; 0,-7; 0,7; 1,-7; 1,7; 2,-7; 2,7; 3,-7; 3,7; 4,-7; 4,7; 5,-7; 5,7; 6,-7; 6,7; 7,-7; 7,7; 8,-7; 8,7; 9,-7; 9,7; -9,-6; 9,-6; -9,-5; 9,-5; -9,-4; 9,-4; -9,-3; 9,-3; -9,-2; 9,-2; -9,-1; 9,-1; -9,0; 9,0; -9,1; 9,1; -9,2; 9,2; -9,3; 9,3; -9,4; 9,4; -9,5; 9,5; -9,6; 9,6"
+      }
+    },
+    {
+      "type": "SetRoof",
+      "args": {
+        "def": "RoofConstructed",
+        "width": "19",
+        "height": "15",
+        "offset": "0,45"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "TorchLamp",
+        "offset": "0,45",
+        "layout": "cells",
+        "cells": "-6,0"
+      }
+    },
+    {
+      "type": "SpawnPawn",
+      "args": {
+        "kind": "Colonist",
+        "faction": "player",
+        "count": "6",
+        "spacing": "2",
+        "offset": "-1,44",
+        "clear": "true"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": { "hour": "0" }
+    },
+    {
+      "type": "LookAt",
+      "args": { "offset": "0,45", "zoom": "14" }
+    },
+    {
+      "type": "Probe",
+      "args": { "probeName": "vector_light_count", "expectedValue": "4", "tolerance": "0" }
+    },
+    {
+      "type": "Probe",
+      "args": { "probeName": "vector_light_mask_available", "expectedValue": "1", "tolerance": "0" }
+    },
+
+    { "type": "SetFeature", "args": { "featureName": "vector_lights", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_penumbra", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_suppress", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_blend", "enabled": "false" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_mask", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_mask_beam", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_pawn_shadows", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_shadow_batch", "enabled": "false" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_shadow_parallel_build", "enabled": "false" } },
+    { "type": "Probe", "args": { "probeName": "vector_light_shadow_build_reset", "expectedValue": "0", "tolerance": "0" } },
+    { "type": "Wait", "args": { "frames": "2" } },
+    { "type": "Screenshot", "args": { "fileName": "vlshadow_batch_off_a.png" } },
+    { "type": "Probe", "args": { "probeName": "vector_light_shadow_draw_calls", "expectedValue": "0", "tolerance": "1000000000" } },
+    { "type": "Probe", "args": { "probeName": "vector_light_shadows_drawn", "expectedValue": "0", "tolerance": "1000000000" } },
+    { "type": "Probe", "args": { "probeName": "vector_light_shadows_per_draw_call", "expectedValue": "0", "tolerance": "1000000000" } },
+    { "type": "Probe", "args": { "probeName": "vector_light_serial_shadow_builds", "expectedValue": "0", "tolerance": "1000000000" } },
+    { "type": "Probe", "args": { "probeName": "vector_light_parallel_shadow_builds", "expectedValue": "0", "tolerance": "1000000000" } },
+    { "type": "Probe", "args": { "probeName": "vector_light_shadow_build_batch_max", "expectedValue": "0", "tolerance": "1000000000" } },
+    { "type": "Probe", "args": { "probeName": "vector_light_shadow_build_wall_ms", "expectedValue": "0", "tolerance": "1000000000" } },
+
+    { "type": "SetFeature", "args": { "featureName": "vector_lights", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_penumbra", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_suppress", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_blend", "enabled": "false" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_mask", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_mask_beam", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_pawn_shadows", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_shadow_batch", "enabled": "false" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_shadow_parallel_build", "enabled": "false" } },
+    { "type": "Probe", "args": { "probeName": "vector_light_shadow_build_reset", "expectedValue": "0", "tolerance": "0" } },
+    { "type": "Wait", "args": { "frames": "2" } },
+    { "type": "Screenshot", "args": { "fileName": "vlshadow_batch_off_b.png" } },
+    { "type": "Probe", "args": { "probeName": "vector_light_shadow_draw_calls", "expectedValue": "0", "tolerance": "1000000000" } },
+    { "type": "Probe", "args": { "probeName": "vector_light_shadows_drawn", "expectedValue": "0", "tolerance": "1000000000" } },
+    { "type": "Probe", "args": { "probeName": "vector_light_shadows_per_draw_call", "expectedValue": "0", "tolerance": "1000000000" } },
+    { "type": "Probe", "args": { "probeName": "vector_light_serial_shadow_builds", "expectedValue": "0", "tolerance": "1000000000" } },
+    { "type": "Probe", "args": { "probeName": "vector_light_parallel_shadow_builds", "expectedValue": "0", "tolerance": "1000000000" } },
+    { "type": "Probe", "args": { "probeName": "vector_light_shadow_build_batch_max", "expectedValue": "0", "tolerance": "1000000000" } },
+    { "type": "Probe", "args": { "probeName": "vector_light_shadow_build_wall_ms", "expectedValue": "0", "tolerance": "1000000000" } },
+
+    { "type": "SetFeature", "args": { "featureName": "vector_lights", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_penumbra", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_suppress", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_blend", "enabled": "false" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_mask", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_mask_beam", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_pawn_shadows", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_shadow_batch", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_shadow_parallel_build", "enabled": "false" } },
+    { "type": "Probe", "args": { "probeName": "vector_light_shadow_build_reset", "expectedValue": "0", "tolerance": "0" } },
+    { "type": "Wait", "args": { "frames": "2" } },
+    { "type": "Screenshot", "args": { "fileName": "vlshadow_batch_on.png" } },
+    { "type": "Probe", "args": { "probeName": "vector_light_shadow_draw_calls", "expectedValue": "0", "tolerance": "1000000000" } },
+    { "type": "Probe", "args": { "probeName": "vector_light_shadows_drawn", "expectedValue": "0", "tolerance": "1000000000" } },
+    { "type": "Probe", "args": { "probeName": "vector_light_shadows_per_draw_call", "expectedValue": "0", "tolerance": "1000000000" } },
+    { "type": "Probe", "args": { "probeName": "vector_light_serial_shadow_builds", "expectedValue": "0", "tolerance": "1000000000" } },
+    { "type": "Probe", "args": { "probeName": "vector_light_parallel_shadow_builds", "expectedValue": "0", "tolerance": "1000000000" } },
+    { "type": "Probe", "args": { "probeName": "vector_light_shadow_build_batch_max", "expectedValue": "0", "tolerance": "1000000000" } },
+    { "type": "Probe", "args": { "probeName": "vector_light_shadow_build_wall_ms", "expectedValue": "0", "tolerance": "1000000000" } },
+
+    { "type": "SetFeature", "args": { "featureName": "vector_lights", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_penumbra", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_suppress", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_blend", "enabled": "false" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_mask", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_mask_beam", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_pawn_shadows", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_shadow_batch", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_shadow_parallel_build", "enabled": "true" } },
+    { "type": "Probe", "args": { "probeName": "vector_light_shadow_build_reset", "expectedValue": "0", "tolerance": "0" } },
+    { "type": "Wait", "args": { "frames": "2" } },
+    { "type": "Screenshot", "args": { "fileName": "vlshadow_batch_parallel_on.png" } },
+    { "type": "Probe", "args": { "probeName": "vector_light_shadow_draw_calls", "expectedValue": "0", "tolerance": "1000000000" } },
+    { "type": "Probe", "args": { "probeName": "vector_light_shadows_drawn", "expectedValue": "0", "tolerance": "1000000000" } },
+    { "type": "Probe", "args": { "probeName": "vector_light_shadows_per_draw_call", "expectedValue": "0", "tolerance": "1000000000" } },
+    { "type": "Probe", "args": { "probeName": "vector_light_serial_shadow_builds", "expectedValue": "0", "tolerance": "1000000000" } },
+    { "type": "Probe", "args": { "probeName": "vector_light_parallel_shadow_builds", "expectedValue": "0", "tolerance": "1000000000" } },
+    { "type": "Probe", "args": { "probeName": "vector_light_shadow_build_batch_max", "expectedValue": "0", "tolerance": "1000000000" } },
+    { "type": "Probe", "args": { "probeName": "vector_light_shadow_build_wall_ms", "expectedValue": "0", "tolerance": "1000000000" } }
+  ]
+}
