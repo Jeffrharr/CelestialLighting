@@ -2088,7 +2088,13 @@ public static class CelestialLightingFeatures
     // OFF DRAWS ONE Graphics.DrawMesh PER SHADOW, which is the shipped body untouched, so a scene
     // with the same number of shadows scores an equal draw-call count in both arms — the batch's
     // only lever is calls per shadow, not shadows per frame.
-    public static bool VectorLightShadowBatch;
+    //
+    // ON BY DEFAULT: MD5-identical output against off on vector_light_shadow_batch_ab.json (six
+    // pawns, one lamp) at a 60-to-20 draw-call collapse, confirmed to hold shape at colony scale in
+    // stress_pawn_colony_shadow_perf.json (6973 calls for 7250 shadows unbatched vs. 25-26 calls for
+    // 7278-7493 shadows batched). See the "both flags ship off" / "stress-scale colony reverses the
+    // parallel verdict" passages in DESIGN.md for the full measurement history.
+    public static bool VectorLightShadowBatch = true;
 
     // Feature key for VectorLightShadowParallelBuild.
     public const string VectorLightShadowParallelBuildKey = "vector_light_shadow_parallel_build";
@@ -2108,7 +2114,13 @@ public static class CelestialLightingFeatures
     //
     // OFF BUILDS IN PAWN ORDER ON THE CALLING THREAD, which is the shipped loop untouched, so an
     // off run is a baseline rather than a picture of the pass running with no pawns in view.
-    public static bool VectorLightShadowParallelBuild;
+    //
+    // ON BY DEFAULT: the six-pawn/one-lamp room this flag was first measured on (0.39-0.42ms serial
+    // vs. 2.25ms parallel) is not representative of a busy colony — a repeat against the 50-pawn,
+    // 500-lamp stress_pawn_colony_shadow_perf.json plate found vector_light_shadow_build_wall_ms at
+    // 51.7ms serial vs. 19.0ms parallel, a ~2.7x win once fan-out clears the thread-pool wake-up
+    // cost. See DESIGN.md's "stress-scale colony reverses the parallel verdict" passage.
+    public static bool VectorLightShadowParallelBuild = true;
 }
 
 public enum SunClockMode
