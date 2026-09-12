@@ -55,6 +55,27 @@ public static class VectorLightShader
 
     private static readonly int SkyAmbientId = Shader.PropertyToID("_SkyAmbient");
 
+    // The batched variant's three inputs: the slice stack of every emitter's square, and the two
+    // uniform arrays the vertex program indexes with the slot carried in UV1.z. See
+    // VectorLightDrawBatch for what fills them and the shader's own header for why they are a
+    // keyword variant rather than a second shader.
+    private static readonly int VanillaArrayId = Shader.PropertyToID("_VanillaArray");
+
+    private static readonly int BatchColorId = Shader.PropertyToID("_BatchColor");
+
+    private static readonly int BatchParamsId = Shader.PropertyToID("_BatchParams");
+
+    // MUST MATCH THE SHADER'S OWN VECTORLIGHT_BATCH_MAX. A uniform array is a fixed allocation, so
+    // writing more elements than the program declares is not a bigger batch — it is a silently
+    // truncated one, and the emitters past the end draw with whatever the array happened to hold.
+    // Named here because the C# side is what has to obey it; the shader's define is the authority.
+    public const int BatchCapacity = 64;
+
+    // The keyword that selects the batched variant. Spelled once, because EnableKeyword takes a
+    // string and a typo in it is not an error — it enables a keyword no variant declares, which
+    // leaves the per-emitter program running against nothing bound and draws black fans.
+    public const string BatchKeyword = "VECTORLIGHT_BATCHED";
+
     // The shader itself, resolved through the def on every read. ShaderTypeDef memoises into its own
     // shaderInt, so after the first call this is a field read behind a property — cheap enough that a
     // second cache here would buy nothing except a second way to reach the same object.
@@ -95,6 +116,34 @@ public static class VectorLightShader
     // the draw cull on the cheap answer first. See VectorLightOverlay.DrawIndoorMultiply.
     public static bool IndoorMultiplyActive =>
         CelestialLightingFeatures.VectorLightIndoorMultiply && MaxActive && !SurfaceLiftActive;
+
+    // The verdict on the batched variant, cached beside Available and for the same reason.
+    private static bool? batchAvailable;
+
+    // Whether one draw call can carry several emitters on this machine. THREE SEPARATE THINGS CAN
+    // SAY NO and each of them is a real configuration rather than a defensive nicety:
+    //
+    //   - the loaded shader may not declare the keyword at all, which is what a STALE ASSET BUNDLE
+    //     looks like. The harness's --mod-overlay swaps assemblies and leaves AssetBundles/ coming
+    //     from the main checkout, so a branch that changed the shader and was live-tested through an
+    //     overlay is running new C# against the old compiled program. Without this check that
+    //     arrangement does not fail — EnableKeyword on a keyword no variant declares is a no-op, the
+    //     per-emitter program runs with no _Color bound, and the frame is black fans with green
+    //     probes. See the overlay-swaps-assemblies-only trap;
+    //   - the machine may not support texture arrays, which is where every emitter's square lives;
+    //   - it may not support copying a Texture2D into a slice of one, which is how they get there.
+    //     Graphics.CopyTexture between different texture types needs DifferentTypes specifically,
+    //     and Basic alone is not enough.
+    //
+    // All three land as false and the pass draws per emitter, which is the shipped path — a batching
+    // optimisation that cannot run must cost a frame nothing but the question.
+    public static bool BatchAvailable => batchAvailable ??= ValidateBatch();
+
+    // Whether this frame should batch: asked for, possible, and drawing through our own program at
+    // all. The fallback additive path goes through MoteGlow, which has no array to read per-emitter
+    // colour out of, so there is nothing to batch there however the flag is set.
+    public static bool BatchActive =>
+        CelestialLightingFeatures.VectorLightDrawBatch && MaxActive && BatchAvailable;
 
     // `queueOffset` is added to MoteGlow's own queue, and is 0 for everything except the indoor
     // multiply layer. Passed rather than defaulted so that every caller has to have an opinion about
@@ -142,6 +191,34 @@ public static class VectorLightShader
         return material;
     }
 
+    // The same material as NewMaterial, with the batched variant selected.
+    //
+    // A SEPARATE MATERIAL AND NOT A KEYWORD FLIPPED PER DRAW. Keywords are material state, and
+    // Graphics.DrawMesh is deferred — the draws are queued and resolved later — so toggling the
+    // keyword between two calls on one material would give every draw in the frame whichever setting
+    // was written last. It is the same trap that puts the colour on a property block, one level up:
+    // anything that varies per draw has to be per draw, and a keyword cannot be.
+    public static Material NewBatchMaterial(Texture2D gradient, bool surfaceLift, int queueOffset)
+    {
+        Material material = NewMaterial(gradient, surfaceLift, queueOffset);
+
+        material.EnableKeyword(BatchKeyword);
+
+        return material;
+    }
+
+    // Everything one batched draw carries, on its own block. The arrays are passed whole rather than
+    // by count because SetVectorArray fixes the uniform array's length on first use — Unity's own
+    // documented trap — so the caller keeps one array at BatchCapacity and writes a prefix of it.
+    // Unused tails are never indexed: the mesh only carries slots the caller filled.
+    public static void SetBatch(
+        MaterialPropertyBlock props, Texture array, Vector4[] colors, Vector4[] parameters)
+    {
+        props.SetTexture(VanillaArrayId, array);
+        props.SetVectorArray(BatchColorId, colors);
+        props.SetVectorArray(BatchParamsId, parameters);
+    }
+
     public static void SetVanillaWeight(MaterialPropertyBlock props, float weight)
     {
         props.SetFloat(VanillaWeightId, weight);
@@ -167,6 +244,50 @@ public static class VectorLightShader
     public static void SetSkyAmbient(MaterialPropertyBlock props, float ambient)
     {
         props.SetFloat(SkyAmbientId, ambient);
+    }
+
+    // Runs once, behind BatchAvailable's cache. Each refusal is logged as a MESSAGE and not a
+    // warning: unlike a missing shader, none of these is a broken installation. They are machines
+    // and bundles on which a performance path does not apply, and the frame is correct without it.
+    private static bool ValidateBatch()
+    {
+        if (!Available)
+            return false;
+
+        // The stale-bundle check. LocalKeyword answers what the LOADED program declares rather than
+        // what this assembly believes it declares, which is exactly the gap an assembly-only overlay
+        // opens. Asked through the keyword space rather than by enabling it and reading it back,
+        // because EnableKeyword succeeds for a keyword that does not exist.
+        if (!new LocalKeyword(Loaded, BatchKeyword).isValid)
+        {
+            Log.Message(
+                "[CelestialLighting] Shader '" + ShaderPath + "' does not declare the '" + BatchKeyword
+                + "' variant, so the asset bundle predates vector lighting's batched draw. Drawing "
+                + "one emitter at a time. Rebuild the bundle with Tools/ShaderBundle/build.sh.");
+            return false;
+        }
+
+        if (!SystemInfo.supports2DArrayTextures)
+        {
+            Log.Message(
+                "[CelestialLighting] This system does not support 2D texture arrays, so vector "
+                + "lighting draws one emitter at a time.");
+            return false;
+        }
+
+        // DifferentTypes specifically, not Basic. Basic covers a Texture2D to a Texture2D; putting
+        // one into a SLICE of an array is a copy between texture types, and a machine with only
+        // Basic silently copies nothing — every batched emitter would then sample an empty slice and
+        // subtract no vanilla, which is a doubled lighting model rather than a missing one.
+        if ((SystemInfo.copyTextureSupport & CopyTextureSupport.DifferentTypes) == 0)
+        {
+            Log.Message(
+                "[CelestialLighting] This system cannot copy a texture into a texture-array slice, "
+                + "so vector lighting draws one emitter at a time.");
+            return false;
+        }
+
+        return true;
     }
 
     // Runs once, behind Available's cache. Returns a verdict rather than a shader because the shader

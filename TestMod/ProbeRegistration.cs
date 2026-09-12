@@ -495,6 +495,29 @@ public static class ProbeRegistration
         // hold that works on a scene where every frame really does move something.
         ProbeRegistry.Register(new VectorLightBakeProbe(
             "vector_light_props_writes", VectorLightBakeProbe.Metric.PropsWrites));
+
+        // The batched draw's own evidence, and it is a RATIO -- pin draws beside emitters or
+        // neither number means anything. Emitters alone move with how many lamps are on screen, and
+        // calls alone move with the same thing; only the two together say whether a frame's emitters
+        // shared a call. With vector_light_draw_batch off they must be EQUAL, which is what makes
+        // the off arm a baseline rather than a picture of the batch being absent.
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_emitter_draws", VectorLightBakeProbe.Metric.EmitterDraws));
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_draw_calls", VectorLightBakeProbe.Metric.DrawCalls));
+
+        // The cost the ratio above is bought with. Pin it on any arm that moves something: a batch
+        // that saved nineteen calls a frame and rebuilt its mesh every frame has not obviously won,
+        // and this is the only number that can say so.
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_batch_mesh_builds", VectorLightBakeProbe.Metric.BatchMeshBuilds));
+
+        // A high-water mark, so it is read as "did this scene ever come near the ceiling", not as a
+        // per-frame count. A scene reading 1 has a batch that never batched anything -- which is
+        // what a key that splits too finely looks like, and is indistinguishable from the feature
+        // being off if only the two counters above are pinned.
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_largest_draw_batch", VectorLightBakeProbe.Metric.LargestDrawBatch));
         // Issue #188 item 0. vector_light_sections_per_pass is the headline -- the map's whole
         // section count before item A, a handful after -- but pin vector_light_mask_applies beside
         // it or the reduction is unfalsifiable. Dirty flags are work REQUESTED and vanilla
@@ -1971,6 +1994,19 @@ public static class ProbeRegistration
             enabled =>
             {
                 CelestialLightingFeatures.VectorLightParallelCoverage = enabled;
+                VectorLightRedraw.ForceRebuild();
+            });
+        // ForceRebuild AGAIN, and for a reason none of the flags above share: this one changes what
+        // a mesh IS. The batched arm's combined mesh and the per-emitter arm's fans are different
+        // objects built from the same geometry, and an arm switching the flag mid-run would keep
+        // whichever it inherited -- the per-emitter arm drawing a stale combined mesh is a frame with
+        // every lamp's beam in it drawn at one lamp's colour, which photographs as a composition bug
+        // rather than as a cache the arm forgot to drop.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightDrawBatchKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.VectorLightDrawBatch = enabled;
                 VectorLightRedraw.ForceRebuild();
             });
         // ForceRebuild for the same reason again, and the rebuild is doing something slightly

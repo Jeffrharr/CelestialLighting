@@ -60,6 +60,19 @@
 // by the bundle declaring "Queue"="Transparent" (3000) against MoteGlow's 3151, which put the
 // additive pass under the lighting overlay's multiply. VectorLightShader.NewMaterial copies
 // MoteGlow's queue at runtime rather than trusting the tag below.
+//
+// THE BATCHED VARIANT, AND WHY IT IS A VARIANT RATHER THAN A SECOND SHADER. The idle frame's largest
+// term is one Graphics.DrawMesh per visible emitter, and what forces it to be per emitter is that
+// four numbers — the light's colour, its strength, how much of vanilla to subtract, and vanilla's
+// own square — are render state carried on a per-emitter MaterialPropertyBlock. VECTORLIGHT_BATCHED
+// moves all four off the property block: the first three into uniform arrays indexed by a slot the
+// mesh carries in UV1.z, the fourth into a texture array sliced by the same slot. One mesh holding
+// every emitter of one radius bucket and composition then draws in one call.
+//
+// The two variants share one copy of the composition on purpose. They differ ONLY in the four lines
+// that fetch those numbers; everything from the falloff sample down is written once. A batched arm
+// that measured a different frame would otherwise be impossible to tell from a batching defect, and
+// the whole point of the arm is that it must measure the same frame.
 Shader "CelestialLighting/VectorLightMax"
 {
     Properties
@@ -79,6 +92,11 @@ Shader "CelestialLighting/VectorLightMax"
         // cannot come from a MaterialPropertyBlock, which is why the material cache is keyed on it.
         [HideInInspector] _SrcBlend ("", Float) = 1
         [HideInInspector] _DstBlend ("", Float) = 1
+
+        // Every batched emitter's square, one slice each. Declared here rather than only in the
+        // program so the property survives a material inspector round trip; the batched variant is
+        // the only thing that reads it and the per-emitter variant never binds it at all.
+        [HideInInspector] _VanillaArray ("Batched emitters' vanilla glow", 2DArray) = "" {}
     }
 
     SubShader
@@ -97,7 +115,39 @@ Shader "CelestialLighting/VectorLightMax"
             CGPROGRAM
             #pragma vertex vert
             #pragma fragment frag
+
+            // 3.5 FOR THE TEXTURE ARRAY the batched variant samples. CelestialAurora already ships
+            // at this level and works on every machine this mod has been run on, so it is a
+            // precedent here rather than a new requirement — and VectorLightShader.Available checks
+            // isSupported either way, so a machine that cannot run it falls back to the crossfade
+            // instead of drawing something else.
+            #pragma target 3.5
+
+            // ONE SHADER, TWO VARIANTS, AND multi_compile RATHER THAN shader_feature. The batched
+            // variant reads its per-emitter values out of a uniform array instead of off the
+            // property block, which is the whole of what batching is: the per-emitter numbers stop
+            // being render state and become data the one draw call carries for all of its emitters.
+            // The arithmetic below is shared between the two by construction — the variants differ
+            // only in WHERE _Color, _VanillaWeight, _SkyAmbient and vanilla's texel come from, and
+            // the composition itself is written once.
+            //
+            // shader_feature would be wrong and silently so: it strips variants no material in the
+            // Unity project references, and nothing in Tools/ShaderBundle's project references
+            // either of these — the materials are built at runtime. The batched variant would be
+            // absent from the bundle, EnableKeyword would quietly do nothing, and every batched draw
+            // would run the per-emitter variant with no _Color bound. That is a frame of black fans,
+            // not an error. VectorLightShader.BatchAvailable checks the keyword really exists in the
+            // loaded shader for the same reason.
+            #pragma multi_compile_local _ VECTORLIGHT_BATCHED
+
             #include "UnityCG.cginc"
+
+            // How many emitters one batched draw may carry, and it must match
+            // VectorLightDrawBatch.MaxPerDraw exactly. A uniform array is a fixed allocation in the
+            // constant buffer, so this is a cost paid by the variant whether or not a frame fills
+            // it; 64 covers every emitter that has ever been on screen at once in this repo's
+            // scenarios with room to spare, and two arrays of 64 float4 is 2 KB of constants.
+            #define VECTORLIGHT_BATCH_MAX 64
 
             struct appdata
             {
@@ -108,8 +158,14 @@ Shader "CelestialLighting/VectorLightMax"
                 float2 uv : TEXCOORD0;
 
                 // Where this vertex sits in the emitter's own square, in [0, 1] on both axes — a
-                // COORDINATE, not a value, which is the entire correction over #151. zw unused and
-                // carried only because Unity's mesh API hands UV channels over as float4.
+                // COORDINATE, not a value, which is the entire correction over #151.
+                //
+                // z IS THE EMITTER'S SLOT in the batched variant, and the reason batching needed no
+                // new vertex channel: this was already a float4 because Unity's mesh API hands UV
+                // channels over as float4, and zw were already being written as zero. A slot index is
+                // constant across every triangle of one emitter's fan, so the hardware interpolates
+                // it to exactly itself — the repo's rule that a per-vertex VALUE must not vary across
+                // a triangle is satisfied because this one does not vary at all. w is still unused.
                 float4 vanillaUv : TEXCOORD1;
             };
 
@@ -118,6 +174,20 @@ Shader "CelestialLighting/VectorLightMax"
                 float4 pos : SV_POSITION;
                 float2 uv : TEXCOORD0;
                 float2 vanillaUv : TEXCOORD1;
+
+                #if defined(VECTORLIGHT_BATCHED)
+                // Resolved in the vertex shader and interpolated, not looked up per fragment. The
+                // index is per-emitter constant, so the values are constant across every triangle
+                // and the interpolation is exact; doing the array read once per vertex instead of
+                // once per fragment is the point of the channel existing.
+                fixed4 lightColor : TEXCOORD2;
+
+                // x: how much of vanilla's glow to subtract. y: the sky ambient the beam lands on,
+                // zero for the additive pass. z: which slice of _VanillaArray is this emitter's
+                // square. Packed into one interpolator rather than three because the batched variant
+                // is the only one that pays for them.
+                float4 lightParams : TEXCOORD3;
+                #endif
             };
 
             sampler2D _MainTex;
@@ -131,6 +201,22 @@ Shader "CelestialLighting/VectorLightMax"
             // and the pass is the additive one it has always been.
             float _SkyAmbient;
 
+            #if defined(VECTORLIGHT_BATCHED)
+            // One slice per batched emitter, all the same size — which is why the batch key carries
+            // the field diameter as well as the radius bucket. A texture array rather than an atlas
+            // so each slice keeps its own clamp: an atlas would bleed one emitter's rim texels into
+            // its neighbour's under the bilinear filter, which would read as a faint wrong edge on a
+            // shadow boundary rather than as a batching bug.
+            UNITY_DECLARE_TEX2DARRAY(_VanillaArray);
+
+            // rgb: this emitter's light colour. a: its strength this frame. Exactly what _Color
+            // carries on the per-emitter path, for each emitter in the draw.
+            fixed4 _BatchColor[VECTORLIGHT_BATCH_MAX];
+
+            // x: _VanillaWeight. y: _SkyAmbient. z: the emitter's slice of _VanillaArray. w unused.
+            float4 _BatchParams[VECTORLIGHT_BATCH_MAX];
+            #endif
+
             v2f vert(appdata v)
             {
                 v2f o;
@@ -141,21 +227,50 @@ Shader "CelestialLighting/VectorLightMax"
                 // linear. That is the whole difference: #151 interpolated the VALUE of a field that
                 // is not linear, and this interpolates the place to look it up.
                 o.vanillaUv = v.vanillaUv.xy;
+
+                #if defined(VECTORLIGHT_BATCHED)
+                // Rounded rather than truncated. The slot arrives as a float that came from an int,
+                // and a float that is meant to be 3 can arrive as 2.9999995 through the vertex
+                // stream's own precision — truncation would then read emitter 2's colour for every
+                // vertex of emitter 3's fan, which is a wrong-coloured light rather than a crash.
+                int slot = (int)(v.vanillaUv.z + 0.5);
+                o.lightColor = _BatchColor[slot];
+                o.lightParams = _BatchParams[slot];
+                #endif
+
                 return o;
             }
 
             fixed4 frag(v2f i) : SV_Target
             {
+                // WHERE THE FOUR PER-EMITTER NUMBERS COME FROM IS THE WHOLE VARIANT. Everything
+                // below this block is one copy of the composition, shared by both paths, so a change
+                // to the arithmetic cannot land on one variant and miss the other — which is the
+                // failure mode that would make the batched arm measure a different formula and read
+                // as a batching defect.
+                #if defined(VECTORLIGHT_BATCHED)
+                fixed4 lightColor = i.lightColor;
+                float vanillaWeight = i.lightParams.x;
+                float skyAmbient = i.lightParams.y;
+                fixed3 vanillaTexel =
+                    UNITY_SAMPLE_TEX2DARRAY(_VanillaArray, float3(i.vanillaUv, i.lightParams.z)).rgb;
+                #else
+                fixed4 lightColor = _Color;
+                float vanillaWeight = _VanillaWeight;
+                float skyAmbient = _SkyAmbient;
+                fixed3 vanillaTexel = tex2D(_VanillaTex, i.vanillaUv).rgb;
+                #endif
+
                 // White throughout with the falloff curve in alpha — see BuildGradient. Reading alpha
                 // and not rgb is what keeps the curve from being squared.
                 fixed4 gradient = tex2D(_MainTex, i.uv);
 
                 // Our own model's glow at this fragment, in vanilla's units, before strength.
-                fixed3 ours = _Color.rgb * gradient.a;
+                fixed3 ours = lightColor.rgb * gradient.a;
 
                 // Vanilla's, at this fragment, from its own grid. Bilinear, which is the same
                 // filtering vanilla's lighting overlay applies to the same numbers.
-                fixed3 vanilla = tex2D(_VanillaTex, i.vanillaUv).rgb * _VanillaWeight;
+                fixed3 vanilla = vanillaTexel * vanillaWeight;
 
                 // The excess our straight-line geometry delivers over what vanilla's geodesic flood
                 // already put here. Zero wherever vanilla is already the brighter of the two, which
@@ -180,10 +295,10 @@ Shader "CelestialLighting/VectorLightMax"
                 //
                 // Per channel, because vanilla's glow is. A warm lamp beside a warm wall competes
                 // with it in red and not in blue, and averaging the three first would lose that.
-                if (_SkyAmbient > 0)
-                    return fixed4(_Color.a * excess / (_SkyAmbient + vanilla), 1);
+                if (skyAmbient > 0)
+                    return fixed4(lightColor.a * excess / (skyAmbient + vanilla), 1);
 
-                return fixed4(excess * _Color.a, 1);
+                return fixed4(excess * lightColor.a, 1);
             }
             ENDCG
         }
