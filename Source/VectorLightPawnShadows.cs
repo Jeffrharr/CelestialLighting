@@ -354,6 +354,21 @@ public static class VectorLightPawnShadows
     // paid either way. Stays 0 on the unbatched arm, where this loop never runs.
     public static double AppendWallMs;
 
+    // Gather-vs-Share split within BuildWallMs (which is Gather + BuildFrom + whatever fan-out
+    // overhead Parallel.For itself adds). Gather is a linear scan over every visible lamp for every
+    // visible pawn -- a spatial index over lamps would cut it -- while BuildFrom's own
+    // ShareFor/OtherIlluminanceAt pass is the O(M^2) ground-share cost documented on
+    // PawnShadowMath.OtherIlluminanceAt. Ticks rather than a double because Build runs on the
+    // thread pool; see the Interlocked.Add call sites in Build for why.
+    private static long GatherTicks;
+    private static long ShareTicks;
+
+    public static double GatherWallMs =>
+        GatherTicks / (double)System.Diagnostics.Stopwatch.Frequency * 1000.0;
+
+    public static double ShareWallMs =>
+        ShareTicks / (double)System.Diagnostics.Stopwatch.Frequency * 1000.0;
+
     public static void ResetCounters()
     {
         ParallelBuildPasses = 0;
@@ -363,6 +378,8 @@ public static class VectorLightPawnShadows
         DrawCalls = 0;
         ShadowsDrawn = 0;
         AppendWallMs = 0.0;
+        GatherTicks = 0;
+        ShareTicks = 0;
     }
 
     private static void DrawAll(float altitude)
@@ -646,7 +663,16 @@ public static class VectorLightPawnShadows
     {
         PawnShadowMath.PawnShadowInputData data = ToInputData(input);
 
+        // Split into two Interlocked-accumulated tick counters rather than one Stopwatch around the
+        // whole method, because Build runs on the thread pool under Parallel.For (see
+        // ShouldFanOutBuild) -- BuildAll's own BuildWallMs can wrap the whole call in a single
+        // Stopwatch because it only ever runs once per frame on the calling thread, but two workers
+        // racing a shared `double +=` here would lose updates. GetTimestamp+Interlocked.Add on a
+        // long avoids both the race and a per-call Stopwatch allocation.
+        long gatherStart = System.Diagnostics.Stopwatch.GetTimestamp();
         float totalForShare = Gather(input, lights);
+        long gatherEnd = System.Diagnostics.Stopwatch.GetTimestamp();
+        System.Threading.Interlocked.Add(ref GatherTicks, gatherEnd - gatherStart);
 
         PawnShadowMath.BuildFrom(
             data,
@@ -658,6 +684,9 @@ public static class VectorLightPawnShadows
             totalForShare,
             Contributions,
             into);
+
+        System.Threading.Interlocked.Add(
+            ref ShareTicks, System.Diagnostics.Stopwatch.GetTimestamp() - gatherEnd);
     }
 
     // The primitive projection Build and Gather both hand to PawnShadowMath — see
