@@ -48,6 +48,11 @@ public sealed class VectorLightPawnShadowBuildProbe : IProbe
         // missing measurement.
         AppendWallMs,
 
+        // Gather-vs-Share split within BuildWallMs -- see VectorLightPawnShadows.GatherWallMs's own
+        // header for why these are two separate Interlocked-accumulated counters rather than one.
+        GatherWallMs,
+        ShareWallMs,
+
         // Side-effecting: zeroes every counter above and reads 0, following the same convention as
         // VectorLightBakeProbe.Metric.Reset and for the identical reason — so a scenario can open the
         // counting window and the profiling window at the same point rather than at whichever earlier
@@ -90,6 +95,12 @@ public sealed class VectorLightPawnShadowBuildProbe : IProbe
 
         if (metric == Metric.AppendWallMs)
             return (float)VectorLightPawnShadows.AppendWallMs;
+
+        if (metric == Metric.GatherWallMs)
+            return (float)VectorLightPawnShadows.GatherWallMs;
+
+        if (metric == Metric.ShareWallMs)
+            return (float)VectorLightPawnShadows.ShareWallMs;
 
         // metric == Metric.Reset, the only value left unmatched above.
         VectorLightPawnShadows.ResetCounters();

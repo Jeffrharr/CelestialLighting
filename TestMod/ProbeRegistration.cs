@@ -898,6 +898,10 @@ public static class ProbeRegistration
         // (Gather/BuildFrom, not the draw). Reads 0 on the unbatched arm.
         ProbeRegistry.Register(new VectorLightPawnShadowBuildProbe(
             "vector_light_shadow_append_wall_ms", VectorLightPawnShadowBuildProbe.Metric.AppendWallMs));
+        ProbeRegistry.Register(new VectorLightPawnShadowBuildProbe(
+            "vector_light_shadow_gather_wall_ms", VectorLightPawnShadowBuildProbe.Metric.GatherWallMs));
+        ProbeRegistry.Register(new VectorLightPawnShadowBuildProbe(
+            "vector_light_shadow_share_wall_ms", VectorLightPawnShadowBuildProbe.Metric.ShareWallMs));
         // Reads 0 and zeroes the counters above, so the counting window can be opened at the same step
         // as the profiling window rather than at whichever earlier step happened to flip a feature flag.
         ProbeRegistry.Register(new VectorLightPawnShadowBuildProbe(

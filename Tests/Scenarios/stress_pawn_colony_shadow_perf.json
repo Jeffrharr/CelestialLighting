@@ -983,6 +983,22 @@
       }
     },
     {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_shadow_gather_wall_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_shadow_share_wall_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
       "type": "SetFeature",
       "args": {
         "featureName": "cloud_cover",
@@ -1220,6 +1236,22 @@
       }
     },
     {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_shadow_gather_wall_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_shadow_share_wall_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
       "type": "SetFeature",
       "args": {
         "featureName": "cloud_cover",
@@ -1452,6 +1484,22 @@
       "type": "Probe",
       "args": {
         "probeName": "vector_light_shadow_append_wall_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_shadow_gather_wall_ms",
+        "expectedValue": "0",
+        "tolerance": "1000000000"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_shadow_share_wall_ms",
         "expectedValue": "0",
         "tolerance": "1000000000"
       }
