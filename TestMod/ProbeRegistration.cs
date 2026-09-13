@@ -902,6 +902,16 @@ public static class ProbeRegistration
             "vector_light_shadow_gather_wall_ms", VectorLightPawnShadowBuildProbe.Metric.GatherWallMs));
         ProbeRegistry.Register(new VectorLightPawnShadowBuildProbe(
             "vector_light_shadow_share_wall_ms", VectorLightPawnShadowBuildProbe.Metric.ShareWallMs));
+        // PIN ALL THREE OF (hits, misses, wall-ms) TOGETHER, same rule as the parallel/serial/batch
+        // trio above: a zero hit count alone cannot separate "the cache flag is off" from "every
+        // pawn moved or every lamp changed this window", and only wall-ms says whether the cache
+        // actually bought anything. Read regardless of the flag's state -- both counters are zero
+        // when vector_light_shadow_pawn_cache is off, since DecideCacheHits/RecordCacheMisses never
+        // run at all rather than running and finding nothing to cache.
+        ProbeRegistry.Register(new VectorLightPawnShadowBuildProbe(
+            "vector_light_shadow_cache_hits", VectorLightPawnShadowBuildProbe.Metric.CacheHits));
+        ProbeRegistry.Register(new VectorLightPawnShadowBuildProbe(
+            "vector_light_shadow_cache_misses", VectorLightPawnShadowBuildProbe.Metric.CacheMisses));
         // Reads 0 and zeroes the counters above, so the counting window can be opened at the same step
         // as the profiling window rather than at whichever earlier step happened to flip a feature flag.
         ProbeRegistry.Register(new VectorLightPawnShadowBuildProbe(
@@ -2023,6 +2033,18 @@ public static class ProbeRegistration
         FeatureRegistry.Register(
             CelestialLightingFeatures.VectorLightShadowParallelBuildKey,
             enabled => CelestialLightingFeatures.VectorLightShadowParallelBuild = enabled,
+            defaultEnabled: false);
+
+        // THREE-ARG, defaultEnabled false: matches the flag's own shipped default (off, unmeasured
+        // at colony scale until this PR's stress arm). Clears the cache's own state on every flip,
+        // not just the counters, for the reason VectorLightPawnShadows.ResetCache's header gives.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightShadowPawnCacheKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.VectorLightShadowPawnCache = enabled;
+                VectorLightPawnShadows.ResetCache();
+            },
             defaultEnabled: false);
 
         FeatureRegistry.Register(

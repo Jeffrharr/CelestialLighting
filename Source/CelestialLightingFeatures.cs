@@ -2121,6 +2121,42 @@ public static class CelestialLightingFeatures
     // 51.7ms serial vs. 19.0ms parallel, a ~2.7x win once fan-out clears the thread-pool wake-up
     // cost. See DESIGN.md's "stress-scale colony reverses the parallel verdict" passage.
     public static bool VectorLightShadowParallelBuild = true;
+
+    // Feature key for VectorLightShadowPawnCache.
+    public const string VectorLightShadowPawnCacheKey = "vector_light_shadow_pawn_cache";
+
+    // Skip the whole per-pawn Build call -- Gather and BuildFrom both -- for a pawn whose shadow
+    // could not possibly have changed since the last frame it was actually built, and replay the
+    // cached DrawnShadow list from that frame instead of recomputing it.
+    //
+    // TWO INDEPENDENT TRIGGERS, BOTH REQUIRED, BECAUSE EITHER ALONE IS UNSOUND. A pawn that hasn't
+    // moved can still be standing under a lamp somebody just switched on; a lamp that hasn't
+    // changed can still light a pawn who just walked under it. So a cache hit needs (1) the pawn's
+    // cell is the same one its cached shadow was built from, AND (2) no lamp that changed THIS
+    // FRAME has a reach circle -- CellX, CellZ, max(old radius, new radius) -- that could plausibly
+    // touch the pawn's current cell. Trigger (2) is checked only against lamps that changed this
+    // frame (normally zero of them), never the whole roster, which is what keeps the check itself
+    // cheap: O(pawns * lamps-changed-this-frame) rather than O(pawns * lamps).
+    //
+    // "COULD PLAUSIBLY TOUCH" IS A CONSERVATIVE OVER-APPROXIMATION, NOT AN EXACT ANSWER, ON
+    // PURPOSE: it reuses the same circle Gather itself tests illuminance against (distance-squared
+    // vs. radius-squared, PawnShadowMath.LampCouldReach), so nothing a real lamp could reach is ever
+    // missed. A lamp is "changed" when its LightEntry.MeshVersion has moved since the last frame
+    // this cache looked at it -- the same counter VectorLightOverlay bumps whenever a lamp's baked
+    // Polygon/CoverageRadius/Coverage actually get rebuilt (a radius change always forces that
+    // rebuild too, since Radius is only ever written in the same block that dirties the polygon). A
+    // lamp dropping out of the culled roster between frames -- most often the camera panning, not
+    // the lamp changing -- is treated as "changed" too, at whatever radius it last had: a
+    // false-positive miss there is safe, just wasted, and simpler than telling the two apart.
+    //
+    // OFF NEVER CONSULTS OR WRITES THE CACHE, which is the shipped BuildAll loop untouched: every
+    // pawn's Build call runs every frame regardless of whether anything moved, so an off run is the
+    // same faithful baseline every other VectorLightShadow* flag measures against, not a picture of
+    // this pass with the cache merely disabled mid-flight.
+    //
+    // OFF BY DEFAULT. See the fourth arm added to stress_pawn_colony_shadow_perf.json for the first
+    // measurement, alongside vector_light_shadow_cache_hits / vector_light_shadow_cache_misses.
+    public static bool VectorLightShadowPawnCache = false;
 }
 
 public enum SunClockMode

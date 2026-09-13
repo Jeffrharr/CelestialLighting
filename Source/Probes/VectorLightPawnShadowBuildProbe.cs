@@ -52,6 +52,13 @@ public sealed class VectorLightPawnShadowBuildProbe : IProbe
         // header for why these are two separate Interlocked-accumulated counters rather than one.
         GatherWallMs,
         ShareWallMs,
+        // Pawns whose Build call the cache skipped this window, and pawns it ran normally for --
+        // both zero when VectorLightShadowPawnCache is off, since the decision pass that would
+        // increment either one never runs at all. PIN TOGETHER WITH BuildWallMs, same reasoning as
+        // the parallel/serial/batch-max trio above: a hit count alone cannot separate "the cache is
+        // off" from "nothing was cacheable this window".
+        CacheHits,
+        CacheMisses,
 
         // Side-effecting: zeroes every counter above and reads 0, following the same convention as
         // VectorLightBakeProbe.Metric.Reset and for the identical reason — so a scenario can open the
@@ -101,6 +108,11 @@ public sealed class VectorLightPawnShadowBuildProbe : IProbe
 
         if (metric == Metric.ShareWallMs)
             return (float)VectorLightPawnShadows.ShareWallMs;
+        if (metric == Metric.CacheHits)
+            return VectorLightPawnShadows.CacheHits;
+
+        if (metric == Metric.CacheMisses)
+            return VectorLightPawnShadows.CacheMisses;
 
         // metric == Metric.Reset, the only value left unmatched above.
         VectorLightPawnShadows.ResetCounters();
