@@ -114,6 +114,15 @@ public class CelestialLightingSettings : ModSettings
     // clouds. Inert while vectorLights is off.
     public bool vectorLightPawnShadows = true;
 
+    // Nested under vectorLightPawnShadows itself, one per independent scope axis
+    // (CelestialLightingFeatures.VectorLightShadowPlayerPawns/NonPlayerPawns/PlayerAnimals/
+    // NonPlayerAnimals). Only the colonist one defaults on, matching what §27 was captured against;
+    // see the field's own header in CelestialLightingFeatures.cs for why the other three default off.
+    public bool vectorLightShadowPlayerPawns = true;
+    public bool vectorLightShadowNonPlayerPawns = false;
+    public bool vectorLightShadowPlayerAnimals = false;
+    public bool vectorLightShadowNonPlayerAnimals = false;
+
     // §27e: light through a door a pawn has opened. ONE player-facing switch drives BOTH halves of
     // the feature — the boolean and the aperture that tracks the leaves as they slide — for the same
     // reason §15's eave switch drives both of its own: with the aperture off, the beam appears at
@@ -366,6 +375,10 @@ public class CelestialLightingSettings : ModSettings
         // The map would keep rendering the previous answer until the player happened to build
         // something — which for a settings screen means the toggle looks broken.
         CelestialLightingFeatures.VectorLightPawnShadows = vectorLightPawnShadows;
+        CelestialLightingFeatures.VectorLightShadowPlayerPawns = vectorLightShadowPlayerPawns;
+        CelestialLightingFeatures.VectorLightShadowNonPlayerPawns = vectorLightShadowNonPlayerPawns;
+        CelestialLightingFeatures.VectorLightShadowPlayerAnimals = vectorLightShadowPlayerAnimals;
+        CelestialLightingFeatures.VectorLightShadowNonPlayerAnimals = vectorLightShadowNonPlayerAnimals;
 
         // NOTHING PUSHES VectorLightIndoorMultiply ANY MORE, and its absence here is the deliberate
         // half of the setting's removal rather than an edit that missed a line. The flag, its key
@@ -509,6 +522,10 @@ public class CelestialLightingSettings : ModSettings
         Scribe_Values.Look(ref cloudOpacity, "cloudOpacity", CloudSheetMath.DefaultOpacityScale);
         Scribe_Values.Look(ref vectorLights, "vectorLights", false);
         Scribe_Values.Look(ref vectorLightPawnShadows, "vectorLightPawnShadows", true);
+        Scribe_Values.Look(ref vectorLightShadowPlayerPawns, "vectorLightShadowPlayerPawns", true);
+        Scribe_Values.Look(ref vectorLightShadowNonPlayerPawns, "vectorLightShadowNonPlayerPawns", false);
+        Scribe_Values.Look(ref vectorLightShadowPlayerAnimals, "vectorLightShadowPlayerAnimals", false);
+        Scribe_Values.Look(ref vectorLightShadowNonPlayerAnimals, "vectorLightShadowNonPlayerAnimals", false);
         // FALSE HERE ON PURPOSE while the field initialiser above is true. This is not the
         // new-install default and must not be made to match it -- see the field's comment.
         Scribe_Values.Look(ref vectorLightOpenDoors, "vectorLightOpenDoors", false);
