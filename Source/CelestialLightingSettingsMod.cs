@@ -228,6 +228,24 @@ public class CelestialLightingSettingsMod : Mod
         GatedCheckbox(listing, "    Pawn shadows from lamps", ref Settings.vectorLightPawnShadows,
             vectorLightsOn,
             "Pawns throw a shadow away from each lamp lighting them, lengthening with distance the way a shadow does as the sun sinks. Vanilla cannot do this: its pawn shadow takes its direction from a single value shared by every shadow on the map, which is right for the sun and meaningless for a torch.\n\nDrawn indoors and under eaves too, unlike vanilla's, since a lamp indoors is the whole point. A pawn a lamp cannot actually see — behind a wall — casts nothing from it. Costs one quad per pawn per nearby lamp, the same order as vanilla's own pawn shadows.");
+        // Nested a second level under "Pawn shadows from lamps" itself, on the same two independent
+        // axes PassesPawnShadowFilter gates on internally (player-faction vs. not, animal vs. not),
+        // rather than exposing one flat pawn/animal/faction picker — a player who wants colonists lit
+        // but not the map's wildlife needs to say so along both axes independently. Gated on the checkbox
+        // above as well as the master switch, since these are meaningless with either one off.
+        bool pawnShadowScopeOn = vectorLightsOn && Settings.vectorLightPawnShadows;
+        GatedCheckbox(listing, "        Your own colonists", ref Settings.vectorLightShadowPlayerPawns,
+            pawnShadowScopeOn,
+            "Colonists and other pawns in your own faction cast a shadow. On by default, since colonists are the pawns you watch most closely and the ones this feature was built and tuned against.");
+        GatedCheckbox(listing, "        Other people's pawns (raiders, visitors, wildlings)", ref Settings.vectorLightShadowNonPlayerPawns,
+            pawnShadowScopeOn,
+            "Humanlike pawns outside your own faction — raiders, visitors, wild men — cast a shadow. Off by default: a raid can put far more bodies on screen than your own colony ever holds, and they were not part of what this feature was measured against.");
+        GatedCheckbox(listing, "        Your own animals", ref Settings.vectorLightShadowPlayerAnimals,
+            pawnShadowScopeOn,
+            "Tamed and bonded animals in your own faction — pets, haulers, war animals — cast a shadow. Off by default: a large animal pen can hold as many bodies as your colonist roster.");
+        GatedCheckbox(listing, "        Wild and hostile animals", ref Settings.vectorLightShadowNonPlayerAnimals,
+            pawnShadowScopeOn,
+            "Animals outside your own faction — the map's wildlife, a manhunter pack, an enemy's warg — cast a shadow. Off by default, for the same reason as other people's pawns: nobody is watching wildlife roam the map in numbers.");
         // §27e. Nested under the master switch because it is meaningless without it, and shipped
         // OFF because it is the mod's one deliberate disagreement with gameplay light — the tooltip
         // says so outright rather than burying it, since a player who cares about that distinction
