@@ -204,10 +204,14 @@ public static class VectorLightPawnShadows
             if (pawn == null || !pawn.Spawned || !view.Contains(pawn.Position))
                 continue;
 
+            // Then the four scope switches — see PassesPawnShadowFilter's own header. Asked before
+            // CastsShadow because it is two field reads against CastsShadow's hediff-set walk, so a
+            // pawn category the player has opted out of never pays for the more expensive check.
+            if (!PassesPawnShadowFilter(pawn))
+                continue;
+
             // Then the states vanilla refuses to draw a shadow in, which are not about sunlight and
-            // so are not ours to diverge from — see VectorLightMath.PawnCastsShadow. Asked after the
-            // camera cull because it is the more expensive of the two (IsPsychologicallyInvisible
-            // walks the hediff set) and the cull rejects most of a colony.
+            // so are not ours to diverge from — see VectorLightMath.PawnCastsShadow.
             if (!CastsShadow(pawn))
                 continue;
 
@@ -1284,6 +1288,25 @@ public static class VectorLightPawnShadows
             // question is answered by the same lookup the draw uses — a separate check here could
             // pass a pawn the draw then had no rectangle for.
             hasShadowData: ShadowDataOf(pawn) != null);
+    }
+
+    // The four live reads behind VectorLightMath.PawnShadowFilterAllows, in one place, on the same
+    // ask-the-renderer's-function convention CastsShadow's own header gives — except here there is no
+    // renderer to ask, because the four scope switches are ours alone. RaceProps.Animal is vanilla's
+    // own animal/humanlike-or-mech split, and Faction == Faction.OfPlayer is the same "is this the
+    // player's own" test IsColonist itself is built from, but asked directly rather than through
+    // IsColonist because IsColonist is Humanlike-only and this needs an answer for animals too.
+    public static bool PassesPawnShadowFilter(Pawn pawn)
+    {
+        bool isPlayerFaction = pawn.Faction == Faction.OfPlayer;
+
+        return VectorLightMath.PawnShadowFilterAllows(
+            isAnimal: pawn.RaceProps.Animal,
+            isPlayerFaction: isPlayerFaction,
+            includePlayerPawns: CelestialLightingFeatures.VectorLightShadowPlayerPawns,
+            includeNonPlayerPawns: CelestialLightingFeatures.VectorLightShadowNonPlayerPawns,
+            includePlayerAnimals: CelestialLightingFeatures.VectorLightShadowPlayerAnimals,
+            includeNonPlayerAnimals: CelestialLightingFeatures.VectorLightShadowNonPlayerAnimals);
     }
 
     // Public because the probe asks THIS function rather than re-deriving the answer, which is the

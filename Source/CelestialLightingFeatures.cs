@@ -2157,6 +2157,59 @@ public static class CelestialLightingFeatures
     // OFF BY DEFAULT. See the fourth arm added to stress_pawn_colony_shadow_perf.json for the first
     // measurement, alongside vector_light_shadow_cache_hits / vector_light_shadow_cache_misses.
     public static bool VectorLightShadowPawnCache = false;
+
+    // Feature key for VectorLightShadowPlayerPawns.
+    public const string VectorLightShadowPlayerPawnsKey = "vector_light_shadow_player_pawns";
+
+    // Whether a humanlike, non-animal pawn belonging to the player's own faction casts a §27 pawn
+    // shadow at all -- one of four independent scope switches alongside
+    // VectorLightShadowNonPlayerPawns, VectorLightShadowPlayerAnimals and
+    // VectorLightShadowNonPlayerAnimals, split on the same two axes (player faction vs. not, animal
+    // vs. not) rather than one master "which pawns" list, because a player who wants their colonists
+    // lit but not the map's wildlife needs to say so along BOTH axes independently.
+    //
+    // A pawn this flag excludes is never gathered in the first place -- see
+    // VectorLightPawnShadows.GatherInputs -- so it never reaches BuildAll's cache accounting either:
+    // an excluded pawn counts toward neither vector_light_shadow_cache_hits nor
+    // vector_light_shadow_cache_misses, the same reasoning VectorLightShadowPawnCache's own OFF
+    // clause gives for why a disabled pass must not appear in counters that only mean something while
+    // it is running.
+    //
+    // ON BY DEFAULT: colonists are the pawns a player watches most closely and the ones §27 was
+    // captured against.
+    public static bool VectorLightShadowPlayerPawns = true;
+
+    // Feature key for VectorLightShadowNonPlayerPawns.
+    public const string VectorLightShadowNonPlayerPawnsKey = "vector_light_shadow_nonplayer_pawns";
+
+    // The same switch as VectorLightShadowPlayerPawns, for a humanlike, non-animal pawn NOT of the
+    // player's faction -- raiders, visitors, wildmen, a prisoner of another faction.
+    //
+    // OFF BY DEFAULT. A busy raid or a caravan of visitors can outnumber the colony several times
+    // over, and every one of them is a Build call §27 would otherwise pay for on a pawn the player is
+    // not tracking the way they track their own colonists.
+    public static bool VectorLightShadowNonPlayerPawns = false;
+
+    // Feature key for VectorLightShadowPlayerAnimals.
+    public const string VectorLightShadowPlayerAnimalsKey = "vector_light_shadow_player_animals";
+
+    // The same switch, for an animal (RaceProps.Animal) belonging to the player's faction -- a
+    // tamed pet or a hauling/war animal.
+    //
+    // OFF BY DEFAULT, unlike VectorLightShadowPlayerPawns: a bonded animal is not tracked as closely
+    // as a colonist, and a large colony's animal pen can hold as many bodies as its colonist roster.
+    public static bool VectorLightShadowPlayerAnimals = false;
+
+    // Feature key for VectorLightShadowNonPlayerAnimals.
+    public const string VectorLightShadowNonPlayerAnimalsKey = "vector_light_shadow_nonplayer_animals";
+
+    // The same switch, for an animal not of the player's faction -- the map's wildlife, a
+    // manhunter pack, an enemy's warg.
+    //
+    // OFF BY DEFAULT, for the same reason VectorLightShadowNonPlayerPawns is: wildlife roams a map in
+    // numbers nobody is watching, and is the category furthest from the "the player watches this
+    // pawn" reasoning the feature is scoped around.
+    public static bool VectorLightShadowNonPlayerAnimals = false;
 }
 
 public enum SunClockMode
