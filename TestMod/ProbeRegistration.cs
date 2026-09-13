@@ -2047,6 +2047,28 @@ public static class ProbeRegistration
             },
             defaultEnabled: false);
 
+        // The four pawn-shadow scope switches are read straight from GatherInputs every frame (no
+        // cached section to invalidate), so a plain setter is enough -- unlike VectorLightShadowPawnCache
+        // above, flipping one needs no ResetCache/ForceRebuild companion call.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightShadowPlayerPawnsKey,
+            enabled => CelestialLightingFeatures.VectorLightShadowPlayerPawns = enabled);
+
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightShadowNonPlayerPawnsKey,
+            enabled => CelestialLightingFeatures.VectorLightShadowNonPlayerPawns = enabled,
+            defaultEnabled: false);
+
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightShadowPlayerAnimalsKey,
+            enabled => CelestialLightingFeatures.VectorLightShadowPlayerAnimals = enabled,
+            defaultEnabled: false);
+
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightShadowNonPlayerAnimalsKey,
+            enabled => CelestialLightingFeatures.VectorLightShadowNonPlayerAnimals = enabled,
+            defaultEnabled: false);
+
         FeatureRegistry.Register(
             CelestialLightingFeatures.VectorLightViewCullKey,
             enabled =>

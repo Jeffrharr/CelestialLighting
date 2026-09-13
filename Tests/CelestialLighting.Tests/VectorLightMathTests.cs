@@ -1503,6 +1503,39 @@ public class VectorLightMathTests
             "a pawn who is doing nothing else wrong still must be standing");
     }
 
+    // ---- the four player/non-player, pawn/animal scope switches (§27) ---------------------
+
+    // One case per category asserting the flag that should decide it, and one case per category
+    // with THAT flag off and the other three on, so a category wired to the wrong flag -- the
+    // failure mode of a four-branch lookup far more than an inverted sign -- fails loudly instead of
+    // passing because some other flag happened to also be true.
+    [TestCase(false, true,  true,  false, false, false, true,
+        "player pawn: includePlayerPawns alone lets it through")]
+    [TestCase(false, true,  false, true,  true,  true,  false,
+        "player pawn: the other three flags must not substitute for includePlayerPawns")]
+    [TestCase(false, false, false, true,  false, false, true,
+        "non-player pawn: includeNonPlayerPawns alone lets it through")]
+    [TestCase(false, false, true,  false, true,  true,  false,
+        "non-player pawn: the other three flags must not substitute")]
+    [TestCase(true,  true,  false, false, true,  false, true,
+        "player animal: includePlayerAnimals alone lets it through")]
+    [TestCase(true,  true,  true,  true,  false, true,  false,
+        "player animal: the other three flags must not substitute")]
+    [TestCase(true,  false, false, false, false, true,  true,
+        "non-player animal: includeNonPlayerAnimals alone lets it through")]
+    [TestCase(true,  false, true,  true,  true,  false, false,
+        "non-player animal: the other three flags must not substitute")]
+    public void PawnShadowFilterReadsExactlyTheFlagForItsOwnCategory(
+        bool isAnimal, bool isPlayerFaction, bool includePlayerPawns, bool includeNonPlayerPawns,
+        bool includePlayerAnimals, bool includeNonPlayerAnimals, bool expected, string why)
+    {
+        Assert.That(
+            VectorLightMath.PawnShadowFilterAllows(
+                isAnimal, isPlayerFaction, includePlayerPawns, includeNonPlayerPawns,
+                includePlayerAnimals, includeNonPlayerAnimals),
+            Is.EqualTo(expected), why);
+    }
+
     // ---- where on the caster the shadow starts (§27 phase 4, issue #159) -----------------
 
     // The support function of the caster's footprint rectangle, on its two axes. These are the

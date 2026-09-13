@@ -414,9 +414,9 @@ public sealed class VectorLightProbe : IProbe
         return worst;
     }
 
-    // Asks VectorLightPawnShadows.CastsShadow, never its own copy of the four tests: a probe with a
-    // private reimplementation would agree with the intended policy while the renderer used another,
-    // which is the shape of the bug this whole pair of commits is about.
+    // Asks VectorLightPawnShadows.PassesPawnShadowFilter and CastsShadow, never its own copy of
+    // either: a probe with a private reimplementation would agree with the intended policy while the
+    // renderer used another, which is the shape of the bug this whole pair of commits is about.
     private static float CountCasters(Map map)
     {
         CellRect view = Find.CameraDriver.CurrentViewRect;
@@ -424,7 +424,9 @@ public sealed class VectorLightProbe : IProbe
 
         foreach (Pawn pawn in map.mapPawns.AllPawnsSpawned)
         {
-            if (view.Contains(pawn.Position) && VectorLightPawnShadows.CastsShadow(pawn))
+            if (view.Contains(pawn.Position)
+                && VectorLightPawnShadows.PassesPawnShadowFilter(pawn)
+                && VectorLightPawnShadows.CastsShadow(pawn))
                 casters++;
         }
 

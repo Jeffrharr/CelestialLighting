@@ -1,0 +1,43 @@
+{
+  "name": "vector_light_shadow_pawn_filter",
+  "saveFile": "minimal_colony.rws",
+  "description": "The four CelestialLightingFeatures.VectorLightShadow{Player,NonPlayer}{Pawns,Animals} scope switches, one per independent axis (animal vs. not, player-faction vs. not). Four casters stand in a row beside one lamp, one per category: a player colonist, a hostile-faction WildMan (non-player pawn), a player-faction Cat (player animal) and a wild-faction Cat (non-player animal). vector_light_pawn_casters recomputes eligibility straight from VectorLightPawnShadows.PassesPawnShadowFilter and CastsShadow -- never a private reimplementation, same convention CountCasters' own header gives -- so each arm below turns on exactly one more category and asserts the caster count climbs by exactly one, which is the shape of test that fails loudly if a category is ever wired to the wrong flag rather than passing because some other flag happened to also be true. The final arm turns the default-on player-pawns flag OFF while the other three stay on, confirming the flag actually gates the colonist rather than the colonist always passing regardless. Clock paused throughout so a hostile pawn's AI cannot relocate anyone between arms.",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "45" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "40" } },
+    { "type": "SetWeather", "args": { "weatherDef": "Clear", "instant": "true" } },
+    { "type": "SetTerrain", "args": { "def": "Concrete", "width": "20", "height": "12", "offset": "0,45", "clear": "true" } },
+    { "type": "PlaceThings", "args": { "def": "TorchLamp", "offset": "0,45", "layout": "cells", "cells": "0,0" } },
+
+    { "type": "SpawnPawn", "args": { "kind": "Colonist", "faction": "player", "count": "1", "offset": "-3,45", "clear": "true" } },
+    { "type": "SpawnPawn", "args": { "kind": "WildMan", "faction": "hostile", "count": "1", "offset": "-1,45", "clear": "true" } },
+    { "type": "SpawnPawn", "args": { "kind": "Cat", "faction": "player", "count": "1", "offset": "1,45", "clear": "true" } },
+    { "type": "SpawnPawn", "args": { "kind": "Cat", "faction": "wild", "count": "1", "offset": "3,45", "clear": "true" } },
+
+    { "type": "SetTime", "args": { "hour": "22" } },
+    { "type": "SetTimeSpeed", "args": { "speed": "paused" } },
+    { "type": "LookAt", "args": { "offset": "0,45", "zoom": "7" } },
+
+    { "type": "Probe", "args": { "probeName": "vector_light_mask_available", "expectedValue": "1", "tolerance": "0" } },
+
+    { "type": "SetFeature", "args": { "featureName": "vector_light_shadow_player_pawns", "enabled": "true" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_shadow_nonplayer_pawns", "enabled": "false" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_shadow_player_animals", "enabled": "false" } },
+    { "type": "SetFeature", "args": { "featureName": "vector_light_shadow_nonplayer_animals", "enabled": "false" } },
+    { "type": "Probe", "args": { "probeName": "vector_light_pawn_casters", "expectedValue": "1", "tolerance": "0" } },
+    { "type": "Screenshot", "args": { "fileName": "pawn_filter_defaults" } },
+
+    { "type": "SetFeature", "args": { "featureName": "vector_light_shadow_nonplayer_pawns", "enabled": "true" } },
+    { "type": "Probe", "args": { "probeName": "vector_light_pawn_casters", "expectedValue": "2", "tolerance": "0" } },
+
+    { "type": "SetFeature", "args": { "featureName": "vector_light_shadow_player_animals", "enabled": "true" } },
+    { "type": "Probe", "args": { "probeName": "vector_light_pawn_casters", "expectedValue": "3", "tolerance": "0" } },
+
+    { "type": "SetFeature", "args": { "featureName": "vector_light_shadow_nonplayer_animals", "enabled": "true" } },
+    { "type": "Probe", "args": { "probeName": "vector_light_pawn_casters", "expectedValue": "4", "tolerance": "0" } },
+    { "type": "Screenshot", "args": { "fileName": "pawn_filter_all_on" } },
+
+    { "type": "SetFeature", "args": { "featureName": "vector_light_shadow_player_pawns", "enabled": "false" } },
+    { "type": "Probe", "args": { "probeName": "vector_light_pawn_casters", "expectedValue": "3", "tolerance": "0" } }
+  ]
+}

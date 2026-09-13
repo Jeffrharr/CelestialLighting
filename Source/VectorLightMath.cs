@@ -1644,6 +1644,30 @@ public static class VectorLightMath
         return standing && !invisible && !swimming && !flying && hasShadowData;
     }
 
+    // Whether the four CelestialLightingFeatures.VectorLightShadow{Player,NonPlayer}{Pawns,Animals}
+    // scope switches let a caster through at all, kept separate from the two live reads that feed it
+    // for the same reason PawnCastsShadow is: a four-way policy decision should be one expression
+    // that can be read and tested without a Pawn.
+    //
+    // THE TWO AXES ARE INDEPENDENT AND EXHAUSTIVE. Every caster is exactly one of four categories --
+    // animal-or-not crossed with player-faction-or-not -- so this is a single lookup rather than four
+    // early-return clauses: nothing here can accidentally let a caster fall through unclassified the
+    // way a chain of `if` guards could if a fifth category were ever added and one of them forgot to
+    // reject it.
+    public static bool PawnShadowFilterAllows(
+        bool isAnimal,
+        bool isPlayerFaction,
+        bool includePlayerPawns,
+        bool includeNonPlayerPawns,
+        bool includePlayerAnimals,
+        bool includeNonPlayerAnimals)
+    {
+        if (isAnimal)
+            return isPlayerFaction ? includePlayerAnimals : includeNonPlayerAnimals;
+
+        return isPlayerFaction ? includePlayerPawns : includeNonPlayerPawns;
+    }
+
     // How far a caster's own footprint reaches along a direction, from the point the footprint is
     // centred on.
     //
