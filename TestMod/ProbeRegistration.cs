@@ -890,6 +890,14 @@ public static class ProbeRegistration
         // nothing to do with this change.
         ProbeRegistry.Register(new VectorLightPawnShadowBuildProbe(
             "vector_light_shadow_build_wall_ms", VectorLightPawnShadowBuildProbe.Metric.BuildWallMs));
+        // The batched draw's per-shadow CPU loop alone (AppendShadowQuad's rotation and vertex
+        // writes), separated from mesh upload and DrawMesh around it -- see
+        // VectorLightPawnShadows.AppendWallMs's own header for why: it is the specific piece a
+        // GPU offload would remove, so it is worth reading on its own rather than folded into
+        // vector_light_shadow_build_wall_ms, which times a different phase entirely
+        // (Gather/BuildFrom, not the draw). Reads 0 on the unbatched arm.
+        ProbeRegistry.Register(new VectorLightPawnShadowBuildProbe(
+            "vector_light_shadow_append_wall_ms", VectorLightPawnShadowBuildProbe.Metric.AppendWallMs));
         // Reads 0 and zeroes the counters above, so the counting window can be opened at the same step
         // as the profiling window rather than at whichever earlier step happened to flip a feature flag.
         ProbeRegistry.Register(new VectorLightPawnShadowBuildProbe(
