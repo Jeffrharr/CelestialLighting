@@ -39,6 +39,11 @@ public sealed class EaveCellProbe : IProbe
         // The same without the mountain veto — what §15 lets cast a roofline shadow. Never smaller
         // than Eaves, and larger by exactly the map's open-air thick-roofed cell count.
         ShadowCasters,
+
+        // Cells §30 shades: an edifice stands here that vanilla treats as a static sun-shadow
+        // caster, doors excluded. Disjoint from Eaves above by construction — pinning both counts in
+        // one scenario is what turns that claim into a measurement.
+        RootShadeCells,
     }
 
     private readonly Metric metric;
@@ -75,6 +80,8 @@ public sealed class EaveCellProbe : IProbe
                 return EaveCells.IsEave(map, cell);
             case Metric.ShadowCasters:
                 return EaveCells.CastsRoofShadow(map, cell);
+            case Metric.RootShadeCells:
+                return ShadowRootCells.TakesRootShade(map, cell);
             default:
                 throw new ArgumentOutOfRangeException(nameof(metric), metric, null);
         }

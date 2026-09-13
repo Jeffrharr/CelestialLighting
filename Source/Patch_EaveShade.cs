@@ -30,7 +30,10 @@ public static class Patch_EaveShade
         if (current == null || current.skyManager != __instance)
             return;
 
-        if (!CelestialLightingFeatures.EaveShade)
+        // Either half needs this tint, so the patch stands down only when BOTH are off. There is
+        // nothing to split beyond the gate itself: §15b's eave and §30's caster cell take the very
+        // same multiply the ground beside them takes, which is the one value both read off here.
+        if (!CelestialLightingFeatures.EaveShade && !CelestialLightingFeatures.ShadowRootShade)
         {
             EaveShadeOverlay.Clear();
             return;

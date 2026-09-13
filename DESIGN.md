@@ -16633,3 +16633,88 @@ genuinely a first-time install.
 
 The standing cost is one refused window per harness boot of this mod, for as long as the notice's
 version is current. It never stacks, so it pauses nothing and appears in no frame.
+
+## 30. Shadow root shade — reattaching a shadow to a sprite that under-fills its cell (`ShadowRootShadeMath` / `ShadowRootCells`)
+
+**Problem.** A rough rock wall's shadow does not touch the rock. There is a lit strip between the
+jagged edge of the sprite and the point where the cast shadow begins, so the shadow reads as having
+come unstuck from the thing throwing it. Smooth walls — wood, stone blocks, steel — look correct.
+
+**Why.** This is the hole §15b already documented, met a second time, and §15b's own header states
+the assumption that fails:
+
+> ...because before §15 every caster was an edifice and a wall's sprite covers whatever colour the
+> ground under it is.
+
+Vanilla's `SectionLayer_SunShadows` emits, per caster cell, a flat footprint quad whose four
+vertices carry alpha 0, plus perimeter skirts whose far vertices carry alpha == caster height. That
+alpha is *both* the displacement the sun-shadow shader applies and what the fragment is drawn at, so
+the footprint renders fully transparent: a caster never shades the cell it stands on. The cast
+shadow therefore roots at the **cell outline**.
+
+Whether that is visible depends entirely on how much of its cell the sprite covers, and a sprite can
+never overhang: `Graphic_Linked.Print` draws a linked building through
+`Printer_Plane.PrintPlane(..., new Vector2(1f, 1f), ...)`, so the quad is exactly one cell. What
+varies is the texture's alpha inside that quad. The natural-rock atlas is deliberately jagged and its
+edge wanders inside the cell, leaving ground beside it visible — and vanilla lights that ground,
+because the only thing that would have shaded it is the transparent footprint quad. A wooden wall's
+texture fills its quad, hides the same ground, and so never showed the defect.
+
+**Approach.** Shade the caster's own cell with exactly the multiply the ground beside it takes — the
+same rule §15b states for eaves, applied to a different cell set. No texture inspection anywhere:
+shade the cell unconditionally and a sprite that *does* fill its cell simply draws over the shade and
+hides it. That is what lets this apply to every caster, vanilla or modded, with no def list and no
+per-def alpha analysis, and it is why a wooden wall provably cannot change.
+
+**It rides `SectionLayer_EaveShade` rather than taking a layer of its own.** Same material, same
+altitude (`AltitudeLayer.Shadows`, 13, which sits below `Building`, 15, so the sprite still draws over
+it), and the two cell sets **cannot overlap**: `EavesMath.IsEave` requires `hasRoom`, and a caster
+cell is impassable, so `RegionGrid.GetValidRegionAt_NoRebuild` returns null and `hasRoom` is false for
+it. A second layer drawing the same multiply would have double-multiplied any cell the two admitted
+together; one layer cannot. The probe reports both counts so a scenario asserts that disjointness
+instead of trusting this paragraph.
+
+**Doors are the one exclusion**, and for a real case rather than a defensive one. `DoorBase` declares
+`staticSunShadowHeight` 1.0, so a door is a full-height caster like any wall. While it is shut its
+sprite covers the cell and shading underneath is invisible either way — but an open door is drawn as
+two halves slid aside, so the middle of the cell shows floor, and shading it would paint a dark square
+across an open doorway. That is an artifact vanilla does not have and the opposite of this
+subsystem's purpose. The cost of excluding doors is only the closed case, where nothing was visible.
+
+**Height deliberately does not scale the result.** The ground at the foot of an opaque object is out
+of the sun whether the object is a 1.0 wall or a 0.17 dresser; height governs how far the shadow is
+thrown, which is the skirt's job and already correct. Height 0 is excluded rather than included, so a
+def that explicitly disables its static shadow (vanilla's `FenceGate`, the watermill generator) stays
+excluded: it throws no skirt, so there is no root for a root shade to join up with.
+
+**When off**, `AddCellColors` asks only the eave question and `Patch_EaveShade`'s alpha gate falls
+back to the eave flag alone, so the frame is bit-for-bit the pre-feature one — a faithful baseline for
+the harness A/B rather than "no shade at all".
+
+### Provenance
+
+Prompted by **"Shadow Fix"** (Workshop 3797651319, Antisodium), which describes the same defect and
+the same shape of fix — "fills the gap with the shadow's root shade, drawn beneath the sprite". Only
+that mod's public Workshop description was used. Its `ShadowFix.dll` ships alongside a `.pdb` and was
+**not** decompiled or inspected, so the clean-room note at the end of this document still holds. The
+mechanism above was derived from vanilla's decompiled `SectionLayer_SunShadows`, a scan of the shipped
+`Custom/Sun shadow` shader in `resources.assets`, and this repo's own prior §15b finding, which had
+already recorded the transparent-footprint cause and even named the assumption that breaks here.
+
+Because that mod's patch targets were not inspected, no `incompatibleWith` entry is declared for it.
+Note that our `Patch_ShadowMeshPerimeter` replaces `SectionLayer_SunShadows.Regenerate` outright, so
+any mod transpiling that method is already skipped — the same collision §15 records for
+Perspective: Eaves. Running both mods is therefore expected to be redundant rather than additive.
+
+### Verification
+
+- Offline: `ShadowRootShadeMathTests` pins the three decisions the one-line predicate encodes — zero
+  excluded, doors excluded at every height, height otherwise not scaling — against vanilla's real
+  `staticSunShadowHeight` values.
+- Live: `Tests/Scenarios/shadow_root_rock.json` A/Bs natural rock against a wooden wall run in the
+  same frame, with all five cloud flags switched off explicitly and `sun_elevation` pinned beside the
+  cell counts. The wooden run is the control that must not change.
+- **Not yet measured.** No ΔE is quoted here because the scenario has not been run. Until it is, this
+  subsystem is unshipped by this repo's own bar, however correct the mechanism above is: a change
+  measuring under ΔE 1 is not a shipped change. The cell-count pins carry a wide tolerance until that
+  first run measures them, and must be tightened to the measured values rather than to computed ones.
