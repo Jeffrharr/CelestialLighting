@@ -300,4 +300,48 @@ public static class PawnShadowMath
             VectorLightMath.BoundaryDistanceAt(light.Entry.Polygon, light.Bearing),
             light.Entry.Radius);
     }
+
+    // One lamp that changed between the last frame VectorLightPawnShadows looked at it and this
+    // one, carrying the biggest reach circle it could have had on either side of that change --
+    // see VectorLightPawnShadows.UpdateChangedLamps for how Radius here ends up as
+    // max(old radius, new radius) rather than just the current one. Cell rather than IntVec3, on
+    // the same reasoning as LightEntryData's own CellX/CellZ split.
+    public struct LampChangeData
+    {
+        public int CellX;
+        public int CellZ;
+        public float Radius;
+    }
+
+    // Whether a lamp at (cellX, cellZ) with the given reach could possibly light a pawn standing at
+    // (positionX, positionZ) -- the exact same circle Gather tests illuminance against (distance
+    // SQUARED against radius SQUARED, see Gather's own comment), just asked about a lamp that
+    // changed rather than one that is currently lit. Reusing it here rather than a coarser box test
+    // is what keeps the pawn-shadow cache's invalidation exact instead of merely approximate.
+    public static bool LampCouldReach(int positionX, int positionZ, int cellX, int cellZ, float radius)
+    {
+        float dx = positionX - (cellX + 0.5f);
+        float dz = positionZ - (cellZ + 0.5f);
+
+        return dx * dx + dz * dz <= radius * radius;
+    }
+
+    // Whether ANY lamp that changed this frame could reach a pawn sitting at (positionX,
+    // positionZ) -- the second of the pawn-shadow cache's two independent invalidation triggers.
+    // Walks `changedLamps` rather than the whole roster, which is what keeps this cheap: on a
+    // normal frame nothing changed, so this list is empty and every cached pawn is asked a
+    // zero-length question.
+    public static bool PositionMayBeAffectedByChangedLamps(
+        int positionX, int positionZ, List<LampChangeData> changedLamps)
+    {
+        for (int i = 0; i < changedLamps.Count; i++)
+        {
+            LampChangeData lamp = changedLamps[i];
+
+            if (LampCouldReach(positionX, positionZ, lamp.CellX, lamp.CellZ, lamp.Radius))
+                return true;
+        }
+
+        return false;
+    }
 }

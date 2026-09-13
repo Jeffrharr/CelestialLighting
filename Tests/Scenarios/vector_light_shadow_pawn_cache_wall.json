@@ -1,0 +1,277 @@
+{
+  "name": "vector_light_shadow_pawn_cache_wall",
+  "saveFile": "minimal_colony.rws",
+  "description": "vector_light_shadow_pawn_cache: does the per-pawn shadow cache (Source/CelestialLightingFeatures.cs's VectorLightShadowPawnCache) ever serve a STALE shadow when a lamp's reach changes but the pawn itself never moves? A stationary colonist stands between two torch lamps in one room; unclipped shadow reach reads the raw geometric length (3.0, the MaxPawnShadowLength cap, matching vector_light_shadow_wall's own unclipped arm) because nothing yet stands between the east lamp and the pawn. Phase A holds that geometry still for 15 frames with the cache on -- CACHE MISSES MUST STAY AT ZERO here, because the pawn did not move and no lamp changed, which is the boring, common-case frame the whole feature exists to make cheap. Phase B then BUILDS AN INTERIOR WALL between the east lamp and the pawn mid-scenario, with no further pawn movement -- the two-trigger design's SECOND trigger (a lamp whose reach circle could plausibly reach the pawn changed this frame) is the only thing that can invalidate here, since the first trigger (pawn moved) never fires. Reach must drop to the wall-clipped value (0.35, the distance from caster to wall, the same pin vector_light_shadow_wall measures for its clipped arm) rather than holding at 3.0 -- a stale cache would leave it at 3.0, since nothing about the PAWN changed to force a recompute under the first trigger alone. CACHE MISSES MUST GO NONZERO in this phase (measured stable at exactly 1 across three calibration runs -- one Draw call for the one frame the wall's dirty polygon reached UpdateChangedLamps), and hits stay the dominant outcome once the new geometry settles -- both counters nonzero across the run is the assertion the batch-and-parallelise probes were built for. Screenshots are the visual half: cache_wall_absent.png (shadow crossing the open gap) against cache_wall_added.png (shadow stopped at the new wall) show the RENDERED, cached path updated, not just the probe's own bypassed recompute -- VectorLightPawnShadows.ShadowsFor never consults the cache, so the reach probe alone proves the geometry is right but not that the live Draw() loop picked it up.",
+  "steps": [
+    {
+      "type": "SetTile",
+      "args": {
+        "latitude": "45"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Concrete",
+        "width": "36",
+        "height": "24",
+        "offset": "0,45",
+        "clear": "true"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "0,45",
+        "layout": "cells",
+        "clear": "true",
+        "cells": "-13,-8; -13,8; -12,-8; -12,8; -11,-8; -11,8; -10,-8; -10,8; -9,-8; -9,8; -8,-8; -8,8; -7,-8; -7,8; -6,-8; -6,8; -5,-8; -5,8; -4,-8; -4,8; -3,-8; -3,8; -2,-8; -2,8; -1,-8; -1,8; 0,-8; 0,8; 1,-8; 1,8; 2,-8; 2,8; 3,-8; 3,8; 4,-8; 4,8; 5,-8; 5,8; 6,-8; 6,8; 7,-8; 7,8; 8,-8; 8,8; 9,-8; 9,8; 10,-8; 10,8; 11,-8; 11,8; 12,-8; 12,8; 13,-8; 13,8; -13,-7; 13,-7; -13,-6; 13,-6; -13,-5; 13,-5; -13,-4; 13,-4; -13,-3; 13,-3; -13,-2; 13,-2; -13,-1; 13,-1; -13,0; 13,0; -13,1; 13,1; -13,2; 13,2; -13,3; 13,3; -13,4; 13,4; -13,5; 13,5; -13,6; 13,6; -13,7; 13,7"
+      }
+    },
+    {
+      "type": "SetRoof",
+      "args": {
+        "def": "RoofConstructed",
+        "width": "27",
+        "height": "17",
+        "offset": "0,45"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "TorchLamp",
+        "offset": "0,45",
+        "layout": "cells",
+        "cells": "-6,0; 6,0"
+      }
+    },
+    {
+      "type": "SpawnPawn",
+      "args": {
+        "kind": "Colonist",
+        "faction": "player",
+        "count": "1",
+        "offset": "0,45",
+        "clear": "true"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "0"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "0,45",
+        "zoom": "9"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_pawn_casters",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_suppress",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_beam",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_pawn_shadows",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shadow_shares",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shadow_shape",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shadow_clip",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shadow_pawn_cache",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "5"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_shadow_build_reset",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "15"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_pawn_shadow_reach",
+        "expectedValue": "3.0",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cache_wall_absent.png"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_shadow_cache_hits",
+        "expectedValue": "24",
+        "tolerance": "15"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_shadow_cache_misses",
+        "expectedValue": "0",
+        "tolerance": "1"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_shadow_build_reset",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "0,45",
+        "layout": "cells",
+        "cells": "1,-6; 1,-5; 1,-4; 1,-3; 1,-2; 1,-1; 1,0; 1,1; 1,2; 1,3; 1,4; 1,5; 1,6"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "15"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_pawn_shadow_reach",
+        "expectedValue": "0.35",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "cache_wall_added.png"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_shadow_cache_hits",
+        "expectedValue": "25",
+        "tolerance": "15"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_shadow_cache_misses",
+        "expectedValue": "1",
+        "tolerance": "0.9"
+      }
+    }
+  ]
+}

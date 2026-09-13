@@ -118,6 +118,13 @@ public static class VectorLightPawnShadows
     private static readonly List<Vector3> PendingAnchors = new List<Vector3>();
     private static readonly List<List<DrawnShadow>> PendingShadows = new List<List<DrawnShadow>>();
 
+    // Which pawn each PendingInputs slot came from -- kept as its own list rather than a field on
+    // PawnShadowInput so that struct stays exactly what its own header says it is: nothing past the
+    // serial gather may touch `Pawn`, `Map` or `view` again, and PawnShadowInput is what the
+    // Parallel.For fan-out below actually reads. PendingPawns is read only by the cache's two
+    // serial passes, before and after that fan-out, never inside it -- see BuildAll.
+    private static readonly List<Pawn> PendingPawns = new List<Pawn>();
+
     public static void Draw(Map map)
     {
         if (!CelestialLightingFeatures.VectorLightPawnShadows || map == null)
@@ -186,6 +193,7 @@ public static class VectorLightPawnShadows
     {
         PendingInputs.Clear();
         PendingAnchors.Clear();
+        PendingPawns.Clear();
 
         for (int i = 0; i < pawns.Count; i++)
         {
@@ -220,6 +228,7 @@ public static class VectorLightPawnShadows
             // anchor and Build does not hand one back, so this is the gather's own copy for the same
             // reason DrawFor used to keep one before this split existed.
             PendingAnchors.Add(AnchorOf(centre, shadow));
+            PendingPawns.Add(pawn);
         }
 
         while (PendingShadows.Count < PendingInputs.Count)
@@ -244,20 +253,163 @@ public static class VectorLightPawnShadows
         // is what actually makes the Build call safe to hand to Parallel.For.
         RefreshLampsData();
 
+        // Cache hit/miss is decided entirely here, serially, BEFORE either build path starts below --
+        // see CelestialLightingFeatures.VectorLightShadowPawnCache's header for the two triggers and
+        // DecideCacheHits' own header for why this has to run before, not inside, the fan-out.
+        bool cacheOn = CelestialLightingFeatures.VectorLightShadowPawnCache;
+
+        if (cacheOn)
+        {
+            UpdateChangedLamps();
+            DecideCacheHits(count);
+        }
+
         if (ShouldFanOutBuild(count))
         {
             ParallelBuildPasses++;
-            Parallel.For(0, count, i => Build(PendingInputs[i], LampsData, skyGlow, PendingShadows[i]));
+            Parallel.For(0, count, i =>
+            {
+                if (!cacheOn || !CacheHitThisFrame[i])
+                    Build(PendingInputs[i], LampsData, skyGlow, PendingShadows[i]);
+            });
         }
         else
         {
             SerialBuildPasses++;
 
             for (int i = 0; i < count; i++)
-                Build(PendingInputs[i], LampsData, skyGlow, PendingShadows[i]);
+            {
+                if (!cacheOn || !CacheHitThisFrame[i])
+                    Build(PendingInputs[i], LampsData, skyGlow, PendingShadows[i]);
+            }
         }
 
+        // Folds this frame's freshly-built shadows back into PawnCache, serially, AFTER the fan-out
+        // join -- see RecordCacheMisses' own header for why that ordering is what keeps this safe
+        // under Parallel.For with no locking of its own.
+        if (cacheOn)
+            RecordCacheMisses(count);
+
         BuildWallMs += clock.Elapsed.TotalMilliseconds;
+    }
+
+    // One pawn's cached shadow list plus the cell it was built for. See
+    // CelestialLightingFeatures.VectorLightShadowPawnCache's header for the two-trigger
+    // invalidation this backs: a hit needs both PositionX/PositionZ unchanged AND no lamp that
+    // changed this frame able to reach that position.
+    private struct PawnShadowCacheEntry
+    {
+        public int PositionX;
+        public int PositionZ;
+        public List<DrawnShadow> Shadows;
+    }
+
+    // Keyed by Pawn rather than by PendingInputs index: a pawn's slot is not stable frame to frame
+    // (it is just "however many pawns passed the view cull this frame, in roster order"), so the
+    // only identity that survives between one Draw and the next is the Pawn reference itself.
+    private static readonly Dictionary<Pawn, PawnShadowCacheEntry> PawnCache =
+        new Dictionary<Pawn, PawnShadowCacheEntry>();
+
+    // This frame's per-slot cache verdict, reused like every other PendingX list. Filled by
+    // DecideCacheHits before the fan-out (or serial loop) above, so both build arms can skip Build
+    // with a single already-decided bool read rather than re-deriving the verdict per pawn, and so
+    // neither arm has to touch PawnCache itself while pool threads might be running.
+    private static readonly List<bool> CacheHitThisFrame = new List<bool>();
+
+    // The pawn-shadow cache's hit/miss decision. Entirely serial, and run before either build path
+    // starts, because it is the only place PawnCache is READ this frame -- once the fan-out starts,
+    // every worker only ever consults the CacheHitThisFrame bool it was handed. A hit clears
+    // PendingShadows[i] and copies the cached shadows into it directly (the same thing BuildFrom
+    // would have done to that list), so DrawAll sees an identical shape whether the slot was a hit
+    // or a miss.
+    private static void DecideCacheHits(int count)
+    {
+        while (CacheHitThisFrame.Count < count)
+            CacheHitThisFrame.Add(false);
+
+        for (int i = 0; i < count; i++)
+        {
+            Pawn pawn = PendingPawns[i];
+            PawnShadowInput input = PendingInputs[i];
+
+            bool hit = PawnCache.TryGetValue(pawn, out PawnShadowCacheEntry cached)
+                && cached.PositionX == input.PositionX
+                && cached.PositionZ == input.PositionZ
+                && !PawnShadowMath.PositionMayBeAffectedByChangedLamps(
+                    input.PositionX, input.PositionZ, ChangedLamps);
+
+            CacheHitThisFrame[i] = hit;
+
+            if (!hit)
+            {
+                CacheMisses++;
+                continue;
+            }
+
+            CacheHits++;
+
+            List<DrawnShadow> into = PendingShadows[i];
+            into.Clear();
+            into.AddRange(cached.Shadows);
+        }
+    }
+
+    // Folds this frame's freshly-built shadows back into PawnCache so next frame's DecideCacheHits
+    // can compare against them. Run AFTER the fan-out join, serially, so no worker ever writes to
+    // PawnCache while another might still be reading LampsData beside it -- the whole cache write
+    // side lives in this one method, called from one thread, once per Draw.
+    //
+    // ONLY MISSES ARE WRITTEN: a hit's cache entry already describes the position and shadows
+    // PendingShadows[i] was just copied FROM, so writing it again would be a same-value no-op paid
+    // for with an allocation-shaped copy.
+    //
+    // COPIES INTO THE CACHE'S OWN LIST RATHER THAN CACHING PendingShadows[i] BY REFERENCE, because
+    // that list is a reused, INDEX-owned slot (see PendingShadows' own header) -- a future frame's
+    // Build for a DIFFERENT pawn landing at this same index would clear and refill the very list
+    // this pawn's cache entry would otherwise still be pointing at.
+    private static void RecordCacheMisses(int count)
+    {
+        for (int i = 0; i < count; i++)
+        {
+            if (CacheHitThisFrame[i])
+                continue;
+
+            Pawn pawn = PendingPawns[i];
+            PawnShadowInput input = PendingInputs[i];
+
+            if (!PawnCache.TryGetValue(pawn, out PawnShadowCacheEntry entry) || entry.Shadows == null)
+                entry.Shadows = new List<DrawnShadow>();
+
+            entry.PositionX = input.PositionX;
+            entry.PositionZ = input.PositionZ;
+            entry.Shadows.Clear();
+            entry.Shadows.AddRange(PendingShadows[i]);
+
+            PawnCache[pawn] = entry;
+        }
+
+        PruneDespawnedCacheEntries();
+    }
+
+    // Bounds PawnCache's growth over a long save: a despawned pawn (dead, traded away, hauled off
+    // map) never reappears in GatherInputs' roster again, so nothing else in this file would ever
+    // notice it is gone. Cheap to ask every frame -- Pawn.Spawned is a field read, not a search --
+    // so this runs unconditionally rather than on some cadence that would need its own
+    // justification.
+    private static readonly List<Pawn> StaleCacheKeys = new List<Pawn>();
+
+    private static void PruneDespawnedCacheEntries()
+    {
+        StaleCacheKeys.Clear();
+
+        foreach (KeyValuePair<Pawn, PawnShadowCacheEntry> entry in PawnCache)
+        {
+            if (!entry.Key.Spawned)
+                StaleCacheKeys.Add(entry.Key);
+        }
+
+        for (int i = 0; i < StaleCacheKeys.Count; i++)
+            PawnCache.Remove(StaleCacheKeys[i]);
     }
 
     // The lamps the pawn-shadow pass may draw from this frame. Static and reused for the reason
@@ -324,6 +476,108 @@ public static class VectorLightPawnShadows
         }
     }
 
+    // What UpdateChangedLamps saw a lamp holding last time it looked -- just enough to notice a
+    // change (MeshVersion) and to size the reach circle a change like that could have had (Radius).
+    private struct LampSnapshot
+    {
+        public int MeshVersion;
+        public float Radius;
+    }
+
+    // Keyed by the LightEntry itself rather than by cell: an emitter's LightEntry object is stable
+    // across frames (VectorLightField keeps one per glower for the object's life -- see its
+    // MapLights header), so the reference is a cheaper and equally sound identity than reading Cell
+    // back out every frame.
+    private static readonly Dictionary<VectorLightField.LightEntry, LampSnapshot> PreviousLamps =
+        new Dictionary<VectorLightField.LightEntry, LampSnapshot>();
+
+    // Lamps whose MeshVersion moved (or that appeared or disappeared) since UpdateChangedLamps last
+    // ran, at whichever radius -- old or new -- reaches furthest. Rebuilt every call, read only by
+    // the pawn-shadow cache's hit/miss pass, on the same reasoning LampsData's own header gives for
+    // why the frame's live-state reads belong here rather than repeated once per pawn.
+    private static readonly List<PawnShadowMath.LampChangeData> ChangedLamps =
+        new List<PawnShadowMath.LampChangeData>();
+
+    // Removed-this-frame scratch for UpdateChangedLamps -- reused rather than reallocated, same as
+    // every other scratch collection in this file.
+    private static readonly List<VectorLightField.LightEntry> RemovedLamps =
+        new List<VectorLightField.LightEntry>();
+
+    // A set view of Lamps, rebuilt each call, so UpdateChangedLamps can ask "is this previously-seen
+    // lamp still on the roster" in O(1) rather than scanning Lamps once per PreviousLamps entry --
+    // PreviousLamps can hold every lamp ever seen on the map, not just this frame's culled handful.
+    private static readonly HashSet<VectorLightField.LightEntry> LampsSet =
+        new HashSet<VectorLightField.LightEntry>();
+
+    // Diffs Lamps against PreviousLamps to fill ChangedLamps, and folds the result back into
+    // PreviousLamps so the next call diffs against THIS frame. Deliberately its own method rather
+    // than folded into RefreshLampsData above, even though both walk the same Lamps list: this one
+    // is stateful across frames and only the pawn-shadow cache needs that state, but RefreshLampsData
+    // is also called by ShadowsFor for a single probed pawn -- folding the diff in there would mean a
+    // probe call and the real Draw call each silently consuming the other's "since last frame"
+    // window, so a probe fired on the same frame Draw runs would blind whichever of the two ran
+    // second to a change the first one had already folded away.
+    //
+    // A LAMP MISSING FROM Lamps THIS FRAME COUNTS AS CHANGED, at its last-known radius. Most often
+    // this is the camera panning it out of the cull rather than anything about the lamp itself, so
+    // it is a false-positive miss rather than a wrong hit -- safe to over-invalidate, unsafe to
+    // under-invalidate, and simpler than telling a destroyed emitter apart from a merely off-screen
+    // one from here.
+    private static void UpdateChangedLamps()
+    {
+        ChangedLamps.Clear();
+        RemovedLamps.Clear();
+        LampsSet.Clear();
+
+        for (int i = 0; i < Lamps.Count; i++)
+        {
+            VectorLightField.LightEntry entry = Lamps[i];
+            LampsSet.Add(entry);
+            float radius = entry.Radius;
+
+            if (!PreviousLamps.TryGetValue(entry, out LampSnapshot previous))
+            {
+                ChangedLamps.Add(new PawnShadowMath.LampChangeData
+                {
+                    CellX = entry.Cell.x,
+                    CellZ = entry.Cell.z,
+                    Radius = radius,
+                });
+            }
+            else if (previous.MeshVersion != entry.MeshVersion)
+            {
+                ChangedLamps.Add(new PawnShadowMath.LampChangeData
+                {
+                    CellX = entry.Cell.x,
+                    CellZ = entry.Cell.z,
+                    Radius = System.Math.Max(previous.Radius, radius),
+                });
+            }
+
+            PreviousLamps[entry] = new LampSnapshot { MeshVersion = entry.MeshVersion, Radius = radius };
+        }
+
+        foreach (KeyValuePair<VectorLightField.LightEntry, LampSnapshot> seen in PreviousLamps)
+        {
+            if (!LampsSet.Contains(seen.Key))
+                RemovedLamps.Add(seen.Key);
+        }
+
+        for (int i = 0; i < RemovedLamps.Count; i++)
+        {
+            VectorLightField.LightEntry entry = RemovedLamps[i];
+
+            ChangedLamps.Add(new PawnShadowMath.LampChangeData
+            {
+                CellX = entry.Cell.x,
+                CellZ = entry.Cell.z,
+                Radius = PreviousLamps[entry].Radius,
+            });
+
+            PreviousLamps.Remove(entry);
+        }
+    }
+
     // Everything about one shadow a pawn casts from one lamp, resolved once.
     //
     // A struct carried between two consumers rather than a draw that computes as it goes, because
@@ -346,6 +600,8 @@ public static class VectorLightPawnShadows
     public static double BuildWallMs;
     public static int DrawCalls;
     public static int ShadowsDrawn;
+    public static int CacheHits;
+    public static int CacheMisses;
 
     // The batched draw's per-shadow CPU loop alone -- AppendShadowQuad's rotation and vertex
     // writes -- separated from mesh upload and the DrawMesh call around it, because that loop is
@@ -380,6 +636,21 @@ public static class VectorLightPawnShadows
         AppendWallMs = 0.0;
         GatherTicks = 0;
         ShareTicks = 0;
+        CacheHits = 0;
+        CacheMisses = 0;
+    }
+
+    // Clears the pawn-shadow cache's own state, as opposed to ResetCounters above which only zeroes
+    // the numbers read OFF it. Not required for correctness -- DecideCacheHits double-checks both
+    // triggers from scratch every frame regardless of history -- but called when the feature flag
+    // flips (see ProbeRegistration.cs) so a scenario's first "cache on" frame is not silently warmed
+    // by entries an earlier arm left behind, which would make its hit-rate reading a fact about
+    // scenario ordering rather than about the frame it was measured on.
+    public static void ResetCache()
+    {
+        PawnCache.Clear();
+        PreviousLamps.Clear();
+        ChangedLamps.Clear();
     }
 
     private static void DrawAll(float altitude)
