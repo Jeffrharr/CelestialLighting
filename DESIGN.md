@@ -16714,7 +16714,27 @@ Perspective: Eaves. Running both mods is therefore expected to be redundant rath
 - Live: `Tests/Scenarios/shadow_root_rock.json` A/Bs natural rock against a wooden wall run in the
   same frame, with all five cloud flags switched off explicitly and `sun_elevation` pinned beside the
   cell counts. The wooden run is the control that must not change.
-- **Not yet measured.** No ΔE is quoted here because the scenario has not been run. Until it is, this
-  subsystem is unshipped by this repo's own bar, however correct the mechanism above is: a change
-  measuring under ΔE 1 is not a shipped change. The cell-count pins carry a wide tolerance until that
-  first run measures them, and must be tightened to the measured values rather than to computed ones.
+- **Measured**, live A/B at 15:00, latitude 45, clear sky, all five cloud flags off, a granite rock
+  run beside a wooden wall run in the same frame:
+
+  | | |
+  |---|---|
+  | masked median ΔE, over the pixels it touches | **3.91** (p90 7.02, max 7.07) |
+  | whole-frame median ΔE | **0.00** |
+  | frame coverage | 0.14% (2,834 px) |
+
+  The whole-frame median is the number to ignore, and the reason the masked one is quoted: this
+  subsystem edits a one-cell strip around each caster, which is exactly the shape a frame-wide median
+  erases. Against the siblings, 3.91 sits between site altitude (1.88) and the snow cavity (6.06).
+
+  **The wooden control is the result worth keeping.** A per-pixel change mask over the A/B lands on
+  the granite run's jagged outline and on the natural mountain rock in the same frame, and on
+  *neither* the wooden wall beside them nor any open ground — which is what separates "the shadow
+  reattached to its sprite" from "everything got darker". Captures in `Tests/Screenshots/`.
+
+- **What that run does NOT establish.** Its two arms are 09:00 and 15:00, which are symmetric about
+  noon and so sample the *same* sun elevation: the change masks and every ΔE figure come out
+  bit-identical at both hours. The frames do differ from each other (66,576 px — the azimuth moved),
+  so the clock genuinely advances, but the second hour re-measures one shadow depth rather than
+  adding a second. A low-sun arm (07:00 or 17:00) is still wanted. The vision assert returned
+  `PENDING REVIEW — pass`, i.e. provisional rather than an independent confirmation.

@@ -21,9 +21,9 @@
     { "type": "SetTime", "args": { "hour": "15" } },
     { "type": "LookAt", "args": { "offset": "0,45", "zoom": "13" } },
 
-    { "type": "Probe", "args": { "probeName": "root_shade_cells", "expectedValue": "0", "tolerance": "999999" } },
-    { "type": "Probe", "args": { "probeName": "eave_cells", "expectedValue": "0", "tolerance": "999999" } },
-    { "type": "Probe", "args": { "probeName": "sun_elevation", "expectedValue": "0", "tolerance": "999999" } },
+    { "type": "Probe", "args": { "probeName": "root_shade_cells", "expectedValue": "2980", "tolerance": "0.5" } },
+    { "type": "Probe", "args": { "probeName": "eave_cells", "expectedValue": "0", "tolerance": "0.5" } },
+    { "type": "Probe", "args": { "probeName": "sun_elevation", "expectedValue": "45.10", "tolerance": "0.05" } },
 
     { "type": "Screenshot", "args": { "fileName": "shadow_root_warmup.png" } },
 
