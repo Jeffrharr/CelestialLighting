@@ -423,6 +423,27 @@ public static class CelestialLightingFeatures
     // switched on together.
     public static bool EaveShade = true;
 
+    // Feature key for ShadowRootShade (see CivilTwilightPersistenceKey for why the const lives here).
+    public const string ShadowRootShadeKey = "shadow_root_shade";
+
+    // §30 shadow root shade: a caster whose sprite does not fill its own cell — rough rock walls are
+    // the visible case — is drawn with its shadow starting at the CELL outline while the sprite ends
+    // somewhere inside it, leaving a lit strip between the two. This shades the caster's own cell so
+    // the shadow joins back up with the sprite. It is the same structurally-transparent footprint
+    // quad §15b works around, met a second time; see ShadowRootShadeMath for why it needs no texture
+    // inspection and why doors are the one exclusion.
+    //
+    // Rides SectionLayer_EaveShade rather than taking a layer of its own: same material, same
+    // altitude, and the two cell sets provably cannot overlap — a caster cell is impassable, so it
+    // has no room, so EavesMath.IsEave's `hasRoom` is false for it. One layer therefore cannot
+    // double-multiply a cell, which two layers drawing the same multiply would have done wherever
+    // they met.
+    //
+    // When off, AddCellColors asks only §15b's question and Patch_EaveShade's alpha gate falls back
+    // to §15b's alone, so the frame is bit-for-bit the pre-feature one — the faithful baseline for
+    // the harness A/B rather than "no shade at all".
+    public static bool ShadowRootShade = true;
+
     // Feature key for VacuumShadowContrast (see CivilTwilightPersistenceKey for why it lives here).
     public const string VacuumShadowContrastKey = "vacuum_shadow_contrast";
 

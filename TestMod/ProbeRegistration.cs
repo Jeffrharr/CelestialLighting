@@ -339,6 +339,11 @@ public static class ProbeRegistration
         ProbeRegistry.Register(new EaveCellProbe("eave_cells", EaveCellProbe.Metric.Eaves));
         ProbeRegistry.Register(
             new EaveCellProbe("roof_shadow_cells", EaveCellProbe.Metric.ShadowCasters));
+        // §30's cell set, a third metric off the same class. Worth pinning NEXT TO eave_cells rather
+        // than alone: the two are meant to be disjoint (a caster is impassable, so it has no room and
+        // cannot be an eave), and a scenario reading both can assert that instead of trusting it.
+        ProbeRegistry.Register(
+            new EaveCellProbe("root_shade_cells", EaveCellProbe.Metric.RootShadeCells));
         // The other half of §15's seam fix, and the only numeric answer this repo has to "rain falls
         // through the ceiling". Patch_IndoorMaskOverage edits the geometry of vanilla's weather clip,
         // so the coverage that clip provides is measured rather than argued: indoor_mask_uncovered is
@@ -2852,6 +2857,17 @@ public static class ProbeRegistration
         FeatureRegistry.Register(
             CelestialLightingFeatures.VacuumShadowContrastKey,
             enabled => CelestialLightingFeatures.VacuumShadowContrast = enabled);
+        // §30's shade is baked into SectionLayer_EaveShade's mesh, so like §15/§15b above the toggle
+        // is invisible until sections regenerate — without the rebuild both A/B screenshots would
+        // show whatever was baked before the flip. EaveShadowRedraw is the right call despite its
+        // name: it dirties MapMeshFlagDefOf.Buildings, which is what that layer subscribes to.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.ShadowRootShadeKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.ShadowRootShade = enabled;
+                EaveShadowRedraw.ForceRebuild();
+            });
         // §21 the surface-cloud light cavity. Nothing baked to rebuild — SurfaceBuildup.CavityGainFor
         // is read fresh inside NightRadiance.FloorGlowFor on every sky update, so the next frame shows
         // the flip. The A/B this exists for is a snowed-in map at night under an overcast, off vs on;

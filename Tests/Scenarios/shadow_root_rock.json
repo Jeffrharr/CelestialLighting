@@ -1,0 +1,43 @@
+{
+  "name": "shadow_root_rock",
+  "description": "§30 shadow root shade, A/B at 15:00 on natural rock (a jagged sprite that under-fills its cell) against a wooden wall run in the same frame (a sprite that fills its cell, and so must not change at all). All five cloud flags are switched off explicitly: the cloud sheet drifts on the tick counter, so leaving it on puts it in a different place in the two arms and shades exactly the open ground this scenario compares. The two cell counts are pinned side by side to assert that §15b's eaves and §30's casters are disjoint; both carry a wide tolerance until the first live run measures them.",
+  "saveFile": "minimal_colony.rws",
+  "steps": [
+    { "type": "SetTile", "args": { "latitude": "45" } },
+    { "type": "SetSeason", "args": { "dayOfYear": "40" } },
+    { "type": "SetWeather", "args": { "weatherDef": "Clear", "instant": "true" } },
+
+    { "type": "SetFeature", "args": { "featureName": "cloud_cover", "enabled": "false" } },
+    { "type": "SetFeature", "args": { "featureName": "cloud_sheet", "enabled": "false" } },
+    { "type": "SetFeature", "args": { "featureName": "cloud_presence", "enabled": "false" } },
+    { "type": "SetFeature", "args": { "featureName": "cloud_deck_varieties", "enabled": "false" } },
+    { "type": "SetFeature", "args": { "featureName": "cloud_volume", "enabled": "false" } },
+
+    { "type": "SetTerrain", "args": { "def": "Concrete", "width": "30", "height": "30", "offset": "0,45", "clear": "true" } },
+
+    { "type": "PlaceThings", "args": { "def": "Granite", "offset": "0,45", "layout": "cells", "clear": "true", "cells": "-6,-3; -5,-3; -4,-3; -3,-3; -2,-3; -1,-3; -1,-2; -1,-1; -1,0; 0,0; 1,0; 2,0" } },
+    { "type": "PlaceThings", "args": { "def": "Wall", "stuff": "WoodLog", "offset": "0,45", "layout": "cells", "clear": "true", "cells": "5,-3; 6,-3; 7,-3; 7,-2; 7,-1; 7,0" } },
+
+    { "type": "SetTime", "args": { "hour": "15" } },
+    { "type": "LookAt", "args": { "offset": "0,45", "zoom": "13" } },
+
+    { "type": "Probe", "args": { "probeName": "root_shade_cells", "expectedValue": "0", "tolerance": "999999" } },
+    { "type": "Probe", "args": { "probeName": "eave_cells", "expectedValue": "0", "tolerance": "999999" } },
+    { "type": "Probe", "args": { "probeName": "sun_elevation", "expectedValue": "0", "tolerance": "999999" } },
+
+    { "type": "Screenshot", "args": { "fileName": "shadow_root_warmup.png" } },
+
+    { "type": "SetFeature", "args": { "featureName": "shadow_root_shade", "enabled": "false" } },
+    { "type": "Screenshot", "args": { "fileName": "shadow_root_15h_off.png" } },
+    { "type": "SetFeature", "args": { "featureName": "shadow_root_shade", "enabled": "true" } },
+    { "type": "Screenshot", "args": { "fileName": "shadow_root_15h_on.png" } },
+
+    { "type": "SetTime", "args": { "hour": "9" } },
+    { "type": "SetFeature", "args": { "featureName": "shadow_root_shade", "enabled": "false" } },
+    { "type": "Screenshot", "args": { "fileName": "shadow_root_09h_off.png" } },
+    { "type": "SetFeature", "args": { "featureName": "shadow_root_shade", "enabled": "true" } },
+    { "type": "Screenshot", "args": { "fileName": "shadow_root_09h_on.png" } },
+
+    { "type": "Assert", "args": { "kind": "vision", "images": "shadow_root_15h_off.png, shadow_root_15h_on.png", "prompt": "Both images show a run of natural rock wall and, to its right, a separate run of wooden wall, on flat concrete under an afternoon sun, each throwing a cast shadow. In the OFF image there is a pale lit strip between the rock sprite's jagged edge and the start of its cast shadow, so the shadow looks detached from the rock. In the ON image that strip is shaded and the shadow meets the rock sprite. The WOODEN wall must look the same in both images, because its sprite fills its cell. Fail if the wooden wall changes, if the rock cells go black rather than shaded, or if a dark square appears on open ground where nothing stands.", "expect": "pass" } }
+  ]
+}

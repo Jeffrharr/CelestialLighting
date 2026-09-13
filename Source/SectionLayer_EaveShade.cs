@@ -44,8 +44,12 @@ public class SectionLayer_EaveShade : SectionLayer
     // "How deep is the shadow right now" is deliberately NOT here: it belongs to the material's
     // alpha, which is zero when there is no shadow anyway, and gating visibility on a brightness test
     // would make the layer flicker in and out across dusk for no gain.
+    // Either half puts shade on screen, so the layer draws if EITHER is on; the per-cell choice
+    // between them is AddCellColors' job. Gating the whole layer on §15b alone would have made §30
+    // silently undrawable for any player who turned eave shade off — the cross-feature coupling the
+    // split flags exist to prevent.
     public override bool Visible =>
-        CelestialLightingFeatures.EaveShade
+        (CelestialLightingFeatures.EaveShade || CelestialLightingFeatures.ShadowRootShade)
         && DebugViewSettings.drawShadows
         && MapSky.DrawsShadows(base.Map);
 
@@ -139,7 +143,17 @@ public class SectionLayer_EaveShade : SectionLayer
     // no averaging happens here.
     private void AddCellColors(LayerSubMesh subMesh, IntVec3 cell)
     {
-        Color32 color = EaveCells.IsEave(base.Map, cell) ? Shaded : Unshaded;
+        // Each half asks its own question under its own flag, so either can be switched off without
+        // disturbing the other's cells. A cell can never be admitted by both: §15b's eaves need a
+        // room and §30's casters are impassable, so the two predicates are disjoint by construction
+        // (CelestialLightingFeatures.ShadowRootShade records why, and the probe's two counts let a
+        // scenario assert it rather than trust it).
+        bool shaded =
+            (CelestialLightingFeatures.EaveShade && EaveCells.IsEave(base.Map, cell))
+            || (CelestialLightingFeatures.ShadowRootShade
+                && ShadowRootCells.TakesRootShade(base.Map, cell));
+
+        Color32 color = shaded ? Shaded : Unshaded;
         for (int i = 0; i < 9; i++)
             subMesh.colors.Add(color);
     }
