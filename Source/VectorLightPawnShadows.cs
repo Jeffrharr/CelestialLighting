@@ -347,6 +347,13 @@ public static class VectorLightPawnShadows
     public static int DrawCalls;
     public static int ShadowsDrawn;
 
+    // The batched draw's per-shadow CPU loop alone -- AppendShadowQuad's rotation and vertex
+    // writes -- separated from mesh upload and the DrawMesh call around it, because that loop is
+    // the specific candidate for moving onto the GPU (the same uniform-array trick
+    // VectorLightDrawBatch already uses for emitters), and the mesh upload cost would still be
+    // paid either way. Stays 0 on the unbatched arm, where this loop never runs.
+    public static double AppendWallMs;
+
     public static void ResetCounters()
     {
         ParallelBuildPasses = 0;
@@ -355,6 +362,7 @@ public static class VectorLightPawnShadows
         BuildWallMs = 0.0;
         DrawCalls = 0;
         ShadowsDrawn = 0;
+        AppendWallMs = 0.0;
     }
 
     private static void DrawAll(float altitude)
@@ -421,6 +429,8 @@ public static class VectorLightPawnShadows
         bool feathered = CelestialLightingFeatures.VectorLightShadowFeather;
         int shadowCount = 0;
 
+        System.Diagnostics.Stopwatch appendClock = System.Diagnostics.Stopwatch.StartNew();
+
         for (int p = 0; p < PendingInputs.Count; p++)
         {
             Vector3 anchor = PendingAnchors[p];
@@ -440,6 +450,8 @@ public static class VectorLightPawnShadows
                 shadowCount++;
             }
         }
+
+        AppendWallMs += appendClock.Elapsed.TotalMilliseconds;
 
         ShadowsDrawn += shadowCount;
 

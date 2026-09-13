@@ -42,6 +42,12 @@ public sealed class VectorLightPawnShadowBuildProbe : IProbe
         // total work whether it ran on one thread or eight.
         BuildWallMs,
 
+        // The batched draw's per-shadow CPU loop alone -- see VectorLightPawnShadows.AppendWallMs's
+        // own header for why it is timed apart from the mesh upload around it. Reads 0 on the
+        // unbatched arm, where the loop never runs, which is the expected baseline rather than a
+        // missing measurement.
+        AppendWallMs,
+
         // Side-effecting: zeroes every counter above and reads 0, following the same convention as
         // VectorLightBakeProbe.Metric.Reset and for the identical reason — so a scenario can open the
         // counting window and the profiling window at the same point rather than at whichever earlier
@@ -81,6 +87,9 @@ public sealed class VectorLightPawnShadowBuildProbe : IProbe
 
         if (metric == Metric.BuildWallMs)
             return (float)VectorLightPawnShadows.BuildWallMs;
+
+        if (metric == Metric.AppendWallMs)
+            return (float)VectorLightPawnShadows.AppendWallMs;
 
         // metric == Metric.Reset, the only value left unmatched above.
         VectorLightPawnShadows.ResetCounters();
