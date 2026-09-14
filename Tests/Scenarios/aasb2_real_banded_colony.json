@@ -1,0 +1,133 @@
+{
+  "name": "aasb2_real_banded_colony",
+  "saveFile": "minimal_colony.rws",
+  "description": "The As above, So below II interop on a map their own generation built, rather than one banded after the fact.\n\nWHY A SECOND AASB2 SCENARIO. aasb2_banded_overlay reconfigures an existing map's band component, which is cheap and deterministic and exercises the interop wiring. It cannot exercise their GENERATION: Patch_MapGenerator_GenerateMap only fires for a player Settlement's own map, and a fixture save's map was generated before any mod under test was loaded. SettleColony runs the real path, so this map has their real gutters, real carved bands and real see-through cells -- and costs a full map generation to get, which their own comment puts at roughly 3x normal.\n\nThe four state probes are the assertion. A map that silently failed to band still loads, still renders, and reads as an ordinary colony, so 'it ran' is not evidence of anything without them.\n\nClouds off, clock pinned: nothing here is testing either, and both drift between runs.\n\nTHE MEASUREMENT THAT MAKES THIS THEIR GENERATION AND NOT SOMETHING ELSE. band_count 3 is their default level plan (one below, one above), and the map is 190 wide by 576 tall. SlotFor(190) = ceil(192/64)*64 = 192, and 3 * 192 = 576 exactly: the map's z is bandCount * SlotFor(width) while its width is untouched, which is the shape their Patch_MapGenerator_GenerateMap prefix inflates a map into and nothing else produces. All three are pinned at tolerance 0, so a settings change or a generation-path change fails here rather than quietly measuring an ordinary colony.",
+  "steps": [
+    {
+      "type": "SettleColony",
+      "args": {}
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_cover",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_sheet",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_presence",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_deck_varieties",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aasb2_present",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aasb2_banded",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aasb2_rendering_guard",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aasb2_overlay_owned",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aasb2_band_count",
+        "expectedValue": "3",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "map_width",
+        "expectedValue": "190",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "map_height",
+        "expectedValue": "576",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "aasb2_real_warmup_discard.png"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "aasb2_real_colony.png"
+      }
+    }
+  ]
+}

@@ -261,5 +261,17 @@ Requires Harmony.</description>
          so it is declared purely because a shared patch target should be visible in the load graph. -->
     <li>ferny.PopupFramework</li>
     <li>Mlie.DingOnGameLoaded</li>
+    <!-- As above, So below II stacks up to seven playable levels as BANDS OF ONE MAP and hides
+         vanilla's lighting overlay on any banded map (Patch_LightingOverlay_ABSuppressOnBanded
+         postfixes SectionLayer_LightingOverlay.Visible to false), drawing its own
+         SectionLayer_ABBelowLighting instead. Both of our writers to that mesh are postfixes on
+         SectionLayer_LightingOverlay.Regenerate, so on their maps we were baking alphas into a mesh
+         nobody draws — which is why "Minimum indoor brightness" appeared to do nothing there, for
+         ordinary surface rooms as well as underground levels.
+         We postfix their layer instead and compose our passes onto the mesh they DO draw, standing
+         our own postfixes down while they own it. Load after them so their types are present when
+         our static ctor patches that layer — an unresolved type there means no interop at all.
+         See DESIGN.md's As above, So below II section and Source/AsAboveSoBelowCompat.cs. -->
+    <li>astryl.AsAboveSoBelow2</li>
   </loadAfter>
 </ModMetaData>
