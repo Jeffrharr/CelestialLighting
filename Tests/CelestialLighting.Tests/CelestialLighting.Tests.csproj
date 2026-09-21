@@ -61,6 +61,9 @@
          here without a running game. -->
     <Compile Include="../../Source/CloudCoverLabelMath.cs" Link="CloudCoverLabelMath.cs" />
     <Compile Include="../../Source/MapSkyMath.cs" Link="MapSkyMath.cs" />
+    <!-- Subsystem 17c pure core: the ambient level and channel lift for an As above, So below II
+         band below the surface. Depends on nothing else linked here, so its position is free. -->
+    <Compile Include="../../Source/UndergroundBandMath.cs" Link="UndergroundBandMath.cs" />
     <!-- Subsystem 8 pure core. Depends on Formulas.AtmosphericRefractionDegrees, so Formulas.cs
          above must be linked too (it already is). -->
     <Compile Include="../../Source/SkyColorTemperature.cs" Link="SkyColorTemperature.cs" />

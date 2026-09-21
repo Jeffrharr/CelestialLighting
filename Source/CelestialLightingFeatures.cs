@@ -306,6 +306,17 @@ public static class CelestialLightingFeatures
     // Feature key for IndoorSkyOcclusion (see CivilTwilightPersistenceKey for why it lives here).
     public const string IndoorSkyOcclusionKey = "indoor_sky_occlusion";
 
+    // §17c: light an As above, So below II band below the surface like an underground map, rather
+    // than letting the surface band's sky reach down into it. Only ever does anything on a banded map
+    // with their mod loaded — everyone else pays one already-cached bind check per section.
+    //
+    // OFF REPRODUCES THE PRE-FEATURE SHAPE EXACTLY: the cave goes back to following the sun, measured
+    // on the banded fixture at mean L* 10.75 at noon against 2.95 at midnight. That is what makes the
+    // harness A/B a real baseline instead of a picture of the mod being absent.
+    public static bool UndergroundBandEnclosure = true;
+
+    public const string UndergroundBandEnclosureKey = "underground_band_enclosure";
+
     // §7b indoor sky occlusion: vanilla clamps a roofed cell's baked sky cover to a constant 100/255,
     // so a sealed, unlit cave renders at ~61% of the sky colour day and night — no amount of §7a
     // overlay darkening can reach black indoors, because the interior is a fixed fraction *of the sky*.

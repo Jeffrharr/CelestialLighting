@@ -62,6 +62,8 @@ public static class AsAboveSoBelowCompat
     private static bool triedBind;
 
     private static Func<Map, bool> abBanded;
+    private static Func<Map, IntVec3, int> abBandOf;
+    private static Func<Map, int> abSurfaceBand;
     private static Func<bool> abRenderingOn;
     private static AccessTools.FieldRef<object, LayerSubMesh> abMesh;
 
@@ -179,6 +181,11 @@ public static class AsAboveSoBelowCompat
 
             Patch_IndoorSkyOcclusion.ApplyToMesh(map, subMesh, rect, section);
             Patch_VectorLightSuppress.ApplyToMesh(map, subMesh, rect);
+
+            // §17c runs LAST of the three: it overwrites the occlusion's alpha for cells below the
+            // surface band and adds the cave's ambient underneath whatever §27 has just drawn, so the
+            // lamp shaping above survives as a constant offset. See Patch_UndergroundBandAmbient.
+            Patch_UndergroundBandAmbient.ApplyToMesh(map, subMesh, rect);
         }
         catch (Exception e)
         {
@@ -222,6 +229,7 @@ public static class AsAboveSoBelowCompat
 
         bound =
             TryBindBanded(bands)
+            && TryBindBandGeometry(bands)
             && TryBindRenderingGuard(guard)
             && TryBindMeshField(layer);
 
@@ -247,6 +255,64 @@ public static class AsAboveSoBelowCompat
         catch (Exception e)
         {
             WarnUnusable("ABBands.Banded(Map)", $"has an unexpected signature ({e.Message})", BandedConsequence);
+            return false;
+        }
+    }
+
+    // ABBands.BandOf(Map, IntVec3) and ABBands.SurfaceBand(Map) — both public, and both needed
+    // together: a band index means nothing without knowing which index is the surface. Their own
+    // level plan puts the surface in the middle (band 1 of 3 by default, one below and one above),
+    // so "underground" is not "band 0" and is not "below the middle" either — it is strictly
+    // less than whatever they report as the surface.
+    private static bool TryBindBandGeometry(Type bands)
+    {
+        MethodInfo bandOf = AccessTools.Method(bands, "BandOf", new[] { typeof(Map), typeof(IntVec3) });
+        MethodInfo surfaceBand = AccessTools.Method(bands, "SurfaceBand", new[] { typeof(Map) });
+
+        if (bandOf == null || surfaceBand == null)
+        {
+            WarnUnusable(
+                "ABBands.BandOf(Map, IntVec3) or ABBands.SurfaceBand(Map)", "is not there",
+                UndergroundConsequence);
+            return false;
+        }
+
+        try
+        {
+            abBandOf = (Func<Map, IntVec3, int>)Delegate.CreateDelegate(
+                typeof(Func<Map, IntVec3, int>), bandOf);
+            abSurfaceBand = (Func<Map, int>)Delegate.CreateDelegate(typeof(Func<Map, int>), surfaceBand);
+            return true;
+        }
+        catch (Exception e)
+        {
+            WarnUnusable(
+                "ABBands.BandOf / ABBands.SurfaceBand", $"has an unexpected signature ({e.Message})",
+                UndergroundConsequence);
+            return false;
+        }
+    }
+
+    // Whether a cell sits on a band BELOW the surface one, which is the question §17c asks before it
+    // treats a cell as underground.
+    //
+    // Answering false on any doubt is the safe direction throughout: false means "light it like the
+    // surface", which is what every build before this one did.
+    public static bool IsBelowSurface(Map map, IntVec3 cell)
+    {
+        if (map == null || !Bind())
+            return false;
+
+        try
+        {
+            return abBandOf(map, cell) < abSurfaceBand(map);
+        }
+        catch (Exception e)
+        {
+            Log.ErrorOnce(
+                "[CelestialLighting] As above, So below II's band geometry threw; underground bands "
+                + "will be lit as surface for the rest of this session. " + e, 0x0CE1A503);
+            bound = false;
             return false;
         }
     }
@@ -314,6 +380,10 @@ public static class AsAboveSoBelowCompat
         "Their banded maps keep vanilla's lighting overlay with none of ours composed onto it, so "
         + "indoor sky occlusion and vector-light suppression are absent there. Everywhere else is "
         + "unaffected.";
+
+    private const string UndergroundConsequence =
+        "Their bands below the surface keep being lit by the surface band's sky, so a sealed cave "
+        + "goes on brightening at noon and darkening at midnight. Everything else is unaffected.";
 
     private const string GuardConsequence =
         "We cannot tell whether their renderer is live, so we keep writing vanilla's overlay on their "
