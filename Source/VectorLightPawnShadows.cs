@@ -163,10 +163,10 @@ public static class VectorLightPawnShadows
         // calling thread, before either the parallel or the serial build phase below can start. See
         // VectorLightField.BakeSelected's header for why this split is what makes the phase after it
         // safe rather than merely convenient.
-        // The void veto's per-map question, resolved once for the whole frame: GatherInputs gates
-        // casters standing over nothing on it, and RefreshLampsData bakes each emitter's void grid
-        // from it for the shadow clip. Inactive on every map with an atmosphere, so both reduce to a
-        // field compare there.
+        // The void veto's per-map question, for the CASTER gate only — a pawn standing over nothing
+        // throws nothing. The per-emitter grid the shadow CLIP walks is baked by
+        // VectorLightField.EnsurePolygons, which owns it for every reader. Inactive on every map with
+        // an atmosphere, so this is a field compare there.
         VectorLightVoid.VoidCells voidCells = VectorLightVoid.For(map);
 
         GatherInputs(map, pawns, view, voidCells);
@@ -177,7 +177,7 @@ public static class VectorLightPawnShadows
         // PURE ARITHMETIC PHASE: parallel when the flag and the batch size justify it, serial
         // otherwise, but ALWAYS in the same index order either way — nothing here may skip a pawn or
         // reorder the roster, on the same reasoning ShouldFanOut's own header gives.
-        BuildAll(skyGlow, voidCells);
+        BuildAll(skyGlow);
 
         DrawAll(altitude);
     }
@@ -264,7 +264,7 @@ public static class VectorLightPawnShadows
     // ShouldFanOutBuild. Every call writes only PendingShadows[i] for the i it was given, which is
     // what makes the fan-out safe: two workers never share a results list, and Contributions is
     // thread-local so two workers never share scratch either.
-    private static void BuildAll(float skyGlow, VectorLightVoid.VoidCells voidCells)
+    private static void BuildAll(float skyGlow)
     {
         int count = PendingInputs.Count;
 
@@ -276,7 +276,7 @@ public static class VectorLightPawnShadows
         // Projected onto the pure core's primitive LightEntryData ONCE here, serially, rather than
         // once per pawn inside the fan-out below -- see RefreshLampsData's own header for why this
         // is what actually makes the Build call safe to hand to Parallel.For.
-        RefreshLampsData(voidCells);
+        RefreshLampsData();
 
         // Cache hit/miss is decided entirely here, serially, BEFORE either build path starts below --
         // see CelestialLightingFeatures.VectorLightShadowPawnCache's header for the two triggers and
@@ -481,7 +481,7 @@ public static class VectorLightPawnShadows
     // Doing it once here rather than once per pawn is the only thing that changes: a colony's lamp
     // count is far smaller than its pawn count, so re-deriving the same handful of LightEntryData
     // values on every worker would be strictly wasted work, not a safety question.
-    private static void RefreshLampsData(VectorLightVoid.VoidCells voidCells)
+    private static void RefreshLampsData()
     {
         LampsData.Clear();
 
@@ -489,10 +489,9 @@ public static class VectorLightPawnShadows
         {
             VectorLightField.LightEntry entry = Lamps[i];
 
-            // Baked HERE, in the serial phase, for the reason this method exists: the workers must
-            // not read a TerrainGrid. Rebuilt only when a terrain change said so, and set to null
-            // outright when the map has no void — see VectorLightVoid.EnsureGrid.
-            VectorLightVoid.EnsureGrid(entry, voidCells, entry.CoverageRadius);
+            // NOT BAKED HERE. VectorLightField.EnsurePolygons owns the void grid and builds it once
+            // per frame for the whole roster, ahead of every reader — see its own comment for why
+            // baking it from this gather was a bug rather than a shortcut.
 
             LampsData.Add(new PawnShadowMath.LightEntryData
             {
@@ -1066,7 +1065,7 @@ public static class VectorLightPawnShadows
         // the cull is only sound for pawns inside the view rect. It changes nothing for a pawn in
         // view, because the culled list is a superset of every lamp Gather accepts.
         CollectLamps(lights, default, cull: false);
-        RefreshLampsData(VectorLightVoid.For(map));
+        RefreshLampsData();
 
         PawnShadowInput input = new PawnShadowInput
         {

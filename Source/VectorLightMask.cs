@@ -605,10 +605,10 @@ public static class VectorLightMask
 
         if (advancing)
             ApplyToCentresAdvancing(
-                colors, rect, corners, composing,
+                map, colors, rect, corners, composing,
                 centreFromX, centreToX, centreFromZ, centreToZ);
         else
-            ApplyToCentres(colors, rect, corners, composing);
+            ApplyToCentres(map, colors, rect, corners, composing);
 
         CentreTicks += System.Diagnostics.Stopwatch.GetTimestamp() - centreStart;
     }
@@ -1772,6 +1772,23 @@ public static class VectorLightMask
             && entry.Cell.z + shadow.MinDz <= rect.maxZ + CellMargin;
     }
 
+    // One cell of an emitter's baked void grid, indexed exactly as VectorLightMath.CoverageAt indexes
+    // coverage — deliberately the same convention, so the two per-emitter grids can be read side by
+    // side without holding two layouts in mind. Out of the square reads FALSE, matching
+    // VoidCells.At: those cells are outside this emitter's reach, so the answer only has to be the
+    // one that changes nothing.
+    private static bool VoidAt(
+        bool[] grid, int span, VectorLightField.LightEntry entry, int radius, int cellX, int cellZ)
+    {
+        int xi = cellX - entry.Cell.x + radius;
+        int zi = cellZ - entry.Cell.z + radius;
+
+        if (xi < 0 || zi < 0 || xi >= span || zi >= span)
+            return false;
+
+        return grid[zi * span + xi];
+    }
+
     private static bool AccumulateEmitter(
         Map map, CellRect rect, VectorLightField.LightEntry entry, GlowLight light,
         UnsafeList<Color32> colors, bool lifting, bool bounded)
@@ -1791,11 +1808,19 @@ public static class VectorLightMask
         bool replacing = Replacing;
         bool bentPath = BentPath;
 
-        // The void veto's per-cell question, resolved once per emitter. Inactive on every map with an
-        // atmosphere, so `vetoingVoid` is the one bool compare the paragraph above asks for and the
-        // terrain grid is not touched at all on a colony map.
-        VectorLightVoid.VoidCells voidCells = VectorLightVoid.For(map);
-        bool vetoingVoid = voidCells.Active;
+        // THE VOID GRID THIS EMITTER ALREADY CARRIES, not a fresh terrain read per cell. The pawn-shadow
+        // clip bakes one bool per cell over exactly this emitter's square (VectorLightVoid.EnsureGrid),
+        // in exactly the relative indexing CoverageAt uses, and the fan's own surface mask is the same
+        // data again in the field texture's alpha. Asking the TerrainGrid a third time, once per cell
+        // per emitter per section, would be three answers to one question with three chances to
+        // disagree — and the expensive one of the three, since the other two are array indexes.
+        //
+        // Null on every map with an atmosphere and whenever the veto is off, so `vetoingVoid` is the
+        // one bool compare against a local that the paragraph above asks for.
+        bool[] voidGrid = entry.VoidGrid;
+        bool vetoingVoid = voidGrid != null;
+        int voidRadius = entry.CoverageRadius;
+        int voidSpan = voidRadius * 2 + 1;
 
         float radius = light.glowRadius;
         float radiusSquared = radius * radius;
@@ -1985,22 +2010,24 @@ public static class VectorLightMask
                         && VectorLightLiftMath.VanillaBentToArrive(
                             x - lightX, z - lightZ, own.a, anyOwn);
 
-                    // THE VOID VETO REACHES THE SAME REPLACEMENT BY THE SAME ARITHMETIC. A cell with
-                    // no surface gives up this emitter's whole vanilla contribution, exactly as a
-                    // claimed cell does — and then gets nothing back, because the lift below is
-                    // skipped and the fragment program's own output is multiplied by the surface mask
-                    // in the field texture's alpha. Total artificial light on the void: zero, from
-                    // both halves of the composition rather than from one of them fighting the other.
+                    // THE VOID VETO MAKES A VOID CELL PARTICIPATE IN NOTHING, which is a change from
+                    // its first cut and the reason is measured. That version gave the cell a FULL
+                    // subtraction (shadowed = 255), reasoning that the void should end at zero
+                    // artificial light. It does — but vanilla already puts zero there, so the
+                    // subtraction was a no-op on the cell itself while still feeding a full shadow
+                    // into the four lattice points it shares with its neighbours. Since the overlay's
+                    // vertices are per CORNER, that is how a void cell reaches back onto the deck.
                     //
-                    // WHY IT TAKES VANILLA'S LIGHT TOO, and not only ours. §27 suppresses vanilla's
-                    // render and owns the frame while it is on, so "our fan stops at the hull" and
-                    // "vanilla's flood does not" would leave the void lit by the model we just
-                    // replaced — the complaint again, one subsystem further down. With the feature
-                    // off nothing here runs and vanilla's own void wash is back untouched, which is
-                    // the flag contract rather than a coincidence.
-                    bool isVoid = vetoingVoid && voidCells.At(x, z);
+                    // Contributing nothing, plus VoidAdjacentCorner below refusing to edit any
+                    // lattice point a void cell touches, leaves every void cell rendering exactly
+                    // what vanilla renders — which on a void cell is no artificial light at all,
+                    // uniformly, with no dependence on whether its neighbour happens to be shadowed.
+                    // Measured: that dependence was a one-cell dark fringe at the deck edge reading
+                    // ΔE 2.09 against vanilla, present with the veto off as well, and it is what
+                    // "does a wall shadow land on the void" turned out to mean.
+                    bool isVoid = vetoingVoid && VoidAt(voidGrid, voidSpan, entry, voidRadius, x, z);
 
-                    int shadowed = replacing || claimed || isVoid ? 255 : 255 - coverage;
+                    int shadowed = isVoid ? 0 : (replacing || claimed ? 255 : 255 - coverage);
 
                     if (shadowed > 0 && anyOwn)
                     {
@@ -2126,6 +2153,31 @@ public static class VectorLightMask
         return true;
     }
 
+    // WHY THE VOID CANNOT BE MADE PERFECTLY CLEAN, and what is done instead.
+    //
+    // The lighting overlay's vertices sit at cell CORNERS and adjacent cells SHARE the two between
+    // them. A void cell's appearance is therefore decided by four lattice points it does not own,
+    // two of which belong just as much to the deck cell beside it. So "the deck keeps its shadow all
+    // the way to its own edge" and "the void is untouched" are contradictory AT THOSE CORNERS: one
+    // value serves both cells, and whichever way it goes, one of the two is wrong by half a cell.
+    //
+    // Three options were measured rather than argued:
+    //
+    //   - Edit the corner (the original): the deck is right and the void carries a one-cell dark
+    //     fringe, ΔE 2.09 against vanilla, present with the veto off too.
+    //   - Leave the corner at vanilla: the void is EXACTLY vanilla, ΔE 0.00 — but the deck's shadow
+    //     fades over its outer half-cell instead of reaching the rim, which is the wrong trade,
+    //     because the deck is the surface players are looking at.
+    //   - Edit the corner AND take the void cell's own CENTRE back to vanilla: the deck keeps its
+    //     shadow to the edge, and the void's bleed is confined to a gradient near the two shared
+    //     corners rather than a flat band across the cell. This is what ships.
+    //
+    // Removing the last of it would mean giving void cells their OWN vertices — degenerating
+    // vanilla's triangles for those cells and appending replacements — and on a space map the void
+    // is most of the map, so that is a whole-mesh rebuild per section regenerate to correct a
+    // half-corner gradient. Not worth it; recorded here so the next person does not rediscover the
+    // constraint from scratch.
+
     // Corner vertices, mirroring GenerateLightingOverlay's own averaging exactly: the up-to-four
     // cells meeting at this lattice point, skipping any whose edifice blocks light and any off the
     // map, divided by however many that left. Averaging over a different set than vanilla did would
@@ -2233,8 +2285,14 @@ public static class VectorLightMask
     // Centre vertices are vanilla's own average of the four corners around them, so ours is the
     // average of the four corner SUBTRACTIONS. Recomputing the centre from the cell instead would
     // disagree with the corners by a fraction of a level and put a faint diamond in every cell.
-    private static void ApplyToCentres(Color32[] colors, CellRect rect, int corners, bool lifting)
+    private static void ApplyToCentres(
+        Map map, Color32[] colors, CellRect rect, int corners, bool lifting)
     {
+        // Same read and same reason as the advancing body's, so the two cannot disagree about which
+        // centres are left alone.
+        VectorLightVoid.VoidCells voidCells = VectorLightVoid.For(map);
+        bool vetoingVoid = voidCells.Active;
+
         int stride = rect.Width + 1;
 
         for (int z = rect.minZ; z <= rect.maxZ; z++)
@@ -2243,6 +2301,9 @@ public static class VectorLightMask
 
             for (int x = rect.minX; x <= rect.maxX; x++)
             {
+                if (vetoingVoid && voidCells.At(x, z))
+                    continue;
+
                 int botLeft = (z - rect.minZ) * stride + (x - rect.minX);
 
                 ColorInt sum = cornerShadow[botLeft];
@@ -2446,10 +2507,28 @@ public static class VectorLightMask
     // ints, over a cell range rather than the whole section. Compose(colour, sum / 4, lift / 4)
     // is colour.r - sum.r / 4 + lift.r / 4 per channel, integer division on non-negative sums,
     // and the alpha untouched -- exactly what is written below.
+    // A VOID CELL'S CENTRE IS LEFT AT VANILLA, and it is the one part of this that costs the deck
+    // nothing. The four corners around a cell are shared with its neighbours and the trade there is
+    // genuine — see the header above VoidAdjacentCorner's replacement note — but the CENTRE vertex
+    // belongs to one cell alone. Leaving the void cell's own centre alone therefore removes bleed
+    // from the middle of the cell without touching a single value the deck cell beside it reads.
+    //
+    // What remains after this is a gradient in the corners only: measured on
+    // vector_light_void_wall_shadow.json, the boundary cell falls from ΔE 1.42 against vanilla to
+    // the figure recorded in DESIGN.md, while the deck's rim cell keeps its full shadow at ΔE 9.03.
+    //
+    // A MAP-LEVEL READ HERE, NOT THE PER-EMITTER GRID, and the asymmetry is deliberate. The emitter
+    // accumulate runs a few hundred times per emitter per section and reads the bool[] baked for it;
+    // this pass runs once per CELL of one section — 289 of them — and has no emitter in hand to ask.
+    // One array index per cell, only on a map that can have void at all, is the cheaper of the two
+    // wrongs against baking a second grid per section to avoid it.
     private static void ApplyToCentresAdvancing(
-        Color32[] colors, CellRect rect, int corners, bool lifting,
+        Map map, Color32[] colors, CellRect rect, int corners, bool lifting,
         int fromX, int toX, int fromZ, int toZ)
     {
+        VectorLightVoid.VoidCells voidCells = VectorLightVoid.For(map);
+        bool vetoingVoid = voidCells.Active;
+
         int stride = rect.Width + 1;
 
         for (int z = fromZ; z <= toZ; z++)
@@ -2461,6 +2540,9 @@ public static class VectorLightMask
 
             for (int x = fromX; x <= toX; x++)
             {
+                if (vetoingVoid && voidCells.At(x, z))
+                    continue;
+
                 int bottomLeft = cornerRow + x;
 
                 ref ColorInt c0 = ref cornerShadow[bottomLeft];

@@ -621,8 +621,24 @@ public static class VectorLightField
 
         BakeBatch.Clear();
 
+        // The void veto's per-map question, once per frame for the whole roster. Inactive — and so
+        // free — on every map with an atmosphere and whenever the veto is off.
+        VectorLightVoid.VoidCells voidCells = VectorLightVoid.For(map);
+
         foreach (LightEntry entry in LightsFor(map))
         {
+            // BAKED HERE BECAUSE THIS IS THE SERIAL PASS, and both consumers need it before they run.
+            // The grid reads the TerrainGrid, so it cannot be built from a section regenerate (those
+            // go out across SectionWorkerPool) nor from the pure shadow build (that runs under
+            // Parallel.For) — and this method already exists to hoist exactly that kind of work out
+            // of the bake and in front of it.
+            //
+            // IT USED TO BE BAKED BY THE PAWN-SHADOW GATHER, which was a latent bug rather than a
+            // tidiness question: VectorLightMask reads the same grid, so with pawn shadows switched
+            // off — or simply with no pawn in the camera's view — the grid stayed null and the mask's
+            // half of the veto silently stopped applying. One owner, ahead of every reader.
+            VectorLightVoid.EnsureGrid(entry, voidCells, entry.CoverageRadius);
+
             if (entry.PolygonDirty || entry.Polygon.Count == 0)
             {
                 // Accumulated from the emitter's REACH rather than its cell: the polygon that is
