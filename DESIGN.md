@@ -14629,10 +14629,47 @@ the frame, so "our fan stops at the hull" and "vanilla's flood does not" would l
 the model we just replaced. With the flag off nothing runs and vanilla's own void wash is back
 untouched.
 
-**Pawn shadows take the gate at the caster.** A pawn standing in open space has no ground to receive
-a shadow. That is the caster's own cell rather than the shadow's footprint, so a pawn on the rim of a
-deck can still throw a shadow a cell or two past the edge; clipping that needs the shadow's bearing
-marched against the void, and is not done here.
+**Pawn shadows take the gate twice: at the caster, and along the shadow's own bearing.** A pawn
+standing in open space has no ground to receive a shadow, which is the caster's own cell and a plain
+gate in the gather. A pawn on the RIM of a deck is the harder half — its cell is ground and its
+shadow is not — and that is clipped by the same mechanism the wall clip uses.
+
+`VectorLightMath.VoidBoundaryDistance` marches the emitter's void grid along the shadow's bearing and
+returns how far the ground extends; `PawnShadowMath.BoundaryFor` takes the min of that, the visibility
+polygon's boundary and the lamp's radius, and `ClipShadowLength` is untouched. Three reasons a shadow
+ends, one arithmetic. It returns the LAST confirmed ground sample rather than the first void one, so a
+shadow stops short of vacuum rather than reaching into it — under a quarter cell of under-reach at
+worst, against a spill as long as the shadow.
+
+The grid is a `bool[]` baked once per emitter in the serial phase, sized and indexed exactly like
+`Coverage`, because `BuildFrom` runs on the thread pool and a `TerrainGrid` read from a worker is what
+the pure/adapter split exists to prevent. **Its being null is the whole gate** — no grid on a planet
+map, none with the feature off, and `VoidBoundaryDistance` returns `float.MaxValue` on its first line,
+so the clip is arithmetically the one that shipped before this existed. That is why the shadow half
+needed no flag of its own.
+
+**Verified by probe, and deliberately NOT claimed as a visual improvement.**
+`vector_light_void_shadow.json` puts the caster one cell INBOARD of the rim, so part of its shadow
+lands on deck and part on void: `vector_light_pawn_shadow_reach` falls from **1.50** cells beyond the
+caster to **1.10**, and the on-deck part survives — against a same-radius off-axis control, deck cell
++4 is 1.57 darker than off-axis with the veto off and 1.02 with it on. The retained part lightens by
+about a third because `ClipShadowLength` parameterises the along-length fade over whatever length
+survives, so shortening any shadow lightens what remains; that is pre-existing behaviour the wall
+clip has had since issue #166, inherited here rather than introduced.
+
+The caster ON the rim was shot first and is the wrong scene to publish, though the number is worth
+keeping: reach **2.00 → 0.10**, because every part of that shadow is already over vacuum. The capture
+then cannot distinguish "clipped at the edge" from "shadows deleted", and reads as the latter.
+
+The
+frame, though, barely moves — over the void where the shadow was, median ΔE **0.592** and p90
+**0.853**, both under the 1.0 this repo treats as imperceptible and of the same order as the run's own
+inter-arm drift (whole-frame p90 0.692). A shadow is a multiply and vacuum renders near-black, so
+there is almost nothing out there to darken: the artefact is real and lands where the frame cannot
+show it. It becomes visible the moment the void is not black, which is what §18d's limb-refraction
+flash on a planet backdrop and an aurora over an orbital deck both do. The deck side is unchanged at
+median ΔE 0.000, and a caster one cell inside the rim keeps most of its shadow (reach 1.50 → 1.10),
+which together say the clip takes only the part that leaves the deck.
 
 **Terrain is the test; `inVacuum` is only the gate.** This departs from `Vacuum.cs`'s rule that there
 should be one place which knows what vacuum means, and the reason is that this question is per-cell:

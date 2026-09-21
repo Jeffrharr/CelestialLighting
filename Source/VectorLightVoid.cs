@@ -72,6 +72,53 @@ public static class VectorLightVoid
         public byte AlphaAt(int cellX, int cellZ) => At(cellX, cellZ) ? VoidAlpha : SurfaceAlpha;
     }
 
+    // Which cells in one emitter's square are open void, rebuilt only when something said so.
+    //
+    // FOR THE PAWN-SHADOW CLIP, which cannot ask the live grid itself: PawnShadowMath.BuildFrom runs
+    // on the thread pool under Parallel.For, and a TerrainGrid read from a worker is exactly the
+    // kind of live-state access this repo's pure/adapter split exists to keep off those threads. So
+    // the question is answered once per emitter here, on the calling thread, and the workers read a
+    // plain bool[].
+    //
+    // SIZED AND INDEXED LIKE Coverage, on purpose rather than coincidentally: the shadow clip walks
+    // a bearing through this grid with VectorLightMath.VoidBoundaryDistance, and having one relative
+    // indexing convention for both per-emitter grids is what lets that function be read against
+    // CoverageAt without holding two layouts in mind.
+    //
+    // CLEARED TO NULL WHEN THE MAP HAS NO VOID, not merely left unbuilt. A map can stop being a
+    // vacuum map for these purposes the moment the feature is switched off, and a stale grid from
+    // before that would keep clipping shadows with nothing to justify it — the flag must reproduce
+    // the pre-feature behaviour exactly, and for this one that means the grid going away.
+    public static void EnsureGrid(VectorLightField.LightEntry entry, VoidCells cells, int radiusCells)
+    {
+        if (!cells.Active)
+        {
+            entry.VoidGrid = null;
+            entry.VoidGridDirty = false;
+            return;
+        }
+
+        int span = radiusCells * 2 + 1;
+
+        if (!entry.VoidGridDirty && entry.VoidGrid != null && entry.VoidGrid.Length == span * span)
+            return;
+
+        if (entry.VoidGrid == null || entry.VoidGrid.Length != span * span)
+            entry.VoidGrid = new bool[span * span];
+
+        for (int zi = 0; zi < span; zi++)
+        {
+            for (int xi = 0; xi < span; xi++)
+            {
+                entry.VoidGrid[zi * span + xi] = cells.At(
+                    entry.Cell.x + xi - radiusCells,
+                    entry.Cell.z + zi - radiusCells);
+            }
+        }
+
+        entry.VoidGridDirty = false;
+    }
+
     // This map's void question. Inactive — and therefore free at every call site — unless the veto
     // is on AND the map is one that can have void cells at all.
     public static VoidCells For(Map map)
