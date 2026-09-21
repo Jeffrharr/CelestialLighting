@@ -14590,6 +14590,94 @@ via the same one-step-per-frame guarantee.
 Verse/Unity half that reads the frame, tick and flags — the same split as `SunClockMath` /
 `SunClockAdapter`. `GeometryMemoTests.cs` covers hits, per-map isolation, invalidation on each key
 field, and that a compute which throws caches nothing.
+### Vector lighting: no light on the open void (`VectorLightVoid`, `vector_light_void_veto`, `Tests/Scenarios/vector_light_void.json`)
+
+**Problem.** Reported from play as "vector lights affect open space tiles": on an Odyssey space map a
+lamp inside a hull projected a visible cone of light out through an open door and onto the starfield.
+Nothing in vector lighting asked what the cell it was lighting was made of — no vacuum gate, no
+terrain test, and nothing in this section's earlier phases about space maps at all, even though the
+vacuum epic (§18) had already established the convention every other sky-derived subsystem follows.
+
+Light on a surface is albedo × illuminance. The void has no albedo, so the correct contribution there
+is not a dimmer one, it is none.
+
+**Why it is ours rather than vanilla's.** Vanilla floods the void too —
+`SectionLayer_LightingOverlay` reads `VisualGlowAt` for any cell whose edifice does not `blockLight`,
+and a void cell has no edifice at all. What makes it visible is that vector lighting *suppresses*
+vanilla's render and replaces it with a directional model at polygon resolution, so the same wrong
+glow goes from a faint wash to an obvious beam. Vanilla ships it quietly; we photograph it.
+
+**Approach.** The veto is one byte per cell, carried in the alpha channel of the per-emitter field
+texture that the fragment program already samples through UV1 — a channel `CopyField` had been
+forcing to 255 with a comment predicting exactly this use. It costs no new upload, no new sampler and
+no new vertex channel, and `Graphics.CopyTexture` already carries it into the batched variant's
+texture array. The fragment program multiplies its output by it. Bilinear filtering, which the
+composition was already using, turns the hull rim into a half-cell falloff rather than a stair-step —
+which is what light spilling off the edge of a deck looks like.
+
+**Alpha means surface, not void, and the polarity is the fail-safe.** An unbound `_VanillaTex` reads
+as Unity's `blackTexture`, `(0,0,0,1)` — alpha one, so "all surface", so a pass whose texture was
+never filled draws exactly what it drew before the term existed. Storing void-ness instead would make
+that same unbound sampler read "all void" and delete every fan on the map: a plausible wrong frame
+rather than an error, which is the failure mode the bundle rules exist to keep out.
+
+**The mask reaches the same answer by the arithmetic it already had.** A void cell surrenders the
+emitter's whole vanilla contribution, exactly as a bent-path cell does, and the lift is skipped — so
+the void ends at zero artificial light from both halves of the composition rather than one fighting
+the other. It takes vanilla's light too, and deliberately: while the feature is on our render owns
+the frame, so "our fan stops at the hull" and "vanilla's flood does not" would leave the void lit by
+the model we just replaced. With the flag off nothing runs and vanilla's own void wash is back
+untouched.
+
+**Pawn shadows take the gate at the caster.** A pawn standing in open space has no ground to receive
+a shadow. That is the caster's own cell rather than the shadow's footprint, so a pawn on the rim of a
+deck can still throw a shadow a cell or two past the edge; clipping that needs the shadow's bearing
+marched against the void, and is not done here.
+
+**Terrain is the test; `inVacuum` is only the gate.** This departs from `Vacuum.cs`'s rule that there
+should be one place which knows what vacuum means, and the reason is that this question is per-cell:
+a pressurised hull and the void it flies through share one map, so the whole-map field cannot tell a
+deck cell from the space beside it. `TerrainDefOf.Space` is what the veto tests — the same comparison
+`SectionLayer_GravshipMask` makes — and `inVacuum` only decides whether to ask. On a planet map the
+terrain grid is never touched, so the veto is provably inert there, which is also why the
+vector-lighting gate measures unchanged with it on.
+
+**Invalidation** hooks `TerrainGrid.DoTerrainChangedEffects`, the private choke point all seven
+public mutators funnel through, and marks only the field texture dirty. Void is not an occluder, so
+the polygon and the recorded silhouette are untouched — rebaking them because a pawn finished a floor
+tile would pay for a result byte-for-byte identical to the one in hand. Without the hook the copy
+that writes the alpha is itself skipped by the glow-texture hold, so a newly built deck would stay
+unlit until some unrelated edit happened to resample the lamp.
+
+**Not reached by the no-shader fallback.** When the bundle is absent or unsupported, vector lighting
+draws through vanilla's `MoteGlow`, and a vanilla shader cannot be told about our mask — so that arm
+still paints the void. It is already a degraded arm; this is a known limitation rather than something
+the flag quietly covers.
+
+**Verification.** `vector_light_void.json`: a roofed room on a 13×9 orbital-platform deck whose west
+wall is the deck's own edge, with an open door onto vacuum, lit by one ancient emergency light at
+midnight. Along the door axis L\* falls A→B by **3.43** one cell past the door (5.33 → 1.90), **2.44**
+at two cells, **1.12** at three, and is back to the background void's own 2.19 by four — the leak
+removed without over-subtracting. Void region beyond the door: **p90 ΔE 2.33**, max 8.87, quoted as
+p90 rather than median because this is a bounded object over part of a frame, the same reason the
+cloud lanes are. Hull interior as a control: median, p90 **and max** ΔE all **0.00**.
+
+**Three things that each made this measure zero first**, all worth knowing before touching it, since
+each presents as a working feature on a green run:
+
+- **The aperture has to be a door.** A bare lamp on an open deck cannot show the bug at all: with no
+  occluder our straight-line model and vanilla's geodesic flood agree cell for cell, so
+  `max(0, ours − vanilla)` is already zero over the void. Measured that way first, the arm read 9.6
+  against a distant-void 15.8 — light stopping dead at the deck edge. A one-cell gap cannot either,
+  because a gap projects nothing on `main` (issue #245).
+- **The lamp cannot be a `TorchLamp`.** Fire does not burn in vacuum, so it spawns wearing a red
+  unlit X while every probe reads a confident zero and the frame still looks plausible.
+  `AncientEmergencyLight_Blue` carries a bare glower with no power comp.
+- **The run needs `--install` for the bundle.** `--mod-overlay` swaps `1.6/Assemblies` only, so the
+  game otherwise loads the main checkout's shader and the fragment-program half is absent — which
+  reads as 0 changed pixels rather than as an error.
+
+
 
 ### What the memo cannot do: one evaluation is not the same as none
 
