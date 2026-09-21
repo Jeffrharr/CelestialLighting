@@ -385,3 +385,45 @@ public static class Patch_VectorLightVoidTerrain
             VectorLightField.MarkSurfaceDirtyAround(map, c);
     }
 }
+
+// The one terrain write that does NOT go through DoTerrainChangedEffects, and the reason the choke
+// point above is not the whole story.
+//
+// TerrainGrid.RemoveGravshipTerrainUnsafe sets topGrid, underGrid, foundationGrid, tempGrid and
+// colorGrid by hand and notifies nothing except the glow grid, and then only for terrain that
+// glows. "Unsafe" is vanilla's own word for exactly that: it is the bulk path a gravship takeoff
+// uses to strip its substructure off the origin map cell by cell, so it trades notifications for
+// speed and leaves the caller to rebuild what it must.
+//
+// WHY IT MATTERS HERE SPECIFICALLY. Stripping a gravship's substructure is a deck cell becoming open
+// void, which is the one terrain change the void veto exists to notice — and it is the change most
+// likely to happen on a map where the veto is active, since a ship taking off from an orbital
+// platform is the whole Odyssey loop. Without this the grids stay as they were before the ship left:
+// a lamp still on the platform would keep clipping its shadows against a deck that is no longer
+// there, and the fan would keep masking cells that are now ordinary void, both indefinitely, because
+// nothing else would ever dirty them.
+//
+// UNCONDITIONAL RATHER THAN COMPARED, unlike the postfix above. That one has oldTerr and newTerr in
+// hand and can skip the 99% of floor changes that do not touch void-ness; this one is handed a cell
+// and an index, with the old terrain already overwritten by the time a postfix runs. Marking around
+// the cell regardless is one bounded walk of the emitters whose window covers it, on a path that
+// runs once per cell of a departing ship and never again.
+[HarmonyPatch(typeof(TerrainGrid), nameof(TerrainGrid.RemoveGravshipTerrainUnsafe))]
+public static class Patch_VectorLightVoidGravshipTerrain
+{
+    static void Postfix(TerrainGrid __instance, IntVec3 cell)
+    {
+        if (!CelestialLightingFeatures.VectorLights
+            || !CelestialLightingFeatures.VectorLightVoidVeto)
+        {
+            return;
+        }
+
+        Map map = TerrainGridAccess.GetMap(__instance);
+
+        if (map == null || !Vacuum.InVacuumForMap(map))
+            return;
+
+        VectorLightField.MarkSurfaceDirtyAround(map, cell);
+    }
+}

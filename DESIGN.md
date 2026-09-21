@@ -14690,8 +14690,23 @@ a mask LAYER cannot do it: vanilla's mask layers (`IndoorMask`, `GravshipMask`) 
 fringe is a darkening already, so undoing it would need a `Blend DstColor One` brighten pass and
 per-cell deficit maths — a new shader for 0.46.
 
-**One owner for the void grid.** `VectorLightField.EnsurePolygons` bakes it once per frame for the
-whole roster, ahead of every reader. It was originally baked by the pawn-shadow gather, which was a
+**One owner for the void grid, and the bake is lazy.** `VectorLightField.EnsurePolygons` checks it
+once per frame for the whole roster, ahead of every reader — but `VectorLightVoid.EnsureGrid`
+early-returns unless `entry.VoidGridDirty`, so when clean the per-frame cost is a flag-and-size
+compare per emitter and nothing else. The flag is set only by `MarkSurfaceDirtyAround`, and only when
+a cell's void-NESS flips, so laying carpet over a deck does not dirty anything. A per-map dirty flag
+on top of that would buy nothing: a newly registered emitter has to be rebuilt whatever the map's
+state is, so the per-entry flag has to exist regardless and is the cheaper of the two to check.
+
+**Two hooks, because one terrain write skips the choke point.**
+`TerrainGrid.DoTerrainChangedEffects` catches all seven public mutators, and
+`RemoveGravshipTerrainUnsafe` catches the eighth that does not go through it — it writes the grids by
+hand and notifies nothing but the glow grid, which is vanilla trading notifications for speed on the
+bulk path a gravship takeoff uses. That path is a deck cell becoming open void on a map where the
+veto is active, which is the single most likely invalidation this feature will ever see, so missing
+it would have left a departed ship's grids frozen indefinitely: a lamp still on the platform clipping
+its shadows against a deck that is no longer there. Unconditional rather than compared, since a
+postfix there has no access to the old terrain. It was originally baked by the pawn-shadow gather, which was a
 latent bug rather than untidiness: `VectorLightMask` reads the same grid, so with pawn shadows off —
 or simply with no pawn in the camera's view — it stayed null and the mask's half of the veto silently
 stopped applying. The emitter accumulate reads that `bool[]` rather than asking the `TerrainGrid` a
