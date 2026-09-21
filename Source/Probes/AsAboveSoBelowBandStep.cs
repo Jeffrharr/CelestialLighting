@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Reflection;
 using HarmonyLib;
 using RimWorldTestHarness.Mod;
 using RimWorldTestHarness.Mod.Steps;
@@ -182,5 +183,111 @@ public sealed class AsAboveSoBelowBandAction : IStepAction
         {
             error = "ABBandMap.Setup threw: " + e;
         }
+    }
+}
+
+// Switches which band the camera is looking at.
+//
+// WHY IT IS NEEDED, and why its absence is not obvious. As above, So below II clamps the camera to
+// the band being viewed (Patch_CameraDriver_ABClampToBand), so a LookAt at a cell in another band is
+// silently pulled back to the current band's edge. The frame that produces looks entirely
+// reasonable — the lower part of the view is the rock below, the upper part is the band you were
+// already in — and a whole-frame measurement of it reads as a partly-damped version of the effect
+// you were trying to isolate. That cost a wrong answer once here: an "underground" capture that was
+// really the surface band's bottom edge measured a day/night swing of 7.17 L*, where the underground
+// itself is flat.
+//
+// ABBandView.SetBand is their own public entry point, the one their descend UI calls.
+public sealed class AsAboveSoBelowViewBandStep : IStepSpec
+{
+    public const string TypeName = "AsAboveSoBelowViewBand";
+
+    internal const string ViewTypeName = "AsAboveSoBelow.ABBandView";
+
+    public string Type => TypeName;
+
+    // It moves the camera and their view state, neither of which anything restores.
+    public ScenarioResidue Residue => ScenarioResidue.Map;
+
+    public bool LiveCallable => false;
+
+    public bool TryValidate(IReadOnlyDictionary<string, string> args, out string error) =>
+        TryReadBand(args, out _, out error);
+
+    internal static bool TryReadBand(
+        IReadOnlyDictionary<string, string> args, out int band, out string error)
+    {
+        band = 0;
+
+        if (!args.TryGetValue("band", out string raw) || string.IsNullOrWhiteSpace(raw))
+        {
+            error = "'band' is required — the band index to look at (0 is the deepest)";
+            return false;
+        }
+
+        if (!int.TryParse(raw.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out band))
+        {
+            error = $"'band' must be an integer (got '{raw}')";
+            return false;
+        }
+
+        if (band < 0)
+        {
+            error = $"'band' must not be negative (got {band})";
+            return false;
+        }
+
+        error = null;
+        return true;
+    }
+}
+
+public sealed class AsAboveSoBelowViewBandAction : IStepAction
+{
+    public string Type => AsAboveSoBelowViewBandStep.TypeName;
+
+    public StepOutcome Execute(IReadOnlyDictionary<string, string> args, StepContext ctx)
+    {
+        if (!AsAboveSoBelowViewBandStep.TryReadBand(args, out int band, out string error))
+            return StepOutcome.Fail(error);
+
+        Map map = Find.CurrentMap;
+
+        if (map == null)
+            return StepOutcome.Fail("no current map — AsAboveSoBelowViewBand needs a game in progress");
+
+        Type view = AccessTools.TypeByName(AsAboveSoBelowViewBandStep.ViewTypeName);
+
+        if (view == null)
+            return StepOutcome.Fail(
+                "As above, So below II is not loaded (no " + AsAboveSoBelowViewBandStep.ViewTypeName + ")");
+
+        // Every parameter passed explicitly: their `preserveXZ` is optional in C# and reflection does
+        // not apply defaults, so a two-argument Invoke throws rather than taking the default.
+        MethodInfo setBand = AccessTools.Method(
+            view, "SetBand", new[] { typeof(Map), typeof(int), typeof(bool) });
+
+        if (setBand == null)
+            return StepOutcome.Fail("ABBandView.SetBand(Map, int, bool) is not there");
+
+        object ok;
+
+        try
+        {
+            ok = setBand.Invoke(null, new object[] { map, band, true });
+        }
+        catch (Exception e)
+        {
+            return StepOutcome.Fail("ABBandView.SetBand threw: " + e);
+        }
+
+        // They return false when the band cannot be viewed — out of range, or not opened yet. Failing
+        // here rather than carrying on is the whole point: the camera would otherwise stay where it
+        // was and every later capture would photograph the wrong band while looking plausible.
+        if (ok is bool succeeded && !succeeded)
+            return StepOutcome.Fail(
+                $"ABBandView.SetBand declined band {band} — out of range, or not opened on this map.");
+
+        return new StepOutcome();
     }
 }
