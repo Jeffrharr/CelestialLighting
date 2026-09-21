@@ -376,6 +376,34 @@ public class ApiCompatibilityTests
             "TerrainGrid.map changed type — TerrainGridAccess declares FieldRef<TerrainGrid, Map>");
     }
 
+    [Test]
+    public void TerrainGrid_HasRemoveGravshipTerrainUnsafe_TheOneWriteThatSkipsTheChokePoint()
+    {
+        // The second half of the void veto's invalidation, and the reason the choke point above is
+        // not sufficient on its own: this method writes the terrain grids by hand and notifies
+        // nothing but the glow grid. It is the bulk path a gravship takeoff uses, so on a space map
+        // it is the MOST likely source of a deck cell becoming void -- exactly what the veto must
+        // notice. Pinned by name and parameters for the same reason DoTerrainChangedEffects is: a
+        // Harmony patch on a missing target throws out of PatchAll and takes the whole mod down.
+        //
+        // IT ALSO PINS THE ASSUMPTION THAT IT STILL BYPASSES THE CHOKE POINT. If a future version
+        // made it call DoTerrainChangedEffects, both patches would fire for every cell of a
+        // departing ship -- harmless but twice the work -- and nobody would notice. That is a
+        // comment rather than an assertion because Cecil can see the call graph but asserting on it
+        // would pin vanilla's internals far more tightly than this feature needs.
+        var type = GetType("Verse.TerrainGrid");
+        Assert.That(type, Is.Not.Null, "Verse.TerrainGrid no longer exists");
+
+        var method = type!.Methods.SingleOrDefault(m => m.Name == "RemoveGravshipTerrainUnsafe");
+        Assert.That(method, Is.Not.Null,
+            "TerrainGrid.RemoveGravshipTerrainUnsafe no longer exists — "
+            + "Patch_VectorLightVoidGravshipTerrain targets it by name");
+
+        Assert.That(method!.Parameters.Select(p => p.Name), Is.EqualTo(new[] { "cell", "index" }),
+            "TerrainGrid.RemoveGravshipTerrainUnsafe changed its parameters — the postfix binds "
+            + "`cell` by name");
+    }
+
     // --- Verse.SnowGrid and Map.Area (§21, SurfaceBuildup) ---
 
     [Test]
