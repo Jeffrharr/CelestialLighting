@@ -35,6 +35,8 @@ internal static class AsAboveSoBelowProbeBinding
     private static bool tried;
     private static Func<Map, bool> banded;
     private static Func<Map, int> bandCount;
+    private static Func<Map, IntVec3, int> bandOf;
+    private static Func<Map, int> surfaceBand;
     private static Func<bool> renderingOn;
     private static AccessTools.FieldRef<object, LayerSubMesh> layerMesh;
     private static AccessTools.FieldRef<Section, List<SectionLayer>> sectionLayers;
@@ -47,6 +49,12 @@ internal static class AsAboveSoBelowProbeBinding
 
     internal static int BandCount(Map map) =>
         Bind() && bandCount != null && map != null ? bandCount(map) : 0;
+
+    internal static int BandOf(Map map, IntVec3 cell) =>
+        Bind() && bandOf != null && map != null ? bandOf(map, cell) : -99;
+
+    internal static int SurfaceBand(Map map) =>
+        Bind() && surfaceBand != null && map != null ? surfaceBand(map) : -99;
 
     // Their layer instance for the section containing a cell, or null. Walked through the Section's
     // own layer list rather than kept from a patch, so the probe reads whatever is really installed.
@@ -100,6 +108,13 @@ internal static class AsAboveSoBelowProbeBinding
 
             bandCount = (Func<Map, int>)Delegate.CreateDelegate(
                 typeof(Func<Map, int>), AccessTools.Method(bands, "BandCount", new[] { typeof(Map) }));
+
+            bandOf = (Func<Map, IntVec3, int>)Delegate.CreateDelegate(
+                typeof(Func<Map, IntVec3, int>),
+                AccessTools.Method(bands, "BandOf", new[] { typeof(Map), typeof(IntVec3) }));
+
+            surfaceBand = (Func<Map, int>)Delegate.CreateDelegate(
+                typeof(Func<Map, int>), AccessTools.Method(bands, "SurfaceBand", new[] { typeof(Map) }));
 
             layerMesh = AccessTools.FieldRefAccess<LayerSubMesh>(layer, "mesh");
             sectionLayers = AccessTools.FieldRefAccess<Section, List<SectionLayer>>("layers");
@@ -163,6 +178,37 @@ public sealed class MapWidthProbe : IProbe
     public string Name => "map_width";
 
     public float Read(Map map) => map?.Size.x ?? 0;
+}
+
+// Which band a probed cell is in, and which band is the surface. Both are needed together and
+// neither means anything alone: "band 0" only says "underground" once you know the surface is band 1.
+//
+// These exist so a scenario can ASSERT it is looking underground rather than compute an offset and
+// hope. The band layout is derived from the map's own height and their slot arithmetic, so an offset
+// that was right for one map size silently reads the wrong band on another — and a probe that
+// quietly measured the surface while claiming to measure a cave is exactly the kind of confident
+// wrong answer this repo keeps getting bitten by.
+public sealed class AsAboveSoBelowBandAtProbe : IProbe
+{
+    private readonly IntVec3 offsetFromCentre;
+
+    public string Name { get; }
+
+    public AsAboveSoBelowBandAtProbe(string name, IntVec3 offsetFromCentre)
+    {
+        Name = name;
+        this.offsetFromCentre = offsetFromCentre;
+    }
+
+    public float Read(Map map) =>
+        map == null ? -99 : AsAboveSoBelowProbeBinding.BandOf(map, map.Center + offsetFromCentre);
+}
+
+public sealed class AsAboveSoBelowSurfaceBandProbe : IProbe
+{
+    public string Name => "aasb2_surface_band";
+
+    public float Read(Map map) => AsAboveSoBelowProbeBinding.SurfaceBand(map);
 }
 
 public sealed class AsAboveSoBelowOverlayOwnedProbe : IProbe

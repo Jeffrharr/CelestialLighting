@@ -338,6 +338,20 @@ public static class ProbeRegistration
         ProbeRegistry.Register(new AsAboveSoBelowBandCountProbe());
         ProbeRegistry.Register(new MapHeightProbe());
         ProbeRegistry.Register(new MapWidthProbe());
+        ProbeRegistry.Register(new AsAboveSoBelowSurfaceBandProbe());
+
+        // Underground vs surface, on the banded colony aasb2_real_banded_colony settles. That map is
+        // 190x576 with slot 192, so band 0 spans z 0..189 and the surface band 1 spans z 192..381,
+        // putting map.Center at z 288 on the surface and z 95 -- offset -193 -- in the band below it.
+        // The band probes assert that rather than leaving it as arithmetic in a comment.
+        ProbeRegistry.Register(
+            new AsAboveSoBelowBandAtProbe("aasb2_underground_band", new IntVec3(0, 0, -193)));
+        ProbeRegistry.Register(
+            new AsAboveSoBelowBandAtProbe("aasb2_here_band", new IntVec3(0, 0, 0)));
+        ProbeRegistry.Register(
+            new AsAboveSoBelowOverlayAlphaProbe("aasb2_underground_overlay_alpha", new IntVec3(0, 0, -193)));
+        ProbeRegistry.Register(
+            new AsAboveSoBelowOverlayAlphaProbe("aasb2_surface_overlay_alpha", new IntVec3(0, 0, 0)));
 
         // Two cells, both on the surface band of the banded fixture: one under the roofed room the
         // scenario builds, one on open ground outside it. The roofed one is what indoor sky
