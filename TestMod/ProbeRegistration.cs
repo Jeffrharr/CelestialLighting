@@ -737,6 +737,30 @@ public static class ProbeRegistration
         // so these two pin the C# half of the veto and the screenshots are what carry the shader
         // half. A run where these move and the frames do not is a stale shader bundle, not a
         // formula error.
+        // vector_light_void_wall_shadow.json, on an OPEN deck rather than in a sealed room — which is
+        // why these exist alongside `void_light` instead of reusing it. With no wall between the lamp
+        // and the map edge, vanilla's own flood DOES reach the void cells, so the lighting overlay's
+        // mesh carries a non-zero value out there and these probes can see the mask half of the veto.
+        // In the sealed-room scenario every void cell sits beyond a wall, vanilla delivers nothing,
+        // and `void_light` reads 0 on both arms by construction.
+        //
+        // Lamp at (+3,0) with a single wall cell at (+5,0). Deck spans -6..+6, so +8 is void:
+        //   `void_open_lit`       (+8,+2) — void the lamp reaches with nothing in the way
+        //   `void_open_shadowed`  (+8, 0) — void directly behind the wall, i.e. in its shadow
+        //   `deck_open_lit`       (+4,+2) — ordinary deck, the control the veto must not touch
+        //
+        // THE PAIR IS THE TEST FOR THE WALL SHADOW. §27 never draws a wall shadow — the fan simply is
+        // not drawn behind an occluder — so the claim under test is that the shadowed void is no
+        // DARKER than it would be anyway, not that something was removed from it. Reading it beside
+        // the lit void is what separates "the wall shadow landed on vacuum" from "the void is dark
+        // because the veto took the light off all of it".
+        ProbeRegistry.Register(new RenderedLightCellProbe(
+            "void_open_lit", new IntVec3(8, 0, 2), RenderedLightCellProbe.Metric.Level));
+        ProbeRegistry.Register(new RenderedLightCellProbe(
+            "void_open_shadowed", new IntVec3(8, 0, 0), RenderedLightCellProbe.Metric.Level));
+        ProbeRegistry.Register(new RenderedLightCellProbe(
+            "deck_open_lit", new IntVec3(4, 0, 2), RenderedLightCellProbe.Metric.Level));
+
         ProbeRegistry.Register(new RenderedLightCellProbe(
             "void_light", new IntVec3(-8, 0, 0), RenderedLightCellProbe.Metric.Level));
         ProbeRegistry.Register(new RenderedLightCellProbe(
