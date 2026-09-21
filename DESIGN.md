@@ -16403,7 +16403,8 @@ about a `BiomeDef`, and an underground band is the same `Map` carrying the surfa
 enclosed-ambient correction (§17b) — the thing whose entire job is stopping a cave following the sun
 — never fires. Their `AB_Underground` biome exists but its own XML comment records
 `disableSkyLighting` as trialed on 2026-07-24 and reverted by user directive. Fixing that properly
-needs a per-band notion of enclosure and is **not** in this change; what is here restores the slider.
+needs a per-band notion of enclosure, which is §17c below — added after this interop landed, once a
+live scenario could reach an underground band to measure it.
 
 ### The interop lives in this repo, and composes onto the layer they draw
 
@@ -16479,6 +16480,56 @@ here. Those names come from **astryl's own fork** (`Astryls/CelestialLighting`, 
 `VectorShadowRedraw`, `VectorShadowMath` and `MapComponent_VectorShadowWarmup`), so that half of their
 contract was written against a version of this mod that only exists there. It is a further reason not
 to implement their hook: half of it was never satisfiable from here.
+
+### 17c. A band below the surface lights like an underground map
+
+The interop above puts our passes on the layer they draw. It does not answer the *other* half of the
+player's report — that a sealed cave was bright by day and pitch black by night — and for a while
+this document listed that as deliberately out of scope. It is fixed now, and the reason it needed its
+own subsystem rather than a clause in §17b is worth keeping.
+
+**Why §17b could not simply be pointed at a band.** On a cavern map, `Patch_EnclosedAmbient` forces
+`SkyTarget.glow` to 1.0 and everything downstream works unchanged. That mechanism is **map-wide**,
+and an AASB2 band is not a map — it is a stripe of the same one, sharing a single `SkyTarget` with
+the open surface overhead. Forcing glow there lights the surface band at midnight, and
+`SkyTarget.glow` is gameplay light, so it would grow crops in the dark as well as look wrong.
+
+**Why the per-cell alpha could not do it either**, which is the part that looks like it should work.
+Every overlay vertex renders as `skyColour x (1 - cover)`. Measured on the banded fixture, map-wide
+sky luminance is **1.000 at noon and 0.309 at midnight**, so holding a cave at its noon level of
+0.498 would need a midnight floor of `0.498 / 0.309 = 1.61`. Cover saturates at letting *all* the sky
+through, i.e. 1.0, so the night side is unreachable by construction: there is not enough sky left at
+midnight to hold the cave up, whatever the alpha channel does.
+
+**So the light arrives in RGB.** The overlay's RGB carries artificial light and its alpha carries sky
+cover; RGB is not gameplay light, which is what makes this safe per cell. A cell below the surface
+band therefore gets full cover (an underground band has no sky) plus a constant ambient floor in RGB.
+The level is the existing **minimum-indoor-brightness** slider, so Cinematic's 0.50 gives a legible
+cave and Realistic's 0.0 keeps it black — the same promise §17b makes on a Biomes! Caverns map,
+rather than a second hidden knob.
+
+The floor is a **max, not a sum** (`UndergroundBandMath.Lift`). A sum would add ambient on top of
+every lamp, washing out exactly the falloff and shadowing §27 draws, and would compound where two
+lamps overlap. A floor leaves any lit cell untouched, so §27 keeps the interesting cells and only
+unlit rock comes up — which is also why the ordering between the two passes is not delicate.
+
+"Underground" is `BandOf(cell) < SurfaceBand(map)`, not "band 0": their default plan puts the surface
+in the middle with one level below and one above, so a band *above* the surface keeps the ordinary
+sky. The question is asked once per section at its centre — sections are 17 cells and their bands
+192, so the only cells a straddling section misreads are the gutter rows, which are solid rock.
+
+**Measured** (`Tests/Scenarios/aasb2_underground_cave.json`, noon versus midnight on one banded map):
+
+| | median ΔE | mean L\* |
+|---|---|---|
+| cave, §17c on | **0.000** | 10.93 → 10.93 |
+| cave, §17c off | 8.580 | 10.75 → 2.95 |
+| surface band | 33.940 | 36.03 → 7.57 |
+
+The cave settles at its old *noon* level rather than its midnight one, which is the intended reading:
+a Cinematic cave should be legible at every hour. The flag off reproduces the pre-feature shape
+exactly, which is what makes that middle row a baseline rather than a picture of the mod being
+absent. The surface column is the control — the standard sky path is untouched.
 
 ## 29. One postfix on `CurSkyTarget` (`Patch_SkyTargetComposite`)
 
