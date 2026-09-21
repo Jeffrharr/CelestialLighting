@@ -235,6 +235,80 @@ public sealed class AsAboveSoBelowOverlayOwnedProbe : IProbe
 // Returns -1 when there is no such mesh, which is distinguishable from every real alpha (0..1) so a
 // scenario can pin "the layer is drawing" separately from "the alpha is right". A 0 here would be
 // indistinguishable from a fully transparent overlay.
+// The ARTIFICIAL-LIGHT level at a cell, read off the mesh As above, So below II actually draws.
+//
+// WHY THIS EXISTS ALONGSIDE THE ALPHA PROBE, AND WHY THE ALPHA ONE CANNOT REPLACE IT. The two
+// channels of that mesh carry different subsystems, exactly as they do on vanilla's own overlay
+// (see RenderedLightCellProbe): ALPHA is §7b's sky cover, and RGB is the composed lamp light after
+// vanilla's flood, §27's mask and §27's max have each had their say. §27 deliberately never touches
+// alpha, and the sky never writes RGB.
+//
+// So a lamp A/B read through the alpha probe measures the one channel a lamp is guaranteed not to
+// move. That is not a hypothetical either: the first underground A/B here reported one identical
+// alpha from the torch's own cell, from three and six cells out, and from solid unlit rock, in both
+// arms -- a perfectly correct reading of the sky channel, and no evidence whatever about the torch
+// burning plainly in the middle of the frame.
+//
+// The mean of the three channels rather than one of them: a torch is warm, so R and B disagree
+// strongly, and the question these probes are asked is "did our composite put light here and with
+// what falloff", which is a level question rather than a hue one.
+public sealed class AsAboveSoBelowOverlayRgbProbe : IProbe
+{
+    private readonly IntVec3 offsetFromCentre;
+
+    public string Name { get; }
+
+    public AsAboveSoBelowOverlayRgbProbe(string name, IntVec3 offsetFromCentre)
+    {
+        Name = name;
+        this.offsetFromCentre = offsetFromCentre;
+    }
+
+    public float Read(Map map)
+    {
+        if (map == null)
+            return -1f;
+
+        IntVec3 cell = map.Center + offsetFromCentre;
+
+        if (!cell.InBounds(map) || map.mapDrawer == null)
+            return -1f;
+
+        LayerSubMesh subMesh = AsAboveSoBelowProbeBinding.MeshAt(map, cell);
+        Mesh mesh = subMesh?.mesh;
+
+        if (mesh == null)
+            return -1f;
+
+        Color32[] colors = mesh.colors32;
+
+        if (colors == null)
+            return -1f;
+
+        Section section = map.mapDrawer.SectionAt(cell);
+
+        if (section == null)
+            return -1f;
+
+        CellRect rect = new CellRect(section.botLeft.x, section.botLeft.z, Section.Size, Section.Size);
+        rect.ClipInsideMap(map);
+
+        int col = cell.x - rect.minX;
+        int row = cell.z - rect.minZ;
+
+        if (col < 0 || row < 0 || col >= rect.Width || row >= rect.Height)
+            return -1f;
+
+        int index = (rect.Width + 1) * (rect.Height + 1) + row * rect.Width + col;
+
+        if (index < 0 || index >= colors.Length)
+            return -1f;
+
+        Color32 c = colors[index];
+        return (c.r + c.g + c.b) / (3f * 255f);
+    }
+}
+
 public sealed class AsAboveSoBelowOverlayAlphaProbe : IProbe
 {
     private readonly IntVec3 offsetFromCentre;

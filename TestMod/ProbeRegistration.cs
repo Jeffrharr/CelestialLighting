@@ -340,6 +340,18 @@ public static class ProbeRegistration
         ProbeRegistry.Register(new MapWidthProbe());
         ProbeRegistry.Register(new AsAboveSoBelowSurfaceBandProbe());
 
+        // §17c, so the underground scenario can A/B it. ForceRebuild is required for the same reason
+        // §27's flags need it: this pass writes into the lighting overlay during a section
+        // regenerate, so flipping the flag alone changes nothing until a bake happens.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.UndergroundBandEnclosureKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.UndergroundBandEnclosure = enabled;
+                VectorLightRedraw.ForceRebuild();
+            },
+            defaultEnabled: true);
+
         // Underground vs surface, on the banded colony aasb2_real_banded_colony settles. That map is
         // 190x576 with slot 192, so band 0 spans z 0..189 and the surface band 1 spans z 192..381,
         // putting map.Center at z 288 on the surface and z 95 -- offset -193 -- in the band below it.
@@ -352,6 +364,63 @@ public static class ProbeRegistration
             new AsAboveSoBelowOverlayAlphaProbe("aasb2_underground_overlay_alpha", new IntVec3(0, 0, -193)));
         ProbeRegistry.Register(
             new AsAboveSoBelowOverlayAlphaProbe("aasb2_surface_overlay_alpha", new IntVec3(0, 0, 0)));
+
+        // A ROW OUT FROM A LAMP IN THE UNDERGROUND CAVE, which is what makes the underground test
+        // able to fail. A sealed unlit cave sits at alpha 1.000 from vanilla's own roofed-area
+        // minimum, so every arm reads the same and the scenario passes whether our passes reached
+        // their layer or not -- the saturation that left aasb2_banded_overlay unable to tell a
+        // working composite from a broken one. Lighting the cave moves those cells off the ceiling
+        // and gives the flags something to move.
+        //
+        // Three distances rather than one because the two arms differ in SHAPE, not level: vanilla
+        // floods a radius and our §27 mask rewrites the same vertices per emitter, so a single cell
+        // can agree by coincidence while the falloff either side of it does not.
+        ProbeRegistry.Register(
+            new AsAboveSoBelowOverlayAlphaProbe("aasb2_cave_near_alpha", new IntVec3(3, 0, -193)));
+        ProbeRegistry.Register(
+            new AsAboveSoBelowOverlayAlphaProbe("aasb2_cave_far_alpha", new IntVec3(6, 0, -193)));
+        // Solid unmined rock ten cells north of the cave, still on band 0. The control that must not
+        // move: it separates "our passes lit the cave" from "something darkened or brightened the
+        // whole underground overlay", and its band probe is what stops a map-size change from
+        // quietly relocating the control into the gutter or the surface band above it.
+        ProbeRegistry.Register(
+            new AsAboveSoBelowOverlayAlphaProbe("aasb2_cave_rock_alpha", new IntVec3(0, 0, -183)));
+        ProbeRegistry.Register(
+            new AsAboveSoBelowBandAtProbe("aasb2_cave_rock_band", new IntVec3(0, 0, -183)));
+
+        // The same four cells in RGB, which is the channel a lamp actually writes. The alpha probes
+        // above stay as the CONTROL: §27 never touches sky cover, so those four must hold still
+        // across the vector-lighting A/B while these four move. Reading only one of the two pairs
+        // would leave the arms indistinguishable (alpha alone) or unable to show that we moved the
+        // light without disturbing the sky (RGB alone).
+        ProbeRegistry.Register(
+            new AsAboveSoBelowOverlayRgbProbe("aasb2_cave_lamp_rgb", new IntVec3(0, 0, -193)));
+        ProbeRegistry.Register(
+            new AsAboveSoBelowOverlayRgbProbe("aasb2_cave_near_rgb", new IntVec3(3, 0, -193)));
+        ProbeRegistry.Register(
+            new AsAboveSoBelowOverlayRgbProbe("aasb2_cave_far_rgb", new IntVec3(6, 0, -193)));
+        ProbeRegistry.Register(
+            new AsAboveSoBelowOverlayRgbProbe("aasb2_cave_rock_rgb", new IntVec3(0, 0, -183)));
+
+        // A ROW UP THE FAR SIDE OF THE WALL STUB, which is where vanilla and §27 have to disagree if
+        // they disagree anywhere. The stub spans five cells at x=+4; these five sit at x=+6 and walk
+        // from level with the torch (z+0) to two cells past the stub's end (z+4).
+        //
+        // Directly behind the wall both models are dark, and out in the open both are lit -- which is
+        // why the first two A/B fixtures here read identical in both arms and proved nothing. Vanilla
+        // floods CELL TO CELL, so its light turns the corner at the stub's end and leaks back in
+        // behind it; §27 traces geometry from the emitter, so the same cells stay in shadow. The
+        // disagreement lives in this handful of cells and nowhere else in a room this simple.
+        ProbeRegistry.Register(
+            new AsAboveSoBelowOverlayRgbProbe("aasb2_cave_edge0_rgb", new IntVec3(6, 0, -193)));
+        ProbeRegistry.Register(
+            new AsAboveSoBelowOverlayRgbProbe("aasb2_cave_edge1_rgb", new IntVec3(6, 0, -192)));
+        ProbeRegistry.Register(
+            new AsAboveSoBelowOverlayRgbProbe("aasb2_cave_edge2_rgb", new IntVec3(6, 0, -191)));
+        ProbeRegistry.Register(
+            new AsAboveSoBelowOverlayRgbProbe("aasb2_cave_edge3_rgb", new IntVec3(6, 0, -190)));
+        ProbeRegistry.Register(
+            new AsAboveSoBelowOverlayRgbProbe("aasb2_cave_edge4_rgb", new IntVec3(6, 0, -189)));
 
         // Two cells, both on the surface band of the banded fixture: one under the roofed room the
         // scenario builds, one on open ground outside it. The roofed one is what indoor sky

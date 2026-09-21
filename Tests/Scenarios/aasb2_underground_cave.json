@@ -1,0 +1,888 @@
+{
+  "name": "aasb2_underground_cave",
+  "saveFile": "minimal_colony.rws",
+  "description": "Our lighting passes on an As above, So below II band that is ACTUALLY UNDERGROUND, measured on a map their own generation banded.\n\nWHY THIS EXISTS. The other two AASB2 scenarios both measure the surface band: aasb2_banded_overlay bands a fixture and probes a room at map centre, and aasb2_real_banded_colony proves their generation ran but never leaves the surface either. Neither says anything about the levels the mod is named for, and the interop's whole job is to reach the layer they draw in vanilla's place on every band.\n\nTWO THINGS HAD TO BE RIGHT BEFORE ANY NUMBER HERE MEANT ANYTHING, and getting either wrong yields a plausible frame rather than an obvious failure:\n\n  - THE CAMERA. Patch_CameraDriver_ABClampToBand clamps the camera to the band being viewed, so a bare LookAt at an underground cell is silently pulled back to the current band's edge. That capture looks perfectly reasonable -- terrain up top, dark below -- and it is the surface band's bottom edge over out-of-map black. An earlier run of this fixture read a 7.17 L* day/night swing out of exactly that frame and called the cave sun-tracking. AsAboveSoBelowViewBand drives their own ABBandView.SetBand instead, and fails the step when they decline the band.\n\n  - THE SUBJECT. Their bands ship as solid unmined rock, not as the open caves the player report described. The cave is carved here (terrain cleared and floored, then roofed thick rock) so that the thing measured is a sealed cave rather than the inside of a mountain.\n\nWHY THE CAVE IS LIT FOR THE A/B. A sealed unlit cave is already at alpha 1.000 from vanilla's roofed-area minimum, so every arm reads the same number and the scenario passes whether or not our passes ever reached their mesh -- the saturation that leaves aasb2_banded_overlay unable to tell a working composite from a broken one. A torch moves those cells off the ceiling and gives the flags something to move, which is what makes this scenario able to fail.\n\nTHE SEALED SURVEY RUNS FIRST, before the torch exists, because the torch would light the very cells it measures.\n\nThe geometry is asserted rather than assumed: band identity is pinned for the cave cell, for the rock control ten cells north of it, and for map centre, so a change in map size or band layout fails loudly here instead of quietly measuring the surface twice and reporting that nothing moved.\n\nClouds off and the clock pinned: neither is under test and both drift between runs.",
+  "steps": [
+    {
+      "type": "SettleColony",
+      "args": {}
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetWeather",
+      "args": {
+        "weatherDef": "Clear",
+        "instant": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_cover",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_sheet",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_presence",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_deck_varieties",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aasb2_present",
+        "expectedValue": "1.0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aasb2_banded",
+        "expectedValue": "1.0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aasb2_band_count",
+        "expectedValue": "3.0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "map_width",
+        "expectedValue": "190.0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "map_height",
+        "expectedValue": "576.0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aasb2_surface_band",
+        "expectedValue": "1.0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aasb2_here_band",
+        "expectedValue": "1.0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aasb2_underground_band",
+        "expectedValue": "0.0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aasb2_cave_rock_band",
+        "expectedValue": "0.0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "AsAboveSoBelowOpenBands",
+      "args": {}
+    },
+    {
+      "type": "AsAboveSoBelowViewBand",
+      "args": {
+        "band": "0"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "Granite_Smooth",
+        "width": "15",
+        "height": "15",
+        "offset": "0,-193",
+        "clear": "true"
+      }
+    },
+    {
+      "type": "SetRoof",
+      "args": {
+        "def": "RoofRockThick",
+        "width": "15",
+        "height": "15",
+        "offset": "0,-193"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "0,-193",
+        "zoom": "8"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "aasb2_cave_warmup_discard.png"
+      }
+    },
+    {
+      "type": "RegenerateMapMesh",
+      "args": {}
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aasb2_overlay_owned",
+        "expectedValue": "1.0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_glow",
+        "expectedValue": "1.0",
+        "tolerance": "0.02"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aasb2_underground_overlay_alpha",
+        "expectedValue": "1.0",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "aasb2_cave_sealed_noon.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "0"
+      }
+    },
+    {
+      "type": "RegenerateMapMesh",
+      "args": {}
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_glow",
+        "expectedValue": "0.0988785774",
+        "tolerance": "0.02"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aasb2_underground_overlay_alpha",
+        "expectedValue": "1.0",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "aasb2_cave_sealed_midnight.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "underground_band_enclosure",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "type": "RegenerateMapMesh",
+      "args": {}
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aasb2_underground_overlay_alpha",
+        "expectedValue": "0.501960814",
+        "tolerance": "99999"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "aasb2_cave_off_noon.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "0"
+      }
+    },
+    {
+      "type": "RegenerateMapMesh",
+      "args": {}
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aasb2_underground_overlay_alpha",
+        "expectedValue": "0.392156869",
+        "tolerance": "99999"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "aasb2_cave_off_midnight.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "underground_band_enclosure",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "0"
+      }
+    },
+    {
+      "type": "RegenerateMapMesh",
+      "args": {}
+    },
+    {
+      "type": "AsAboveSoBelowViewBand",
+      "args": {
+        "band": "1"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "0,0",
+        "zoom": "8"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "12"
+      }
+    },
+    {
+      "type": "RegenerateMapMesh",
+      "args": {}
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aasb2_here_band",
+        "expectedValue": "1.0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_glow",
+        "expectedValue": "1.0",
+        "tolerance": "99999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_overlay_luminance",
+        "expectedValue": "1.0",
+        "tolerance": "99999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aasb2_surface_overlay_alpha",
+        "expectedValue": "0.0",
+        "tolerance": "99999"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "aasb2_surface_noon.png"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "0"
+      }
+    },
+    {
+      "type": "RegenerateMapMesh",
+      "args": {}
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_glow",
+        "expectedValue": "0.0988785774",
+        "tolerance": "99999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sky_overlay_luminance",
+        "expectedValue": "0.309128344",
+        "tolerance": "99999"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aasb2_surface_overlay_alpha",
+        "expectedValue": "0.0",
+        "tolerance": "99999"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "aasb2_surface_midnight.png"
+      }
+    },
+    {
+      "type": "AsAboveSoBelowViewBand",
+      "args": {
+        "band": "0"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "0,-193",
+        "zoom": "8"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "TorchLamp",
+        "offset": "0,-193",
+        "layout": "cells",
+        "cells": "0,0"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "offset": "0,-193",
+        "layout": "cells",
+        "cells": "4,-2; 4,-1; 4,0; 4,1; 4,2"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_suppress",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_beam",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max_subtract",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_open_doors",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_glow_blocker",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_aperture",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "RegenerateMapMesh",
+      "args": {}
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aasb2_underground_overlay_alpha",
+        "expectedValue": "1.0",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aasb2_cave_near_alpha",
+        "expectedValue": "1.0",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aasb2_cave_far_alpha",
+        "expectedValue": "1.0",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aasb2_cave_rock_alpha",
+        "expectedValue": "1.0",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aasb2_cave_lamp_rgb",
+        "expectedValue": "0.844444454",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aasb2_cave_near_rgb",
+        "expectedValue": "0.701960802",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aasb2_cave_far_rgb",
+        "expectedValue": "0.501960814",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aasb2_cave_rock_rgb",
+        "expectedValue": "0.501960814",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aasb2_cave_edge0_rgb",
+        "expectedValue": "0.501960814",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aasb2_cave_edge1_rgb",
+        "expectedValue": "0.501960814",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aasb2_cave_edge2_rgb",
+        "expectedValue": "0.501960814",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aasb2_cave_edge3_rgb",
+        "expectedValue": "0.507189572",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aasb2_cave_edge4_rgb",
+        "expectedValue": "0.520261467",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_emitters",
+        "expectedValue": "3.0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_count",
+        "expectedValue": "3.0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_applies",
+        "expectedValue": "480.0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_mask_emitters_reaching",
+        "expectedValue": "18.0",
+        "tolerance": "9"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "aasb2_cave_vector_on.png"
+      }
+    },
+    {
+      "type": "RegenerateMapMesh",
+      "args": {}
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "aasb2_cave_vector_on_control.png"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_suppress",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_beam",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max_subtract",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_open_doors",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_glow_blocker",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_aperture",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "RegenerateMapMesh",
+      "args": {}
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aasb2_underground_overlay_alpha",
+        "expectedValue": "1.0",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aasb2_cave_near_alpha",
+        "expectedValue": "1.0",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aasb2_cave_far_alpha",
+        "expectedValue": "1.0",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aasb2_cave_rock_alpha",
+        "expectedValue": "1.0",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aasb2_cave_lamp_rgb",
+        "expectedValue": "0.844444454",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aasb2_cave_near_rgb",
+        "expectedValue": "0.701960802",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aasb2_cave_far_rgb",
+        "expectedValue": "0.501960814",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aasb2_cave_rock_rgb",
+        "expectedValue": "0.501960814",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aasb2_cave_edge0_rgb",
+        "expectedValue": "0.501960814",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aasb2_cave_edge1_rgb",
+        "expectedValue": "0.501960814",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aasb2_cave_edge2_rgb",
+        "expectedValue": "0.501960814",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aasb2_cave_edge3_rgb",
+        "expectedValue": "0.507189572",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "aasb2_cave_edge4_rgb",
+        "expectedValue": "0.520261467",
+        "tolerance": "0.01"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "aasb2_cave_vector_off.png"
+      }
+    }
+  ]
+}
