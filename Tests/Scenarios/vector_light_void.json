@@ -1,0 +1,373 @@
+{
+  "name": "vector_light_void",
+  "description": "The void veto: vector lighting must not paint the open space outside a hull. A 13x9 OrbitalPlatform deck on a LandInOrbit map (biome 'Orbit', inVacuum=True) carrying a roofed stone room whose west wall sits on the deck's own edge, with an OPEN DOOR at z=0 -- so light leaving that door crosses straight from hull into vacuum with no deck in between. Lit by one ancient emergency light at the centre, at midnight. A arm turns the veto off, which is the shipped behaviour before this change and the state the complaint was made about; B arm is the shipped default. The flag block is copied verbatim from vector_light_gap_vs_door so the only difference from the required gate is the map kind. THE OPENING IS A DOOR ON PURPOSE, AND IT IS THE ONLY APERTURE THAT REPRODUCES THIS. Vanilla's glow grid never learns a door opened, so beyond an open door vanilla delivers nothing, our model owns the render outright, and max(0, ours - vanilla) is the whole of our straight-line field -- which is the light that was landing on the void. Two weaker arrangements were measured first and both tested nothing: a bare lamp on an open deck, where with no occluder our model and vanilla's flood agree cell for cell so the fan draws nothing over the void at all (A arm read 9.6 against a distant-void 15.8, light stopping dead at the deck edge); and the same room with a one-cell GAP, which projects nothing on main anyway (issue #245). THE LAMP IS NOT A TORCH: fire cannot burn in vacuum, so a TorchLamp spawns wearing a red unlit X while every probe reads a confident zero and the frame still looks plausible. MEASURED 2026-09-21, and the effect is in the FAN rather than the mesh. The three probes pin the mesh: deck_light holds at 103 across both arms and the two void pins read 0 on both, because vanilla's own flood never reaches these void cells -- so the probes prove the veto leaves the hull alone, and the FRAMES are what prove it removes the leak. Along the door axis, L* falls A->B by -3.43 one cell past the door (5.33 -> 1.90), -2.44 at two cells, -1.12 at three, and is back to the background void's own 2.19 by four; every interior cell moves 0.00. Void region beyond the door: p90 dE 2.33, max 8.87 -- quoted as p90 rather than median because this is a bounded object over part of a frame, the same reason the cloud lanes are. Hull interior as a control: median, p90 AND max dE all 0.00. RUN IT WITH --install FOR THE ASSET BUNDLE. --mod-overlay swaps 1.6/Assemblies only, so without '--install <worktree>/1.6/AssetBundles:<checkout>/1.6/AssetBundles' the game loads the main checkout's shader and the veto's fragment-program half is silently absent -- which reads as 0 changed pixels on a green run, and cost three runs here before it was spotted. Clouds are stated off explicitly because partial cover during Clear is our own feature and the sheet drifts on the tick counter. The first Screenshot is a THROWAWAY: hideUi is honoured from the second capture onward.",
+  "saveFile": "minimal_colony.rws",
+  "hideUi": true,
+  "steps": [
+    {
+      "type": "LandInOrbit",
+      "args": {
+        "latitude": "45",
+        "mapSize": "150"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "OrbitalPlatform",
+        "width": "13",
+        "height": "9",
+        "offset": "0,0",
+        "clear": "true"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "layout": "cells",
+        "clear": "true",
+        "offset": "0,0",
+        "cells": "-6,-4; -6,4; -5,-4; -5,4; -4,-4; -4,4; -3,-4; -3,4; -2,-4; -2,4; -1,-4; -1,4; 0,-4; 0,4; 1,-4; 1,4; 2,-4; 2,4; 3,-4; 3,4; 4,-4; 4,4; 5,-4; 5,4; 6,-4; 6,4; 6,-3; -6,-3; 6,-2; -6,-2; 6,-1; -6,-1; 6,0; 6,1; -6,1; 6,2; -6,2; 6,3; -6,3"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Door",
+        "stuff": "BlocksGranite",
+        "layout": "cells",
+        "offset": "0,0",
+        "cells": "-6,0"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "AncientEmergencyLight_Blue",
+        "layout": "cells",
+        "offset": "0,0",
+        "cells": "0,0"
+      }
+    },
+    {
+      "type": "SetRoof",
+      "args": {
+        "width": "13",
+        "height": "9",
+        "offset": "0,0",
+        "def": "RoofConstructed"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "0"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "0,0",
+        "zoom": "13"
+      }
+    },
+    {
+      "type": "SetDoorOpen",
+      "args": {
+        "offset": "-6,0",
+        "open": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_suppress",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_beam",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max_lift",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max_seed",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max_subtract",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_surface_lift",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_gap_parity",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_aperture_beam",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_bent_path",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_open_doors",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_glow_blocker",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_aperture",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_cover",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_sheet",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_presence",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_deck_varieties",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "60"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "vlv_warmup_discard"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_shader_max_available",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_count",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_void_veto",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "60"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "sun_elevation",
+        "expectedValue": "0",
+        "tolerance": "99"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "vlv_a_veto_off"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "void_light",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "void_light_off_axis",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "deck_light",
+        "expectedValue": "103",
+        "tolerance": "3"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_void_veto",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "60"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "vlv_b_veto_on"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "void_light",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "void_light_off_axis",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "deck_light",
+        "expectedValue": "103",
+        "tolerance": "3"
+      }
+    }
+  ]
+}

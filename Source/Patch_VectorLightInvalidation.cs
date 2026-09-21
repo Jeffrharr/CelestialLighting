@@ -341,3 +341,47 @@ public static class Patch_VectorLightDoorBlockersOnLoad
     static void Postfix(Map __instance) => VectorLightDoorEvents.ReconcileDoors(__instance);
 }
 
+
+// The void veto's invalidation: substructure built or destroyed flips a cell between deck and open
+// void, and the surface mask in every overlapping emitter's field texture has to follow it.
+//
+// WHY THE PRIVATE CHOKE POINT RATHER THAN THE PUBLIC MUTATORS. TerrainGrid exposes seven ways to
+// change a cell — SetTerrain, SetUnderTerrain, RemoveTopLayer, SetFoundation, RemoveFoundation,
+// SetTempTerrain, RemoveTempTerrain — and every one of them funnels into DoTerrainChangedEffects
+// before returning. Patching the seven would be seven chances to miss the eighth that the next
+// RimWorld update adds; patching the funnel is one subscription that cannot be partially correct.
+// ApiCompatibilityTests pins the method by name for the same reason every other §27 hook is pinned,
+// since a private method is exactly the kind vanilla renames without anyone noticing.
+//
+// GATED BEFORE THE TERRAIN COMPARISON, NOT AFTER. The veto is inactive on every map with an
+// atmosphere, so a colony laying a thousand floor tiles asks Vacuum.InVacuumForMap once per tile and
+// stops. With the flag off this postfix returns on its first line, which is what makes the flag
+// reproduce the pre-feature behaviour in the invalidation as well as in the render.
+//
+// ONLY A CHANGE IN VOID-NESS COUNTS. Swapping steel plate for carpet inside a hull changes the alpha
+// not at all, and dirtying the samples for it would resample every lamp in the room for a result
+// byte-for-byte identical to the one in hand — the cost the glow-texture hold exists to avoid, paid
+// for nothing. The two Space comparisons are the whole test.
+[HarmonyPatch(typeof(TerrainGrid), "DoTerrainChangedEffects")]
+public static class Patch_VectorLightVoidTerrain
+{
+    static void Postfix(TerrainGrid __instance, IntVec3 c, TerrainDef oldTerr, TerrainDef newTerr)
+    {
+        if (!CelestialLightingFeatures.VectorLights
+            || !CelestialLightingFeatures.VectorLightVoidVeto)
+        {
+            return;
+        }
+
+        Map map = TerrainGridAccess.GetMap(__instance);
+
+        if (map == null || !Vacuum.InVacuumForMap(map))
+            return;
+
+        bool wasVoid = oldTerr == TerrainDefOf.Space;
+        bool nowVoid = newTerr == TerrainDefOf.Space;
+
+        if (wasVoid != nowVoid)
+            VectorLightField.MarkSurfaceDirtyAround(map, c);
+    }
+}

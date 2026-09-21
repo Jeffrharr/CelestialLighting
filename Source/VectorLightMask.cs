@@ -1790,6 +1790,13 @@ public static class VectorLightMask
         // having the shape it was profiled in.
         bool replacing = Replacing;
         bool bentPath = BentPath;
+
+        // The void veto's per-cell question, resolved once per emitter. Inactive on every map with an
+        // atmosphere, so `vetoingVoid` is the one bool compare the paragraph above asks for and the
+        // terrain grid is not touched at all on a colony map.
+        VectorLightVoid.VoidCells voidCells = VectorLightVoid.For(map);
+        bool vetoingVoid = voidCells.Active;
+
         float radius = light.glowRadius;
         float radiusSquared = radius * radius;
         ColorInt colour = light.glowColor;
@@ -1978,7 +1985,22 @@ public static class VectorLightMask
                         && VectorLightLiftMath.VanillaBentToArrive(
                             x - lightX, z - lightZ, own.a, anyOwn);
 
-                    int shadowed = replacing || claimed ? 255 : 255 - coverage;
+                    // THE VOID VETO REACHES THE SAME REPLACEMENT BY THE SAME ARITHMETIC. A cell with
+                    // no surface gives up this emitter's whole vanilla contribution, exactly as a
+                    // claimed cell does — and then gets nothing back, because the lift below is
+                    // skipped and the fragment program's own output is multiplied by the surface mask
+                    // in the field texture's alpha. Total artificial light on the void: zero, from
+                    // both halves of the composition rather than from one of them fighting the other.
+                    //
+                    // WHY IT TAKES VANILLA'S LIGHT TOO, and not only ours. §27 suppresses vanilla's
+                    // render and owns the frame while it is on, so "our fan stops at the hull" and
+                    // "vanilla's flood does not" would leave the void lit by the model we just
+                    // replaced — the complaint again, one subsystem further down. With the feature
+                    // off nothing here runs and vanilla's own void wash is back untouched, which is
+                    // the flag contract rather than a coincidence.
+                    bool isVoid = vetoingVoid && voidCells.At(x, z);
+
+                    int shadowed = replacing || claimed || isVoid ? 255 : 255 - coverage;
 
                     if (shadowed > 0 && anyOwn)
                     {
@@ -1999,7 +2021,7 @@ public static class VectorLightMask
                             BentSamples++;
                     }
 
-                    if (lifting && coverage > 0)
+                    if (lifting && coverage > 0 && !isVoid)
                     {
                         any |= AccumulateLift(
                             index, coverage, own, colour, x - lightX, z - lightZ, radius, radiusSquared,

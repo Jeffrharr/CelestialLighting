@@ -314,6 +314,68 @@ public class ApiCompatibilityTests
             "BiomeDef.inVacuum changed shape — Vacuum.InVacuumForMap returns it directly as a bool");
     }
 
+    // --- RimWorld.TerrainDefOf and Verse.TerrainGrid (the vector-light void veto) ---
+
+    [Test]
+    public void TerrainDefOf_HasSpace()
+    {
+        // What the void veto actually tests. `inVacuum` decides whether to ask the question at all,
+        // but the per-cell answer is this def: a pressurised hull and the void it flies through share
+        // one map, so the whole-map field cannot distinguish a deck cell from the space beside it.
+        //
+        // Vanilla depends on the same comparison in the same way — SectionLayer_GravshipMask filters
+        // its shadow mask on TerrainAt(cell).defName != TerrainDefOf.Space.defName — so this is a
+        // shared assumption rather than one we invented. If it goes, the veto stops firing and lamps
+        // paint the starfield again, silently and only on space maps.
+        var type = GetType("RimWorld.TerrainDefOf");
+        Assert.That(type, Is.Not.Null, "RimWorld.TerrainDefOf no longer exists");
+        var field = type!.Fields.SingleOrDefault(f => f.Name == "Space" && f.IsPublic && f.IsStatic);
+        Assert.That(field, Is.Not.Null,
+            "TerrainDefOf.Space no longer exists or is no longer a public static — the vector-light "
+            + "void veto compares terrain against it per cell");
+        Assert.That(field!.FieldType.FullName, Is.EqualTo("Verse.TerrainDef"),
+            "TerrainDefOf.Space changed shape — VectorLightVoid compares a TerrainDef by reference");
+    }
+
+    [Test]
+    public void TerrainGrid_HasDoTerrainChangedEffects_AsTheSingleChokePoint()
+    {
+        // The void veto's invalidation hook, and a PRIVATE method — which is exactly the kind of
+        // member that gets renamed in an update with nothing to show for it. Harmony throws on a
+        // missing target, and a throw out of PatchAll takes the whole mod down silently, so this
+        // test is the difference between a red line here and a mod that stops loading for players
+        // who own Odyssey.
+        //
+        // IT IS ALSO A CLAIM ABOUT THE SHAPE OF TerrainGrid, not just about one name. The reason we
+        // patch one private method instead of seven public ones is that all seven funnel into it;
+        // if a future version adds an eighth mutator that does NOT, the veto goes stale on whatever
+        // that mutator changes and no test here would notice. Pinning the count is what makes that
+        // assumption visible rather than folklore.
+        var type = GetType("Verse.TerrainGrid");
+        Assert.That(type, Is.Not.Null, "Verse.TerrainGrid no longer exists");
+
+        var method = type!.Methods.SingleOrDefault(m => m.Name == "DoTerrainChangedEffects");
+        Assert.That(method, Is.Not.Null,
+            "TerrainGrid.DoTerrainChangedEffects no longer exists — Patch_VectorLightVoidTerrain "
+            + "targets it by name and Harmony will throw out of PatchAll");
+
+        // (cell, oldTerr, newTerr, oldFoundation) — the postfix reads the first three by name, so a
+        // renamed parameter is as breaking as a renamed method and just as quiet.
+        Assert.That(method!.Parameters.Select(p => p.Name),
+            Is.EqualTo(new[] { "c", "oldTerr", "newTerr", "oldFoundation" }),
+            "TerrainGrid.DoTerrainChangedEffects changed its parameters — Patch_VectorLightVoidTerrain "
+            + "binds c/oldTerr/newTerr by name");
+
+        // The map the hook needs in order to know which field to dirty, reached through
+        // TerrainGridAccess's FieldRef because vanilla keeps it private.
+        var mapField = type.Fields.SingleOrDefault(f => f.Name == "map");
+        Assert.That(mapField, Is.Not.Null,
+            "TerrainGrid.map no longer exists — TerrainGridAccess resolves it with a Harmony FieldRef "
+            + "and a missing field throws at static init");
+        Assert.That(mapField!.FieldType.FullName, Is.EqualTo("Verse.Map"),
+            "TerrainGrid.map changed type — TerrainGridAccess declares FieldRef<TerrainGrid, Map>");
+    }
+
     // --- Verse.SnowGrid and Map.Area (§21, SurfaceBuildup) ---
 
     [Test]
