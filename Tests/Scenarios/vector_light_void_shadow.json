@@ -1,0 +1,329 @@
+{
+  "name": "vector_light_void_shadow",
+  "description": "The void veto's shadow half: a pawn shadow must stop at the edge of a deck rather than falling across vacuum. A 9x9 OrbitalPlatform deck spanning -4..+4 with an ancient emergency light at the centre and one colonist three cells east of it, at midnight, so the shadow runs east with exactly one deck cell left beyond the caster before the void begins at +5. A arm turns the veto off, which is the shipped behaviour before this change; B arm is the shipped default. NO ROOM AND NO DOOR HERE, unlike vector_light_void.json, and that is the point: pawn shadows do not need the fan, only the lamp's illuminance on the caster and the clip's boundary, so an open deck -- which cannot show the LIGHT half of the veto at all -- is the cleanest possible scene for the shadow half. On open ground the polygon's boundary is the lamp's own radius of 11, so with the veto off the shadow takes its full natural length and lands on nothing. vector_light_pawn_shadow_reach IS THE INSTRUMENT, not the frame. It is the metric issue #166 added for exactly this shape of question -- a shadow that stops at a boundary and one that runs through it differ only in pixels on the far side, which a whole-frame median cannot see -- and it reports the MAXIMUM over the caster's shadows, because the failure mode is one arm escaping while the rest behave. BOTH ARMS ARE IN ONE RUN, deliberately: SpawnPawn has no seed and rolls a fresh colonist every run, so a cross-run frame diff measures the sprite and the name plate rather than the shadow. Within one run the pawn is fixed. Run with --install for the asset bundle; --mod-overlay swaps 1.6/Assemblies only. THE CASTER IS ONE CELL INBOARD OF THE RIM, NOT ON IT, and that choice is the whole evidential point. On the rim cell every part of a caster's shadow is already over vacuum, so the veto removes all of it and the capture cannot tell 'clipped at the edge' from 'shadows deleted' -- shot that way first and it read exactly like deletion, which is what a reviewer would reasonably object to. One cell inboard, part of the shadow lands on deck and part on void, so the frame shows the retained part beside the removed part.  MEASURED 2026-09-21. Reach falls 1.50 -> 1.10 cells beyond the caster, and the pins are those measurements rather than derived numbers. The on-deck shadow SURVIVES: against a same-radius off-axis control -- necessary because a row at a different distance from the lamp has a different falloff and reads as negative shadow depth, which is how the first control was wrong -- deck cell +4 is 1.57 darker than off-axis with the veto off and 1.02 darker with it on. So the retained part lightens by about a third while the void part goes entirely. That lightening is the taper, not the veto: ClipShadowLength parameterises the along-length fade over whatever length survives, so shortening any shadow lightens what remains -- pre-existing behaviour the wall clip has had since issue #166, inherited here because this reuses that mechanism rather than adding a second one.  THE FRAME BARELY MOVES OVER THE VOID, and that is expected rather than a disappointment: median dE 0.592 and p90 0.853 there, both under the 1.0 this repo treats as imperceptible and of the same order as the run's own inter-arm drift (whole-frame p90 0.692, the clock advances between arms). A shadow is a multiply and vacuum renders near-black, so there is almost nothing out there to darken. Recorded as a geometric correction with no demonstrated visual improvement, not as a visible fix; it becomes visible the moment the void is not black, which is what the limb-refraction flash on a planet backdrop and an aurora over an orbital deck both do.  The extreme case was measured too, with the caster ON the rim cell (offset 4,0): reach 2.00 -> 0.10, i.e. a shadow entirely over vacuum is removed entirely.",
+  "saveFile": "minimal_colony.rws",
+  "hideUi": true,
+  "steps": [
+    {
+      "type": "LandInOrbit",
+      "args": {
+        "latitude": "45",
+        "mapSize": "150"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "OrbitalPlatform",
+        "width": "9",
+        "height": "9",
+        "offset": "0,0",
+        "clear": "true"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "AncientEmergencyLight_Blue",
+        "layout": "cells",
+        "offset": "0,0",
+        "cells": "0,0",
+        "clear": "true"
+      }
+    },
+    {
+      "type": "SpawnPawn",
+      "args": {
+        "kind": "Colonist",
+        "faction": "player",
+        "count": "1",
+        "offset": "3,0",
+        "clear": "true"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "0"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "0,0",
+        "zoom": "13"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_suppress",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_beam",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max_lift",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max_seed",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max_subtract",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_surface_lift",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_gap_parity",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_aperture_beam",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_bent_path",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_open_doors",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_glow_blocker",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_aperture",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_cover",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_sheet",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_presence",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_deck_varieties",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_pawn_shadows",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shadow_clip",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "60"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "vlvs_warmup_discard"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_shader_max_available",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_count",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_pawn_casters",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_void_veto",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "60"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "vlvs_a_veto_off"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_pawn_shadow_reach",
+        "expectedValue": "1.50",
+        "tolerance": "0.05"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_void_veto",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "60"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "vlvs_b_veto_on"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_pawn_shadow_reach",
+        "expectedValue": "1.10",
+        "tolerance": "0.05"
+      }
+    }
+  ]
+}

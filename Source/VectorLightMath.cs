@@ -1542,6 +1542,71 @@ public static class VectorLightMath
         return length > room ? room : length;
     }
 
+    // How far this emitter's GROUND extends along one bearing before it runs out into open void, in
+    // cells from the lamp. float.MaxValue when there is no void to run into, which is every map with
+    // an atmosphere and every bearing that stays over deck.
+    //
+    // WHY A SHADOW NEEDS THIS AT ALL. A shadow is an absence of light on a surface, so it needs a
+    // surface as much as the light does. The void veto stops the fan painting vacuum, and a pawn on
+    // the rim of an orbital deck would otherwise still throw a dark quad out over the starfield —
+    // the same artefact from the other side, darkening stars instead of lighting nothing.
+    //
+    // IT COMPOSES WITH THE WALL CLIP RATHER THAN REPLACING IT, which is why it returns a distance in
+    // the same units and from the same origin as BoundaryDistanceAt: both answer "how far along this
+    // bearing is the shadow still landing on something", one for walls and the lamp's rim, one for
+    // the edge of the world. PawnShadowMath.BoundaryFor takes the min and ClipShadowLength is
+    // untouched.
+    //
+    // MARCHED RATHER THAN SOLVED. The void is an arbitrary per-cell set — a platform with a hole in
+    // it is a legal colony — so there is no closed form to intersect a ray against. Stepping is
+    // exact enough because the answer only has to name a cell boundary, and it is bounded by the
+    // emitter's own radius, which is at most 14.
+    //
+    // RETURNS THE LAST GROUND SAMPLE, not the first void one, so the shadow stops SHORT of the void
+    // rather than reaching into it. With the step below that is under a quarter cell of under-reach
+    // at worst, against a spill that would otherwise be as long as the shadow.
+    public static float VoidBoundaryDistance(
+        bool[] voidGrid, int radiusCells, float unitX, float unitZ, float maxDistance)
+    {
+        if (voidGrid == null || voidGrid.Length == 0)
+            return float.MaxValue;
+
+        int span = radiusCells * 2 + 1;
+
+        // A quarter cell. Half would be the coarsest step that cannot skip a cell entirely on an
+        // axis-aligned bearing, and a quarter keeps the same guarantee on the diagonal where a
+        // cell's corner-to-corner crossing is shortest. Finer buys nothing: the answer is a cell
+        // boundary and the caller's own trailing edge is a larger term than the residue.
+        const float Step = 0.25f;
+
+        float lastGround = float.MaxValue;
+
+        for (float t = 0f; t <= maxDistance; t += Step)
+        {
+            // Cell containing this sample, relative to the lamp's own cell. The lamp sits at its
+            // cell's CENTRE, so a cell spans [-0.5, +0.5) around each integer offset and the
+            // containing cell is floor(offset + 0.5) — the same relative indexing CoverageAt does
+            // with whole cells, reached from a continuous position instead.
+            int xi = (int)System.Math.Floor(t * unitX + 0.5f) + radiusCells;
+            int zi = (int)System.Math.Floor(t * unitZ + 0.5f) + radiusCells;
+
+            // Off the baked square: out of knowledge rather than out of ground, so stop and report
+            // what was confirmed. The grid is sized to the emitter's reach, so this only happens
+            // past the point any shadow of this lamp could survive anyway.
+            if (xi < 0 || zi < 0 || xi >= span || zi >= span)
+                return lastGround;
+
+            if (voidGrid[zi * span + xi])
+                return lastGround;
+
+            lastGround = t;
+        }
+
+        // Ground the whole way out. MaxValue rather than maxDistance so the min in BoundaryFor is
+        // decided by the polygon and the radius, exactly as it was before this term existed.
+        return float.MaxValue;
+    }
+
     // How dark a pawn's shadow from this lamp is, in [0, 1].
     //
     // Two things multiply, and each is there for a reason a screenshot would otherwise ask about:

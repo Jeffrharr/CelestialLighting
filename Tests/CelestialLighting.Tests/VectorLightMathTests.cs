@@ -997,6 +997,175 @@ public class VectorLightMathTests
             Is.LessThanOrEqualTo(2f));
     }
 
+    // --- The void boundary: where the GROUND stops, for the pawn-shadow clip on a space map ---
+
+    // A square of deck `deckHalf` cells either side of the lamp, void beyond it, in the relative
+    // indexing CoverageAt uses. Built rather than written out because the interesting radii make a
+    // 29x29 literal, and a literal that size hides the one cell a test is about.
+    private static bool[] DeckWithVoidBeyond(int radiusCells, int deckHalf)
+    {
+        int span = radiusCells * 2 + 1;
+        var grid = new bool[span * span];
+
+        for (int zi = 0; zi < span; zi++)
+        {
+            for (int xi = 0; xi < span; xi++)
+            {
+                int dx = xi - radiusCells;
+                int dz = zi - radiusCells;
+                grid[zi * span + xi] =
+                    System.Math.Abs(dx) > deckHalf || System.Math.Abs(dz) > deckHalf;
+            }
+        }
+
+        return grid;
+    }
+
+    // NO GRID IS THE GATE, and this is the pair the vacuum convention asks for: the sea-level
+    // counterpart of every case below is the same call with no grid, and it must return the sentinel
+    // that leaves BoundaryFor's min deciding exactly what it decided before this term existed.
+    // Pinned beside the vacuum cases rather than in its own fixture so a regression shows up as a
+    // diverging pair rather than one number quietly matching a stale expectation.
+    [Test]
+    public void WithNoVoidGridTheGroundNeverRunsOut()
+    {
+        Assert.That(
+            VectorLightMath.VoidBoundaryDistance(null, 14, 1f, 0f, 14f),
+            Is.EqualTo(float.MaxValue));
+
+        Assert.That(
+            VectorLightMath.VoidBoundaryDistance(new bool[0], 14, 1f, 0f, 14f),
+            Is.EqualTo(float.MaxValue));
+    }
+
+    // All deck, no void anywhere in the square: the sentinel again, NOT the radius. Returning the
+    // radius here would look harmless and would silently become the binding term in BoundaryFor on
+    // any bearing where the polygon reaches further than the bake — clipping shadows on a fully
+    // decked platform for no reason.
+    [Test]
+    public void GroundAllTheWayOutReportsNoBoundary()
+    {
+        var allDeck = new bool[29 * 29];
+
+        Assert.That(
+            VectorLightMath.VoidBoundaryDistance(allDeck, 14, 1f, 0f, 14f),
+            Is.EqualTo(float.MaxValue));
+    }
+
+    // The deck edge on an AXIS, where the distance to it is exactly `deckHalf` and the expected
+    // number can be written down. A lamp at the centre of a deck reaching 4 cells out: the last
+    // ground sample sits inside cell 4, so the answer is at least that cell's near edge (3.5) and
+    // never past its far edge (4.5), which is where the void begins.
+    //
+    // AXES ONLY, and the diagonals are a separate test rather than more cases here, because the deck
+    // is a SQUARE: along a diagonal its corner is deckHalf * sqrt(2) away, so a bearing-independent
+    // bound of deckHalf would be wrong by 41% and asserting one taught me that rather than the
+    // function. The bearing-independent property is the one below.
+    [TestCase(1f, 0f)]
+    [TestCase(-1f, 0f)]
+    [TestCase(0f, 1f)]
+    [TestCase(0f, -1f)]
+    public void TheBoundaryLandsOnTheLastDeckCellOnAnAxis(float unitX, float unitZ)
+    {
+        bool[] grid = DeckWithVoidBeyond(14, 4);
+
+        float d = VectorLightMath.VoidBoundaryDistance(grid, 14, unitX, unitZ, 14f);
+
+        Assert.That(d, Is.GreaterThanOrEqualTo(3.5f));
+        Assert.That(d, Is.LessThanOrEqualTo(4.5f));
+    }
+
+    // THE BEARING-INDEPENDENT PROPERTY, and the one that actually defines the function: the answer
+    // is the LAST ground sample, so one step further has to be void or off the square. Asserting
+    // this instead of a distance is what makes the diagonals testable at all, and it is strictly
+    // stronger than a bound — a function that stopped a cell early would satisfy any bound generous
+    // enough to cover the diagonal, and fails this.
+    [TestCase(1f, 0f)]
+    [TestCase(0f, -1f)]
+    [TestCase(0.7071068f, 0.7071068f)]
+    [TestCase(-0.7071068f, -0.7071068f)]
+    [TestCase(0.4472136f, 0.8944272f)]
+    public void TheBoundaryIsTheLastGroundSample(float unitX, float unitZ)
+    {
+        const int Radius = 14;
+        const int Span = Radius * 2 + 1;
+        bool[] grid = DeckWithVoidBeyond(Radius, 4);
+
+        float d = VectorLightMath.VoidBoundaryDistance(grid, Radius, unitX, unitZ, 14f);
+
+        bool GroundAt(float t)
+        {
+            int xi = (int)System.Math.Floor(t * unitX + 0.5f) + Radius;
+            int zi = (int)System.Math.Floor(t * unitZ + 0.5f) + Radius;
+
+            if (xi < 0 || zi < 0 || xi >= Span || zi >= Span)
+                return false;
+
+            return !grid[zi * Span + xi];
+        }
+
+        Assert.That(GroundAt(d), Is.True, "the reported boundary is not on ground");
+        Assert.That(GroundAt(d + 0.25f), Is.False,
+            "one step past the reported boundary is still ground, so the shadow stops early");
+    }
+
+    // It never reports ground it did not confirm, which is the property the whole term rests on: a
+    // shadow clipped to this distance must not reach a void cell. Swept over deck sizes AND bearings
+    // because the diagonal is where a marched ray is likeliest to step over a cell.
+    [TestCase(1, 1f, 0f)]
+    [TestCase(2, 0.7071068f, 0.7071068f)]
+    [TestCase(3, 0.4472136f, 0.8944272f)]
+    [TestCase(6, 0.8944272f, 0.4472136f)]
+    public void TheBoundaryNeverReachesIntoTheVoid(int deckHalf, float unitX, float unitZ)
+    {
+        bool[] grid = DeckWithVoidBeyond(14, deckHalf);
+
+        float d = VectorLightMath.VoidBoundaryDistance(grid, 14, unitX, unitZ, 14f);
+
+        // The cell the reported distance actually lands in, by the same relative indexing the
+        // function uses — and it must be ground.
+        int xi = (int)System.Math.Floor(d * unitX + 0.5f) + 14;
+        int zi = (int)System.Math.Floor(d * unitZ + 0.5f) + 14;
+
+        Assert.That(grid[zi * 29 + xi], Is.False,
+            "the clip distance landed in a void cell, so a shadow clipped to it spills over vacuum");
+    }
+
+    // A lamp standing ON void — a glowing wall on the rim, or an emitter whose deck was mined out
+    // from under it. The first sample is the lamp's own cell and it is void, so nothing is ever
+    // confirmed as ground and the sentinel is what comes back: BoundaryFor's min is then decided by
+    // the polygon, exactly as it is on a planet map. The light-side veto is what stops that lamp
+    // painting the void; this term is about where the GROUND ends, and here there is none to find.
+    [Test]
+    public void ALampOverVoidConfirmsNoGround()
+    {
+        var allVoid = new bool[29 * 29];
+
+        for (int i = 0; i < allVoid.Length; i++)
+            allVoid[i] = true;
+
+        Assert.That(
+            VectorLightMath.VoidBoundaryDistance(allVoid, 14, 1f, 0f, 14f),
+            Is.EqualTo(float.MaxValue));
+    }
+
+    // The void term composes with the wall clip by MIN, so it can only ever shorten a shadow —
+    // the same property TheClipOnlyEverShortens pins for the boundary itself, asked of the pair.
+    [TestCase(4, 14f)]
+    [TestCase(4, 6f)]
+    [TestCase(10, 14f)]
+    public void ClippingToTheVoidBoundaryOnlyEverShortens(int deckHalf, float polygonBoundary)
+    {
+        bool[] grid = DeckWithVoidBeyond(14, deckHalf);
+
+        float ground = VectorLightMath.VoidBoundaryDistance(grid, 14, 1f, 0f, 14f);
+        float withVoid = System.Math.Min(polygonBoundary, ground);
+
+        Assert.That(
+            VectorLightMath.ClipShadowLength(3f, withVoid, 2f, 0.2f),
+            Is.LessThanOrEqualTo(VectorLightMath.ClipShadowLength(3f, polygonBoundary, 2f, 0.2f)));
+    }
+
     // Away from the lamp, in Unity's clockwise-from-+Z Y rotation. The mesh is baked extruded along
     // +X, so this angle IS the transform. Getting the sign wrong points every shadow AT its lamp,
     // which looks deliberate enough to survive a glance — hence a test per quadrant axis.

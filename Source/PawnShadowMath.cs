@@ -33,6 +33,12 @@ public static class PawnShadowMath
         public int CoverageRadius;
         public byte[] Coverage;
         public VectorLightMath.LightPolygon Polygon;
+
+        // Which cells in this emitter's square are open void, or null when there are none to worry
+        // about -- which is every map with an atmosphere, and anywhere the void veto is off. Read
+        // only by BoundaryFor; see VectorLightVoid.EnsureGrid for why the workers are handed a
+        // bool[] rather than asking the terrain grid themselves.
+        public bool[] VoidGrid;
     }
 
     // Everything Build needs about one pawn, resolved from live game state before any fan-out --
@@ -293,12 +299,25 @@ public static class PawnShadowMath
     // VectorLightPawnShadows.BoundaryFor's own header for the unbuilt-polygon fallback reasoning.
     private static float BoundaryFor(ContributionData light)
     {
+        // Where the GROUND stops along this bearing, which is a third reason a shadow ends and
+        // composes with the other two rather than replacing either. MaxValue whenever there is no
+        // void grid, so the min below is decided exactly as it was before the void veto existed --
+        // see VectorLightMath.VoidBoundaryDistance.
+        float ground = VectorLightMath.VoidBoundaryDistance(
+            light.Entry.VoidGrid,
+            light.Entry.CoverageRadius,
+            light.UnitX,
+            light.UnitZ,
+            light.Entry.Radius);
+
         if (light.Entry.Polygon.Count == 0)
-            return light.Entry.Radius;
+            return System.Math.Min(light.Entry.Radius, ground);
 
         return System.Math.Min(
-            VectorLightMath.BoundaryDistanceAt(light.Entry.Polygon, light.Bearing),
-            light.Entry.Radius);
+            System.Math.Min(
+                VectorLightMath.BoundaryDistanceAt(light.Entry.Polygon, light.Bearing),
+                light.Entry.Radius),
+            ground);
     }
 
     // One lamp that changed between the last frame VectorLightPawnShadows looked at it and this

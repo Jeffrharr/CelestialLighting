@@ -178,6 +178,25 @@ public static class VectorLightField
         // but the null. VectorLightBlockers owns everything in it; nothing here reads it.
         public VectorLightSilhouetteMath.Memo Silhouette;
 
+        // A SIXTH KIND OF STALENESS: which cells in this emitter's square are open void, for the
+        // pawn-shadow clip to stop a shadow at the edge of a deck (see VectorLightVoid.EnsureGrid
+        // and VectorLightMath.VoidBoundaryDistance). One bool per cell over the same square and with
+        // the same relative indexing as Coverage.
+        //
+        // NULL IS THE WHOLE GATE, AND IT IS WHY THIS NEEDED NO NEW FLAG. The grid is baked only when
+        // the void veto is on AND the map can have void cells at all, so on every planet map — and
+        // with the feature off anywhere — it stays null, VoidBoundaryDistance returns MaxValue on its
+        // first line, and the clip is arithmetically the one that shipped before it existed. A flag
+        // read inside the per-bearing march would have been a second thing saying the same thing.
+        //
+        // SEPARATE FROM SampleDirty EVEN THOUGH ONE EVENT DIRTIES BOTH. A terrain change moves the
+        // field texture's alpha and this grid together, so MarkSurfaceDirtyAround sets both — but
+        // the texture is re-copied by the DRAW and this is rebuilt by the SHADOW pass, which are
+        // different frames' worth of work and, on a map nobody is looking at, neither. Folding them
+        // into one flag would mean whichever ran first cleared the other's debt.
+        public bool[] VoidGrid;
+        public bool VoidGridDirty = true;
+
         // A FIFTH KIND OF STALENESS, split off SampleDirty for the same reason the silhouette was
         // split off PolygonDirty: the two things it stood for do not change together and one of them
         // is far more expensive than the other.
@@ -542,6 +561,11 @@ public static class VectorLightField
             if (dx * dx + dz * dz <= reach * reach)
             {
                 entry.SampleDirty = true;
+
+                // The shadow clip's copy of the same fact — see VoidGrid's own header for why the
+                // two flags are separate when one event sets both.
+                entry.VoidGridDirty = true;
+
                 InvalidationMarks++;
             }
         }
