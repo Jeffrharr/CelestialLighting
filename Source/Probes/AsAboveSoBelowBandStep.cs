@@ -39,6 +39,9 @@ public sealed class AsAboveSoBelowBandStep : IStepSpec
 
     internal const string BandMapTypeName = "AsAboveSoBelow.ABBandMap";
 
+    // Their public band API, the same type AsAboveSoBelowCompat and the probes bind.
+    internal const string BandsTypeName = "AsAboveSoBelow.ABBands";
+
     public string Type => TypeName;
 
     // It rewrites the map's band layout and dirties every section. Nothing restores that, so a
@@ -288,6 +291,174 @@ public sealed class AsAboveSoBelowViewBandAction : IStepAction
             return StepOutcome.Fail(
                 $"ABBandView.SetBand declined band {band} — out of range, or not opened on this map.");
 
+        return new StepOutcome();
+    }
+}
+
+// Opens and unfogs every band on the current map.
+//
+// WHY A SCENARIO CANNOT SKIP THIS. Their bands ship CLOSED: a freshly generated banded map has only
+// the surface open, and ABBandView.SetBand refuses any band that is not. So without this step the
+// camera never leaves the surface, and -- because SetBand's refusal used to be discarded -- what came
+// back was a capture of the surface band's bottom edge presented as an underground one.
+//
+// UNFOGGING IS THE HALF THAT IS EASY TO MISS. A closed band is also fogged, and fogged cells draw
+// black whatever the lighting under them does. A scenario that opened a band without unfogging it
+// would photograph a black rectangle and measure our overlay passes through it, reading a confident
+// "the cave is dark" that is really "the fog is opaque" -- and every probe would still look healthy.
+//
+// This is the one place we bind a NON-PUBLIC member of theirs. ABDevTools.V2OpenAllBands is their own
+// "AB2: open all bands" debug action, and it does exactly the pair above in the order their own code
+// expects. The public alternative -- ABBandMap.Open(int) -- opens without unfogging, so using it would
+// mean reimplementing the fog half against their internals, which is a worse bet than calling the
+// method they maintain. It is acceptable here in a way it would not be in the shipped mod: this file
+// is excluded from the DLL players load, and its failure mode is a failed test rather than a broken
+// game. If they rename it, this step fails loudly and no scenario silently measures the surface.
+public sealed class AsAboveSoBelowOpenBandsStep : IStepSpec
+{
+    public const string TypeName = "AsAboveSoBelowOpenBands";
+
+    internal const string DevToolsTypeName = "AsAboveSoBelow.ABDevTools";
+    internal const string OpenAllName = "V2OpenAllBands";
+
+    public string Type => TypeName;
+
+    // It opens bands and clears fog, and nothing puts either back.
+    public ScenarioResidue Residue => ScenarioResidue.Map;
+
+    public bool LiveCallable => false;
+
+    public bool TryValidate(IReadOnlyDictionary<string, string> args, out string error)
+    {
+        error = null;
+        return true;
+    }
+}
+
+public sealed class AsAboveSoBelowOpenBandsAction : IStepAction
+{
+    public string Type => AsAboveSoBelowOpenBandsStep.TypeName;
+
+    public StepOutcome Execute(IReadOnlyDictionary<string, string> args, StepContext ctx)
+    {
+        Map map = Find.CurrentMap;
+
+        if (map == null)
+            return StepOutcome.Fail("no current map — AsAboveSoBelowOpenBands needs a game in progress");
+
+        Type devTools = AccessTools.TypeByName(AsAboveSoBelowOpenBandsStep.DevToolsTypeName);
+
+        if (devTools == null)
+            return StepOutcome.Fail(
+                "As above, So below II is not loaded (no " + AsAboveSoBelowOpenBandsStep.DevToolsTypeName + ")");
+
+        MethodInfo openAll = AccessTools.Method(devTools, AsAboveSoBelowOpenBandsStep.OpenAllName);
+
+        if (openAll == null)
+            return StepOutcome.Fail(
+                AsAboveSoBelowOpenBandsStep.DevToolsTypeName + "." + AsAboveSoBelowOpenBandsStep.OpenAllName
+                + "() is not there — upstream renamed the debug action this step drives.");
+
+        try
+        {
+            openAll.Invoke(null, new object[0]);
+        }
+        catch (Exception e)
+        {
+            return StepOutcome.Fail(
+                AsAboveSoBelowOpenBandsStep.OpenAllName + " threw: " + e);
+        }
+
+        // Verified rather than assumed, because their tool declines silently on a map it does not
+        // consider banded — it posts a rejected-input MESSAGE and returns, which no scenario can see.
+        // Reading IsOpen back turns that into the failure it is.
+        return VerifyEveryBandOpen(map);
+    }
+
+    private static StepOutcome VerifyEveryBandOpen(Map map)
+    {
+        Type bandMapType = AccessTools.TypeByName(AsAboveSoBelowBandStep.BandMapTypeName);
+        MapComponent comp = bandMapType == null ? null : map.GetComponent(bandMapType) as MapComponent;
+
+        if (comp == null)
+            return StepOutcome.Fail(
+                "map has no " + AsAboveSoBelowBandStep.BandMapTypeName + " component to read back.");
+
+        MethodInfo isOpen = AccessTools.Method(comp.GetType(), "IsOpen", new[] { typeof(int) });
+
+        // Band count comes off ABBands rather than the component: the component keeps bandCount
+        // private and exposes no property for it, while ABBands.BandCount(Map) is the public reader
+        // the aasb2_band_count probe already binds.
+        MethodInfo bandCount = AccessTools.Method(
+            AsAboveSoBelowBandStep.BandsTypeName + ":BandCount", new[] { typeof(Map) });
+
+        if (isOpen == null || bandCount == null)
+            return StepOutcome.Fail("ABBandMap.IsOpen(int) or ABBands.BandCount(Map) is not there.");
+
+        int count = (int)bandCount.Invoke(null, new object[] { map });
+
+        for (int band = 0; band < count; band++)
+        {
+            if (!(bool)isOpen.Invoke(comp, new object[] { band }))
+                return StepOutcome.Fail(
+                    $"band {band} of {count} is still closed after {AsAboveSoBelowOpenBandsStep.OpenAllName} — "
+                    + "their tool declined this map, and any later capture of that band would be fog.");
+        }
+
+        return new StepOutcome();
+    }
+}
+
+// Rebakes every section on the current map, right now.
+//
+// WHY A SCENARIO NEEDS THIS BETWEEN A CHANGE AND A READ. Sections regenerate lazily: dirtying one
+// only queues it, and the rebake happens when the map next draws it. A probe that reads vertex
+// colours straight after a SetFeature or a PlaceThings therefore reads the mesh as it was BEFORE the
+// change -- and reads it successfully, so nothing anywhere reports a problem.
+//
+// That is not hypothetical. The first passing run of aasb2_underground_cave read one identical alpha
+// (100/255) from the lamp's own cell, from three and six cells away, AND from solid unlit rock, in
+// both arms of the A/B -- four cells that cannot agree, twice, because none of the four had been
+// rebaked since the torch was placed. Every probe passed. Every structural pin passed. The report
+// said pass=True and measured nothing.
+//
+// RegenerateEverythingNow is synchronous, which is the property that matters: when the step returns,
+// what the probes read is what the change produced. It also sidesteps the off-screen rule -- a
+// section outside the camera never redraws on its own, so on a map as tall as a banded one most of
+// the map would otherwise stay stale indefinitely.
+public sealed class RegenerateMapMeshStep : IStepSpec
+{
+    public const string TypeName = "RegenerateMapMesh";
+
+    public string Type => TypeName;
+
+    // Rebuilding a mesh from current state leaves nothing behind that the next scenario would inherit.
+    public ScenarioResidue Residue => ScenarioResidue.None;
+
+    public bool LiveCallable => true;
+
+    public bool TryValidate(IReadOnlyDictionary<string, string> args, out string error)
+    {
+        error = null;
+        return true;
+    }
+}
+
+public sealed class RegenerateMapMeshAction : IStepAction
+{
+    public string Type => RegenerateMapMeshStep.TypeName;
+
+    public StepOutcome Execute(IReadOnlyDictionary<string, string> args, StepContext ctx)
+    {
+        Map map = Find.CurrentMap;
+
+        if (map == null)
+            return StepOutcome.Fail("no current map — RegenerateMapMesh needs a game in progress");
+
+        if (map.mapDrawer == null)
+            return StepOutcome.Fail("map has no mapDrawer to regenerate");
+
+        map.mapDrawer.RegenerateEverythingNow();
         return new StepOutcome();
     }
 }
