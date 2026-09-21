@@ -14660,14 +14660,43 @@ darkness. On the lit void row the same run measures the light half against the s
 +1.61, +1.78 and +0.69 at those cells and the veto returns all three to vanilla **exactly**, residual
 0.00, so it removes the leak without over-subtracting.
 
-**The exception is cell +7, the first void cell**, where §27 reads 3.07 darker than vanilla —
-identically in both veto arms, so not the veto. The lighting overlay's vertices sit at cell CORNERS
-and are shared between adjacent cells, so darkening deck cell +6 necessarily darkens the half of void
-cell +7 that touches it. That is vanilla's mesh topology rather than a choice of ours, and it is why
-a wall shadow bleeds exactly one cell onto the void and no further. The lit row shows the same
-boundary from the other side: +7 reads −1.02 with the veto off and −2.24 with it on, the latter being
-the half-cell bilinear falloff of the alpha mask at the rim, which is intended. Cleaning that last
-cell would need a per-cell mask on the overlay mesh, which is a different subsystem from this veto.
+**Cell +7, the first void cell, was the one exception and is now closed — but not by making the
+void a special case in the draw.** It originally read 3.07 darker than vanilla (ΔE 2.09), identically
+with the veto off, because the overlay's vertices sit at cell CORNERS and adjacent cells share the
+two between them: darkening deck cell +6 necessarily darkens the half of void cell +7 touching it.
+
+Three things fixed it, in order of how much they gave:
+
+1. **A void cell contributes nothing** to the accumulation, instead of contributing a full
+   subtraction. The first cut gave it `shadowed = 255` on the reasoning that the void should end at
+   zero artificial light — which it should, but vanilla already puts zero there, so the subtraction
+   was a no-op on the cell while still feeding a full shadow into the four lattice points it shares
+   with its neighbours. That alone took the fringe from ΔE 2.09 to **1.42**.
+2. **A void cell's own CENTRE vertex is left at vanilla.** Corners are shared and the trade there is
+   genuine; the centre belongs to one cell alone, so this removes bleed from the middle of the cell
+   at no cost to the deck at all. That took **1.42 → 0.46**, under the 1.0 this repo treats as
+   imperceptible.
+3. **The corners are deliberately NOT touched.** Leaving them at vanilla too was tried and measured:
+   the void goes to exactly 0.00, and the deck's shadow then fades over its outer half-cell instead
+   of reaching the rim. That is the wrong direction — the deck is the surface players look at — so
+   it was reverted. A shadowed deck cell at the rim keeps its full shadow, ΔE **9.03** against
+   vanilla (L\* 21.33 → 13.06).
+
+What survives is a gradient in the two shared corners of the boundary cell, ΔE 0.46. Removing it
+would mean giving void cells their own vertices — degenerating vanilla's triangles for those cells
+and appending replacements — and on a space map the void is most of the map, so that is a whole-mesh
+rebuild per section regenerate to chase a sub-threshold corner gradient. Not worth it. Note also that
+a mask LAYER cannot do it: vanilla's mask layers (`IndoorMask`, `GravshipMask`) only darken, and the
+fringe is a darkening already, so undoing it would need a `Blend DstColor One` brighten pass and
+per-cell deficit maths — a new shader for 0.46.
+
+**One owner for the void grid.** `VectorLightField.EnsurePolygons` bakes it once per frame for the
+whole roster, ahead of every reader. It was originally baked by the pawn-shadow gather, which was a
+latent bug rather than untidiness: `VectorLightMask` reads the same grid, so with pawn shadows off —
+or simply with no pawn in the camera's view — it stayed null and the mask's half of the veto silently
+stopped applying. The emitter accumulate reads that `bool[]` rather than asking the `TerrainGrid` a
+third time; the centre pass, which has no emitter in hand and runs once per cell of one section, uses
+the map-level read.
 
 **Note also that vanilla's artificial glow never reaches Space cells at all.** `void_open_lit` reads 0
 on an OPEN deck, with nothing between the lamp and the map edge — so every photon that was landing on
