@@ -505,6 +505,48 @@ public static class VectorLightField
         }
     }
 
+    // The void veto's surface mask at `cell` changed, and nothing else did.
+    //
+    // A THIRD KIND OF STALENESS, AND THE NARROWEST ONE YET. Substructure built or destroyed on a
+    // space map flips a cell between deck and open void, which changes the alpha CopyField writes
+    // into every overlapping emitter's field texture — and changes NOTHING else. The polygon is
+    // untouched, because void is not an occluder: light crosses it freely and simply lands on
+    // nothing. Vanilla's glow is untouched, because a terrain swap does not move the flood.
+    //
+    // So this deliberately does not call MarkGeometryDirtyAround. Routing it there would rebake the
+    // polygon and re-extract the silhouette for every lamp on a ship every time a pawn finishes a
+    // floor tile, to deliver a result byte-for-byte identical to the one already in hand. What is
+    // stale is one channel of one texture, and SampleDirty is the flag that means exactly that.
+    //
+    // WHY IT NEEDS A HOOK AT ALL: the copy that writes the alpha is itself skipped unless vanilla's
+    // glow moved (the glow-texture hold). Without this the mask would be correct only until the next
+    // unrelated resample, so a newly built deck would stay unlit — or a mined one stay lit — for as
+    // long as nothing near it happened to change. That reads as the veto being broken rather than as
+    // a missing subscription, which is the same failure §27e's door hook was written for.
+    public static void MarkSurfaceDirtyAround(Map map, IntVec3 cell)
+    {
+        if (map == null || !ByMap.TryGetValue(map.uniqueID, out MapLights lights))
+            return;
+
+        InvalidationCalls++;
+
+        foreach (LightEntry entry in lights.Entries.Values)
+        {
+            // The same squared-distance test MarkGeometryDirtyAround uses, for the same reason and
+            // against the same reach: the field texture's square is vanilla's own per-light square,
+            // so a cell this emitter cannot reach has no texel in it to correct.
+            float dx = entry.Cell.x - cell.x;
+            float dz = entry.Cell.z - cell.z;
+            float reach = entry.Radius + 1f;
+
+            if (dx * dx + dz * dz <= reach * reach)
+            {
+                entry.SampleDirty = true;
+                InvalidationMarks++;
+            }
+        }
+    }
+
     // Everything currently emitting on this map, resynced from vanilla's own sets if anything has
     // registered or deregistered since the last call.
     // Build every dirty polygon on this map, once per frame, OUTSIDE the section bake.

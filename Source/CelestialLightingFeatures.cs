@@ -971,6 +971,52 @@ public static class CelestialLightingFeatures
     // ON.
     public static bool VectorLightShaderMaxSubtract = true;
 
+    // Feature key for VectorLightVoidVeto.
+    public const string VectorLightVoidVetoKey = "vector_light_void_veto";
+
+    // The void veto: no artificial light on cells that have no surface to catch it — the open space
+    // outside a gravship hull or an orbital platform's deck.
+    //
+    // THE REPORT. "Vector lights affect open space tiles." On an Odyssey space map a lamp on an open
+    // deck painted its fan straight out over the starfield, because nothing in §27 asked what the
+    // cell it was lighting was made of. Light on a surface is albedo * illuminance and the void has
+    // no albedo, so the correct contribution there is not "dimmer", it is zero.
+    //
+    // WHY THIS IS OURS AND NOT VANILLA'S. Vanilla floods the void too — SectionLayer_LightingOverlay
+    // reads VisualGlowAt for any cell whose edifice does not blockLight, and a void cell has no
+    // edifice at all — so the defect predates us. What makes it visible is that §27 SUPPRESSES
+    // vanilla's render and replaces it with a directional model at polygon resolution: the same
+    // wrong glow goes from a faint wash to an obvious beam. Vanilla ships it quietly; we photograph
+    // it.
+    //
+    // DELIVERED IN THE FIELD TEXTURE'S ALPHA, which CopyField had been forcing to 255 with a comment
+    // predicting this exact use ("becomes a bug the first time somebody adds an alpha term"). One
+    // texel per cell over the emitter's own square, already aligned to the fan through UV1, already
+    // sliced into the batched variant's texture array by Graphics.CopyTexture — so the mask costs no
+    // new upload, no new sampler and no new vertex channel. The fragment program multiplies its
+    // output by it, and bilinear filtering makes the hull rim a half-cell falloff rather than a
+    // stair-step, which is what light spilling off the edge of a deck actually looks like.
+    //
+    // ALPHA MEANS SURFACE, NOT VOID, AND THE POLARITY IS THE FAIL-SAFE. An unbound _VanillaTex reads
+    // as Unity's blackTexture, which is (0,0,0,1) — alpha one, so "all surface", so the veto is
+    // inert exactly where the texture was never filled. Storing void-ness instead would make the
+    // same unbound sampler read "all void" and delete every fan on the map, which is the kind of
+    // plausible wrong frame the shader-bundle rules exist to avoid.
+    //
+    // GATED PER MAP ON inVacuum BEFORE ANY PER-CELL READ, so the terrain grid is not touched at all
+    // on a planet map. That is a performance gate rather than a correctness one — Space terrain is
+    // what the veto actually tests, and the per-map question only decides whether to ask. It also
+    // makes the veto provably inert on every existing scenario, which is why the vector-lighting
+    // gate measures unchanged with this on.
+    //
+    // NOT REACHED BY THE NO-SHADER FALLBACK. When the bundle is absent or unsupported, §27 draws
+    // through vanilla's own MoteGlow, and a vanilla shader cannot be told about our mask — so that
+    // arm still paints the void. It is already a degraded arm and this is a known limitation rather
+    // than something the flag quietly covers.
+    //
+    // ON. Inert unless VectorLights is on, and inert on every map with an atmosphere.
+    public static bool VectorLightVoidVeto = true;
+
     // Feature key for VectorLightSurfaceLift.
     public const string VectorLightSurfaceLiftKey = "vector_light_surface_lift";
 

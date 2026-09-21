@@ -252,13 +252,13 @@ Shader "CelestialLighting/VectorLightMax"
                 fixed4 lightColor = i.lightColor;
                 float vanillaWeight = i.lightParams.x;
                 float skyAmbient = i.lightParams.y;
-                fixed3 vanillaTexel =
-                    UNITY_SAMPLE_TEX2DARRAY(_VanillaArray, float3(i.vanillaUv, i.lightParams.z)).rgb;
+                fixed4 vanillaTexel =
+                    UNITY_SAMPLE_TEX2DARRAY(_VanillaArray, float3(i.vanillaUv, i.lightParams.z));
                 #else
                 fixed4 lightColor = _Color;
                 float vanillaWeight = _VanillaWeight;
                 float skyAmbient = _SkyAmbient;
-                fixed3 vanillaTexel = tex2D(_VanillaTex, i.vanillaUv).rgb;
+                fixed4 vanillaTexel = tex2D(_VanillaTex, i.vanillaUv);
                 #endif
 
                 // White throughout with the falloff curve in alpha — see BuildGradient. Reading alpha
@@ -270,7 +270,30 @@ Shader "CelestialLighting/VectorLightMax"
 
                 // Vanilla's, at this fragment, from its own grid. Bilinear, which is the same
                 // filtering vanilla's lighting overlay applies to the same numbers.
-                fixed3 vanilla = vanillaTexel * vanillaWeight;
+                fixed3 vanilla = vanillaTexel.rgb * vanillaWeight;
+
+                // THE VOID VETO: whether this fragment has a surface for light to land on at all.
+                // One means ordinary ground, zero means the open space outside a gravship hull or an
+                // orbital platform's deck, and CopyField writes it per cell into the same texture's
+                // alpha. Light on a surface is albedo * illuminance and the void has no albedo, so
+                // the contribution there is not dimmer, it is nothing.
+                //
+                // BILINEAR IS THE FEATURE HERE, NOT AN APPROXIMATION. Sampled the same way vanilla's
+                // own glow is, the mask fades across a half cell at the hull rim instead of ending
+                // on a stair-step — which is what light spilling off the edge of a deck looks like,
+                // and is free because this is the sampler the composition was already using.
+                //
+                // ONE MEANS SURFACE, AND THE POLARITY IS DELIBERATE. An unbound _VanillaTex reads as
+                // Unity's blackTexture, (0,0,0,1) — alpha one, so "all surface", so a pass whose
+                // texture was never filled draws exactly what it drew before this term existed.
+                // Storing void-ness instead would make that same unbound sampler read "all void" and
+                // delete every fan on the map: a plausible wrong frame rather than an error, which is
+                // the failure mode the bundle rules exist to keep out.
+                //
+                // It multiplies the OUTPUT rather than `ours`, so it survives both compositions
+                // below and cannot be cancelled by the surface lift's divisor. Nothing about the
+                // max, the subtraction or the lift changes — only whether the result lands anywhere.
+                float surface = vanillaTexel.a;
 
                 // The excess our straight-line geometry delivers over what vanilla's geodesic flood
                 // already put here. Zero wherever vanilla is already the brighter of the two, which
@@ -296,9 +319,9 @@ Shader "CelestialLighting/VectorLightMax"
                 // Per channel, because vanilla's glow is. A warm lamp beside a warm wall competes
                 // with it in red and not in blue, and averaging the three first would lose that.
                 if (skyAmbient > 0)
-                    return fixed4(lightColor.a * excess / (skyAmbient + vanilla), 1);
+                    return fixed4(surface * lightColor.a * excess / (skyAmbient + vanilla), 1);
 
-                return fixed4(excess * lightColor.a, 1);
+                return fixed4(surface * excess * lightColor.a, 1);
             }
             ENDCG
         }

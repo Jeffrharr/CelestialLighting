@@ -33,9 +33,18 @@ fi
 # The Hub keeps its licence inside the flatpak sandbox, where the standalone editor cannot see it.
 license_dir="$HOME/.config/unity3d/Unity/licenses"
 flatpak_license="$HOME/.var/app/com.unity.UnityHub/config/unity3d/Unity/licenses/UnityEntitlementLicense.xml"
-if [[ ! -e "$license_dir/UnityEntitlementLicense.xml" && -e "$flatpak_license" ]]; then
+# COPIED WHENEVER THE SANDBOX COPY IS NEWER, not just when ours is missing. A Unity Personal
+# entitlement EXPIRES -- about a month -- and refreshing it through the Hub rewrites the sandbox copy
+# only. An `! -e` test then keeps preferring the stale file forever, and Unity fails with "No valid
+# Unity Editor license found" buried in the log while this script prints its banner and exits 1.
+# That cost a full debugging pass on 2026-09-21, because a stale bundle is silent: the build appears
+# to do nothing and every A/B arm comes back byte-identical against the OLD fragment program.
+if [[ -e "$flatpak_license" ]] \
+   && [[ ! -e "$license_dir/UnityEntitlementLicense.xml" \
+         || "$flatpak_license" -nt "$license_dir/UnityEntitlementLicense.xml" ]]; then
   mkdir -p "$license_dir"
   cp "$flatpak_license" "$license_dir/"
+  echo "Refreshed the Unity licence from the Hub sandbox."
 fi
 
 log="$here/build.log"

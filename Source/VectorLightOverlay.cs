@@ -888,7 +888,7 @@ public static class VectorLightOverlay
             // from light.position and the two sides of the per-cell rule have to agree cell for cell.
             CopyField(
                 entry, entry.VanillaField, colors, diameter, light.localGlowGridStartPos,
-                light.position);
+                light.position, VectorLightVoid.For(map));
             VectorLightField.FieldTextureUploads++;
 
             // Bumped inside the same branch as the copy, so a batch re-copies a slice exactly when
@@ -976,7 +976,7 @@ public static class VectorLightOverlay
 
     private static void CopyField(
         VectorLightField.LightEntry entry, Texture2D field, UnsafeList<Color32> colors, int diameter,
-        IntVec3 start, IntVec3 lightCell)
+        IntVec3 start, IntVec3 lightCell, VectorLightVoid.VoidCells voidCells)
     {
         int count = diameter * diameter;
 
@@ -1008,12 +1008,17 @@ public static class VectorLightOverlay
             glow.g = (byte)((glow.g * share + 127) / 255);
             glow.b = (byte)((glow.b * share + 127) / 255);
 
-            // ALPHA IS NOT OPACITY IN THIS BUFFER. ComputeGlowGridsJob writes the accumulated
-            // DISTANCE into it (`colorInt.a = (int)num2`), so copying it through would hand the
-            // sampler a channel that means nothing and looks like a mask. The fragment program reads
-            // rgb only, but leaving distance in alpha is the kind of thing that becomes a bug the
-            // first time somebody adds an alpha term.
-            glow.a = 255;
+            // ALPHA IS NOT OPACITY IN THIS BUFFER, and it is no longer unused either. ComputeGlowGridsJob
+            // writes the accumulated DISTANCE into it (`colorInt.a = (int)num2`), so copying it
+            // through would hand the sampler a channel that means nothing and looks like a mask —
+            // which is why it was overwritten with a constant, and why the constant's comment
+            // predicted somebody adding an alpha term.
+            //
+            // THE ALPHA TERM IS THE VOID VETO. It carries whether this cell has a surface for light
+            // to land on at all, and the fragment program multiplies its output by it: 255 on
+            // ordinary ground, 0 on the open void outside a hull. `voidCells` is inactive on every
+            // map with an atmosphere, so this is the same unconditional 255 it always was there.
+            glow.a = voidCells.Active ? voidCells.AlphaAt(cellX, cellZ) : VectorLightVoid.SurfaceAlpha;
             texels[i] = glow;
         }
 

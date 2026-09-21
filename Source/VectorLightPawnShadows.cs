@@ -195,6 +195,10 @@ public static class VectorLightPawnShadows
         PendingAnchors.Clear();
         PendingPawns.Clear();
 
+        // The void veto's per-cell question, resolved once per frame rather than per pawn. Inactive
+        // on every map with an atmosphere, so the gate below costs one field compare there.
+        VectorLightVoid.VoidCells voidCells = VectorLightVoid.For(map);
+
         for (int i = 0; i < pawns.Count; i++)
         {
             Pawn pawn = pawns[i];
@@ -202,6 +206,20 @@ public static class VectorLightPawnShadows
             // Culled against the camera first, for the same reason VectorLightOverlay culls: a
             // colony's pawns are mostly off screen and this runs every frame.
             if (pawn == null || !pawn.Spawned || !view.Contains(pawn.Position))
+                continue;
+
+            // A pawn standing in open space has no ground under them to take a shadow, so there is
+            // nothing for the lamp to darken — the same statement the light-side veto makes, asked
+            // at the caster instead of at the surface. An EVA pawn floating off a platform is the
+            // case: their shadow would otherwise be a dark quad over the starfield, which is the
+            // complaint's own artefact wearing a different hat.
+            //
+            // THE CASTER'S CELL, NOT THE SHADOW'S FOOTPRINT, and that is a genuine limitation rather
+            // than the whole answer. A pawn standing on the rim of a deck still throws a shadow that
+            // can spill a cell or two past the edge; clipping that needs the shadow's own bearing
+            // marched against the void, which is a bigger change than this gate and is tracked
+            // separately. This covers the pawn who is themselves over nothing.
+            if (voidCells.Active && voidCells.At(pawn.Position.x, pawn.Position.z))
                 continue;
 
             // Then the four scope switches — see PassesPawnShadowFilter's own header. Asked before

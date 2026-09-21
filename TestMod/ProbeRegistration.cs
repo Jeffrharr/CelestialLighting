@@ -707,6 +707,43 @@ public static class ProbeRegistration
         // is false per channel for VANILLA, so a weighted mix of the three would fail the oracle
         // before it reached our arithmetic. The max channel is the only monotone summary, and it is
         // also the one GroundGlowAt itself reads.
+        // The void veto, vector_light_void.json, anchored at the map centre because LandInOrbit
+        // builds its own map and there is no colony to sit beside. A lamp inside a roofed hull on an
+        // 13x9 orbital-platform deck whose west edge is the door's own outer face, so an open
+        // door there leads straight into vacuum: `void_light` is eight cells west, open void on the
+        // beam's own axis; `void_light_off_axis` is the same distance out but three cells north,
+        // void the beam does not point at; and `deck_light` is two cells west, inside the hull,
+        // which the veto must not touch.
+        //
+        // WHY A HULL AND A GAP RATHER THAN A BARE LAMP ON A DECK. A bare lamp in open space is the
+        // one arrangement that CANNOT show this bug: with no occluder our straight-line model and
+        // vanilla's geodesic flood agree cell for cell, so max(0, ours - vanilla) is zero and the
+        // fan draws nothing over the void whatever the veto says. Measured that way first, and the
+        // A arm read 9.6 against a distant-void 15.0 -- the light stopping dead at the deck edge,
+        // i.e. a scenario quietly testing nothing. The gap is where the two models disagree, which
+        // is the same reason vector_light_gap_vs_door is a required gate rather than a nicety.
+        //
+        // THE PAIR IS THE POINT, and it is the §18 convention's "pin the vacuum value and its
+        // counterpart in the same sweep" applied to a live scenario. `void_light` alone falling to
+        // zero is equally consistent with the veto working and with the lamp having gone out, which
+        // is a mistake this repo has made before; `deck_light` holding while `void_light` drops is
+        // the only reading that says the veto discriminates rather than subtracts.
+        //
+        // LEVEL, for the reason the column probes give: it is the monotone summary and the one
+        // GroundGlowAt itself reads.
+        //
+        // NOTE THAT THIS READS THE MASK HALF ONLY. RenderedLightCellProbe reads the lighting
+        // overlay's mesh, and the fragment program's fan is a separate draw that never enters it —
+        // so these two pin the C# half of the veto and the screenshots are what carry the shader
+        // half. A run where these move and the frames do not is a stale shader bundle, not a
+        // formula error.
+        ProbeRegistry.Register(new RenderedLightCellProbe(
+            "void_light", new IntVec3(-8, 0, 0), RenderedLightCellProbe.Metric.Level));
+        ProbeRegistry.Register(new RenderedLightCellProbe(
+            "void_light_off_axis", new IntVec3(-8, 0, 3), RenderedLightCellProbe.Metric.Level));
+        ProbeRegistry.Register(new RenderedLightCellProbe(
+            "deck_light", new IntVec3(-2, 0, 0), RenderedLightCellProbe.Metric.Level));
+
         ProbeRegistry.Register(new RenderedLightCellProbe(
             "column_behind", new IntVec3(-1, 0, 45), RenderedLightCellProbe.Metric.Level));
         ProbeRegistry.Register(new RenderedLightCellProbe(
@@ -2196,6 +2233,18 @@ public static class ProbeRegistration
             enabled =>
             {
                 CelestialLightingFeatures.VectorLightShaderMaxSubtract = enabled;
+                VectorLightRedraw.ForceRebuild();
+            });
+
+        // Two-arg, matching the void veto's shipped default of true, for the reason phase 6's own
+        // registration gives: the registry default is what a suite reset restores between scenarios,
+        // so it has to be the SHIPPED value or the A arm of every later scenario measures a mod that
+        // does not ship.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.VectorLightVoidVetoKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.VectorLightVoidVeto = enabled;
                 VectorLightRedraw.ForceRebuild();
             });
 
