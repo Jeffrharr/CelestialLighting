@@ -1,0 +1,389 @@
+{
+  "name": "vector_light_void_wall_shadow",
+  "description": "Both void claims in one frame, asked explicitly rather than argued from the code: does a LAMP'S LIGHT land on open space, and does a WALL'S SHADOW from that lamp land on open space? A 13x9 OrbitalPlatform deck spanning -6..+6 with an ancient emergency light at (+3,0) and a single wall cell at (+5,0), at midnight. Void begins at +7. The wall shadows the z=0 row and leaves z=+2 clear, so one frame carries lit void and shadowed void side by side. AN OPEN DECK, NOT A SEALED ROOM, AND THAT IS THE POINT OF A SECOND SCENARIO. vector_light_void.json puts every void cell beyond a wall, where vanilla's flood delivers nothing and the lighting overlay's mesh reads 0 on both arms -- so its probes cannot see the mask half of the veto at all and the evidence there is entirely pixels. With nothing between the lamp and the map edge vanilla floods the void freely, the mesh carries a real value out there, and void_open_lit can measure the mask removing it. WHAT THE WALL-SHADOW HALF IS ACTUALLY ASSERTING. \u00a727 never draws a wall shadow: the fan is drawn over the emitter's visibility polygon, which already excludes everything behind an occluder, so a wall shadow is an ABSENCE of light rather than a dark quad -- VectorLightPawnShadows is the only file in the subsystem that draws darkness. The claim under test is therefore that the shadowed void is no darker than the void would be anyway, and reading it beside the lit void is what separates 'the wall shadow landed on vacuum' from 'the veto took the light off all of the void'. Run with --install for the asset bundle; --mod-overlay swaps 1.6/Assemblies only. THREE ARMS, AND THE VANILLA ONE IS LOAD-BEARING rather than decorative. Comparing only veto-off against veto-on shows the shadowed void unchanged -- but that proves the VETO does not touch it, not that nothing is drawn there, because a drawn shadow quad would be equally untouched by a veto that masks the fan and the mask. Only an arm with vector_lights OFF entirely says whether \u00a727 is putting darkness on those cells at all. If vanilla, veto-off and veto-on agree at the shadowed void cells, no wall shadow is landing on vacuum; if \u00a727's arms are darker than vanilla's, one is. MEASURED 2026-09-21, three arms, pixel means over an 18x18 patch per cell. THE LIGHT HALF: on the lit void row \u00a727 adds +1.61, +1.78 and +0.69 at cells +8, +9 and +10, and the veto returns all three to vanilla EXACTLY -- residual 0.00 at every one, so it removes the leak without over-subtracting. THE WALL-SHADOW HALF: on the shadowed void row, vanilla, veto-off and veto-on agree to 0.00 at cells +8, +9 and +10. \u00a727 draws nothing whatever on shadowed void, which is the claim the code argues -- the fan is not drawn behind an occluder and no shadow quad exists to land there -- now measured against a vanilla arm rather than asserted. THE ONE-CELL EXCEPTION, and it is a real qualification of that claim rather than noise. At cell +7, the FIRST void cell, \u00a727 reads 3.07 darker than vanilla -- identically in both veto arms, so it is not the veto. The lighting overlay's vertices sit at cell CORNERS and are shared between adjacent cells, so darkening deck cell +6 necessarily darkens the half of void cell +7 that touches it. That is vanilla's mesh topology, not a choice of ours, and it is why a wall shadow bleeds exactly one cell of its darkness onto the void and no further. The lit row shows the same boundary effect from the other side: +7 reads -1.02 with the veto off and -2.24 with it on, the latter being the half-cell bilinear falloff of the alpha mask at the rim, which is the intended behaviour rather than a defect. Anything wanting that last cell clean would need a per-cell mask on the overlay mesh, which is a different subsystem from this veto.",
+  "saveFile": "minimal_colony.rws",
+  "hideUi": true,
+  "steps": [
+    {
+      "type": "LandInOrbit",
+      "args": {
+        "latitude": "45",
+        "mapSize": "150"
+      }
+    },
+    {
+      "type": "SetSeason",
+      "args": {
+        "dayOfYear": "40"
+      }
+    },
+    {
+      "type": "SetTerrain",
+      "args": {
+        "def": "OrbitalPlatform",
+        "width": "13",
+        "height": "9",
+        "offset": "0,0",
+        "clear": "true"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "AncientEmergencyLight_Blue",
+        "layout": "cells",
+        "offset": "0,0",
+        "cells": "3,0",
+        "clear": "true"
+      }
+    },
+    {
+      "type": "PlaceThings",
+      "args": {
+        "def": "Wall",
+        "stuff": "BlocksGranite",
+        "layout": "cells",
+        "offset": "0,0",
+        "cells": "5,0"
+      }
+    },
+    {
+      "type": "SetTime",
+      "args": {
+        "hour": "0"
+      }
+    },
+    {
+      "type": "LookAt",
+      "args": {
+        "offset": "4,0",
+        "zoom": "13"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_penumbra",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_suppress",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_blend",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_beam",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max_lift",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_mask_max_seed",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_shader_max_subtract",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_surface_lift",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_gap_parity",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_aperture_beam",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_bent_path",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_open_doors",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_glow_blocker",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_door_aperture",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_cover",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_sheet",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_presence",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_deck_varieties",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "cloud_volume",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "60"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "vlvw_warmup_discard"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_shader_max_available",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "vector_light_count",
+        "expectedValue": "1",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "60"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "vlvw_v_vanilla"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "void_open_lit",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "void_open_shadowed",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "deck_open_lit",
+        "expectedValue": "98",
+        "tolerance": "2"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_lights",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_void_veto",
+        "enabled": "false"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "60"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "vlvw_a_veto_off"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "void_open_lit",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "void_open_shadowed",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "deck_open_lit",
+        "expectedValue": "98",
+        "tolerance": "2"
+      }
+    },
+    {
+      "type": "SetFeature",
+      "args": {
+        "featureName": "vector_light_void_veto",
+        "enabled": "true"
+      }
+    },
+    {
+      "type": "Wait",
+      "args": {
+        "frames": "60"
+      }
+    },
+    {
+      "type": "Screenshot",
+      "args": {
+        "fileName": "vlvw_b_veto_on"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "void_open_lit",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "void_open_shadowed",
+        "expectedValue": "0",
+        "tolerance": "0"
+      }
+    },
+    {
+      "type": "Probe",
+      "args": {
+        "probeName": "deck_open_lit",
+        "expectedValue": "98",
+        "tolerance": "2"
+      }
+    }
+  ]
+}

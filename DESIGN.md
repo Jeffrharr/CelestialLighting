@@ -14648,6 +14648,33 @@ map, none with the feature off, and `VoidBoundaryDistance` returns `float.MaxVal
 so the clip is arithmetically the one that shipped before this existed. That is why the shadow half
 needed no flag of its own.
 
+**Does a WALL's lamp shadow land on the void? Measured, not argued — and the answer has a one-cell
+qualification.** `vector_light_void_wall_shadow.json` puts a lamp and a single wall cell on an OPEN
+deck, so one frame carries lit void and shadowed void side by side, and runs three arms: vanilla,
+veto off, veto on.
+
+On the shadowed void row, vanilla, veto-off and veto-on agree to **0.00** at cells +8, +9 and +10.
+§27 draws nothing whatever on shadowed void — the fan is not drawn behind an occluder and no shadow
+quad exists to land there, `VectorLightPawnShadows` being the only file in the subsystem that draws
+darkness. On the lit void row the same run measures the light half against the same control: §27 adds
++1.61, +1.78 and +0.69 at those cells and the veto returns all three to vanilla **exactly**, residual
+0.00, so it removes the leak without over-subtracting.
+
+**The exception is cell +7, the first void cell**, where §27 reads 3.07 darker than vanilla —
+identically in both veto arms, so not the veto. The lighting overlay's vertices sit at cell CORNERS
+and are shared between adjacent cells, so darkening deck cell +6 necessarily darkens the half of void
+cell +7 that touches it. That is vanilla's mesh topology rather than a choice of ours, and it is why
+a wall shadow bleeds exactly one cell onto the void and no further. The lit row shows the same
+boundary from the other side: +7 reads −1.02 with the veto off and −2.24 with it on, the latter being
+the half-cell bilinear falloff of the alpha mask at the rim, which is intended. Cleaning that last
+cell would need a per-cell mask on the overlay mesh, which is a different subsystem from this veto.
+
+**Note also that vanilla's artificial glow never reaches Space cells at all.** `void_open_lit` reads 0
+on an OPEN deck, with nothing between the lamp and the map edge — so every photon that was landing on
+the void came from the fan, and the mask half of the veto has nothing to do out there. That is worth
+knowing before writing a probe against it: `RenderedLightCellProbe` cannot see this feature on void
+cells in any arrangement, which is why both void scenarios carry their evidence in pixels.
+
 **Verified by probe, and deliberately NOT claimed as a visual improvement.**
 `vector_light_void_shadow.json` puts the caster one cell INBOARD of the rim, so part of its shadow
 lands on deck and part on void: `vector_light_pawn_shadow_reach` falls from **1.50** cells beyond the
