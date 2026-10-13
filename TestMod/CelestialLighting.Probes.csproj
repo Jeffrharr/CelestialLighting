@@ -1,12 +1,16 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net481</TargetFramework>
+    <!-- Both game versions, same arrangement as ../Source/CelestialLighting.csproj: net481 for 1.6,
+         net10.0 for 1.7 (Waylith). Each target references the matching build of the mod and the
+         harness through $(GameVersionDir), so a 1.7 bridge can never link a 1.6 mod DLL. -->
+    <TargetFrameworks>net481;net10.0</TargetFrameworks>
+    <RimWorldDir Condition="'$(RimWorldDir)' == ''">$(HOME)/.local/share/Steam/steamapps/common/RimWorld</RimWorldDir>
+    <HarmonyModDir Condition="'$(HarmonyModDir)' == ''">$(HOME)/.local/share/Steam/steamapps/workshop/content/294100/2009463077</HarmonyModDir>
     <AssemblyName>CelestialLighting.Probes</AssemblyName>
     <RootNamespace>CelestialLighting.Probes</RootNamespace>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
-    <OutputPath>1.6/Assemblies</OutputPath>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
 
     <!-- Where the harness's built assemblies live. The default resolves when this project is built
@@ -23,7 +27,26 @@
     <RimWorldTestHarnessDir Condition="'$(RimWorldTestHarnessDir)' == ''">../../RimWorldTestHarness</RimWorldTestHarnessDir>
   </PropertyGroup>
 
-  <ItemGroup>
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net481'">
+    <GameVersionDir>1.6</GameVersionDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0'">
+    <GameVersionDir>1.7</GameVersionDir>
+    <DefineConstants>$(DefineConstants);RIMWORLD_1_7</DefineConstants>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <GenerateDependencyFile>false</GenerateDependencyFile>
+  </PropertyGroup>
+  <PropertyGroup>
+    <OutputPath>$(GameVersionDir)/Assemblies</OutputPath>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+    <Reference Include="Assembly-CSharp" HintPath="$(RimWorldDir)/Assembly-CSharp.dll" Private="false" />
+    <Reference Include="UnityStubs" HintPath="$(RimWorldDir)/UnityStubs.dll" Private="false" />
+    <Reference Include="Waylith" HintPath="$(RimWorldDir)/Waylith.dll" Private="false" />
+    <Reference Include="0Harmony" HintPath="$(HarmonyModDir)/1.7/Assemblies/0Harmony.dll" Private="false" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net481'">
     <PackageReference Include="Krafs.Rimworld.Ref" Version="1.6.*" />
     <!-- Compile-time only, the same form and for the same reason as CelestialLighting.csproj's:
          0Harmony comes from the brrainz.harmony mod at runtime, and shipping a second copy in this
@@ -264,18 +287,18 @@
          goes one direction: this test mod depends on both of them). Build CelestialLighting and
          RimWorldTestHarness first (both build.sh scripts) before building this project. -->
     <Reference Include="CelestialLighting">
-      <HintPath>../1.6/Assemblies/CelestialLighting.dll</HintPath>
+      <HintPath>../$(GameVersionDir)/Assemblies/CelestialLighting.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="RimWorldTestHarness">
-      <HintPath>$(RimWorldTestHarnessDir)/1.6/Assemblies/RimWorldTestHarness.dll</HintPath>
+      <HintPath>$(RimWorldTestHarnessDir)/$(GameVersionDir)/Assemblies/RimWorldTestHarness.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <!-- The harness's game-type-free half, where the registries that must stay unit-testable live
          (WorldOverrideHookRegistry). A separate assembly rather than part of the one above, so
          referencing it explicitly is required even though both ship in the same Assemblies folder. -->
     <Reference Include="RimWorldTestHarness.Shared">
-      <HintPath>$(RimWorldTestHarnessDir)/1.6/Assemblies/RimWorldTestHarness.Shared.dll</HintPath>
+      <HintPath>$(RimWorldTestHarnessDir)/$(GameVersionDir)/Assemblies/RimWorldTestHarness.Shared.dll</HintPath>
       <Private>false</Private>
     </Reference>
   </ItemGroup>
