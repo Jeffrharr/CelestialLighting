@@ -4,6 +4,7 @@ Source/obj/
 Tests/**/obj/
 Tests/**/bin/
 TestMod/1.6/Assemblies/
+TestMod/1.7/Assemblies/
 TestMod/obj/
 TestMod/bin/
 .tokensave/
