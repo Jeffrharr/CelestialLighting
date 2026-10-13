@@ -59,8 +59,37 @@ public static class CloudVolumeShader
 
     // A zero slice above and below the deck, so the hardware's clamped sampling FADES out of the
     // volume the way CloudRaymarchMath.Sample does instead of smearing the outermost slice outward
-    // forever. Two slices of 384x384 is 288 KB to avoid a branch in the hottest loop in the mod.
+    // forever. Two slices of 384x384 is 288 KB (four times that on 1.7, see VolumeFormat) to avoid a
+    // branch in the hottest loop in the mod.
     private const int PadSlices = 2;
+
+    // THE VOLUME'S TEXEL FORMAT, AND WHY 1.7 PAYS FOUR BYTES FOR ONE. The march reads density from
+    // the ALPHA channel (`tex3Dlod(_Volume, ...).a` in CelestialCloudVolume.shader), and Alpha8 is the
+    // format that puts one byte there. On 1.6 that is what Unity does.
+    //
+    // RimWorld 1.7's Waylith engine creates an Alpha8 Texture3D as Vulkan R8_UNORM with an identity
+    // swizzle (TexturePixelData.ToVkFormat, GpuTextureService.CreateTexture3D), and a view with no
+    // alpha component reads alpha as 1.0. So on 1.7 an Alpha8 volume makes every texel fully dense and
+    // the march draws each sheet as a solid rectangle — the shader loads, every probe of "is it
+    // drawing" reads yes, and the frame is wrong. RGBA32 has a real alpha channel, so the same shader
+    // reads the same density. The density byte goes in alpha and the colour bytes stay zero, unread.
+    //
+    // Not R8 with the shader reading `.r`: the shader source is shared with 1.6, where Alpha8 reads 0
+    // in `.r` on every API, and no channel arithmetic can serve both — a 1.6 texel at density 1 and a
+    // 1.7 R8 texel at density 0 sample to the identical (0,0,0,1). The cost is ~10 MB more VRAM on 1.7
+    // (384x384x22 texels at 4 bytes rather than 1); revisit if Ludeon gives Alpha8 its alpha swizzle.
+    //
+    // Alpha is the LAST byte of an RGBA32 texel and the ONLY byte of an Alpha8 one, so
+    // `index * VolumeBytesPerTexel + VolumeBytesPerTexel - 1` addresses the density byte in both.
+#if RIMWORLD_1_7
+    private const TextureFormat VolumeFormat = TextureFormat.RGBA32;
+
+    private const int VolumeBytesPerTexel = 4;
+#else
+    private const TextureFormat VolumeFormat = TextureFormat.Alpha8;
+
+    private const int VolumeBytesPerTexel = 1;
+#endif
 
     // Property ids, resolved once. Material.SetX(string) hashes the name on every call, and this is
     // eight setters per sheet per frame.
@@ -184,14 +213,14 @@ public static class CloudVolumeShader
     // whole claim of §25e is that this number is what is left of the other one.
     public static double UploadMilliseconds { get; private set; }
 
-    // Whether this machine takes the one-byte volume format, reported by a probe.
+    // Whether this machine takes the volume's texel format (VolumeFormat above), reported by a probe.
     //
     // Here because a texture format that the driver declines is the OTHER way a march reads a
     // density of 1 everywhere and draws solid rectangles, and the two causes are indistinguishable
     // on screen. Turning it into a number a scenario can read costs nothing and saves a whole live
     // run of guessing next time this goes wrong.
     public static bool VolumeFormatSupported =>
-        SystemInfo.SupportsTextureFormat(TextureFormat.Alpha8);
+        SystemInfo.SupportsTextureFormat(VolumeFormat);
 
     // Whether this path can be used at all. Checked by the overlay ahead of the feature flag, so a
     // player who turns the feature on with no usable shader gets the baked cloud rather than nothing.
@@ -455,7 +484,7 @@ public static class CloudVolumeShader
         // to: the write target is `(layer + 1) * size * size + y * size + x`, so two threads on two
         // layers are as disjoint as two threads on two bands were above.
         int padded = layers + PadSlices;
-        byte[] pixels = new byte[size * size * padded];
+        byte[] pixels = new byte[size * size * padded * VolumeBytesPerTexel];
 
         CloudBake.Rows(layers, (first, last) =>
         {
@@ -466,7 +495,8 @@ public static class CloudVolumeShader
                 {
                     int row = slice + y * size;
                     for (int x = 0; x < size; x++)
-                        pixels[row + x] = density[CloudVolumeMath.VolumeIndex(x, y, layer, size, layers)];
+                        pixels[(row + x) * VolumeBytesPerTexel + VolumeBytesPerTexel - 1] =
+                            density[CloudVolumeMath.VolumeIndex(x, y, layer, size, layers)];
                 }
             }
         });
@@ -503,7 +533,7 @@ public static class CloudVolumeShader
         int size = CloudSheetOverlay.AtlasSize;
         int padded = CloudVolumeMath.VolumeLayers + PadSlices;
 
-        Texture3D texture = new Texture3D(size, size, padded, TextureFormat.Alpha8, mipChain: false)
+        Texture3D texture = new Texture3D(size, size, padded, VolumeFormat, mipChain: false)
         {
             name = "CelestialLighting_CloudVolume",
             wrapMode = TextureWrapMode.Clamp,
