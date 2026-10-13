@@ -1,13 +1,28 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <!-- ONE PROJECT, TWO GAME VERSIONS. RimWorld 1.6 is Unity on Mono and loads net481 assemblies;
+       RimWorld 1.7 is Ludeon's Waylith engine on a .NET 10 runtime, its Assembly-CSharp is a
+       .NETCoreApp assembly and the 1.7 build of brrainz.harmony targets net10.0. The same Source/
+       compiles for both, so a fix lands in both versions or neither — two projects (or two
+       branches) would let them drift, and the failure mode of drift is a subscriber on one version
+       quietly running last month's lighting. Version-specific code goes behind #if RIMWORLD_1_7.
+
+       Build with the .NET 10 SDK (~/.dotnet10, see build.sh): SDK 8 cannot target net10.0, and SDK
+       10 still builds net481 against the Mono reference assemblies via FrameworkPathOverride. -->
   <PropertyGroup>
-    <TargetFramework>net481</TargetFramework>
+    <TargetFrameworks>net481;net10.0</TargetFrameworks>
     <AssemblyName>CelestialLighting</AssemblyName>
     <LangVersion>latest</LangVersion>
     <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
-    <OutputPath>../1.6/Assemblies</OutputPath>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <!-- Overridable so another machine can point at its own install without editing this file. -->
+    <RimWorldDir Condition="'$(RimWorldDir)' == ''">$(HOME)/.local/share/Steam/steamapps/common/RimWorld</RimWorldDir>
+    <HarmonyModDir Condition="'$(HarmonyModDir)' == ''">$(HOME)/.local/share/Steam/steamapps/workshop/content/294100/2009463077</HarmonyModDir>
   </PropertyGroup>
-  <ItemGroup>
+
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net481'">
+    <OutputPath>../1.6/Assemblies</OutputPath>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net481'">
     <PackageReference Include="Krafs.Rimworld.Ref" Version="1.6.*" />
     <!-- Compile-time only: we depend on the standalone brrainz.harmony Workshop mod (declared as a
          hard <modDependencies> requirement in About.xml) providing 0Harmony.dll at runtime instead
@@ -23,6 +38,28 @@
          symptom, not a version mismatch. -->
     <PackageReference Include="Lib.Harmony" Version="2.3.*" ExcludeAssets="runtime" PrivateAssets="all" />
   </ItemGroup>
+
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0'">
+    <OutputPath>../1.7/Assemblies</OutputPath>
+    <DefineConstants>$(DefineConstants);RIMWORLD_1_7</DefineConstants>
+    <!-- The game's own assemblies are not trimmed or AOT'd; nothing here needs the analyzers that
+         assume a self-contained app, and nullable stays off to match the net481 build. -->
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <!-- RimWorld loads Assemblies/*.dll itself and never reads a deps.json; shipping one is noise. -->
+    <GenerateDependencyFile>false</GenerateDependencyFile>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+    <!-- No Krafs package exists for 1.7, so reference the installed game directly. UnityStubs is
+         where 1.7 keeps the UnityEngine namespace (runtimeconfig redirects UnityEngine* to it), so
+         our `using UnityEngine;` resolves against it unchanged. Private=false: these all ship with
+         the game or with brrainz.harmony and must never be copied into 1.7/Assemblies. -->
+    <Reference Include="Assembly-CSharp" HintPath="$(RimWorldDir)/Assembly-CSharp.dll" Private="false" />
+    <Reference Include="UnityStubs" HintPath="$(RimWorldDir)/UnityStubs.dll" Private="false" />
+    <Reference Include="Waylith" HintPath="$(RimWorldDir)/Waylith.dll" Private="false" />
+    <Reference Include="0Harmony" HintPath="$(HarmonyModDir)/1.7/Assemblies/0Harmony.dll" Private="false" />
+  </ItemGroup>
+
   <ItemGroup>
     <!-- Probes/ implements RimWorldTestHarness.Mod.Probes.IProbe for the dev-only live test
          harness. The shipped mod DLL must never reference that harness, so this file is compiled

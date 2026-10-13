@@ -53,6 +53,18 @@ public static class VectorLightShader
 
     private static readonly int DstBlendId = Shader.PropertyToID("_DstBlend");
 
+    // UnityEngine.Rendering.BlendMode's values, spelled out because RimWorld 1.7's UnityStubs has no
+    // BlendMode enum. The numbers are what the shader's Blend [_SrcBlend] [_DstBlend] reads on 1.6 and
+    // what Waylith's bundle reader maps on 1.7, so they are the contract rather than the enum is.
+    //
+    // ON 1.7 THESE WRITES DO NOTHING: Waylith bakes the blend from the property's shader default when
+    // it builds the pipeline and never reads it from the material again, so every VectorLightMax
+    // material blends One One there. Harmless while surface lift and indoor multiply ship off; issue
+    // #257 replaces the runtime switch with one shader per blend state.
+    private const float BlendOne = 1f;
+
+    private const float BlendDstColor = 2f;
+
     private static readonly int SkyAmbientId = Shader.PropertyToID("_SkyAmbient");
 
     // The batched variant's three inputs: the slice stack of every emitter's square, and the two
@@ -158,8 +170,8 @@ public static class VectorLightShader
         // DstColor/One makes it dst * (1 + output), so the beam scales the surface it lands on and
         // carries that surface's own texture into the lit region. See the surface lift in DESIGN.md for
         // why a lamp beam wants the second and §11a's aurora wants the first.
-        material.SetFloat(SrcBlendId, (float)(surfaceLift ? BlendMode.DstColor : BlendMode.One));
-        material.SetFloat(DstBlendId, (float)BlendMode.One);
+        material.SetFloat(SrcBlendId, surfaceLift ? BlendDstColor : BlendOne);
+        material.SetFloat(DstBlendId, BlendOne);
 
         // COPY MoteGlow'S RENDER QUEUE RATHER THAN DECLARING ONE, and this is the single most
         // expensive thing learned building this feature. An additive pass is order-independent only
