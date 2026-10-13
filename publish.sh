@@ -11,9 +11,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-APPID=294100
 DIST=dist/CelestialLighting
-VDF=dist/workshop.vdf
 
 # The parts of the mod that have to be named one by one, because nothing about their path marks
 # them as shippable. Loadable *content* is not listed here — see CONTENT_DIRS below, which picks it
@@ -70,13 +68,13 @@ usage() {
 Usage: ./publish.sh [options]
 
   (no options)      Build and stage into dist/ only. Uploads nothing.
-  --steam           Push dist/ to the Steam Workshop item in About/PublishedFileId.txt.
-                    Requires STEAM_USER; run `steamcmd +login "$STEAM_USER"` by hand once first so
-                    Steam Guard caches credentials, otherwise this hangs on a prompt.
+  --steam           Push dist/ to the Steam Workshop item in About/PublishedFileId.txt and set
+                    its tags to Mod plus every version About.xml declares. Goes through the
+                    running Steam client, which must be signed in to the account owning the item.
   --github <tag>    Zip dist/ and attach it to a GitHub release for <tag> (e.g. v1.2.0).
   --note <text>     Steam change note. Defaults to the current commit subject.
   --no-build        Stage the existing 1.6/Assemblies/CelestialLighting.dll instead of rebuilding.
-  --dry-run         Do all the staging and write dist/workshop.vdf, but print the upload commands
+  --dry-run         Do all the staging and show the live item's tags, but print the uploads
                     instead of running them. Both uploads are hard to walk back, so this is the
                     intended way to inspect exactly what would ship.
   -h, --help        This.
@@ -214,46 +212,40 @@ echo "publish: staged $(find "$DIST" -type f | wc -l) files, $(du -sh "$DIST" | 
 # --- steam ---------------------------------------------------------------------------------------
 
 push_steam() {
-  local id note user
+  local id note tool
+  local -a tags
   id=$(tr -d '[:space:]' < About/PublishedFileId.txt)
   [ -n "$id" ] || fail "About/PublishedFileId.txt is empty — publish once in-game to mint an item id"
 
-  # Only the real push needs the account name. A dry-run that demanded it would make the one safe way
-  # to inspect a push harder to reach than the push itself, so the placeholder stands in and the
-  # printed command shows the substitution rather than pretending a name was supplied.
-  user="${STEAM_USER:-}"
-  if [ -z "$user" ]; then
-    [ "$DRYRUN" -eq 1 ] || fail "set STEAM_USER to your Steam account name"
-    user='$STEAM_USER'
-  fi
-
   note="${NOTE:-$(git log -1 --pretty=%s)}"
 
-  # Only contentfolder and previewfile are set. SteamUGC applies exactly the fields set on an update
-  # handle, so title, description and the "1.6" version tags RimWorld's own uploader wrote are left
-  # untouched by this push. The flip side: nothing here ever *writes* tags, so when a new RimWorld
-  # version ships, the version tag needs one in-game upload or a manual edit on the Workshop page.
-  # Escape any quote in the note rather than let it terminate the VDF string early.
-  cat > "$VDF" <<EOF
-"workshopitem"
-{
-	"appid" "$APPID"
-	"publishedfileid" "$id"
-	"contentfolder" "$PWD/$DIST"
-	"previewfile" "$PWD/$DIST/About/Preview.png"
-	"changenote" "$(printf '%s' "$note" | sed 's/"/\\"/g')"
-}
-EOF
+  # The full tag set, because SetItemTags replaces rather than adds: vanilla's "Mod" (what
+  # ModMetaData.GetWorkshopTags returns for a non-translation mod) plus one tag per declared game
+  # version, exactly as RimWorld's in-game uploader builds it. check_versions has already proved the
+  # declared versions match the assembly directories, so these are the versions that actually ship.
+  # Without the version tags, players filtering the Workshop by game version never see the mod.
+  mapfile -t tags < <(echo Mod; grep -oP '(?<=<li>)[0-9]+\.[0-9]+(?=</li>)' About/About.xml | sort -u)
+
+  # steamcmd used to do this push, but its workshop_build_item VDF cannot set tags, so a release
+  # adding a game version uploaded fine and stayed untagged. Tools/WorkshopUpload makes the same
+  # Steamworks calls the in-game uploader does, through the logged-in Steam client. Title and
+  # description are deliberately not set; the Workshop page owns those.
+  echo "publish: building the Workshop uploader"
+  /home/deck/.dotnet10/dotnet build Tools/WorkshopUpload -c Release >/dev/null \
+    || fail "Tools/WorkshopUpload failed to build"
+  tool=(/home/deck/.dotnet10/dotnet Tools/WorkshopUpload/bin/Release/net10.0/WorkshopUpload.dll)
 
   if [ "$DRYRUN" -eq 1 ]; then
-    echo "publish: [dry-run] wrote $VDF:"
-    sed 's/^/  /' "$VDF"
-    echo "publish: [dry-run] would run: steamcmd +login \"$user\" +workshop_build_item $PWD/$VDF +quit"
+    # Reads the live item without changing it, so the dry run shows the tag change a push would make
+    # rather than only the tags it would send.
+    echo "publish: [dry-run] item $id tags now: $("${tool[@]}" --show "$id" 2>/dev/null | tail -1)"
+    echo "publish: [dry-run] would set tags: ${tags[*]}"
+    echo "publish: [dry-run] would upload $PWD/$DIST with change note: $note"
     return 0
   fi
 
-  echo "publish: pushing item $id to Steam as $user"
-  steamcmd +login "$user" +workshop_build_item "$PWD/$VDF" +quit
+  echo "publish: pushing item $id to Steam"
+  "${tool[@]}" "$id" "$PWD/$DIST" "$PWD/$DIST/About/Preview.png" "$note" "${tags[@]}"
 }
 
 # --- github --------------------------------------------------------------------------------------

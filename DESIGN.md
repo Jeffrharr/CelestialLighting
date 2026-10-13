@@ -14873,9 +14873,9 @@ about their path marks them as shippable. Loadable *content* is discovered inste
 file under a `Defs`/`Textures`/`Sounds`/`Patches`/`Languages`/`Sprites`/`AssetBundles` directory,
 at the repo root or under a version directory, ships automatically. `LICENSE` is there for MIT's one
 obligation: the notice has to accompany copies, and a subscriber's mod folder is their copy —
-About.xml naming MIT is discoverability, not the notice. Steam gets it via a generated
-`workshop.vdf` fed to `steamcmd +workshop_build_item`; GitHub gets the same tree zipped and
-attached to a release by `gh release create`.
+About.xml naming MIT is discoverability, not the notice. Steam gets it through
+`Tools/WorkshopUpload`, which makes the in-game uploader's Steamworks calls against the staged tree;
+GitHub gets the same tree zipped and attached to a release by `gh release create`.
 
 Content is discovered rather than listed because the listed version shipped v1.0.0 broken. A guard
 was supposed to catch a forgotten manifest entry, but it tested `[ -d Defs ]` at the repo root while
@@ -14888,16 +14888,17 @@ only job is to be loaded.
 
 Two properties of that split are worth stating, because both are easy to get wrong later:
 
-- **The Workshop page survives a push untouched.** `SubmitItemUpdate` applies exactly the fields
-  that were `Set` on the update handle, and the VDF sets only `contentfolder` and `previewfile`.
-  Title, description and the `1.6` version tags that RimWorld's own uploader wrote are therefore
-  preserved. The corollary is that this path can never *add* a version tag: when 1.7 support lands,
-  the new tag needs one in-game upload or a manual edit on the Workshop page, or subscribers
-  filtering by version will not see the mod.
-- **Steam pushes stay local, GitHub releases could be automated.** The first `steamcmd +login` is
-  interactive because of Steam Guard; afterwards credentials cache and the script runs unattended.
-  Automating the Steam half from CI would mean committing a `config.vdf` session to a repo secret,
-  which trades a real credential for very little — so `--steam` is a local operation by design.
+- **A push owns content, preview and tags, and nothing else.** `SubmitItemUpdate` applies exactly
+  the fields that were `Set` on the update handle. Title and description are never set, so the
+  Workshop page's hand-edited text survives every push. Tags *are* set, to `Mod` plus every version
+  `About.xml` declares, because `SetItemTags` replaces the whole set and the version tags are how
+  players filtering by game version find the mod. This is why the push moved off `steamcmd`: its
+  `workshop_build_item` VDF has no way to set tags (a `tags` block is silently ignored), so the 1.7
+  release would have uploaded fine and stayed listed under 1.6 only.
+- **Steam pushes stay local, GitHub releases could be automated.** The uploader runs as app 294100
+  through the signed-in Steam client, so it needs no password or Steam Guard prompt, but it also
+  needs that client. Automating the Steam half from CI would mean a logged-in Steam session there,
+  which trades a real credential for very little, so `--steam` is a local operation by design.
 
 Four guards, all covering failures that are silent at upload time:
 
