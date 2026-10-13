@@ -1,6 +1,7 @@
 using System.IO;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 // Builds the mod's shader AssetBundle, once per platform. Run headless by Tools/ShaderBundle/build.sh;
 // there is no reason to open this project in the editor.
@@ -47,17 +48,58 @@ public static class BuildShaderBundles
         BuildOne(BuildTarget.StandaloneLinux64, "linux");
         BuildOne(BuildTarget.StandaloneWindows64, "win");
         BuildOne(BuildTarget.StandaloneOSX, "mac");
+        BuildVulkan();
+    }
+
+    // RIMWORLD 1.7'S BUNDLE: ONE VULKAN-ONLY BUILD, SHIPPED UNDER ALL THREE OS NAMES. 1.7 runs on
+    // Ludeon's Waylith engine, which renders through Vulkan on every OS and turns a bundle shader into
+    // a native pipeline by reading its SPIR-V program — it never translates D3D11 or Metal. So the
+    // _win and _mac bundles above carry nothing 1.7 can run. Waylith would quietly fall back to a
+    // _linux bundle sitting beside them, but that fallback is undocumented engine behaviour, and when
+    // it misses the shader draws with the engine default and logs only a warning. Shipping the Vulkan
+    // program under every name the OS-suffix loader asks for does not depend on it.
+    //
+    // Built for StandaloneLinux64 because that is the target whose player can select Vulkan, with the
+    // API list forced to Vulkan alone: the default list also compiles glcore, which Waylith ignores
+    // and which would only be dead weight in the bundle. Still built in 2022.3.35f1 like 1.6's,
+    // because Waylith's bundle reader exists to keep reading the bundles 1.6 mods already ship.
+    //
+    // The project's own API setting is restored afterwards so this build never leaks Vulkan-only into
+    // the 1.6 Linux bundle or into ProjectSettings.asset.
+    public static void BuildVulkan()
+    {
+        const BuildTarget target = BuildTarget.StandaloneLinux64;
+        bool usedDefault = PlayerSettings.GetUseDefaultGraphicsAPIs(target);
+        GraphicsDeviceType[] previous = PlayerSettings.GetGraphicsAPIs(target);
+        try
+        {
+            PlayerSettings.SetUseDefaultGraphicsAPIs(target, false);
+            PlayerSettings.SetGraphicsAPIs(target, new[] { GraphicsDeviceType.Vulkan });
+            // The bundle's own name carries _linux so its internal name matches the file build.sh
+            // copies it to first; the _win/_mac copies are byte-identical.
+            BuildOne(target, "vulkan", BundleName + "_linux");
+        }
+        finally
+        {
+            PlayerSettings.SetGraphicsAPIs(target, previous);
+            PlayerSettings.SetUseDefaultGraphicsAPIs(target, usedDefault);
+        }
     }
 
     private static void BuildOne(BuildTarget target, string suffix)
     {
+        BuildOne(target, suffix, BundleName + "_" + suffix);
+    }
+
+    private static void BuildOne(BuildTarget target, string folder, string bundleName)
+    {
         string output = Path.GetFullPath(
-            Path.Combine(Application.dataPath, "../../Build/" + suffix));
+            Path.Combine(Application.dataPath, "../../Build/" + folder));
         Directory.CreateDirectory(output);
 
         AssetBundleBuild build = new AssetBundleBuild
         {
-            assetBundleName = BundleName + "_" + suffix,
+            assetBundleName = bundleName,
             assetNames = ShaderPaths,
         };
 

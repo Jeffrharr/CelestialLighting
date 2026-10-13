@@ -50,7 +50,12 @@ fi
 log="$here/build.log"
 rm -f "$log"
 
-echo "Building shader bundles for linux, win and mac (about a minute cold)..."
+# Cleared first so the existence checks below can only pass on THIS run's output. A bundle left over
+# from an earlier build satisfies `-f` just as well, and installing it is the silent-stale failure
+# the licence note above describes.
+rm -rf "$here/Build"
+
+echo "Building shader bundles for linux, win, mac and the 1.7 Vulkan bundle (about a minute cold)..."
 "$unity" -batchmode -nographics -quit \
   -projectPath "$here/Project" \
   -executeMethod BuildShaderBundles.Build \
@@ -68,4 +73,18 @@ for suffix in linux win mac; do
   fi
   cp "$built" "$repo/1.6/AssetBundles/celestiallighting_shaders_$suffix"
   echo "Installed $(du -h "$repo/1.6/AssetBundles/celestiallighting_shaders_$suffix" | cut -f1) -> 1.6/AssetBundles/celestiallighting_shaders_$suffix"
+done
+
+# RimWorld 1.7: one Vulkan-only bundle, installed under every OS suffix because 1.7's loader still
+# picks a bundle by _linux/_win/_mac while its renderer is Vulkan everywhere. See BuildVulkan in
+# BuildShaderBundles.cs for why copies rather than relying on Waylith's _linux sibling fallback.
+vulkan="$here/Build/vulkan/celestiallighting_shaders_linux"
+if [[ ! -f "$vulkan" ]]; then
+  echo "Unity exited cleanly but produced no Vulkan bundle; see $log" >&2
+  exit 1
+fi
+mkdir -p "$repo/1.7/AssetBundles"
+for suffix in linux win mac; do
+  cp "$vulkan" "$repo/1.7/AssetBundles/celestiallighting_shaders_$suffix"
+  echo "Installed $(du -h "$vulkan" | cut -f1) -> 1.7/AssetBundles/celestiallighting_shaders_$suffix"
 done
