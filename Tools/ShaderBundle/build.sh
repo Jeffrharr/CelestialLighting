@@ -83,6 +83,18 @@ if [[ ! -f "$vulkan" ]]; then
   echo "Unity exited cleanly but produced no Vulkan bundle; see $log" >&2
   exit 1
 fi
+# THE 1.7 GATE. Runs the installed engine's own bundle loader over the Vulkan bundle and refuses to
+# install it if any shader would be rejected or drawn from the wrong variant (see
+# WaylithCheck/Program.cs). Before the install, not after: a bundle 1.7 refuses must never reach
+# 1.7/AssetBundles, because in the game a refusal is one warning and a silent CPU fallback.
+echo "Checking the Vulkan bundle against the installed RimWorld 1.7 loader..."
+dotnet10=/home/deck/.dotnet10/dotnet
+"$dotnet10" build -c Release -v q "$here/WaylithCheck" >/dev/null
+if ! "$dotnet10" "$here/WaylithCheck/bin/Release/net10.0/WaylithCheck.dll" "$vulkan"; then
+  echo "WaylithCheck refused the Vulkan bundle; 1.7/AssetBundles left untouched." >&2
+  exit 1
+fi
+
 mkdir -p "$repo/1.7/AssetBundles"
 for suffix in linux win mac; do
   cp "$vulkan" "$repo/1.7/AssetBundles/celestiallighting_shaders_$suffix"

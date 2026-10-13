@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Runs RimWorld 1.7's OWN bundle-shader loader over a built bundle, offline, and fails if it would
+       reject anything. build.sh calls it after every Unity build. See Program.cs for why the game's
+       code rather than a reimplementation of its rules.
+
+       net10.0 because that is what UnityStubs/Waylith are built for. The game assemblies are
+       referenced for compilation only (Private=false) and resolved from the install at run time, so
+       the check always runs against the engine the player actually has, never a copy taken once. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>CelestialLighting.Tools</RootNamespace>
+    <AssemblyName>WaylithCheck</AssemblyName>
+    <RimWorldDir Condition="'$(RimWorldDir)' == ''">$(HOME)/.local/share/Steam/steamapps/common/RimWorld</RimWorldDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="AssetsTools.NET" HintPath="$(RimWorldDir)/AssetsTools.NET.dll" Private="false" />
+    <Reference Include="UnityStubs" HintPath="$(RimWorldDir)/UnityStubs.dll" Private="false" />
+  </ItemGroup>
+
+</Project>
