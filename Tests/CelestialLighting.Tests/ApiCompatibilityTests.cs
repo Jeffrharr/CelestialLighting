@@ -10,11 +10,21 @@ namespace CelestialLighting.Tests;
 [Category("RequiresGameDll")]
 public class ApiCompatibilityTests
 {
-    private const string FallbackDllPath =
-        "/home/deck/.local/share/Steam/steamapps/common/RimWorld/RimWorldLinux_Data/Managed/Assembly-CSharp.dll";
+    private const string GameDir = "/home/deck/.local/share/Steam/steamapps/common/RimWorld";
+
+    // 1.7 (Waylith) ships Assembly-CSharp in the game root; 1.6 (Unity) kept it under
+    // RimWorldLinux_Data/Managed. Try both, newest first: when 1.7 moved the file, a single hard-coded
+    // 1.6 path turned this whole fixture into silent skips that still reported the suite green.
+    private static readonly string[] FallbackDllPaths =
+    {
+        GameDir + "/Assembly-CSharp.dll",
+        GameDir + "/RimWorldLinux_Data/Managed/Assembly-CSharp.dll",
+    };
 
     private static string DllPath =>
-        Environment.GetEnvironmentVariable("RIMWORLD_ASSEMBLY") ?? FallbackDllPath;
+        Environment.GetEnvironmentVariable("RIMWORLD_ASSEMBLY")
+        ?? FallbackDllPaths.FirstOrDefault(File.Exists)
+        ?? FallbackDllPaths[0];
 
     private ModuleDefinition _module = null!;
 
