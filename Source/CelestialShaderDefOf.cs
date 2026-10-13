@@ -4,7 +4,7 @@ using Verse;
 namespace CelestialLighting;
 
 // The mod's three ShaderTypeDefs, bound by name so the shader classes never carry a literal path.
-// 1.6/Defs/ShaderTypeDefs/ShaderTypes.xml is the other half and records why the defs exist at all.
+// Common/Defs/ShaderTypeDefs/ShaderTypes.xml is the other half and records why the defs exist at all.
 //
 // THE STATIC CONSTRUCTOR IS NOT BOILERPLATE. DefOfHelper.EnsureInitializedInCtor logs a warning if
 // anything reads these fields before DefOfHelper.RebindAllDefOfs has run, which is the only way to

@@ -54,7 +54,7 @@ internal static class ShaderLoader
         {
             Log.Error(
                 "[CelestialLighting] ShaderTypeDef for '" + fallbackPath + "' is not in the def "
-                + "database, so 1.6/Defs/ShaderTypeDefs/ShaderTypes.xml is missing from this install "
+                + "database, so Common/Defs/ShaderTypeDefs/ShaderTypes.xml is missing from this install "
                 + "(or the assemblies are newer than the content tree, which is normal under "
                 + "--mod-overlay). Falling back to the literal bundle path for " + subsystem + ".");
         }
