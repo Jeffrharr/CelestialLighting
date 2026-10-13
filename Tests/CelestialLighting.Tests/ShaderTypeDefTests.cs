@@ -155,7 +155,7 @@ public sealed class ShaderTypeDefTests
     private static XDocument DefsXml() => XDocument.Load(DefsPath);
 
     private static string DefsPath => Path.Combine(
-        RepoRoot, "1.6", "Defs", "ShaderTypeDefs", "ShaderTypes.xml");
+        RepoRoot, "Common", "Defs", "ShaderTypeDefs", "ShaderTypes.xml");
 
     // Resolved from this file's own compile-time path rather than the test binary's working
     // directory, which moves with the target framework and the runner (same trick as

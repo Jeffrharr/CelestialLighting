@@ -39,7 +39,7 @@ public static class AuroraShader
     // as Assets/Data/<packageId>/Materials/<this>.shader.
     //
     // THIS IS NOW THE FALLBACK, NOT THE ROUTE. CL_Aurora in
-    // 1.6/Defs/ShaderTypeDefs/ShaderTypes.xml carries the same string and is what we normally load
+    // Common/Defs/ShaderTypeDefs/ShaderTypes.xml carries the same string and is what we normally load
     // through; this const is what ShaderLoader uses when that def is not in the database, and it is
     // still what the log messages below quote because the path is what a player can check against
     // the bundle. The duplication is deliberate and it is TESTED — ShaderTypeDefTests asserts the

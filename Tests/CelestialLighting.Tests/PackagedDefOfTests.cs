@@ -13,7 +13,7 @@ namespace CelestialLighting.Tests;
 /// <para>
 /// This exists because v1.0.0 shipped to the Workshop broken in exactly that way. The assembly
 /// carried <c>CelestialLightingDefOf.CL_SunShadowAxis</c>, the def that satisfied it lived in
-/// <c>1.6/Defs/MapMeshFlagDefs/</c>, and the staging script's guard for "did we forget to ship
+/// <c>Common/Defs/MapMeshFlagDefs/</c>, and the staging script's guard for "did we forget to ship
 /// content" passed vacuously — so subscribers got <c>Failed to find RimWorld.MapMeshFlagDef named
 /// CL_SunShadowAxis. There are 15 defs of this type loaded.</c> and a silently null DefOf.
 /// </para>
@@ -52,7 +52,7 @@ public class PackagedDefOfTests
 
     /// <summary>
     /// The mod tree under test: the staged package when <c>publish.sh</c> sets CL_PACKAGE_ROOT,
-    /// otherwise this repo. Both have the same shape — <c>1.6/Assemblies/</c> beside <c>1.6/Defs/</c>
+    /// otherwise this repo. Both have the same shape — <c>1.6/Assemblies/</c> beside <c>Common/Defs/</c>
     /// — so one code path checks either.
     /// </summary>
     private static string PackageRoot =>
