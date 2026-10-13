@@ -75,12 +75,14 @@ public static class BuildShaderBundles
         {
             PlayerSettings.SetUseDefaultGraphicsAPIs(target, false);
             PlayerSettings.SetGraphicsAPIs(target, new[] { GraphicsDeviceType.Vulkan });
+            WaylithDecoyVariant.KeepForThisBuild = true;
             // The bundle's own name carries _linux so its internal name matches the file build.sh
             // copies it to first; the _win/_mac copies are byte-identical.
             BuildOne(target, "vulkan", BundleName + "_linux");
         }
         finally
         {
+            WaylithDecoyVariant.KeepForThisBuild = false;
             PlayerSettings.SetGraphicsAPIs(target, previous);
             PlayerSettings.SetUseDefaultGraphicsAPIs(target, usedDefault);
         }

@@ -83,6 +83,11 @@ Shader "CelestialLighting/Aurora"
             // Shader.isSupported and AuroraShader stands the whole path down to the CPU bake, which
             // is a defined arm rather than an unknown one.
             #pragma target 3.5
+            // RimWorld 1.7 decoy variant: never enabled, never drawn, stripped from every 1.6 build.
+            // It exists so Unity has a second variant to compare against and stops hoisting this
+            // shader's parameters into a block 1.7's loader cannot read. Why, and the build gate that
+            // proves it worked: WaylithDecoyVariant in Editor/BuildShaderBundles.cs.
+            #pragma multi_compile_local _ CL_WAYLITH_DECOY
 
             #include "UnityCG.cginc"
 
@@ -496,6 +501,12 @@ Shader "CelestialLighting/Aurora"
 
             float4 frag(v2f i) : SV_Target
             {
+                // The decoy variant touches nothing, which is what keeps every parameter the real
+                // variant uses out of the shared block. See the pragma above.
+                #ifdef CL_WAYLITH_DECOY
+                return 0;
+                #endif
+
                 // _Color.rgb is white on every draw this mod issues; it is honoured anyway so the
                 // material behaves like the MoteGlow material it replaces. _Color.a carries the
                 // display's own brightness — night visibility, the condition's ramp, the display's
