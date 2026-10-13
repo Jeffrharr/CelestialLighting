@@ -40,6 +40,20 @@ public static class VectorLightShader
     // because nothing at runtime notices if they drift, they just silently fall back to the crossfade.
     public const string ShaderPath = "VectorLightMax";
 
+    // The name the shader file declares, checked against whatever LoadShader hands back. NOT just a
+    // DefaultShader test any more: on RimWorld 1.7 a path that resolves to nothing comes back as a
+    // late-bound ENGINE shader named after the path (ShaderDatabase.TryLoadShader ->
+    // Shader.CreateLateBound), which is supported, is not DefaultShader, and would have passed
+    // Validate and drawn vector light through something else entirely. The cloud volume and aurora
+    // adapters already compare names for the same reason.
+    public const string ShaderName = "CelestialLighting/VectorLightMax";
+
+    // The surface lift's own shader: the same program, compiled with Blend DstColor One fixed (see
+    // VectorLightMax.cginc's header). Path and name as above, and tested the same way.
+    public const string LiftShaderPath = "VectorLightMaxLift";
+
+    public const string LiftShaderName = "CelestialLighting/VectorLightMaxLift";
+
     // How much of vanilla's sampled glow the fragment program subtracts. One is the feature; zero
     // makes the shader reproduce MoteGlow exactly, which is what the live A/B's control arm needs to
     // separate "the composition changed the frame" from "the replacement shader changed the frame".
@@ -58,9 +72,9 @@ public static class VectorLightShader
     // what Waylith's bundle reader maps on 1.7, so they are the contract rather than the enum is.
     //
     // ON 1.7 THESE WRITES DO NOTHING: Waylith bakes the blend from the property's shader default when
-    // it builds the pipeline and never reads it from the material again, so every VectorLightMax
-    // material blends One One there. Harmless while surface lift and indoor multiply ship off; issue
-    // #257 replaces the runtime switch with one shader per blend state.
+    // it builds the pipeline and never reads it from the material again, so a VectorLightMax material
+    // blends One One there whatever is written. That is why the surface lift has its own shader
+    // (LiftShaderPath, issue #257); these writes remain the 1.6 route for a bundle that predates it.
     private const float BlendOne = 1f;
 
     private const float BlendDstColor = 2f;
@@ -94,6 +108,22 @@ public static class VectorLightShader
     private static Shader Loaded => ShaderLoader.Resolve(
         CelestialShaderDefOf.CL_VectorLightMax, ShaderPath, "vector lighting's max composition");
 
+    private static Shader LiftLoaded => ShaderLoader.Resolve(
+        CelestialShaderDefOf.CL_VectorLightMaxLift, LiftShaderPath, "vector lighting's surface lift");
+
+    // The verdict on the lift shader, cached like Available's.
+    private static bool? liftAvailable;
+
+    // Whether the bundle carries a usable surface-lift shader. False is a normal answer on 1.6, whose
+    // shipped bundles predate it; see ValidateLift.
+    private static bool LiftShaderAvailable => liftAvailable ??= ValidateLift();
+
+    // Whether a multiply composition can be drawn correctly at all: through the lift shader, or —
+    // where blend state still follows the material — through VectorLightMax's runtime _SrcBlend. On
+    // 1.7 without the lift shader neither route exists, and drawing anyway is the additive flood
+    // issue #257 photographed, so both multiply compositions stand down instead.
+    private static bool MultiplyDrawable => LiftShaderAvailable || !BlendIsBakedPerShader;
+
     // The VERDICT is cached even though the shader is not, and the asymmetry is deliberate:
     // UnityEngine.Object.name is a native call that allocates a fresh string, Validate compares it,
     // and MaxActive reads this every frame. Caching a bool costs nothing and caching a Shader costs
@@ -112,7 +142,7 @@ public static class VectorLightShader
     // state lives on the material built from our shader, so a machine that fell back to MoteGlow
     // gets the additive pass and this answers false however the flag is set.
     public static bool SurfaceLiftActive =>
-        CelestialLightingFeatures.VectorLightSurfaceLift && MaxActive;
+        CelestialLightingFeatures.VectorLightSurfaceLift && MaxActive && MultiplyDrawable;
 
     // Whether §27 should draw the surface lift as a SECOND pass on top of the additive beam this
     // frame: asked for, drawable, and not already what the primary pass is doing.
@@ -127,7 +157,8 @@ public static class VectorLightShader
     // frame; keeping "can this be drawn at all" apart from "does this emitter qualify" is what lets
     // the draw cull on the cheap answer first. See VectorLightOverlay.DrawIndoorMultiply.
     public static bool IndoorMultiplyActive =>
-        CelestialLightingFeatures.VectorLightIndoorMultiply && MaxActive && !SurfaceLiftActive;
+        CelestialLightingFeatures.VectorLightIndoorMultiply && MaxActive && MultiplyDrawable
+        && !SurfaceLiftActive;
 
     // The verdict on the batched variant, cached beside Available and for the same reason.
     private static bool? batchAvailable;
@@ -163,7 +194,12 @@ public static class VectorLightShader
     // expensive lesson of building the feature.
     public static Material NewMaterial(Texture2D gradient, bool surfaceLift, int queueOffset)
     {
-        Material material = new Material(Loaded) { mainTexture = gradient };
+        // The lift shader when there is one, because its blend is baked in and therefore right on
+        // every engine. Otherwise VectorLightMax with the blend written below, which is only right
+        // where the material's blend is honoured — SurfaceLiftActive and IndoorMultiplyActive never
+        // ask for a multiply anywhere it is not (MultiplyDrawable).
+        Shader shader = surfaceLift && LiftShaderAvailable ? LiftLoaded : Loaded;
+        Material material = new Material(shader) { mainTexture = gradient };
 
         // ADDING LIGHT VERSUS BRIGHTENING WHAT IS THERE, and the fragment program does not know
         // which it is doing. One/One makes the pass additive — the frame gains the program's output.
@@ -258,6 +294,39 @@ public static class VectorLightShader
         props.SetFloat(SkyAmbientId, ambient);
     }
 
+    // RimWorld 1.7 CANNOT DRAW THE BATCHED PROGRAM AT ALL. Waylith builds each bundle shader from the
+    // one variant with the fewest keywords and never switches (UnityStubs TryPickProgram), so enabling
+    // VECTORLIGHT_BATCHED on the material changes nothing and the unbatched program would receive
+    // batched data — every emitter drawn with the wrong field. ValidateBatch's other checks also say no
+    // on 1.7 today, but by accident: 1.7's LocalKeyword.isValid answers true for any name, and its
+    // copyTextureSupport merely happens to lack DifferentTypes. Refusing by name keeps the reason true
+    // if either stub changes. Batching on 1.7 needs the batched program as its own shader, the same
+    // one-shader-per-state pattern as issue #257.
+    //
+    // A property rather than an #if around an early return, so the rest of ValidateBatch stays one
+    // code path that both builds compile and neither flags as unreachable.
+    private static bool DrawsOnlyKeywordlessVariants => OnWaylith;
+
+    // RimWorld 1.7 bakes a bundle shader's blend from its property defaults when it builds the
+    // pipeline (UnityStubs UnityShaderAsset.ReadState) and never reads _SrcBlend/_DstBlend off a
+    // material, so a multiply composition needs a shader whose blend is fixed. Issue #257.
+    private static bool BlendIsBakedPerShader => OnWaylith;
+
+    // Whether this build runs on RimWorld 1.7's Waylith engine. Two named facts read it rather than
+    // the #if appearing at each use, so every place that depends on the engine says WHICH property
+    // of the engine it depends on.
+    private static bool OnWaylith
+    {
+        get
+        {
+#if RIMWORLD_1_7
+            return true;
+#else
+            return false;
+#endif
+        }
+    }
+
     // Runs once, behind BatchAvailable's cache. Each refusal is logged as a MESSAGE and not a
     // warning: unlike a missing shader, none of these is a broken installation. They are machines
     // and bundles on which a performance path does not apply, and the frame is correct without it.
@@ -265,6 +334,14 @@ public static class VectorLightShader
     {
         if (!Available)
             return false;
+
+        if (DrawsOnlyKeywordlessVariants)
+        {
+            Log.Message(
+                "[CelestialLighting] RimWorld 1.7 draws only a shader's keywordless variant, so vector "
+                + "lighting draws one emitter at a time.");
+            return false;
+        }
 
         // The stale-bundle check. LocalKeyword answers what the LOADED program declares rather than
         // what this assembly believes it declares, which is exactly the gap an assembly-only overlay
@@ -312,7 +389,7 @@ public static class VectorLightShader
         // ShaderDatabase.DefaultShader, which is Map/Cutout. Rendering our additive pass through a
         // cutout shader would not fail, it would draw opaque black quads over the map, so identity
         // against the default is the check that matters and not a null test.
-        if (shader == null || shader == ShaderDatabase.DefaultShader)
+        if (shader == null || shader == ShaderDatabase.DefaultShader || shader.name != ShaderName)
         {
             Log.Warning(
                 "[CelestialLighting] Could not load shader '" + ShaderPath + "' from the mod's asset "
@@ -330,6 +407,39 @@ public static class VectorLightShader
             Log.Warning(
                 "[CelestialLighting] Shader '" + ShaderPath + "' loaded but is not supported on this "
                 + "system. §27's max composition is unavailable; falling back to the crossfade.");
+            return false;
+        }
+
+        return true;
+    }
+
+    // Runs once, behind LiftShaderAvailable's cache, and only when a multiply composition is actually
+    // asked for — both ship off, so most players never reach it.
+    //
+    // ASKS THE BUNDLES FIRST, SILENTLY. A bundle without the lift shader is the NORMAL state on 1.6,
+    // whose shipped bundles predate it and stay that way (they cannot be re-verified now that Steam
+    // has moved this machine to 1.7). Going straight to the def would make vanilla log "Could not load
+    // shader" for a configuration that is working as designed, so absence is checked through
+    // ContentFinder, which says nothing, and reported as a message rather than a warning.
+    private static bool ValidateLift()
+    {
+        if (ContentFinder<Shader>.TryFindAssetInModBundles(LiftShaderPath) == null)
+        {
+            Log.Message(
+                "[CelestialLighting] The asset bundle has no '" + LiftShaderPath + "' shader. "
+                + (BlendIsBakedPerShader
+                    ? "This version of RimWorld cannot switch blend per material, so the surface lift "
+                        + "and indoor multiply are unavailable."
+                    : "The surface lift uses VectorLightMax's runtime blend instead."));
+            return false;
+        }
+
+        Shader shader = LiftLoaded;
+        if (shader == null || shader.name != LiftShaderName || !shader.isSupported)
+        {
+            Log.Warning(
+                "[CelestialLighting] Shader '" + LiftShaderPath + "' is in the bundle but could not be "
+                + "used on this system. The surface lift falls back as if it were absent.");
             return false;
         }
 

@@ -26,7 +26,7 @@
   what Tests/CelestialLighting.Tests/ShaderTypeDefTests.cs is for.
 
   NO <uiShaderPath> ON ANY OF THESE. It exists for shaders that need a separate variant when drawn
-  into the UI rather than onto the map; all three of ours are map passes with no UI counterpart, and
+  into the UI rather than onto the map; all of ours are map passes with no UI counterpart, and
   naming a path that does not exist in the bundle would log a warning per shader on every boot.
 -->
 <Defs>
@@ -41,6 +41,14 @@
   <ShaderTypeDef>
     <defName>CL_VectorLightMax</defName>
     <shaderPath>VectorLightMax</shaderPath>
+  </ShaderTypeDef>
+  <!-- The same program with Blend DstColor One baked in: the surface lift and indoor multiply, as
+       RimWorld 1.7 needs them (it cannot switch blend per material). Loaded lazily and only when one
+       of those compositions is on; absent from the 1.6 bundles, where VectorLightShader falls back to
+       VectorLightMax's runtime blend without loading this. -->
+  <ShaderTypeDef>
+    <defName>CL_VectorLightMaxLift</defName>
+    <shaderPath>VectorLightMaxLift</shaderPath>
   </ShaderTypeDef>
 
   <!-- The aurora curtain's field, evaluated per fragment (§11a). Falls back to the CPU bake. -->
