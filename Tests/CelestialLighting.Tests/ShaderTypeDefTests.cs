@@ -42,8 +42,12 @@ public sealed class ShaderTypeDefTests
     /// <param name="Adapter">The <c>Source/</c> file holding the <c>ShaderPath</c> const.</param>
     /// <param name="Path">The bundle-relative path, minus the <c>.shader</c> extension.</param>
     /// <param name="DeclaredName">The name inside the <c>.shader</c> file's own <c>Shader "…"</c>.</param>
+    /// <param name="PathConst">The adapter const holding <paramref name="Path"/>. One adapter can own
+    /// two shaders — <c>VectorLightShader</c> holds the max composition and its surface-lift twin — so
+    /// the row names its const rather than every adapter being assumed to have exactly one.</param>
     public readonly record struct ShippedShader(
-        string DefName, string Adapter, string Path, string DeclaredName);
+        string DefName, string Adapter, string Path, string DeclaredName,
+        string PathConst = "ShaderPath");
 
     private static readonly ShippedShader[] Shaders =
     {
@@ -51,6 +55,8 @@ public sealed class ShaderTypeDefTests
             "CelestialLighting/CloudVolume"),
         new("CL_VectorLightMax", "VectorLightShader.cs", "VectorLightMax",
             "CelestialLighting/VectorLightMax"),
+        new("CL_VectorLightMaxLift", "VectorLightShader.cs", "VectorLightMaxLift",
+            "CelestialLighting/VectorLightMaxLift", PathConst: "LiftShaderPath"),
         new("CL_Aurora", "AuroraShader.cs", "CelestialAurora", "CelestialLighting/Aurora"),
     };
 
@@ -83,9 +89,10 @@ public sealed class ShaderTypeDefTests
     public void AdapterConstMatchesTheDef(ShippedShader shader)
     {
         string source = File.ReadAllText(Path.Combine(RepoRoot, "Source", shader.Adapter));
-        Match match = Regex.Match(source, @"const\s+string\s+ShaderPath\s*=\s*""([^""]+)""");
+        Match match = Regex.Match(
+            source, $@"const\s+string\s+{shader.PathConst}\s*=\s*""([^""]+)""");
 
-        Assert.That(match.Success, Is.True, $"No ShaderPath const found in {shader.Adapter}.");
+        Assert.That(match.Success, Is.True, $"No {shader.PathConst} const found in {shader.Adapter}.");
         Assert.That(match.Groups[1].Value, Is.EqualTo(shader.Path));
     }
 

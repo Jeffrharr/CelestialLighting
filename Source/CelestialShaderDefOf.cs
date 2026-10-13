@@ -3,7 +3,7 @@ using Verse;
 
 namespace CelestialLighting;
 
-// The mod's three ShaderTypeDefs, bound by name so the shader classes never carry a literal path.
+// The mod's ShaderTypeDefs, bound by name so the shader classes never carry a literal path.
 // Common/Defs/ShaderTypeDefs/ShaderTypes.xml is the other half and records why the defs exist at all.
 //
 // THE STATIC CONSTRUCTOR IS NOT BOILERPLATE. DefOfHelper.EnsureInitializedInCtor logs a warning if
@@ -24,6 +24,8 @@ public static class CelestialShaderDefOf
     public static ShaderTypeDef CL_CloudVolume;
 
     public static ShaderTypeDef CL_VectorLightMax;
+
+    public static ShaderTypeDef CL_VectorLightMaxLift;
 
     public static ShaderTypeDef CL_Aurora;
 
