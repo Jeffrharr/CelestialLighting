@@ -66,6 +66,11 @@ Shader "CelestialLighting/CloudVolume"
             #pragma vertex vert
             #pragma fragment frag
             #pragma target 3.0
+            // RimWorld 1.7 decoy variant: never enabled, never drawn, stripped from every 1.6 build.
+            // It exists so Unity has a second variant to compare against and stops hoisting this
+            // shader's parameters into a block 1.7's loader cannot read. Why, and the build gate that
+            // proves it worked: WaylithDecoyVariant in Editor/BuildShaderBundles.cs.
+            #pragma multi_compile_local _ CL_WAYLITH_DECOY
             #include "UnityCG.cginc"
 
             // Kept in sync with CloudRaymarchMath.ViewSteps / .LightSteps by hand. They are #defines
@@ -209,6 +214,12 @@ Shader "CelestialLighting/CloudVolume"
 
             fixed4 frag(v2f i) : SV_Target
             {
+                // The decoy variant touches nothing, which is what keeps every parameter the real
+                // variant uses out of the shared block. See the pragma above.
+                #ifdef CL_WAYLITH_DECOY
+                return 0;
+                #endif
+
                 float2 texel = i.uv * _VolumeParams.x;
 
                 float peak = _VolumeParams.z;
