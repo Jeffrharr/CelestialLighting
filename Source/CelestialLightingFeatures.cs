@@ -1170,6 +1170,25 @@ public static class CelestialLightingFeatures
     // OFF while it is measured. Off uploads the raw field exactly as before.
     public static bool VectorLightGapParity = false;
 
+    // Feature key for VectorLightFieldInPlace.
+    public const string VectorLightFieldInPlaceKey = "vector_light_field_in_place";
+
+    // Refreshes each emitter's vanilla-glow field texture IN PLACE on RimWorld 1.7, instead of through
+    // Texture2D.Apply. See WaylithFieldUpload for the mechanism.
+    //
+    // WHY IT EXISTS. On 1.7 the field upload became the most expensive stage of a vector-light rebuild:
+    // 315 ms of field upload against ~120 ms of bake over the bake storm's 40 rebuild frames, where 1.6
+    // measured the whole upload stage at 37 ms. Waylith's Texture2D.Apply does not update a texture —
+    // when the pixels changed it disposes the Vulkan image and allocates a new one — and its
+    // GetRawTextureData rebuilds the whole buffer through a MemoryStream on every call. Unity did
+    // neither, so the per-emitter texture design that was cheap on 1.6 pays a GPU allocation per
+    // emitter per refresh on 1.7.
+    //
+    // ON by default once measured; off is the Apply path exactly as before, which is what makes the
+    // A/B a real baseline. The texels written are the same either way — only how they reach the GPU
+    // changes — so the two arms should be pixel-identical.
+    public static bool VectorLightFieldInPlace = true;
+
     // Feature key for VectorLightApertureBeam.
     public const string VectorLightApertureBeamKey = "vector_light_aperture_beam";
 

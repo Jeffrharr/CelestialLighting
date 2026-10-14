@@ -108,13 +108,17 @@ public class VectorLightFieldUploadTests
         // into the alpha of these Color32s, so the upload has to overwrite it; moving from a marshalled
         // Color32[] to a raw texel view is exactly the kind of edit that could drop the one statement
         // doing it and leave a channel that means nothing sitting in the sampler.
-        MethodDefinition copyField = Method(OverlayTypeName, "CopyField");
-        bool writesOpaqueAlpha = copyField.Body.Instructions.Any(i =>
+        //
+        // Read from FillField, the per-texel loop CopyField hands to whichever sink (Unity-order
+        // raw data, or Waylith's native-order level for the in-place upload) it chose — so one
+        // check covers both destinations.
+        MethodDefinition fillField = Method(OverlayTypeName, "FillField");
+        bool writesOpaqueAlpha = fillField.Body.Instructions.Any(i =>
             i.OpCode == OpCodes.Ldc_I4 && i.Operand is int and 255)
-            || copyField.Body.Instructions.Any(i => i.OpCode == OpCodes.Ldc_I4_S && Convert.ToInt32(i.Operand) == 255);
+            || fillField.Body.Instructions.Any(i => i.OpCode == OpCodes.Ldc_I4_S && Convert.ToInt32(i.Operand) == 255);
 
         Assert.That(writesOpaqueAlpha, Is.True,
-            "CopyField no longer forces alpha to 255 — the glow grid's distance channel is reaching the sampler");
+            "FillField no longer forces alpha to 255 — the glow grid's distance channel is reaching the sampler");
     }
 
     private static IEnumerable<MethodReference> Calls(MethodDefinition method) =>
