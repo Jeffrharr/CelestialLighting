@@ -1506,6 +1506,20 @@ public static class CelestialLightingFeatures
     // construction. See stress_light_mask_indices.json, which alternates arms inside one boot.
     public static bool VectorLightMaskRunIndices = true;
 
+    // Feature key for MeshColorsInPlace.
+    public const string MeshColorsInPlaceKey = "mesh_colors_in_place";
+
+    // Night desaturation's section rebuild writes its vertex colours into the mesh in place instead
+    // of through FinalizeMesh, which on 1.7 re-encodes the whole mesh for every colour change
+    // (WaylithMeshUpload.TryWriteColors). OFF IS FinalizeMesh, exactly as shipped before.
+    //
+    // ON, MEASURED. 500-lamp, 50-pawn colony, four off/on pairs of 900 walking frames: the mesh
+    // stage went from 80-108 us per section rebuild to about 5 (17.8 on its JIT-cold first arm),
+    // out of a rebuild that was about 114 us whole. Frames identical with all 91 visible sections
+    // force-rebuilt under each arm, and a mutant that wrote zero alpha in place changed 33.9% of
+    // the frame — so the in-place colours do reach the screen, and identical means identical.
+    public static bool MeshColorsInPlace = true;
+
     // Feature key for VectorLightMaskFoldRows.
     public const string VectorLightMaskFoldRowsKey = "vector_light_mask_fold_rows";
 

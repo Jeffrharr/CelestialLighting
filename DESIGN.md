@@ -2307,6 +2307,25 @@ Re-flooring the room from concrete to soil barely moved the number (3.44 against
 5.45), which was not the expected result: indoor sky occlusion has already taken the room close to
 black by noon, so there is little light left to carry colour whatever the terrain is.
 
+### The colour upload on 1.7 (`WaylithMeshUpload.TryWriteColors`, `mesh_colors_in_place`)
+
+A section rebuild changes only vertex colours: the geometry is built once, when the mesh is empty.
+On RimWorld 1.7, `LayerSubMesh.FinalizeMesh(MeshParts.Colors)` calls `Mesh.SetColors`, and every
+1.7 mesh setter builds a new `CpuMeshData` from UnityStubs' managed channel cache, re-encoding
+positions, colours and triangles to change four bytes a vertex. Clocked in the layer, that was
+**80-108 us of a ~114 us rebuild**; the cell resolve was 13-15 us and the colour maths about 16.
+
+So the colours are written straight into the mesh's existing vertex stream at the colour
+attribute's offset, then the engine is told the storage changed, which queues the same GPU upload a
+setter would. The mesh stage fell to **about 5 us** (500-lamp, 50-pawn colony, four off/on pairs
+of 900 walking frames). The path refuses anything but the simple case (vertex count matches,
+four-byte `UNorm8` colour attribute) and falls back to `FinalizeMesh`; a section's first build
+always does. Frames are identical with all 91 visible sections force-rebuilt under each arm, and a
+mutant writing zero alpha in place changed 33.9% of the frame, so the identical result is a real
+one and not a stale mesh. UnityStubs' channel cache keeps the previous colours afterwards; that is
+safe because this layer never calls another setter on the mesh, and any rebuild rewrites every
+colour.
+
 ## 10. Eclipse: natural and unnatural
 
 RimWorld's `Eclipse` `GameCondition` fires on a random timer, lasts far longer than a real solar

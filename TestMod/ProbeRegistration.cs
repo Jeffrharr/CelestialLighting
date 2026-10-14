@@ -1715,6 +1715,14 @@ public static class ProbeRegistration
         ArmBank("circ_lightoverlay", "Verse.SectionLayer_LightingOverlay", "Regenerate");
         ArmBank("circ_sunshadows", "Verse.SectionLayer_SunShadows", "Regenerate");
         ArmBank("circ_desat", "CelestialLighting.SectionLayer_NightDesaturation", "Regenerate");
+        // Night desaturation's rebuild split into its three stages, clocked in the layer itself
+        // (Circinus could not arm ResolveWash or vanilla's LayerSubMesh.FinalizeMesh).
+        ProbeRegistry.Register(new NightDesaturationStageProbe("desat_resolve_ms", NightDesaturationStageProbe.Stage.Resolve));
+        ProbeRegistry.Register(new NightDesaturationStageProbe("desat_colors_ms", NightDesaturationStageProbe.Stage.Colors));
+        ProbeRegistry.Register(new NightDesaturationStageProbe("desat_finalize_ms", NightDesaturationStageProbe.Stage.Finalize));
+        ProbeRegistry.Register(new NightDesaturationStageProbe("desat_regenerations", NightDesaturationStageProbe.Stage.Count));
+        ProbeRegistry.Register(new NightDesaturationStageProbe("desat_stage_reset", NightDesaturationStageProbe.Stage.Reset));
+        ProbeRegistry.Register(new NightDesaturationDirtyProbe());
         ArmBank("circ_eaveshade", "CelestialLighting.SectionLayer_EaveShade", "Regenerate");
 
         // Named suspects, armed for their CALL COUNT rather than their duration. Each is individually
@@ -2559,6 +2567,11 @@ public static class ProbeRegistration
                 CelestialLightingFeatures.VectorLightMaskRunIndices = enabled;
                 VectorLightRedraw.ForceRebuild();
             });
+
+        // Section-layer colours written in place rather than re-encoded (night desaturation).
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.MeshColorsInPlaceKey,
+            enabled => CelestialLightingFeatures.MeshColorsInPlace = enabled);
 
         // And for the saturation pass's advancing fold, measured the same way against its
         // general body.

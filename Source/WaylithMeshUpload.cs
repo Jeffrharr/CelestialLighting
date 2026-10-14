@@ -137,6 +137,55 @@ internal static class WaylithMeshUpload
         WriteIndicesAndApply(mesh, array, data, tris, narrow: false, VectorLightMeshMath.Bounds(xyz));
     }
 
+    // A section layer's vertex colours rewritten IN PLACE, for layers whose geometry never changes
+    // after it is first built and whose colours change on every rebuild (night desaturation).
+    //
+    // WHY. LayerSubMesh.FinalizeMesh(MeshParts.Colors) calls Mesh.SetColors, and on 1.7 every setter
+    // builds a brand-new CpuMeshData from the stub's managed channel cache — positions, colours and
+    // triangles all re-encoded — to change four bytes a vertex. Measured on night desaturation, that
+    // was 83 of a section rebuild's ~114 us. Here the colours are written straight into the existing
+    // vertex stream at the colour attribute's offset, and the engine is told the storage changed,
+    // which queues the same GPU upload a setter would have.
+    //
+    // NARROW ON PURPOSE. Refuses anything but the simple case — the mesh already holds exactly this
+    // many vertices, with a four-byte UNorm8 colour attribute — and the caller falls back to
+    // FinalizeMesh, which is always correct. A section's first build is always the fallback: its
+    // base geometry has no colour channel until a setter has written one.
+    //
+    // THE STUB'S CACHE GOES STALE, AND THAT IS SAFE FOR THIS CALLER. UnityStubs' Mesh keeps a managed
+    // copy of every channel and rebuilds from it on the next setter; after this write that copy still
+    // holds the previous colours. A layer that only ever changes its colours never calls another
+    // setter on the mesh, and if one did, the very next rebuild writes every colour again.
+    internal static bool TryWriteColors(Mesh mesh, List<Color32> colors)
+    {
+        Waylith.Graphics.Meshes.Mesh engine = mesh.EngineMesh;
+
+        if (engine == null || !engine.IsReadable)
+            return false;
+
+        Waylith.Graphics.Meshes.CpuMeshData storage = engine.CpuStorage;
+
+        if (storage.VertexCount != colors.Count
+            || !storage.Layout.TryGetAttribute(
+                Waylith.Graphics.Meshes.VertexAttributeSemantic.Color,
+                out Waylith.Graphics.Meshes.VertexAttribute colour)
+            || colour.Format != Waylith.Graphics.Meshes.VertexAttributeFormat.UNorm8
+            || colour.Dimension != 4)
+        {
+            return false;
+        }
+
+        int stride = storage.Layout.GetStreamStride(colour.Stream);
+        System.Span<byte> stream = storage.GetVertexStream(colour.Stream).AsSpan();
+        System.ReadOnlySpan<Color32> source = CollectionsMarshal.AsSpan(colors);
+
+        for (int i = 0; i < source.Length; i++)
+            MemoryMarshal.Write(stream.Slice(i * stride + colour.OffsetBytes, 4), in source[i]);
+
+        engine.MarkCpuStorageChanged();
+        return true;
+    }
+
     private static void WriteIndicesAndApply(
         Mesh mesh, Mesh.MeshDataArray array, Mesh.MeshData data, int[] indices, bool narrow,
         VectorLightMeshMath.Box box)
