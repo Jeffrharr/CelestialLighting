@@ -17128,19 +17128,26 @@ paid one GPU allocation per emitter for its field texture and four to five full 
   channel widened to four floats, 16-bit indices up to 65,536 vertices. A tighter layout would be a
   different pipeline-cache key and a different shader input.
 
-**Row order is a trap with two answers.** A `Texture2D` CPU level is native order (row 0 at the
-top). A `Texture2DArray` layer is uploaded in *Unity* order (`Texture2DArray.SetPixelData` copies
-without flipping). Copying one into the other unflipped mirrors it, and a lamp centred in its square
-hides that almost completely.
+**Row order: everything is native.** A `Texture2D` CPU level is native order (row 0 at the
+top), and the loader's SPIR-V rewrite samples every texture at `1 - v`, texture arrays included. A
+batched slice therefore takes the field's level exactly as it is. `Texture2DArray.SetPixelData`
+copies without flipping, which would matter to a caller handing it Unity-order bytes; the direct
+layer upload bypasses it. The slices were briefly row-flipped on the strength of a measurement
+taken while the batched pass drew nothing (below), so the flip could not show; once the pass drew,
+it measured as a vertical mirror around each lamp.
 
-**The batched draw runs on 1.7 but ships off.** The batched program is its own shader on 1.7
+**The batched draw matches on 1.7 and ships off.** The batched program is its own shader on 1.7
 (`VectorLightMaxBatched` / `VectorLightMaxLiftBatched`, with the decoy variant against the
 hoisted-parameter bug), because Waylith never selects a keyword variant. `Graphics.CopyTexture` into
-an array slice copies nothing there, so slices are filled by layer upload. It cuts draw calls 19x on
-the 20-lamp plate, but its frame adds about 10% less light than the per-emitter path's (p99 ΔE 1.63,
-measured against an in-process control of 0.00). Slices, mesh, material and binding have each been
-ruled out by measurement; see `CelestialLightingFeatures.VectorLightDrawBatch`. It stays off until
-the frames match.
+an array slice copies nothing there, so slices are filled by layer upload. Its per-emitter arrays
+live on a **material per batch**, not a property block. Two 64-entry `float4` arrays make the
+program's constant buffer 2,176 bytes, and 1.7 moves any pass over 512 bytes of constants into a
+storage buffer (`UnityShaderBindingPlan.Build`, `MovedBlock`). Waylith fills that buffer from the
+material's arrays and the global ones only, so property-block arrays read as zeros and the batched
+pass drew nothing: the "about 10% dimmer" frame (p99 ΔE 1.63) was our excess over vanilla going
+missing. With both fixes, `vector_light_draw_batch_ab` measures 0.00% of pixels changed against
+the per-emitter arm at 19 emitters per call, the same as its same-build control. Turning it on
+waits on the `vector_light_suite` gate.
 
 **Measured** (bake storm, 5,030 bakes, alternating processes): the upload stage 301-316 ms with
 `mesh_one_write` on against 528 ms off, the mesh clock 4-15 ms against 194 ms. Each commit carries
