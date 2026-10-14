@@ -81,15 +81,13 @@ public static class CloudVolumeShader
     //
     // Alpha is the LAST byte of an RGBA32 texel and the ONLY byte of an Alpha8 one, so
     // `index * VolumeBytesPerTexel + VolumeBytesPerTexel - 1` addresses the density byte in both.
-#if RIMWORLD_1_7
+    //
+    // Since 1.6 was frozen on release/1.6 only the RGBA32 arm is built here, and the "shared with 1.6"
+    // argument against R8 above no longer binds this branch: R8 read through `.r` would cut the
+    // volume back to one byte per texel, at the price of a 1.7-only shader edit and bundle rebuild.
     private const TextureFormat VolumeFormat = TextureFormat.RGBA32;
 
     private const int VolumeBytesPerTexel = 4;
-#else
-    private const TextureFormat VolumeFormat = TextureFormat.Alpha8;
-
-    private const int VolumeBytesPerTexel = 1;
-#endif
 
     // Property ids, resolved once. Material.SetX(string) hashes the name on every call, and this is
     // eight setters per sheet per frame.

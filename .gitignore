@@ -47,3 +47,6 @@ Tools/ShaderBundle/Logs/
 Tools/ShaderBundle/Temp/
 Tools/ShaderBundle/UserSettings/
 Tools/ShaderBundle/obj/
+
+# The frozen 1.6 build tree that build.sh exports from release/1.6 (git archive) and compiles.
+.build-1.6/

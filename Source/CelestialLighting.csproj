@@ -1,15 +1,19 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- ONE PROJECT, TWO GAME VERSIONS. RimWorld 1.6 is Unity on Mono and loads net481 assemblies;
-       RimWorld 1.7 is Ludeon's Waylith engine on a .NET 10 runtime, its Assembly-CSharp is a
-       .NETCoreApp assembly and the 1.7 build of brrainz.harmony targets net10.0. The same Source/
-       compiles for both, so a fix lands in both versions or neither — two projects (or two
-       branches) would let them drift, and the failure mode of drift is a subscriber on one version
-       quietly running last month's lighting. Version-specific code goes behind #if RIMWORLD_1_7.
+  <!-- RIMWORLD 1.7 ONLY. 1.7 is Ludeon's Waylith engine on a .NET 10 runtime: its Assembly-CSharp is
+       a .NETCoreApp assembly and the 1.7 build of brrainz.harmony targets net10.0.
 
-       Build with the .NET 10 SDK (~/.dotnet10, see build.sh): SDK 8 cannot target net10.0, and SDK
-       10 still builds net481 against the Mono reference assemblies via FrameworkPathOverride. -->
+       1.6 (Unity on Mono, net481) is FROZEN on the release/1.6 branch, tagged rimworld-1.6-final.
+       This used to be one project targeting both, on the argument that two branches let the versions
+       drift. That trade reversed once 1.7 became the version under development: a shared source
+       tree holds every hot path to what net481 can express (no Vector128, FrozenDictionary,
+       SearchValues), and 1.6 subscribers are better served by a build that stops changing than by
+       one that keeps changing under a runtime nobody tests on any more. ../build.sh still builds the
+       1.6 assembly, from release/1.6, so it stays reproducible from source; a 1.6 fix is a commit
+       there, not here.
+
+       Build with the .NET 10 SDK (~/.dotnet10, see build.sh): SDK 8 cannot target net10.0. -->
   <PropertyGroup>
-    <TargetFrameworks>net481;net10.0</TargetFrameworks>
+    <TargetFramework>net10.0</TargetFramework>
     <AssemblyName>CelestialLighting</AssemblyName>
     <LangVersion>latest</LangVersion>
     <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
@@ -17,39 +21,16 @@
     <!-- Overridable so another machine can point at its own install without editing this file. -->
     <RimWorldDir Condition="'$(RimWorldDir)' == ''">$(HOME)/.local/share/Steam/steamapps/common/RimWorld</RimWorldDir>
     <HarmonyModDir Condition="'$(HarmonyModDir)' == ''">$(HOME)/.local/share/Steam/steamapps/workshop/content/294100/2009463077</HarmonyModDir>
-  </PropertyGroup>
-
-  <PropertyGroup Condition="'$(TargetFramework)' == 'net481'">
-    <OutputPath>../1.6/Assemblies</OutputPath>
-  </PropertyGroup>
-  <ItemGroup Condition="'$(TargetFramework)' == 'net481'">
-    <PackageReference Include="Krafs.Rimworld.Ref" Version="1.6.*" />
-    <!-- Compile-time only: we depend on the standalone brrainz.harmony Workshop mod (declared as a
-         hard <modDependencies> requirement in About.xml) providing 0Harmony.dll at runtime instead
-         of bundling our own copy, which would risk two different Harmony versions loading into the
-         same AppDomain if another mod also bundles its own. This matches the sibling MapFeatureEvents
-         mod's reference form. 0Harmony is not strong-named (PublicKeyToken=null), so Mono ignores the
-         AssemblyVersion baked into our reference and binds to whatever 0Harmony is loaded — the exact
-         "2.3.*"-vs-installed version does not matter. What DOES matter is that brrainz.harmony loads
-         *before* us: its Manifest declares <loadBefore>Core</loadBefore>, and our About.xml lists it
-         in <modDependencies>/<loadAfter>, so mod managers order it first. If those attributes aren't
-         yet loaded when RimWorld reads our [HarmonyPatch] custom attributes, resolution fails with a
-         TypeLoadException that misleadingly names our reference's version — that is a load-order
-         symptom, not a version mismatch. -->
-    <PackageReference Include="Lib.Harmony" Version="2.3.*" ExcludeAssets="runtime" PrivateAssets="all" />
-  </ItemGroup>
-
-  <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0'">
     <OutputPath>../1.7/Assemblies</OutputPath>
-    <DefineConstants>$(DefineConstants);RIMWORLD_1_7</DefineConstants>
     <!-- The game's own assemblies are not trimmed or AOT'd; nothing here needs the analyzers that
-         assume a self-contained app, and nullable stays off to match the net481 build. -->
+         assume a self-contained app. Nullable stays off: the source was written without annotations
+         and turning it on is its own change, not a side effect of dropping net481. -->
     <Nullable>disable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
     <!-- RimWorld loads Assemblies/*.dll itself and never reads a deps.json; shipping one is noise. -->
     <GenerateDependencyFile>false</GenerateDependencyFile>
   </PropertyGroup>
-  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+  <ItemGroup>
     <!-- No Krafs package exists for 1.7, so reference the installed game directly. UnityStubs is
          where 1.7 keeps the UnityEngine namespace (runtimeconfig redirects UnityEngine* to it), so
          our `using UnityEngine;` resolves against it unchanged. Private=false: these all ship with

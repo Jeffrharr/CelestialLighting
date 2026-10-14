@@ -1,10 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <!-- Both game versions, same arrangement as ../Source/CelestialLighting.csproj: net481 for 1.6,
-         net10.0 for 1.7 (Waylith). Each target references the matching build of the mod and the
-         harness through $(GameVersionDir), so a 1.7 bridge can never link a 1.6 mod DLL. -->
-    <TargetFrameworks>net481;net10.0</TargetFrameworks>
+    <!-- RimWorld 1.7 only, like ../Source/CelestialLighting.csproj: 1.6 is frozen on release/1.6,
+         whose own TestMod still builds the 1.6 bridge if a 1.6 run is ever needed. The mod DLL and
+         the harness are still referenced through $(GameVersionDir), so the bridge can only ever
+         link the build of the mod it is meant to probe. -->
+    <TargetFramework>net10.0</TargetFramework>
     <RimWorldDir Condition="'$(RimWorldDir)' == ''">$(HOME)/.local/share/Steam/steamapps/common/RimWorld</RimWorldDir>
     <HarmonyModDir Condition="'$(HarmonyModDir)' == ''">$(HOME)/.local/share/Steam/steamapps/workshop/content/294100/2009463077</HarmonyModDir>
     <AssemblyName>CelestialLighting.Probes</AssemblyName>
@@ -27,33 +28,19 @@
     <RimWorldTestHarnessDir Condition="'$(RimWorldTestHarnessDir)' == ''">../../RimWorldTestHarness</RimWorldTestHarnessDir>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(TargetFramework)' == 'net481'">
-    <GameVersionDir>1.6</GameVersionDir>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0'">
+  <PropertyGroup>
     <GameVersionDir>1.7</GameVersionDir>
-    <DefineConstants>$(DefineConstants);RIMWORLD_1_7</DefineConstants>
     <ImplicitUsings>disable</ImplicitUsings>
     <GenerateDependencyFile>false</GenerateDependencyFile>
   </PropertyGroup>
   <PropertyGroup>
     <OutputPath>$(GameVersionDir)/Assemblies</OutputPath>
   </PropertyGroup>
-  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+  <ItemGroup>
     <Reference Include="Assembly-CSharp" HintPath="$(RimWorldDir)/Assembly-CSharp.dll" Private="false" />
     <Reference Include="UnityStubs" HintPath="$(RimWorldDir)/UnityStubs.dll" Private="false" />
     <Reference Include="Waylith" HintPath="$(RimWorldDir)/Waylith.dll" Private="false" />
     <Reference Include="0Harmony" HintPath="$(HarmonyModDir)/1.7/Assemblies/0Harmony.dll" Private="false" />
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(TargetFramework)' == 'net481'">
-    <PackageReference Include="Krafs.Rimworld.Ref" Version="1.6.*" />
-    <!-- Compile-time only, the same form and for the same reason as CelestialLighting.csproj's:
-         0Harmony comes from the brrainz.harmony mod at runtime, and shipping a second copy in this
-         dev mod's Assemblies folder would load a second Harmony into the AppDomain. Needed because
-         GeometryEvalCountProbe counts geometry evaluations by patching the accessors from out here,
-         rather than by editing the shipped mod to carry a counter it would then have to ship. -->
-    <PackageReference Include="Lib.Harmony" Version="2.3.*" ExcludeAssets="runtime" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>
