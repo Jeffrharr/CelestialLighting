@@ -1,3 +1,5 @@
+using System.Runtime.InteropServices;
+
 namespace CelestialLighting.Tests;
 
 /// <summary>
@@ -111,5 +113,49 @@ public class VectorLightMeshMathTests
 
         Assert.That(box.MaxX, Is.EqualTo(1f));
         Assert.That(box.MinZ, Is.EqualTo(4f));
+    }
+
+    [Test]
+    public void PositionColorUv_StrideIsThirtyTwoBytes()
+    {
+        // 12 position + 4 colour + 16 uv0, back to back: Waylith's VertexLayout adds no padding.
+        Assert.That(VectorLightMeshMath.PositionColorUvStrideBytes, Is.EqualTo(32));
+    }
+
+    [Test]
+    public void InterleavePositionColorUv_PutsEachChannelAtItsOffset()
+    {
+        float[] xyz = { 0f, 0f, 0f, 1f, 2f, 3f };
+        byte[] rgba = { 0, 0, 0, 0, 10, 20, 30, 40 };
+        float[] uv = { 0f, 0f, 0.5f, 0.75f };
+
+        byte[] stream = VectorLightMeshMath.InterleavePositionColorUv(xyz, rgba, uv);
+        Span<byte> second = stream.AsSpan(VectorLightMeshMath.PositionColorUvStrideBytes);
+
+        Assert.That(stream.Length, Is.EqualTo(2 * VectorLightMeshMath.PositionColorUvStrideBytes));
+        Assert.That(MemoryMarshal.Cast<byte, float>(second[..12]).ToArray(), Is.EqualTo(new[] { 1f, 2f, 3f }));
+        Assert.That(second[12..16].ToArray(), Is.EqualTo(new byte[] { 10, 20, 30, 40 }));
+        Assert.That(MemoryMarshal.Cast<byte, float>(second[16..32]).ToArray(),
+            Is.EqualTo(new[] { 0.5f, 0.75f, 0f, 0f }));
+    }
+
+    [TestCase(6, 4, 4)]
+    [TestCase(6, 8, 2)]
+    [TestCase(5, 8, 4)]
+    public void InterleavePositionColorUv_RefusesMismatchedChannels(int xyz, int rgba, int uv)
+    {
+        Assert.Throws<ArgumentException>(() =>
+            VectorLightMeshMath.InterleavePositionColorUv(new float[xyz], new byte[rgba], new float[uv]));
+    }
+
+    [Test]
+    public void BoundsOfPositions_EncloseEveryAxis()
+    {
+        float[] xyz = { 1f, 5f, -1f, -3f, 2f, 4f, 0f, 9f, 0f };
+
+        VectorLightMeshMath.Box box = VectorLightMeshMath.Bounds(xyz);
+
+        Assert.That(new[] { box.MinX, box.MinY, box.MinZ, box.MaxX, box.MaxY, box.MaxZ },
+            Is.EqualTo(new[] { -3f, 2f, -1f, 1f, 9f, 4f }));
     }
 }

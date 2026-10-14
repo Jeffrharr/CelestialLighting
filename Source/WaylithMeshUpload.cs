@@ -66,6 +66,40 @@ internal static class WaylithMeshUpload
         WriteIndicesAndApply(mesh, array, data, built.Triangles, narrow, box);
     }
 
+    private static readonly VertexAttributeDescriptor[] PositionColorUvLayout =
+    {
+        Layout[0],
+        new VertexAttributeDescriptor(
+            VertexAttribute.Color, VertexAttributeFormat.UNorm8, VectorLightMeshMath.ColorBytes),
+        Layout[1],
+    };
+
+    // The pawn-shadow batch's combined mesh, which is rebuilt EVERY FRAME while shadows are drawn —
+    // so on the setter path it paid Clear plus four full encodes per frame, not per geometry change.
+    // Same one-swap mechanism as Write; the layout is the one SetVertices + SetColors(Color32) +
+    // SetUVs(0, Vector2) produced. Not empty: the caller returns before drawing nothing.
+    internal static void WritePositionColorUv(
+        Mesh mesh, List<Vector3> verts, List<Color32> colors, List<Vector2> uvs, List<int> tris)
+    {
+        System.ReadOnlySpan<float> xyz = MemoryMarshal.Cast<Vector3, float>(CollectionsMarshal.AsSpan(verts));
+        int count = verts.Count;
+        bool narrow = VectorLightMeshMath.FitsUInt16(count);
+
+        VectorLightMeshMath.Box box = VectorLightMeshMath.Bounds(xyz);
+
+        Mesh.MeshDataArray array = Mesh.AllocateWritableMeshData(1);
+        Mesh.MeshData data = array[0];
+
+        data.SetVertexBufferParams(count, PositionColorUvLayout);
+        data.GetVertexData<byte>().CopyFrom(VectorLightMeshMath.InterleavePositionColorUv(
+            xyz,
+            MemoryMarshal.Cast<Color32, byte>(CollectionsMarshal.AsSpan(colors)),
+            MemoryMarshal.Cast<Vector2, float>(CollectionsMarshal.AsSpan(uvs))));
+
+        int[] indices = tris.ToArray();
+        WriteIndicesAndApply(mesh, array, data, indices, narrow, box);
+    }
+
     private static void WriteIndicesAndApply(
         Mesh mesh, Mesh.MeshDataArray array, Mesh.MeshData data, int[] indices, bool narrow,
         VectorLightMeshMath.Box box)
