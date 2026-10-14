@@ -2135,8 +2135,18 @@ public static class CelestialLightingFeatures
     // for a constant buffer this size (see VectorLightShader.SetBatch), so the batched pass drew
     // nothing; and the slices were uploaded row-flipped, which a pass drawing nothing could not show
     // (see WaylithFieldUpload.TryUploadToLayer). With both fixed, vector_light_draw_batch_ab measures
-    // 0.00% of pixels changed, the same as its same-build control. Turning it on is a separate change
-    // that has to clear the vector_light_suite gate first.
+    // 0.00% of pixels changed, the same as its same-build control, and vector_light_suite reads
+    // 0.00% on all 56 captures.
+    //
+    // OFF ON MEASUREMENT, NOT CAUTION. On the 500-lamp, 50-pawn colony plate, four off/on pairs in one
+    // boot (overlay draw, ms per frame, median of four; worst frame in brackets):
+    //   paused:        off 0.21 (0.64)   on 0.11 (0.32)
+    //   pawns walking: off 0.28 (9.0)    on 0.71 (16.5)
+    // Batching halves the still frame and costs 2.5x on a moving one, with a worst frame nearly twice
+    // as long. Walking pawns and swinging doors move some member of nearly every batch each frame,
+    // and one moved member rebuilds the whole combined mesh: 760-1,567 combined-mesh builds per
+    // 1,200-frame window, against no per-emitter cost that a still frame could repay. A colony is
+    // rarely still, so the flag stays off until a rebuild touches only the members that moved.
     public static bool VectorLightDrawBatch = false;
 
     // Feature key for VectorLightSilhouetteCache.
