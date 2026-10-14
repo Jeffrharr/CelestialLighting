@@ -17101,3 +17101,52 @@ Perspective: Eaves. Running both mods is therefore expected to be redundant rath
   so the clock genuinely advances, but the second hour re-measures one shadow depth rather than
   adding a second. A low-sun arm (07:00 or 17:00) is still wanted. The vision assert returned
   `PENDING REVIEW — pass`, i.e. provisional rather than an independent confirmation.
+
+## Runtime uploads on RimWorld 1.7 (`WaylithFieldUpload` / `WaylithMeshUpload` / `VectorLightMeshMath`)
+
+**Problem.** Ludeon's 1.7 engine (Waylith) reimplements Unity's `Texture2D` and `Mesh` in UnityStubs,
+and the calls this mod made every frame or every rebuild cost far more there than their Unity
+namesakes. `Texture2D.Apply` disposes the Vulkan image and allocates a new one whenever the pixels
+changed, and `GetRawTextureData` is a copy, not a view. Every `Mesh` setter (`SetVertices`, `SetUVs`,
+`SetColors`, `SetTriangles`, `vertices =`) re-encodes the *whole* mesh into fresh native storage,
+and a `SetUVs` on a mesh written any other way first decodes it all back out. A vector-light rebuild
+paid one GPU allocation per emitter for its field texture and four to five full mesh encodes.
+
+**Approach: write what the engine stores, once.**
+
+- *Textures refreshed in place* (`WaylithFieldUpload`). Write the texels into the CPU level Waylith
+  already holds, in its native row order, then `GpuTextureService.UploadRgbaFloat` into the existing
+  image. The CPU level is written too, so a later rehydrate from it restores the same texels. Used
+  for the vector-light field and the aurora curtain (`TextureRowOrderMath.FlipRows` for whole
+  buffers). Anything that is not the simple case (one RGBA32 level, no GPU image yet) falls back to
+  `Apply`, which is always correct.
+- *Meshes written in one storage swap* (`WaylithMeshUpload`, flag `mesh_one_write`). `Mesh.MeshData`
+  builds a `CpuMeshData` and swaps it in once, which also resets the stub's channel cache so nothing
+  is decoded later. Covers the per-emitter fans (geometry and field UVs together, the geometry write
+  deferred into the field pass so a rebuild writes once), the draw batch, the pawn-shadow batch and
+  the open-sky mask. `VectorLightMeshMath` reproduces the setters' layout byte for byte: every UV
+  channel widened to four floats, 16-bit indices up to 65,536 vertices. A tighter layout would be a
+  different pipeline-cache key and a different shader input.
+
+**Row order is a trap with two answers.** A `Texture2D` CPU level is native order (row 0 at the
+top). A `Texture2DArray` layer is uploaded in *Unity* order (`Texture2DArray.SetPixelData` copies
+without flipping). Copying one into the other unflipped mirrors it, and a lamp centred in its square
+hides that almost completely.
+
+**The batched draw runs on 1.7 but ships off.** The batched program is its own shader on 1.7
+(`VectorLightMaxBatched` / `VectorLightMaxLiftBatched`, with the decoy variant against the
+hoisted-parameter bug), because Waylith never selects a keyword variant. `Graphics.CopyTexture` into
+an array slice copies nothing there, so slices are filled by layer upload. It cuts draw calls 19x on
+the 20-lamp plate, but its frame adds about 10% less light than the per-emitter path's (p99 ΔE 1.63,
+measured against an in-process control of 0.00). Slices, mesh, material and binding have each been
+ruled out by measurement; see `CelestialLightingFeatures.VectorLightDrawBatch`. It stays off until
+the frames match.
+
+**Measured** (bake storm, 5,030 bakes, alternating processes): the upload stage 301-316 ms with
+`mesh_one_write` on against 528 ms off, the mesh clock 4-15 ms against 194 ms. Each commit carries
+its own numbers.
+
+**Not addressed.** `ForceRebuild` destroys every field texture, so a settings toggle fills every
+emitter's new texture through `Apply`. That is about a third of the storm's field clock, but it is
+rare in play. The per-texel fill measures ~8 us per refresh, which is too little for vectorising it
+to pay.
