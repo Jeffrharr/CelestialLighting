@@ -41,7 +41,7 @@ public class VectorLightFieldUploadTests
         {
             string testsDir = Path.GetDirectoryName(ThisFile())!;
             string repoRoot = Path.GetFullPath(Path.Combine(testsDir, "..", ".."));
-            return Path.Combine(repoRoot, "1.6", "Assemblies", "CelestialLighting.dll");
+            return Path.Combine(repoRoot, "1.7", "Assemblies", "CelestialLighting.dll");
         }
     }
 

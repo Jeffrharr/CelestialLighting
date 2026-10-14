@@ -52,7 +52,7 @@ public class PackagedDefOfTests
 
     /// <summary>
     /// The mod tree under test: the staged package when <c>publish.sh</c> sets CL_PACKAGE_ROOT,
-    /// otherwise this repo. Both have the same shape — <c>1.6/Assemblies/</c> beside <c>Common/Defs/</c>
+    /// otherwise this repo. Both have the same shape — <c>1.7/Assemblies/</c> beside <c>Common/Defs/</c>
     /// — so one code path checks either.
     /// </summary>
     private static string PackageRoot =>
@@ -65,7 +65,7 @@ public class PackagedDefOfTests
         Path.GetFullPath(Path.Combine(Path.GetDirectoryName(ThisFile())!, "..", ".."));
 
     private static string ModDllPath =>
-        Path.Combine(PackageRoot, "1.6", "Assemblies", "CelestialLighting.dll");
+        Path.Combine(PackageRoot, "1.7", "Assemblies", "CelestialLighting.dll");
 
     /// <summary>A def some shipped DefOf field will demand: its declared type, and the name bound.</summary>
     private readonly record struct DefRequirement(string DefType, string DefName)
