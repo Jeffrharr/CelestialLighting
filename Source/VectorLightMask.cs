@@ -414,7 +414,9 @@ public static class VectorLightMask
     // inside GenerateLightingOverlay was measured at 0.2 ms per whole-map rebake and not kept
     // (see MeshReadTicks). Decide is everything before the mesh is touched; Edit is the two
     // vertex passes.
-    public static bool Apply(Map map, Mesh mesh, List<Vector3> verts, CellRect rect)
+    // `final`: whether this is the last edit of the mesh in its rebuild, which lets the write skip
+    // the 1.7 setter (Patch_VectorLightSuppress.WriteColors).
+    public static bool Apply(Map map, Mesh mesh, List<Vector3> verts, CellRect rect, bool final)
     {
         if (mesh == null)
             return false;
@@ -440,7 +442,7 @@ public static class VectorLightMask
 
         long writeStart = System.Diagnostics.Stopwatch.GetTimestamp();
 
-        mesh.colors32 = colors;
+        Patch_VectorLightSuppress.WriteColors(mesh, colors, final);
 
         MeshWriteTicks += System.Diagnostics.Stopwatch.GetTimestamp() - writeStart;
 

@@ -180,7 +180,7 @@ public static class AsAboveSoBelowCompat
             rect.ClipInsideMap(map);
 
             Patch_IndoorSkyOcclusion.ApplyToMesh(map, subMesh, rect, section);
-            Patch_VectorLightSuppress.ApplyToMesh(map, subMesh, rect);
+            Patch_VectorLightSuppress.ApplyToMesh(map, subMesh, rect, final: false);
 
             // §17c runs LAST of the three: it overwrites the occlusion's alpha for cells below the
             // surface band and adds the cave's ambient underneath whatever §27 has just drawn, so the

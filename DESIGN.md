@@ -2322,9 +2322,25 @@ of 900 walking frames). The path refuses anything but the simple case (vertex co
 four-byte `UNorm8` colour attribute) and falls back to `FinalizeMesh`; a section's first build
 always does. Frames are identical with all 91 visible sections force-rebuilt under each arm, and a
 mutant writing zero alpha in place changed 33.9% of the frame, so the identical result is a real
-one and not a stale mesh. UnityStubs' channel cache keeps the previous colours afterwards; that is
-safe because this layer never calls another setter on the mesh, and any rebuild rewrites every
-colour.
+one and not a stale mesh.
+
+**The stub's colour cache must be kept exact.** UnityStubs answers `Mesh.colors32` from a managed
+copy (`_compatColors`) that an in-place write goes around. The first version left it stale, and
+the vector-light gate caught it: `flicker_shadow` read 50 (vanilla's unmasked flood) instead of 4,
+because that probe reads `colors32`, while the frame itself was correct. Any mod reading the overlay
+would have seen the same stale colours, and could have written them back. So every in-place write
+now points that field at the colours it wrote (a reference assignment on the overlay path), and the
+in-place path refuses if the field is ever renamed, which costs speed and never correctness.
+
+**Vanilla's lighting overlay** (`overlay_colors_in_place`). One overlay rebuild on 1.7 could
+re-encode the mesh up to three times: vanilla's own `colors32` write, indoor sky occlusion, and the
+vector-light mask or suppression. The last of those, our Priority.Last postfix, now writes in
+place; no new Harmony patch, so nothing changes for other mods. The mask's mesh write over a
+whole-map rebake (91 sections, 500-lamp colony, four pairs) went from **1.23-1.78 ms to 0.05-0.07
+ms**. Frames identical with every visible section force-rebuilt per arm; a mutant writing black in
+place changed 53.8% of the frame. `vector_light_suite` passes, with only gap-vs-door's open-ground
+run-to-run noise differing (0.52%, the vanilla arm included). As Above, So Below's path keeps the
+setter, because the underground band edits the mesh again straight after.
 
 ## 10. Eclipse: natural and unnatural
 
