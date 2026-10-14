@@ -182,6 +182,14 @@ public static class OpenSkyMask
         }
 
         Mesh mesh = new Mesh { indexFormat = UnityEngine.Rendering.IndexFormat.UInt32 };
+
+        // One storage swap on 1.7 instead of three full re-encodes — see WaylithMeshUpload.
+        if (CelestialLightingFeatures.MeshOneWrite)
+        {
+            WaylithMeshUpload.WritePositionUv(mesh, verts, uvs, tris);
+            return mesh;
+        }
+
         mesh.vertices = verts;
         mesh.uv = uvs;
         mesh.SetTriangles(tris, 0);

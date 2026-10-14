@@ -180,4 +180,16 @@ public class VectorLightMeshMathTests
         Assert.Throws<ArgumentException>(() =>
             VectorLightMeshMath.InterleavePositionUvs(new float[xyz], new float[uv], new float[fieldUvs]));
     }
+
+    [Test]
+    public void InterleavePositionUvs_WithoutFieldUvs_IsThePlainLayout()
+    {
+        // The open-sky mask's mesh: position + uv0 only, the same stride as a plain vector-light fan.
+        float[] xyz = { 1f, 0f, 4f, -2f, 0f, 5f };
+        float[] uv = { 0f, 0f, 0.5f, 0.25f };
+
+        float[] stream = VectorLightMeshMath.InterleavePositionUvs(xyz, uv, default);
+
+        Assert.That(stream, Is.EqualTo(new[] { 1f, 0f, 4f, 0f, 0f, 0f, 0f, -2f, 0f, 5f, 0.5f, 0.25f, 0f, 0f }));
+    }
 }

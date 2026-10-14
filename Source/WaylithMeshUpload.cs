@@ -120,6 +120,23 @@ internal static class WaylithMeshUpload
         WriteIndicesAndApply(mesh, array, data, tris.ToArray(), narrow: false, VectorLightMeshMath.Bounds(xyz));
     }
 
+    // The open-sky mask's whole-map mesh (cloud sheet and sky overlays): position + uv0, 32-bit
+    // indices as it always asked for. Rebuilt only when a roof changes, but each rebuild is the whole
+    // map's unroofed runs — thousands of quads — so three full encodes became one.
+    internal static void WritePositionUv(Mesh mesh, Vector3[] verts, Vector2[] uvs, int[] tris)
+    {
+        System.ReadOnlySpan<float> xyz = MemoryMarshal.Cast<Vector3, float>(verts);
+
+        Mesh.MeshDataArray array = Mesh.AllocateWritableMeshData(1);
+        Mesh.MeshData data = array[0];
+
+        data.SetVertexBufferParams(verts.Length, Layout);
+        data.GetVertexData<float>().CopyFrom(VectorLightMeshMath.InterleavePositionUvs(
+            xyz, MemoryMarshal.Cast<Vector2, float>(uvs), default));
+
+        WriteIndicesAndApply(mesh, array, data, tris, narrow: false, VectorLightMeshMath.Bounds(xyz));
+    }
+
     private static void WriteIndicesAndApply(
         Mesh mesh, Mesh.MeshDataArray array, Mesh.MeshData data, int[] indices, bool narrow,
         VectorLightMeshMath.Box box)
