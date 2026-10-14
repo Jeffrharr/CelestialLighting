@@ -291,6 +291,9 @@
     <!-- Vector-light mesh layout for the one-write upload on 1.7 (WaylithMeshUpload). Standalone:
          takes the bake's float arrays, so it needs nothing above. -->
     <Compile Include="../../Source/VectorLightMeshMath.cs" Link="VectorLightMeshMath.cs" />
+    <!-- Whole-buffer Unity-to-native row flip for in-place texture refreshes on 1.7 (the aurora
+         curtain). Standalone; its test cross-checks VectorLightMath.FlippedRowIndex above. -->
+    <Compile Include="../../Source/TextureRowOrderMath.cs" Link="TextureRowOrderMath.cs" />
     <!-- Pawn-shadow fan-out arithmetic (Gather/BuildFrom), pulled out of VectorLightPawnShadows.cs
          so the batch-and-parallelise task's concurrency oracle test can drive a REAL Parallel.For
          against it. AFTER VectorLightMath above, whose CoverageAt/PawnIlluminance/PawnShadowOpacity

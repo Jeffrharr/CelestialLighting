@@ -407,8 +407,20 @@ public sealed class AuroraCurtainOverlay : SkyOverlay
         _texPrev = _texNew;
         _texNew = retired;
 
-        _texNew.LoadRawTextureData(_pixels);
-        _texNew.Apply(false);
+        // In place on 1.7, where Apply would dispose this texture's Vulkan image and allocate a new
+        // one every sweep — see WaylithFieldUpload. _pixels is Unity row order and the CPU level is
+        // native order, so the rows are flipped on the way in. A texture with no GPU image yet (the
+        // two priming calls at allocation) is refused by TryBegin and takes Apply, which creates it.
+        if (WaylithFieldUpload.TryBegin(_texNew, out WaylithFieldUpload.Target target))
+        {
+            TextureRowOrderMath.FlipRows(_pixels, target.Level, _texNew.width * 4, _texNew.height);
+            target.Upload();
+        }
+        else
+        {
+            _texNew.LoadRawTextureData(_pixels);
+            _texNew.Apply(false);
+        }
 
         BindTextures();
     }
