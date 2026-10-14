@@ -591,6 +591,8 @@ public static class ProbeRegistration
             "vector_light_upload_mesh_ms", VectorLightBakeProbe.Metric.UploadMeshWallMs));
         ProbeRegistry.Register(new VectorLightBakeProbe(
             "vector_light_upload_field_ms", VectorLightBakeProbe.Metric.UploadFieldWallMs));
+        ProbeRegistry.Register(new VectorLightBakeProbe(
+            "vector_light_upload_field_uvs_ms", VectorLightBakeProbe.Metric.UploadFieldUvsWallMs));
         // How the field refreshes split. PIN BOTH OR NEITHER: a UV-only count on its own reads as a
         // working hold in a scene where nothing ever refreshes twice, and a texture-upload count on
         // its own reads as a broken one in a scene where vanilla's glow really is moving.

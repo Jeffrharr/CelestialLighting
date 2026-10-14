@@ -905,7 +905,9 @@ public static class VectorLightOverlay
         // ALWAYS, and not gated on anything. UV1 lives on the mesh, and the mesh was cleared by the
         // rebuild that brought us here; the texture is a separate object and survives. So the cheap
         // half is the half that is never skippable and the expensive half is the one that is.
+        double beforeUvs = clock.Elapsed.TotalMilliseconds;
         UploadFieldUvs(entry, built, light.localGlowGridStartPos, diameter);
+        VectorLightField.UploadFieldUvsWallMs += clock.Elapsed.TotalMilliseconds - beforeUvs;
 
         VectorLightField.UploadFieldWallMs += clock.Elapsed.TotalMilliseconds;
     }
