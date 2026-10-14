@@ -167,7 +167,7 @@ public class VectorLightBuildCullTests
         float lightZ, float radius, bool vectorised, string what)
     {
         VectorLightMath.LightPolygon actual =
-            VectorLightMath.Build(lightX, lightZ, radius, segments, Rays, vectorised);
+            VectorLightMath.BuildCasting(lightX, lightZ, radius, segments, Rays, vectorised);
 
         Assert.That(actual.Count, Is.EqualTo(expected.Count), $"ray count {what}");
 
