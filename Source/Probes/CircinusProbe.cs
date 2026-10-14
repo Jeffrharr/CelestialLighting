@@ -302,6 +302,12 @@ public sealed class CircinusProbe : IProbe
         return value == null ? 0f : Convert.ToSingle(value);
     }
 
+    private static readonly Type[] CollectSignature =
+    {
+        typeof(int), typeof(double).MakeByRefType(), typeof(double).MakeByRefType(),
+        typeof(double).MakeByRefType(), typeof(long).MakeByRefType(), typeof(long).MakeByRefType(),
+    };
+
     private float Statistic()
     {
         if (target == null)
@@ -314,7 +320,11 @@ public sealed class CircinusProbe : IProbe
         if (profiler == null)
             return 0f;
 
-        MethodInfo collect = AccessTools.Method(profiler.GetType(), "CollectStatistics");
+        // BY SIGNATURE, not by name. Circinus added a second overload taking an explicit `now`
+        // cycle, and a name-only lookup then throws AmbiguousMatchException out of every timing
+        // readout — every circ_*_ms probe in a scenario errors while the _patched probes beside them
+        // still pass, so the arms look attached and nothing is measured.
+        MethodInfo collect = AccessTools.Method(profiler.GetType(), "CollectStatistics", CollectSignature);
 
         if (collect == null)
             return 0f;
