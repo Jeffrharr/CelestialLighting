@@ -1669,7 +1669,7 @@ public static class ProbeRegistration
         // instant -- a breakdown of one frame budget, not an A/B -- so simultaneous arming is sound
         // and is the only way to get shares that sum against a parent.
         //
-        // Each target gets Calls + TotalMs + MaxMs + Patched. Calls and Patched are not optional
+        // Each target gets Calls + TotalMs + MaxMs + Patched, plus a Reset. Calls and Patched are not optional
         // detail: TotalMs is meaningless while Calls is zero, and Circinus sheds instrumentation on
         // its own schedule, so an arm that shed mid-run reads zero and looks exactly like an entry
         // point that never ran. Per-call cost is TotalMs/Calls, never AvgMs -- AvgMs is per CYCLE,
@@ -1684,6 +1684,12 @@ public static class ProbeRegistration
                 prefix + "_max_ms", CircinusProbe.Metric.MaxMs, type, method));
             ProbeRegistry.Register(new CircinusProbe(
                 prefix + "_patched", CircinusProbe.Metric.Patched, type, method));
+
+            // Zeroes this target's own window, so a scenario can read several windows of one run
+            // (a first frame, an idle stretch, a stretch with pawns walking) without each reading
+            // carrying the one before it.
+            ProbeRegistry.Register(new CircinusProbe(
+                prefix + "_reset", CircinusProbe.Metric.Reset, type, method));
         }
 
         ProbeRegistry.Register(new CircinusProbe("circinus_available", CircinusProbe.Metric.Available));
