@@ -288,6 +288,9 @@
          nothing else here, since a visibility polygon is answered entirely from a blocker grid and a
          light position. Tools/VectorLightPreview links the same file for offline look-dev. -->
     <Compile Include="../../Source/VectorLightMath.cs" Link="VectorLightMath.cs" />
+    <!-- Vector-light mesh layout for the one-write upload on 1.7 (WaylithMeshUpload). Standalone:
+         takes the bake's float arrays, so it needs nothing above. -->
+    <Compile Include="../../Source/VectorLightMeshMath.cs" Link="VectorLightMeshMath.cs" />
     <!-- Pawn-shadow fan-out arithmetic (Gather/BuildFrom), pulled out of VectorLightPawnShadows.cs
          so the batch-and-parallelise task's concurrency oracle test can drive a REAL Parallel.For
          against it. AFTER VectorLightMath above, whose CoverageAt/PawnIlluminance/PawnShadowOpacity

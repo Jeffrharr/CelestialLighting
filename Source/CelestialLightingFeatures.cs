@@ -1189,6 +1189,27 @@ public static class CelestialLightingFeatures
     // changes — so the two arms should be pixel-identical.
     public static bool VectorLightFieldInPlace = true;
 
+    // Feature key for MeshOneWrite.
+    public const string MeshOneWriteKey = "mesh_one_write";
+
+    // Writes every mesh this mod rebuilds at runtime in ONE storage swap on RimWorld 1.7
+    // (Mesh.MeshData), instead of Clear + SetVertices / SetColors / SetUVs / SetTriangles. Covers the
+    // per-emitter vector-light fans (geometry and field UVs), the vector-light draw batch, the
+    // pawn-shadow batch and the open-sky mask the cloud sheet draws through. See WaylithMeshUpload
+    // for the mechanism.
+    //
+    // WHY IT EXISTS. On 1.7 every one of those setters re-encodes the whole mesh into fresh native
+    // storage, and SetUVs on a mesh written any other way first decodes it all back out. A geometry
+    // change paid four full encodes per emitter and kept the last; the field UVs paid a fifth plus a
+    // decode. Measured on the bake storm (5,030 bakes, alternating arms): the mesh clock 48-64 ms on
+    // against 239-427 ms off, the UV1 write 77-106 ms against 89-183 ms.
+    //
+    // ONE FLAG for all of them because it is one mechanism, and an A/B that flipped half of it would
+    // be measuring a configuration nobody ships. Off is the setter path exactly as before; the bytes
+    // the engine receives are the same either way, and the frames measure as such (A/B median dE 0.58
+    // against a same-build control of 0.58).
+    public static bool MeshOneWrite = true;
+
     // Feature key for VectorLightApertureBeam.
     public const string VectorLightApertureBeamKey = "vector_light_aperture_beam";
 

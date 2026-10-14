@@ -565,6 +565,20 @@ public static class VectorLightOverlay
         }
 
         entry.Mesh = entry.Mesh ?? new Mesh { name = "CelestialLighting_VectorLight" };
+
+        // One storage swap instead of four full re-encodes on 1.7 — see WaylithMeshUpload. Reads
+        // the bake's arrays directly, so it skips the Verts/Uvs/Tris lists entirely; the batch still
+        // builds its combined mesh from AppendGeometry, so the two paths keep one source of truth
+        // for the vertex values, and WaylithMeshUpload's layout reproduces exactly what the setters
+        // below encode from them.
+        if (CelestialLightingFeatures.MeshOneWrite)
+        {
+            WaylithMeshUpload.Write(entry.Mesh, built, altitude);
+            entry.MeshAltitude = altitude;
+            entry.MeshVersion++;
+            return;
+        }
+
         entry.Mesh.Clear();
 
         Verts.Clear();
@@ -590,6 +604,12 @@ public static class VectorLightOverlay
     // the batched arm draws a subtly different frame and the ΔE that is supposed to be 0.00 measures
     // the difference between two copies of one loop. Written once, called twice — the batch passes a
     // non-zero triangle offset and its own lists, and nothing else differs.
+    //
+    // ONE EXCEPTION, on purpose. With mesh_one_write on, the per-emitter mesh skips
+    // these lists and is packed by VectorLightMeshMath.Interleave straight from the bake's arrays,
+    // because on 1.7 the lists only existed to feed the setters that one write replaces. That is a
+    // second statement of the same vertex values (x, altitude, z / u, v), so the two must be kept in
+    // step by hand; the batched-vs-unbatched frame comparison is what catches them drifting.
     internal static void AppendGeometry(
         VectorLightMath.LightMesh built, float altitude,
         List<Vector3> verts, List<Vector2> uvs, List<int> tris)
@@ -1110,6 +1130,18 @@ public static class VectorLightOverlay
         // Slot zero, which on the per-emitter path is not a slot at all: the unbatched variant never
         // reads z, so this writes the zero the channel has always carried. See AppendFieldUvs.
         AppendFieldUvs(built, start.x, start.z, diameter, slot: 0f, VanillaUvs);
+
+        // On 1.7 SetUVs(1) is not a channel write. The one-write geometry upload left the stub's
+        // managed channel cache empty, so SetUVs first decodes the whole mesh back out of native
+        // storage, then re-encodes all of it — measured as the field clock rising by about what the
+        // mesh clock fell. Writing geometry and UV1 together from the bake's arrays is one encode
+        // and no decode. The geometry is the same LightMesh the last write used, and MeshAltitude is
+        // that write's altitude, so only the new channel differs.
+        if (CelestialLightingFeatures.MeshOneWrite)
+        {
+            WaylithMeshUpload.Write(entry.Mesh, built, entry.MeshAltitude, VanillaUvs);
+            return;
+        }
 
         entry.Mesh.SetUVs(1, VanillaUvs);
     }

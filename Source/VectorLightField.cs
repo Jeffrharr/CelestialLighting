@@ -62,6 +62,11 @@ public static class VectorLightField
         public Color Color;
         public Mesh Mesh;
 
+        // The altitude Mesh was last written at. Kept so the field-UV rewrite on 1.7, which writes
+        // the whole mesh again (WaylithMeshUpload), reproduces the geometry write's y exactly rather
+        // than recomputing a value that merely happens to be the same today.
+        public float MeshAltitude;
+
         public MaterialPropertyBlock Props;
 
         // A SECOND block for the indoor multiply layer, because that layer draws this same fan a
