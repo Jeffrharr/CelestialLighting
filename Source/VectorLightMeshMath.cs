@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.InteropServices;
 
 namespace CelestialLighting;
 
@@ -118,5 +119,63 @@ public static class VectorLightMeshMath
         }
 
         return new Box(minX, altitude, minZ, maxX, altitude, maxZ);
+    }
+
+    // ---- Position + colour + uv0: the pawn-shadow batch's layout ----------------------------------
+    //
+    // What SetVertices + SetColors(Color32) + SetUVs(0, Vector2) encoded: position as three floats,
+    // colour as four UNorm8 bytes, uv0 widened to four floats. Waylith packs attributes back to back
+    // in declaration order with no alignment padding (VertexLayout), so the offsets below are the
+    // engine's, not a choice.
+    public const int ColorBytes = 4;
+    public const int ColorOffsetBytes = PositionFloats * sizeof(float);
+    public const int ColorUvOffsetBytes = ColorOffsetBytes + ColorBytes;
+    public const int PositionColorUvStrideBytes = ColorUvOffsetBytes + UvFloats * sizeof(float);
+
+    // xyz: three floats per vertex; rgba: four bytes per vertex; uv: two floats per vertex. Every
+    // length is checked against xyz's vertex count, for the reason Interleave checks fieldUvs.
+    public static byte[] InterleavePositionColorUv(
+        ReadOnlySpan<float> xyz, ReadOnlySpan<byte> rgba, ReadOnlySpan<float> uv)
+    {
+        int count = xyz.Length / PositionFloats;
+
+        if (xyz.Length != count * PositionFloats || rgba.Length != count * ColorBytes || uv.Length != count * 2)
+            throw new ArgumentException(
+                $"channel lengths {xyz.Length}/{rgba.Length}/{uv.Length} do not describe one vertex count");
+
+        byte[] stream = new byte[count * PositionColorUvStrideBytes];
+        Span<byte> bytes = stream;
+
+        for (int i = 0; i < count; i++)
+        {
+            Span<byte> vertex = bytes.Slice(i * PositionColorUvStrideBytes, PositionColorUvStrideBytes);
+            Span<float> position = MemoryMarshal.Cast<byte, float>(vertex.Slice(0, ColorOffsetBytes));
+            Span<float> uv0 = MemoryMarshal.Cast<byte, float>(vertex.Slice(ColorUvOffsetBytes));
+
+            xyz.Slice(i * PositionFloats, PositionFloats).CopyTo(position);
+            rgba.Slice(i * ColorBytes, ColorBytes).CopyTo(vertex.Slice(ColorOffsetBytes));
+            uv.Slice(i * 2, 2).CopyTo(uv0);
+        }
+
+        return stream;
+    }
+
+    // Min/max over three-float positions, for meshes whose vertices do not share one altitude.
+    public static Box Bounds(ReadOnlySpan<float> xyz)
+    {
+        float minX = xyz[0], minY = xyz[1], minZ = xyz[2];
+        float maxX = minX, maxY = minY, maxZ = minZ;
+
+        for (int at = PositionFloats; at < xyz.Length; at += PositionFloats)
+        {
+            minX = Math.Min(minX, xyz[at]);
+            maxX = Math.Max(maxX, xyz[at]);
+            minY = Math.Min(minY, xyz[at + 1]);
+            maxY = Math.Max(maxY, xyz[at + 1]);
+            minZ = Math.Min(minZ, xyz[at + 2]);
+            maxZ = Math.Max(maxZ, xyz[at + 2]);
+        }
+
+        return new Box(minX, minY, minZ, maxX, maxY, maxZ);
     }
 }

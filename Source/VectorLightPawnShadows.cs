@@ -777,11 +777,21 @@ public static class VectorLightPawnShadows
             return;
 
         Mesh mesh = BatchMesh();
-        mesh.Clear();
-        mesh.SetVertices(BatchVerts);
-        mesh.SetColors(BatchColors);
-        mesh.SetUVs(0, BatchUvs);
-        mesh.SetTriangles(BatchTris, 0);
+
+        // One storage swap on 1.7 instead of Clear + four full re-encodes, every frame — see
+        // WaylithMeshUpload.WritePositionColorUv. Same flag as the vector-light meshes: one mechanism.
+        if (CelestialLightingFeatures.MeshOneWrite)
+        {
+            WaylithMeshUpload.WritePositionColorUv(mesh, BatchVerts, BatchColors, BatchUvs, BatchTris);
+        }
+        else
+        {
+            mesh.Clear();
+            mesh.SetVertices(BatchVerts);
+            mesh.SetColors(BatchColors);
+            mesh.SetUVs(0, BatchUvs);
+            mesh.SetTriangles(BatchTris, 0);
+        }
 
         Material material = feathered ? FeatheredBatchMaterial() : FlatBatchMaterial();
 
