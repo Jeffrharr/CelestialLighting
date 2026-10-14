@@ -247,6 +247,19 @@ public static class VectorLightField
         public int FieldStartZ;
         public int FieldDiameter;
 
+        // This emitter's place in the batched draw's roster, and when its geometry last moved. Kept
+        // on the entry rather than in a per-batch dictionary because the draw asks once per emitter
+        // per frame. `BatchOwner` is the batch object whose roster holds it (null when none);
+        // `BatchSlot` is its slot there. The Seen* values are what the roster last observed, so a
+        // change in any of them restarts `BatchSettledSince`. See VectorLightBatchRosterMath.
+        public object BatchOwner;
+        public int BatchSlot;
+        public int BatchSeenMeshVersion = -1;
+        public int BatchSeenStartX;
+        public int BatchSeenStartZ;
+        public int BatchSeenDiameter;
+        public int BatchSettledSince;
+
         // Bumped whenever the geometry or the field this emitter contributes to a batch changed, so
         // the batch can tell a frame where it may reuse its combined mesh and its slices from one
         // where it may not.

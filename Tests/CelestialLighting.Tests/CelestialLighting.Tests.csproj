@@ -291,6 +291,9 @@
     <!-- Vector-light mesh layout for the one-write upload on 1.7 (WaylithMeshUpload). Standalone:
          takes the bake's float arrays, so it needs nothing above. -->
     <Compile Include="../../Source/VectorLightMeshMath.cs" Link="VectorLightMeshMath.cs" />
+    <!-- When a batched vector-light emitter may join its batch, and when the batch rebuilds to admit
+         it (VectorLightDrawBatch's roster). Standalone: frame numbers in, verdicts out. -->
+    <Compile Include="../../Source/VectorLightBatchRosterMath.cs" Link="VectorLightBatchRosterMath.cs" />
     <!-- Whole-buffer Unity-to-native row flip for in-place texture refreshes on 1.7 (the aurora
          curtain). Standalone; its test cross-checks VectorLightMath.FlippedRowIndex above. -->
     <Compile Include="../../Source/TextureRowOrderMath.cs" Link="TextureRowOrderMath.cs" />

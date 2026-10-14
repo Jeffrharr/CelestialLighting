@@ -17136,7 +17136,7 @@ layer upload bypasses it. The slices were briefly row-flipped on the strength of
 taken while the batched pass drew nothing (below), so the flip could not show; once the pass drew,
 it measured as a vertical mirror around each lamp.
 
-**The batched draw matches on 1.7 and ships off.** The batched program is its own shader on 1.7
+**The batched draw matches on 1.7 and ships on, with a roster.** The batched program is its own shader on 1.7
 (`VectorLightMaxBatched` / `VectorLightMaxLiftBatched`, with the decoy variant against the
 hoisted-parameter bug), because Waylith never selects a keyword variant. `Graphics.CopyTexture` into
 an array slice copies nothing there, so slices are filled by layer upload. Its per-emitter arrays
@@ -17147,11 +17147,18 @@ material's arrays and the global ones only, so property-block arrays read as zer
 pass drew nothing: the "about 10% dimmer" frame (p99 ΔE 1.63) was our excess over vanilla going
 missing. With both fixes, `vector_light_draw_batch_ab` measures 0.00% of pixels changed against
 the per-emitter arm at 19 emitters per call, the same as its same-build control, and
-`vector_light_suite` is identical on all 56 captures. It stays off on performance: on the 500-lamp,
-50-pawn plate it halves a paused frame's overlay draw (0.21 to 0.11 ms) but takes a moving one from
-0.28 to 0.71 ms, worst frame 9.0 to 16.5 ms. Any member that moves rebuilds its whole combined mesh,
-and a living colony moves some member of nearly every batch every frame. Rebuilding only the moved
-members' vertex ranges is what would make it worth turning on.
+`vector_light_suite` is identical on all 56 captures.
+
+Its first cut shipped off on performance. On the 500-lamp, 50-pawn plate it halved a paused frame's
+overlay draw but took a moving one from 0.28 to 0.71 ms (worst frame 9.0 to 16.5 ms): any member
+that moved rebuilt its batch's whole combined mesh, and a living colony moves some member of nearly
+every batch every frame. Batches now keep a **roster**. A member whose geometry moves leaves by
+having its slot's strength zeroed (its stale fan still rasterises, adding exactly nothing under
+either blend) and draws itself the shipped way. Once it has held still for 60 frames it may rejoin,
+and a batch rebuilds to readmit joiners at most once per 300 frames, so a lamp beside a busy door
+simply stays individual. Same plate, four pairs, medians: paused 0.21 to 0.12 ms, walking 0.35 to
+0.35 ms, combined-mesh rebuilds per 1,200-frame walking window 760-1,567 down to 8-25. The timing
+rules are `VectorLightBatchRosterMath`.
 
 **Measured** (bake storm, 5,030 bakes, alternating processes): the upload stage 301-316 ms with
 `mesh_one_write` on against 528 ms off, the mesh clock 4-15 ms against 194 ms. Each commit carries
