@@ -95,7 +95,9 @@ public class SectionLayer_NightDesaturation : SectionLayer
 
         // One glow query per cell of the section-plus-skirt window, instead of nine per cell inside
         // it. See NightWashWindow's header for the geometry and the measurement behind it.
+        long started = System.Diagnostics.Stopwatch.GetTimestamp();
         NightWashWindow wash = ResolveWash(rect);
+        long resolved = System.Diagnostics.Stopwatch.GetTimestamp();
 
         byte peak = 0;
         for (int x = rect.minX; x <= rect.maxX; x++)
@@ -121,7 +123,47 @@ public class SectionLayer_NightDesaturation : SectionLayer
         // at noon bakes alphas of 0, disables itself, and costs the same nothing it used to; only
         // sections that actually contain enclosed cells draw.
         subMesh.disabled = peak == 0;
+        long coloured = System.Diagnostics.Stopwatch.GetTimestamp();
+        FinalizeColors(subMesh);
+        long finalized = System.Diagnostics.Stopwatch.GetTimestamp();
+
+        ResolveTicks += resolved - started;
+        ColorTicks += coloured - resolved;
+        FinalizeTicks += finalized - coloured;
+        Regenerations++;
+    }
+
+    // The colours into the mesh, in place where 1.7 allows it (WaylithMeshUpload.TryWriteColors).
+    // FinalizeMesh is the fallback and the shipped path with the flag off; either way the submesh
+    // ends finalized, which LayerSubMesh.Clear relies on next time.
+    private static void FinalizeColors(LayerSubMesh subMesh)
+    {
+        if (CelestialLightingFeatures.MeshColorsInPlace
+            && WaylithMeshUpload.TryWriteColors(subMesh.mesh, subMesh.colors))
+        {
+            subMesh.finalized = true;
+            return;
+        }
+
         subMesh.FinalizeMesh(MeshParts.Colors);
+    }
+
+    // Stage clocks for the live harness (NightDesaturationStageProbe). Main-thread only, like every
+    // section rebuild; a handful of timestamp reads per section is noise against its ~110 us.
+    public static long ResolveTicks;
+    public static long ColorTicks;
+    public static long FinalizeTicks;
+    public static int Regenerations;
+
+    public static float StageMs(long ticks) =>
+        (float)(ticks * 1000.0 / System.Diagnostics.Stopwatch.Frequency);
+
+    public static void ResetStageClocks()
+    {
+        ResolveTicks = 0;
+        ColorTicks = 0;
+        FinalizeTicks = 0;
+        Regenerations = 0;
     }
 
     // Leaves nothing drawable behind when the feature is off.
