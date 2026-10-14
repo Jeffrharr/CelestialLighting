@@ -2429,6 +2429,17 @@ public static class ProbeRegistration
             },
             defaultEnabled: true);
 
+        // ForceRebuild for the same reason: an arm flip has to re-upload every mesh through the path
+        // it selects, or the arm measures geometry the previous arm wrote.
+        FeatureRegistry.Register(
+            CelestialLightingFeatures.MeshOneWriteKey,
+            enabled =>
+            {
+                CelestialLightingFeatures.MeshOneWrite = enabled;
+                VectorLightRedraw.ForceRebuild();
+            },
+            defaultEnabled: true);
+
         // The four halves of one question, registered over one shared walk. Pinned together or not
         // at all: a peak of zero means something entirely different when the cell count is zero, and
         // reading one without the other is how a probe reports a healthy number about nothing.
