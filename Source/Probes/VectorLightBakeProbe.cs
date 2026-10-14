@@ -118,6 +118,10 @@ public sealed class VectorLightBakeProbe : IProbe
 
         // The UV1 mesh write inside UploadFieldWallMs (a part of it, not an addition).
         UploadFieldUvsWallMs,
+
+        // The in-place texture refresh split: texel computation vs engine upload (parts, not additions).
+        UploadFieldFillWallMs,
+        UploadFieldGpuWallMs,
         FieldTextureUploads,
         FieldUvOnlyUploads,
 
@@ -414,6 +418,12 @@ public sealed class VectorLightBakeProbe : IProbe
 
         if (metric == Metric.UploadFieldUvsWallMs)
             return (float)VectorLightField.UploadFieldUvsWallMs;
+
+        if (metric == Metric.UploadFieldFillWallMs)
+            return (float)VectorLightField.UploadFieldFillWallMs;
+
+        if (metric == Metric.UploadFieldGpuWallMs)
+            return (float)VectorLightField.UploadFieldGpuWallMs;
 
         if (metric == Metric.FieldTextureUploads)
             return VectorLightField.FieldTextureUploads;
