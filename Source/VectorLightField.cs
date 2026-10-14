@@ -67,6 +67,12 @@ public static class VectorLightField
         // than recomputing a value that merely happens to be the same today.
         public float MeshAltitude;
 
+        // New geometry is waiting to be written to Mesh. On 1.7 the geometry write is DEFERRED to the
+        // field pass that follows it in the same DrawLight call, so a shader-max emitter writes its
+        // mesh once (geometry + UV1) instead of twice; FlushPendingGeometry writes the plain layout
+        // when no field pass took it. Never true across a draw — see DrawLight.
+        public bool GeometryPending;
+
         public MaterialPropertyBlock Props;
 
         // A SECOND block for the indoor multiply layer, because that layer draws this same fan a
@@ -411,6 +417,8 @@ public static class VectorLightField
         UploadMeshWallMs = 0.0;
         UploadFieldWallMs = 0.0;
         UploadFieldUvsWallMs = 0.0;
+        UploadFieldFillWallMs = 0.0;
+        UploadFieldGpuWallMs = 0.0;
         FieldTextureUploads = 0;
         FieldUvOnlyUploads = 0;
         PropsWrites = 0;
@@ -808,6 +816,12 @@ public static class VectorLightField
     // managed arrays and re-encodes all of it, so it may be most of what the field clock reads even
     // after the texture went in place. Split out so that is measured rather than assumed.
     public static double UploadFieldUvsWallMs;
+
+    // The in-place texture refresh's two halves, also INSIDE UploadFieldWallMs: computing the texels
+    // (FillField, pure CPU, a vectorising candidate) and handing them to the engine (staging buffer,
+    // upload lock). Which one dominates decides whether the next step is SIMD or fewer upload calls.
+    public static double UploadFieldFillWallMs;
+    public static double UploadFieldGpuWallMs;
 
     // The two ways a glow-field refresh can end: the texture refilled and pushed to the GPU, or only
     // UV1 rewritten because the texture was already right.

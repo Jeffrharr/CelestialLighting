@@ -172,6 +172,10 @@ public static class VectorLightOverlay
         if (maxDrawing && (entry.SampleDirty || entry.FieldUvsDirty))
             UploadVanillaField(map, entry);
 
+        // Before anything below can draw entry.Mesh: the field pass above writes deferred geometry
+        // together with UV1 when it runs to the end, and every other way through leaves it here.
+        FlushPendingGeometry(entry);
+
         Color color = entry.Color;
 
         // The four values the block will carry this frame, decided before any of them is written so
@@ -573,8 +577,11 @@ public static class VectorLightOverlay
         // below encode from them.
         if (CelestialLightingFeatures.MeshOneWrite)
         {
-            WaylithMeshUpload.Write(entry.Mesh, built, altitude);
+            // Deferred, not written: DrawLight calls the field pass next, which on a shader-max
+            // frame rewrites the whole mesh with UV1 anyway — the geometry write was the first of
+            // two full writes per rebuild. FlushPendingGeometry is the backstop.
             entry.MeshAltitude = altitude;
+            entry.GeometryPending = true;
             entry.MeshVersion++;
             return;
         }
@@ -595,6 +602,20 @@ public static class VectorLightOverlay
         // because this is where the vertices actually change — Rebuild can return early with no mesh
         // at all, and a batch rebuilt for that would copy the previous geometry a second time.
         entry.MeshVersion++;
+    }
+
+    // Writes geometry UploadMesh deferred, when the field pass did not write it with UV1 — a non-max
+    // frame, an emitter vanilla has no per-light arrays for, a zero diameter. The plain layout, which
+    // is what the setter path left on the mesh in exactly those cases.
+    private static void FlushPendingGeometry(VectorLightField.LightEntry entry)
+    {
+        if (!entry.GeometryPending)
+            return;
+
+        entry.GeometryPending = false;
+
+        if (entry.Mesh != null)
+            WaylithMeshUpload.Write(entry.Mesh, entry.Built, entry.MeshAltitude);
     }
 
     // One emitter's fan appended to whatever lists it is handed.
@@ -1019,8 +1040,13 @@ public static class VectorLightOverlay
         if (CelestialLightingFeatures.VectorLightFieldInPlace
             && WaylithFieldUpload.TryBegin(field, out WaylithFieldUpload.Target target))
         {
+            System.Diagnostics.Stopwatch fillClock = System.Diagnostics.Stopwatch.StartNew();
             FillField(entry, new WaylithFieldUpload.NativeOrderSink(target.Level, diameter), colors, diameter, start, lightCell, voidCells, gapParity, bentPath);
+            VectorLightField.UploadFieldFillWallMs += fillClock.Elapsed.TotalMilliseconds;
+
+            fillClock.Restart();
             target.Upload();
+            VectorLightField.UploadFieldGpuWallMs += fillClock.Elapsed.TotalMilliseconds;
             return;
         }
 
@@ -1140,6 +1166,7 @@ public static class VectorLightOverlay
         if (CelestialLightingFeatures.MeshOneWrite)
         {
             WaylithMeshUpload.Write(entry.Mesh, built, entry.MeshAltitude, VanillaUvs);
+            entry.GeometryPending = false;
             return;
         }
 
